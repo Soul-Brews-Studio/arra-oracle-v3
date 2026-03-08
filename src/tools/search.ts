@@ -8,6 +8,7 @@
 
 import { logSearch } from '../server/logging.ts';
 import { detectProject } from '../server/project-detect.ts';
+import { getVectorStoreByModel } from '../vector/factory.ts';
 import type { ToolContext, ToolResponse, OracleSearchInput } from './types.ts';
 
 export const searchToolDef = {
@@ -49,6 +50,11 @@ export const searchToolDef = {
       cwd: {
         type: 'string',
         description: 'Auto-detect project from working directory path (follows symlinks to ghq paths)'
+      },
+      model: {
+        type: 'string',
+        enum: ['nomic', 'qwen3'],
+        description: 'Embedding model: nomic (default, fast 768-dim) or qwen3 (cross-language Thai↔English, 4096-dim)',
       }
     },
     required: ['query']
@@ -112,7 +118,8 @@ export async function vectorSearch(
   ctx: ToolContext,
   query: string,
   type: string,
-  limit: number
+  limit: number,
+  model?: string
 ): Promise<Array<{
   id: string;
   type: string;
@@ -124,9 +131,10 @@ export async function vectorSearch(
 }>> {
   try {
     const whereFilter = type !== 'all' ? { type } : undefined;
-    console.error(`[VectorSearch] Query: "${query.substring(0, 50)}..." limit=${limit}`);
+    const store = model ? getVectorStoreByModel(model) : ctx.vectorStore;
+    console.error(`[VectorSearch] Query: "${query.substring(0, 50)}..." limit=${limit} model=${model || 'default'}`);
 
-    const results = await ctx.vectorStore.query(query, limit, whereFilter);
+    const results = await store.query(query, limit, whereFilter);
     console.error(`[VectorSearch] Results: ${results.ids?.length || 0} documents`);
 
     if (!results.ids || results.ids.length === 0) {
@@ -281,7 +289,7 @@ export function combineResults(
 
 export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): Promise<ToolResponse> {
   const startTime = Date.now();
-  const { query, type = 'all', limit = 5, offset = 0, mode = 'hybrid', project, cwd } = input;
+  const { query, type = 'all', limit = 5, offset = 0, mode = 'hybrid', project, cwd, model } = input;
 
   if (!query || query.trim().length === 0) {
     throw new Error('Query cannot be empty');
@@ -332,7 +340,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
   let vecResults: Awaited<ReturnType<typeof vectorSearch>> = [];
   if (mode !== 'fts') {
     try {
-      vecResults = await vectorSearch(ctx, query, type, limit * 2);
+      vecResults = await vectorSearch(ctx, query, type, limit * 2, model);
     } catch (error) {
       vectorSearchError = true;
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -396,7 +404,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
     metadata.warning = warning;
   }
 
-  console.error(`[MCP:SEARCH] "${query}" (${type}, ${mode}) → ${results.length} results in ${searchTime}ms`);
+  console.error(`[MCP:SEARCH] "${query}" (${type}, ${mode}, model=${model || 'default'}) → ${results.length} results in ${searchTime}ms`);
 
   try {
     logSearch(query, type, mode, results.length, searchTime, results);

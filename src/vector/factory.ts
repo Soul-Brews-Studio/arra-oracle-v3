@@ -2,7 +2,7 @@
  * Vector Store Factory
  *
  * Creates the right VectorStoreAdapter + EmbeddingProvider from env vars.
- * Defaults to ChromaDB for backward compatibility.
+ * Supports model-based registry for dual-index (nomic + qwen3).
  */
 
 import path from 'path';
@@ -44,7 +44,8 @@ export interface VectorStoreConfig {
  *   CLOUDFLARE_API_TOKEN      = CF API token (for cloudflare-vectorize)
  */
 export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAdapter {
-  const homeDir = process.env.HOME || process.env.USERPROFILE || '/tmp';
+  const home = process.env.HOME || process.env.USERPROFILE;
+  if (!home) throw new Error('HOME environment variable not set — cannot resolve vector DB paths');
 
   const type = config.type
     || (process.env.ORACLE_VECTOR_DB as VectorDBType)
@@ -56,7 +57,7 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
     case 'sqlite-vec': {
       const dbPath = config.dataPath
         || process.env.ORACLE_VECTOR_DB_PATH
-        || path.join(homeDir, '.oracle', 'vectors.db');
+        || path.join(home,'.oracle', 'vectors.db');
 
       const embeddingType = config.embeddingProvider
         || (process.env.ORACLE_EMBEDDING_PROVIDER as EmbeddingProviderType)
@@ -72,7 +73,7 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
     case 'lancedb': {
       const dbPath = config.dataPath
         || process.env.ORACLE_VECTOR_DB_PATH
-        || path.join(homeDir, '.oracle', 'lancedb');
+        || path.join(home,'.oracle', 'lancedb');
 
       const embeddingType = config.embeddingProvider
         || (process.env.ORACLE_EMBEDDING_PROVIDER as EmbeddingProviderType)
@@ -120,9 +121,71 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
 
     case 'chroma':
     default: {
-      const dataPath = config.dataPath || path.join(homeDir, '.chromadb');
+      const dataPath = config.dataPath || path.join(home,'.chromadb');
       const pythonVersion = config.pythonVersion || '3.12';
       return new ChromaMcpAdapter(collectionName, dataPath, pythonVersion);
     }
   }
+}
+
+// ============================================================================
+// Model-based registry for dual-index search
+// ============================================================================
+
+function homeDir(): string {
+  const home = process.env.HOME || process.env.USERPROFILE;
+  if (!home) throw new Error('HOME environment variable not set — cannot resolve vector DB paths');
+  return home;
+}
+
+/** Known embedding model presets */
+export const EMBEDDING_MODELS: Record<string, { collection: string; model: string; dataPath?: string }> = {
+  nomic: {
+    collection: 'oracle_knowledge',
+    model: 'nomic-embed-text',
+    dataPath: path.join(homeDir(), '.chromadb'),  // legacy location from initial indexer
+  },
+  qwen3: {
+    collection: 'oracle_knowledge_qwen3',
+    model: 'qwen3-embedding',
+    dataPath: path.join(homeDir(), '.oracle', 'lancedb'),
+  },
+};
+
+const modelStoreCache = new Map<string, VectorStoreAdapter>();
+
+/**
+ * Get a vector store for a specific embedding model.
+ * Uses LanceDB + Ollama. Caches instances by model key.
+ */
+const connectPromises = new Map<string, Promise<void>>();
+
+export function getVectorStoreByModel(model?: string): VectorStoreAdapter {
+  const key = model && EMBEDDING_MODELS[model] ? model : 'nomic';
+  let store = modelStoreCache.get(key);
+  if (!store) {
+    const preset = EMBEDDING_MODELS[key];
+    store = createVectorStore({
+      type: 'lancedb',
+      collectionName: preset.collection,
+      embeddingProvider: 'ollama',
+      embeddingModel: preset.model,
+      ...(preset.dataPath && { dataPath: preset.dataPath }),
+    });
+    modelStoreCache.set(key, store);
+    // Auto-connect in background (non-blocking)
+    connectPromises.set(key, store.connect().catch(e =>
+      console.warn(`[VectorRegistry] Failed to connect ${key}:`, e instanceof Error ? e.message : String(e))
+    ));
+  }
+  return store;
+}
+
+/** Ensure a model's store is connected. Call before first query. */
+export async function ensureVectorStoreConnected(model?: string): Promise<VectorStoreAdapter> {
+  const key = model && EMBEDDING_MODELS[model] ? model : 'nomic';
+  const store = getVectorStoreByModel(model);
+  const pending = connectPromises.get(key);
+  if (pending) await pending;
+  return store;
 }

@@ -383,8 +383,9 @@ app.get('/api/search', async (c) => {
   const mode = (c.req.query('mode') || 'hybrid') as 'hybrid' | 'fts' | 'vector';
   const project = c.req.query('project'); // Explicit project filter
   const cwd = c.req.query('cwd');         // Auto-detect project from cwd
+  const model = c.req.query('model');     // Embedding model: 'nomic' (default) or 'qwen3'
 
-  const result = await handleSearch(q, type, limit, offset, mode, project, cwd);
+  const result = await handleSearch(q, type, limit, offset, mode, project, cwd, model);
   return c.json({ ...result, query: q });
 });
 
@@ -411,8 +412,9 @@ app.get('/api/similar', async (c) => {
     return c.json({ error: 'Missing query parameter: id' }, 400);
   }
   const limit = parseInt(c.req.query('limit') || '5');
+  const model = c.req.query('model');
   try {
-    const result = await handleSimilar(id, limit);
+    const result = await handleSimilar(id, limit, model);
     return c.json(result);
   } catch (e: any) {
     return c.json({ error: e.message, results: [], docId: id }, 500);

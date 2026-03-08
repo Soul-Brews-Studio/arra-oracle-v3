@@ -12,20 +12,14 @@ import { db, sqlite, oracleDocuments, indexingStatus } from '../db/index.ts';
 import { REPO_ROOT } from '../config.ts';
 import { logSearch, logDocumentAccess, logLearning } from './logging.ts';
 import type { SearchResult, SearchResponse } from './types.ts';
-import { createVectorStore } from '../vector/factory.ts';
+import { getVectorStoreByModel, ensureVectorStoreConnected, EMBEDDING_MODELS } from '../vector/factory.ts';
 import type { VectorStoreAdapter } from '../vector/types.ts';
 import { detectProject } from './project-detect.ts';
 import { coerceConcepts } from '../tools/learn.ts';
 
-// Singleton VectorStoreAdapter for vector search
-// HTTP server can use this because it's NOT an MCP server (no stdio conflict)
-let vectorStore: VectorStoreAdapter | null = null;
-
-function getVectorStore(): VectorStoreAdapter {
-  if (!vectorStore) {
-    vectorStore = createVectorStore();
-  }
-  return vectorStore;
+// Use shared model-based vector store registry
+async function getVectorStore(model?: string): Promise<VectorStoreAdapter> {
+  return ensureVectorStoreConnected(model);
 }
 
 /**
@@ -39,8 +33,9 @@ export async function handleSearch(
   offset: number = 0,
   mode: 'hybrid' | 'fts' | 'vector' = 'hybrid',
   project?: string,  // If set: project + universal. If null/undefined: universal only
-  cwd?: string       // Auto-detect project from cwd if project not specified
-): Promise<SearchResponse & { mode?: string; warning?: string }> {
+  cwd?: string,      // Auto-detect project from cwd if project not specified
+  model?: string     // Embedding model: 'nomic' (default, fast) or 'qwen3' (cross-language Thai)
+): Promise<SearchResponse & { mode?: string; warning?: string; model?: string }> {
   // Auto-detect project from cwd if not explicitly specified
   const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
   const startTime = Date.now();
@@ -124,8 +119,9 @@ export async function handleSearch(
 
   if (mode !== 'fts') {
     try {
-      console.log(`[Hybrid] Starting vector search for: "${query.substring(0, 30)}..."`);
-      const client = getVectorStore();
+      const resolvedModel = model && EMBEDDING_MODELS[model] ? model : undefined;
+      console.log(`[Hybrid] Starting vector search for: "${query.substring(0, 30)}..." model=${resolvedModel || 'default'}`);
+      const client = await getVectorStore(resolvedModel);
       const whereFilter = type !== 'all' ? { type } : undefined;
       const chromaResults = await client.query(query, limit * 2, whereFilter);
 
@@ -182,7 +178,7 @@ export async function handleSearch(
   let total = Math.max(ftsTotal, combined.length);
   if (mode === 'vector' && vectorResults.length > 0) {
     try {
-      const client = getVectorStore();
+      const client = await getVectorStore(model && EMBEDDING_MODELS[model] ? model : undefined);
       const stats = await client.getStats();
       if (stats.count > 0) total = stats.count;
     } catch (error) {
@@ -204,6 +200,7 @@ export async function handleSearch(
     offset,
     limit,
     mode,
+    ...(model && EMBEDDING_MODELS[model] && { model }),
     ...(warning && { warning })
   };
 }
@@ -577,10 +574,11 @@ export function handleGraph(limitPerType = 310) {
  */
 export async function handleSimilar(
   docId: string,
-  limit: number = 5
+  limit: number = 5,
+  model?: string
 ): Promise<{ results: SearchResult[]; docId: string }> {
   try {
-    const client = getVectorStore();
+    const client = await getVectorStore(model && EMBEDDING_MODELS[model] ? model : undefined);
     const chromaResults = await client.queryById(docId, limit);
 
     if (!chromaResults.ids || chromaResults.ids.length === 0) {
@@ -795,7 +793,7 @@ export async function handleVectorStats(): Promise<{
 }> {
   const timeout = parseInt(process.env.ORACLE_CHROMA_TIMEOUT || '5000', 10);
   try {
-    const client = getVectorStore();
+    const client = await getVectorStore();
     const stats = await Promise.race([
       client.getStats(),
       new Promise<never>((_, reject) =>
