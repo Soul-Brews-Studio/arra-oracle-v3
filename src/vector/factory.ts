@@ -150,6 +150,11 @@ export const EMBEDDING_MODELS: Record<string, { collection: string; model: strin
     model: 'qwen3-embedding',
     dataPath: path.join(homeDir(), '.oracle', 'lancedb'),
   },
+  'bge-m3': {
+    collection: 'oracle_knowledge_bge_m3',
+    model: 'bge-m3',
+    dataPath: path.join(homeDir(), '.oracle', 'lancedb'),
+  },
 };
 
 const modelStoreCache = new Map<string, VectorStoreAdapter>();

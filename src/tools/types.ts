@@ -37,7 +37,7 @@ export interface OracleSearchInput {
   mode?: 'hybrid' | 'fts' | 'vector';
   project?: string;
   cwd?: string;
-  model?: 'nomic' | 'qwen3';
+  model?: 'nomic' | 'qwen3' | 'bge-m3';
 }
 
 export interface OracleReflectInput {}

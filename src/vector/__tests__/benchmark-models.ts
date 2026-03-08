@@ -138,12 +138,12 @@ async function benchModel(model: string): Promise<ModelResult> {
 // ============================================================================
 
 async function main() {
-  console.log('Embedding Model Benchmark: nomic-embed-text vs qwen3-embedding');
+  console.log('Embedding Model Benchmark: nomic-embed-text vs bge-m3 vs qwen3-embedding');
   console.log(`Corpus: ${DOCS.length} docs (${DOCS.filter(d => d.metadata.lang === 'th').length} Thai, ${DOCS.filter(d => d.metadata.lang === 'en').length} English)`);
   console.log(`Queries: ${QUERIES.length} (${QUERIES.filter(q => /[\u0E00-\u0E7F]/.test(q.text)).length} Thai, ${QUERIES.filter(q => !/[\u0E00-\u0E7F]/.test(q.text)).length} English)`);
   console.log(`Machine: ${os.hostname()} (${os.cpus().length} CPUs)`);
 
-  const models = ['nomic-embed-text', 'qwen3-embedding'];
+  const models = ['nomic-embed-text', 'bge-m3', 'qwen3-embedding'];
   const results: ModelResult[] = [];
 
   for (const model of models) {

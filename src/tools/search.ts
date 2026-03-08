@@ -53,8 +53,8 @@ export const searchToolDef = {
       },
       model: {
         type: 'string',
-        enum: ['nomic', 'qwen3'],
-        description: 'Embedding model: nomic (default, fast 768-dim) or qwen3 (cross-language Thai↔English, 4096-dim)',
+        enum: ['nomic', 'qwen3', 'bge-m3'],
+        description: 'Embedding model: nomic (default, fast 768-dim), qwen3 (cross-language Thai↔English, 4096-dim), or bge-m3 (multilingual, 1024-dim)',
       }
     },
     required: ['query']
