@@ -8,7 +8,7 @@
 
 import { logSearch } from '../server/logging.ts';
 import { detectProject } from '../server/project-detect.ts';
-import { getVectorStoreByModel } from '../vector/factory.ts';
+import { ensureVectorStoreConnected } from '../vector/factory.ts';
 import type { ToolContext, ToolResponse, OracleSearchInput } from './types.ts';
 
 export const searchToolDef = {
@@ -131,7 +131,7 @@ export async function vectorSearch(
 }>> {
   try {
     const whereFilter = type !== 'all' ? { type } : undefined;
-    const store = model ? getVectorStoreByModel(model) : ctx.vectorStore;
+    const store = model ? await ensureVectorStoreConnected(model) : ctx.vectorStore;
     console.error(`[VectorSearch] Query: "${query.substring(0, 50)}..." limit=${limit} model=${model || 'default'}`);
 
     const results = await store.query(query, limit, whereFilter);

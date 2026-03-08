@@ -138,24 +138,44 @@ function homeDir(): string {
   return home;
 }
 
-/** Known embedding model presets */
-export const EMBEDDING_MODELS: Record<string, { collection: string; model: string; dataPath?: string }> = {
-  nomic: {
-    collection: 'oracle_knowledge',
-    model: 'nomic-embed-text',
-    dataPath: path.join(homeDir(), '.oracle', 'lancedb'),
+/** Known embedding model presets (resolved lazily to avoid import-time HOME access) */
+let _embeddingModels: Record<string, { collection: string; model: string; dataPath?: string }> | null = null;
+
+export function getEmbeddingModels(): Record<string, { collection: string; model: string; dataPath?: string }> {
+  if (!_embeddingModels) {
+    const home = homeDir();
+    _embeddingModels = {
+      nomic: {
+        collection: 'oracle_knowledge',
+        model: 'nomic-embed-text',
+        dataPath: path.join(home, '.oracle', 'lancedb'),
+      },
+      qwen3: {
+        collection: 'oracle_knowledge_qwen3',
+        model: 'qwen3-embedding',
+        dataPath: path.join(home, '.oracle', 'lancedb'),
+      },
+      'bge-m3': {
+        collection: 'oracle_knowledge_bge_m3',
+        model: 'bge-m3',
+        dataPath: path.join(home, '.oracle', 'lancedb'),
+      },
+    };
+  }
+  return _embeddingModels;
+}
+
+/** @deprecated Use getEmbeddingModels() — kept for backward compat */
+export const EMBEDDING_MODELS = new Proxy({} as Record<string, { collection: string; model: string; dataPath?: string }>, {
+  get(_, prop: string) { return getEmbeddingModels()[prop]; },
+  has(_, prop: string) { return prop in getEmbeddingModels(); },
+  ownKeys() { return Object.keys(getEmbeddingModels()); },
+  getOwnPropertyDescriptor(_, prop: string) {
+    const models = getEmbeddingModels();
+    if (prop in models) return { configurable: true, enumerable: true, value: models[prop] };
+    return undefined;
   },
-  qwen3: {
-    collection: 'oracle_knowledge_qwen3',
-    model: 'qwen3-embedding',
-    dataPath: path.join(homeDir(), '.oracle', 'lancedb'),
-  },
-  'bge-m3': {
-    collection: 'oracle_knowledge_bge_m3',
-    model: 'bge-m3',
-    dataPath: path.join(homeDir(), '.oracle', 'lancedb'),
-  },
-};
+});
 
 const modelStoreCache = new Map<string, VectorStoreAdapter>();
 
@@ -166,10 +186,11 @@ const modelStoreCache = new Map<string, VectorStoreAdapter>();
 const connectPromises = new Map<string, Promise<void>>();
 
 export function getVectorStoreByModel(model?: string): VectorStoreAdapter {
-  const key = model && EMBEDDING_MODELS[model] ? model : 'bge-m3';
+  const models = getEmbeddingModels();
+  const key = model && models[model] ? model : 'bge-m3';
   let store = modelStoreCache.get(key);
   if (!store) {
-    const preset = EMBEDDING_MODELS[key];
+    const preset = models[key];
     store = createVectorStore({
       type: 'lancedb',
       collectionName: preset.collection,
@@ -188,7 +209,8 @@ export function getVectorStoreByModel(model?: string): VectorStoreAdapter {
 
 /** Ensure a model's store is connected. Call before first query. */
 export async function ensureVectorStoreConnected(model?: string): Promise<VectorStoreAdapter> {
-  const key = model && EMBEDDING_MODELS[model] ? model : 'bge-m3';
+  const models = getEmbeddingModels();
+  const key = model && models[model] ? model : 'bge-m3';
   const store = getVectorStoreByModel(model);
   const pending = connectPromises.get(key);
   if (pending) await pending;
