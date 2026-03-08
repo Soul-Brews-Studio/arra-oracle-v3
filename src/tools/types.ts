@@ -89,6 +89,7 @@ export interface OracleScheduleAddInput {
   time?: string;
   notes?: string;
   recurring?: 'daily' | 'weekly' | 'monthly';
+  tempo?: 'allegro' | 'andante' | 'adagio';
 }
 
 export interface OracleScheduleListInput {
@@ -97,5 +98,6 @@ export interface OracleScheduleListInput {
   to?: string;
   filter?: string;
   status?: 'pending' | 'done' | 'cancelled' | 'all';
+  tempo?: 'allegro' | 'andante' | 'adagio' | 'all';
   limit?: number;
 }

@@ -9,6 +9,7 @@
  * - Filter by day, range, or keyword
  * - Status: pending / done / cancelled
  * - Recurring events (daily/weekly/monthly)
+ * - Tempo: allegro (developer/coding), andante (runner), adagio (musician)
  */
 
 import fs from 'fs';
@@ -111,6 +112,17 @@ function fmtLocal(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/**
+ * Format a tempo value as an emoji-prefixed label for markdown export.
+ * allegro = ⚡ (fast/developer), andante = 🏃 (steady/runner), adagio = 🎵 (slow/musician)
+ */
+export function formatTempoLabel(tempo: string | null | undefined): string {
+  if (tempo === 'allegro') return '⚡ allegro';
+  if (tempo === 'andante') return '🏃 andante';
+  if (tempo === 'adagio') return '🎵 adagio';
+  return '';
+}
+
 // ============================================================================
 // Tool definitions
 // ============================================================================
@@ -141,6 +153,11 @@ export const scheduleAddToolDef = {
         type: 'string',
         description: 'Optional recurrence: "daily", "weekly", "monthly"',
         enum: ['daily', 'weekly', 'monthly']
+      },
+      tempo: {
+        type: 'string',
+        description: 'Optional activity tempo — allegro (developer/coding, fast iteration), andante (runner/training, steady pace), adagio (musician/creative, slow and reflective)',
+        enum: ['allegro', 'andante', 'adagio']
       }
     },
     required: ['date', 'event']
@@ -149,7 +166,7 @@ export const scheduleAddToolDef = {
 
 export const scheduleListToolDef = {
   name: 'oracle_schedule_list',
-  description: 'List appointments from the shared schedule. Filter by date, range, or keyword. Defaults to today + 14 days.',
+  description: 'List appointments from the shared schedule. Filter by date, range, keyword, or tempo. Defaults to today + 14 days.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -173,6 +190,11 @@ export const scheduleListToolDef = {
         type: 'string',
         description: 'Filter by status',
         enum: ['pending', 'done', 'cancelled', 'all']
+      },
+      tempo: {
+        type: 'string',
+        description: 'Filter by activity tempo — allegro (developer/coding), andante (runner/training), adagio (musician/creative), or all',
+        enum: ['allegro', 'andante', 'adagio', 'all']
       },
       limit: {
         type: 'number',
@@ -198,6 +220,7 @@ export async function handleScheduleAdd(ctx: ToolContext, input: OracleScheduleA
     event,
     notes: notes || null,
     recurring: input.recurring || null,
+    tempo: input.tempo || null,
     status: 'pending',
     createdAt: now,
     updatedAt: now,
@@ -217,6 +240,7 @@ export async function handleScheduleAdd(ctx: ToolContext, input: OracleScheduleA
         event,
         time: time || 'TBD',
         notes: notes || '',
+        tempo: input.tempo || null,
         message: 'Event added to schedule'
       }, null, 2)
     }]
@@ -257,6 +281,10 @@ export async function handleScheduleList(ctx: ToolContext, input: OracleSchedule
     )!);
   }
 
+  if (input.tempo && input.tempo !== 'all') {
+    conditions.push(eq(schedule.tempo, input.tempo));
+  }
+
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
   const events = ctx.db.select()
@@ -286,6 +314,7 @@ export async function handleScheduleList(ctx: ToolContext, input: OracleSchedule
           event: e.event,
           notes: e.notes,
           recurring: e.recurring,
+          tempo: e.tempo || null,
           status: e.status,
         })),
         byDate,
@@ -319,12 +348,13 @@ function exportScheduleToMarkdown(ctx: ToolContext): void {
     const d = new Date(month + '-01');
     const monthName = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     md += `\n## ${monthName}\n\n`;
-    md += `| Date | Time | Event | Notes |\n`;
-    md += `|------|------|-------|-------|\n`;
+    md += `| Date | Time | Event | Tempo | Notes |\n`;
+    md += `|------|------|-------|-------|-------|\n`;
     for (const ev of monthEvents) {
       const dateDisplay = ev.dateRaw || ev.date;
       const recur = ev.recurring ? ` (${ev.recurring})` : '';
-      md += `| ${dateDisplay} | ${ev.time || 'TBD'} | ${ev.event}${recur} | ${ev.notes || ''} |\n`;
+      const tempoEmoji = formatTempoLabel(ev.tempo);
+      md += `| ${dateDisplay} | ${ev.time || 'TBD'} | ${ev.event}${recur} | ${tempoEmoji} | ${ev.notes || ''} |\n`;
     }
   }
 

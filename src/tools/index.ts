@@ -65,7 +65,7 @@ export { inboxToolDef, handleInbox } from './inbox.ts';
 export { verifyToolDef, handleVerify } from './verify.ts';
 
 // Schedule
-export { scheduleAddToolDef, handleScheduleAdd, scheduleListToolDef, handleScheduleList } from './schedule.ts';
+export { scheduleAddToolDef, handleScheduleAdd, scheduleListToolDef, handleScheduleList, parseDate, formatTempoLabel } from './schedule.ts';
 
 // Forum
 export type {

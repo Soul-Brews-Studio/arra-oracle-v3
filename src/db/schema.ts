@@ -257,11 +257,14 @@ export const schedule = sqliteTable('schedule', {
   notes: text('notes'),                  // Optional notes
   recurring: text('recurring'),          // null | "daily" | "weekly" | "monthly"
   status: text('status').default('pending'), // pending | done | cancelled
+  // Three Tempos (Xikp Oracle — Developer's Companion)
+  tempo: text('tempo'),                  // null | "allegro" (dev) | "andante" (running) | "adagio" (music)
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 }, (table) => [
   index('idx_schedule_date').on(table.date),
   index('idx_schedule_status').on(table.status),
+  index('idx_schedule_tempo').on(table.tempo),
 ]);
 
 // ============================================================================

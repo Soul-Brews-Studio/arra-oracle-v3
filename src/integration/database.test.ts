@@ -47,6 +47,7 @@ describe("Database Integration (Drizzle ORM)", () => {
       "0004_warm_mesmero.sql",
       "0005_add_schedule.sql",
       "0006_magenta_screwball.sql",
+      "0007_add_tempo_to_schedule.sql",
     ];
 
     for (const file of migrationFiles) {

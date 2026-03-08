@@ -1,12 +1,13 @@
 /**
- * Unit tests for parseDate() — the flexible date parser in schedule.ts.
+ * Unit tests for parseDate() and formatTempoLabel() — pure functions in schedule.ts.
  *
  * Covers: ISO passthrough, English month names, Thai abbreviations,
- * relative dates (today/tomorrow), slash format, and fallback behaviour.
+ * relative dates (today/tomorrow), slash format, fallback behaviour,
+ * and Three Tempos label formatting (allegro/andante/adagio).
  */
 
 import { describe, it, expect } from 'bun:test';
-import { parseDate } from '../schedule.ts';
+import { parseDate, formatTempoLabel } from '../schedule.ts';
 
 /** Helper: format a Date as YYYY-MM-DD in local timezone (mirrors fmtLocal). */
 function fmtLocal(d: Date): string {
@@ -152,5 +153,36 @@ describe('parseDate — fallback behaviour', () => {
   it('should fall back to today for gibberish', () => {
     const expected = fmtLocal(new Date());
     expect(parseDate('xyz123')).toBe(expected);
+  });
+});
+
+// ============================================================================
+// formatTempoLabel — Three Tempos (Xikp Oracle)
+// ============================================================================
+
+describe('formatTempoLabel — Three Tempos', () => {
+  it('should return emoji label for allegro (Developer tempo)', () => {
+    expect(formatTempoLabel('allegro')).toBe('⚡ allegro');
+  });
+
+  it('should return emoji label for andante (Runner tempo)', () => {
+    expect(formatTempoLabel('andante')).toBe('🏃 andante');
+  });
+
+  it('should return emoji label for adagio (Musician tempo)', () => {
+    expect(formatTempoLabel('adagio')).toBe('🎵 adagio');
+  });
+
+  it('should return empty string for null', () => {
+    expect(formatTempoLabel(null)).toBe('');
+  });
+
+  it('should return empty string for undefined', () => {
+    expect(formatTempoLabel(undefined)).toBe('');
+  });
+
+  it('should return empty string for unknown tempo values', () => {
+    expect(formatTempoLabel('presto')).toBe('');
+    expect(formatTempoLabel('')).toBe('');
   });
 });
