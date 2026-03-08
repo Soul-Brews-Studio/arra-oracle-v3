@@ -137,6 +137,7 @@ export async function handleSearch(
         const projectMap = new Map<string, string | null>();
         rows.forEach(r => projectMap.set(r.id, r.project));
 
+        const resolvedModelName = resolvedModel || 'bge-m3';
         vectorResults = chromaResults.ids
           .map((id: string, i: number) => {
             // Cosine distance: 0=identical, 1=orthogonal, 2=opposite
@@ -152,7 +153,9 @@ export async function handleSearch(
               concepts: [],
               project: docProject,
               source: 'vector' as const,
-              score: similarity
+              score: similarity,
+              distance,
+              model: resolvedModelName,
             };
           })
           // Filter by project: match FTS behavior
@@ -235,7 +238,9 @@ function combineSearchResults(fts: SearchResult[], vector: SearchResult[]): Sear
       seen.set(r.id, {
         ...existing,
         score: Math.min(1, maxScore + bonus), // Cap at 1.0
-        source: 'hybrid' as const
+        source: 'hybrid' as const,
+        distance: r.distance,
+        model: r.model,
       });
     } else {
       seen.set(r.id, r);
@@ -599,6 +604,7 @@ export async function handleSimilar(
 
     const docMap = new Map(rows.map(r => [r.id, r]));
 
+    const resolvedModelName = (model && EMBEDDING_MODELS[model]) ? model : 'bge-m3';
     const results: SearchResult[] = chromaResults.ids.map((id: string, i: number) => {
       const distance = chromaResults.distances?.[i] || 1;
       const similarity = Math.max(0, 1 - distance / 2);
@@ -612,7 +618,9 @@ export async function handleSimilar(
         concepts: doc?.concepts ? JSON.parse(doc.concepts) : [],
         project: doc?.project,
         source: 'vector' as const,
-        score: similarity
+        score: similarity,
+        distance,
+        model: resolvedModelName,
       };
     });
 
