@@ -118,18 +118,24 @@ export async function handleSearch(
   let vectorResults: SearchResult[] = [];
 
   if (mode !== 'fts') {
-    try {
-      const resolvedModel = model && EMBEDDING_MODELS[model] ? model : undefined;
-      console.log(`[Hybrid] Starting vector search for: "${query.substring(0, 30)}..." model=${resolvedModel || 'default'}`);
-      const client = await getVectorStore(resolvedModel);
-      const whereFilter = type !== 'all' ? { type } : undefined;
-      const chromaResults = await client.query(query, limit * 2, whereFilter);
+    // Determine which models to query
+    const isMulti = model === 'multi';
+    const modelsToQuery = isMulti
+      ? ['bge-m3', 'nomic']
+      : [model && EMBEDDING_MODELS[model] ? model : undefined];
 
-      console.log(`[Hybrid] Vector returned ${chromaResults.ids?.length || 0} results`);
-      console.log(`[Hybrid] First 3 distances: ${chromaResults.distances?.slice(0, 3)}`);
+    // Query all models in parallel
+    const modelResults = await Promise.allSettled(
+      modelsToQuery.map(async (m) => {
+        const modelName = m || 'bge-m3';
+        console.log(`[Vector] Searching model=${modelName} for: "${query.substring(0, 30)}..."`);
+        const client = await getVectorStore(m);
+        const whereFilter = type !== 'all' ? { type } : undefined;
+        const chromaResults = await client.query(query, isMulti ? limit : limit * 2, whereFilter);
 
-      if (chromaResults.ids && chromaResults.ids.length > 0) {
-        // Get project metadata for vector results using Drizzle
+        if (!chromaResults.ids || chromaResults.ids.length === 0) return [];
+
+        // Get project metadata
         const rows = db.select({ id: oracleDocuments.id, project: oracleDocuments.project })
           .from(oracleDocuments)
           .where(inArray(oracleDocuments.id, chromaResults.ids))
@@ -137,11 +143,8 @@ export async function handleSearch(
         const projectMap = new Map<string, string | null>();
         rows.forEach(r => projectMap.set(r.id, r.project));
 
-        const resolvedModelName = (model && EMBEDDING_MODELS[model]) ? model : 'bge-m3';
-        vectorResults = chromaResults.ids
+        return chromaResults.ids
           .map((id: string, i: number) => {
-            // LanceDB returns L2 distance (0=identical, larger=less similar)
-            // Convert to 0-1 similarity score using exponential decay
             const distance = chromaResults.distances?.[i] || 0;
             const similarity = 1 / (1 + distance / 100);
             const docProject = projectMap.get(id);
@@ -155,22 +158,48 @@ export async function handleSearch(
               source: 'vector' as const,
               score: similarity,
               distance,
-              model: resolvedModelName
+              model: modelName
             };
           })
-          // Filter by project: match FTS behavior
-          // No project → return ALL docs (same as FTS '1=1')
-          // With project → return project-specific + universal (null)
           .filter(r => {
             if (!resolvedProject) return true;
             return r.project === resolvedProject || r.project === null;
           });
-        console.log(`[Hybrid] Mapped ${vectorResults.length} vector results (after project filter), scores: ${vectorResults.slice(0, 3).map(r => r.score?.toFixed(3))}`);
+      })
+    );
+
+    // Merge results from all models
+    for (const result of modelResults) {
+      if (result.status === 'fulfilled') {
+        vectorResults.push(...result.value);
+      } else {
+        const msg = result.reason instanceof Error ? result.reason.message : String(result.reason);
+        console.error('[Vector Search Error]', msg);
+        if (!warning) warning = `Vector search error: ${msg}`;
       }
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      console.error('[Vector Search Error]', msg);
-      warning = `Vector search unavailable: ${msg}. Using FTS5 only.`;
+    }
+
+    // For multi-model: deduplicate by id, keep result with best score
+    if (isMulti && vectorResults.length > 0) {
+      const bestByDoc = new Map<string, SearchResult>();
+      for (const r of vectorResults) {
+        const existing = bestByDoc.get(r.id);
+        if (!existing || (r.score || 0) > (existing.score || 0)) {
+          // If found in multiple models, boost score
+          const multiBoost = existing ? 0.05 : 0;
+          bestByDoc.set(r.id, {
+            ...r,
+            score: Math.min(1, (r.score || 0) + multiBoost),
+            source: existing ? 'hybrid' as const : r.source,
+          });
+        }
+      }
+      vectorResults = Array.from(bestByDoc.values());
+      console.log(`[Multi] Merged ${vectorResults.length} unique results from ${modelsToQuery.length} models`);
+    }
+
+    if (vectorResults.length > 0) {
+      console.log(`[Vector] ${vectorResults.length} results, top scores: ${vectorResults.slice(0, 3).map(r => r.score?.toFixed(3))}`);
     }
   }
 
@@ -203,7 +232,7 @@ export async function handleSearch(
     offset,
     limit,
     mode,
-    ...(model && EMBEDDING_MODELS[model] && { model }),
+    ...(model === 'multi' ? { model: 'multi' } : model && EMBEDDING_MODELS[model] ? { model } : {}),
     ...(warning && { warning })
   };
 }
