@@ -1,0 +1,894 @@
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 48px 32px;
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.subtitle {
+  color: var(--text-secondary);
+  font-size: 16px;
+  margin-bottom: 32px;
+}
+
+.philosophy {
+  display: block;
+  margin-top: 8px;
+  font-style: italic;
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.stats {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-bottom: 32px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.loading,
+.empty {
+  text-align: center;
+  padding: 80px 24px;
+  color: var(--text-muted);
+}
+
+.hint {
+  margin-top: 16px;
+  font-size: 14px;
+}
+
+.hint code {
+  background: rgba(167, 139, 250, 0.15);
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: var(--accent);
+}
+
+/* Timeline */
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.dateGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.date {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.item:hover {
+  border-color: var(--accent);
+  background: rgba(167, 139, 250, 0.05);
+}
+
+.traceFamily {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.childTraces {
+  margin-left: 24px;
+  padding-left: 16px;
+  border-left: 2px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: -4px;
+  padding-top: 12px;
+}
+
+.childItem {
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+.childIndicator {
+  color: var(--accent);
+  margin-right: 8px;
+  font-weight: 600;
+}
+
+.traceId {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.linkStatus {
+  font-size: 11px;
+  color: var(--accent);
+  background: rgba(167, 139, 250, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.itemHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.queryText {
+  font-size: 16px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.itemDigPoints {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.itemMeta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.depth {
+  background: rgba(167, 139, 250, 0.15);
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: var(--accent);
+}
+
+.time {
+  color: var(--text-muted);
+}
+
+/* Status Badges */
+.badgeRaw,
+.badgeReviewed,
+.badgeDistilled,
+.badgeAwakening {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.badgeRaw {
+  background: rgba(100, 100, 100, 0.2);
+  color: var(--text-muted);
+}
+
+.badgeReviewed {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+
+.badgeDistilled {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.badgeAwakening {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+}
+
+/* Detail View */
+.backLink {
+  display: inline-block;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.backLink:hover {
+  color: var(--accent);
+}
+
+.navBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.chainNav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.navButton {
+  background: rgba(167, 139, 250, 0.15);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.navButton:hover {
+  background: var(--accent);
+  color: white;
+}
+
+.navDisabled {
+  color: var(--text-muted);
+  padding: 6px 12px;
+  font-size: 13px;
+  opacity: 0.5;
+}
+
+.chainIndicator {
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.chainDivider {
+  color: var(--border);
+  margin: 0 4px;
+}
+
+.chainNumbers {
+  display: flex;
+  gap: 4px;
+}
+
+.chainNumber {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chainNumber:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chainNumber.currentNumber {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  cursor: default;
+}
+
+/* Linked Trace - Full Content */
+.linkedTrace {
+  margin-top: 48px;
+  padding-top: 32px;
+  border-top: 2px solid var(--accent);
+}
+
+.linkedTraceHeader {
+  margin-bottom: 24px;
+}
+
+.linkedTraceLabel {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.linkedTraceLabel:hover {
+  opacity: 0.7;
+  text-decoration: underline;
+}
+
+.linkedTraceQuery {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.linkedTraceMeta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.chainHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.chainQuery {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.chainItem.current .chainQuery {
+  color: var(--accent);
+}
+
+.chainTime {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.chainSection {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+}
+
+.chainSectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.chainList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chainFileItem {
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chainFilePath {
+  color: var(--text-primary);
+  font-family: monospace;
+}
+
+.chainReason {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.chainCommitItem {
+  font-size: 13px;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.chainCommitHash {
+  font-family: monospace;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.chainCommitHash:hover {
+  text-decoration: underline;
+}
+
+.chainIssueItem {
+  font-size: 13px;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.chainIssueItem a {
+  color: var(--text-primary);
+}
+
+.chainIssueItem a:hover {
+  color: var(--accent);
+}
+
+.chainIssueNumber {
+  font-family: monospace;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.detailHeader {
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.query {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+.detailMeta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.queryType {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
+.timestamp {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.project {
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.awakening {
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 32px;
+}
+
+.awakening h3 {
+  font-size: 14px;
+  color: #fbbf24;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.awakening p {
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.digPointsSummary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 32px;
+}
+
+.digPoints {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.section h3 {
+  font-size: 14px;
+  color: var(--accent);
+  margin-bottom: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.fileList,
+.commitList,
+.issueList,
+.pathList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fileItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filePath {
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--accent);
+  word-break: break-all;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.filePath:hover {
+  color: var(--text-primary);
+}
+
+.fileEntry {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.fileItem {
+  cursor: pointer;
+  padding: 8px 12px;
+  margin: -8px -12px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.fileItem:hover {
+  background: rgba(167, 139, 250, 0.1);
+}
+
+.fileItem.expanded {
+  background: rgba(167, 139, 250, 0.15);
+}
+
+.filePreview {
+  margin-top: 12px;
+  margin-left: 0;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.previewLoading {
+  padding: 16px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.previewContent {
+  padding: 16px;
+  margin: 0;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.notFoundLocal {
+  padding: 12px 16px;
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 13px;
+}
+
+.projectSource {
+  margin-top: 8px;
+  font-style: normal;
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--accent);
+  background: rgba(167, 139, 250, 0.1);
+  padding: 4px 10px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.githubLink {
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--text-muted);
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+.viewOnGithub {
+  background: rgba(167, 139, 250, 0.2);
+  color: var(--accent);
+  padding: 8px 16px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.viewOnGithub:hover {
+  background: rgba(167, 139, 250, 0.3);
+  color: #fff;
+}
+
+.conceptsBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.2);
+}
+
+.conceptLabel {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+
+.learningSnippet {
+  padding: 10px 14px;
+  background: rgba(167, 139, 250, 0.1);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.conceptBadge {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  font-weight: 500;
+}
+
+.confidence {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.matchReason {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.commitItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.commitRepo,
+.issueRepo {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  font-family: monospace;
+}
+
+.commitHash {
+  font-family: monospace;
+  font-size: 12px;
+  background: rgba(167, 139, 250, 0.15);
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: var(--accent);
+  flex-shrink: 0;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+a.commitHash:hover {
+  background: rgba(167, 139, 250, 0.3);
+  color: #fff;
+}
+
+.commitMessage {
+  font-size: 14px;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.commitDate {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.issueItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.issueState {
+  font-family: monospace;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.issueState.open {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.issueState.closed {
+  background: rgba(139, 92, 246, 0.2);
+  color: #a78bfa;
+}
+
+.issueTitle {
+  font-size: 14px;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.issueTitle:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.pathList li {
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+}
+
+.noDigPoints {
+  text-align: center;
+  padding: 48px;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.traceChain {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.traceChain h3 {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.chainLink {
+  display: inline-block;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  margin-right: 12px;
+  margin-bottom: 12px;
+  transition: all 0.2s;
+}
+
+.chainLink:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Project + Vault badges */
+.projectLink {
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: rgba(167, 139, 250, 0.1);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: monospace;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.projectLink:hover {
+  color: var(--accent);
+  background: rgba(167, 139, 250, 0.2);
+}
+
+.universalBadge {
+  font-size: 11px;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.vaultBadge {
+  font-size: 11px;
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.1);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.vaultBadge:hover {
+  background: rgba(52, 211, 153, 0.2);
+  color: #6ee7b7;
+}

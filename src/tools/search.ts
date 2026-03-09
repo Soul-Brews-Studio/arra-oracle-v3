@@ -54,7 +54,7 @@ export const searchToolDef = {
       model: {
         type: 'string',
         enum: ['nomic', 'qwen3', 'bge-m3'],
-        description: 'Embedding model: nomic (default, fast 768-dim), qwen3 (cross-language Thai↔English, 4096-dim), or bge-m3 (multilingual, 1024-dim)',
+        description: 'Embedding model: bge-m3 (default, multilingual Thai↔EN, 1024-dim), nomic (fast, 768-dim), or qwen3 (cross-language, 4096-dim)',
       }
     },
     required: ['query']
@@ -143,7 +143,7 @@ export async function vectorSearch(
       return [];
     }
 
-    const resolvedModelName = model || 'nomic';
+    const resolvedModelName = model || 'bge-m3';
     const mappedResults: Array<{
       id: string;
       type: string;

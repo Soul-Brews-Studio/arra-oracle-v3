@@ -383,7 +383,7 @@ app.get('/api/search', async (c) => {
   const mode = (c.req.query('mode') || 'hybrid') as 'hybrid' | 'fts' | 'vector';
   const project = c.req.query('project'); // Explicit project filter
   const cwd = c.req.query('cwd');         // Auto-detect project from cwd
-  const model = c.req.query('model');     // Embedding model: 'nomic' (default) or 'qwen3'
+  const model = c.req.query('model');     // Embedding model: 'bge-m3' (default), 'nomic', or 'qwen3'
 
   const result = await handleSearch(q, type, limit, offset, mode, project, cwd, model);
   return c.json({ ...result, query: q });

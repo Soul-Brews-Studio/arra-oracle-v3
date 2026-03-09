@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.oracle.server</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <!-- Replace $HOME and paths below with your actual paths -->
+        <string>pkill -f 'bun.*oracle-v2/src/server.ts' 2>/dev/null; sleep 1; exec $HOME/.bun/bin/bun $HOME/Code/github.com/laris-co/oracle-v2/src/server.ts</string>
+    </array>
+
+    <!-- Set to true to auto-start at login -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>$HOME/.oracle-v2/oracle-server.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>$HOME/.oracle-v2/oracle-server.error.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>$HOME/Code/github.com/laris-co/oracle-v2</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>$HOME</string>
+        <key>PATH</key>
+        <string>$HOME/.bun/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+</dict>
+</plist>

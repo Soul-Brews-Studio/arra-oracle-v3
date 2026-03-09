@@ -34,7 +34,7 @@ export async function handleSearch(
   mode: 'hybrid' | 'fts' | 'vector' = 'hybrid',
   project?: string,  // If set: project + universal. If null/undefined: universal only
   cwd?: string,      // Auto-detect project from cwd if project not specified
-  model?: string     // Embedding model: 'nomic' (default, fast) or 'qwen3' (cross-language Thai)
+  model?: string     // Embedding model: 'bge-m3' (default, multilingual) or 'nomic' (fast)
 ): Promise<SearchResponse & { mode?: string; warning?: string; model?: string }> {
   // Auto-detect project from cwd if not explicitly specified
   const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
@@ -137,13 +137,13 @@ export async function handleSearch(
         const projectMap = new Map<string, string | null>();
         rows.forEach(r => projectMap.set(r.id, r.project));
 
-        const resolvedModelName = (model && EMBEDDING_MODELS[model]) ? model : 'nomic';
+        const resolvedModelName = (model && EMBEDDING_MODELS[model]) ? model : 'bge-m3';
         vectorResults = chromaResults.ids
           .map((id: string, i: number) => {
-            // Cosine distance: 0=identical, 1=orthogonal, 2=opposite
-            // Convert to similarity: 0.5=orthogonal, 1=identical, 0=opposite
-            const distance = chromaResults.distances?.[i] || 1;
-            const similarity = Math.max(0, 1 - distance / 2);
+            // LanceDB returns L2 distance (0=identical, larger=less similar)
+            // Convert to 0-1 similarity score using exponential decay
+            const distance = chromaResults.distances?.[i] || 0;
+            const similarity = 1 / (1 + distance / 100);
             const docProject = projectMap.get(id);
             return {
               id,
