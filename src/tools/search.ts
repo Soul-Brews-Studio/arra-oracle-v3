@@ -127,6 +127,8 @@ export async function vectorSearch(
   source_file: string;
   concepts: string[];
   score: number;
+  distance: number;
+  model: string;
   source: 'vector';
 }>> {
   try {
@@ -141,6 +143,7 @@ export async function vectorSearch(
       return [];
     }
 
+    const resolvedModelName = model || 'nomic';
     const mappedResults: Array<{
       id: string;
       type: string;
@@ -148,19 +151,24 @@ export async function vectorSearch(
       source_file: string;
       concepts: string[];
       score: number;
+      distance: number;
+      model: string;
       source: 'vector';
     }> = [];
 
     for (let i = 0; i < results.ids.length; i++) {
       const metadata = results.metadatas[i] as Record<string, unknown> | null;
 
+      const rawDistance = results.distances[i] || 0;
       mappedResults.push({
         id: results.ids[i],
         type: (metadata?.type as string) || 'unknown',
         content: (results.documents[i] || '').substring(0, 500),
         source_file: (metadata?.source_file as string) || '',
         concepts: parseConceptsFromMetadata(metadata?.concepts),
-        score: results.distances[i] || 0,
+        score: rawDistance,
+        distance: rawDistance,
+        model: resolvedModelName,
         source: 'vector',
       });
     }
@@ -194,6 +202,8 @@ export function combineResults(
     source_file: string;
     concepts: string[];
     score: number;
+    distance: number;
+    model: string;
     source: 'vector';
   }>,
   ftsWeight: number = 0.5,
@@ -208,6 +218,8 @@ export function combineResults(
   source: 'fts' | 'vector' | 'hybrid';
   ftsScore?: number;
   vectorScore?: number;
+  distance?: number;
+  model?: string;
 }> {
   const resultMap = new Map<string, {
     id: string;
@@ -217,6 +229,8 @@ export function combineResults(
     concepts: string[];
     ftsScore?: number;
     vectorScore?: number;
+    distance?: number;
+    model?: string;
     source: 'fts' | 'vector' | 'hybrid';
   }>();
 
@@ -239,6 +253,8 @@ export function combineResults(
     if (existing) {
       existing.vectorScore = result.score;
       existing.source = 'hybrid';
+      existing.distance = result.distance;
+      existing.model = result.model;
     } else {
       resultMap.set(result.id, {
         id: result.id,
@@ -247,6 +263,8 @@ export function combineResults(
         source_file: result.source_file,
         concepts: result.concepts,
         vectorScore: result.score,
+        distance: result.distance,
+        model: result.model,
         source: 'vector',
       });
     }
@@ -276,6 +294,8 @@ export function combineResults(
       source: result.source,
       ftsScore: result.ftsScore,
       vectorScore: result.vectorScore,
+      distance: result.distance,
+      model: result.model,
     };
   });
 

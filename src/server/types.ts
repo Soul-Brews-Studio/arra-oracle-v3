@@ -10,6 +10,8 @@ export interface SearchResult {
   concepts: string[];
   source?: 'fts' | 'vector' | 'hybrid';
   score?: number;
+  distance?: number;
+  model?: string;
 }
 
 export interface SearchResponse {
