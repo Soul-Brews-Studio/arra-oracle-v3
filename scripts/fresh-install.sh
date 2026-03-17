@@ -1,12 +1,12 @@
 #!/bin/bash
-# Fresh installation of Oracle Nightly with seed data
-# Usage: curl -sSL https://raw.githubusercontent.com/Soul-Brews-Studio/oracle-v2/main/scripts/fresh-install.sh | bash
+# Fresh installation of Arra Oracle with seed data
+# Usage: curl -sSL https://raw.githubusercontent.com/Soul-Brews-Studio/arra-oracle/main/scripts/fresh-install.sh | bash
 set -e
 
-INSTALL_DIR="${ORACLE_INSTALL_DIR:-$HOME/.local/share/oracle-v2}"
+INSTALL_DIR="${ORACLE_INSTALL_DIR:-$HOME/.local/share/arra-oracle}"
 DATA_DIR="$HOME/.oracle"
 
-echo "🔮 Oracle Nightly - Fresh Installation"
+echo "🔮 Arra Oracle - Fresh Installation"
 echo "======================================="
 echo ""
 
@@ -46,8 +46,8 @@ if [ -d "$DATA_DIR" ]; then
 fi
 
 # Clone
-echo "📥 Cloning Oracle Nightly..."
-git clone --depth 1 https://github.com/Soul-Brews-Studio/oracle-v2.git "$INSTALL_DIR"
+echo "📥 Cloning Arra Oracle..."
+git clone --depth 1 https://github.com/Soul-Brews-Studio/arra-oracle.git "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
 # Install dependencies
@@ -89,7 +89,7 @@ echo ""
 echo "📝 Add to Claude Code (~/.claude.json):"
 echo '  {'
 echo '    "mcpServers": {'
-echo '      "oracle-v2": {'
+echo '      "arra-oracle": {'
 echo '        "command": "bun",'
 echo "        \"args\": [\"run\", \"$INSTALL_DIR/src/index.ts\"]"
 echo '      }'
@@ -116,4 +116,4 @@ elif command -v ifconfig &> /dev/null; then
     done
 fi
 echo ""
-echo "📖 Docs: https://github.com/Soul-Brews-Studio/oracle-v2"
+echo "📖 Docs: https://github.com/Soul-Brews-Studio/arra-oracle"

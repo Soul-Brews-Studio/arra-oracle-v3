@@ -1,5 +1,5 @@
 /**
- * Oracle Nightly MCP Server
+ * Arra Oracle MCP Server
  *
  * Slim entry point: server lifecycle, tool registration, and routing.
  * Handler implementations live in src/tools/.
@@ -105,7 +105,7 @@ class OracleMCPServer {
     const pkg = JSON.parse(fs.readFileSync(path.join(import.meta.dirname || __dirname, '..', 'package.json'), 'utf-8'));
     this.version = pkg.version;
     this.server = new Server(
-      { name: 'oracle-nightly', version: this.version },
+      { name: 'arra-oracle', version: this.version },
       { capabilities: { tools: {} } }
     );
 
@@ -296,7 +296,7 @@ class OracleMCPServer {
   async run(): Promise<void> {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('Oracle Nightly MCP Server running on stdio (FTS5 mode)');
+    console.error('Arra Oracle MCP Server running on stdio (FTS5 mode)');
   }
 }
 

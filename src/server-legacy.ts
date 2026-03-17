@@ -1,5 +1,5 @@
 /**
- * Oracle v2 HTTP Server
+ * Arra Oracle HTTP Server
  *
  * Web viewer for Oracle knowledge base.
  * Exposes same functionality as MCP but via HTTP.
@@ -298,7 +298,7 @@ const server = http.createServer(async (req, res) => {
         return;
 
       case '/api/health':
-        result = { status: 'ok', server: 'oracle-v2', port: PORT, oracleV2: 'connected' };
+        result = { status: 'ok', server: 'arra-oracle', port: PORT, oracleV2: 'connected' };
         break;
 
       case '/api/search':

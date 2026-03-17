@@ -1,5 +1,5 @@
 /**
- * Oracle Nightly HTTP Server - Hono.js Version
+ * Arra Oracle HTTP Server - Hono.js Version
  *
  * Modern routing with Hono.js on Bun runtime.
  * Same handlers, same DB, just cleaner HTTP layer.
@@ -113,7 +113,7 @@ registerSignalHandlers(async () => {
     ]
   });
   removePidFile();
-  console.log('👋 Oracle Nightly HTTP Server stopped.');
+  console.log('👋 Arra Oracle HTTP Server stopped.');
 });
 
 // Create Hono app
@@ -369,7 +369,7 @@ app.post('/api/settings', async (c) => {
 
 // Health check
 app.get('/api/health', (c) => {
-  return c.json({ status: 'ok', server: 'oracle-nightly', port: PORT, oracleV2: 'connected' });
+  return c.json({ status: 'ok', server: 'arra-oracle', port: PORT, oracleV2: 'connected' });
 });
 
 // Search
@@ -1228,7 +1228,7 @@ app.post('/api/learn', async (c) => {
 // ============================================================================
 
 console.log(`
-🔮 Oracle Nightly HTTP Server running! (Hono.js)
+🔮 Arra Oracle HTTP Server running! (Hono.js)
 
    URL: http://localhost:${PORT}
 

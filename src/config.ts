@@ -1,5 +1,5 @@
 /**
- * Oracle v2 Configuration Constants
+ * Arra Oracle Configuration Constants
  *
  * Pure config — no DB connections, no table creation.
  * Extracted from src/server/db.ts to break circular dependencies.
