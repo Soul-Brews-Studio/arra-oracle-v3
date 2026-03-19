@@ -142,7 +142,7 @@ export interface ForumConfig {
 }
 
 export const DEFAULT_FORUM_CONFIG: ForumConfig = {
-  defaultRepo: process.env.ORACLE_FORUM_REPO || 'laris-co/Nat-s-Agents',
+  defaultRepo: process.env.ORACLE_FORUM_REPO || '',
   autoAnswer: true,
   autoSync: false,  // Manual sync by default
   labels: {

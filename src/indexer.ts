@@ -682,9 +682,15 @@ export class OracleIndexer {
     const sourceField = frontmatter.match(/^source:\s*(.+)$/m);
     if (sourceField) {
       const source = sourceField[1].trim().toLowerCase();
-      // Map known sources to projects
-      if (source.includes('arthur oracle') || source.includes('arthur landing')) {
-        return 'github.com/laris-co/arthur-oracle';
+      // Map known sources to projects (configured via env)
+      const sourceMapping = process.env.ORACLE_SOURCE_MAPPINGS;
+      if (sourceMapping) {
+        try {
+          const mappings = JSON.parse(sourceMapping) as Record<string, string>;
+          for (const [key, project] of Object.entries(mappings)) {
+            if (source.includes(key.toLowerCase())) return project;
+          }
+        } catch { /* ignore invalid JSON */ }
       }
     }
 

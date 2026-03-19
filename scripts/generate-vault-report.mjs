@@ -182,16 +182,21 @@ function escapeHtml(s) {
 
 function orgColor(org) {
   const colors = {
-    'laris-co': { bg: 'violet', hex: '#8b5cf6' },
-    'soul-brews-studio': { bg: 'emerald', hex: '#10b981' },
-    'nazt': { bg: 'amber', hex: '#f59e0b' },
-    'arthur-oracle-ai': { bg: 'blue', hex: '#3b82f6' },
-    'oracle-net-the-resonance-network': { bg: 'rose', hex: '#f43f5e' },
-    'prakit-advertising': { bg: 'teal', hex: '#14b8a6' },
-    'maeon-lab': { bg: 'indigo', hex: '#6366f1' },
-    'dryoungdo-wellness-clinic': { bg: 'orange', hex: '#f97316' },
   };
-  return colors[org] || { bg: 'gray', hex: '#6b7280' };
+  // Dynamic color assignment based on org name hash
+  const colorPalette = [
+    { bg: 'violet', hex: '#8b5cf6' },
+    { bg: 'emerald', hex: '#10b981' },
+    { bg: 'amber', hex: '#f59e0b' },
+    { bg: 'blue', hex: '#3b82f6' },
+    { bg: 'rose', hex: '#f43f5e' },
+    { bg: 'teal', hex: '#14b8a6' },
+    { bg: 'indigo', hex: '#6366f1' },
+    { bg: 'orange', hex: '#f97316' },
+  ];
+  // Simple hash to assign consistent colors
+  const hash = org.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return colorPalette[hash % colorPalette.length] || { bg: 'gray', hex: '#6b7280' };
 }
 
 // ── HTML Generator ───────────────────────────────────────────────────────────

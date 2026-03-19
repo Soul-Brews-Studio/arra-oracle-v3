@@ -119,8 +119,30 @@ registerSignalHandlers(async () => {
 // Create Hono app
 const app = new Hono();
 
-// CORS middleware
-app.use('*', cors());
+// CORS middleware — restrict to same-origin in production
+app.use('*', cors({
+  origin: (origin) => {
+    // Allow same-origin (no origin header) and localhost variants
+    if (!origin) return origin;
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      return origin;
+    }
+    // In production, only allow configured origin
+    const allowedOrigin = process.env.CORS_ORIGIN;
+    if (allowedOrigin && origin === allowedOrigin) return origin;
+    return null; // Reject unknown origins
+  },
+  credentials: true,
+}));
+
+// Security headers middleware
+app.use('*', async (c, next) => {
+  await next();
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('X-Frame-Options', 'DENY');
+  c.header('X-XSS-Protection', '1; mode=block');
+  c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+});
 
 // ============================================================================
 // Auth Helpers
@@ -132,10 +154,12 @@ const SESSION_COOKIE_NAME = 'oracle_session';
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 // Check if request is from local network
+// SECURITY: Only trust X-Forwarded-For behind a known reverse proxy
 function isLocalNetwork(c: Context): boolean {
-  const forwarded = c.req.header('x-forwarded-for');
-  const realIp = c.req.header('x-real-ip');
-  const ip = forwarded?.split(',')[0]?.trim() || realIp || '127.0.0.1';
+  // Use the actual connection IP, not spoofable headers
+  // Hono on Bun: c.env.remoteAddress gives the real client IP
+  const connInfo = (c.env as any)?.remoteAddress;
+  const ip = connInfo || '127.0.0.1';
 
   return ip === '127.0.0.1'
       || ip === '::1'
@@ -269,9 +293,10 @@ app.post('/api/auth/login', async (c) => {
 
   // Set session cookie
   const token = generateSessionToken();
+  const isLocal = isLocalNetwork(c);
   setCookie(c, SESSION_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: false, // Allow HTTP for local dev
+    secure: !isLocal, // HTTPS required in production, allow HTTP for local dev
     sameSite: 'Lax',
     maxAge: SESSION_DURATION_MS / 1000,
     path: '/'
@@ -378,16 +403,31 @@ app.get('/api/search', async (c) => {
   if (!q) {
     return c.json({ error: 'Missing query parameter: q' }, 400);
   }
+
+  // SECURITY: Sanitize search input — strip HTML tags and control characters
+  const sanitizedQ = q
+    .replace(/<[^>]*>/g, '')    // Strip HTML tags (XSS prevention)
+    .replace(/[\x00-\x1f]/g, '') // Strip control characters
+    .trim();
+  if (!sanitizedQ) {
+    return c.json({ error: 'Invalid query: empty after sanitization' }, 400);
+  }
+
   const type = c.req.query('type') || 'all';
-  const limit = parseInt(c.req.query('limit') || '10');
-  const offset = parseInt(c.req.query('offset') || '0');
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '10')));
+  const offset = Math.max(0, parseInt(c.req.query('offset') || '0'));
   const mode = (c.req.query('mode') || 'hybrid') as 'hybrid' | 'fts' | 'vector';
   const project = c.req.query('project'); // Explicit project filter
   const cwd = c.req.query('cwd');         // Auto-detect project from cwd
   const model = c.req.query('model');     // Embedding model: 'bge-m3' (default), 'nomic', or 'qwen3'
 
-  const result = await handleSearch(q, type, limit, offset, mode, project, cwd, model);
-  return c.json({ ...result, query: q });
+  try {
+    const result = await handleSearch(sanitizedQ, type, limit, offset, mode, project, cwd, model);
+    return c.json({ ...result, query: sanitizedQ });
+  } catch (e: any) {
+    // Catch FTS5 parse errors gracefully instead of 500
+    return c.json({ results: [], total: 0, query: sanitizedQ, error: 'Search failed' }, 400);
+  }
 });
 
 // Reflect
@@ -464,13 +504,14 @@ app.get('/api/similar', async (c) => {
   if (!id) {
     return c.json({ error: 'Missing query parameter: id' }, 400);
   }
-  const limit = parseInt(c.req.query('limit') || '5');
+  const limit = Math.min(50, Math.max(1, parseInt(c.req.query('limit') || '5')));
   const model = c.req.query('model');
   try {
     const result = await handleSimilar(id, limit, model);
     return c.json(result);
   } catch (e: any) {
-    return c.json({ error: e.message, results: [], docId: id }, 500);
+    // Return empty results instead of 500 when no embedding found
+    return c.json({ error: e.message, results: [], docId: id }, 404);
   }
 });
 
@@ -496,7 +537,7 @@ app.get('/api/map3d', async (c) => {
 });
 
 // Live Oracle feed (from ~/.oracle/feed.log)
-const FEED_LOG = path.join(process.env.HOME || '/home/nat', '.oracle', 'feed.log');
+const FEED_LOG = path.join(process.env.HOME || '/tmp', '.oracle', 'feed.log');
 app.get('/api/feed', (c) => {
   try {
     const limit = Math.min(200, parseInt(c.req.query('limit') || '50'));
@@ -598,8 +639,8 @@ app.get('/api/doc/:id', (c) => {
 // List documents
 app.get('/api/list', (c) => {
   const type = c.req.query('type') || 'all';
-  const limit = parseInt(c.req.query('limit') || '10');
-  const offset = parseInt(c.req.query('offset') || '0');
+  const limit = Math.min(1000, Math.max(1, parseInt(c.req.query('limit') || '10')));
+  const offset = Math.max(0, parseInt(c.req.query('offset') || '0'));
   const group = c.req.query('group') !== 'false';
 
   return c.json(handleList(type, limit, offset, group));
@@ -624,6 +665,11 @@ app.get('/api/file', async (c) => {
 
   if (!filePath) {
     return c.json({ error: 'Missing path parameter' }, 400);
+  }
+
+  // SECURITY: Block path traversal attempts
+  if (filePath.includes('..') || filePath.includes('\0')) {
+    return c.json({ error: 'Invalid path: traversal not allowed' }, 400);
   }
 
   try {
@@ -685,7 +731,10 @@ app.get('/api/file', async (c) => {
     const vault = getVaultPsiRoot();
     if ('path' in vault) {
       const vaultFullPath = path.join(vault.path, filePath);
-      if (fs.existsSync(vaultFullPath)) {
+      // SECURITY: Verify vault path stays within vault bounds
+      const realVaultPath = path.resolve(vaultFullPath);
+      const realVaultRoot = fs.realpathSync(vault.path);
+      if (realVaultPath.startsWith(realVaultRoot) && fs.existsSync(vaultFullPath)) {
         const content = fs.readFileSync(vaultFullPath, 'utf-8');
         return c.text(content);
       }

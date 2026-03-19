@@ -18,6 +18,9 @@ chroma/
 # Environment
 .env
 .env.local
+.env.production
+.env.staging
+.env.*.local
 
 # IDE
 .vscode/

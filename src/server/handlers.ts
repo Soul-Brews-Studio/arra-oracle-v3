@@ -39,8 +39,15 @@ export async function handleSearch(
   // Auto-detect project from cwd if not explicitly specified
   const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
   const startTime = Date.now();
-  // Remove FTS5 special characters: ? * + - ( ) ^ ~ " ' : (colon is column prefix)
-  const safeQuery = query.replace(/[?*+\-()^~"':]/g, ' ').replace(/\s+/g, ' ').trim();
+  // Remove FTS5 special characters and HTML: ? * + - ( ) ^ ~ " ' : < > { } [ ] ; / \
+  const safeQuery = query
+    .replace(/<[^>]*>/g, ' ')           // Strip HTML tags
+    .replace(/[?*+\-()^~"':;<>{}[\]\\\/]/g, ' ')  // Strip FTS5 + SQL special chars
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!safeQuery) {
+    return { results: [], total: 0, limit, offset, query };
+  }
 
   let warning: string | undefined;
 
