@@ -1,13 +1,14 @@
 /**
  * sqlite-vec Adapter
  *
- * Uses bun:sqlite + sqlite-vec extension for vector search.
+ * Uses better-sqlite3 + sqlite-vec extension for vector search.
+ * better-sqlite3 supports loadExtension() which bun:sqlite lacks.
  * Requires an EmbeddingProvider since sqlite-vec doesn't generate embeddings.
  *
  * "Small Enough to Understand" — same runtime, no external process, zero network.
  */
 
-import { Database } from 'bun:sqlite';
+import Database from 'better-sqlite3';
 import type { VectorStoreAdapter, VectorDocument, VectorQueryResult, EmbeddingProvider } from '../types.ts';
 
 /** Convert number[] to Float32Array binary blob for sqlite-vec */
@@ -29,7 +30,7 @@ function fromBlob(blob: any): number[] {
 
 export class SqliteVecAdapter implements VectorStoreAdapter {
   readonly name = 'sqlite-vec';
-  private db: Database | null = null;
+  private db: InstanceType<typeof Database> | null = null;
   private dbPath: string;
   private collectionName: string;
   private embedder: EmbeddingProvider;
