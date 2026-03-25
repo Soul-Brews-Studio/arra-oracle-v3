@@ -10,7 +10,7 @@
         <string>/bin/bash</string>
         <string>-c</string>
         <!-- Replace $HOME and paths below with your actual paths -->
-        <string>pkill -f 'bun.*arra-oracle-v3/src/server.ts' 2>/dev/null; sleep 1; exec $HOME/.bun/bin/bun $HOME/Code/github.com/laris-co/arra-oracle-v3/src/server.ts</string>
+        <string>pkill -f 'bun.*arra-oracle-v2/src/server.ts' 2>/dev/null; sleep 1; exec $HOME/.bun/bin/bun $HOME/Code/github.com/laris-co/arra-oracle-v2/src/server.ts</string>
     </array>
 
     <!-- Set to true to auto-start at login -->
@@ -24,13 +24,13 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>$HOME/.arra-oracle-v3/oracle-server.log</string>
+    <string>$HOME/.arra-oracle-v2/oracle-server.log</string>
 
     <key>StandardErrorPath</key>
-    <string>$HOME/.arra-oracle-v3/oracle-server.error.log</string>
+    <string>$HOME/.arra-oracle-v2/oracle-server.error.log</string>
 
     <key>WorkingDirectory</key>
-    <string>$HOME/Code/github.com/laris-co/arra-oracle-v3</string>
+    <string>$HOME/Code/github.com/laris-co/arra-oracle-v2</string>
 
     <key>EnvironmentVariables</key>
     <dict>

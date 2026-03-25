@@ -20,22 +20,20 @@ import type { VectorStoreAdapter } from './vector/types.ts';
 import path from 'path';
 import fs from 'fs';
 import { loadToolGroupConfig, getDisabledTools, type ToolGroupConfig } from './config/tool-groups.ts';
+import { ORACLE_DATA_DIR, DB_PATH, CHROMADB_DIR } from './config.ts';
+import { MCP_SERVER_NAME } from './const.ts';
 
 // Tool handlers (all extracted to src/tools/)
 import type { ToolContext } from './tools/types.ts';
 import {
   searchToolDef, handleSearch,
   learnToolDef, handleLearn,
-  reflectToolDef, handleReflect,
   listToolDef, handleList,
   statsToolDef, handleStats,
   conceptsToolDef, handleConcepts,
   supersedeToolDef, handleSupersede,
   handoffToolDef, handleHandoff,
   inboxToolDef, handleInbox,
-  verifyToolDef, handleVerify,
-  scheduleAddToolDef, handleScheduleAdd,
-  scheduleListToolDef, handleScheduleList,
   readToolDef, handleRead,
   forumToolDefs,
   handleThread, handleThreads, handleThreadRead, handleThreadUpdate,
@@ -49,13 +47,9 @@ import type {
   OracleListInput,
   OracleStatsInput,
   OracleConceptsInput,
-  OracleReflectInput,
   OracleSupersededInput,
   OracleHandoffInput,
   OracleInboxInput,
-  OracleVerifyInput,
-  OracleScheduleAddInput,
-  OracleScheduleListInput,
   OracleReadInput,
   OracleThreadInput,
   OracleThreadsInput,
@@ -77,7 +71,6 @@ const WRITE_TOOLS = [
   'arra_trace',
   'arra_supersede',
   'arra_handoff',
-  'arra_schedule_add',
 ];
 
 class OracleMCPServer {
@@ -105,22 +98,18 @@ class OracleMCPServer {
       console.error(`[ToolGroups] Disabled: ${disabledGroups.join(', ')}`);
     }
 
-    const homeDir = process.env.HOME || process.env.USERPROFILE || '/tmp';
-
     this.vectorStore = createVectorStore({
-      dataPath: path.join(homeDir, '.chromadb'),
+      dataPath: CHROMADB_DIR,
     });
 
     const pkg = JSON.parse(fs.readFileSync(path.join(import.meta.dirname || __dirname, '..', 'package.json'), 'utf-8'));
     this.version = pkg.version;
     this.server = new Server(
-      { name: 'arra-oracle-v3', version: this.version },
+      { name: MCP_SERVER_NAME, version: this.version },
       { capabilities: { tools: {} } }
     );
 
-    const oracleDataDir = process.env.ORACLE_DATA_DIR || path.join(homeDir, '.arra-oracle-v3');
-    const dbPath = process.env.ORACLE_DB_PATH || path.join(oracleDataDir, 'oracle.db');
-    const { sqlite, db } = createDatabase(dbPath);
+    const { sqlite, db } = createDatabase(DB_PATH);
     this.sqlite = sqlite;
     this.db = db;
 
@@ -182,13 +171,12 @@ class OracleMCPServer {
         // Meta-documentation tool
         {
           name: '____IMPORTANT',
-          description: `ORACLE WORKFLOW GUIDE (v${this.version}):\n\n1. SEARCH & DISCOVER\n   arra_search(query) → Find knowledge by keywords/vectors\n   arra_read(file/id) → Read full document content\n   arra_list() → Browse all documents\n   arra_concepts() → See topic coverage\n\n2. REFLECT\n   arra_reflect() → Random wisdom for alignment\n\n3. LEARN & REMEMBER\n   arra_learn(pattern) → Add new patterns/learnings\n   arra_thread(message) → Multi-turn discussions\n   ⚠️ BEFORE adding: search for similar topics first!\n   If updating old info → use arra_supersede(oldId, newId)\n\n4. TRACE & DISTILL\n   arra_trace(query) → Log discovery sessions with dig points\n   arra_trace_list() → Find past traces\n   arra_trace_get(id) → Explore dig points (files, commits, issues)\n   arra_trace_link(prevId, nextId) → Chain related traces together\n   arra_trace_chain(id) → View the full linked chain\n\n5. HANDOFF & INBOX\n   arra_handoff(content) → Save session context for next session\n   arra_inbox() → List pending handoffs\n\n6. SCHEDULE (shared across all Oracles)\n   arra_schedule_add(date, event) → Add appointment to shared schedule\n   arra_schedule_list(filter?) → View upcoming events\n   Schedule lives at ~/.arra-oracle-v3/ψ/inbox/schedule.md (per-human, not per-project)\n\n7. SUPERSEDE (when info changes)\n   arra_supersede(oldId, newId, reason) → Mark old doc as outdated\n   "Nothing is Deleted" — old preserved, just marked superseded\n\n7. VERIFY (health check)\n   arra_verify(check?) → Compare ψ/ files vs DB index\n   check=true (default): read-only report\n   check=false: also flag orphaned entries\n\nPhilosophy: "Nothing is Deleted" — All interactions logged.`,
+          description: `ORACLE WORKFLOW GUIDE (v${this.version}):\n\n1. SEARCH & DISCOVER\n   arra_search(query) → Find knowledge by keywords/vectors\n   arra_read(file/id) → Read full document content\n   arra_list() → Browse all documents\n   arra_concepts() → See topic coverage\n\n2. LEARN & REMEMBER\n   arra_learn(pattern) → Add new patterns/learnings\n   arra_thread(message) → Multi-turn discussions\n   ⚠️ BEFORE adding: search for similar topics first!\n   If updating old info → use arra_supersede(oldId, newId)\n\n3. TRACE & DISTILL\n   arra_trace(query) → Log discovery sessions with dig points\n   arra_trace_list() → Find past traces\n   arra_trace_get(id) → Explore dig points (files, commits, issues)\n   arra_trace_link(prevId, nextId) → Chain related traces together\n   arra_trace_chain(id) → View the full linked chain\n\n4. HANDOFF & INBOX\n   arra_handoff(content) → Save session context for next session\n   arra_inbox() → List pending handoffs\n\n5. SUPERSEDE (when info changes)\n   arra_supersede(oldId, newId, reason) → Mark old doc as outdated\n   "Nothing is Deleted" — old preserved, just marked superseded\n\nPhilosophy: "Nothing is Deleted" — All interactions logged.`,
           inputSchema: { type: 'object', properties: {} }
         },
         // Core tools (from src/tools/)
         searchToolDef,
         readToolDef,
-        reflectToolDef,
         learnToolDef,
         listToolDef,
         statsToolDef,
@@ -201,9 +189,6 @@ class OracleMCPServer {
         supersedeToolDef,
         handoffToolDef,
         inboxToolDef,
-        verifyToolDef,
-        scheduleAddToolDef,
-        scheduleListToolDef,
       ];
 
       let tools = allTools.filter(t => !this.disabledTools.has(t.name));
@@ -222,7 +207,7 @@ class OracleMCPServer {
         return {
           content: [{
             type: 'text',
-            text: `Error: Tool "${request.params.name}" is disabled by tool group config. Check ~/.arra-oracle-v3/config.json or arra.config.json.`
+            text: `Error: Tool "${request.params.name}" is disabled by tool group config. Check ${ORACLE_DATA_DIR}/config.json or arra.config.json.`
           }],
           isError: true
         };
@@ -247,8 +232,6 @@ class OracleMCPServer {
             return await handleSearch(ctx, request.params.arguments as unknown as OracleSearchInput);
           case 'arra_read':
             return await handleRead(ctx, request.params.arguments as unknown as OracleReadInput);
-          case 'arra_reflect':
-            return await handleReflect(ctx, request.params.arguments as unknown as OracleReflectInput);
           case 'arra_learn':
             return await handleLearn(ctx, request.params.arguments as unknown as OracleLearnInput);
           case 'arra_list':
@@ -263,13 +246,6 @@ class OracleMCPServer {
             return await handleHandoff(ctx, request.params.arguments as unknown as OracleHandoffInput);
           case 'arra_inbox':
             return await handleInbox(ctx, request.params.arguments as unknown as OracleInboxInput);
-          case 'arra_verify':
-            return await handleVerify(ctx, request.params.arguments as unknown as OracleVerifyInput);
-          case 'arra_schedule_add':
-            return await handleScheduleAdd(ctx, request.params.arguments as unknown as OracleScheduleAddInput);
-          case 'arra_schedule_list':
-            return await handleScheduleList(ctx, request.params.arguments as unknown as OracleScheduleListInput);
-
           // Forum tools (delegated to src/tools/forum.ts)
           case 'arra_thread':
             return await handleThread(request.params.arguments as unknown as OracleThreadInput);

@@ -95,10 +95,10 @@ describe('EmbeddingProvider', () => {
 // ============================================================================
 
 describe('createVectorStore factory', () => {
-  test('defaults to chroma', () => {
+  test('defaults to lancedb', () => {
     const store = createVectorStore();
-    expect(store.name).toBe('chroma');
-    expect(store).toBeInstanceOf(ChromaMcpAdapter);
+    expect(store.name).toBe('lancedb');
+    expect(store).toBeInstanceOf(LanceDBAdapter);
   });
 
   test('creates sqlite-vec', () => {

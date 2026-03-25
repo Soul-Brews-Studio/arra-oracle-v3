@@ -35,6 +35,7 @@ import {
   ARTHUR_UI_PATH,
   DASHBOARD_PATH,
 } from './config.ts';
+import { MCP_SERVER_NAME } from './const.ts';
 import { sqlite as db, closeDb } from './db/index.ts';
 
 import {
@@ -298,7 +299,7 @@ const server = http.createServer(async (req, res) => {
         return;
 
       case '/api/health':
-        result = { status: 'ok', server: 'arra-oracle-v3', port: PORT, oracleV2: 'connected' };
+        result = { status: 'ok', server: MCP_SERVER_NAME, port: PORT, oracleV2: 'connected' };
         break;
 
       case '/api/search':

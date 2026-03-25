@@ -2,7 +2,7 @@
  * Oracle Schedule Handler (Drizzle DB)
  *
  * Source of truth: `schedule` table in oracle.db
- * Auto-exports to ~/.arra-oracle-v3/ψ/inbox/schedule.md on write.
+ * Auto-exports to ORACLE_DATA_DIR/ψ/inbox/schedule.md on write (see const.ts).
  *
  * Supports:
  * - Add/list events with proper YYYY-MM-DD date queries
@@ -12,16 +12,14 @@
  */
 
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import { eq, and, gte, lte, like, asc, or } from 'drizzle-orm';
 import { schedule } from '../db/schema.ts';
 import type { ToolContext, ToolResponse, OracleScheduleAddInput, OracleScheduleListInput } from './types.ts';
-
-const SCHEDULE_REL = 'ψ/inbox/schedule.md';
+import { SCHEDULE_PATH } from '../config.ts';
 
 function getSchedulePath(): string {
-  return path.join(os.homedir(), '.arra-oracle-v3', SCHEDULE_REL);
+  return SCHEDULE_PATH;
 }
 
 const MONTHS: Record<string, number> = {

@@ -6,6 +6,8 @@
  */
 
 import path from 'path';
+import { VECTORS_DB_PATH, LANCEDB_DIR, CHROMADB_DIR } from '../config.ts';
+import { COLLECTION_NAME } from '../const.ts';
 import type { VectorStoreAdapter, VectorDBType, EmbeddingProviderType } from './types.ts';
 import { ChromaMcpAdapter } from './adapters/chroma-mcp.ts';
 import { SqliteVecAdapter } from './adapters/sqlite-vec.ts';
@@ -44,20 +46,17 @@ export interface VectorStoreConfig {
  *   CLOUDFLARE_API_TOKEN      = CF API token (for cloudflare-vectorize)
  */
 export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAdapter {
-  const home = process.env.HOME || process.env.USERPROFILE;
-  if (!home) throw new Error('HOME environment variable not set — cannot resolve vector DB paths');
-
   const type = config.type
     || (process.env.ORACLE_VECTOR_DB as VectorDBType)
-    || 'chroma';
+    || 'lancedb';
 
-  const collectionName = config.collectionName || 'oracle_knowledge';
+  const collectionName = config.collectionName || COLLECTION_NAME;
 
   switch (type) {
     case 'sqlite-vec': {
       const dbPath = config.dataPath
         || process.env.ORACLE_VECTOR_DB_PATH
-        || path.join(home,'.arra-oracle-v3', 'vectors.db');
+        || VECTORS_DB_PATH;
 
       const embeddingType = config.embeddingProvider
         || (process.env.ORACLE_EMBEDDING_PROVIDER as EmbeddingProviderType)
@@ -73,7 +72,7 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
     case 'lancedb': {
       const dbPath = config.dataPath
         || process.env.ORACLE_VECTOR_DB_PATH
-        || path.join(home,'.arra-oracle-v3', 'lancedb');
+        || LANCEDB_DIR;
 
       const embeddingType = config.embeddingProvider
         || (process.env.ORACLE_EMBEDDING_PROVIDER as EmbeddingProviderType)
@@ -121,7 +120,7 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
 
     case 'chroma':
     default: {
-      const dataPath = config.dataPath || path.join(home,'.chromadb');
+      const dataPath = config.dataPath || CHROMADB_DIR;
       const pythonVersion = config.pythonVersion || '3.12';
       return new ChromaMcpAdapter(collectionName, dataPath, pythonVersion);
     }
@@ -132,37 +131,24 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
 // Model-based registry for dual-index search
 // ============================================================================
 
-function homeDir(): string {
-  const home = process.env.HOME || process.env.USERPROFILE;
-  if (!home) throw new Error('HOME environment variable not set — cannot resolve vector DB paths');
-  return home;
-}
-
-/** Known embedding model presets (resolved lazily to avoid import-time HOME access) */
-let _embeddingModels: Record<string, { collection: string; model: string; dataPath?: string }> | null = null;
-
 export function getEmbeddingModels(): Record<string, { collection: string; model: string; dataPath?: string }> {
-  if (!_embeddingModels) {
-    const home = homeDir();
-    _embeddingModels = {
-      nomic: {
-        collection: 'oracle_knowledge',
-        model: 'nomic-embed-text',
-        dataPath: path.join(home, '.arra-oracle-v3', 'lancedb'),
-      },
-      qwen3: {
-        collection: 'oracle_knowledge_qwen3',
-        model: 'qwen3-embedding',
-        dataPath: path.join(home, '.arra-oracle-v3', 'lancedb'),
-      },
-      'bge-m3': {
-        collection: 'oracle_knowledge_bge_m3',
-        model: 'bge-m3',
-        dataPath: path.join(home, '.arra-oracle-v3', 'lancedb'),
-      },
-    };
-  }
-  return _embeddingModels;
+  return {
+    nomic: {
+      collection: COLLECTION_NAME,
+      model: 'nomic-embed-text',
+      dataPath: LANCEDB_DIR,
+    },
+    qwen3: {
+      collection: 'oracle_knowledge_qwen3',
+      model: 'qwen3-embedding',
+      dataPath: LANCEDB_DIR,
+    },
+    'bge-m3': {
+      collection: 'oracle_knowledge_bge_m3',
+      model: 'bge-m3',
+      dataPath: LANCEDB_DIR,
+    },
+  };
 }
 
 /** @deprecated Use getEmbeddingModels() — kept for backward compat */

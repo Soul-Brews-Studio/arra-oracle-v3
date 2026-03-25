@@ -8,7 +8,6 @@
 export type { ToolContext, ToolResponse } from './types.ts';
 export type {
   OracleSearchInput,
-  OracleReflectInput,
   OracleLearnInput,
   OracleListInput,
   OracleStatsInput,
@@ -16,9 +15,6 @@ export type {
   OracleSupersededInput,
   OracleHandoffInput,
   OracleInboxInput,
-  OracleVerifyInput,
-  OracleScheduleAddInput,
-  OracleScheduleListInput,
   OracleReadInput,
 } from './types.ts';
 
@@ -41,9 +37,6 @@ export {
   extractProjectFromSource,
 } from './learn.ts';
 
-// Reflect
-export { reflectToolDef, handleReflect } from './reflect.ts';
-
 // List
 export { listToolDef, handleList } from './list.ts';
 
@@ -61,12 +54,6 @@ export { handoffToolDef, handleHandoff } from './handoff.ts';
 
 // Inbox
 export { inboxToolDef, handleInbox } from './inbox.ts';
-
-// Verify (bridge to verify/handler.ts)
-export { verifyToolDef, handleVerify } from './verify.ts';
-
-// Schedule
-export { scheduleAddToolDef, handleScheduleAdd, scheduleListToolDef, handleScheduleList } from './schedule.ts';
 
 // Read
 export { readToolDef, handleRead } from './read.ts';

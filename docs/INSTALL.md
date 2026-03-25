@@ -5,11 +5,11 @@ Complete guide for fresh installation with seed data.
 ## Quick Install (Recommended)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Soul-Brews-Studio/arra-oracle-v3/main/scripts/fresh-install.sh | bash
+curl -sSL https://raw.githubusercontent.com/Soul-Brews-Studio/arra-oracle-v2/main/scripts/fresh-install.sh | bash
 ```
 
 This one-liner will:
-1. Clone to `~/.local/share/arra-oracle-v3`
+1. Clone to `~/.local/share/arra-oracle-v2`
 2. Install dependencies
 3. Create seed philosophy files
 4. Index seed data (29 documents)
@@ -19,7 +19,7 @@ This one-liner will:
 
 ### Installation Directory
 ```
-~/.local/share/arra-oracle-v3/    # Code
+~/.local/share/arra-oracle-v2/    # Code
 ~/.oracle/                 # Data
 ├── oracle.db                 # SQLite database
 └── seed/                     # Seed philosophy files
@@ -50,7 +50,7 @@ This one-liner will:
 
 ### 1. Start Server
 ```bash
-cd ~/.local/share/arra-oracle-v3
+cd ~/.local/share/arra-oracle-v2
 bun run server
 ```
 
@@ -74,9 +74,9 @@ Add to `~/.claude.json`:
 ```json
 {
   "mcpServers": {
-    "arra-oracle-v3": {
+    "arra-oracle-v2": {
       "command": "bun",
-      "args": ["run", "~/.local/share/arra-oracle-v3/src/index.ts"]
+      "args": ["run", "~/.local/share/arra-oracle-v2/src/index.ts"]
     }
   }
 }
@@ -88,8 +88,8 @@ If you prefer step-by-step:
 
 ```bash
 # 1. Clone
-git clone https://github.com/Soul-Brews-Studio/arra-oracle-v3.git ~/.local/share/arra-oracle-v3
-cd ~/.local/share/arra-oracle-v3
+git clone https://github.com/Soul-Brews-Studio/arra-oracle-v2.git ~/.local/share/arra-oracle-v2
+cd ~/.local/share/arra-oracle-v2
 
 # 2. Install dependencies
 bun install
@@ -165,7 +165,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ## Uninstall
 
 ```bash
-rm -rf ~/.local/share/arra-oracle-v3
+rm -rf ~/.local/share/arra-oracle-v2
 rm -rf ~/.oracle
 ```
 

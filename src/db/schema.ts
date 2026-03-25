@@ -22,7 +22,7 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   supersededReason: text('superseded_reason'), // Why (optional)
   // Provenance tracking (Issue #22)
   origin: text('origin'),                   // 'mother' | 'arthur' | 'volt' | 'human' | null (legacy)
-  project: text('project'),                 // ghq-style: 'github.com/laris-co/arra-oracle-v3'
+  project: text('project'),                 // ghq-style: 'github.com/laris-co/arra-oracle'
   createdBy: text('created_by'),            // 'indexer' | 'arra_learn' | 'manual'
 }, (table) => [
   index('idx_source').on(table.sourceFile),

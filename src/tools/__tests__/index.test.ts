@@ -9,27 +9,23 @@ describe('tools barrel export', () => {
   it('exports core tool definitions', () => {
     expect(tools.searchToolDef).toBeDefined();
     expect(tools.learnToolDef).toBeDefined();
-    expect(tools.reflectToolDef).toBeDefined();
     expect(tools.listToolDef).toBeDefined();
     expect(tools.statsToolDef).toBeDefined();
     expect(tools.conceptsToolDef).toBeDefined();
     expect(tools.supersedeToolDef).toBeDefined();
     expect(tools.handoffToolDef).toBeDefined();
     expect(tools.inboxToolDef).toBeDefined();
-    expect(tools.verifyToolDef).toBeDefined();
   });
 
   it('exports core handlers', () => {
     expect(typeof tools.handleSearch).toBe('function');
     expect(typeof tools.handleLearn).toBe('function');
-    expect(typeof tools.handleReflect).toBe('function');
     expect(typeof tools.handleList).toBe('function');
     expect(typeof tools.handleStats).toBe('function');
     expect(typeof tools.handleConcepts).toBe('function');
     expect(typeof tools.handleSupersede).toBe('function');
     expect(typeof tools.handleHandoff).toBe('function');
     expect(typeof tools.handleInbox).toBe('function');
-    expect(typeof tools.handleVerify).toBe('function');
   });
 
   it('exports forum tool defs and handlers', () => {

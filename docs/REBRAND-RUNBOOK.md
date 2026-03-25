@@ -1,16 +1,16 @@
-# Rebrand Runbook: arra-oracle-v3 → arra-oracle-v3
+# Rebrand Runbook: arra-oracle-v2 → arra-oracle-v2
 
 > วันที่สร้าง: 2026-03-16
 > สถานะ: พร้อม execute
 
 ## Pre-flight Checklist
 
-- [x] PR #423 (arra-oracle-v3 source) — tests pass, code review done
+- [x] PR #423 (arra-oracle-v2 source) — tests pass, code review done
 - [x] PR #71 (oracle-skills-cli) — 110 tests pass
 - [x] PR #1 (oracle-cli), #2 (oracle-studio) — ready
 - [x] PR #4 (mother-oracle registry) — ready
 - [x] Fleet CLAUDE.md PRs (8 repos) — ready
-- [x] `~/.claude.json` MCP key already renamed to `arra-oracle-v3`
+- [x] `~/.claude.json` MCP key already renamed to `arra-oracle-v2`
 - [x] `~/.claude.json` backup at `~/.claude.json.bak-before-rebrand`
 
 ---
@@ -21,33 +21,33 @@
 
 ```bash
 # 1. Merge PR หลัก
-gh pr merge 423 --repo Soul-Brews-Studio/arra-oracle-v3 --merge
+gh pr merge 423 --repo Soul-Brews-Studio/arra-oracle-v2 --merge
 
 # 2. Rename repo (ATOMIC — GitHub auto-redirect ทันที)
-gh repo rename arra-oracle-v3 --repo Soul-Brews-Studio/arra-oracle-v3
+gh repo rename arra-oracle-v2 --repo Soul-Brews-Studio/arra-oracle-v2
 
 # 3. Verify redirect works
-gh repo view Soul-Brews-Studio/arra-oracle-v3 --json name
-# Expected: { "name": "arra-oracle-v3" }
+gh repo view Soul-Brews-Studio/arra-oracle-v2 --json name
+# Expected: { "name": "arra-oracle-v2" }
 ```
 
 ### Phase 2: Update Local (5 นาที)
 
 ```bash
 # 4. Re-clone to new ghq path
-ghq get -u -p Soul-Brews-Studio/arra-oracle-v3
+ghq get -u -p Soul-Brews-Studio/arra-oracle-v2
 
 # 5. Update ~/.claude.json paths (ใช้ jq)
 jq '
-  .mcpServers["arra-oracle-v3"].args = [
-    "/home/nat/Code/github.com/Soul-Brews-Studio/arra-oracle-v3/src/index.ts"
+  .mcpServers["arra-oracle-v2"].args = [
+    "/home/nat/Code/github.com/Soul-Brews-Studio/arra-oracle-v2/src/index.ts"
   ] |
-  .mcpServers["arra-oracle-v3"].env.ORACLE_REPO_ROOT =
-    "/home/nat/Code/github.com/Soul-Brews-Studio/arra-oracle-v3"
+  .mcpServers["arra-oracle-v2"].env.ORACLE_REPO_ROOT =
+    "/home/nat/Code/github.com/Soul-Brews-Studio/arra-oracle-v2"
 ' ~/.claude.json > /tmp/claude-json-tmp && mv /tmp/claude-json-tmp ~/.claude.json
 
 # 6. Verify MCP config
-jq '.mcpServers["arra-oracle-v3"]' ~/.claude.json
+jq '.mcpServers["arra-oracle-v2"]' ~/.claude.json
 ```
 
 ### Phase 3: Merge Fleet (10 นาที)
@@ -80,14 +80,14 @@ gh pr merge 2 --repo Soul-Brews-Studio/clawdacle --merge
 
 ```bash
 # 12. Old URL redirects?
-curl -sI https://github.com/Soul-Brews-Studio/arra-oracle-v3 | head -3
-# Expected: 301 → arra-oracle-v3
+curl -sI https://github.com/Soul-Brews-Studio/arra-oracle-v2 | head -3
+# Expected: 301 → arra-oracle-v2
 
 # 13. Registry sync works?
 cd ~/Code/github.com/laris-co/mother-oracle && bun registry/sync.ts
 
 # 14. MCP server starts?
-# (restart Claude Code session — new MCP prefix mcp__arra-oracle-v3__*)
+# (restart Claude Code session — new MCP prefix mcp__arra-oracle-v2__*)
 
 # 15. Skills work?
 # /oracle-family-scan --stats
@@ -99,7 +99,7 @@ cd ~/Code/github.com/laris-co/mother-oracle && bun registry/sync.ts
 
 ```bash
 # Rename back
-gh repo rename arra-oracle-v3 --repo Soul-Brews-Studio/arra-oracle-v3
+gh repo rename arra-oracle-v2 --repo Soul-Brews-Studio/arra-oracle-v2
 
 # Revert ~/.claude.json
 cp ~/.claude.json.bak-before-rebrand ~/.claude.json
@@ -114,10 +114,10 @@ git checkout main -- registry/config.json registry/sync.ts
 ## Post-Rebrand (ทำทีหลังได้)
 
 - [ ] Regenerate `skills-vfs.ts` in oracle-skills-cli
-- [ ] `maw hey` fleet notification — "arra-oracle-v3 is now arra-oracle-v3"
+- [ ] `maw hey` fleet notification — "arra-oracle-v2 is now arra-oracle-v2"
 - [ ] Update buildwithoracle.com blog posts (Calliope)
-- [ ] npm publish under new name `arra-oracle-v3`
-- [ ] Clean up old ghq path: `rm -rf ~/Code/github.com/Soul-Brews-Studio/arra-oracle-v3`
+- [ ] npm publish under new name `arra-oracle-v2`
+- [ ] Clean up old ghq path: `rm -rf ~/Code/github.com/Soul-Brews-Studio/arra-oracle-v2`
 
 ---
 
@@ -125,9 +125,9 @@ git checkout main -- registry/config.json registry/sync.ts
 
 | What | Before | After |
 |------|--------|-------|
-| Repo | Soul-Brews-Studio/arra-oracle-v3 | Soul-Brews-Studio/arra-oracle-v3 |
-| npm | arra-oracle-v3 | arra-oracle-v3 |
-| MCP prefix | mcp__arra-oracle-v3__* | mcp__arra-oracle-v3__* |
-| bin | `bunx arra-oracle-v3` | `bunx arra-oracle-v3` |
+| Repo | Soul-Brews-Studio/arra-oracle-v2 | Soul-Brews-Studio/arra-oracle-v2 |
+| npm | arra-oracle-v2 | arra-oracle-v2 |
+| MCP prefix | mcp__arra-oracle-v2__* | mcp__arra-oracle-v2__* |
+| bin | `bunx arra-oracle-v2` | `bunx arra-oracle-v2` |
 | Data dir | `~/.oracle/` | `~/.oracle/` (unchanged) |
 | DB path | `~/.oracle/oracle.db` | `~/.oracle/oracle.db` (unchanged) |

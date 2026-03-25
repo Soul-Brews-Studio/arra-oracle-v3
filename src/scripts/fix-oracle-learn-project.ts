@@ -6,11 +6,9 @@
 import { db, sqlite } from '../db/index.ts';
 import { oracleDocuments } from '../db/schema.ts';
 import { eq, isNull, or, and } from 'drizzle-orm';
-import { homedir } from 'os';
 import path from 'path';
 import fs from 'fs';
-
-const REPO_ROOT = path.join(homedir(), 'Code/github.com/Soul-Brews-Studio/arra-oracle-v3');
+import { REPO_ROOT } from '../config.ts';
 
 // Find all arra_learn docs without project using Drizzle
 const docs = db.select({

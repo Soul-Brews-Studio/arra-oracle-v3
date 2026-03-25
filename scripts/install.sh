@@ -9,9 +9,9 @@
 
 set -e
 
-INSTALL_DIR="${ORACLE_INSTALL_DIR:-$HOME/.local/share/arra-oracle-v3}"
-REPO_URL="https://github.com/Soul-Brews-Studio/arra-oracle-v3.git"
-REPO_API="https://api.github.com/repos/Soul-Brews-Studio/arra-oracle-v3"
+INSTALL_DIR="${ORACLE_INSTALL_DIR:-$HOME/.local/share/arra-oracle-v2}"
+REPO_URL="https://github.com/Soul-Brews-Studio/arra-oracle-v2.git"
+REPO_API="https://api.github.com/repos/Soul-Brews-Studio/arra-oracle-v2"
 
 echo "🔮 Arra Oracle Installer"
 echo "======================"
@@ -72,7 +72,7 @@ mkdir -p ~/.oracle
 # Add to Claude Code MCP
 echo ""
 echo "📝 Adding to Claude Code..."
-claude mcp add arra-oracle-v3 -- bun run "$INSTALL_DIR/src/index.ts" 2>/dev/null || {
+claude mcp add arra-oracle-v2 -- bun run "$INSTALL_DIR/src/index.ts" 2>/dev/null || {
     echo "⚠️  claude mcp add failed - you may need to add manually"
 }
 
@@ -84,7 +84,7 @@ echo "📋 Copy this to your AI (problems @tacha-hash faced):"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 cat << 'EOF'
 
-arra-oracle-v3 installed! Please restart Claude Code.
+arra-oracle-v2 installed! Please restart Claude Code.
 
 If you see errors, here are fixes from @tacha-hash's 20-min debug session:
 

@@ -4,18 +4,18 @@
  * Controls which tool groups are registered at startup.
  * Config sources (in priority order):
  *   1. arra.config.json in repo root (ORACLE_REPO_ROOT or cwd)
- *   2. ~/.arra-oracle-v3/config.json (global)
+ *   2. ORACLE_DATA_DIR/config.json (global, see const.ts)
  *   3. Defaults: all groups enabled
  */
 
 import fs from 'fs';
 import path from 'path';
+import { ORACLE_DATA_DIR } from '../config.ts';
 
 export const TOOL_GROUPS = {
   search: ['arra_search', 'arra_read', 'arra_list', 'arra_concepts'],
-  knowledge: ['arra_learn', 'arra_reflect', 'arra_stats', 'arra_supersede', 'arra_verify'],
+  knowledge: ['arra_learn', 'arra_stats', 'arra_supersede'],
   session: ['arra_handoff', 'arra_inbox'],
-  schedule: ['arra_schedule_add', 'arra_schedule_list'],
   forum: ['arra_thread', 'arra_threads', 'arra_thread_read', 'arra_thread_update'],
   trace: ['arra_trace', 'arra_trace_list', 'arra_trace_get', 'arra_trace_link', 'arra_trace_unlink', 'arra_trace_chain'],
 } as const;
@@ -28,7 +28,6 @@ const DEFAULT_CONFIG: ToolGroupConfig = {
   search: true,
   knowledge: true,
   session: true,
-  schedule: true,
   forum: true,
   trace: true,
 };
@@ -44,7 +43,6 @@ function readJsonSafe(filePath: string): Record<string, any> | null {
 
 export function loadToolGroupConfig(repoRoot?: string): ToolGroupConfig {
   const root = repoRoot || process.env.ORACLE_REPO_ROOT || process.cwd();
-  const homeDir = process.env.HOME || process.env.USERPROFILE || '/tmp';
 
   // Priority 1: repo-local arra.config.json
   const localConfig = readJsonSafe(path.join(root, 'arra.config.json'));
@@ -53,10 +51,10 @@ export function loadToolGroupConfig(repoRoot?: string): ToolGroupConfig {
     return { ...DEFAULT_CONFIG, ...localConfig.tools };
   }
 
-  // Priority 2: global ~/.arra-oracle-v3/config.json
-  const globalConfig = readJsonSafe(path.join(homeDir, '.arra-oracle-v3', 'config.json'));
+  // Priority 2: global config.json in data dir
+  const globalConfig = readJsonSafe(path.join(ORACLE_DATA_DIR, 'config.json'));
   if (globalConfig?.tools) {
-    console.error('[ToolGroups] Using ~/.arra-oracle-v3/config.json');
+    console.error(`[ToolGroups] Using ${ORACLE_DATA_DIR}/config.json`);
     return { ...DEFAULT_CONFIG, ...globalConfig.tools };
   }
 

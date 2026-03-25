@@ -60,7 +60,7 @@ Returns server status.
 ```json
 {
   "status": "ok",
-  "server": "arra-oracle-v3",
+  "server": "arra-oracle-v2",
   "port": 47778
 }
 ```
@@ -479,7 +479,7 @@ bun run server &                  # Backend on :47778
 cd frontend && bun dev &          # Frontend on :3000
 
 # 3. Run E2E tests
-cd ~/.claude/skills/dev-browser && npx tsx /path/to/arra-oracle-v3/e2e/run-e2e.ts
+cd ~/.claude/skills/dev-browser && npx tsx /path/to/arra-oracle-v2/e2e/run-e2e.ts
 ```
 
 **E2E Test Coverage (14 tests):**

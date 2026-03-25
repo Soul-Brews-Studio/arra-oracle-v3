@@ -1,9 +1,9 @@
 #!/bin/bash
 # Fresh installation of Arra Oracle with seed data
-# Usage: curl -sSL https://raw.githubusercontent.com/Soul-Brews-Studio/arra-oracle-v3/main/scripts/fresh-install.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/Soul-Brews-Studio/arra-oracle-v2/main/scripts/fresh-install.sh | bash
 set -e
 
-INSTALL_DIR="${ORACLE_INSTALL_DIR:-$HOME/.local/share/arra-oracle-v3}"
+INSTALL_DIR="${ORACLE_INSTALL_DIR:-$HOME/.local/share/arra-oracle-v2}"
 DATA_DIR="$HOME/.oracle"
 
 echo "🔮 Arra Oracle - Fresh Installation"
@@ -47,7 +47,7 @@ fi
 
 # Clone
 echo "📥 Cloning Arra Oracle..."
-git clone --depth 1 https://github.com/Soul-Brews-Studio/arra-oracle-v3.git "$INSTALL_DIR"
+git clone --depth 1 https://github.com/Soul-Brews-Studio/arra-oracle-v2.git "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
 # Install dependencies
@@ -89,7 +89,7 @@ echo ""
 echo "📝 Add to Claude Code (~/.claude.json):"
 echo '  {'
 echo '    "mcpServers": {'
-echo '      "arra-oracle-v3": {'
+echo '      "arra-oracle-v2": {'
 echo '        "command": "bun",'
 echo "        \"args\": [\"run\", \"$INSTALL_DIR/src/index.ts\"]"
 echo '      }'
@@ -116,4 +116,4 @@ elif command -v ifconfig &> /dev/null; then
     done
 fi
 echo ""
-echo "📖 Docs: https://github.com/Soul-Brews-Studio/arra-oracle-v3"
+echo "📖 Docs: https://github.com/Soul-Brews-Studio/arra-oracle-v2"

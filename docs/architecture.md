@@ -182,9 +182,9 @@ CREATE TABLE indexing_status (
 ```json
 {
   "mcpServers": {
-    "arra-oracle-v3": {
+    "arra-oracle-v2": {
       "command": "node",
-      "args": ["/path/to/arra-oracle-v3/dist/index.js"],
+      "args": ["/path/to/arra-oracle-v2/dist/index.js"],
       "env": {
         "ORACLE_REPO_ROOT": "/path/to/knowledge-base"
       }

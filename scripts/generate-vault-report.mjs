@@ -418,7 +418,7 @@ function generateHTML() {
     </div>` : ''}
 
     <footer class="text-center text-gray-600 text-[10px] py-3 border-t border-white/5">
-      <a href="https://github.com/Soul-Brews-Studio/arra-oracle-v3" class="text-gray-500 hover:text-gray-300">arra-oracle-v3</a> &middot; <span class="font-mono">${generated}</span>
+      <a href="https://github.com/Soul-Brews-Studio/arra-oracle-v2" class="text-gray-500 hover:text-gray-300">arra-oracle-v2</a> &middot; <span class="font-mono">${generated}</span>
     </footer>
   </div>
 </body>

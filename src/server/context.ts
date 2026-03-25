@@ -7,10 +7,10 @@ import { execSync } from 'child_process';
 
 export interface ProjectContext {
   // From ghq path parsing
-  github: string;      // "https://github.com/laris-co/arra-oracle-v3"
+  github: string;      // "https://github.com/laris-co/arra-oracle"
   owner: string;       // "laris-co"
-  repo: string;        // "arra-oracle-v3"
-  ghqPath: string;     // "github.com/laris-co/arra-oracle-v3"
+  repo: string;        // "arra-oracle"
+  ghqPath: string;     // "github.com/laris-co/arra-oracle"
 
   // Directories
   root: string;        // Git root directory

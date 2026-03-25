@@ -1,9 +1,9 @@
 #!/bin/bash
-# Migrate ~/.oracle/ → ~/.arra-oracle-v3/
+# Migrate ~/.oracle/ → ~/.arra-oracle-v2/
 # "Nothing is Deleted" — old dir preserved, not removed.
 
 OLD="$HOME/.oracle"
-NEW="$HOME/.arra-oracle-v3"
+NEW="$HOME/.arra-oracle-v2"
 
 if [ -d "$NEW" ]; then
   echo "✓ $NEW already exists — nothing to do"

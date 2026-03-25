@@ -14,9 +14,9 @@ TypeScript MCP server for semantic search over Oracle philosophy — SQLite FTS5
 ## Architecture
 
 ```
-arra-oracle-v3 (one package, two bins)
-├── bunx arra-oracle-v3                          → MCP server (src/index.ts)
-├── bunx --package arra-oracle-v3 oracle-vault   → Vault CLI (src/vault/cli.ts)
+arra-oracle-v2 (one package, two bins)
+├── bunx arra-oracle-v2                          → MCP server (src/index.ts)
+├── bunx --package arra-oracle-v2 oracle-vault   → Vault CLI (src/vault/cli.ts)
 ├── bun run server                          → HTTP API (src/server.ts)
 └── bun run index                           → Indexer (src/indexer.ts)
 
@@ -40,25 +40,25 @@ Distributed via GitHub — no npm publish needed:
 
 ```bash
 # MCP server (stdio, for Claude Code)
-bunx --bun arra-oracle-v3@github:Soul-Brews-Studio/arra-oracle-v3#main
+bunx --bun arra-oracle-v2@github:Soul-Brews-Studio/arra-oracle-v2#main
 
 # Vault CLI (secondary bin — use --package)
-bunx --bun --package arra-oracle-v3@github:Soul-Brews-Studio/arra-oracle-v3#main oracle-vault --help
+bunx --bun --package arra-oracle-v2@github:Soul-Brews-Studio/arra-oracle-v2#main oracle-vault --help
 ```
 
 ### Add to Claude Code
 
 ```bash
-claude mcp add arra-oracle-v3 -- bunx --bun arra-oracle-v3@github:Soul-Brews-Studio/arra-oracle-v3#main
+claude mcp add arra-oracle-v2 -- bunx --bun arra-oracle-v2@github:Soul-Brews-Studio/arra-oracle-v2#main
 ```
 
 Or in `~/.claude.json`:
 ```json
 {
   "mcpServers": {
-    "arra-oracle-v3": {
+    "arra-oracle-v2": {
       "command": "bunx",
-      "args": ["--bun", "arra-oracle-v3@github:Soul-Brews-Studio/arra-oracle-v3#main"]
+      "args": ["--bun", "arra-oracle-v2@github:Soul-Brews-Studio/arra-oracle-v2#main"]
     }
   }
 }
@@ -67,8 +67,8 @@ Or in `~/.claude.json`:
 ### From source
 
 ```bash
-git clone https://github.com/Soul-Brews-Studio/arra-oracle-v3.git
-cd arra-oracle-v3 && bun install
+git clone https://github.com/Soul-Brews-Studio/arra-oracle-v2.git
+cd arra-oracle-v2 && bun install
 bun run dev          # MCP server
 bun run server       # HTTP API on :47778
 ```
@@ -77,7 +77,7 @@ bun run server       # HTTP API on :47778
 <summary>Install script (legacy)</summary>
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Soul-Brews-Studio/arra-oracle-v3/main/scripts/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/Soul-Brews-Studio/arra-oracle-v2/main/scripts/install.sh | bash
 ```
 </details>
 
@@ -165,7 +165,7 @@ bun db:studio     # Open Drizzle Studio GUI
 ## Project Structure
 
 ```
-arra-oracle-v3/
+arra-oracle-v2/
 ├── src/
 │   ├── index.ts          # MCP server entry
 │   ├── server.ts         # HTTP API (Hono)

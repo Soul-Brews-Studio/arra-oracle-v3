@@ -9,6 +9,7 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { MCP_SERVER_NAME } from './const.ts';
 
 /** Parse JSON that may contain Python-style single quotes or numpy arrays */
 function safeJsonParse(text: string): any {
@@ -85,7 +86,7 @@ export class ChromaMcpClient {
       });
 
       this.client = new Client({
-        name: 'arra-oracle-v3-chroma',
+        name: `${MCP_SERVER_NAME}-chroma`,
         version: '1.0.0'
       }, {
         capabilities: {}

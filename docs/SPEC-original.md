@@ -188,7 +188,7 @@ See [TIMELINE.md](../TIMELINE.md) for full history.
 
 ## Original Next Steps ✅ ALL DONE
 
-- [x] Create ψ/lab/arra-oracle-v3/prototype.ts → Became `src/index.ts`
+- [x] Create ψ/lab/arra-oracle-v2/prototype.ts → Became `src/index.ts`
 - [x] Test Chroma indexing → Works with 5,500+ documents
 - [x] Create oracle skill → Evolved to 19 MCP tools
 - [x] Test in real session → Production since Jan 15

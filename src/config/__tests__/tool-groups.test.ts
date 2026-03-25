@@ -2,12 +2,11 @@ import { describe, it, expect } from 'bun:test';
 import { TOOL_GROUPS, getDisabledTools, loadToolGroupConfig, type ToolGroupConfig } from '../tool-groups.ts';
 
 describe('tool-groups', () => {
-  it('defines 6 groups with correct tool counts', () => {
-    expect(Object.keys(TOOL_GROUPS)).toHaveLength(6);
+  it('defines 5 groups with correct tool counts', () => {
+    expect(Object.keys(TOOL_GROUPS)).toHaveLength(5);
     expect(TOOL_GROUPS.search).toHaveLength(4);
-    expect(TOOL_GROUPS.knowledge).toHaveLength(5);
+    expect(TOOL_GROUPS.knowledge).toHaveLength(3);
     expect(TOOL_GROUPS.session).toHaveLength(2);
-    expect(TOOL_GROUPS.schedule).toHaveLength(2);
     expect(TOOL_GROUPS.forum).toHaveLength(4);
     expect(TOOL_GROUPS.trace).toHaveLength(6);
   });
@@ -15,7 +14,7 @@ describe('tool-groups', () => {
   it('returns empty set when all groups enabled', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
-      schedule: true, forum: true, trace: true,
+      forum: true, trace: true,
     };
     expect(getDisabledTools(config).size).toBe(0);
   });
@@ -23,11 +22,9 @@ describe('tool-groups', () => {
   it('disables correct tools when groups are off', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
-      schedule: false, forum: true, trace: false,
+      forum: true, trace: false,
     };
     const disabled = getDisabledTools(config);
-    expect(disabled.has('arra_schedule_add')).toBe(true);
-    expect(disabled.has('arra_schedule_list')).toBe(true);
     expect(disabled.has('arra_trace')).toBe(true);
     expect(disabled.has('arra_trace_list')).toBe(true);
     expect(disabled.has('arra_search')).toBe(false);
@@ -39,7 +36,6 @@ describe('tool-groups', () => {
     expect(config.search).toBe(true);
     expect(config.knowledge).toBe(true);
     expect(config.session).toBe(true);
-    expect(config.schedule).toBe(true);
     expect(config.forum).toBe(true);
     expect(config.trace).toBe(true);
   });
