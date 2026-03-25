@@ -543,6 +543,32 @@ app.get('/api/feed', (c) => {
   }
 });
 
+// WASM Plugins (served from ~/.oracle/plugins/)
+const PLUGINS_DIR = path.join(process.env.HOME || '/home/nat', '.oracle', 'plugins');
+
+app.get('/api/plugins', (c) => {
+  try {
+    if (!fs.existsSync(PLUGINS_DIR)) return c.json({ plugins: [] });
+    const files = fs.readdirSync(PLUGINS_DIR).filter(f => f.endsWith('.wasm'));
+    const plugins = files.map(f => {
+      const stat = fs.statSync(path.join(PLUGINS_DIR, f));
+      return { name: f.replace('.wasm', ''), file: f, size: stat.size, modified: stat.mtime.toISOString() };
+    });
+    return c.json({ plugins });
+  } catch (e: any) {
+    return c.json({ plugins: [], error: e.message });
+  }
+});
+
+app.get('/api/plugins/:name', (c) => {
+  const name = c.req.param('name');
+  const file = name.endsWith('.wasm') ? name : `${name}.wasm`;
+  const filePath = path.join(PLUGINS_DIR, file);
+  if (!fs.existsSync(filePath)) return c.json({ error: 'Plugin not found' }, 404);
+  const buf = fs.readFileSync(filePath);
+  return new Response(buf, { headers: { 'Content-Type': 'application/wasm' } });
+});
+
 // Logs
 app.get('/api/logs', (c) => {
   try {
