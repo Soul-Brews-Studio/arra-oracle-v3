@@ -7,6 +7,7 @@ import styles from './Header.module.css';
 const navItems = [
   { path: '/', label: 'Overview' },
   { path: '/feed', label: 'Feed' },
+  { path: '/events', label: 'Events' },
   { path: '/graph', label: 'Graph' },
   { divider: true },
   { path: '/search', label: 'Search' },

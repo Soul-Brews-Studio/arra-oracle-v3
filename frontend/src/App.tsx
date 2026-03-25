@@ -13,6 +13,7 @@ import { Forum } from './pages/Forum';
 import { Evolution } from './pages/Evolution';
 import { Traces } from './pages/Traces';
 import { Superseded } from './pages/Superseded';
+import { Events } from './pages/Events';
 import { Login } from './pages/Login';
 import { Settings } from './pages/Settings';
 import { Playground } from './pages/Playground';
@@ -56,6 +57,7 @@ function AppContent() {
         <Route path="/graph3d" element={<Navigate to="/graph" replace />} />
         <Route path="/handoff" element={<RequireAuth><Handoff /></RequireAuth>} />
         <Route path="/activity" element={<RequireAuth><Activity /></RequireAuth>} />
+        <Route path="/events" element={<RequireAuth><Events /></RequireAuth>} />
         <Route path="/forum" element={<RequireAuth><Forum /></RequireAuth>} />
         <Route path="/evolution" element={<RequireAuth><Evolution /></RequireAuth>} />
         <Route path="/traces" element={<RequireAuth><Traces /></RequireAuth>} />
