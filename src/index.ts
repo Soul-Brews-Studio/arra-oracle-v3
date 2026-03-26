@@ -26,6 +26,7 @@ import type { ToolContext } from './tools/types.ts';
 import {
   searchToolDef, handleSearch,
   learnToolDef, handleLearn,
+  factExtractionToolDef, handleFactExtraction,
   reflectToolDef, handleReflect,
   listToolDef, handleList,
   statsToolDef, handleStats,
@@ -57,6 +58,7 @@ import type {
   OracleScheduleAddInput,
   OracleScheduleListInput,
   OracleReadInput,
+  OracleFactExtractionInput,
   OracleThreadInput,
   OracleThreadsInput,
   OracleThreadReadInput,
@@ -72,6 +74,7 @@ import type {
 // Write tools that should be disabled in read-only mode
 const WRITE_TOOLS = [
   'arra_learn',
+  'arra_extract_facts',
   'arra_thread',
   'arra_thread_update',
   'arra_trace',
@@ -204,6 +207,8 @@ class OracleMCPServer {
         verifyToolDef,
         scheduleAddToolDef,
         scheduleListToolDef,
+        // Fact extraction (mem0-inspired)
+        factExtractionToolDef,
       ];
 
       let tools = allTools.filter(t => !this.disabledTools.has(t.name));
@@ -269,6 +274,8 @@ class OracleMCPServer {
             return await handleScheduleAdd(ctx, request.params.arguments as unknown as OracleScheduleAddInput);
           case 'arra_schedule_list':
             return await handleScheduleList(ctx, request.params.arguments as unknown as OracleScheduleListInput);
+          case 'arra_extract_facts':
+            return await handleFactExtraction(ctx, request.params.arguments as unknown as any);
 
           // Forum tools (delegated to src/tools/forum.ts)
           case 'arra_thread':

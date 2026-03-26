@@ -11,6 +11,7 @@ import { oracleDocuments } from '../db/schema.ts';
 import { detectProject } from '../server/project-detect.ts';
 import { getVaultPsiRoot } from '../vault/handler.ts';
 import type { ToolContext, ToolResponse, OracleLearnInput } from './types.ts';
+// import { getDeduplicator, type DedupDecision } from './deduplication.ts';  // TEMPORARILY DISABLED
 
 /** Coerce concepts to string[] — handles string, array, or undefined from MCP input */
 export function coerceConcepts(concepts: unknown): string[] {
@@ -106,6 +107,43 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
 
+  // ============================================================================
+  // Memory Deduplication Check (mem0-inspired) - TEMPORARILY DISABLED FOR DEBUGGING
+  // ============================================================================
+  // const dedup = getDeduplicator();
+  // const dedupResult = await dedup.checkDuplicates(ctx, pattern);
+
+  // Handle deduplication decisions
+  // if (dedupResult.decision === 'SKIP') {
+  //   console.log(`[Dedup] Skipping duplicate learning: ${dedupResult.reasoning}`);
+
+  //   return {
+  //     content: [{
+  //       type: 'text',
+  //       text: JSON.stringify({
+  //         success: true,
+  //         skipped: true,
+  //         decision: 'SKIP',
+  //         reasoning: dedupResult.reasoning,
+  //         similarTo: dedupResult.similarLearning?.id,
+  //         message: `Learning skipped (duplicate): ${dedupResult.reasoning}`
+  //       }, null, 2)
+  //     }]
+  //   };
+  // }
+
+  // if (dedupResult.decision === 'UPDATE' || dedupResult.decision === 'ENHANCE') {
+  //   console.log(`[Dedup] ${dedupResult.decision} decision: ${dedupResult.reasoning}`);
+
+  //   // For now, still proceed with adding new learning
+  //   // TODO: Implement actual UPDATE/ENHANCE logic (merge with existing)
+  //   // Future: Could append to existing file or create linked learning
+  // }
+
+  // ============================================================================
+  // Proceed with adding learning
+  // ============================================================================
+
   const slug = pattern
     .substring(0, 50)
     .toLowerCase()
@@ -168,23 +206,69 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
 
   const id = `learning_${dateStr}_${slug}`;
 
-  ctx.db.insert(oracleDocuments).values({
-    id,
-    type: 'learning',
-    sourceFile: sourceFileRel,
-    concepts: JSON.stringify(conceptsList),
-    createdAt: now.getTime(),
-    updatedAt: now.getTime(),
-    indexedAt: now.getTime(),
-    origin: null,
-    project,
-    createdBy: 'arra_learn',
-  }).run();
+  console.log('[DEBUG] About to INSERT into oracle_documents...');
+  try {
+    ctx.db.insert(oracleDocuments).values({
+      id,
+      type: 'learning',
+      sourceFile: sourceFileRel,
+      concepts: JSON.stringify(conceptsList),
+      createdAt: now.getTime(),
+      updatedAt: now.getTime(),
+      indexedAt: now.getTime(),
+      origin: null,
+      project,
+      createdBy: 'arra_learn',
+    }).run();
+    console.log('[DEBUG] oracle_documents INSERT succeeded');
+  } catch (err) {
+    console.error('[DEBUG] oracle_documents INSERT failed:', err);
+    throw err;
+  }
 
-  ctx.sqlite.prepare(`
-    INSERT INTO oracle_fts (id, content, concepts)
-    VALUES (?, ?, ?)
-  `).run(id, frontmatter, conceptsList.join(' '));
+  console.log('[DEBUG] About to INSERT into oracle_fts...');
+  try {
+    ctx.sqlite.prepare(`
+      INSERT INTO oracle_fts (id, content, concepts)
+      VALUES (?, ?, ?)
+    `).run(id, frontmatter, conceptsList.join(' '));
+    console.log('[DEBUG] oracle_fts INSERT succeeded');
+  } catch (err) {
+    console.error('[DEBUG] oracle_fts INSERT failed:', err);
+    throw err;
+  }
+
+  // ============================================================================
+  // Add to ChromaDB for semantic search (mem0-inspired)
+  // ============================================================================
+  try {
+    await ctx.vectorStore.ensureCollection();
+
+    // Build metadata (exclude null values for ChromaDB compatibility)
+    const metadata: Record<string, string | number> = {
+      id,
+      type: 'learning',
+      source_file: sourceFileRel,
+      concepts: JSON.stringify(conceptsList),
+      created: dateStr,
+      source: source || 'Oracle Learn',
+      title,
+    };
+    if (project) {
+      metadata.project = project;
+    }
+
+    await ctx.vectorStore.addDocuments([{
+      id,
+      document: pattern,
+      metadata,
+    }]);
+    console.error(`[ChromaDB] Added learning: ${id}`);
+  } catch (error) {
+    // Non-fatal: log error but don't fail the learning operation
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`[ChromaDB] Failed to add learning: ${errorMsg}`);
+  }
 
   return {
     content: [{
@@ -193,6 +277,8 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
         success: true,
         file: sourceFileRel,
         id,
+        decision: 'ADD',
+        dedupReasoning: 'Deduplication temporarily disabled for debugging',
         message: `Pattern added to Oracle knowledge base${vaultRoot ? ' (vault)' : ''}`
       }, null, 2)
     }]
