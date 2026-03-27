@@ -35,6 +35,39 @@ export function initFts5(sqliteDb: Database): void {
 }
 
 /**
+ * Initialize supersede_log table (migration 0003)
+ * Added to fix existing installations missing this table.
+ * Idempotent - safe to call on every startup.
+ */
+export function initSupersedeLog(sqliteDb: Database): void {
+  // Create table
+  sqliteDb.exec(`
+    CREATE TABLE IF NOT EXISTS supersede_log (
+      id integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      old_path text NOT NULL,
+      old_id text,
+      old_title text,
+      old_type text,
+      new_path text,
+      new_id text,
+      new_title text,
+      reason text,
+      superseded_at integer NOT NULL,
+      superseded_by text,
+      project text
+    )
+  `);
+
+  // Create indexes
+  sqliteDb.exec(`
+    CREATE INDEX IF NOT EXISTS idx_supersede_old_path ON supersede_log (old_path);
+    CREATE INDEX IF NOT EXISTS idx_supersede_new_path ON supersede_log (new_path);
+    CREATE INDEX IF NOT EXISTS idx_supersede_created ON supersede_log (superseded_at);
+    CREATE INDEX IF NOT EXISTS idx_supersede_project ON supersede_log (project);
+  `);
+}
+
+/**
  * Initialize a database: run migrations, create FTS5, seed indexing_status.
  */
 function initializeDatabase(sqliteDb: Database, drizzleDb: BunSQLiteDatabase<typeof schema>): void {
@@ -42,11 +75,23 @@ function initializeDatabase(sqliteDb: Database, drizzleDb: BunSQLiteDatabase<typ
   sqliteDb.exec('PRAGMA journal_mode = WAL');
   sqliteDb.exec('PRAGMA busy_timeout = 5000');
 
-  // Run Drizzle migrations (creates/updates all schema tables)
-  migrate(drizzleDb, { migrationsFolder: MIGRATIONS_FOLDER });
+  // Check if database is already initialized (has oracle_documents table)
+  const tables = sqliteDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='oracle_documents'").get() as { name: string } | undefined;
+  const isAlreadyInitialized = !!tables;
+
+  // Run Drizzle migrations only if database is new
+  if (!isAlreadyInitialized) {
+    console.log('[DB] New database, running migrations...');
+    migrate(drizzleDb, { migrationsFolder: MIGRATIONS_FOLDER });
+  } else {
+    console.log('[DB] Database already initialized, skipping migrations');
+  }
 
   // FTS5 (raw SQL, idempotent)
   initFts5(sqliteDb);
+
+  // Supersede log table (migration 0003 - idempotent for existing DBs)
+  initSupersedeLog(sqliteDb);
 
   // Ensure indexing_status has its single row
   sqliteDb.exec('INSERT OR IGNORE INTO indexing_status (id, is_indexing) VALUES (1, 0)');
