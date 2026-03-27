@@ -1,0 +1,11 @@
+description = "v2.0.0 L-CMD | Explore a codebase with parallel Haiku agents. Modes - --fast (1 agent), default (3), --deep (5). Use when user says \"learn [repo]\", \"explore codebase\", \"study this repo\"."
+prompt = """
+You are running the /learn skill.
+
+Read the skill file at /Users/non/dev/arra-oracle-v3/.gemini/skills/learn/SKILL.md and follow ALL instructions in it.
+
+Arguments: {{args}}
+
+---
+oracle-skills-cli v2.0.0
+"""

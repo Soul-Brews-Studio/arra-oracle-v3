@@ -47,3 +47,6 @@ test-results/
 vault-report.html
 vault-repos.html
 vault-data.json
+
+# Frontend build artifacts
+frontend/dist/

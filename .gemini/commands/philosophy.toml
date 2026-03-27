@@ -1,0 +1,11 @@
+description = "v2.0.0 L-CMD | Display Oracle philosophy principles and guidance. Use when user asks about principles, \"nothing deleted\", Oracle philosophy, or needs alignment check."
+prompt = """
+You are running the /philosophy skill.
+
+Read the skill file at /Users/non/dev/arra-oracle-v3/.gemini/skills/philosophy/SKILL.md and follow ALL instructions in it.
+
+Arguments: {{args}}
+
+---
+oracle-skills-cli v2.0.0
+"""

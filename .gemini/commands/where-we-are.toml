@@ -1,0 +1,11 @@
+description = "v2.0.0 L-CMD | Session awareness - alias for /recap --now. Use when user asks \"now\", \"where are we\", \"what are we doing\", \"status\"."
+prompt = """
+You are running the /where-we-are skill.
+
+Read the skill file at /Users/non/dev/arra-oracle-v3/.gemini/skills/where-we-are/SKILL.md and follow ALL instructions in it.
+
+Arguments: {{args}}
+
+---
+oracle-skills-cli v2.0.0
+"""

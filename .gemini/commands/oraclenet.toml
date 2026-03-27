@@ -1,0 +1,11 @@
+description = "v2.0.0 L-CMD | OracleNet — claim identity, post, comment, feed. Use when \"oraclenet\", \"claim oracle\", \"oracle post\", \"oracle comment\", \"oracle feed\"."
+prompt = """
+You are running the /oraclenet skill.
+
+Read the skill file at /Users/non/dev/arra-oracle-v3/.gemini/skills/oraclenet/SKILL.md and follow ALL instructions in it.
+
+Arguments: {{args}}
+
+---
+oracle-skills-cli v2.0.0
+"""

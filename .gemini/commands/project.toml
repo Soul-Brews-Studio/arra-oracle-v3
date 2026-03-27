@@ -1,0 +1,11 @@
+description = "v2.0.0 L-CMD | Clone and track external repos. Use when user shares GitHub URL to study or develop, or says \"search repos\", \"find repo\", \"where is [project]\". Actions - learn (clone for study), incubate (clone for development), search/find (search repos), list (show tracked)."
+prompt = """
+You are running the /project skill.
+
+Read the skill file at /Users/non/dev/arra-oracle-v3/.gemini/skills/project/SKILL.md and follow ALL instructions in it.
+
+Arguments: {{args}}
+
+---
+oracle-skills-cli v2.0.0
+"""
