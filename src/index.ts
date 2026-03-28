@@ -20,7 +20,7 @@ import type { VectorStoreAdapter } from './vector/types.ts';
 import path from 'path';
 import fs from 'fs';
 import { loadToolGroupConfig, getDisabledTools, type ToolGroupConfig } from './config/tool-groups.ts';
-import { ORACLE_DATA_DIR, DB_PATH, CHROMADB_DIR } from './config.ts';
+import { ORACLE_DATA_DIR, DB_PATH, LANCEDB_DIR } from './config.ts';
 import { MCP_SERVER_NAME } from './const.ts';
 
 // Tool handlers (all extracted to src/tools/)
@@ -99,7 +99,7 @@ class OracleMCPServer {
     }
 
     this.vectorStore = createVectorStore({
-      dataPath: CHROMADB_DIR,
+      dataPath: LANCEDB_DIR,
     });
 
     const pkg = JSON.parse(fs.readFileSync(path.join(import.meta.dirname || __dirname, '..', 'package.json'), 'utf-8'));
