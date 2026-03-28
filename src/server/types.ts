@@ -12,6 +12,7 @@ export interface SearchResult {
   score?: number;
   distance?: number;
   model?: string;
+  project?: string | null;
 }
 
 export interface SearchResponse {
