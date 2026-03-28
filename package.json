@@ -31,7 +31,7 @@
     "build": "tsc --noEmit",
     "start": "bun dist/index.js",
     "test": "bun run test:unit && bun run test:integration",
-    "test:unit": "bun test src/tools/__tests__/ src/server/__tests__/ src/vault/__tests__/ src/drizzle-migration.test.ts src/indexer-preservation.test.ts",
+    "test:unit": "bun test src/tools/__tests__/ src/server/__tests__/ src/vault/__tests__/ src/drizzle-migration.test.ts src/indexer-preservation.test.ts src/indexer/__tests__/",
     "test:integration": "bun test src/integration/",
     "test:integration:db": "bun test src/integration/database.test.ts",
     "test:integration:mcp": "bun test src/integration/mcp.test.ts",

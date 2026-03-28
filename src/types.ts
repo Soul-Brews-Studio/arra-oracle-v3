@@ -3,7 +3,7 @@
  * Following claude-mem patterns for granular vector documents
  */
 
-export type OracleDocumentType = 'principle' | 'pattern' | 'learning' | 'retro';
+export type OracleDocumentType = 'principle' | 'pattern' | 'learning' | 'retro' | 'snapshot';
 
 /**
  * Granular document stored in vector DB

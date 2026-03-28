@@ -25,9 +25,11 @@ export function registerFileRoutes(app: Hono) {
   });
 
   // File - supports cross-repo access via ghq project paths
+  // project may be a full ghq path (github.com/owner/repo) or a short slug (sticker-gen)
+  // Only full ghq paths are used to construct basePath; short slugs fall back to REPO_ROOT
   app.get('/api/file', async (c) => {
     const filePath = c.req.query('path');
-    const project = c.req.query('project'); // ghq-style path: github.com/owner/repo
+    const project = c.req.query('project'); // full ghq path OR short slug label
 
     if (!filePath) {
       return c.json({ error: 'Missing path parameter' }, 400);
@@ -50,11 +52,15 @@ export function registerFileRoutes(app: Hono) {
           GHQ_ROOT = match ? match[1] : path.dirname(path.dirname(path.dirname(REPO_ROOT)));
         }
       }
-      const basePath = project ? path.join(GHQ_ROOT, project) : REPO_ROOT;
+      // Only use GHQ_ROOT for full ghq paths (github.com/owner/repo).
+      // Short slugs like "sticker-gen" or "mmv-tarots" are metadata labels, not path components —
+      // their source_file already encodes the full relative path from REPO_ROOT.
+      const isGhqPath = project && project.startsWith('github.com/');
+      const basePath = isGhqPath ? path.join(GHQ_ROOT, project) : REPO_ROOT;
 
-      // Strip project prefix if source_file already contains it
+      // Strip project prefix if source_file already contains it (only relevant for ghq paths)
       let resolvedFilePath = filePath;
-      if (project && filePath.toLowerCase().startsWith(project.toLowerCase() + '/')) {
+      if (isGhqPath && filePath.toLowerCase().startsWith(project.toLowerCase() + '/')) {
         resolvedFilePath = filePath.slice(project.length + 1);
       }
       const fullPath = path.join(basePath, resolvedFilePath);
@@ -65,9 +71,14 @@ export function registerFileRoutes(app: Hono) {
         realPath = path.resolve(fullPath);
       }
 
-      const realGhqRoot = fs.realpathSync(GHQ_ROOT);
+      // Security: verify the resolved path stays within allowed roots.
+      // GHQ_ROOT may not exist on this machine (no ghq install) — guard realpathSync.
       const realRepoRoot = fs.realpathSync(REPO_ROOT);
-      if (!realPath.startsWith(realGhqRoot) && !realPath.startsWith(realRepoRoot)) {
+      let realGhqRoot: string | null = null;
+      try { realGhqRoot = fs.realpathSync(GHQ_ROOT); } catch { /* GHQ_ROOT doesn't exist */ }
+      const inRepo = realPath.startsWith(realRepoRoot);
+      const inGhq = realGhqRoot !== null && realPath.startsWith(realGhqRoot);
+      if (!inRepo && !inGhq) {
         return c.json({ error: 'Invalid path: outside allowed bounds' }, 400);
       }
 

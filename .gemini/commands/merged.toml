@@ -1,0 +1,11 @@
+description = "v2.0.0 L-CMD | Post-Merge Cleanup. Switch to main, pull latest, delete merged branch. Use after PR is merged."
+prompt = """
+You are running the /merged skill.
+
+Read the skill file at /Users/non/dev/arra-oracle-v3/.gemini/skills/merged/SKILL.md and follow ALL instructions in it.
+
+Arguments: {{args}}
+
+---
+oracle-skills-cli v2.0.0
+"""

@@ -59,7 +59,7 @@ export function logSearch(
 
     // Log any unexpected fields
     if (results.length > 0) {
-      const expectedFields = ['id', 'type', 'content', 'source_file', 'concepts', 'source', 'score'];
+      const expectedFields = ['id', 'type', 'content', 'source_file', 'concepts', 'source', 'score', 'project', 'distance', 'model'];
       const firstResult = results[0] as unknown as Record<string, unknown>;
       const unknownFields = Object.keys(firstResult).filter(k => !expectedFields.includes(k));
       if (unknownFields.length > 0) {

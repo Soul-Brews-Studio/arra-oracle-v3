@@ -1,0 +1,11 @@
+description = "v2.0.0 L-CMD | Guided Oracle birth and awakening ritual (~15 min). Use when creating a new Oracle in a fresh repo. Orchestrates /learn and /trace for philosophy discovery."
+prompt = """
+You are running the /awaken skill.
+
+Read the skill file at /Users/non/dev/arra-oracle-v3/.gemini/skills/awaken/SKILL.md and follow ALL instructions in it.
+
+Arguments: {{args}}
+
+---
+oracle-skills-cli v2.0.0
+"""

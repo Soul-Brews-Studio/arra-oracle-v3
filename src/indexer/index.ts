@@ -26,7 +26,7 @@ import type { OracleDocument, IndexerConfig } from '../types.ts';
 
 import { setIndexingStatus } from './status.ts';
 import { backupDatabase } from './backup.ts';
-import { parseResonanceFile, parseLearningFile, parseRetroFile } from './parser.ts';
+import { parseResonanceFile, parseLearningFile, parseRetroFile, parseLogFile } from './parser.ts';
 import { collectDocuments } from './collectors.ts';
 import { storeDocuments } from './storage.ts';
 
@@ -96,6 +96,7 @@ export class OracleIndexer {
       ...collectDocuments({ ...shared, subdir: 'resonance', parseFn: parseResonanceFile, label: 'resonance' }),
       ...collectDocuments({ ...shared, subdir: 'learnings', parseFn: parseLearningFile, label: 'learning' }),
       ...collectDocuments({ ...shared, subdir: 'retrospectives', parseFn: parseRetroFile, label: 'retrospective' }),
+      ...collectDocuments({ ...shared, subdir: 'logs', parseFn: parseLogFile, label: 'snapshot' }),
     ];
 
     await storeDocuments(this.sqlite, this.db, this.vectorClient, this.project, documents);

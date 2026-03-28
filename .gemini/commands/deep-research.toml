@@ -1,0 +1,11 @@
+description = "v2.0.0 L-CMD | Deep Research via Gemini. Use when user says \"deep research\", \"research this topic\", or needs comprehensive analysis with sources."
+prompt = """
+You are running the /deep-research skill.
+
+Read the skill file at /Users/non/dev/arra-oracle-v3/.gemini/skills/deep-research/SKILL.md and follow ALL instructions in it.
+
+Arguments: {{args}}
+
+---
+oracle-skills-cli v2.0.0
+"""

@@ -1,0 +1,11 @@
+description = "v2.0.0 L-CMD | Session orientation and awareness. Use when starting a session, after /jump, lost your place, switching context, or when user asks \"now\", \"where are we\", \"what are we doing\", \"status\"."
+prompt = """
+You are running the /recap skill.
+
+Read the skill file at /Users/non/dev/arra-oracle-v3/.gemini/skills/recap/SKILL.md and follow ALL instructions in it.
+
+Arguments: {{args}}
+
+---
+oracle-skills-cli v2.0.0
+"""

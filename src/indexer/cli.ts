@@ -4,7 +4,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { DB_PATH, CHROMADB_DIR } from '../config.ts';
+import { DB_PATH, LANCEDB_DIR } from '../config.ts';
 import { getVaultPsiRoot } from '../vault/handler.ts';
 import type { IndexerConfig } from '../types.ts';
 import { OracleIndexer } from './index.ts';
@@ -28,7 +28,7 @@ const repoRoot = process.env.ORACLE_REPO_ROOT ||
 const config: IndexerConfig = {
   repoRoot,
   dbPath: DB_PATH,
-  chromaPath: CHROMADB_DIR,
+  chromaPath: LANCEDB_DIR,
   sourcePaths: {
     resonance: '\u03c8/memory/resonance',
     learnings: '\u03c8/memory/learnings',
