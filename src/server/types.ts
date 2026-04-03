@@ -8,6 +8,7 @@ export interface SearchResult {
   content: string;
   source_file: string;
   concepts: string[];
+  project?: string | null;
   source?: 'fts' | 'vector' | 'hybrid';
   score?: number;
   distance?: number;
@@ -19,6 +20,7 @@ export interface SearchResponse {
   total: number;
   offset: number;
   limit: number;
+  query?: string;
 }
 
 export interface StatsResponse {

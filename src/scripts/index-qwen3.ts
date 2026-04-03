@@ -38,7 +38,7 @@ async function main() {
   await store.connect();
 
   // Fresh index
-  try { await store.deleteCollection(); } catch {}
+  try { await store.deleteCollection(); } catch { /* collection may not exist yet */ }
   await store.ensureCollection();
 
   // Read all docs (join oracle_documents + oracle_fts for content, GROUP BY to dedupe FTS chunks)

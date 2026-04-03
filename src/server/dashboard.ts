@@ -44,7 +44,7 @@ export function handleDashboardSummary(): DashboardSummary {
           conceptCounts.set(c, (conceptCounts.get(c) || 0) + 1);
         });
       }
-    } catch {}
+    } catch { /* invalid JSON in concepts field — skip row */ }
   }
 
   const topConcepts = Array.from(conceptCounts.entries())
@@ -64,7 +64,7 @@ export function handleDashboardSummary(): DashboardSummary {
       .where(gt(searchLog.createdAt, sevenDaysAgo))
       .get();
     searches7d = searchResult?.count || 0;
-  } catch {}
+  } catch { /* searchLog table may not exist yet */ }
 
   try {
     const learnResult = db.select({ count: sql<number>`count(*)` })
@@ -72,7 +72,7 @@ export function handleDashboardSummary(): DashboardSummary {
       .where(gt(learnLog.createdAt, sevenDaysAgo))
       .get();
     learnings7d = learnResult?.count || 0;
-  } catch {}
+  } catch { /* learnLog table may not exist yet */ }
 
   // Health status
   const lastIndexedResult = db.select({ lastIndexed: sql<number | null>`max(${oracleDocuments.indexedAt})` })
@@ -130,7 +130,7 @@ export function handleDashboardActivity(days: number = 7): DashboardActivity {
       search_time_ms: row.searchTimeMs,
       created_at: new Date(row.createdAt).toISOString()
     }));
-  } catch {}
+  } catch { /* searchLog table may not exist yet */ }
 
   // Recent learnings
   let learnings: DashboardActivity['learnings'] = [];
@@ -155,7 +155,7 @@ export function handleDashboardActivity(days: number = 7): DashboardActivity {
       concepts: JSON.parse(row.concepts || '[]'),
       created_at: new Date(row.createdAt).toISOString()
     }));
-  } catch {}
+  } catch { /* learnLog table may not exist yet */ }
 
   return { searches, learnings, days };
 }
@@ -199,7 +199,7 @@ export function handleDashboardGrowth(period: string = 'week'): DashboardGrowth 
         ))
         .get();
       searchCount = searchResult?.count || 0;
-    } catch {}
+    } catch { /* searchLog table may not exist yet */ }
 
     data.push({
       date,

@@ -143,7 +143,7 @@ export class LanceDBAdapter implements VectorStoreAdapter {
           if (tableNames.includes(this.collectionName)) {
             this.table = await this.db.openTable(this.collectionName);
           }
-        } catch {}
+        } catch { /* expected: optional resource */ }
       }
       if (!this.table) return { count: 0 };
     }
