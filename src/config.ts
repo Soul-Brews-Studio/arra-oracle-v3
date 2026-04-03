@@ -40,6 +40,11 @@ export const VECTORS_DB_PATH = path.join(ORACLE_DATA_DIR, C.VECTORS_DB_FILE);
 export const LANCEDB_DIR = path.join(ORACLE_DATA_DIR, C.LANCEDB_DIR_NAME);
 export const CHROMADB_DIR = path.join(HOME_DIR, C.CHROMADB_DIR_NAME);
 
+// Legacy UI paths (used by server-legacy.ts)
+export const UI_PATH = path.join(__dirname, 'ui.html');
+export const ARTHUR_UI_PATH = path.join(__dirname, 'arthur.html');
+export const DASHBOARD_PATH = path.join(__dirname, 'dashboard.html');
+
 // Ensure data directory exists (for fresh installs via bunx)
 if (!fs.existsSync(ORACLE_DATA_DIR)) {
   fs.mkdirSync(ORACLE_DATA_DIR, { recursive: true });

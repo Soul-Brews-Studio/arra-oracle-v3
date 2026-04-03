@@ -50,7 +50,7 @@ async function main() {
   await store.connect();
 
   // Fresh index
-  try { await store.deleteCollection(); } catch {}
+  try { await store.deleteCollection(); } catch { /* collection may not exist yet */ }
   await store.ensureCollection();
 
   // FTS5 join requires raw SQL — Drizzle doesn't support virtual tables

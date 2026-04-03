@@ -94,8 +94,23 @@ export async function learn(pattern: string, concepts: string[]): Promise<{ succ
   return res.json();
 }
 
+// Graph API types
+export interface GraphNodeData {
+  id: string;
+  type: string;
+  label: string;
+  concepts?: string[];
+  source_file?: string;
+  project?: string;
+}
+
+export interface GraphLinkData {
+  source: string;
+  target: string;
+}
+
 // Get graph data
-export async function getGraph(): Promise<{ nodes: any[]; links: any[] }> {
+export async function getGraph(): Promise<{ nodes: GraphNodeData[]; links: GraphLinkData[] }> {
   const res = await fetch(`${API_BASE}/graph`);
   return res.json();
 }

@@ -20,6 +20,9 @@ import {
 import { PORT, ORACLE_DATA_DIR } from './config.ts';
 import { db, closeDb, indexingStatus } from './db/index.ts';
 
+// Middleware
+import { rateLimitMiddleware, RATE_LIMIT_TIERS } from './middleware/rate-limit.ts';
+
 // Route modules
 import { registerAuthRoutes } from './routes/auth.ts';
 import { registerSettingsRoutes } from './routes/settings.ts';
@@ -90,6 +93,19 @@ app.use('*', async (c, next) => {
   c.header('X-XSS-Protection', '1; mode=block');
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
 });
+
+// Rate limiting (before auth, so brute-force is limited even on public endpoints)
+app.use('/api/auth/*', rateLimitMiddleware(RATE_LIMIT_TIERS.auth));
+app.use('/api/learn', rateLimitMiddleware(RATE_LIMIT_TIERS.write));
+app.use('/api/thread', rateLimitMiddleware(RATE_LIMIT_TIERS.write));
+app.use('/api/supersede', rateLimitMiddleware(RATE_LIMIT_TIERS.write));
+app.use('/api/settings', rateLimitMiddleware(RATE_LIMIT_TIERS.write));
+app.use('/api/search', rateLimitMiddleware(RATE_LIMIT_TIERS.read));
+app.use('/api/list', rateLimitMiddleware(RATE_LIMIT_TIERS.read));
+app.use('/api/file', rateLimitMiddleware(RATE_LIMIT_TIERS.read));
+app.use('/api/graph', rateLimitMiddleware(RATE_LIMIT_TIERS.read));
+app.use('/api/feed', rateLimitMiddleware(RATE_LIMIT_TIERS.read));
+// /api/health is NOT rate limited (monitoring)
 
 // Register all route modules (order matters: auth middleware first)
 registerAuthRoutes(app);

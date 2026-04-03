@@ -69,8 +69,14 @@ beforeAll(() => {
 
 afterAll(() => {
   sqlite.close();
-  if (fs.existsSync(TEST_DB_PATH)) {
-    fs.unlinkSync(TEST_DB_PATH);
+  // Retry unlink to handle Windows EBUSY (file lock release delay)
+  for (let i = 0; i < 3; i++) {
+    try {
+      if (fs.existsSync(TEST_DB_PATH)) fs.unlinkSync(TEST_DB_PATH);
+      break;
+    } catch {
+      if (i < 2) Bun.sleepSync(100);
+    }
   }
 });
 

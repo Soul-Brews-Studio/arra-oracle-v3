@@ -34,7 +34,16 @@ export function registerFileRoutes(app: Hono) {
     }
 
     // SECURITY: Block path traversal attempts
-    if (filePath.includes('..') || filePath.includes('\0')) {
+    // Decode URL-encoded characters first to catch %2e%2e%2f etc.
+    let decodedPath: string;
+    try {
+      // Double-decode to catch double-encoding attacks (%252e → %2e → .)
+      decodedPath = decodeURIComponent(decodeURIComponent(filePath));
+    } catch {
+      decodedPath = decodeURIComponent(filePath);
+    }
+    if (decodedPath.includes('..') || decodedPath.includes('\0') ||
+        filePath.includes('..') || filePath.includes('\0')) {
       return c.json({ error: 'Invalid path: traversal not allowed' }, 400);
     }
 

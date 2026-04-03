@@ -7,8 +7,24 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { getSetting } from '../db/index.ts';
 
-// Session secret - generate once per server run
-const SESSION_SECRET = process.env.ORACLE_SESSION_SECRET || crypto.randomUUID();
+// Session secret - require env var or generate cryptographically strong fallback
+const SESSION_SECRET = (() => {
+  const envSecret = process.env.ORACLE_SESSION_SECRET;
+  if (envSecret) {
+    if (envSecret.length < 32) {
+      console.warn('⚠️  ORACLE_SESSION_SECRET is too short (< 32 chars). Using generated secret instead.');
+    } else {
+      return envSecret;
+    }
+  }
+  // Generate a cryptographically random secret (32 bytes = 64 hex chars)
+  const generated = require('crypto').randomBytes(32).toString('hex');
+  if (process.env.NODE_ENV !== 'test') {
+    console.warn('⚠️  No ORACLE_SESSION_SECRET set. Using auto-generated secret (sessions will not persist across restarts).');
+    console.warn('   Set ORACLE_SESSION_SECRET in .env for persistent sessions.');
+  }
+  return generated;
+})();
 const SESSION_COOKIE_NAME = 'oracle_session';
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
