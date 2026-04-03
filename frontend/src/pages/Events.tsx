@@ -112,8 +112,8 @@ export function Events() {
       setEvents(data.events || []);
       setTotal(data.total || 0);
       setActiveOracles(data.active_oracles || []);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Unknown error');
     } finally {
       setLoading(false);
     }

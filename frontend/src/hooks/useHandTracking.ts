@@ -99,7 +99,7 @@ export function useHandTracking({
     if (!enabled) return;
 
     // Check if already loaded
-    if (typeof window !== 'undefined' && (window as any).Hands) {
+    if (typeof window !== 'undefined' && (window as unknown as { Hands?: unknown }).Hands) {
       setDebug('MediaPipe ready');
       setIsReady(true);
       return;
