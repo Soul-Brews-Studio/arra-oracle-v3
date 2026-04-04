@@ -167,7 +167,8 @@ const modelStoreCache = new Map<string, VectorStoreAdapter>();
 
 /**
  * Get a vector store for a specific embedding model.
- * Uses LanceDB + Ollama. Caches instances by model key.
+ * Respects ORACLE_VECTOR_DB and ORACLE_EMBEDDING_PROVIDER env vars.
+ * Falls back to LanceDB + Ollama when env vars are not set.
  */
 const connectPromises = new Map<string, Promise<void>>();
 
@@ -177,12 +178,18 @@ export function getVectorStoreByModel(model?: string): VectorStoreAdapter {
   let store = modelStoreCache.get(key);
   if (!store) {
     const preset = models[key];
+    const dbType = (process.env.ORACLE_VECTOR_DB as VectorDBType) || 'lancedb';
+    const embedProvider = (process.env.ORACLE_EMBEDDING_PROVIDER as EmbeddingProviderType) || 'ollama';
+    // When using OpenAI embeddings, use text-embedding-3-small instead of local model names
+    const embedModel = embedProvider === 'openai'
+      ? (process.env.ORACLE_EMBEDDING_MODEL || 'text-embedding-3-small')
+      : preset.model;
     store = createVectorStore({
-      type: 'lancedb',
+      type: dbType,
       collectionName: preset.collection,
-      embeddingProvider: 'ollama',
-      embeddingModel: preset.model,
-      ...(preset.dataPath && { dataPath: preset.dataPath }),
+      embeddingProvider: embedProvider,
+      embeddingModel: embedModel,
+      ...(dbType === 'lancedb' && preset.dataPath && { dataPath: preset.dataPath }),
     });
     modelStoreCache.set(key, store);
     // Auto-connect in background (non-blocking)

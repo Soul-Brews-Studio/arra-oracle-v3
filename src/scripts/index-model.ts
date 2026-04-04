@@ -39,12 +39,18 @@ async function main() {
   const [{ total: docCount }] = db.select({ total: count() }).from(oracleDocuments).all();
   console.log(`Documents: ${docCount}`);
 
+  const dbType = (process.env.ORACLE_VECTOR_DB || 'lancedb') as any;
+  const embedProvider = (process.env.ORACLE_EMBEDDING_PROVIDER || 'ollama') as any;
+  const embedModel = embedProvider === 'openai'
+    ? (process.env.ORACLE_EMBEDDING_MODEL || 'text-embedding-3-small')
+    : preset.model;
+
   const store = createVectorStore({
-    type: 'lancedb',
+    type: dbType,
     collectionName: preset.collection,
-    embeddingProvider: 'ollama',
-    embeddingModel: preset.model,
-    ...(preset.dataPath && { dataPath: preset.dataPath }),
+    embeddingProvider: embedProvider,
+    embeddingModel: embedModel,
+    ...(dbType === 'lancedb' && preset.dataPath && { dataPath: preset.dataPath }),
   });
 
   await store.connect();

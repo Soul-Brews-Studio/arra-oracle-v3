@@ -36,6 +36,7 @@
     "test:integration:db": "bun test src/integration/database.test.ts",
     "test:integration:mcp": "bun test src/integration/mcp.test.ts",
     "test:integration:http": "bun test src/integration/http.test.ts",
+    "test:integration:mcp-http": "MCP_AUTH_TOKEN=test-token bun test src/integration/mcp-http.test.ts",
     "test:seed": "bun scripts/seed-test-data.ts",
     "test:coverage": "bun test --coverage",
     "db:generate": "bunx drizzle-kit generate",

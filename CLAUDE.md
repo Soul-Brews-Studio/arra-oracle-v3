@@ -71,21 +71,25 @@ cp .env.example .env
 
 ## Project Context
 
-*(This section should be filled out for each specific project)*
-
 ### Project Overview
-A brief, high-level description of the project's purpose and goals.
+Arra Oracle v3 is a TypeScript MCP server providing semantic memory search over Oracle philosophy files. It exposes 20 `arra_*` tools via both stdio (local Claude Code) and Streamable HTTP (remote clients). The HTTP transport supports OAuth 2.1 + PKCE and static Bearer auth.
 
 ### Architecture
--   **Backend**: [Framework, Language, Database]
--   **Frontend**: [Framework, Language, Libraries]
--   **Infrastructure**: [Hosting, CI/CD, etc.]
--   **Key Libraries**: [List of major dependencies]
+-   **Runtime**: Bun (>=1.2.0)
+-   **HTTP Framework**: Hono
+-   **Database**: SQLite + FTS5 (Drizzle ORM), pluggable vector backend
+-   **Vector Backends**: Qdrant Cloud (production), LanceDB (local dev), ChromaDB (legacy)
+-   **MCP Transports**: stdio (`src/index.ts`), Streamable HTTP (`src/mcp-transport.ts`)
+-   **Auth**: OAuth 2.1 + PKCE (`src/oauth/`), static Bearer token fallback
+-   **Port**: 47778
 
 ### Current Features
--   [Feature A]
--   [Feature B]
--   [Feature C]
+-   20 `arra_*` MCP tools (search, read, learn, threads, traces, handoff)
+-   Hybrid FTS5 + vector search with graceful degradation
+-   Streamable HTTP MCP transport at `/mcp` (feature-gated on `MCP_AUTH_TOKEN`)
+-   OAuth 2.1 + PKCE for Claude Desktop (feature-gated on `MCP_OAUTH_PIN`)
+-   Atomic token persistence, HMAC timing-safe comparison
+-   Vault CLI for managing the knowledge vault
 
 ## Critical Safety Rules
 
@@ -451,3 +455,19 @@ See `.claude/knowledge/oracle-philosophy.md` for full details.
 
 **Last Updated**: 2025-12-24
 **Version**: 1.0.0
+
+<!-- PRP-FRAMEWORK:BEGIN v2.3.0 (managed by prp-framework — do not edit manually) -->
+## PRP Workflow
+
+| Action | Command | Description |
+|--------|---------|-------------|
+| Plan | `/prp-core:prp-plan` | Create implementation plan |
+| Implement | `/prp-core:prp-implement` | Execute plan with validation |
+| Review | `/prp-core:prp-review-agents` | Multi-agent PR review |
+| Commit | `/prp-core:prp-commit` | Smart commit with context |
+| PR | `/prp-core:prp-pr` | Create PR from branch |
+| Cleanup | `/prp-core:prp-cleanup` | Post-merge branch cleanup |
+| Full workflow | `/prp-core:prp-run-all` | Plan → Implement → PR → Review |
+
+Artifacts: `.prp-output/` | All commands: `/prp-core:prp-*`, `/prp-mkt:prp-*`, `/prp-bot:prp-*`
+<!-- PRP-FRAMEWORK:END -->

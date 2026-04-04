@@ -40,6 +40,19 @@ export const VECTORS_DB_PATH = path.join(ORACLE_DATA_DIR, C.VECTORS_DB_FILE);
 export const LANCEDB_DIR = path.join(ORACLE_DATA_DIR, C.LANCEDB_DIR_NAME);
 export const CHROMADB_DIR = path.join(HOME_DIR, C.CHROMADB_DIR_NAME);
 
+// MCP Remote Transport auth token — required for /mcp endpoint
+// If empty, /mcp will reject all requests with 401 (fail-safe)
+export const MCP_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN || '';
+
+// OAuth 2.1 — PIN-based auth for Claude Desktop / claude.ai Custom Connectors
+// If MCP_OAUTH_PIN is empty, OAuth routes are not mounted (Bearer-only mode)
+export const MCP_OAUTH_PIN = process.env.MCP_OAUTH_PIN || '';
+export const MCP_EXTERNAL_URL = process.env.MCP_EXTERNAL_URL || `http://localhost:${PORT}`;
+
+if (MCP_EXTERNAL_URL.startsWith('http://') && !MCP_EXTERNAL_URL.includes('localhost') && !MCP_EXTERNAL_URL.includes('127.0.0.1')) {
+  console.warn('⚠️  MCP_EXTERNAL_URL is using HTTP in production — OAuth requires HTTPS for secure token exchange');
+}
+
 // Ensure data directory exists (for fresh installs via bunx)
 if (!fs.existsSync(ORACLE_DATA_DIR)) {
   fs.mkdirSync(ORACLE_DATA_DIR, { recursive: true });
