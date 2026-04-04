@@ -15,12 +15,12 @@
  *   POST /oauth/callback                          — PIN verification + redirect (rate-limited)
  */
 
-import type { Hono } from 'hono';
+import type { Context, Hono } from 'hono';
 import { MCP_EXTERNAL_URL } from '../config.ts';
 import { getOAuthProvider } from './provider.ts';
 
 /** Extract best-effort client IP from request headers */
-function getClientIp(c: Parameters<Parameters<Hono['post']>[1]>[0]): string {
+function getClientIp(c: Context): string {
   const forwarded = c.req.header('x-forwarded-for');
   if (forwarded) return forwarded.split(',')[0].trim();
   return c.req.header('x-real-ip') ?? 'unknown';
