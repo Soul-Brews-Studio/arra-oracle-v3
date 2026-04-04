@@ -73,17 +73,23 @@ bun src/scripts/index-model.ts bge-m3    # ~8s for 164 docs
 
 ### MCP Server (`src/index.ts`)
 
-Exposes tools to Claude via Model Context Protocol:
+Exposes tools to Claude via Model Context Protocol (stdio transport):
 
-| Tool | Purpose | Logs To |
-|------|---------|---------|
-| `oracle_search` | Hybrid keyword + semantic search | (none yet) |
-| `oracle_consult` | Get guidance on decisions | `consult_log` |
-| `oracle_reflect` | Random principle/learning | - |
-| `oracle_learn` | Add new pattern | writes file + indexes |
-| `oracle_list` | Browse documents | - |
-| `oracle_stats` | Database statistics | - |
-| `oracle_concepts` | List concept tags | - |
+| Tool | Purpose |
+|------|---------|
+| `arra_search` | Hybrid keyword + semantic search |
+| `arra_read` | Read full document content |
+| `arra_learn` | Add new pattern (writes file + indexes) |
+| `arra_list` | Browse documents |
+| `arra_stats` | Database statistics |
+| `arra_concepts` | List concept tags |
+| `arra_supersede` | Mark document as superseded |
+| `arra_handoff` | Save session context |
+| `arra_inbox` | List pending handoffs |
+| `arra_thread` / `arra_threads` / `arra_thread_read` / `arra_thread_update` | Thread management |
+| `arra_trace` / `arra_trace_list` / `arra_trace_get` / `arra_trace_link` / `arra_trace_unlink` / `arra_trace_chain` | Trace system |
+
+The same 20 tools are also available via the Streamable HTTP transport at `/mcp` (`src/mcp-transport.ts`).
 
 ### HTTP Server (`src/server.ts`)
 
@@ -91,15 +97,19 @@ REST API on port 47778:
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/health` | GET | Health check |
-| `/search` | GET | Keyword search |
-| `/list` | GET | Browse documents |
-| `/consult` | GET | Get guidance |
-| `/reflect` | GET | Random wisdom |
-| `/stats` | GET | Database stats |
-| `/graph` | GET | Knowledge graph |
-| `/learn` | POST | Add pattern |
-| `/file` | GET | Fetch file content |
+| `/api/health` | GET | Health check |
+| `/api/search` | GET | Keyword search |
+| `/api/list` | GET | Browse documents |
+| `/api/reflect` | GET | Random wisdom |
+| `/api/stats` | GET | Database stats |
+| `/api/graph` | GET | Knowledge graph |
+| `/api/learn` | POST | Add pattern |
+| `/mcp` | POST | Streamable HTTP MCP transport |
+| `/.well-known/oauth-authorization-server` | GET | OAuth 2.1 metadata (when OAuth enabled) |
+| `/register` | POST | OAuth dynamic client registration |
+| `/authorize` | GET | OAuth authorization endpoint |
+| `/token` | POST | OAuth token exchange (PKCE) |
+| `/oauth/login` | GET/POST | PIN entry page |
 
 ### Indexer (`src/indexer.ts`)
 
@@ -189,7 +199,7 @@ CREATE TABLE indexing_status (
 | Event | Destination | Data |
 |-------|-------------|------|
 | Consultations | `consult_log` table | decision, context, counts, guidance |
-| ChromaDB status | stderr | connection state |
+| Vector store status | stderr | connection state |
 | Indexing progress | `indexing_status` table | progress, errors |
 | FTS5 errors | stderr | query, error message |
 
@@ -207,16 +217,22 @@ CREATE TABLE indexing_status (
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `ORACLE_REPO_ROOT` | `process.cwd()` | Knowledge base location (your ψ/ repo) |
-| `PORT` | `47778` | HTTP server port |
+| `ORACLE_PORT` | `47778` | HTTP server port |
+| `ORACLE_DATA_DIR` | `~/.oracle` | Data directory for DB and files |
+| `ORACLE_VECTOR_DB` | `lancedb` | Vector backend: `qdrant`, `lancedb`, `chroma`, `sqlite-vec`, `cloudflare-vectorize` |
+| `ORACLE_EMBEDDING_PROVIDER` | `ollama` | Embedding provider: `openai`, `ollama` |
+| `MCP_AUTH_TOKEN` | — | Bearer token for `/mcp` endpoint — required for remote MCP access |
+| `MCP_OAUTH_PIN` | — | PIN for OAuth 2.1 login page — enables OAuth when set |
+| `MCP_EXTERNAL_URL` | `http://localhost:PORT` | Public HTTPS URL for OAuth metadata endpoints |
 
-### MCP Configuration
+### MCP Configuration (stdio — local Claude Code)
 
 ```json
 {
   "mcpServers": {
-    "arra-oracle-v2": {
-      "command": "node",
-      "args": ["/path/to/arra-oracle-v2/dist/index.js"],
+    "arra-oracle-v3": {
+      "command": "bunx",
+      "args": ["--bun", "arra-oracle-v3@github:Soul-Brews-Studio/arra-oracle-v3#main"],
       "env": {
         "ORACLE_REPO_ROOT": "/path/to/knowledge-base"
       }
@@ -224,6 +240,24 @@ CREATE TABLE indexing_status (
   }
 }
 ```
+
+### MCP Configuration (Streamable HTTP — remote clients)
+
+```json
+{
+  "mcpServers": {
+    "oracle-v3": {
+      "type": "streamable-http",
+      "url": "https://oracle.goko.digital/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_MCP_AUTH_TOKEN"
+      }
+    }
+  }
+}
+```
+
+See [INSTALL.md](./INSTALL.md#remote-mcp-access-streamable-http) for OAuth 2.1 setup (Claude Desktop without custom headers).
 
 ## Security
 
@@ -235,12 +269,31 @@ CREATE TABLE indexing_status (
 
 FTS5 special characters are stripped to prevent SQL injection via FTS5 syntax errors.
 
+### MCP Transport Auth
+
+The `/mcp` endpoint requires a valid Bearer token on every request. Two auth modes:
+
+- **Bearer-only** (`MCP_AUTH_TOKEN` set, `MCP_OAUTH_PIN` not set): Static token, HMAC timing-safe comparison.
+- **Dual auth** (`MCP_OAUTH_PIN` set): OAuth-issued tokens are checked first; static Bearer token accepted as fallback for existing configs.
+
+### OAuth 2.1 + PKCE
+
+When `MCP_OAUTH_PIN` is set, full OAuth 2.1 spec-compliant flow is activated:
+- S256 code challenge (SHA-256 PKCE)
+- Dynamic client registration (`/register`)
+- PIN-based authorization page (`/oauth/login`)
+- 30-day access tokens, no refresh tokens
+- Atomic token persistence (temp file + `renameSync`)
+- `WWW-Authenticate` header on 401 for OAuth discovery by clients
+
 ## Version History
 
 | Version | Changes |
 |---------|---------|
 | 0.1.0 | Initial MCP server with FTS5 |
-| 0.2.0 | ChromaDB hybrid search, oracle_stats, oracle_concepts, FTS5 bug fix |
+| 0.2.0 | ChromaDB hybrid search, stats, concepts, FTS5 bug fix |
+| 0.3.x | Pluggable vector backends (Qdrant, LanceDB, sqlite-vec, Cloudflare Vectorize), tool rename to `arra_*` |
+| 0.4.0 | Streamable HTTP MCP transport at `/mcp`, OAuth 2.1 + PKCE, dual auth, 20 tools via HTTP |
 
 ## Graph API Performance
 

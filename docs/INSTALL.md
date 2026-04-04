@@ -288,7 +288,7 @@ curl -X POST https://oracle.goko.digital/mcp \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
-# Expected: 15+ arra_* tools
+# Expected: 20 arra_* tools
 ```
 
 ### Notes
