@@ -105,7 +105,10 @@ describe('OAuth 2.1 Integration', () => {
     test('POST /register returns client_id and client_secret', async () => {
       const res = await fetch(`${BASE_URL}/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${TEST_TOKEN}`,
+        },
         body: JSON.stringify({
           redirect_uris: ['http://localhost:9999/callback'],
           client_name: 'Test Client',
@@ -120,10 +123,22 @@ describe('OAuth 2.1 Integration', () => {
       expect(data.redirect_uris).toEqual(['http://localhost:9999/callback']);
     });
 
-    test('POST /register without redirect_uris returns 400', async () => {
+    test('POST /register without Bearer token returns 401', async () => {
       const res = await fetch(`${BASE_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ redirect_uris: ['http://localhost:9999/callback'] }),
+      });
+      expect(res.status).toBe(401);
+    });
+
+    test('POST /register without redirect_uris returns 400', async () => {
+      const res = await fetch(`${BASE_URL}/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${TEST_TOKEN}`,
+        },
         body: JSON.stringify({ client_name: 'Bad Client' }),
       });
       expect(res.status).toBe(400);
@@ -141,7 +156,10 @@ describe('OAuth 2.1 Integration', () => {
     test('Step 1: Register client', async () => {
       const res = await fetch(`${BASE_URL}/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${TEST_TOKEN}`,
+        },
         body: JSON.stringify({
           redirect_uris: [redirectUri],
           client_name: 'Flow Test Client',
@@ -274,11 +292,12 @@ describe('OAuth 2.1 Integration', () => {
       expect(tokenData.token_type).toBe('bearer');
       oauthToken = tokenData.access_token as string;
 
-      // Use token on /mcp
+      // Use token on /mcp (Streamable HTTP requires Accept header per MCP spec)
       const mcpRes = await fetch(`${BASE_URL}/mcp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream',
           'Authorization': `Bearer ${oauthToken}`,
         },
         body: JSON.stringify({
@@ -310,6 +329,7 @@ describe('OAuth 2.1 Integration', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream',
           'Authorization': `Bearer ${oauthToken}`,
         },
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
@@ -326,6 +346,7 @@ describe('OAuth 2.1 Integration', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream',
           'Authorization': `Bearer ${TEST_TOKEN}`,
         },
         body: JSON.stringify({

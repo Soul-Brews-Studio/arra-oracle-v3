@@ -7,17 +7,24 @@
  * Endpoints:
  *   GET  /.well-known/oauth-authorization-server  — AS metadata
  *   GET  /.well-known/oauth-protected-resource    — Resource metadata
- *   POST /register                                — Dynamic client registration (RFC 7591)
+ *   POST /register                                — Dynamic client registration (RFC 7591, Bearer-protected)
  *   GET  /authorize                               — Authorization endpoint
  *   POST /token                                   — Token endpoint
  *   POST /revoke                                  — Revocation endpoint
  *   GET  /oauth/login                             — PIN entry page
- *   POST /oauth/callback                          — PIN verification + redirect
+ *   POST /oauth/callback                          — PIN verification + redirect (rate-limited)
  */
 
 import type { Hono } from 'hono';
 import { MCP_EXTERNAL_URL } from '../config.ts';
 import { getOAuthProvider } from './provider.ts';
+
+/** Extract best-effort client IP from request headers */
+function getClientIp(c: Parameters<Parameters<Hono['post']>[1]>[0]): string {
+  const forwarded = c.req.header('x-forwarded-for');
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return c.req.header('x-real-ip') ?? 'unknown';
+}
 
 export function registerOAuthRoutes(app: Hono): void {
   // ─── Discovery metadata ────────────────────────────────────────────────
@@ -47,8 +54,20 @@ export function registerOAuthRoutes(app: Hono): void {
   });
 
   // ─── Dynamic client registration (RFC 7591) ───────────────────────────
+  // Protected: requires Bearer MCP_AUTH_TOKEN to prevent open registration abuse.
 
   app.post('/register', async (c) => {
+    const provider = getOAuthProvider();
+
+    // Require Bearer auth for registration
+    const authHeader = c.req.header('Authorization') ?? '';
+    if (!provider.checkRegistrationAuth(authHeader)) {
+      return c.json(
+        { error: 'unauthorized', error_description: 'Client registration requires a valid Bearer token' },
+        401,
+      );
+    }
+
     let body: Record<string, unknown>;
     try {
       body = await c.req.json();
@@ -61,7 +80,6 @@ export function registerOAuthRoutes(app: Hono): void {
       return c.json({ error: 'invalid_client_metadata: redirect_uris required' }, 400);
     }
 
-    const provider = getOAuthProvider();
     const client = provider.registerClient({
       redirect_uris: redirect_uris as string[],
       client_name: body.client_name as string | undefined,
@@ -211,16 +229,17 @@ export function registerOAuthRoutes(app: Hono): void {
       }
     }
 
+    const ip = getClientIp(c);
     const provider = getOAuthProvider();
-    const result = provider.handleLoginCallback(stateKey, pin);
+    const result = provider.handleLoginCallback(stateKey, pin, ip);
 
     if ('error' in result) {
       if (result.showLoginPage) {
         // Re-render login page with error message
         const html = provider.getLoginPage(stateKey, result.error);
-        return c.html(html, result.status as 200 | 400 | 403 | 503);
+        return c.html(html, result.status as 200 | 400 | 403 | 429 | 503);
       }
-      return c.json({ error: result.error }, result.status as 400 | 403 | 503);
+      return c.json({ error: result.error }, result.status as 400 | 403 | 429 | 503);
     }
 
     return c.redirect(result.redirectUri, 302);

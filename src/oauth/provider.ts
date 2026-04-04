@@ -10,10 +10,11 @@
  * - Single PIN, single user (same as PSak)
  * - Atomic file writes for crash safety (temp file + rename)
  * - crypto.timingSafeEqual for PIN comparison to prevent timing attacks
+ * - IP-based rate limiting for PIN brute-force protection
  */
 
 import { randomBytes, createHash, timingSafeEqual } from 'crypto';
-import { writeFileSync, readFileSync, renameSync, existsSync, mkdirSync } from 'fs';
+import { writeFileSync, readFileSync, renameSync, existsSync, mkdirSync, chmodSync } from 'fs';
 import { join, dirname } from 'path';
 import { tmpdir } from 'os';
 
@@ -22,6 +23,9 @@ import type { OAuthState, OAuthClientInfo, PendingAuthorization } from './types.
 
 export const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 export const AUTH_CODE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// Far-future sentinel used for static Bearer tokens (avoids Infinity, which is not JSON-serializable)
+const STATIC_TOKEN_EXPIRES_AT = new Date('2100-01-01T00:00:00Z').getTime();
 
 export interface AuthInfo {
   token: string;
@@ -40,6 +44,22 @@ interface IssuedCode {
   issued_at: number;
 }
 
+/** Rate-limit window for a single IP */
+interface RateLimitRecord {
+  count: number;
+  resetAt: number;
+}
+
+/** Escape user-supplied strings for safe HTML interpolation */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
 export class OAuthProvider {
   private readonly stateFile: string;
   private state: OAuthState;
@@ -47,6 +67,13 @@ export class OAuthProvider {
   private pendingAuthorizations: Map<string, PendingAuthorization> = new Map();
   // code → issued code data (after PIN verification, before token exchange)
   private issuedCodes: Map<string, IssuedCode> = new Map();
+
+  // Rate limiting: ip → {count, resetAt}
+  private pinAttempts: Map<string, RateLimitRecord> = new Map();
+
+  private static readonly MAX_PIN_ATTEMPTS = 10;
+  private static readonly PIN_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+  private static readonly MAX_PENDING_AUTHORIZATIONS = 100;
 
   constructor() {
     this.stateFile = join(ORACLE_DATA_DIR, '.oauth-state.json');
@@ -63,20 +90,26 @@ export class OAuthProvider {
     try {
       const raw = readFileSync(this.stateFile, 'utf-8');
       return JSON.parse(raw) as OAuthState;
-    } catch {
+    } catch (err) {
+      console.error('[OAuth] Failed to parse state file, starting with empty state:', err);
       return { clients: {}, tokens: {} };
     }
   }
 
-  /** Atomic write: write to temp file then rename — crash-safe. */
+  /** Atomic write: write to temp file then rename — crash-safe. Sets 0600 permissions. */
   private saveState(): void {
-    const dir = dirname(this.stateFile);
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
+    try {
+      const dir = dirname(this.stateFile);
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+      }
+      const tmp = join(tmpdir(), `.oauth-state-${Date.now()}-${randomBytes(4).toString('hex')}.tmp`);
+      writeFileSync(tmp, JSON.stringify(this.state, null, 2), 'utf-8');
+      chmodSync(tmp, 0o600);
+      renameSync(tmp, this.stateFile);
+    } catch (err) {
+      console.error('[OAuth] saveState failed — token state may be inconsistent:', err);
     }
-    const tmp = join(tmpdir(), `.oauth-state-${Date.now()}-${randomBytes(4).toString('hex')}.tmp`);
-    writeFileSync(tmp, JSON.stringify(this.state, null, 2), 'utf-8');
-    renameSync(tmp, this.stateFile);
   }
 
   private cleanExpiredTokens(): void {
@@ -96,6 +129,70 @@ export class OAuthProvider {
         this.pendingAuthorizations.delete(stateKey);
       }
     }
+
+    // Clean expired rate-limit windows
+    for (const [ip, record] of this.pinAttempts.entries()) {
+      if (now > record.resetAt) {
+        this.pinAttempts.delete(ip);
+      }
+    }
+  }
+
+  // ─── Rate limiting ───────────────────────────────────────────────────────
+
+  private checkRateLimit(ip: string): { allowed: boolean; attemptsLeft: number } {
+    const now = Date.now();
+    const record = this.pinAttempts.get(ip);
+
+    if (!record || now > record.resetAt) {
+      return { allowed: true, attemptsLeft: OAuthProvider.MAX_PIN_ATTEMPTS };
+    }
+
+    const attemptsLeft = OAuthProvider.MAX_PIN_ATTEMPTS - record.count;
+    return { allowed: attemptsLeft > 0, attemptsLeft };
+  }
+
+  private recordFailedAttempt(ip: string): number {
+    const now = Date.now();
+    const record = this.pinAttempts.get(ip);
+
+    if (!record || now > record.resetAt) {
+      this.pinAttempts.set(ip, { count: 1, resetAt: now + OAuthProvider.PIN_LOCKOUT_MS });
+      return OAuthProvider.MAX_PIN_ATTEMPTS - 1;
+    }
+
+    record.count++;
+    return Math.max(0, OAuthProvider.MAX_PIN_ATTEMPTS - record.count);
+  }
+
+  private resetAttempts(ip: string): void {
+    this.pinAttempts.delete(ip);
+  }
+
+  // ─── Registration auth ───────────────────────────────────────────────────
+
+  /**
+   * Verify that a client registration request is authorized.
+   * Requires Bearer MCP_AUTH_TOKEN if configured.
+   * Returns true if registration is allowed.
+   */
+  checkRegistrationAuth(authHeader: string): boolean {
+    if (!MCP_AUTH_TOKEN) {
+      // No token configured — allow (degraded mode, log warning)
+      console.warn('[OAuth] /register: MCP_AUTH_TOKEN not set — registration is unprotected');
+      return true;
+    }
+    const providedToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    const expected = Buffer.from(MCP_AUTH_TOKEN, 'utf-8');
+    const provided = Buffer.from(providedToken, 'utf-8');
+    const maxLen = Math.max(expected.length, provided.length);
+    return (
+      expected.length === provided.length &&
+      timingSafeEqual(
+        Buffer.concat([expected, Buffer.alloc(maxLen - expected.length)]),
+        Buffer.concat([provided, Buffer.alloc(maxLen - provided.length)]),
+      )
+    );
   }
 
   // ─── Client registration (RFC 7591) ─────────────────────────────────────
@@ -118,6 +215,7 @@ export class OAuthProvider {
     this.state.clients[client_id] = client;
     this.saveState();
 
+    console.log(`[OAuth] Client registered: ${client_id} (${metadata.client_name ?? 'unnamed'})`);
     return client;
   }
 
@@ -157,6 +255,14 @@ export class OAuthProvider {
       return { error: 'code_challenge is required' };
     }
 
+    // Clean stale entries before enforcing the cap
+    this.cleanExpiredTokens();
+
+    if (this.pendingAuthorizations.size >= OAuthProvider.MAX_PENDING_AUTHORIZATIONS) {
+      console.warn('[OAuth] /authorize rejected: too many pending authorizations');
+      return { error: 'Too many pending authorizations — try again later' };
+    }
+
     const stateKey = randomBytes(16).toString('hex');
     const scopes = (params.scope || 'read write').split(' ').filter(Boolean);
 
@@ -170,6 +276,7 @@ export class OAuthProvider {
       created_at: Date.now(),
     });
 
+    console.log(`[OAuth] Authorization started for client: ${params.client_id}`);
     const loginUrl = `${MCP_EXTERNAL_URL}/oauth/login?state=${stateKey}`;
     return { loginUrl };
   }
@@ -183,7 +290,7 @@ export class OAuthProvider {
     }
 
     const errorHtml = errorMessage
-      ? `<p class="error">${errorMessage}</p>`
+      ? `<p class="error">${escapeHtml(errorMessage)}</p>`
       : '';
 
     return `<!DOCTYPE html>
@@ -212,7 +319,7 @@ export class OAuthProvider {
     <p>Enter your PIN to authorize access</p>
     ${errorHtml}
     <form method="POST" action="/oauth/callback">
-      <input type="hidden" name="state" value="${stateKey}">
+      <input type="hidden" name="state" value="${escapeHtml(stateKey)}">
       <label for="pin">PIN</label>
       <input type="password" id="pin" name="pin" placeholder="Enter PIN" autofocus autocomplete="current-password">
       <button type="submit">Authorize</button>
@@ -225,11 +332,20 @@ export class OAuthProvider {
   /**
    * Verify PIN and issue authorization code.
    * Returns redirect URI with code param, or error info.
+   * @param ip - Client IP address for rate limiting (pass 'unknown' if unavailable)
    */
   handleLoginCallback(
     stateKey: string,
     pin: string,
+    ip: string = 'unknown',
   ): { redirectUri: string } | { error: string; status: number; showLoginPage?: boolean } {
+    // Rate limit check
+    const rateCheck = this.checkRateLimit(ip);
+    if (!rateCheck.allowed) {
+      console.warn(`[OAuth] PIN rate limit exceeded for IP: ${ip}`);
+      return { error: 'Too many failed attempts. Please try again in 15 minutes.', status: 429, showLoginPage: true };
+    }
+
     const pending = this.pendingAuthorizations.get(stateKey);
     if (!pending) {
       return { error: 'Invalid or expired state', status: 400 };
@@ -256,8 +372,15 @@ export class OAuthProvider {
     const pinMatch = lengthMatch && bytesMatch;
 
     if (!pinMatch) {
-      return { error: 'Incorrect PIN', status: 403, showLoginPage: true };
+      const attemptsLeft = this.recordFailedAttempt(ip);
+      console.warn(`[OAuth] Failed PIN attempt from IP: ${ip}, attempts remaining: ${attemptsLeft}`);
+      const msg = attemptsLeft > 0
+        ? `Incorrect PIN (${attemptsLeft} attempts remaining)`
+        : 'Incorrect PIN — account locked for 15 minutes';
+      return { error: msg, status: 403, showLoginPage: true };
     }
+
+    this.resetAttempts(ip);
 
     // Issue authorization code — one-time use
     const code = randomBytes(24).toString('hex');
@@ -274,6 +397,8 @@ export class OAuthProvider {
 
     // Remove pending auth — it's consumed
     this.pendingAuthorizations.delete(stateKey);
+
+    console.log(`[OAuth] PIN verified, auth code issued for client: ${pending.client_id}`);
 
     // Build redirect URI with code and original state
     const redirectUrl = new URL(pending.redirect_uri);
@@ -318,6 +443,7 @@ export class OAuthProvider {
       .digest('base64url');
 
     if (verifierHash !== codeData.code_challenge) {
+      console.warn(`[OAuth] PKCE verification failed for client: ${params.client_id}`);
       return { error: 'invalid_grant: PKCE verification failed', status: 400 };
     }
 
@@ -331,6 +457,8 @@ export class OAuthProvider {
       resource: codeData.resource,
     };
     this.saveState();
+
+    console.log(`[OAuth] Access token issued for client: ${codeData.client_id}`);
 
     return {
       access_token,
@@ -377,10 +505,10 @@ export class OAuthProvider {
     if (!match) return null;
 
     return {
-      token,
+      token: '[redacted]',
       client_id: 'static-bearer',
       scopes: ['read', 'write'],
-      expires_at: Infinity,
+      expires_at: STATIC_TOKEN_EXPIRES_AT,
     };
   }
 
@@ -390,6 +518,7 @@ export class OAuthProvider {
     if (this.state.tokens[token]) {
       delete this.state.tokens[token];
       this.saveState();
+      console.log('[OAuth] Token revoked');
     }
   }
 

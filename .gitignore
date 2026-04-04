@@ -40,6 +40,9 @@ playwright-report/
 test-results/
 *.pid
 
+# OAuth state (contains access tokens — never commit)
+.oauth-state.json
+
 # Oracle instance data (per-user, symlink to vault)
 ψ
 

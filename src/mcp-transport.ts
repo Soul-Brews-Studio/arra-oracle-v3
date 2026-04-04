@@ -72,9 +72,14 @@ const WRITE_TOOLS = [
   'arra_handoff',
 ];
 
-// Version (read once at module load)
-const pkg = JSON.parse(fs.readFileSync(path.join(import.meta.dirname || '', '..', 'package.json'), 'utf-8'));
-const VERSION: string = pkg.version;
+// Version (read once at module load — graceful fallback if package.json is missing)
+let VERSION = '0.0.0';
+try {
+  const pkg = JSON.parse(fs.readFileSync(path.join(import.meta.dirname || '', '..', 'package.json'), 'utf-8'));
+  VERSION = pkg.version ?? '0.0.0';
+} catch {
+  console.warn('[Oracle] Could not read package.json — using fallback version 0.0.0');
+}
 
 // Tool group config (read once at module load)
 const repoRoot = process.env.ORACLE_REPO_ROOT || process.cwd();
