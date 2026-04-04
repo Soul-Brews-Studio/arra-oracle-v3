@@ -394,6 +394,115 @@ describe('OAuth 2.1 Integration', () => {
       expect(res.status).toBe(400);
     });
 
+    test('POST /token with wrong PKCE verifier returns 400', async () => {
+      const testRedirectUri = 'http://localhost:9999/callback';
+
+      // Register a client
+      const regRes = await fetch(`${BASE_URL}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${TEST_TOKEN}` },
+        body: JSON.stringify({ client_name: 'pkce-test', redirect_uris: [testRedirectUri] }),
+      });
+      const { client_id: testClientId } = await regRes.json() as Record<string, string>;
+
+      // Get a real auth code
+      const codeVerifier = generateCodeVerifier();
+      const codeChallenge = generateCodeChallenge(codeVerifier);
+
+      const authorizeUrl = new URL(`${BASE_URL}/authorize`);
+      authorizeUrl.searchParams.set('response_type', 'code');
+      authorizeUrl.searchParams.set('client_id', testClientId);
+      authorizeUrl.searchParams.set('redirect_uri', testRedirectUri);
+      authorizeUrl.searchParams.set('code_challenge', codeChallenge);
+      authorizeUrl.searchParams.set('code_challenge_method', 'S256');
+
+      const redirectRes = await fetch(authorizeUrl.toString(), { redirect: 'manual' });
+      const stateKey = new URL(redirectRes.headers.get('location') || '').searchParams.get('state') || '';
+
+      const callbackRes = await fetch(`${BASE_URL}/oauth/callback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ state: stateKey, pin: TEST_PIN }).toString(),
+        redirect: 'manual',
+      });
+      const code = new URL(callbackRes.headers.get('location') || '').searchParams.get('code') || '';
+      expect(code).toBeTruthy();
+
+      // Exchange with WRONG verifier — must fail
+      const res = await fetch(`${BASE_URL}/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          client_id: testClientId,
+          code_verifier: generateCodeVerifier(), // different verifier
+          redirect_uri: testRedirectUri,
+        }).toString(),
+      });
+      expect(res.status).toBe(400);
+      const data = await res.json() as Record<string, unknown>;
+      expect(data.error).toContain('PKCE');
+    });
+
+    test('POST /token with same code twice (replay) returns 400 on second use', async () => {
+      const testRedirectUri = 'http://localhost:9999/callback';
+
+      // Register a client
+      const regRes = await fetch(`${BASE_URL}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${TEST_TOKEN}` },
+        body: JSON.stringify({ client_name: 'replay-test', redirect_uris: [testRedirectUri] }),
+      });
+      const { client_id: testClientId } = await regRes.json() as Record<string, string>;
+
+      const codeVerifier = generateCodeVerifier();
+      const codeChallenge = generateCodeChallenge(codeVerifier);
+
+      const authorizeUrl = new URL(`${BASE_URL}/authorize`);
+      authorizeUrl.searchParams.set('response_type', 'code');
+      authorizeUrl.searchParams.set('client_id', testClientId);
+      authorizeUrl.searchParams.set('redirect_uri', testRedirectUri);
+      authorizeUrl.searchParams.set('code_challenge', codeChallenge);
+      authorizeUrl.searchParams.set('code_challenge_method', 'S256');
+
+      const redirectRes = await fetch(authorizeUrl.toString(), { redirect: 'manual' });
+      const stateKey = new URL(redirectRes.headers.get('location') || '').searchParams.get('state') || '';
+
+      const callbackRes = await fetch(`${BASE_URL}/oauth/callback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ state: stateKey, pin: TEST_PIN }).toString(),
+        redirect: 'manual',
+      });
+      const code = new URL(callbackRes.headers.get('location') || '').searchParams.get('code') || '';
+      expect(code).toBeTruthy();
+
+      const tokenBody = new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        client_id: testClientId,
+        code_verifier: codeVerifier,
+        redirect_uri: testRedirectUri,
+      }).toString();
+
+      // First use — must succeed
+      const first = await fetch(`${BASE_URL}/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: tokenBody,
+      });
+      expect(first.status).toBe(200);
+
+      // Second use — code already deleted, must fail
+      const second = await fetch(`${BASE_URL}/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: tokenBody,
+      });
+      expect(second.status).toBe(400);
+    });
+
     test('POST /token with unsupported grant_type returns 400', async () => {
       const res = await fetch(`${BASE_URL}/token`, {
         method: 'POST',
