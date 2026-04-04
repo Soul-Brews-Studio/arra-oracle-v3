@@ -204,6 +204,31 @@ factory will auto-map to the correct OpenAI model.
 Check `WorkingDirectory` in `~/.config/systemd/user/oracle-v2.service`. Must
 point to `arra-oracle-v3` repo, not `oracle-v2`.
 
+## systemd Service
+
+Oracle v3 runs as a systemd user service for auto-restart and boot start:
+
+```bash
+# Status
+systemctl --user status oracle-v2
+
+# Restart
+systemctl --user restart oracle-v2
+
+# Logs
+journalctl --user -u oracle-v2 -f
+
+# Enable on boot
+systemctl --user enable oracle-v2
+```
+
+Service unit: `~/.config/systemd/user/oracle-v2.service`
+
+Environment loading order:
+1. `~/.secrets/qdrant.env` — Qdrant Cloud credentials
+2. `~/.secrets/openai.env` — OpenAI API key
+3. `~/repos/memory/arra-oracle-v3/.env` — Service-specific (MCP_AUTH_TOKEN, PORT, etc.)
+
 ## Uninstall
 
 ```bash
@@ -271,6 +296,75 @@ curl -X POST https://oracle.goko.digital/mcp \
 - The `/mcp` endpoint uses **stateless mode** — each request is independent (no session tracking)
 - Stdio transport (`src/index.ts`) is unchanged; local Claude Code installations continue to work
 - nginx already configured with `proxy_buffering off` for SSE streaming
+
+## OAuth 2.1 (for Claude Desktop without custom headers)
+
+Claude Desktop's MCP config UI doesn't support custom `Authorization` headers. OAuth 2.1 lets Claude Desktop connect by just entering the server URL — it handles the auth flow automatically.
+
+### Setup
+
+1. Set environment variables in your `.env`:
+   ```
+   MCP_OAUTH_PIN=your-secret-pin
+   MCP_EXTERNAL_URL=https://oracle.goko.digital
+   ```
+
+2. Restart the server — the startup banner confirms:
+   ```
+   🔐 OAuth 2.1: enabled (https://oracle.goko.digital)
+   ```
+
+3. In Claude Desktop, add a remote MCP server:
+   - **URL**: `https://oracle.goko.digital/mcp`
+   - Claude Desktop will open a browser window automatically
+   - Enter your PIN when prompted → connection established (token valid 30 days)
+
+### How it works
+
+```
+Claude Desktop → POST /mcp → 401 + WWW-Authenticate header
+  → discovers /.well-known/oauth-authorization-server
+  → POST /register (dynamic client registration)
+  → GET /authorize (opens browser)
+  → GET /oauth/login (PIN entry page)
+  → POST /oauth/callback with correct PIN
+  → redirect with authorization code
+  → POST /token (exchanges code + PKCE verifier for 30-day token)
+  → POST /mcp with Bearer token → MCP response ✅
+```
+
+### Dual auth mode
+
+When `MCP_OAUTH_PIN` is set, `/mcp` accepts both:
+- **OAuth-issued tokens** (from the flow above)
+- **Static Bearer token** (`MCP_AUTH_TOKEN`) — fallback for existing configs
+
+### Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `MCP_OAUTH_PIN` | For OAuth | PIN shown on login page (enables OAuth if set) |
+| `MCP_EXTERNAL_URL` | For OAuth | Public HTTPS URL (e.g., `https://oracle.goko.digital`) — must be HTTPS in production |
+| `MCP_AUTH_TOKEN` | For Bearer | Static token for clients that support custom headers |
+
+### Test OAuth manually
+
+```bash
+# Start server with OAuth enabled
+MCP_AUTH_TOKEN=test-secret MCP_OAUTH_PIN=1234 MCP_EXTERNAL_URL=http://localhost:47778 bun run server &
+
+# 1. Check metadata
+curl -s http://localhost:47778/.well-known/oauth-authorization-server | python3 -m json.tool
+
+# 2. Register a test client
+CLIENT=$(curl -s -X POST http://localhost:47778/register \
+  -H "Content-Type: application/json" \
+  -d '{"redirect_uris":["http://localhost:9999/callback"],"client_name":"test","grant_types":["authorization_code"],"response_types":["code"]}')
+echo $CLIENT | python3 -m json.tool
+
+# 3. Visit the authorize URL in a browser to complete the flow
+# GET http://localhost:47778/authorize?response_type=code&client_id=<CLIENT_ID>&redirect_uri=...&code_challenge=...&code_challenge_method=S256
+```
 
 ---
 

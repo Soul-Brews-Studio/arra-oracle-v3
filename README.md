@@ -64,13 +64,33 @@ Or in `~/.claude.json`:
 }
 ```
 
+### Remote MCP (Streamable HTTP)
+
+For Claude Desktop, ChatGPT, or other remote MCP clients:
+
+```json
+{
+  "mcpServers": {
+    "oracle-v3": {
+      "type": "streamable-http",
+      "url": "https://oracle.goko.digital/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_MCP_AUTH_TOKEN"
+      }
+    }
+  }
+}
+```
+
+See [docs/INSTALL.md](docs/INSTALL.md#remote-mcp-access-streamable-http) for setup details.
+
 ### From source
 
 ```bash
 git clone https://github.com/Soul-Brews-Studio/arra-oracle-v2.git
 cd arra-oracle-v2 && bun install
-bun run dev          # MCP server
-bun run server       # HTTP API on :47778
+bun run dev          # MCP server (stdio)
+bun run server       # HTTP API + MCP on :47778
 ```
 
 <details>
