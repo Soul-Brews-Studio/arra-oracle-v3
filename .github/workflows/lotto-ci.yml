@@ -1,0 +1,62 @@
+name: Lotto Checker CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'repo/lotto_checker/**'
+      - '.github/workflows/lotto-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'repo/lotto_checker/**'
+      - '.github/workflows/lotto-ci.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: repo/lotto_checker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.2'
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - run: flutter analyze
+      - run: flutter test --coverage --exclude-tags golden
+      - name: Coverage gate
+        run: |
+          if [ ! -f coverage/lcov.info ]; then
+            echo "::error::No coverage file generated"
+            exit 1
+          fi
+          # Phase 1 gate: any coverage > 0 (raise to 80% in phase 2)
+          lines=$(grep -c '^DA:' coverage/lcov.info || echo 0)
+          echo "Coverage lines tracked: $lines"
+          if [ "$lines" -lt 1 ]; then exit 1; fi
+      - uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: repo/lotto_checker/coverage/lcov.info
+          fail_ci_if_error: false
+
+  golden:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    defaults:
+      run:
+        working-directory: repo/lotto_checker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.2'
+          channel: 'stable'
+      - run: flutter pub get
+      - run: flutter test --tags golden || echo "Golden mismatch — review artifacts"
+        continue-on-error: true

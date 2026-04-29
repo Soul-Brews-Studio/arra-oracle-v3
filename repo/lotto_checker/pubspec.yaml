@@ -1,0 +1,60 @@
+name: lotto_checker
+description: "Thai lottery checker app — Goodcat Oracle, The Bug Hunter."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # State management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Navigation
+  go_router: ^14.2.0
+
+  # Persistence (SQLite via drift)
+  drift: ^2.18.0
+  drift_flutter: ^0.2.1
+  sqlite3_flutter_libs: ^0.5.24
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+  # Codegen annotations
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+
+  # Networking + locale
+  http: ^1.2.2
+  intl: ^0.19.0
+
+  # Notifications
+  flutter_local_notifications: ^17.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^4.0.0
+
+  # Codegen
+  build_runner: ^2.4.11
+  riverpod_generator: ^2.4.0
+  freezed: ^2.5.2
+  json_serializable: ^6.8.0
+  drift_dev: ^2.18.0
+
+  # Testing
+  mocktail: ^1.0.4
+  golden_toolkit: ^0.15.0
+  patrol: ^3.11.0
+  test: ^1.25.0
+
+flutter:
+  uses-material-design: true
