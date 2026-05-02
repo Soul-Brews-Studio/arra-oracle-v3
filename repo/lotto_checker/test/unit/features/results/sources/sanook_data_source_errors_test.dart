@@ -64,7 +64,8 @@ void main() {
       final source = SanookDataSource(client: client);
 
       final draw = await source.fetchLatest();
-      expect(calls, 2);
+      // 2 calls for home page (1 retry) + 1 call for per-draw page = 3 total.
+      expect(calls, 3);
       expect(draw.winningNumbers[PrizeTier.first], ['309612']);
     });
 
@@ -97,7 +98,8 @@ void main() {
       final source = SanookDataSource(client: client);
 
       final draw = await source.fetchLatest();
-      expect(calls, 3);
+      // 3 calls for home page (2 failures + success) + 1 per-draw = 4 total.
+      expect(calls, 4);
       expect(draw.winningNumbers[PrizeTier.first], ['309612']);
     });
 

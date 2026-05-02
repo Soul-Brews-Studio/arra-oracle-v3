@@ -97,9 +97,10 @@ void main() {
       final source = SanookDataSource(client: client);
 
       await source.fetchLatest();
+      // fetchLatest makes ≥2 calls (home page + per-draw). Check the first.
       final captured = verify(
         () => client.get(any(), headers: captureAny(named: 'headers')),
-      ).captured.single as Map<String, String>;
+      ).captured.first as Map<String, String>;
       expect(captured['User-Agent'], 'LottoChecker/0.1 (personal-use)');
     });
 
@@ -113,10 +114,11 @@ void main() {
       );
 
       await source.fetchLatest();
+      // First call is always the home page; per-draw follows.
       final captured =
           verify(() => client.get(captureAny(), headers: any(named: 'headers')))
               .captured
-              .single as Uri;
+              .first as Uri;
       expect(captured.toString(), 'https://example.test/lotto/');
     });
 
@@ -128,10 +130,11 @@ void main() {
       final source = SanookDataSource(client: client);
 
       await source.fetchLatest();
+      // First call is always the home page.
       final captured =
           verify(() => client.get(captureAny(), headers: any(named: 'headers')))
               .captured
-              .single as Uri;
+              .first as Uri;
       expect(captured.toString(), 'https://news.sanook.com/lotto/');
     });
   });
