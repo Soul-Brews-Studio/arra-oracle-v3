@@ -20,6 +20,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const TicketInputScreen(),
       ),
       GoRoute(
+        path: '/tickets/:id/edit',
+        name: 'ticket-edit',
+        builder: (context, state) => TicketInputScreen(
+          ticketId: state.pathParameters['id'],
+        ),
+      ),
+      GoRoute(
         path: '/results',
         name: 'results',
         builder: (context, state) => const ResultsScreen(),

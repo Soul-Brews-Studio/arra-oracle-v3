@@ -12,6 +12,8 @@ class TicketInputState {
     this.note = '',
     this.saving = false,
     this.error,
+    this.editId,
+    this.editCreatedAt,
   });
 
   final String numbers;
@@ -20,7 +22,14 @@ class TicketInputState {
   final bool saving;
   final String? error;
 
+  /// Non-null when editing an existing ticket.
+  final String? editId;
+
+  /// Preserved from the original ticket so upsert keeps createdAt intact.
+  final DateTime? editCreatedAt;
+
   bool get isValid => RegExp(r'^[0-9]{6}$').hasMatch(numbers);
+  bool get isEditing => editId != null;
 
   TicketInputState copyWith({
     String? numbers,
@@ -30,6 +39,8 @@ class TicketInputState {
     bool? saving,
     String? error,
     bool clearError = false,
+    String? editId,
+    DateTime? editCreatedAt,
   }) {
     return TicketInputState(
       numbers: numbers ?? this.numbers,
@@ -37,6 +48,8 @@ class TicketInputState {
       note: note ?? this.note,
       saving: saving ?? this.saving,
       error: clearError ? null : (error ?? this.error),
+      editId: editId ?? this.editId,
+      editCreatedAt: editCreatedAt ?? this.editCreatedAt,
     );
   }
 }
@@ -45,6 +58,17 @@ class TicketInputController extends StateNotifier<TicketInputState> {
   TicketInputController(this._ref) : super(const TicketInputState());
 
   final Ref _ref;
+
+  /// Pre-populate the form from an existing ticket for editing.
+  void initForEdit(Ticket ticket) {
+    state = TicketInputState(
+      numbers: ticket.numbers,
+      drawDate: ticket.drawDate,
+      note: ticket.note ?? '',
+      editId: ticket.id,
+      editCreatedAt: ticket.createdAt,
+    );
+  }
 
   void appendDigit(String digit) {
     if (state.numbers.length >= 6) return;
@@ -74,10 +98,10 @@ class TicketInputController extends StateNotifier<TicketInputState> {
       final now = DateTime.now();
       final draw = state.drawDate ?? nextThaiDrawDate(now);
       final ticket = Ticket(
-        id: _generateId(),
+        id: state.editId ?? _generateId(),
         numbers: state.numbers,
         drawDate: DateTime(draw.year, draw.month, draw.day),
-        createdAt: now,
+        createdAt: state.editCreatedAt ?? now,
         note: state.note.trim().isEmpty ? null : state.note.trim(),
       );
       await _ref.read(ticketRepositoryProvider).save(ticket);
