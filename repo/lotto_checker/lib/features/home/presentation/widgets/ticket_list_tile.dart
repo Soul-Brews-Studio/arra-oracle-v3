@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../shared/models/ticket.dart';
+import '../../../results/domain/match_result.dart';
+import '../../../results/presentation/widgets/match_badge.dart';
 
 /// A single row in the home-screen ticket list.
 ///
@@ -12,10 +14,14 @@ class TicketListTile extends StatelessWidget {
     super.key,
     required this.ticket,
     required this.onEdit,
+    this.match,
   });
 
   final Ticket ticket;
   final VoidCallback onEdit;
+
+  /// null = matches still loading; provided = show badge/label.
+  final MatchResult? match;
 
   static final _dateFmt = DateFormat('d MMM yyyy', 'th');
 
@@ -56,12 +62,40 @@ class TicketListTile extends StatelessWidget {
                   ?.copyWith(color: colorScheme.outline),
             )
           : null,
-      trailing: IconButton(
-        icon: const Icon(Icons.edit_outlined),
-        tooltip: 'แก้ไข',
-        onPressed: onEdit,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildBadge(context),
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, size: 20),
+            tooltip: 'แก้ไข',
+            onPressed: onEdit,
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
       ),
     );
+  }
+
+  Widget _buildBadge(BuildContext context) {
+    final m = match;
+    if (m == null) {
+      return const SizedBox(
+        width: 14,
+        height: 14,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+    return switch (m) {
+      NoMatch() => Text(
+          'ไม่ถูก',
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.outline,
+          ),
+        ),
+      Match() => MatchBadge.compact(m),
+    };
   }
 
   String _spaced(String n) => n.split('').join(' ');

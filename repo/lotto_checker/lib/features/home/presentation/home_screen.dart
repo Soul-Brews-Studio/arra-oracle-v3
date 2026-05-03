@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../shared/models/ticket.dart';
+import '../../results/application/providers.dart';
+import '../../results/domain/match_result.dart';
 import '../../tickets/data/providers.dart';
 import 'widgets/ticket_list_tile.dart';
 
@@ -43,13 +45,19 @@ class HomeScreen extends ConsumerWidget {
 
 // ── ticket list ───────────────────────────────────────────────────────────────
 
-class _TicketList extends StatelessWidget {
+class _TicketList extends ConsumerWidget {
   const _TicketList({required this.tickets});
 
   final List<Ticket> tickets;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Watch match results; fall back to {} while still loading.
+    final matches = ref.watch(allTicketMatchesProvider).maybeWhen(
+          data: (m) => m,
+          orElse: () => const <String, MatchResult>{},
+        );
+
     // Build flat items: date header + ticket tiles, grouped by drawDate.
     final items = _buildItems(tickets);
 
@@ -61,7 +69,7 @@ class _TicketList extends StatelessWidget {
           return TicketDateHeader(drawDate: item.date);
         }
         final ticket = (item as _TicketItem).ticket;
-        return _DismissibleTile(ticket: ticket);
+        return _DismissibleTile(ticket: ticket, match: matches[ticket.id]);
       },
     );
   }
@@ -87,9 +95,10 @@ class _TicketList extends StatelessWidget {
 // ── dismissible tile with delete + edit ──────────────────────────────────────
 
 class _DismissibleTile extends ConsumerWidget {
-  const _DismissibleTile({required this.ticket});
+  const _DismissibleTile({required this.ticket, this.match});
 
   final Ticket ticket;
+  final MatchResult? match;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -123,6 +132,7 @@ class _DismissibleTile extends ConsumerWidget {
       },
       child: TicketListTile(
         ticket: ticket,
+        match: match,
         onEdit: () => context.go('/tickets/${ticket.id}/edit'),
       ),
     );

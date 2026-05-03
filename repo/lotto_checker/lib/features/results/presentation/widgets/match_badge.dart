@@ -9,20 +9,31 @@ enum MatchBadgeStatus { loading, error, result }
 class MatchBadge extends StatelessWidget {
   const MatchBadge.loading({super.key})
       : status = MatchBadgeStatus.loading,
-        result = null;
+        result = null,
+        compact = false;
 
   const MatchBadge.error({super.key})
       : status = MatchBadgeStatus.error,
-        result = null;
+        result = null,
+        compact = false;
 
   const MatchBadge.result(this.result, {super.key})
-      : status = MatchBadgeStatus.result;
+      : status = MatchBadgeStatus.result,
+        compact = false;
+
+  /// Compact pill for list tiles — only meaningful for [Match] results.
+  /// For [NoMatch]/loading, render a plain [Text] or spinner directly instead.
+  const MatchBadge.compact(this.result, {super.key})
+      : status = MatchBadgeStatus.result,
+        compact = true;
 
   final MatchBadgeStatus status;
   final MatchResult? result;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    if (compact) return _buildCompact(context);
     final palette = _palette();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -55,6 +66,35 @@ class MatchBadge extends StatelessWidget {
                 color: palette.foreground,
                 fontWeight: FontWeight.w600,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompact(BuildContext context) {
+    final m = result;
+    if (m is! Match) return const SizedBox.shrink();
+    final palette = _palette();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: palette.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: palette.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(palette.icon, size: 14, color: palette.foreground),
+          const SizedBox(width: 4),
+          Text(
+            '${m.tier.label} ${_formatAmount(m.prizeAmount)} บาท',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: palette.foreground,
             ),
           ),
         ],

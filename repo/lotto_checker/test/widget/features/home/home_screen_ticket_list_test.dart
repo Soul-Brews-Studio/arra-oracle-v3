@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lotto_checker/features/home/presentation/home_screen.dart';
+import 'package:lotto_checker/features/results/application/providers.dart';
+import 'package:lotto_checker/features/results/domain/match_result.dart';
 import 'package:lotto_checker/features/tickets/data/providers.dart';
 import 'package:lotto_checker/features/tickets/data/ticket_repository.dart';
 import 'package:lotto_checker/features/tickets/presentation/ticket_input_screen.dart';
@@ -106,6 +108,11 @@ void main() {
           allTicketsProvider.overrideWith(
             (_) => Stream.value([_ticket1]),
           ),
+          // Provide a definite NoMatch so the tile shows no spinner (a
+          // CircularProgressIndicator would prevent pumpAndSettle from settling).
+          allTicketMatchesProvider.overrideWith(
+            (_) => Stream.value({'tid-1': const MatchResult.noMatch()}),
+          ),
         ],
       );
       await tester.pumpAndSettle();
@@ -120,6 +127,9 @@ void main() {
         overrides: [
           allTicketsProvider.overrideWith(
             (_) => Stream.value([_ticket2]),
+          ),
+          allTicketMatchesProvider.overrideWith(
+            (_) => Stream.value({'tid-2': const MatchResult.noMatch()}),
           ),
         ],
       );
@@ -140,6 +150,9 @@ void main() {
             (_) => Stream.value([_ticket1]),
           ),
           ticketRepositoryProvider.overrideWithValue(repo),
+          allTicketMatchesProvider.overrideWith(
+            (_) => Stream.value({'tid-1': const MatchResult.noMatch()}),
+          ),
         ],
       );
       await tester.pumpAndSettle();
@@ -192,6 +205,9 @@ void main() {
             (_) => Stream.value([_ticket1]),
           ),
           ticketRepositoryProvider.overrideWithValue(repo),
+          allTicketMatchesProvider.overrideWith(
+            (_) => Stream.value({'tid-1': const MatchResult.noMatch()}),
+          ),
         ],
       );
       await tester.pumpAndSettle();
