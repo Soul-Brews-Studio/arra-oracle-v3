@@ -224,8 +224,9 @@ export async function dispatch(argv: string[], deps: CliDeps): Promise<number> {
   // daemon is special — delegates to the M3 entrypoint, dynamic-imported
   // so the CLI doesn't pull the daemon's heavy deps for status/enqueue/cancel.
   if (args.subcommand === 'daemon') {
-    const { default: _ } = await import('./daemon.ts').catch(() => ({ default: null }));
-    void _;  // daemon.ts runs main() at bottom via import.meta.main
+    // daemon.ts has no exports — it runs main() at bottom via import.meta.main.
+    // We just need the side-effect of the import; swallow load errors.
+    await import('./daemon.ts').catch(() => null);
     return 0;
   }
   const fn = COMMANDS[args.subcommand] ?? cmdHelp;
