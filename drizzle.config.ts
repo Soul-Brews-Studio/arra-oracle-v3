@@ -17,6 +17,7 @@ export default defineConfig({
   tablesFilter: [
     'oracle_documents',
     'indexing_status',
+    'indexing_jobs',  // Per-doc per-model index queue (M1 of indexer-CLI)
     'search_log',
     'consult_log',
     'learn_log',
