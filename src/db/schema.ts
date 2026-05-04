@@ -5,6 +5,7 @@
  * then cleaned up to exclude FTS5 internal tables.
  */
 
+import { sql } from 'drizzle-orm';
 import { sqliteTable, text, integer, index, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 
 // Main document index table
@@ -42,6 +43,27 @@ export const indexingStatus = sqliteTable('indexing_status', {
   completedAt: integer('completed_at'),
   error: text('error'),
   repoRoot: text('repo_root'),  // Root directory being indexed
+});
+
+// Per-doc per-model index job queue.
+// Foundation for the indexer-CLI / FTS-first / vector-later split — a doc gets
+// FTS5-inserted synchronously, then one row per registered model lands here for
+// the daemon to embed asynchronously. Plug-and-play: adding/removing a model
+// adds/skips queue entries without touching oracle_documents or other models'
+// LanceDB collections. Design: ψ/lab/indexer-cli/DESIGN.md (M1).
+export const indexingJobs = sqliteTable('indexing_jobs', {
+  id: text('id').primaryKey(),                                  // "idx-<ts>-<modelKey>-<rand>"
+  docId: text('doc_id').notNull(),                              // FK to oracle_documents.id
+  modelKey: text('model_key').notNull(),                        // "bge-m3", "qwen3", ...
+  collection: text('collection').notNull(),                     // "oracle_knowledge_bge_m3"
+  status: text('status').default('pending').notNull(),          // pending | claimed | done | error
+  attempts: integer('attempts').default(0).notNull(),
+  createdAt: integer('created_at')
+    .default(sql`(strftime('%s','now')*1000)`)
+    .notNull(),
+  claimedAt: integer('claimed_at'),
+  finishedAt: integer('finished_at'),
+  error: text('error'),
 });
 
 // Search query logging
