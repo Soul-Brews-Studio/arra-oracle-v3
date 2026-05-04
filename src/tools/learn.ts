@@ -10,6 +10,8 @@ import fs from 'fs';
 import { oracleDocuments } from '../db/schema.ts';
 import { detectProject } from '../server/project-detect.ts';
 import { getVaultPsiRoot } from '../vault/handler.ts';
+import { enqueueIndexJob } from '../indexer/jobs.ts';
+import { getEmbeddingModels } from '../vector/factory.ts';
 import type { ToolContext, ToolResponse, OracleLearnInput } from './types.ts';
 
 /** Coerce concepts to string[] — handles string, array, or undefined from MCP input */
@@ -185,6 +187,20 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
     INSERT INTO oracle_fts (id, content, concepts)
     VALUES (?, ?, ?)
   `).run(id, frontmatter, conceptsList.join(' '));
+
+  // FTS-first / vector-later activation point (M5 of the indexer-CLI).
+  // When ORACLE_INDEXER_ENQUEUE=1, queue this doc for the daemon to embed
+  // asynchronously. Default off — preserves existing behavior, no orphan
+  // jobs if the daemon isn't running. Architecture: ψ/lab/indexer-cli/DESIGN.md.
+  if (process.env.ORACLE_INDEXER_ENQUEUE === '1') {
+    try {
+      enqueueIndexJob(ctx.sqlite, { docId: id, models: getEmbeddingModels() });
+    } catch (e) {
+      // Never block ingest on the queue — same posture as the reranker.
+      // Surface the reason in logs so misconfigurations are visible.
+      console.warn('[arra_learn] enqueue failed:', e instanceof Error ? e.message : String(e));
+    }
+  }
 
   return {
     content: [{
