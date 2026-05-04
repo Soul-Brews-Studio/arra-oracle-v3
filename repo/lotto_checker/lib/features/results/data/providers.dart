@@ -35,3 +35,8 @@ final drawSyncServiceProvider = Provider<DrawSyncService>((ref) {
 final latestDrawProvider = FutureProvider<Draw>((ref) {
   return ref.watch(drawSyncServiceProvider).refreshLatest();
 });
+
+/// All cached draws, newest first. Backed by Drift so updates live.
+final allDrawsProvider = StreamProvider<List<Draw>>((ref) {
+  return ref.watch(drawRepositoryProvider).watchAll();
+});

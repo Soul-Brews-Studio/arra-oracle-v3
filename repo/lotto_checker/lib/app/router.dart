@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/home/presentation/home_screen.dart';
+import '../features/results/presentation/draw_history_screen.dart';
 import '../features/results/presentation/results_screen.dart';
 import '../features/tickets/presentation/ticket_input_screen.dart';
 
@@ -30,6 +31,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/results',
         name: 'results',
         builder: (context, state) => const ResultsScreen(),
+      ),
+      GoRoute(
+        path: '/draws',
+        name: 'draws',
+        builder: (context, state) => const DrawHistoryScreen(),
       ),
     ],
   );

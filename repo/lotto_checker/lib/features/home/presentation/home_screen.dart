@@ -20,6 +20,11 @@ class HomeScreen extends ConsumerWidget {
         title: const Text('ตรวจหวย'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'ประวัติผล',
+            onPressed: () => context.go('/draws'),
+          ),
+          IconButton(
             icon: const Icon(Icons.assignment_turned_in_outlined),
             tooltip: 'ดูผล',
             onPressed: () => context.go('/results'),
