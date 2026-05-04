@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/results/presentation/draw_history_screen.dart';
 import '../features/results/presentation/results_screen.dart';
+import '../features/settings/presentation/settings_screen.dart';
 import '../features/tickets/presentation/ticket_input_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -36,6 +37,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/draws',
         name: 'draws',
         builder: (context, state) => const DrawHistoryScreen(),
+      ),
+      GoRoute(
+        path: '/settings',
+        name: 'settings',
+        builder: (context, state) => const SettingsScreen(),
       ),
     ],
   );

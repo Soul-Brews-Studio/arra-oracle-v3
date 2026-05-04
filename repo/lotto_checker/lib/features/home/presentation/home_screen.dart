@@ -29,6 +29,11 @@ class HomeScreen extends ConsumerWidget {
             tooltip: 'ดูผล',
             onPressed: () => context.go('/results'),
           ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'ตั้งค่า',
+            onPressed: () => context.go('/settings'),
+          ),
         ],
       ),
       body: ticketsAsync.when(
