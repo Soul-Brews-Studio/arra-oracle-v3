@@ -33,13 +33,23 @@ export class OllamaEmbeddings implements EmbeddingProvider {
   constructor(config: { baseUrl?: string; model?: string } = {}) {
     this.baseUrl = config.baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     this.model = config.model || 'nomic-embed-text';
-    // Known model dimensions (fallback before auto-detect)
+    // Known model dimensions (fallback before auto-detect).
+    // For unknown models, set to 0 → adapters MUST probe via embed() before
+    // creating columns (see #qwen3-dim-fallback issue).
     const KNOWN_DIMS: Record<string, number> = {
       'nomic-embed-text': 768,
-      'qwen3-embedding': 4096,
+      'qwen3-embedding': 1024,                             // 0.6B variant (default tag)
+      'qwen3-embedding:0.6b': 1024,
+      'qwen3-embedding:4b': 2560,
+      'qwen3-embedding:8b': 4096,
       'bge-m3': 1024,
       'mxbai-embed-large': 1024,
       'all-minilm': 384,
+      'qllama/multilingual-e5-large-instruct': 1024,
+      'qllama/multilingual-e5-large-instruct:latest': 1024,
+      'multilingual-e5-large': 1024,
+      'multilingual-e5-large-instruct': 1024,
+      'snowflake-arctic-embed2': 1024,
     };
     this.dimensions = KNOWN_DIMS[this.model] || 768;
   }
