@@ -61,12 +61,30 @@ export class OllamaEmbeddings implements EmbeddingProvider {
       // Truncate to ~2000 chars — Thai text uses 2-3x more tokens than English
       let truncated = text.length > 2000 ? text.slice(0, 2000) : text;
 
-      // bge-m3 needs instruction prefixes for accurate retrieval
-      if (this.model.includes('bge') && type === 'query') {
-        truncated = `query: ${truncated}`;
-      } else if (this.model.includes('bge') && type === 'passage') {
-        truncated = `passage: ${truncated}`;
+      // Instruction prefixes per model family. Wrong protocol = silent
+      // 5–30pt cross-language recall regression (observed on qwen3:4b).
+      //
+      //   - bge-v1.5 / multilingual-e5 → "query: ..." / "passage: ..."
+      //     (bge-m3 doesn't strictly require it but tolerates it)
+      //   - qwen3-embedding → "Instruct: <task>\nQuery: <q>" on QUERIES ONLY
+      //     passages stay raw. https://huggingface.co/Qwen/Qwen3-Embedding-0.6B
+      const isQwen3 = this.model.includes('qwen3-embedding');
+      const isE5 = this.model.includes('multilingual-e5') || this.model.includes('/e5-');
+      const isBge = this.model.includes('bge');
+
+      if (type === 'query') {
+        if (isQwen3) {
+          truncated = `Instruct: Given a search query, retrieve relevant passages that answer the query\nQuery: ${truncated}`;
+        } else if (isBge || isE5) {
+          truncated = `query: ${truncated}`;
+        }
+      } else if (type === 'passage') {
+        if (isBge || isE5) {
+          truncated = `passage: ${truncated}`;
+        }
+        // qwen3-embedding: passages stay raw per HF model card
       }
+
       const response = await fetch(`${this.baseUrl}/api/embeddings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
