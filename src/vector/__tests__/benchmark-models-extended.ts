@@ -134,9 +134,9 @@ async function benchModel(model: string): Promise<ModelResult | null> {
     const totalQueryMs: number[] = [];
 
     for (const q of QUERIES) {
-      const { result, ms } = await time(() => store.query(q.text, 5));
+      const { result, ms } = await time(() => store.query(q.text, 5) as Promise<{ ids: string[] }>);
       totalQueryMs.push(ms);
-      const top5 = result.ids.slice(0, 5);
+      const top5: string[] = result.ids.slice(0, 5);
       const top3 = top5.slice(0, 3);
 
       const r1 = q.expected.some(id => top5[0] === id);
