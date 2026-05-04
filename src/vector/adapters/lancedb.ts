@@ -72,18 +72,34 @@ export class LanceDBAdapter implements VectorStoreAdapter {
     if (docs.length === 0) return;
     if (!this.table) await this.ensureCollection();
 
-    const texts = docs.map(d => d.document);
-    const embeddings = await this.embedder.embed(texts, 'passage');
+    // Embed only the docs that lack a precomputed vector. Callers that
+    // already have a vector (e.g. the indexer worker loop, where embed
+    // happens before the storage write) skip the second Ollama round-trip.
+    const needEmbed: number[] = [];
+    for (let i = 0; i < docs.length; i++) {
+      if (!docs[i].vector) needEmbed.push(i);
+    }
+    let fresh: number[][] = [];
+    if (needEmbed.length > 0) {
+      const texts = needEmbed.map(i => docs[i].document);
+      fresh = await this.embedder.embed(texts, 'passage');
+    }
+    let freshIdx = 0;
 
-    const rows = docs.map((doc, i) => ({
+    const rows = docs.map((doc) => ({
       id: doc.id,
       text: doc.document,
       metadata: JSON.stringify(doc.metadata),
-      vector: embeddings[i],
+      vector: doc.vector ?? fresh[freshIdx++],
     }));
 
     await this.table.add(rows);
-    console.log(`[LanceDB] Added ${docs.length} documents`);
+    const reused = docs.length - needEmbed.length;
+    if (reused > 0) {
+      console.log(`[LanceDB] Added ${docs.length} documents (${reused} with precomputed vectors)`);
+    } else {
+      console.log(`[LanceDB] Added ${docs.length} documents`);
+    }
   }
 
   async query(text: string, limit: number = 10, where?: Record<string, any>): Promise<VectorQueryResult> {
