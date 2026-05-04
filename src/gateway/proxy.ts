@@ -28,7 +28,6 @@ export async function proxyToService(
         ? request.body
         : undefined,
       signal: AbortSignal.timeout(timeoutMs),
-      // @ts-expect-error — Bun supports duplex streaming
       duplex: 'half',
     });
 
