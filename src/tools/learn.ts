@@ -10,7 +10,8 @@ import fs from 'fs';
 import { oracleDocuments } from '../db/schema.ts';
 import { detectProject } from '../server/project-detect.ts';
 import { getVaultPsiRoot } from '../vault/handler.ts';
-import { getVectorStoreByModel } from '../vector/factory.ts';
+import { getVectorStoreByModel, getEmbeddingModels } from '../vector/factory.ts';
+import { enqueueIndexJob } from '../indexer/jobs.ts';
 import { REPO_ROOT } from '../config.ts';
 import type { ToolContext, ToolResponse, OracleLearnInput } from './types.ts';
 
@@ -193,29 +194,44 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
     VALUES (?, ?, ?)
   `).run(id, frontmatter, conceptsList.join(' '));
 
-  // Inline vector embedding — keep DB + lancedb in step so arra_search hybrid
-  // mode works immediately without a follow-up `bun run index-model`. Graceful
-  // fallback: if the embedder is unreachable (e.g. Ollama down) we log and
-  // carry on — the FTS row above is still searchable.
-  let embeddingStatus: 'ok' | 'skipped' | 'failed' = 'skipped';
-  try {
-    const model = process.env.ORACLE_EMBEDDING_MODEL || 'bge-m3';
-    const vectorStore = getVectorStoreByModel(model);
-    await vectorStore.addDocuments([{
-      id,
-      document: frontmatter,
-      metadata: {
-        type: 'learning',
-        source_file: sourceFileRel,
-        project: project || '',
-        concepts: conceptsList.join(','),
-      },
-    }]);
-    embeddingStatus = 'ok';
-  } catch (err) {
-    embeddingStatus = 'failed';
-    console.warn(`[arra_learn] vector embedding failed for ${id}: ${err instanceof Error ? err.message : String(err)}`);
-    console.warn(`[arra_learn] document still searchable via FTS5; run 'bun src/scripts/index-model.ts <model>' later to backfill vectors`);
+  // Vector indexing — two paths:
+  //   - Default (env unset): inline embed via Ollama. Keeps DB + lancedb in
+  //     step so arra_search hybrid mode works immediately. Graceful fallback
+  //     on embedder failure — FTS row above is still searchable.
+  //   - ORACLE_INDEXER_ENQUEUE=1 (M5 of indexer-CLI): queue a row in
+  //     indexing_jobs for the daemon to embed asynchronously. FTS-first /
+  //     vector-later. Never blocks ingest. Architecture:
+  //     ψ/lab/indexer-cli/DESIGN.md.
+  let embeddingStatus: 'ok' | 'skipped' | 'failed' | 'enqueued' = 'skipped';
+  if (process.env.ORACLE_INDEXER_ENQUEUE === '1') {
+    try {
+      enqueueIndexJob(ctx.sqlite, { docId: id, models: getEmbeddingModels() });
+      embeddingStatus = 'enqueued';
+    } catch (err) {
+      // Never block ingest on the queue — same posture as the inline path.
+      embeddingStatus = 'failed';
+      console.warn(`[arra_learn] enqueue failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  } else {
+    try {
+      const model = process.env.ORACLE_EMBEDDING_MODEL || 'bge-m3';
+      const vectorStore = getVectorStoreByModel(model);
+      await vectorStore.addDocuments([{
+        id,
+        document: frontmatter,
+        metadata: {
+          type: 'learning',
+          source_file: sourceFileRel,
+          project: project || '',
+          concepts: conceptsList.join(','),
+        },
+      }]);
+      embeddingStatus = 'ok';
+    } catch (err) {
+      embeddingStatus = 'failed';
+      console.warn(`[arra_learn] vector embedding failed for ${id}: ${err instanceof Error ? err.message : String(err)}`);
+      console.warn(`[arra_learn] document still searchable via FTS5; run 'bun src/scripts/index-model.ts <model>' later to backfill vectors`);
+    }
   }
 
   return {
