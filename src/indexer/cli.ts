@@ -2,15 +2,17 @@
  * CLI entrypoint for running the Oracle indexer
  */
 
-import { DB_PATH, REPO_ROOT } from '../config.ts';
+import fs from 'fs';
+import path from 'path';
+import { DB_PATH, CHROMADB_DIR } from '../config.ts';
 import { getVaultPsiRoot } from '../vault/handler.ts';
 import type { IndexerConfig } from '../types.ts';
 import { OracleIndexer } from './index.ts';
-import { scanRoots } from './scan.ts';
-import fs from 'fs';
-import path from 'path';
 
-// Prefer vault repo for centralized indexing, fall back to REPO_ROOT from config
+// Prefer vault repo for centralized indexing, fall back to local psi/ detection
+const scriptDir = import.meta.dirname || path.dirname(new URL(import.meta.url).pathname);
+const projectRoot = path.resolve(scriptDir, '..', '..');
+
 const vaultResult = getVaultPsiRoot();
 const vaultRoot = 'path' in vaultResult ? vaultResult.path : null;
 
@@ -20,39 +22,19 @@ const vaultHasContent = vaultRoot && (
   fs.existsSync(path.join(vaultRoot, 'github.com'))
 );
 const repoRoot = process.env.ORACLE_REPO_ROOT ||
-  (vaultHasContent ? vaultRoot : REPO_ROOT);
+  (vaultHasContent ? vaultRoot :
+   fs.existsSync(path.join(projectRoot, '\u03c8')) ? projectRoot : process.cwd());
 
 const config: IndexerConfig = {
   repoRoot,
   dbPath: DB_PATH,
-  // chromaPath is kept in the type for backward compatibility but no longer
-  // used: vector indexing is handled by src/scripts/index-model.ts.
-  chromaPath: '',
+  chromaPath: CHROMADB_DIR,
   sourcePaths: {
     resonance: '\u03c8/memory/resonance',
     learnings: '\u03c8/memory/learnings',
     retrospectives: '\u03c8/memory/retrospectives'
   }
 };
-
-if (process.argv.includes('--scan')) {
-  const roots = [
-    path.join(repoRoot, config.sourcePaths.resonance),
-    path.join(repoRoot, config.sourcePaths.learnings),
-    path.join(repoRoot, config.sourcePaths.retrospectives),
-  ];
-  const findings = scanRoots(roots);
-  if (findings.length === 0) {
-    console.log('\u2713 Secret scan clean — no matches found.');
-    process.exit(0);
-  }
-  console.error(`\u26a0 Found ${findings.length} potential secret(s):`);
-  for (const f of findings) {
-    const rel = path.relative(repoRoot, f.file) || f.file;
-    console.error(`  ${rel}:${f.line} [${f.kind}] ${f.preview}`);
-  }
-  process.exit(2);
-}
 
 const indexer = new OracleIndexer(config);
 
