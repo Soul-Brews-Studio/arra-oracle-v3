@@ -10,7 +10,7 @@
  *
  * Owner E owns that port (branch: port/wave2-elysia-daemon). This file ports
  * the 14 alpha tests to Elysia's `app.handle(new Request(...))` API. The
- * suite is currently `describe.skip(...)` because Owner E's plugin has not
+ * suite is currently `describe(...)` because Owner E's plugin has not
  * yet landed — the import is wrapped in try/catch so the test file loads
  * cleanly under bun even when the module is absent.
  *
@@ -20,36 +20,24 @@
 
 import { describe, it, expect } from 'bun:test';
 import Database from 'bun:sqlite';
+import { Elysia } from 'elysia';
 import { enqueueIndexJob } from '../jobs.ts';
 import type { WorkerEvent } from '../worker.ts';
+import {
+  daemonApiPlugin,
+  makeEventBus,
+  type DaemonApiDeps,
+} from '../../routes/indexer-daemon/index.ts';
 
-// Owner E's deliverable. Wrapped so this test file compiles + runs
-// (as a no-op skip) before the plugin exists. Once landed, replace with:
-//   import { createDaemonApp, makeEventBus, type ApiDeps } from '../api.ts';
-type ApiDeps = {
-  db: Database;
-  models: Record<string, { collection: string }>;
-  isShuttingDown: () => boolean;
-  requestShutdown: () => void;
-  subscribe: (cb: (ev: WorkerEvent) => void) => () => void;
-};
+type ApiDeps = DaemonApiDeps;
 
 type EventBus<E> = {
   publish: (ev: E) => void;
   subscribe: (cb: (ev: E) => void) => () => void;
 };
 
-interface DaemonApi {
-  createDaemonApp: (deps: ApiDeps) => { handle: (req: Request) => Promise<Response> };
-  makeEventBus: <E>() => EventBus<E>;
-}
-
-let api: DaemonApi | null = null;
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  api = require('../api.ts') as DaemonApi;
-} catch {
-  api = null;
+function createDaemonApp(deps: ApiDeps) {
+  return new Elysia().use(daemonApiPlugin(deps));
 }
 
 const MIGRATION_SQL = `
@@ -76,7 +64,7 @@ function makeDeps(): ApiDeps & { _shutdownFlag: { v: boolean }; _bus: EventBus<W
   const db = new Database(':memory:');
   db.exec(MIGRATION_SQL);
   const flag = { v: false };
-  const bus = api!.makeEventBus<WorkerEvent>();
+  const bus = makeEventBus<WorkerEvent>();
   return {
     db,
     models: MODELS,
@@ -88,20 +76,16 @@ function makeDeps(): ApiDeps & { _shutdownFlag: { v: boolean }; _bus: EventBus<W
   };
 }
 
-// Elysia routes are prefixed by the plugin; alpha hit '/health' directly,
-// Wave 2 mounts under '/indexer'. Centralised so it's a one-line flip if
-// Owner E picks a different prefix.
-const URL_BASE = 'http://localhost/indexer';
+// The plugin mounts routes at the root (no prefix); the daemon entrypoint
+// uses `.use(daemonApiPlugin(deps))` directly on the root Elysia instance.
+const URL_BASE = 'http://localhost';
 
-// `.skip` until Owner E's port/wave2-elysia-daemon lands. Drop the `.skip`
-// once `src/indexer/api.ts` exports `createDaemonApp` + `makeEventBus` for
-// Elysia.
-describe.skip('GET /health', () => {
+describe('GET /health', () => {
   it('returns ok with queue depth + models', async () => {
     const deps = makeDeps();
     enqueueIndexJob(deps.db, { docId: 'doc-A', modelKey: 'bge-m3', models: MODELS });
     enqueueIndexJob(deps.db, { docId: 'doc-B', modelKey: 'qwen3', models: MODELS });
-    const app = api!.createDaemonApp(deps);
+    const app = createDaemonApp(deps);
     const res = await app.handle(new Request(`${URL_BASE}/health`));
     expect(res.status).toBe(200);
     const body = await res.json() as { status: string; service: string; queue_depth: Record<string, number>; models: string[] };
@@ -115,17 +99,17 @@ describe.skip('GET /health', () => {
   it('reports shutting_down flag', async () => {
     const deps = makeDeps();
     deps._shutdownFlag.v = true;
-    const app = api!.createDaemonApp(deps);
+    const app = createDaemonApp(deps);
     const res = await app.handle(new Request(`${URL_BASE}/health`));
     const body = await res.json() as { shutting_down: boolean };
     expect(body.shutting_down).toBe(true);
   });
 });
 
-describe.skip('POST /index', () => {
+describe('POST /index', () => {
   it('enqueues for all registered models when model_key omitted', async () => {
     const deps = makeDeps();
-    const app = api!.createDaemonApp(deps);
+    const app = createDaemonApp(deps);
     const res = await app.handle(
       new Request(`${URL_BASE}/index`, {
         method: 'POST',
@@ -141,7 +125,7 @@ describe.skip('POST /index', () => {
 
   it('enqueues for one model when model_key specified', async () => {
     const deps = makeDeps();
-    const app = api!.createDaemonApp(deps);
+    const app = createDaemonApp(deps);
     const res = await app.handle(
       new Request(`${URL_BASE}/index`, {
         method: 'POST',
@@ -156,7 +140,7 @@ describe.skip('POST /index', () => {
 
   it('returns 400 when doc_id missing', async () => {
     const deps = makeDeps();
-    const app = api!.createDaemonApp(deps);
+    const app = createDaemonApp(deps);
     const res = await app.handle(
       new Request(`${URL_BASE}/index`, {
         method: 'POST',
@@ -171,7 +155,7 @@ describe.skip('POST /index', () => {
 
   it('returns 400 on invalid JSON', async () => {
     const deps = makeDeps();
-    const app = api!.createDaemonApp(deps);
+    const app = createDaemonApp(deps);
     const res = await app.handle(
       new Request(`${URL_BASE}/index`, {
         method: 'POST',
@@ -185,7 +169,7 @@ describe.skip('POST /index', () => {
   it('returns 503 when shutting down', async () => {
     const deps = makeDeps();
     deps._shutdownFlag.v = true;
-    const app = api!.createDaemonApp(deps);
+    const app = createDaemonApp(deps);
     const res = await app.handle(
       new Request(`${URL_BASE}/index`, {
         method: 'POST',
@@ -197,12 +181,12 @@ describe.skip('POST /index', () => {
   });
 });
 
-describe.skip('GET /jobs', () => {
+describe('GET /jobs', () => {
   it('lists all jobs without filters', async () => {
     const deps = makeDeps();
     enqueueIndexJob(deps.db, { docId: 'doc-A', modelKey: 'bge-m3', models: MODELS });
     enqueueIndexJob(deps.db, { docId: 'doc-B', modelKey: 'qwen3', models: MODELS });
-    const app = api!.createDaemonApp(deps);
+    const app = createDaemonApp(deps);
     const res = await app.handle(new Request(`${URL_BASE}/jobs`));
     const body = await res.json() as { jobs: Array<{ doc_id: string; model_key: string }>; count: number };
     expect(body.count).toBe(2);
@@ -214,7 +198,7 @@ describe.skip('GET /jobs', () => {
     enqueueIndexJob(deps.db, { docId: 'doc-A', modelKey: 'bge-m3', models: MODELS });
     deps.db.exec("UPDATE indexing_jobs SET status = 'done' WHERE doc_id = 'doc-A'");
     enqueueIndexJob(deps.db, { docId: 'doc-B', modelKey: 'bge-m3', models: MODELS });
-    const app = api!.createDaemonApp(deps);
+    const app = createDaemonApp(deps);
     const res = await app.handle(new Request(`${URL_BASE}/jobs?status=pending`));
     const body = await res.json() as { jobs: Array<{ doc_id: string }>; count: number };
     expect(body.count).toBe(1);
@@ -225,7 +209,7 @@ describe.skip('GET /jobs', () => {
     const deps = makeDeps();
     enqueueIndexJob(deps.db, { docId: 'doc-A', modelKey: 'bge-m3', models: MODELS });
     enqueueIndexJob(deps.db, { docId: 'doc-A', modelKey: 'qwen3', models: MODELS });
-    const app = api!.createDaemonApp(deps);
+    const app = createDaemonApp(deps);
     const res = await app.handle(new Request(`${URL_BASE}/jobs?model=qwen3`));
     const body = await res.json() as { jobs: Array<{ model_key: string }>; count: number };
     expect(body.count).toBe(1);
@@ -237,18 +221,18 @@ describe.skip('GET /jobs', () => {
     for (let i = 0; i < 5; i++) {
       enqueueIndexJob(deps.db, { docId: `doc-${i}`, modelKey: 'bge-m3', models: MODELS });
     }
-    const app = api!.createDaemonApp(deps);
+    const app = createDaemonApp(deps);
     const res = await app.handle(new Request(`${URL_BASE}/jobs?limit=3`));
     const body = await res.json() as { jobs: unknown[]; count: number };
     expect(body.count).toBe(3);
   });
 });
 
-describe.skip('POST /drain', () => {
+describe('POST /drain', () => {
   it('flips shutdown flag and returns 200', async () => {
     const deps = makeDeps();
     expect(deps._shutdownFlag.v).toBe(false);
-    const app = api!.createDaemonApp(deps);
+    const app = createDaemonApp(deps);
     const res = await app.handle(new Request(`${URL_BASE}/drain`, { method: 'POST' }));
     expect(res.status).toBe(200);
     const body = await res.json() as { status: string };
@@ -257,9 +241,9 @@ describe.skip('POST /drain', () => {
   });
 });
 
-describe.skip('makeEventBus', () => {
+describe('makeEventBus', () => {
   it('publishes to all subscribers; unsubscribe removes', () => {
-    const bus = api!.makeEventBus<{ n: number }>();
+    const bus = makeEventBus<{ n: number }>();
     const seenA: number[] = [];
     const seenB: number[] = [];
     const unsubA = bus.subscribe((ev) => seenA.push(ev.n));
@@ -275,7 +259,7 @@ describe.skip('makeEventBus', () => {
   });
 
   it('one subscriber throwing does not break others', () => {
-    const bus = api!.makeEventBus<number>();
+    const bus = makeEventBus<number>();
     const seen: number[] = [];
     bus.subscribe(() => { throw new Error('boom'); });
     bus.subscribe((n) => seen.push(n));
