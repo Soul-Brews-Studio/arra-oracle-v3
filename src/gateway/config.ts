@@ -8,6 +8,7 @@
  */
 import fs from 'fs';
 import path from 'path';
+import type { HooksConfig } from './hooks.ts';
 
 export interface ServiceConfig {
   url: string;
@@ -24,6 +25,7 @@ export interface RouteConfig {
 export interface GatewayConfig {
   services: Record<string, ServiceConfig>;
   routes: RouteConfig[];
+  hooks?: HooksConfig;
 }
 
 const CONFIG_FILE = 'oracle-gateway.json';
