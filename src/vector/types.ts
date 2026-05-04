@@ -9,6 +9,17 @@ export interface VectorDocument {
   id: string;
   document: string;
   metadata: Record<string, string | number>;
+  /**
+   * Optional precomputed embedding. When present, adapters MUST use this
+   * vector and skip the embedder. Lets a caller (e.g. the indexer worker
+   * loop) embed once and route the vector to the storage tier without a
+   * second Ollama round-trip.
+   *
+   * Vector dimension MUST match the collection's column dim or the storage
+   * write will fail. Adapters that don't yet honor this field fall back to
+   * embedding (the default behavior is preserved — the field is optional).
+   */
+  vector?: number[];
 }
 
 export interface VectorQueryResult {
