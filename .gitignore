@@ -43,6 +43,9 @@ test-results/
 # Oracle instance data (per-user, symlink to vault)
 ψ
 
+# Generated docs (CMMI export artifacts)
+build/docs/
+
 # Generated report files (use oracle-vault-report repo instead)
 vault-report.html
 vault-repos.html
