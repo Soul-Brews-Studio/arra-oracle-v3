@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'widgets/home_empty_state.dart';
 import 'widgets/stats_hero.dart';
 import 'widgets/ticket_list.dart';
+import 'widgets/ticket_search_bar.dart';
 import '../../tickets/data/providers.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -43,6 +44,7 @@ class HomeScreen extends ConsumerWidget {
             : Column(
                 children: [
                   const StatsHero(),
+                  const TicketSearchBar(),
                   Expanded(child: HomeTicketList(tickets: tickets)),
                 ],
               ),

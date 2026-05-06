@@ -6,6 +6,7 @@ import '../../../../shared/models/ticket.dart';
 import '../../../results/application/providers.dart';
 import '../../../results/domain/match_result.dart';
 import '../../../tickets/data/providers.dart';
+import '../../data/search_query_provider.dart';
 import 'ticket_list_tile.dart';
 
 /// Date-grouped, swipe-to-delete ticket list with match badges.
@@ -21,11 +22,16 @@ class HomeTicketList extends ConsumerWidget {
           orElse: () => const <String, MatchResult>{},
         );
 
-    if (tickets.isEmpty) {
-      return const _EmptyResults();
+    final query = ref.watch(searchQueryProvider);
+    final filtered = query.isEmpty
+        ? tickets
+        : tickets.where((t) => t.numbers.contains(query)).toList();
+
+    if (filtered.isEmpty) {
+      return _EmptyResults(query: query);
     }
 
-    final items = _buildItems(tickets);
+    final items = _buildItems(filtered);
     return ListView.builder(
       itemCount: items.length,
       itemBuilder: (context, i) {
@@ -123,11 +129,14 @@ class _DismissibleTile extends ConsumerWidget {
 }
 
 class _EmptyResults extends StatelessWidget {
-  const _EmptyResults();
+  const _EmptyResults({required this.query});
+
+  final String query;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isSearch = query.isNotEmpty;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -135,13 +144,13 @@ class _EmptyResults extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.search_off,
+              isSearch ? Icons.search_off : Icons.inbox_outlined,
               size: 56,
               color: theme.colorScheme.outline,
             ),
             const SizedBox(height: 12),
             Text(
-              'ไม่เจอตั๋วที่ค้นหา',
+              isSearch ? 'ไม่เจอตั๋วที่ค้นหา' : 'ยังไม่มีตั๋ว',
               style: theme.textTheme.titleMedium
                   ?.copyWith(color: theme.colorScheme.outline),
             ),
