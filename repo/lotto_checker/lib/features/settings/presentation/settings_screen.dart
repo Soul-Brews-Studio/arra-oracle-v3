@@ -23,7 +23,7 @@ class SettingsScreen extends ConsumerWidget {
       ),
       body: ListView(
         children: [
-          _SectionHeader(label: 'การแจ้งเตือน'),
+          const _SectionHeader(label: 'การแจ้งเตือน'),
           _DrawReminderTile(enabled: enabled, ref: ref),
           const Divider(height: 1),
         ],

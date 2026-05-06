@@ -25,7 +25,7 @@ void main() {
     });
 
     testWidgets('shows loading spinner while stream is pending', (tester) async {
-      final stream = Stream<List<Ticket>>.empty(); // never emits
+      const stream = Stream<List<Ticket>>.empty(); // never emits
       await tester.pumpApp(
         const HomeScreen(),
         overrides: [

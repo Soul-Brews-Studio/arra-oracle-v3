@@ -63,8 +63,6 @@ class _DrawCard extends StatelessWidget {
 
   final Draw draw;
 
-  static final _dateFmt = DateFormat('d MMMM yyyy', 'th');
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

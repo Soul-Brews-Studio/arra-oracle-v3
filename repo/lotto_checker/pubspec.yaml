@@ -38,6 +38,12 @@ dependencies:
   flutter_local_notifications: ^17.2.2
   timezone: ^0.9.4
 
+  # Phase 11 — polish bundle
+  google_fonts: ^6.2.1            # Sarabun (Thai-friendly typography)
+  shared_preferences: ^2.3.2      # Theme-mode persistence
+  file_picker: ^8.1.4             # Import tickets JSON
+  share_plus: ^10.0.3             # Export tickets JSON
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
