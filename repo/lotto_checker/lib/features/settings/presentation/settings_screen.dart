@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../data/providers.dart';
 import '../data/theme_mode_provider.dart';
+import 'ticket_io_section.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -30,6 +31,9 @@ class SettingsScreen extends ConsumerWidget {
           const _SectionHeader(label: 'ธีม'),
           const _ThemePreviewCard(),
           const _ThemeModeTiles(),
+          const Divider(height: 1),
+          const _SectionHeader(label: 'ข้อมูลตั๋ว'),
+          const TicketIoSection(),
           const Divider(height: 1),
         ],
       ),
