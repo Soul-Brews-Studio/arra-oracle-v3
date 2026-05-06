@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../data/providers.dart';
 import 'widgets/draw_card.dart';
+import 'widgets/draw_filter_bar.dart';
 import 'widgets/draw_history_states.dart';
 
 class DrawHistoryScreen extends ConsumerWidget {
@@ -11,7 +12,8 @@ class DrawHistoryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final drawsAsync = ref.watch(allDrawsProvider);
+    final drawsAsync = ref.watch(filteredDrawsProvider);
+    final filter = ref.watch(drawFilterProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -29,27 +31,42 @@ class DrawHistoryScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: drawsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => ErrorView(
-          message: 'โหลดข้อมูลไม่สำเร็จ: $e',
-          onRetry: () => ref.invalidate(allDrawsProvider),
-        ),
-        data: (draws) {
-          if (draws.isEmpty) return const EmptyView();
-          return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(allDrawsProvider);
-              await ref.read(allDrawsProvider.future);
-            },
-            child: ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: draws.length,
-              itemBuilder: (context, i) => DrawCard(draw: draws[i]),
+      body: Column(
+        children: [
+          const DrawFilterBar(),
+          const Divider(height: 1),
+          Expanded(
+            child: drawsAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => ErrorView(
+                message: 'โหลดข้อมูลไม่สำเร็จ: $e',
+                onRetry: () => ref.invalidate(allDrawsProvider),
+              ),
+              data: (draws) {
+                if (draws.isEmpty) {
+                  return EmptyView(
+                    title: filter.isActive
+                        ? 'ไม่เจอผลในช่วงที่เลือก'
+                        : null,
+                    subtitle: filter.isActive ? 'ลองเปลี่ยนช่วงวันที่' : null,
+                  );
+                }
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    ref.invalidate(allDrawsProvider);
+                    await ref.read(allDrawsProvider.future);
+                  },
+                  child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: draws.length,
+                    itemBuilder: (context, i) => DrawCard(draw: draws[i]),
+                  ),
+                );
+              },
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
