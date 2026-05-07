@@ -1,0 +1,66 @@
+/**
+ * Fresh-install regression test for issue #1111.
+ *
+ * Verifies that running drizzle's migrate() against an empty SQLite file
+ * creates the FTS5 `oracle_fts` virtual table. Before migration 0017_fts5_bootstrap,
+ * fresh installs that ran `bun db:migrate` (or any other migration runner that
+ * does not boot the app) ended up without the FTS table — the indexer daemon
+ * would then crash on getDocText() returning null.
+ */
+import { describe, test, expect } from "bun:test";
+import { Database } from "bun:sqlite";
+import { drizzle } from "drizzle-orm/bun-sqlite";
+import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+import { mkdtempSync, rmSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
+
+import * as schema from "../schema";
+
+describe("fresh install (#1111)", () => {
+	test("drizzle migrate() creates oracle_fts on empty DB", () => {
+		const dir = mkdtempSync(join(tmpdir(), "oracle-fresh-"));
+		const dbPath = join(dir, "test.db");
+		const sqlite = new Database(dbPath);
+		const db = drizzle(sqlite, { schema });
+
+		const migrationsFolder = join(import.meta.dir, "../migrations");
+		migrate(db, { migrationsFolder });
+
+		const row = sqlite
+			.prepare(
+				"SELECT name FROM sqlite_master WHERE type='table' AND name='oracle_fts'",
+			)
+			.get() as { name: string } | undefined;
+
+		expect(row?.name).toBe("oracle_fts");
+
+		// Verify the table is actually queryable (not just registered)
+		expect(() => {
+			sqlite.exec("INSERT INTO oracle_fts(id, content, concepts) VALUES ('t1', 'hello world', 'greeting')");
+		}).not.toThrow();
+
+		const cnt = sqlite
+			.prepare("SELECT COUNT(*) AS n FROM oracle_fts")
+			.get() as { n: number };
+		expect(cnt.n).toBe(1);
+
+		sqlite.close();
+		rmSync(dir, { recursive: true });
+	});
+
+	test("migration is idempotent — re-running migrate() does not fail", () => {
+		const dir = mkdtempSync(join(tmpdir(), "oracle-rerun-"));
+		const dbPath = join(dir, "test.db");
+		const sqlite = new Database(dbPath);
+		const db = drizzle(sqlite, { schema });
+		const migrationsFolder = join(import.meta.dir, "../migrations");
+
+		migrate(db, { migrationsFolder });
+		// Second run should be a no-op (drizzle skips applied migrations)
+		expect(() => migrate(db, { migrationsFolder })).not.toThrow();
+
+		sqlite.close();
+		rmSync(dir, { recursive: true });
+	});
+});
