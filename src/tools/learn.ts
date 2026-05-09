@@ -210,7 +210,7 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
     } catch (err) {
       // Never block ingest on the queue — same posture as the inline path.
       embeddingStatus = 'failed';
-      console.warn(`[arra_learn] enqueue failed: ${err instanceof Error ? err.message : String(err)}`);
+      console.error(`[arra_learn] enqueue failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   } else {
     try {
@@ -229,8 +229,8 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
       embeddingStatus = 'ok';
     } catch (err) {
       embeddingStatus = 'failed';
-      console.warn(`[arra_learn] vector embedding failed for ${id}: ${err instanceof Error ? err.message : String(err)}`);
-      console.warn(`[arra_learn] document still searchable via FTS5; run 'bun src/scripts/index-model.ts <model>' later to backfill vectors`);
+      console.error(`[arra_learn] vector embedding failed for ${id}: ${err instanceof Error ? err.message : String(err)}`);
+      console.error(`[arra_learn] document still searchable via FTS5; run 'bun src/scripts/index-model.ts <model>' later to backfill vectors`);
     }
   }
 
