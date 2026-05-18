@@ -765,11 +765,23 @@ export function handleLearn(
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 
+  // On slug collision (same date + same first-50-char prefix), append -2, -3, …
+  // until unique. Prevents 500s when two writes share a slug within one day
+  // (e.g. repeated hot-write snapshots from the same agent).
+  const subdir = 'ψ/memory/learnings';
+  const learningsDir = path.join(REPO_ROOT, subdir);
+  let uniqueSlug = slug;
+  let suffix = 2;
+  while (fs.existsSync(path.join(learningsDir, `${dateStr}_${uniqueSlug}.md`))) {
+    uniqueSlug = `${slug}-${suffix}`;
+    suffix++;
+  }
+
   const { file, id } = persistLearningDoc({
     pattern,
-    subdir: 'ψ/memory/learnings',
-    filename: `${dateStr}_${slug}.md`,
-    id: `learning_${dateStr}_${slug}`,
+    subdir,
+    filename: `${dateStr}_${uniqueSlug}.md`,
+    id: `learning_${dateStr}_${uniqueSlug}`,
     concepts,
     source,
     origin,
