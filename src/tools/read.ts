@@ -11,8 +11,8 @@ import { getVaultPsiRoot } from '../vault/handler.ts';
 import type { ToolContext, ToolResponse, OracleReadInput } from './types.ts';
 
 export const readToolDef = {
-  name: 'arra_read',
-  description: 'Read full content of an Oracle document by file path or document ID. Use after arra_search to retrieve complete file contents. Resolves vault paths, ghq paths, and symlinks server-side.',
+  name: 'muninn_read',
+  description: 'Read full content of an Oracle document by file path or document ID. Use after muninn_search to retrieve complete file contents. Resolves vault paths, ghq paths, and symlinks server-side.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -22,7 +22,7 @@ export const readToolDef = {
       },
       id: {
         type: 'string',
-        description: 'Document ID from arra_search results. Looks up source_file from DB.',
+        description: 'Document ID from muninn_search results. Looks up source_file from DB.',
       },
     },
   },

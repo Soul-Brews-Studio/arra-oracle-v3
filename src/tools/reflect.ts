@@ -9,7 +9,7 @@ import { oracleDocuments } from '../db/schema.ts';
 import type { ToolContext, ToolResponse, OracleReflectInput } from './types.ts';
 
 export const reflectToolDef = {
-  name: 'arra_reflect',
+  name: 'muninn_reflect',
   description: 'Get a random principle or learning for reflection. Use this for periodic wisdom or to align with Oracle philosophy.',
   inputSchema: {
     type: 'object',

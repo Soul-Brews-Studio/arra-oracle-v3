@@ -25,10 +25,10 @@ describe('tool-groups', () => {
       forum: true, trace: false,
     };
     const disabled = getDisabledTools(config);
-    expect(disabled.has('arra_trace')).toBe(true);
-    expect(disabled.has('arra_trace_list')).toBe(true);
-    expect(disabled.has('arra_search')).toBe(false);
-    expect(disabled.has('arra_learn')).toBe(false);
+    expect(disabled.has('muninn_trace')).toBe(true);
+    expect(disabled.has('muninn_trace_list')).toBe(true);
+    expect(disabled.has('muninn_search')).toBe(false);
+    expect(disabled.has('muninn_learn')).toBe(false);
   });
 
   it('defaults to all groups enabled', () => {

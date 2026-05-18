@@ -41,8 +41,15 @@ import { pluginsRouter } from './routes/plugins/index.ts';
 import { oraclenetRoutes } from './routes/oraclenet/index.ts';
 import { sessionsRoutes } from './routes/sessions/index.ts';
 import { vaultRoutes } from './routes/vault/index.ts';
-import { indexerRoutes } from './routes/indexer/index.ts';
 import { createMenuRoutes } from './routes/menu/index.ts';
+
+// Indexer routes are optional — MCP server works without them
+let indexerRoutes: any = null;
+try {
+  indexerRoutes = (await import('./routes/indexer/index.ts')).indexerRoutes;
+} catch {
+  console.log('[Indexer] Routes not loaded — indexer is optional');
+}
 import { gatewayPlugin } from './gateway/index.ts';
 
 import pkg from '../package.json' with { type: 'json' };
@@ -207,7 +214,7 @@ const apiModules = [
   oraclenetRoutes,
   sessionsRoutes,
   vaultRoutes,
-  indexerRoutes,
+  ...(indexerRoutes ? [indexerRoutes] : []),
 ];
 
 try {

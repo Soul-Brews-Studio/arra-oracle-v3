@@ -24,7 +24,7 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   // Provenance tracking (Issue #22)
   origin: text('origin'),                   // 'mother' | 'arthur' | 'volt' | 'human' | null (legacy)
   project: text('project'),                 // ghq-style: 'github.com/laris-co/arra-oracle'
-  createdBy: text('created_by'),            // 'indexer' | 'arra_learn' | 'manual'
+  createdBy: text('created_by'),            // 'indexer' | 'muninn_learn' | 'manual'
 }, (table) => [
   index('idx_source').on(table.sourceFile),
   index('idx_type').on(table.type),

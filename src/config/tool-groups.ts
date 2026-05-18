@@ -13,11 +13,11 @@ import path from 'path';
 import { ORACLE_DATA_DIR } from '../config.ts';
 
 export const TOOL_GROUPS = {
-  search: ['arra_search', 'arra_read', 'arra_list', 'arra_concepts'],
-  knowledge: ['arra_learn', 'arra_stats', 'arra_supersede'],
-  session: ['arra_handoff', 'arra_inbox'],
-  forum: ['arra_thread', 'arra_threads', 'arra_thread_read', 'arra_thread_update'],
-  trace: ['arra_trace', 'arra_trace_list', 'arra_trace_get', 'arra_trace_link', 'arra_trace_unlink', 'arra_trace_chain'],
+  search: ['muninn_search', 'muninn_read', 'muninn_list', 'muninn_concepts'],
+  knowledge: ['muninn_learn', 'muninn_stats', 'muninn_supersede'],
+  session: ['muninn_handoff', 'muninn_inbox'],
+  forum: ['muninn_thread', 'muninn_threads', 'muninn_thread_read', 'muninn_thread_update'],
+  trace: ['muninn_trace', 'muninn_trace_list', 'muninn_trace_get', 'muninn_trace_link', 'muninn_trace_unlink', 'muninn_trace_chain'],
 } as const;
 
 export type ToolGroupName = keyof typeof TOOL_GROUPS;

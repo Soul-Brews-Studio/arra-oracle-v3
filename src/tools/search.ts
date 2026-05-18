@@ -14,7 +14,7 @@ import type { SearchResult } from '../server/types.ts';
 import type { ToolContext, ToolResponse, OracleSearchInput } from './types.ts';
 
 export const searchToolDef = {
-  name: 'arra_search',
+  name: 'muninn_search',
   description: 'Search Oracle knowledge base using hybrid search (FTS5 keywords + ChromaDB vectors). Finds relevant principles, patterns, learnings, or retrospectives. Falls back to FTS5-only if ChromaDB unavailable.',
   inputSchema: {
     type: 'object',
@@ -414,7 +414,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
 
   // Enrich with supersede flags (P-001 "Nothing is Deleted" — superseded docs
   // remain searchable; callers need to see the flag to decide whether to
-  // follow the replacement pointer). Fixes drift where arra_supersede claimed
+  // follow the replacement pointer). Fixes drift where muninn_supersede claimed
   // "will appear in searches with a warning" but search never flagged them.
   if (results.length > 0) {
     const ids = results.map(r => r.id as string);

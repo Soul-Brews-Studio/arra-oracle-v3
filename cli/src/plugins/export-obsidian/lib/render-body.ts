@@ -59,7 +59,7 @@ export function renderDocMarkdown(
     arra_type: doc.type,
     arra_project: doc.project,
     arra_created: doc.created_at,
-    arra_concepts: doc.concepts,
+    muninn_concepts: doc.concepts,
     arra_model: opts.model,
     arra_similarity_threshold: opts.threshold,
   };

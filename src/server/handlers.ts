@@ -731,7 +731,7 @@ export function persistLearningDoc(opts: {
     indexedAt: now.getTime(),
     origin: opts.origin || null,
     project: opts.project || null,
-    createdBy: opts.createdBy || 'arra_learn',
+    createdBy: opts.createdBy || 'muninn_learn',
   }).run();
 
   // FTS5 has no unique constraint on id — delete-then-insert to be idempotent.
@@ -774,7 +774,7 @@ export function handleLearn(
     source,
     origin,
     project: resolvedProject,
-    createdBy: 'arra_learn',
+    createdBy: 'muninn_learn',
   });
 
   return { success: true, file, id };
@@ -783,7 +783,7 @@ export function handleLearn(
 /**
  * Persist a session summary as a learning with concepts
  * ["session-summary", "session-<id>", "oracle-<name>"].
- * Written to ψ/memory/session-summaries/<session-id>.md so `arra_search` surfaces it.
+ * Written to ψ/memory/session-summaries/<session-id>.md so `muninn_search` surfaces it.
  */
 export function handleSessionSummary(
   sessionId: string,

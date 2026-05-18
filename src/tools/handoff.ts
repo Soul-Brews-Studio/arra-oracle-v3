@@ -12,7 +12,7 @@ import { detectProject } from '../server/project-detect.ts';
 import type { ToolContext, ToolResponse, OracleHandoffInput } from './types.ts';
 
 export const handoffToolDef = {
-  name: 'arra_handoff',
+  name: 'muninn_handoff',
   description: 'Write session context to the Oracle inbox for future sessions to pick up. Creates a timestamped markdown file in ψ/inbox/handoff/. Use at end of sessions to preserve context.',
   inputSchema: {
     type: 'object',
@@ -75,7 +75,7 @@ export async function handleHandoff(ctx: ToolContext, input: OracleHandoffInput)
       text: JSON.stringify({
         success: true,
         file: sourceFileRel,
-        message: `Handoff written${vaultRoot ? ' (vault)' : ''}. Next session can read it with arra_inbox().`
+        message: `Handoff written${vaultRoot ? ' (vault)' : ''}. Next session can read it with muninn_inbox().`
       }, null, 2)
     }]
   };

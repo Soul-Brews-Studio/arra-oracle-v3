@@ -10,7 +10,7 @@ import { oracleDocuments } from '../db/schema.ts';
 import type { ToolContext, ToolResponse, OracleSupersededInput } from './types.ts';
 
 export const supersedeToolDef = {
-  name: 'arra_supersede',
+  name: 'muninn_supersede',
   description: 'Mark an old learning/document as superseded by a newer one. Aligns with "Nothing is Deleted" - old doc preserved but marked outdated.',
   inputSchema: {
     type: 'object',

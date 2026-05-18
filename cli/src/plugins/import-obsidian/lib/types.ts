@@ -7,7 +7,7 @@ export interface DocMeta {
   arra_type?: string;
   arra_project?: string;
   arra_created?: string;
-  arra_concepts?: string[];
+  muninn_concepts?: string[];
   [key: string]: unknown;
 }
 
