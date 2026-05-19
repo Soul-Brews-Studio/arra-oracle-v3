@@ -74,3 +74,73 @@ export function getDisabledTools(config: ToolGroupConfig): Set<string> {
   }
   return disabled;
 }
+
+/**
+ * Watch tool group config files and invoke onChange when content changes.
+ * Watches BOTH the repo-local arra.config.json and the global data-dir config.json,
+ * so a change to either reloads via the same priority order as loadToolGroupConfig.
+ *
+ * - Debounces fs.watch events (200ms) — editors fire multiple events per save.
+ * - Skips no-op reloads (compares against last loaded config).
+ * - Swallows JSON parse errors — keeps the last good config until the file is valid again.
+ * - Returns a stop function to close the watchers (call on shutdown).
+ */
+export function watchToolGroupConfig(
+  onChange: (next: ToolGroupConfig) => void,
+  repoRoot?: string,
+): () => void {
+  const root = repoRoot || process.env.ORACLE_REPO_ROOT || process.cwd();
+  const localPath = path.join(root, 'arra.config.json');
+  const globalPath = path.join(ORACLE_DATA_DIR, 'config.json');
+  const watchers: fs.FSWatcher[] = [];
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let last = JSON.stringify(loadToolGroupConfig(root));
+
+  const tick = (): void => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      const next = loadToolGroupConfig(root);
+      const serialized = JSON.stringify(next);
+      if (serialized === last) return;
+      last = serialized;
+      console.error('[ToolGroups] Config changed — reloading');
+      onChange(next);
+    }, 200);
+  };
+
+  for (const target of [localPath, globalPath]) {
+    try {
+      // Watch the file directly. fs.watch on a missing file throws on Linux
+      // and silently fails on macOS, so probe with existsSync first.
+      if (fs.existsSync(target)) {
+        watchers.push(fs.watch(target, { persistent: false }, tick));
+      } else {
+        // Watch the directory so we catch creation. Ignored if dir is missing.
+        const dir = path.dirname(target);
+        if (fs.existsSync(dir)) {
+          const base = path.basename(target);
+          watchers.push(
+            fs.watch(dir, { persistent: false }, (_event, filename) => {
+              if (filename === base) tick();
+            }),
+          );
+        }
+      }
+    } catch {
+      // fs.watch can fail on platforms without inotify — keep going.
+    }
+  }
+
+  return () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    for (const w of watchers) {
+      try {
+        w.close();
+      } catch {}
+    }
+  };
+}

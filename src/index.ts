@@ -20,7 +20,7 @@ import { createVectorStore } from './vector/factory.ts';
 import type { VectorStoreAdapter } from './vector/types.ts';
 import path from 'path';
 import fs from 'fs';
-import { loadToolGroupConfig, getDisabledTools, type ToolGroupConfig } from './config/tool-groups.ts';
+import { loadToolGroupConfig, getDisabledTools, watchToolGroupConfig, type ToolGroupConfig } from './config/tool-groups.ts';
 import { ORACLE_DATA_DIR, DB_PATH, REPO_ROOT } from './config.ts';
 import { MCP_SERVER_NAME } from './const.ts';
 
@@ -84,6 +84,7 @@ class OracleMCPServer {
   private readOnly: boolean;
   private version: string;
   private disabledTools: Set<string>;
+  private stopToolGroupsWatch: (() => void) | null = null;
 
   constructor(options: { readOnly?: boolean; toolGroups?: ToolGroupConfig } = {}) {
     this.readOnly = options.readOnly ?? false;
@@ -100,6 +101,24 @@ class OracleMCPServer {
     const disabledGroups = Object.entries(groupConfig).filter(([, v]) => !v).map(([k]) => k);
     if (disabledGroups.length > 0) {
       console.error(`[ToolGroups] Disabled: ${disabledGroups.join(', ')}`);
+    }
+
+    // Hot reload: rebuild the disabled set in place when config changes.
+    // The list/call handlers read this.disabledTools at request time, so
+    // mutating it is enough — no re-registration of tool definitions needed.
+    // Skip when toolGroups was passed explicitly (tests pin a config).
+    if (!options.toolGroups && process.env.ORACLE_TOOL_GROUPS_HOT_RELOAD !== '0') {
+      this.stopToolGroupsWatch = watchToolGroupConfig((next) => {
+        const nextDisabled = getDisabledTools(next);
+        this.disabledTools.clear();
+        for (const t of nextDisabled) this.disabledTools.add(t);
+        const disabled = Object.entries(next).filter(([, v]) => !v).map(([k]) => k);
+        console.error(
+          disabled.length
+            ? `[ToolGroups] Reloaded — disabled: ${disabled.join(', ')}`
+            : '[ToolGroups] Reloaded — all groups enabled',
+        );
+      }, this.repoRoot);
     }
 
     this.vectorStore = createVectorStore({
