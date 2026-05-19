@@ -22,6 +22,7 @@ import './hooks/request-logger.ts';
 import './hooks/error-json.ts';
 import './hooks/auth-guard.ts';
 import './hooks/fts5-fallback.ts';
+import './hooks/rate-limit.ts';
 
 export { loadGatewayConfig, compileRoutes, matchRoute, proxyToService, HealthRegistry };
 export type { GatewayConfig, CompiledRoute, ServiceHealth };
