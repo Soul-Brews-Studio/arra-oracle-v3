@@ -26,6 +26,12 @@ export interface GatewayConfig {
   services: Record<string, ServiceConfig>;
   routes: RouteConfig[];
   hooks?: HooksConfig;
+  /**
+   * Per-hook options keyed by hook name. Each hook reads its own slot via
+   * `ctx.meta.hook_options[<name>]`. Optional — hooks should provide sensible
+   * defaults when missing.
+   */
+  hook_options?: Record<string, unknown>;
 }
 
 const CONFIG_FILE = 'oracle-gateway.json';

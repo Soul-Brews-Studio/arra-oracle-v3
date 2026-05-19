@@ -20,6 +20,8 @@ import { loadHooks, runHooks, type GatewayContext } from './hooks.ts';
 // Register built-in hooks (side-effect imports)
 import './hooks/request-logger.ts';
 import './hooks/error-json.ts';
+import './hooks/auth-guard.ts';
+import './hooks/fts5-fallback.ts';
 
 export { loadGatewayConfig, compileRoutes, matchRoute, proxyToService, HealthRegistry };
 export type { GatewayConfig, CompiledRoute, ServiceHealth };
@@ -139,7 +141,9 @@ export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
         request,
         route: match,
         service,
-        meta: {},
+        // Surface per-hook options so hooks can be config-driven without
+        // module-level globals. Hooks read ctx.meta.hook_options['<name>'].
+        meta: { hook_options: state.config.hook_options ?? {} },
       };
 
       // ── onRequest hooks ──
@@ -150,6 +154,7 @@ export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
         ctx.error = err instanceof Error ? err : new Error(String(err));
         const errResp = await runHooks(state.hooks.onError, ctx);
         if (errResp) return errResp;
+        if (ctx.meta.fallback_to_local) return; // fall through to local Elysia
         throw err;
       }
 
@@ -161,6 +166,7 @@ export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
         ctx.error = err instanceof Error ? err : new Error(String(err));
         const errResp = await runHooks(state.hooks.onError, ctx);
         if (errResp) return errResp;
+        if (ctx.meta.fallback_to_local) return; // fall through to local Elysia
         throw err;
       }
 
@@ -173,6 +179,7 @@ export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
         ctx.error = err instanceof Error ? err : new Error(String(err));
         const errResp = await runHooks(state.hooks.onError, ctx);
         if (errResp) return errResp;
+        if (ctx.meta.fallback_to_local) return;
         throw err;
       }
 
