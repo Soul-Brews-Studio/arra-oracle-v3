@@ -13,11 +13,21 @@ import { getVaultPsiRoot } from '../vault/handler.ts';
 import { getVectorStoreByModel, getEmbeddingModels } from '../vector/factory.ts';
 import { REPO_ROOT } from '../config.ts';
 
+// Lazy-loaded on first use — avoids top-level await which causes a TDZ
+// error in consumers that import learnToolDef synchronously (the tools
+// barrel) and breaks the M5 enqueue test that imports handleLearn before
+// the dynamic import resolves.
 let enqueueIndexJob: ((sqlite: any, opts: any) => void) | null = null;
-try {
-  enqueueIndexJob = (await import('../indexer/jobs.ts')).enqueueIndexJob;
-} catch {
-  // Indexer not available — learn still works, just no async job queuing
+let enqueueLoaded = false;
+async function loadEnqueue(): Promise<typeof enqueueIndexJob> {
+  if (enqueueLoaded) return enqueueIndexJob;
+  enqueueLoaded = true;
+  try {
+    enqueueIndexJob = (await import('../indexer/jobs.ts')).enqueueIndexJob;
+  } catch {
+    // Indexer not available — learn still works, just no async job queuing
+  }
+  return enqueueIndexJob;
 }
 import type { ToolContext, ToolResponse, OracleLearnInput } from './types.ts';
 
@@ -209,9 +219,10 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
   //     vector-later. Never blocks ingest. Architecture:
   //     ψ/lab/indexer-cli/DESIGN.md.
   let embeddingStatus: 'ok' | 'skipped' | 'failed' | 'enqueued' = 'skipped';
-  if (process.env.ORACLE_INDEXER_ENQUEUE === '1' && enqueueIndexJob) {
+  const enqueue = process.env.ORACLE_INDEXER_ENQUEUE === '1' ? await loadEnqueue() : null;
+  if (enqueue) {
     try {
-      enqueueIndexJob(ctx.sqlite, { docId: id, models: getEmbeddingModels() });
+      enqueue(ctx.sqlite, { docId: id, models: getEmbeddingModels() });
       embeddingStatus = 'enqueued';
     } catch (err) {
       // Never block ingest on the queue — same posture as the inline path.
