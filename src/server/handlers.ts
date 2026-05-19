@@ -23,6 +23,15 @@ import { createVectorProxy } from './vector-proxy.ts';
 // remote service; on remote failure we fall back to FTS5-only.
 const vectorProxy = createVectorProxy(VECTOR_URL);
 
+// Strip control characters that break JSON serialization
+function sanitizeContent(s: string): string {
+  return s.replace(/[\x00-\x1f]/g, (ch) => {
+    if (ch === '\n' || ch === '\r') return ' ';
+    if (ch === '\t') return ' ';
+    return '';
+  });
+}
+
 /**
  * Search Oracle knowledge base with hybrid search (FTS5 + Vector)
  * HTTP server can safely use ChromaMcpClient since it's not an MCP server
@@ -85,7 +94,7 @@ export async function handleSearch(
       ftsResults = stmt.all(safeQuery, ...projectParams, limit * 2).map((row: any) => ({
         id: row.id,
         type: row.type,
-        content: row.content,
+        content: sanitizeContent(row.content),
         source_file: row.source_file,
         concepts: JSON.parse(row.concepts || '[]'),
         project: row.project,
@@ -112,7 +121,7 @@ export async function handleSearch(
       ftsResults = stmt.all(safeQuery, type, ...projectParams, limit * 2).map((row: any) => ({
         id: row.id,
         type: row.type,
-        content: row.content,
+        content: sanitizeContent(row.content),
         source_file: row.source_file,
         concepts: JSON.parse(row.concepts || '[]'),
         project: row.project,
@@ -403,7 +412,7 @@ export function handleList(type: string = 'all', limit: number = 10, offset: num
       const results = stmt.all(limit, offset).map((row: any) => ({
         id: row.id,
         type: row.type,
-        content: row.content || '',
+        content: sanitizeContent(row.content || ''),
         source_file: row.source_file,
         concepts: row.concepts ? JSON.parse(row.concepts) : [],
         project: row.project,
@@ -432,7 +441,7 @@ export function handleList(type: string = 'all', limit: number = 10, offset: num
       const results = stmt.all(type, limit, offset).map((row: any) => ({
         id: row.id,
         type: row.type,
-        content: row.content || '',
+        content: sanitizeContent(row.content || ''),
         source_file: row.source_file,
         concepts: JSON.parse(row.concepts || '[]'),
         project: row.project,
@@ -462,7 +471,7 @@ export function handleList(type: string = 'all', limit: number = 10, offset: num
     const results = stmt.all(limit, offset).map((row: any) => ({
       id: row.id,
       type: row.type,
-      content: row.content || '',
+      content: sanitizeContent(row.content || ''),
       source_file: row.source_file,
       concepts: row.concepts ? JSON.parse(row.concepts) : [],
       project: row.project,
@@ -490,7 +499,7 @@ export function handleList(type: string = 'all', limit: number = 10, offset: num
     const results = stmt.all(type, limit, offset).map((row: any) => ({
       id: row.id,
       type: row.type,
-      content: row.content,
+      content: sanitizeContent(row.content),
       source_file: row.source_file,
       concepts: JSON.parse(row.concepts || '[]'),
       project: row.project,
