@@ -34,10 +34,12 @@ export const searchEndpoint = new Elysia().get(
 
     try {
       const result = await handleSearch(sanitizedQ, type, limit, offset, mode, project, cwd, model);
-      return { ...result, query: sanitizedQ };
+      const body = JSON.stringify({ ...result, query: sanitizedQ });
+      return new Response(body, { headers: { 'Content-Type': 'application/json;charset=utf-8' } });
     } catch {
       set.status = 400;
-      return { results: [], total: 0, query: sanitizedQ, error: 'Search failed' };
+      const body = JSON.stringify({ results: [], total: 0, query: sanitizedQ, error: 'Search failed' });
+      return new Response(body, { status: 400, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
     }
   },
   {
