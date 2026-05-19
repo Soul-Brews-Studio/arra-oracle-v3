@@ -40,10 +40,10 @@ describe('tool-groups', () => {
     expect(config.trace).toBe(true);
   });
 
-  it('all tool names follow arra_ prefix convention', () => {
+  it('all tool names follow muninn_ prefix convention', () => {
     for (const tools of Object.values(TOOL_GROUPS)) {
       for (const tool of tools) {
-        expect(tool).toMatch(/^arra_/);
+        expect(tool).toMatch(/^muninn_/);
       }
     }
   });
