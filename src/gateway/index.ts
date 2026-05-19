@@ -11,7 +11,7 @@
  *   onError    → runs when proxy or hook throws
  */
 import { Elysia } from 'elysia';
-import { loadGatewayConfig, type GatewayConfig } from './config.ts';
+import { loadGatewayConfig, watchGatewayConfig, type GatewayConfig } from './config.ts';
 import { compileRoutes, matchRoute, type CompiledRoute } from './matcher.ts';
 import { proxyToService } from './proxy.ts';
 import { HealthRegistry, type ServiceHealth } from './health.ts';
@@ -24,49 +24,103 @@ import './hooks/error-json.ts';
 export { loadGatewayConfig, compileRoutes, matchRoute, proxyToService, HealthRegistry };
 export type { GatewayConfig, CompiledRoute, ServiceHealth };
 
-export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
-  const config = loadGatewayConfig(dataDir, vectorUrl);
+/**
+ * Mutable state holder so the watcher can swap routes/services/hooks in
+ * place without restarting the Elysia plugin. The request handler reads
+ * from `state.*` at request time, so the swap takes effect immediately.
+ */
+interface GatewayState {
+  config: GatewayConfig;
+  compiled: CompiledRoute[];
+  hooks: ReturnType<typeof loadHooks>;
+  registry: HealthRegistry;
+}
 
-  if (!config) {
-    // No gateway config — all routes handled locally
+function describeState(state: GatewayState): string {
+  const hookCount =
+    state.hooks.onRequest.length + state.hooks.onResponse.length + state.hooks.onError.length;
+  return (
+    `${state.config.routes.length} route(s), ${Object.keys(state.config.services).length} service(s)` +
+    (hookCount > 0 ? `, ${hookCount} hook(s)` : '')
+  );
+}
+
+export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
+  const initial = loadGatewayConfig(dataDir, vectorUrl);
+
+  if (!initial && process.env.ORACLE_GATEWAY_HOT_RELOAD === '0') {
+    // No config + no hot-reload — pure no-op
     return new Elysia({ name: 'gateway' });
   }
 
-  const compiled = compileRoutes(config.routes);
-  const registry = new HealthRegistry();
-  registry.start(config.services);
-  const hooks = loadHooks(config.hooks);
+  // Even when no config exists at startup, install the watcher so the
+  // gateway can pick up a file that's created later (unless explicitly
+  // disabled via ORACLE_GATEWAY_HOT_RELOAD=0).
+  const buildState = (cfg: GatewayConfig): GatewayState => {
+    const registry = new HealthRegistry();
+    registry.start(cfg.services);
+    return {
+      config: cfg,
+      compiled: compileRoutes(cfg.routes),
+      hooks: loadHooks(cfg.hooks),
+      registry,
+    };
+  };
 
-  const hookCount =
-    hooks.onRequest.length + hooks.onResponse.length + hooks.onError.length;
+  let state: GatewayState | null = initial ? buildState(initial) : null;
+  if (state) console.log(`[Gateway] Loaded ${describeState(state)}`);
 
-  console.log(
-    `[Gateway] Loaded ${config.routes.length} route(s), ${Object.keys(config.services).length} service(s)` +
-      (hookCount > 0 ? `, ${hookCount} hook(s)` : ''),
-  );
+  if (process.env.ORACLE_GATEWAY_HOT_RELOAD !== '0') {
+    watchGatewayConfig(
+      dataDir,
+      (next) => {
+        // Stop the old health poller before swapping — it holds a timer.
+        if (state) state.registry.stop();
+        if (next) {
+          state = buildState(next);
+          console.log(`[Gateway] Reloaded — ${describeState(state)}`);
+        } else {
+          state = null;
+          console.log('[Gateway] Reloaded — disabled (no config)');
+        }
+      },
+      vectorUrl,
+    );
+  }
 
   return new Elysia({ name: 'gateway' })
-    .get('/api/gateway/status', () => ({
-      enabled: true,
-      routes: config.routes.length,
-      services: Object.fromEntries(
-        Object.entries(config.services).map(([k, v]) => [k, { url: v.url, timeout: v.timeout }]),
-      ),
-      hooks: hookCount,
-    }))
+    .get('/api/gateway/status', () => {
+      if (!state) return { enabled: false };
+      return {
+        enabled: true,
+        routes: state.config.routes.length,
+        services: Object.fromEntries(
+          Object.entries(state.config.services).map(([k, v]) => [
+            k,
+            { url: v.url, timeout: v.timeout },
+          ]),
+        ),
+        hooks:
+          state.hooks.onRequest.length +
+          state.hooks.onResponse.length +
+          state.hooks.onError.length,
+      };
+    })
     .get('/api/gateway/health', () => ({
-      services: registry.getAllStatus(),
+      services: state ? state.registry.getAllStatus() : {},
     }))
     .onRequest(async ({ request }) => {
+      if (!state) return; // no config loaded — fall through
+
       const url = new URL(request.url);
-      const match = matchRoute(url.pathname, compiled);
+      const match = matchRoute(url.pathname, state.compiled);
       if (!match) return; // no match — fall through to local Elysia routes
 
-      const service = config.services[match.service];
+      const service = state.config.services[match.service];
       if (!service || match.service === 'local') return; // "local" = handle locally
 
       // If health registry says service is down, return fallback immediately
-      if (!registry.isUp(match.service)) {
+      if (!state.registry.isUp(match.service)) {
         const fallback = match.fallback ?? 'error';
         if (fallback === 'empty') {
           return new Response(JSON.stringify({ results: [], source: 'gateway-fallback' }), {
@@ -90,11 +144,11 @@ export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
 
       // ── onRequest hooks ──
       try {
-        const early = await runHooks(hooks.onRequest, ctx);
+        const early = await runHooks(state.hooks.onRequest, ctx);
         if (early) return early;
       } catch (err) {
         ctx.error = err instanceof Error ? err : new Error(String(err));
-        const errResp = await runHooks(hooks.onError, ctx);
+        const errResp = await runHooks(state.hooks.onError, ctx);
         if (errResp) return errResp;
         throw err;
       }
@@ -105,7 +159,7 @@ export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
         response = await proxyToService(request, service);
       } catch (err) {
         ctx.error = err instanceof Error ? err : new Error(String(err));
-        const errResp = await runHooks(hooks.onError, ctx);
+        const errResp = await runHooks(state.hooks.onError, ctx);
         if (errResp) return errResp;
         throw err;
       }
@@ -113,11 +167,11 @@ export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
       // ── onResponse hooks ──
       ctx.response = response;
       try {
-        const override = await runHooks(hooks.onResponse, ctx);
+        const override = await runHooks(state.hooks.onResponse, ctx);
         if (override) return override;
       } catch (err) {
         ctx.error = err instanceof Error ? err : new Error(String(err));
-        const errResp = await runHooks(hooks.onError, ctx);
+        const errResp = await runHooks(state.hooks.onError, ctx);
         if (errResp) return errResp;
         throw err;
       }

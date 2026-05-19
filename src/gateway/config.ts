@@ -59,3 +59,72 @@ export function loadGatewayConfig(dataDir: string, vectorUrl?: string): GatewayC
 
   return null;
 }
+
+/**
+ * Watch the gateway config file and invoke onChange when content changes.
+ * Mirrors watchToolGroupConfig: fs.watch + 200ms debounce + no-op suppression
+ * + malformed-JSON survival + directory-fallback for first-time creation.
+ * VECTOR_URL synthesis is preserved on reload (used when the file is absent).
+ * Returns a stop function.
+ */
+export function watchGatewayConfig(
+  dataDir: string,
+  onChange: (next: GatewayConfig | null) => void,
+  vectorUrl?: string,
+): () => void {
+  const configPath = path.join(dataDir, CONFIG_FILE);
+  const watchers: fs.FSWatcher[] = [];
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let last = JSON.stringify(loadGatewayConfig(dataDir, vectorUrl));
+
+  const tick = (): void => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      // Malformed JSON survival: if the file exists but failed to parse,
+      // loadGatewayConfig returns null AND prints a warning. We only swap
+      // the live state when the new result is either a valid config or a
+      // genuine deletion (file no longer exists). Mid-edit syntax errors
+      // are silently ignored so the running gateway keeps its last good
+      // state until the user saves a valid file.
+      const fileMissing = !fs.existsSync(configPath);
+      const next = loadGatewayConfig(dataDir, vectorUrl);
+      if (next === null && !fileMissing && !vectorUrl) {
+        // file exists but failed to parse — hold last good
+        return;
+      }
+      const serialized = JSON.stringify(next);
+      if (serialized === last) return;
+      last = serialized;
+      console.log('[Gateway] Config changed — reloading');
+      onChange(next);
+    }, 200);
+  };
+
+  try {
+    if (fs.existsSync(configPath)) {
+      watchers.push(fs.watch(configPath, { persistent: false }, tick));
+    } else if (fs.existsSync(dataDir)) {
+      // Watch the directory so we catch creation of the config file later.
+      watchers.push(
+        fs.watch(dataDir, { persistent: false }, (_event, filename) => {
+          if (filename === CONFIG_FILE) tick();
+        }),
+      );
+    }
+  } catch {
+    // fs.watch can fail on platforms without inotify — keep going.
+  }
+
+  return () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    for (const w of watchers) {
+      try {
+        w.close();
+      } catch {}
+    }
+  };
+}
