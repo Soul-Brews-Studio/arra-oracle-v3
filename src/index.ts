@@ -98,9 +98,17 @@ class OracleMCPServer {
 
     const groupConfig = options.toolGroups ?? loadToolGroupConfig(this.repoRoot);
     this.disabledTools = getDisabledTools(groupConfig);
-    const disabledGroups = Object.entries(groupConfig).filter(([, v]) => !v).map(([k]) => k);
+    const disabledGroups = Object.entries(groupConfig)
+      .filter(([, v]) => typeof v === 'boolean' && !v)
+      .map(([k]) => k);
     if (disabledGroups.length > 0) {
-      console.error(`[ToolGroups] Disabled: ${disabledGroups.join(', ')}`);
+      console.error(`[ToolGroups] Disabled groups: ${disabledGroups.join(', ')}`);
+    }
+    if (groupConfig.disabled_tools?.length) {
+      console.error(`[ToolGroups] disabled_tools: ${groupConfig.disabled_tools.join(', ')}`);
+    }
+    if (groupConfig.enabled_tools?.length) {
+      console.error(`[ToolGroups] enabled_tools (whitelist): ${groupConfig.enabled_tools.join(', ')}`);
     }
 
     // Hot reload: rebuild the disabled set in place when config changes.
@@ -112,11 +120,17 @@ class OracleMCPServer {
         const nextDisabled = getDisabledTools(next);
         this.disabledTools.clear();
         for (const t of nextDisabled) this.disabledTools.add(t);
-        const disabled = Object.entries(next).filter(([, v]) => !v).map(([k]) => k);
+        const disabledGroups = Object.entries(next)
+          .filter(([, v]) => typeof v === 'boolean' && !v)
+          .map(([k]) => k);
+        const parts: string[] = [];
+        if (disabledGroups.length) parts.push(`groups: ${disabledGroups.join(', ')}`);
+        if (next.disabled_tools?.length) parts.push(`disabled_tools: ${next.disabled_tools.join(', ')}`);
+        if (next.enabled_tools?.length) parts.push(`enabled_tools: ${next.enabled_tools.join(', ')}`);
         console.error(
-          disabled.length
-            ? `[ToolGroups] Reloaded — disabled: ${disabled.join(', ')}`
-            : '[ToolGroups] Reloaded — all groups enabled',
+          parts.length
+            ? `[ToolGroups] Reloaded — ${parts.join(' | ')}`
+            : '[ToolGroups] Reloaded — all tools enabled',
         );
       }, this.repoRoot);
     }

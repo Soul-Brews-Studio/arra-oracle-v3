@@ -22,7 +22,17 @@ export const TOOL_GROUPS = {
 
 export type ToolGroupName = keyof typeof TOOL_GROUPS;
 
-export type ToolGroupConfig = Record<ToolGroupName, boolean>;
+/**
+ * Resolved tool-group config used at request time.
+ * - The named group booleans toggle whole groups.
+ * - `disabled_tools` adds per-tool blocks on top of the group-disabled set.
+ * - `enabled_tools` is a whitelist override — brings back a single tool from
+ *   a disabled group OR cancels a per-tool block. Whitelist wins last.
+ */
+export type ToolGroupConfig = Record<ToolGroupName, boolean> & {
+  disabled_tools?: string[];
+  enabled_tools?: string[];
+};
 
 const DEFAULT_CONFIG: ToolGroupConfig = {
   search: true,
@@ -31,6 +41,11 @@ const DEFAULT_CONFIG: ToolGroupConfig = {
   forum: true,
   trace: true,
 };
+
+/** All registered tool names — for validating disabled_tools / enabled_tools entries. */
+const ALL_TOOL_NAMES: ReadonlySet<string> = new Set(
+  Object.values(TOOL_GROUPS).flat() as string[],
+);
 
 function readJsonSafe(filePath: string): Record<string, any> | null {
   try {
@@ -41,28 +56,49 @@ function readJsonSafe(filePath: string): Record<string, any> | null {
   }
 }
 
+function mergeRaw(raw: Record<string, any>): ToolGroupConfig {
+  const merged: ToolGroupConfig = { ...DEFAULT_CONFIG, ...raw.tools };
+  if (Array.isArray(raw.disabled_tools)) {
+    merged.disabled_tools = raw.disabled_tools.filter((t: unknown) => typeof t === 'string');
+  }
+  if (Array.isArray(raw.enabled_tools)) {
+    merged.enabled_tools = raw.enabled_tools.filter((t: unknown) => typeof t === 'string');
+  }
+  return merged;
+}
+
 export function loadToolGroupConfig(repoRoot?: string): ToolGroupConfig {
   const root = repoRoot || process.env.ORACLE_REPO_ROOT || process.cwd();
 
   // Priority 1: repo-local arra.config.json
   const localConfig = readJsonSafe(path.join(root, 'arra.config.json'));
-  if (localConfig?.tools) {
+  if (localConfig && (localConfig.tools || localConfig.disabled_tools || localConfig.enabled_tools)) {
     console.error('[ToolGroups] Using arra.config.json from repo root');
-    return { ...DEFAULT_CONFIG, ...localConfig.tools };
+    return mergeRaw(localConfig);
   }
 
   // Priority 2: global config.json in data dir
   const globalConfig = readJsonSafe(path.join(ORACLE_DATA_DIR, 'config.json'));
-  if (globalConfig?.tools) {
+  if (globalConfig && (globalConfig.tools || globalConfig.disabled_tools || globalConfig.enabled_tools)) {
     console.error(`[ToolGroups] Using ${ORACLE_DATA_DIR}/config.json`);
-    return { ...DEFAULT_CONFIG, ...globalConfig.tools };
+    return mergeRaw(globalConfig);
   }
 
   // Priority 3: all enabled
   return { ...DEFAULT_CONFIG };
 }
 
-/** Returns a Set of tool names that should be disabled based on config */
+/**
+ * Returns a Set of tool names that should be disabled based on config.
+ *
+ * Resolution order:
+ *   1. group-disabled (any tool whose group has `<group>: false`)
+ *   2. ∪ per-tool blocklist (`disabled_tools`)
+ *   3. \ per-tool whitelist (`enabled_tools`) — wins last
+ *
+ * Unknown tool names in `disabled_tools` / `enabled_tools` are ignored with
+ * a warning — typos shouldn't crash the server or silently disable real tools.
+ */
 export function getDisabledTools(config: ToolGroupConfig): Set<string> {
   const disabled = new Set<string>();
   for (const [group, tools] of Object.entries(TOOL_GROUPS)) {
@@ -71,6 +107,20 @@ export function getDisabledTools(config: ToolGroupConfig): Set<string> {
         disabled.add(tool);
       }
     }
+  }
+  for (const t of config.disabled_tools ?? []) {
+    if (!ALL_TOOL_NAMES.has(t)) {
+      console.error(`[ToolGroups] disabled_tools: unknown tool "${t}" — ignored`);
+      continue;
+    }
+    disabled.add(t);
+  }
+  for (const t of config.enabled_tools ?? []) {
+    if (!ALL_TOOL_NAMES.has(t)) {
+      console.error(`[ToolGroups] enabled_tools: unknown tool "${t}" — ignored`);
+      continue;
+    }
+    disabled.delete(t);
   }
   return disabled;
 }

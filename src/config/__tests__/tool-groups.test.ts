@@ -40,6 +40,58 @@ describe('tool-groups', () => {
     expect(disabled.has('muninn_learn')).toBe(false);
   });
 
+  it('disabled_tools adds per-tool blocks on top of group config', () => {
+    const config: ToolGroupConfig = {
+      search: true, knowledge: true, session: true,
+      forum: true, trace: true,
+      disabled_tools: ['muninn_supersede', 'muninn_thread_update'],
+    };
+    const disabled = getDisabledTools(config);
+    expect(disabled.has('muninn_supersede')).toBe(true);
+    expect(disabled.has('muninn_thread_update')).toBe(true);
+    // Sibling tools in the same group stay enabled
+    expect(disabled.has('muninn_learn')).toBe(false);
+    expect(disabled.has('muninn_thread')).toBe(false);
+  });
+
+  it('enabled_tools whitelist overrides group-disabled', () => {
+    const config: ToolGroupConfig = {
+      search: true, knowledge: true, session: true,
+      forum: false, trace: true,
+      enabled_tools: ['muninn_thread_read'],
+    };
+    const disabled = getDisabledTools(config);
+    // Whole forum group disabled, except the whitelisted one
+    expect(disabled.has('muninn_thread')).toBe(true);
+    expect(disabled.has('muninn_thread_update')).toBe(true);
+    expect(disabled.has('muninn_thread_read')).toBe(false);
+  });
+
+  it('enabled_tools whitelist overrides a per-tool block (whitelist wins last)', () => {
+    const config: ToolGroupConfig = {
+      search: true, knowledge: true, session: true,
+      forum: true, trace: true,
+      disabled_tools: ['muninn_supersede'],
+      enabled_tools: ['muninn_supersede'],
+    };
+    expect(getDisabledTools(config).has('muninn_supersede')).toBe(false);
+  });
+
+  it('ignores unknown tool names in disabled_tools and enabled_tools', () => {
+    const config: ToolGroupConfig = {
+      search: true, knowledge: true, session: true,
+      forum: true, trace: true,
+      disabled_tools: ['typo_search', 'muninn_search'],
+      enabled_tools: ['also_typo'],
+    };
+    const disabled = getDisabledTools(config);
+    // Real one applied
+    expect(disabled.has('muninn_search')).toBe(true);
+    // Typos didn't leak in
+    expect(disabled.has('typo_search')).toBe(false);
+    expect(disabled.has('also_typo')).toBe(false);
+  });
+
   it('defaults to all groups enabled', () => {
     const config = loadToolGroupConfig('/nonexistent/path');
     expect(config.search).toBe(true);
