@@ -123,7 +123,7 @@ export function extractProjectFromSource(source?: string): string | null {
 export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Promise<ToolResponse> {
   const { pattern, source, concepts, project: projectInput } = input;
   const now = new Date();
-  const dateStr = now.toISOString().split('T')[0];
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   const slug = pattern
     .substring(0, 50)

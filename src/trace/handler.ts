@@ -39,7 +39,7 @@ function createLearningFile(
   traceQuery: string
 ): string {
   const now = new Date();
-  const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   // Generate slug from text (first 50 chars, slugified)
   const slug = text

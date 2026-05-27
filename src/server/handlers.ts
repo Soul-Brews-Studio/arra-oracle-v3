@@ -686,7 +686,7 @@ export function persistLearningDoc(opts: {
 }): { file: string; id: string } {
   const { pattern, subdir, filename, id } = opts;
   const now = new Date();
-  const dateStr = now.toISOString().split('T')[0];
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   const dir = path.join(REPO_ROOT, subdir);
   fs.mkdirSync(dir, { recursive: true });
@@ -755,7 +755,8 @@ export function handleLearn(
   cwd?: string
 ) {
   const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
-  const dateStr = new Date().toISOString().split('T')[0];
+  const d = new Date();
+  const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
   const slug = pattern
     .substring(0, 50)

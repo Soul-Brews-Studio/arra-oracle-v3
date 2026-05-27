@@ -34,7 +34,7 @@ export async function handleHandoff(ctx: ToolContext, input: OracleHandoffInput)
   const { content, slug: slugInput } = input;
   const now = new Date();
 
-  const dateStr = now.toISOString().split('T')[0];
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const timeStr = `${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
 
   const slug = slugInput || content
