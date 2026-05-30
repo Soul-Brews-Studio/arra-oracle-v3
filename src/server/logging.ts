@@ -42,18 +42,18 @@ export function logSearch(
     }).run();
 
     // Comprehensive console logging
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`[SEARCH] ${new Date().toISOString()}`);
-    if (project) console.log(`  Project: ${project}`);
-    console.log(`  Query: "${query}"`);
-    console.log(`  Type: ${type} | Mode: ${mode}`);
-    console.log(`  Results: ${resultsCount} in ${searchTimeMs}ms`);
+    console.error(`\n${'='.repeat(60)}`);
+    console.error(`[SEARCH] ${new Date().toISOString()}`);
+    if (project) console.error(`  Project: ${project}`);
+    console.error(`  Query: "${query}"`);
+    console.error(`  Type: ${type} | Mode: ${mode}`);
+    console.error(`  Results: ${resultsCount} in ${searchTimeMs}ms`);
 
     if (results.length > 0) {
-      console.log(`  Top Results:`);
+      console.error(`  Top Results:`);
       results.slice(0, 5).forEach((r, i) => {
-        console.log(`    ${i + 1}. [${r.type}] score=${r.score || 'N/A'} id=${r.id}`);
-        console.log(`       ${r.content?.substring(0, 80)}...`);
+        console.error(`    ${i + 1}. [${r.type}] score=${r.score || 'N/A'} id=${r.id}`);
+        console.error(`       ${r.content?.substring(0, 80)}...`);
       });
     }
 
@@ -63,10 +63,10 @@ export function logSearch(
       const firstResult = results[0] as unknown as Record<string, unknown>;
       const unknownFields = Object.keys(firstResult).filter(k => !expectedFields.includes(k));
       if (unknownFields.length > 0) {
-        console.log(`  [UNKNOWN FIELDS]: ${unknownFields.join(', ')}`);
+        console.error(`  [UNKNOWN FIELDS]: ${unknownFields.join(', ')}`);
       }
     }
-    console.log(`${'='.repeat(60)}\n`);
+    console.error(`${'='.repeat(60)}\n`);
   } catch (e) {
     console.error('Failed to log search:', e);
   }

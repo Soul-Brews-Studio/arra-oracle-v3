@@ -26,13 +26,13 @@ export class LanceDBAdapter implements VectorStoreAdapter {
 
     const lancedb = await import('@lancedb/lancedb');
     this.db = await lancedb.connect(this.dbPath);
-    console.log(`[LanceDB] Connected at ${this.dbPath}`);
+    console.error(`[LanceDB] Connected at ${this.dbPath}`);
   }
 
   async close(): Promise<void> {
     this.db = null;
     this.table = null;
-    console.log('[LanceDB] Closed');
+    console.error('[LanceDB] Closed');
   }
 
   async ensureCollection(): Promise<void> {
@@ -53,7 +53,7 @@ export class LanceDBAdapter implements VectorStoreAdapter {
       await this.table.delete('id = "__init__"');
     }
 
-    console.log(`[LanceDB] Collection '${this.collectionName}' ready`);
+    console.error(`[LanceDB] Collection '${this.collectionName}' ready`);
   }
 
   async deleteCollection(): Promise<void> {
@@ -62,7 +62,7 @@ export class LanceDBAdapter implements VectorStoreAdapter {
     try {
       await this.db.dropTable(this.collectionName);
       this.table = null;
-      console.log(`[LanceDB] Collection '${this.collectionName}' deleted`);
+      console.error(`[LanceDB] Collection '${this.collectionName}' deleted`);
     } catch (e) {
       console.warn('[LanceDB] deleteCollection failed:', e instanceof Error ? e.message : String(e));
     }
@@ -96,9 +96,9 @@ export class LanceDBAdapter implements VectorStoreAdapter {
     await this.table.add(rows);
     const reused = docs.length - needEmbed.length;
     if (reused > 0) {
-      console.log(`[LanceDB] Added ${docs.length} documents (${reused} with precomputed vectors)`);
+      console.error(`[LanceDB] Added ${docs.length} documents (${reused} with precomputed vectors)`);
     } else {
-      console.log(`[LanceDB] Added ${docs.length} documents`);
+      console.error(`[LanceDB] Added ${docs.length} documents`);
     }
   }
 
