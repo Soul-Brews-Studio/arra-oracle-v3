@@ -26,6 +26,7 @@ export const startEndpoint = new Elysia().post('/indexer/start', async ({ body }
       resonance: `${sourcePath || REPO_ROOT}/memory/resonance`,
       learnings: `${sourcePath || REPO_ROOT}/memory/learnings`,
       retrospectives: `${sourcePath || REPO_ROOT}/memory/retrospectives`,
+      distillations: `${sourcePath || REPO_ROOT}/memory/distillations`,
     },
   };
 

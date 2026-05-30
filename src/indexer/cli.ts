@@ -33,6 +33,7 @@ const config: IndexerConfig = {
     resonance: '\u03c8/memory/resonance',
     learnings: '\u03c8/memory/learnings',
     retrospectives: '\u03c8/memory/retrospectives',
+    distillations: '\u03c8/memory/distillations',
     // Opt-in: set ORACLE_INDEX_SECURITY_CORPUS=1 to include \u03c8/learn/security-corpus/.
     // Default OFF because the corpus has ~36k files (one-time index ~10-30 min).
     security_corpus: process.env.ORACLE_INDEX_SECURITY_CORPUS === '1'

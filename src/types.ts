@@ -3,7 +3,7 @@
  * Following claude-mem patterns for granular vector documents
  */
 
-export type OracleDocumentType = 'principle' | 'pattern' | 'learning' | 'retro' | 'security-corpus';
+export type OracleDocumentType = 'principle' | 'pattern' | 'learning' | 'retro' | 'distillation' | 'security-corpus';
 
 /**
  * Granular document stored in vector DB
@@ -125,6 +125,7 @@ export interface IndexerConfig {
     resonance: string;
     learnings: string;
     retrospectives: string;
+    distillations: string;
     security_corpus?: string;  // Optional: ψ/learn/security-corpus/ — opt-in via ORACLE_INDEX_SECURITY_CORPUS=1
   };
 }

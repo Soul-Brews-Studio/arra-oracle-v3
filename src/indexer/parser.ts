@@ -101,6 +101,52 @@ export function parseLearningFile(filename: string, content: string, sourceFileO
 }
 
 /**
+ * Parse distillation markdown into documents
+ * L1–L4 brain-compression artifacts produced by /distill skill.
+ * Splits by ## headers, falls back to whole-file document.
+ */
+export function parseDistillationFile(filename: string, content: string, sourceFileOverride?: string): OracleDocument[] {
+  const documents: OracleDocument[] = [];
+  const sourceFile = sourceFileOverride || `ψ/memory/distillations/${filename}`;
+  const now = Date.now();
+
+  const fileTags = parseFrontmatterTags(content);
+  const fileProject = parseFrontmatterProject(content) || inferProjectFromPath(sourceFile);
+
+  const titleMatch = content.match(/^title:\s*(.+)$/m);
+  const title = titleMatch ? titleMatch[1] : filename.replace('.md', '');
+
+  const sections = content.split(/^##\s+/m).filter(s => s.trim());
+
+  sections.forEach((section, index) => {
+    const lines = section.split('\n');
+    const sectionTitle = lines[0].trim();
+    const body = lines.slice(1).join('\n').trim();
+    if (!body) return;
+
+    const id = `distillation_${filename.replace('.md', '')}_${index}`;
+    const extracted = extractConcepts(sectionTitle, body);
+    documents.push({
+      id, type: 'distillation', source_file: sourceFile,
+      content: `${title} - ${sectionTitle}: ${body}`,
+      concepts: mergeConceptsWithTags(extracted, fileTags),
+      created_at: now, updated_at: now, project: fileProject || undefined
+    });
+  });
+
+  if (documents.length === 0) {
+    const extracted = extractConcepts(title, content);
+    documents.push({
+      id: `distillation_${filename.replace('.md', '')}`, type: 'distillation', source_file: sourceFile,
+      content, concepts: mergeConceptsWithTags(extracted, fileTags),
+      created_at: now, updated_at: now, project: fileProject || undefined
+    });
+  }
+
+  return documents;
+}
+
+/**
  * Parse retrospective markdown
  * Splits by ## headers, skips sections shorter than 50 chars
  */

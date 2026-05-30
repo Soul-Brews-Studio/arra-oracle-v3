@@ -17,7 +17,8 @@ export const scanEndpoint = new Elysia().post('/indexer/scan', async ({ body }) 
     const rel = path.relative(sourcePath, filePath);
 
     let type = 'unknown';
-    if (rel.includes('learnings') || rel.includes('learning')) type = 'learning';
+    if (rel.includes('distillations') || rel.includes('distillation')) type = 'distillation';
+    else if (rel.includes('learnings') || rel.includes('learning')) type = 'learning';
     else if (rel.includes('retrospectives') || rel.includes('retro')) type = 'retro';
     else if (rel.includes('resonance') || rel.includes('principle')) type = 'principle';
 
