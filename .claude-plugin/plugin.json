@@ -1,0 +1,7 @@
+{
+  "name": "arra-oracle",
+  "version": "26.5.30",
+  "description": "MCP memory layer with semantic search over your Oracle vault — SQLite FTS5 + LanceDB hybrid, 20 oracle_* tools across search / knowledge / session / forum / trace / standalone groups. Backward-compatible aliases: arra_* and muninn_* both resolve to oracle_*.",
+  "homepage": "https://github.com/Soul-Brews-Studio/arra-oracle-v3",
+  "license": "BUSL-1.1"
+}

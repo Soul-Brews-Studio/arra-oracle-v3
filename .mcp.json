@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "arra-oracle": {
+      "type": "stdio",
+      "command": "bun",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/src/index.ts"],
+      "env": {}
+    }
+  }
+}
