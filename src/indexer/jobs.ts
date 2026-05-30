@@ -18,7 +18,7 @@ import type Database from 'bun:sqlite';
 
 export interface EnqueueOptions {
   docId: string;
-  /** If omitted → enqueue for ALL models in the registry (typical muninn_learn case). */
+  /** If omitted → enqueue for ALL models in the registry (typical oracle_learn case). */
   modelKey?: string;
   /** Registry of model_key → collection. Caller passes this in (no global state). */
   models: Record<string, { collection: string }>;

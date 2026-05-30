@@ -61,7 +61,7 @@ export interface OracleReflectInput {
 }
 
 /**
- * muninn_list input - browse documents without search query
+ * oracle_list input - browse documents without search query
  */
 export interface OracleListInput {
   type?: OracleDocumentType | 'all';
@@ -88,7 +88,7 @@ export interface OracleReflectOutput {
 }
 
 /**
- * muninn_list output - paginated document list
+ * oracle_list output - paginated document list
  */
 export interface OracleListOutput {
   documents: Array<{

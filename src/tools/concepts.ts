@@ -9,7 +9,7 @@ import { oracleDocuments } from '../db/schema.ts';
 import type { ToolContext, ToolResponse, OracleConceptsInput } from './types.ts';
 
 export const conceptsToolDef = {
-  name: 'muninn_concepts',
+  name: 'oracle_concepts',
   description: 'List all concept tags in the Oracle knowledge base with document counts. Useful for discovering what topics are covered and filtering searches.',
   inputSchema: {
     type: 'object',

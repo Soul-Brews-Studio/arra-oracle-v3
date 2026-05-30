@@ -8,7 +8,7 @@ import { verifyKnowledgeBase } from '../verify/handler.ts';
 import type { ToolContext, ToolResponse, OracleVerifyInput } from './types.ts';
 
 export const verifyToolDef = {
-  name: 'muninn_verify',
+  name: 'oracle_verify',
   description: 'Verify knowledge base integrity: compare ψ/ files on disk vs DB index. Detects missing (on disk, not indexed), orphaned (in DB, file gone), and drifted (file changed since last index) documents.',
   inputSchema: {
     type: 'object',

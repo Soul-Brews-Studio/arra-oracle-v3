@@ -32,7 +32,7 @@ export async function startDaemon(): Promise<void> {
   const eventBus = makeEventBus<WorkerEvent>();
   let shuttingDown = false;
 
-  // Resolve doc text via the FTS5 mirror table — same content muninn_learn writes.
+  // Resolve doc text via the FTS5 mirror table — same content oracle_learn writes.
   const getDocText = (docId: string): string | null => {
     const row = db
       .query<{ content: string }, [string]>('SELECT content FROM oracle_fts WHERE id = ?')

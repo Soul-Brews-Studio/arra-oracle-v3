@@ -495,7 +495,7 @@ export function distillTrace(
     .where(eq(traceLog.traceId, input.traceId))
     .run();
 
-  // TODO: If promoteToLearning, call muninn_learn
+  // TODO: If promoteToLearning, call oracle_learn
   // This would require access to the learn function
 
   return {

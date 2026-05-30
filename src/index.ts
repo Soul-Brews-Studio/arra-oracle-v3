@@ -65,25 +65,33 @@ import type {
 } from './trace/types.ts';
 
 /**
- * Backward-compat alias: callers using the pre-#1172 `arra_*` tool names
- * are transparently mapped to the new `muninn_*` names. Tool LIST is
- * unchanged — only muninn_* is advertised — but old callers keep working.
+ * Backward-compat alias chain (3 generations):
+ *   arra_*    (original, pre-#1172)         ─┐
+ *   muninn_*  (#1172, briefly canonical)   ─┼──►  oracle_*  (current canonical)
+ *   oracle_*  (current canonical, advertised in ListTools)
+ *
+ * Tool LIST is unchanged — only oracle_* is advertised — but BOTH legacy
+ * prefixes keep working invisibly. The all-digit identifier prefix-strip
+ * is the same shape for both, so a single ALIAS_PREFIXES iteration covers
+ * any future rename without code changes.
  * Exported for unit tests.
  */
+const ALIAS_PREFIXES = ['arra_', 'muninn_'] as const;
 export function resolveToolName(name: string): string {
-  return name.startsWith('arra_')
-    ? 'muninn_' + name.slice('arra_'.length)
-    : name;
+  for (const p of ALIAS_PREFIXES) {
+    if (name.startsWith(p)) return 'oracle_' + name.slice(p.length);
+  }
+  return name;
 }
 
 // Write tools that should be disabled in read-only mode
 const WRITE_TOOLS = [
-  'muninn_learn',
-  'muninn_thread',
-  'muninn_thread_update',
-  'muninn_trace',
-  'muninn_supersede',
-  'muninn_handoff',
+  'oracle_learn',
+  'oracle_thread',
+  'oracle_thread_update',
+  'oracle_trace',
+  'oracle_supersede',
+  'oracle_handoff',
 ];
 
 class OracleMCPServer {
@@ -223,7 +231,7 @@ class OracleMCPServer {
         // Meta-documentation tool
         {
           name: '____IMPORTANT',
-          description: `ORACLE WORKFLOW GUIDE (v${this.version}):\n\n1. SEARCH & DISCOVER\n   muninn_search(query) → Find knowledge by keywords/vectors\n   muninn_read(file/id) → Read full document content\n   muninn_list() → Browse all documents\n   muninn_concepts() → See topic coverage\n\n2. LEARN & REMEMBER\n   muninn_learn(pattern) → Add new patterns/learnings\n   muninn_thread(message) → Multi-turn discussions\n   ⚠️ BEFORE adding: search for similar topics first!\n   If updating old info → use muninn_supersede(oldId, newId)\n\n3. TRACE & DISTILL\n   muninn_trace(query) → Log discovery sessions with dig points\n   muninn_trace_list() → Find past traces\n   muninn_trace_get(id) → Explore dig points (files, commits, issues)\n   muninn_trace_link(prevId, nextId) → Chain related traces together\n   muninn_trace_chain(id) → View the full linked chain\n\n4. HANDOFF & INBOX\n   muninn_handoff(content) → Save session context for next session\n   muninn_inbox() → List pending handoffs\n\n5. SUPERSEDE (when info changes)\n   muninn_supersede(oldId, newId, reason) → Mark old doc as outdated\n   "Nothing is Deleted" — old preserved, just marked superseded\n\nPhilosophy: "Nothing is Deleted" — All interactions logged.`,
+          description: `ORACLE WORKFLOW GUIDE (v${this.version}):\n\n1. SEARCH & DISCOVER\n   oracle_search(query) → Find knowledge by keywords/vectors\n   oracle_read(file/id) → Read full document content\n   oracle_list() → Browse all documents\n   oracle_concepts() → See topic coverage\n\n2. LEARN & REMEMBER\n   oracle_learn(pattern) → Add new patterns/learnings\n   oracle_thread(message) → Multi-turn discussions\n   ⚠️ BEFORE adding: search for similar topics first!\n   If updating old info → use oracle_supersede(oldId, newId)\n\n3. TRACE & DISTILL\n   oracle_trace(query) → Log discovery sessions with dig points\n   oracle_trace_list() → Find past traces\n   oracle_trace_get(id) → Explore dig points (files, commits, issues)\n   oracle_trace_link(prevId, nextId) → Chain related traces together\n   oracle_trace_chain(id) → View the full linked chain\n\n4. HANDOFF & INBOX\n   oracle_handoff(content) → Save session context for next session\n   oracle_inbox() → List pending handoffs\n\n5. SUPERSEDE (when info changes)\n   oracle_supersede(oldId, newId, reason) → Mark old doc as outdated\n   "Nothing is Deleted" — old preserved, just marked superseded\n\nPhilosophy: "Nothing is Deleted" — All interactions logged.`,
           inputSchema: { type: 'object', properties: {} }
         },
         // Core tools (from src/tools/)
@@ -255,7 +263,7 @@ class OracleMCPServer {
     // Handle tool calls — route to extracted handlers
     // ================================================================
     this.server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> => {
-      // Backward compat: arra_* → muninn_* aliasing (PR #1172 renamed the
+      // Backward compat: arra_* → oracle_* aliasing (PR #1172 renamed the
       // tools; old callers keep working). See resolveToolName().
       const toolName = resolveToolName(request.params.name);
 
@@ -284,46 +292,46 @@ class OracleMCPServer {
       try {
         switch (toolName) {
           // Core tools (delegated to src/tools/)
-          case 'muninn_search':
+          case 'oracle_search':
             return await handleSearch(ctx, request.params.arguments as unknown as OracleSearchInput);
-          case 'muninn_read':
+          case 'oracle_read':
             return await handleRead(ctx, request.params.arguments as unknown as OracleReadInput);
-          case 'muninn_learn':
+          case 'oracle_learn':
             return await handleLearn(ctx, request.params.arguments as unknown as OracleLearnInput);
-          case 'muninn_list':
+          case 'oracle_list':
             return await handleList(ctx, request.params.arguments as unknown as OracleListInput);
-          case 'muninn_stats':
+          case 'oracle_stats':
             return await handleStats(ctx, request.params.arguments as unknown as OracleStatsInput);
-          case 'muninn_concepts':
+          case 'oracle_concepts':
             return await handleConcepts(ctx, request.params.arguments as unknown as OracleConceptsInput);
-          case 'muninn_supersede':
+          case 'oracle_supersede':
             return await handleSupersede(ctx, request.params.arguments as unknown as OracleSupersededInput);
-          case 'muninn_handoff':
+          case 'oracle_handoff':
             return await handleHandoff(ctx, request.params.arguments as unknown as OracleHandoffInput);
-          case 'muninn_inbox':
+          case 'oracle_inbox':
             return await handleInbox(ctx, request.params.arguments as unknown as OracleInboxInput);
           // Forum tools (delegated to src/tools/forum.ts)
-          case 'muninn_thread':
+          case 'oracle_thread':
             return await handleThread(request.params.arguments as unknown as OracleThreadInput);
-          case 'muninn_threads':
+          case 'oracle_threads':
             return await handleThreads(request.params.arguments as unknown as OracleThreadsInput);
-          case 'muninn_thread_read':
+          case 'oracle_thread_read':
             return await handleThreadRead(request.params.arguments as unknown as OracleThreadReadInput);
-          case 'muninn_thread_update':
+          case 'oracle_thread_update':
             return await handleThreadUpdate(request.params.arguments as unknown as OracleThreadUpdateInput);
 
           // Trace tools (delegated to src/tools/trace.ts)
-          case 'muninn_trace':
+          case 'oracle_trace':
             return await handleTrace(request.params.arguments as unknown as CreateTraceInput);
-          case 'muninn_trace_list':
+          case 'oracle_trace_list':
             return await handleTraceList(request.params.arguments as unknown as ListTracesInput);
-          case 'muninn_trace_get':
+          case 'oracle_trace_get':
             return await handleTraceGet(request.params.arguments as unknown as GetTraceInput);
-          case 'muninn_trace_link':
+          case 'oracle_trace_link':
             return await handleTraceLink(request.params.arguments as unknown as { prevTraceId: string; nextTraceId: string });
-          case 'muninn_trace_unlink':
+          case 'oracle_trace_unlink':
             return await handleTraceUnlink(request.params.arguments as unknown as { traceId: string; direction: 'prev' | 'next' });
-          case 'muninn_trace_chain':
+          case 'oracle_trace_chain':
             return await handleTraceChain(request.params.arguments as unknown as { traceId: string });
 
           case '____IMPORTANT':

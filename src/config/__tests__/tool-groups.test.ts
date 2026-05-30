@@ -34,59 +34,59 @@ describe('tool-groups', () => {
       forum: true, trace: false,
     };
     const disabled = getDisabledTools(config);
-    expect(disabled.has('muninn_trace')).toBe(true);
-    expect(disabled.has('muninn_trace_list')).toBe(true);
-    expect(disabled.has('muninn_search')).toBe(false);
-    expect(disabled.has('muninn_learn')).toBe(false);
+    expect(disabled.has('oracle_trace')).toBe(true);
+    expect(disabled.has('oracle_trace_list')).toBe(true);
+    expect(disabled.has('oracle_search')).toBe(false);
+    expect(disabled.has('oracle_learn')).toBe(false);
   });
 
   it('disabled_tools adds per-tool blocks on top of group config', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
       forum: true, trace: true,
-      disabled_tools: ['muninn_supersede', 'muninn_thread_update'],
+      disabled_tools: ['oracle_supersede', 'oracle_thread_update'],
     };
     const disabled = getDisabledTools(config);
-    expect(disabled.has('muninn_supersede')).toBe(true);
-    expect(disabled.has('muninn_thread_update')).toBe(true);
+    expect(disabled.has('oracle_supersede')).toBe(true);
+    expect(disabled.has('oracle_thread_update')).toBe(true);
     // Sibling tools in the same group stay enabled
-    expect(disabled.has('muninn_learn')).toBe(false);
-    expect(disabled.has('muninn_thread')).toBe(false);
+    expect(disabled.has('oracle_learn')).toBe(false);
+    expect(disabled.has('oracle_thread')).toBe(false);
   });
 
   it('enabled_tools whitelist overrides group-disabled', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
       forum: false, trace: true,
-      enabled_tools: ['muninn_thread_read'],
+      enabled_tools: ['oracle_thread_read'],
     };
     const disabled = getDisabledTools(config);
     // Whole forum group disabled, except the whitelisted one
-    expect(disabled.has('muninn_thread')).toBe(true);
-    expect(disabled.has('muninn_thread_update')).toBe(true);
-    expect(disabled.has('muninn_thread_read')).toBe(false);
+    expect(disabled.has('oracle_thread')).toBe(true);
+    expect(disabled.has('oracle_thread_update')).toBe(true);
+    expect(disabled.has('oracle_thread_read')).toBe(false);
   });
 
   it('enabled_tools whitelist overrides a per-tool block (whitelist wins last)', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
       forum: true, trace: true,
-      disabled_tools: ['muninn_supersede'],
-      enabled_tools: ['muninn_supersede'],
+      disabled_tools: ['oracle_supersede'],
+      enabled_tools: ['oracle_supersede'],
     };
-    expect(getDisabledTools(config).has('muninn_supersede')).toBe(false);
+    expect(getDisabledTools(config).has('oracle_supersede')).toBe(false);
   });
 
   it('ignores unknown tool names in disabled_tools and enabled_tools', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
       forum: true, trace: true,
-      disabled_tools: ['typo_search', 'muninn_search'],
+      disabled_tools: ['typo_search', 'oracle_search'],
       enabled_tools: ['also_typo'],
     };
     const disabled = getDisabledTools(config);
     // Real one applied
-    expect(disabled.has('muninn_search')).toBe(true);
+    expect(disabled.has('oracle_search')).toBe(true);
     // Typos didn't leak in
     expect(disabled.has('typo_search')).toBe(false);
     expect(disabled.has('also_typo')).toBe(false);
@@ -101,10 +101,10 @@ describe('tool-groups', () => {
     expect(config.trace).toBe(true);
   });
 
-  it('all tool names follow muninn_ prefix convention', () => {
+  it('all tool names follow oracle_ prefix convention', () => {
     for (const tools of Object.values(TOOL_GROUPS)) {
       for (const tool of tools) {
-        expect(tool).toMatch(/^muninn_/);
+        expect(tool).toMatch(/^oracle_/);
       }
     }
   });

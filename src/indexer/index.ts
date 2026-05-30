@@ -114,7 +114,7 @@ export class OracleIndexer {
       );
     }
 
-    console.log(`Smart delete: ${idsToDelete.length} stale docs (preserving muninn_learn)`);
+    console.log(`Smart delete: ${idsToDelete.length} stale docs (preserving oracle_learn)`);
 
     if (idsToDelete.length > 0) {
       this.db.delete(oracleDocuments).where(inArray(oracleDocuments.id, idsToDelete)).run();

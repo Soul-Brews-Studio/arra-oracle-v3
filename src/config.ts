@@ -35,7 +35,7 @@ export const DB_PATH = process.env.ORACLE_DB_PATH || path.join(ORACLE_DATA_DIR, 
 //   4. ORACLE_DATA_DIR — default (will be empty initially)
 //
 // Data dir wins over project root so that accidental ψ/ folders in a source
-// checkout (e.g. from muninn_learn writing with no vault configured) don't
+// checkout (e.g. from oracle_learn writing with no vault configured) don't
 // override the real indexed data at ~/.arra-oracle-v2/ψ/.
 export const REPO_ROOT = process.env.ORACLE_REPO_ROOT ||
   (fs.existsSync(path.join(ORACLE_DATA_DIR, '\u03c8')) ? ORACLE_DATA_DIR :

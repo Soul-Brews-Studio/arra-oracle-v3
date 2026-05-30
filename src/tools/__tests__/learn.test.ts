@@ -55,8 +55,8 @@ describe('extractProjectFromSource', () => {
     expect(extractProjectFromSource('')).toBeNull();
   });
 
-  it('should extract from "muninn_learn from github.com/owner/repo" format', () => {
-    expect(extractProjectFromSource('muninn_learn from github.com/owner/repo session 42'))
+  it('should extract from "oracle_learn from github.com/owner/repo" format', () => {
+    expect(extractProjectFromSource('oracle_learn from github.com/owner/repo session 42'))
       .toBe('github.com/owner/repo');
   });
 

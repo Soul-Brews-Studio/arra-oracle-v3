@@ -141,9 +141,9 @@ describe.skipIf(!MCP_TEST_ENABLED)("MCP Integration", () => {
 
       // Check for core tools
       const toolNames = result.tools.map((t) => t.name);
-      expect(toolNames).toContain("muninn_search");
-      expect(toolNames).toContain("muninn_list");
-      expect(toolNames).toContain("muninn_stats");
+      expect(toolNames).toContain("oracle_search");
+      expect(toolNames).toContain("oracle_list");
+      expect(toolNames).toContain("oracle_stats");
     });
   });
 
@@ -151,8 +151,8 @@ describe.skipIf(!MCP_TEST_ENABLED)("MCP Integration", () => {
   // Read-Only Tools
   // ===================
   describe("Read-Only Tools", () => {
-    test("muninn_search returns results", async () => {
-      const result = await callTool("muninn_search", {
+    test("oracle_search returns results", async () => {
+      const result = await callTool("oracle_search", {
         query: "oracle",
         limit: 5,
       });
@@ -161,29 +161,29 @@ describe.skipIf(!MCP_TEST_ENABLED)("MCP Integration", () => {
       expect(typeof result).toBe("object");
     });
 
-    test("muninn_list returns documents", async () => {
-      const result = await callTool("muninn_list", {
+    test("oracle_list returns documents", async () => {
+      const result = await callTool("oracle_list", {
         limit: 10,
       });
 
       expect(result).toBeDefined();
     });
 
-    test("muninn_stats returns statistics", async () => {
-      const result = await callTool("muninn_stats", {});
+    test("oracle_stats returns statistics", async () => {
+      const result = await callTool("oracle_stats", {});
       expect(result).toBeDefined();
     });
 
-    test("muninn_concepts returns concept list", async () => {
-      const result = await callTool("muninn_concepts", {
+    test("oracle_concepts returns concept list", async () => {
+      const result = await callTool("oracle_concepts", {
         limit: 20,
       });
 
       expect(result).toBeDefined();
     });
 
-    test("muninn_reflect returns random wisdom", async () => {
-      const result = await callTool("muninn_reflect", {});
+    test("oracle_reflect returns random wisdom", async () => {
+      const result = await callTool("oracle_reflect", {});
       expect(result).toBeDefined();
     });
   });
@@ -192,16 +192,16 @@ describe.skipIf(!MCP_TEST_ENABLED)("MCP Integration", () => {
   // Thread Tools
   // ===================
   describe("Thread Tools", () => {
-    test("muninn_threads lists threads", async () => {
-      const result = await callTool("muninn_threads", {
+    test("oracle_threads lists threads", async () => {
+      const result = await callTool("oracle_threads", {
         limit: 10,
       });
 
       expect(result).toBeDefined();
     });
 
-    test("muninn_threads with status filter", async () => {
-      const result = await callTool("muninn_threads", {
+    test("oracle_threads with status filter", async () => {
+      const result = await callTool("oracle_threads", {
         status: "active",
         limit: 5,
       });
@@ -214,8 +214,8 @@ describe.skipIf(!MCP_TEST_ENABLED)("MCP Integration", () => {
   // Trace Tools
   // ===================
   describe("Trace Tools", () => {
-    test("muninn_trace_list returns traces", async () => {
-      const result = await callTool("muninn_trace_list", {
+    test("oracle_trace_list returns traces", async () => {
+      const result = await callTool("oracle_trace_list", {
         limit: 10,
       });
 
@@ -238,8 +238,8 @@ describe.skipIf(!MCP_TEST_ENABLED)("MCP Integration", () => {
 
     test("handles missing required params", async () => {
       try {
-        // muninn_search requires 'query' param
-        await callTool("muninn_search", {});
+        // oracle_search requires 'query' param
+        await callTool("oracle_search", {});
         // May or may not throw depending on implementation
       } catch (error) {
         expect(error).toBeDefined();
