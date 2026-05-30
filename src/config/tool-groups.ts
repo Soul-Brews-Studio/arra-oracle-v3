@@ -18,6 +18,11 @@ export const TOOL_GROUPS = {
   session: ['oracle_handoff', 'oracle_inbox'],
   forum: ['oracle_thread', 'oracle_threads', 'oracle_thread_read', 'oracle_thread_update'],
   trace: ['oracle_trace', 'oracle_trace_list', 'oracle_trace_get', 'oracle_trace_link', 'oracle_trace_unlink', 'oracle_trace_chain'],
+  // #972: standalone tools that don't fit any other group. Handlers ALSO power
+  // HTTP routes (/api/reflect, /api/verify) — same code path. NOTE: schedule_*
+  // handlers exist + power /api/schedule/* but are intentionally NOT exposed
+  // as MCP tools (per user direction — keep schedule HTTP-only).
+  standalone: ['oracle_reflect', 'oracle_verify'],
 } as const;
 
 export type ToolGroupName = keyof typeof TOOL_GROUPS;
@@ -40,6 +45,7 @@ const DEFAULT_CONFIG: ToolGroupConfig = {
   session: true,
   forum: true,
   trace: true,
+  standalone: true,
 };
 
 /** All registered tool names — for validating disabled_tools / enabled_tools entries. */

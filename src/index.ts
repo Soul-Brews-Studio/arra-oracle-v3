@@ -40,6 +40,11 @@ import {
   handleThread, handleThreads, handleThreadRead, handleThreadUpdate,
   traceToolDefs,
   handleTrace, handleTraceList, handleTraceGet, handleTraceLink, handleTraceUnlink, handleTraceChain,
+  // Standalone tools (#972 wire — reflect + verify only. Schedule handlers
+  // remain HTTP-only per maintainer direction: /api/schedule/* routes still
+  // use them, but they're not exposed as MCP tools.)
+  reflectToolDef, handleReflect,
+  verifyToolDef, handleVerify,
 } from './tools/index.ts';
 
 import type {
@@ -56,6 +61,8 @@ import type {
   OracleThreadsInput,
   OracleThreadReadInput,
   OracleThreadUpdateInput,
+  OracleReflectInput,
+  OracleVerifyInput,
 } from './tools/index.ts';
 
 import type {
@@ -245,10 +252,13 @@ class OracleMCPServer {
         ...forumToolDefs,
         // Trace tools (from src/tools/trace.ts)
         ...traceToolDefs,
-        // Supersede, Handoff, Inbox, Verify
+        // Supersede, Handoff, Inbox
         supersedeToolDef,
         handoffToolDef,
         inboxToolDef,
+        // Standalone tools (#972 wire — reflect + verify only; schedule kept HTTP-only)
+        reflectToolDef,
+        verifyToolDef,
       ];
 
       let tools = allTools.filter(t => !this.disabledTools.has(t.name));
@@ -333,6 +343,12 @@ class OracleMCPServer {
             return await handleTraceUnlink(request.params.arguments as unknown as { traceId: string; direction: 'prev' | 'next' });
           case 'oracle_trace_chain':
             return await handleTraceChain(request.params.arguments as unknown as { traceId: string });
+
+          // Standalone tools (#972 wire — reflect + verify; schedule kept HTTP-only)
+          case 'oracle_reflect':
+            return await handleReflect(ctx, request.params.arguments as unknown as OracleReflectInput);
+          case 'oracle_verify':
+            return await handleVerify(ctx, request.params.arguments as unknown as OracleVerifyInput);
 
           case '____IMPORTANT':
             return {

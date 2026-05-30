@@ -84,3 +84,16 @@ export {
   handleTraceChain,
 } from './trace.ts';
 
+// Standalone tools (closes #972 — handlers existed in-source but weren't wired
+// into the MCP dispatch. Same handlers ALSO power HTTP routes /api/reflect,
+// /api/verify, so they're battle-tested by HTTP consumers).
+//
+// NOTE: schedule_add / schedule_list are NOT wired as MCP tools per maintainer
+// direction — they remain HTTP-only at /api/schedule/*. Their exports stay in
+// place for the HTTP route consumers (src/routes/schedule/*.ts).
+export type {
+  OracleReflectInput,
+  OracleVerifyInput,
+} from './types.ts';
+export { reflectToolDef, handleReflect } from './reflect.ts';
+export { verifyToolDef, handleVerify } from './verify.ts';

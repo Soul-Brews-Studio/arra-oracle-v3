@@ -11,19 +11,20 @@ import {
 } from '../tool-groups.ts';
 
 describe('tool-groups', () => {
-  it('defines 5 groups with correct tool counts', () => {
-    expect(Object.keys(TOOL_GROUPS)).toHaveLength(5);
+  it('defines 6 groups with correct tool counts', () => {
+    expect(Object.keys(TOOL_GROUPS)).toHaveLength(6);
     expect(TOOL_GROUPS.search).toHaveLength(4);
     expect(TOOL_GROUPS.knowledge).toHaveLength(3);
     expect(TOOL_GROUPS.session).toHaveLength(2);
     expect(TOOL_GROUPS.forum).toHaveLength(4);
     expect(TOOL_GROUPS.trace).toHaveLength(6);
+    expect(TOOL_GROUPS.standalone).toHaveLength(2);   // #972 wire: reflect + verify (schedule kept HTTP-only)
   });
 
   it('returns empty set when all groups enabled', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
-      forum: true, trace: true,
+      forum: true, trace: true, standalone: true,
     };
     expect(getDisabledTools(config).size).toBe(0);
   });
@@ -31,7 +32,7 @@ describe('tool-groups', () => {
   it('disables correct tools when groups are off', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
-      forum: true, trace: false,
+      forum: true, trace: false, standalone: true,
     };
     const disabled = getDisabledTools(config);
     expect(disabled.has('oracle_trace')).toBe(true);
@@ -43,7 +44,7 @@ describe('tool-groups', () => {
   it('disabled_tools adds per-tool blocks on top of group config', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
-      forum: true, trace: true,
+      forum: true, trace: true, standalone: true,
       disabled_tools: ['oracle_supersede', 'oracle_thread_update'],
     };
     const disabled = getDisabledTools(config);
@@ -57,7 +58,7 @@ describe('tool-groups', () => {
   it('enabled_tools whitelist overrides group-disabled', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
-      forum: false, trace: true,
+      forum: false, trace: true, standalone: true,
       enabled_tools: ['oracle_thread_read'],
     };
     const disabled = getDisabledTools(config);
@@ -70,7 +71,7 @@ describe('tool-groups', () => {
   it('enabled_tools whitelist overrides a per-tool block (whitelist wins last)', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
-      forum: true, trace: true,
+      forum: true, trace: true, standalone: true,
       disabled_tools: ['oracle_supersede'],
       enabled_tools: ['oracle_supersede'],
     };
@@ -80,7 +81,7 @@ describe('tool-groups', () => {
   it('ignores unknown tool names in disabled_tools and enabled_tools', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
-      forum: true, trace: true,
+      forum: true, trace: true, standalone: true,
       disabled_tools: ['typo_search', 'oracle_search'],
       enabled_tools: ['also_typo'],
     };
