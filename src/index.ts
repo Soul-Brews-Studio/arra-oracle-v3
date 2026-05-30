@@ -64,6 +64,18 @@ import type {
   GetTraceInput,
 } from './trace/types.ts';
 
+/**
+ * Backward-compat alias: callers using the pre-#1172 `arra_*` tool names
+ * are transparently mapped to the new `muninn_*` names. Tool LIST is
+ * unchanged — only muninn_* is advertised — but old callers keep working.
+ * Exported for unit tests.
+ */
+export function resolveToolName(name: string): string {
+  return name.startsWith('arra_')
+    ? 'muninn_' + name.slice('arra_'.length)
+    : name;
+}
+
 // Write tools that should be disabled in read-only mode
 const WRITE_TOOLS = [
   'muninn_learn',
@@ -243,21 +255,25 @@ class OracleMCPServer {
     // Handle tool calls — route to extracted handlers
     // ================================================================
     this.server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> => {
-      if (this.disabledTools.has(request.params.name)) {
+      // Backward compat: arra_* → muninn_* aliasing (PR #1172 renamed the
+      // tools; old callers keep working). See resolveToolName().
+      const toolName = resolveToolName(request.params.name);
+
+      if (this.disabledTools.has(toolName)) {
         return {
           content: [{
             type: 'text',
-            text: `Error: Tool "${request.params.name}" is disabled by tool group config. Check ${ORACLE_DATA_DIR}/config.json or arra.config.json.`
+            text: `Error: Tool "${toolName}" is disabled by tool group config. Check ${ORACLE_DATA_DIR}/config.json or arra.config.json.`
           }],
           isError: true
         };
       }
 
-      if (this.readOnly && WRITE_TOOLS.includes(request.params.name)) {
+      if (this.readOnly && WRITE_TOOLS.includes(toolName)) {
         return {
           content: [{
             type: 'text',
-            text: `Error: Tool "${request.params.name}" is disabled in read-only mode. This Oracle instance is configured for read-only access.`
+            text: `Error: Tool "${toolName}" is disabled in read-only mode. This Oracle instance is configured for read-only access.`
           }],
           isError: true
         };
@@ -266,7 +282,7 @@ class OracleMCPServer {
       const ctx = this.toolCtx;
 
       try {
-        switch (request.params.name) {
+        switch (toolName) {
           // Core tools (delegated to src/tools/)
           case 'muninn_search':
             return await handleSearch(ctx, request.params.arguments as unknown as OracleSearchInput);
@@ -311,7 +327,7 @@ class OracleMCPServer {
             return await handleTraceChain(request.params.arguments as unknown as { traceId: string });
 
           default:
-            throw new Error(`Unknown tool: ${request.params.name}`);
+            throw new Error(`Unknown tool: ${toolName}`);
         }
       } catch (error) {
         return {
