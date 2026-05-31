@@ -7,9 +7,16 @@
 
 import path from 'path';
 import fs from 'fs';
-import { getVaultPsiRoot } from '../vault/handler.ts';
 import { detectProject } from '../server/project-detect.ts';
 import type { ToolContext, ToolResponse, OracleHandoffInput } from './types.ts';
+
+let getVaultPsiRootFn: typeof import('../vault/handler.ts').getVaultPsiRoot | null = null;
+async function loadGetVaultPsiRoot(): Promise<typeof import('../vault/handler.ts').getVaultPsiRoot> {
+  if (!getVaultPsiRootFn) {
+    getVaultPsiRootFn = (await import('../vault/handler.ts')).getVaultPsiRoot;
+  }
+  return getVaultPsiRootFn;
+}
 
 export const handoffToolDef = {
   name: 'oracle_handoff',
@@ -97,6 +104,7 @@ export async function handleHandoff(ctx: ToolContext, input: OracleHandoffInput)
   const filename = `${dateStr}_${timeStr}_${slug}.md`;
 
   // Resolve vault root for central writes
+  const getVaultPsiRoot = await loadGetVaultPsiRoot();
   const vault = getVaultPsiRoot();
   if ('needsInit' in vault) console.error(`[Vault] ${vault.hint}`);
   const vaultRoot = 'path' in vault ? vault.path : null;

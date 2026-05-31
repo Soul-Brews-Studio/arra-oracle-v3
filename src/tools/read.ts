@@ -7,8 +7,15 @@
 
 import fs from 'fs';
 import path from 'path';
-import { getVaultPsiRoot } from '../vault/handler.ts';
 import type { ToolContext, ToolResponse, OracleReadInput } from './types.ts';
+
+let getVaultPsiRootFn: typeof import('../vault/handler.ts').getVaultPsiRoot | null = null;
+async function loadGetVaultPsiRoot(): Promise<typeof import('../vault/handler.ts').getVaultPsiRoot> {
+  if (!getVaultPsiRootFn) {
+    getVaultPsiRootFn = (await import('../vault/handler.ts')).getVaultPsiRoot;
+  }
+  return getVaultPsiRootFn;
+}
 
 export const readToolDef = {
   name: 'oracle_read',
@@ -54,11 +61,11 @@ function extractProject(filePath: string): { project: string; remainder: string 
  * Try to resolve a source_file path to a readable absolute path.
  * Returns the absolute path if found, null otherwise.
  */
-function resolveFilePath(
+async function resolveFilePath(
   sourceFile: string,
   repoRoot: string,
   ghqRoot: string,
-): string | null {
+): Promise<string | null> {
   // 1. Try direct from repoRoot (handles "ψ/memory/..." paths)
   const directPath = path.join(repoRoot, sourceFile);
   if (fs.existsSync(directPath)) return fs.realpathSync(directPath);
@@ -71,6 +78,7 @@ function resolveFilePath(
   }
 
   // 3. Try vault fallback
+  const getVaultPsiRoot = await loadGetVaultPsiRoot();
   const vault = getVaultPsiRoot();
   if ('path' in vault) {
     const vaultPath = path.join(vault.path, sourceFile);
@@ -125,7 +133,7 @@ export async function handleRead(ctx: ToolContext, input: OracleReadInput): Prom
   }
 
   const ghqRoot = detectGhqRoot(ctx.repoRoot);
-  const resolvedPath = resolveFilePath(sourceFile!, ctx.repoRoot, ghqRoot);
+  const resolvedPath = await resolveFilePath(sourceFile!, ctx.repoRoot, ghqRoot);
 
   // File found on disk
   if (resolvedPath && isPathAllowed(resolvedPath, ctx.repoRoot, ghqRoot)) {

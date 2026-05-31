@@ -4,8 +4,15 @@
  * Wraps src/verify/handler.ts for consistency with tools/ pattern.
  */
 
-import { verifyKnowledgeBase } from '../verify/handler.ts';
 import type { ToolContext, ToolResponse, OracleVerifyInput } from './types.ts';
+
+let verifyKnowledgeBaseFn: typeof import('../verify/handler.ts').verifyKnowledgeBase | null = null;
+async function loadVerifyKnowledgeBase(): Promise<typeof import('../verify/handler.ts').verifyKnowledgeBase> {
+  if (!verifyKnowledgeBaseFn) {
+    verifyKnowledgeBaseFn = (await import('../verify/handler.ts')).verifyKnowledgeBase;
+  }
+  return verifyKnowledgeBaseFn;
+}
 
 export const verifyToolDef = {
   name: 'oracle_verify',
@@ -31,6 +38,7 @@ export const verifyToolDef = {
 export async function handleVerify(ctx: ToolContext, input: OracleVerifyInput): Promise<ToolResponse> {
   const { check = true, type } = input;
 
+  const verifyKnowledgeBase = await loadVerifyKnowledgeBase();
   const result = verifyKnowledgeBase({
     check,
     type,
