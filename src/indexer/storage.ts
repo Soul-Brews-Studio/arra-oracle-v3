@@ -18,7 +18,8 @@ export async function storeDocuments(
   db: BunSQLiteDatabase<typeof schema>,
   vectorClient: VectorStoreAdapter | null,
   project: string | null,
-  documents: OracleDocument[]
+  documents: OracleDocument[],
+  opts: { createdBy?: string } = {}
 ): Promise<void> {
   const now = Date.now();
 
@@ -56,7 +57,7 @@ export async function storeDocuments(
           updatedAt: doc.updated_at,
           indexedAt: now,
           project: docProject,
-          createdBy: 'indexer',
+          createdBy: opts.createdBy || 'indexer',
         })
         .onConflictDoUpdate({
           target: oracleDocuments.id,

@@ -21,6 +21,7 @@ import {
   menuGistReload,
 } from "./commands/menu-gist.ts";
 import { menuResetAll } from "./commands/menu-reset.ts";
+import { reindex } from "./commands/reindex.ts";
 
 const pkg = await Bun.file(join(import.meta.dir, "../package.json")).json();
 const VERSION: string = pkg.version;
@@ -32,6 +33,7 @@ function printHelp(commands: Array<{ command: string; help?: string }>) {
   console.log(`  ${"plugin".padEnd(16)}manage plugins (install)`);
   console.log(`  ${"session".padEnd(16)}inspect sessions (list, show, context)`);
   console.log(`  ${"menu".padEnd(16)}inspect and customize studio menu (list, add, remove)`);
+  console.log(`  ${"reindex".padEnd(16)}trigger SQLite/FTS reindex via ORACLE_API`);
   for (const { command, help } of commands) {
     console.log(`  ${command.padEnd(16)}${help ?? ""}`);
   }
@@ -150,6 +152,10 @@ async function main() {
     console.error(`\x1b[31m✗\x1b[0m unknown menu subcommand: ${args[1]}`);
     console.error("  try: arra-cli menu list|add|remove|gist-*|reset-all");
     process.exit(1);
+  }
+
+  if (cmd === "reindex") {
+    process.exit(await reindex(args.slice(1)));
   }
 
   if (cmd === "plugin") {
