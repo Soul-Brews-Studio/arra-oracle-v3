@@ -5,16 +5,6 @@
  * since trace handlers use their own module-scoped DB.
  */
 
-import {
-  createTrace,
-  getTrace,
-  listTraces,
-  getTraceChain,
-  linkTraces,
-  unlinkTraces,
-  getTraceLinkedChain,
-} from '../trace/handler.ts';
-
 import type {
   CreateTraceInput,
   ListTracesInput,
@@ -22,6 +12,15 @@ import type {
 } from '../trace/types.ts';
 
 import type { ToolResponse } from './types.ts';
+
+type TraceHandlerModule = typeof import('../trace/handler.ts');
+let traceHandlerModule: TraceHandlerModule | null = null;
+async function loadTraceHandler(): Promise<TraceHandlerModule> {
+  if (!traceHandlerModule) {
+    traceHandlerModule = await import('../trace/handler.ts');
+  }
+  return traceHandlerModule;
+}
 
 // ============================================================================
 // Tool definitions
@@ -161,6 +160,7 @@ export async function handleTrace(input: CreateTraceInput): Promise<ToolResponse
       isError: true
     };
   }
+  const { createTrace } = await loadTraceHandler();
   const result = createTrace(input);
   console.error(`[MCP:TRACE] query="${input.query}" depth=${result.depth} digPoints=${result.summary.totalDigPoints}`);
 
@@ -184,6 +184,7 @@ export async function handleTrace(input: CreateTraceInput): Promise<ToolResponse
 }
 
 export async function handleTraceList(input: ListTracesInput): Promise<ToolResponse> {
+  const { listTraces } = await loadTraceHandler();
   const result = listTraces(input);
   console.error(`[MCP:TRACE_LIST] found=${result.total} returned=${result.traces.length}`);
 
@@ -225,6 +226,7 @@ export async function handleTraceGet(input: GetTraceInput): Promise<ToolResponse
       isError: true
     };
   }
+  const { getTrace, getTraceChain } = await loadTraceHandler();
   const trace = getTrace(input.traceId);
   if (!trace) throw new Error(`Trace ${input.traceId} not found`);
 
@@ -277,6 +279,7 @@ export async function handleTraceGet(input: GetTraceInput): Promise<ToolResponse
 }
 
 export async function handleTraceLink(input: { prevTraceId: string; nextTraceId: string }): Promise<ToolResponse> {
+  const { linkTraces } = await loadTraceHandler();
   const result = linkTraces(input.prevTraceId, input.nextTraceId);
   if (!result.success) throw new Error(result.message);
 
@@ -304,6 +307,7 @@ export async function handleTraceLink(input: { prevTraceId: string; nextTraceId:
 }
 
 export async function handleTraceUnlink(input: { traceId: string; direction: 'prev' | 'next' }): Promise<ToolResponse> {
+  const { unlinkTraces } = await loadTraceHandler();
   const result = unlinkTraces(input.traceId, input.direction);
   if (!result.success) throw new Error(result.message);
 
@@ -333,6 +337,7 @@ export async function handleTraceChain(input: { traceId: string }): Promise<Tool
       isError: true
     };
   }
+  const { getTraceLinkedChain } = await loadTraceHandler();
   const result = getTraceLinkedChain(input.traceId);
   console.error(`[MCP:TRACE_CHAIN] id=${input.traceId} chain_length=${result.chain.length} position=${result.position}`);
 

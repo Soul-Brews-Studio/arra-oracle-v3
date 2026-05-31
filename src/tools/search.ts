@@ -6,12 +6,19 @@
  * combineResults, vectorSearch) for testability.
  */
 
-import { logSearch } from '../server/logging.ts';
 import { detectProject } from '../server/project-detect.ts';
 import { rerankCandidates } from '../server/reranker.ts';
 import { ensureVectorStoreConnected } from '../vector/factory.ts';
 import type { SearchResult } from '../server/types.ts';
 import type { ToolContext, ToolResponse, OracleSearchInput } from './types.ts';
+
+let logSearchFn: typeof import('../server/logging.ts').logSearch | null = null;
+async function loadLogSearch(): Promise<typeof import('../server/logging.ts').logSearch> {
+  if (!logSearchFn) {
+    logSearchFn = (await import('../server/logging.ts')).logSearch;
+  }
+  return logSearchFn;
+}
 
 export const searchToolDef = {
   name: 'oracle_search',
@@ -481,6 +488,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
   console.error(`[MCP:SEARCH] "${query}" (${type}, ${mode}, model=${model || 'default'}) → ${results.length} results in ${searchTime}ms`);
 
   try {
+    const logSearch = await loadLogSearch();
     logSearch(query, type, mode, results.length, searchTime, results as unknown as SearchResult[]);
   } catch (e) {
     console.error('[MCP:SEARCH] Failed to log search to database:', e);

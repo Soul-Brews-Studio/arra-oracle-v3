@@ -9,7 +9,6 @@ import path from 'path';
 import fs from 'fs';
 import { oracleDocuments } from '../db/schema.ts';
 import { detectProject } from '../server/project-detect.ts';
-import { getVaultPsiRoot } from '../vault/handler.ts';
 import { getVectorStoreByModel, getEmbeddingModels } from '../vector/factory.ts';
 import { REPO_ROOT } from '../config.ts';
 
@@ -28,6 +27,13 @@ async function loadEnqueue(): Promise<typeof enqueueIndexJob> {
     // Indexer not available — learn still works, just no async job queuing
   }
   return enqueueIndexJob;
+}
+let getVaultPsiRootFn: typeof import('../vault/handler.ts').getVaultPsiRoot | null = null;
+async function loadGetVaultPsiRoot(): Promise<typeof import('../vault/handler.ts').getVaultPsiRoot> {
+  if (!getVaultPsiRootFn) {
+    getVaultPsiRootFn = (await import('../vault/handler.ts')).getVaultPsiRoot;
+  }
+  return getVaultPsiRootFn;
 }
 import type { ToolContext, ToolResponse, OracleLearnInput } from './types.ts';
 
@@ -171,6 +177,7 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
   const filename = `${dateStr}_${slug}.md`;
 
   // Resolve vault root for central writes
+  const getVaultPsiRoot = await loadGetVaultPsiRoot();
   const vault = getVaultPsiRoot();
   if ('needsInit' in vault) console.error(`[Vault] ${vault.hint}`);
   const vaultRoot = 'path' in vault ? vault.path : null;

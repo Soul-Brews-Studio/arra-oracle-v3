@@ -5,15 +5,16 @@
  * since forum handlers use their own module-scoped DB.
  */
 
-import {
-  handleThreadMessage,
-  listThreads,
-  getFullThread,
-  getMessages,
-  updateThreadStatus,
-} from '../forum/handler.ts';
-
 import type { ToolResponse } from './types.ts';
+
+type ForumHandlerModule = typeof import('../forum/handler.ts');
+let forumHandlerModule: ForumHandlerModule | null = null;
+async function loadForumHandler(): Promise<ForumHandlerModule> {
+  if (!forumHandlerModule) {
+    forumHandlerModule = await import('../forum/handler.ts');
+  }
+  return forumHandlerModule;
+}
 
 // ============================================================================
 // Input interfaces
@@ -160,6 +161,7 @@ export async function handleThread(input: OracleThreadInput): Promise<ToolRespon
   // Prevents handleThreadMessage's unconditional status-flip from silently
   // re-opening closed threads on continuation calls.
   if (typeof input.threadId === 'number') {
+    const { getFullThread } = await loadForumHandler();
     const existing = getFullThread(input.threadId);
     if (existing && existing.thread.status === 'closed' && input.reopen !== true) {
       return {
@@ -177,6 +179,7 @@ export async function handleThread(input: OracleThreadInput): Promise<ToolRespon
     }
   }
 
+  const { handleThreadMessage } = await loadForumHandler();
   const result = await handleThreadMessage({
     message: input.message,
     threadId: input.threadId,
@@ -204,6 +207,7 @@ export async function handleThread(input: OracleThreadInput): Promise<ToolRespon
 }
 
 export async function handleThreads(input: OracleThreadsInput): Promise<ToolResponse> {
+  const { listThreads, getMessages } = await loadForumHandler();
   const result = listThreads({
     status: input.status as any,
     limit: input.limit || 20,
@@ -248,6 +252,7 @@ export async function handleThreadRead(input: OracleThreadReadInput): Promise<To
       isError: true
     };
   }
+  const { getFullThread } = await loadForumHandler();
   const threadData = getFullThread(input.threadId);
   if (!threadData) throw new Error(`Thread ${input.threadId} not found`);
 
@@ -309,6 +314,7 @@ export async function handleThreadUpdate(input: OracleThreadUpdateInput): Promis
     };
   }
 
+  const { updateThreadStatus, getFullThread } = await loadForumHandler();
   updateThreadStatus(input.threadId, input.status);
   const threadData = getFullThread(input.threadId);
 

@@ -13,10 +13,8 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
-import { Database } from 'bun:sqlite';
+import type { Database } from 'bun:sqlite';
 import * as schema from './db/schema.ts';
-import { createDatabase } from './db/index.ts';
-import { createVectorStore } from './vector/factory.ts';
 import type { VectorStoreAdapter } from './vector/types.ts';
 import path from 'path';
 import fs from 'fs';
@@ -25,7 +23,7 @@ import { ORACLE_DATA_DIR, DB_PATH, REPO_ROOT } from './config.ts';
 import { MCP_SERVER_NAME } from './const.ts';
 
 // Tool handlers (all extracted to src/tools/)
-import type { ToolContext } from './tools/types.ts';
+import type { ToolContext, ToolResponse } from './tools/types.ts';
 import {
   searchToolDef, handleSearch,
   learnToolDef, handleLearn,
@@ -101,22 +99,205 @@ const WRITE_TOOLS = [
   'oracle_handoff',
 ];
 
+const DEFAULT_ORACLE_API = 'http://localhost:47778';
+const EMBEDDED_API_VALUES = new Set(['embedded', 'embed', 'off', 'none', 'false', '0']);
+
+class OracleApiUnavailableError extends Error {
+  constructor(baseUrl: string, cause: unknown) {
+    const msg = cause instanceof Error ? cause.message : String(cause);
+    super(
+      `Cannot reach ARRA Oracle at ${baseUrl}\n` +
+      `  → Is the server running? Try: bun run server  (in arra-oracle-v3 repo)\n` +
+      `  → Override with ORACLE_API=http://localhost:<port>\n` +
+      `  → Or set ORACLE_API=embedded to force direct embedded mode\n` +
+      `  Original: ${msg}`,
+    );
+    this.name = 'OracleApiUnavailableError';
+  }
+}
+
+function resolveOracleApiBase(): string | null {
+  const raw = process.env.ORACLE_API ?? process.env.NEO_ARRA_API ?? DEFAULT_ORACLE_API;
+  const trimmed = raw.trim();
+  if (!trimmed || EMBEDDED_API_VALUES.has(trimmed.toLowerCase())) return null;
+  return trimmed.replace(/\/+$/, '');
+}
+
+async function oracleApiFetch(baseUrl: string, apiPath: string, opts?: RequestInit): Promise<Response> {
+  const url = `${baseUrl}${apiPath}`;
+  try {
+    return await fetch(url, opts);
+  } catch (err) {
+    throw new OracleApiUnavailableError(baseUrl, err);
+  }
+}
+
+type ProxyRequest = {
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  path: string;
+  query?: Record<string, unknown>;
+  body?: unknown;
+};
+
+function cleanQueryValue(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return undefined;
+}
+
+function queryFrom(input: Record<string, unknown>, fields: Record<string, string>): Record<string, string> {
+  const query: Record<string, string> = {};
+  for (const [sourceKey, targetKey] of Object.entries(fields)) {
+    const value = cleanQueryValue(input[sourceKey]);
+    if (value !== undefined) query[targetKey] = value;
+  }
+  return query;
+}
+
+function appendQuery(pathname: string, query?: Record<string, unknown>): string {
+  if (!query || Object.keys(query).length === 0) return pathname;
+  const params = new URLSearchParams();
+  for (const [key, raw] of Object.entries(query)) {
+    const value = cleanQueryValue(raw);
+    if (value !== undefined) params.set(key, value);
+  }
+  const qs = params.toString();
+  return qs ? `${pathname}?${qs}` : pathname;
+}
+
+function proxyRequestForTool(toolName: string, args: Record<string, unknown>): ProxyRequest | null {
+  switch (toolName) {
+    case 'oracle_search':
+      return {
+        method: 'GET',
+        path: '/api/search',
+        query: {
+          q: args.query,
+          ...queryFrom(args, {
+            type: 'type',
+            limit: 'limit',
+            offset: 'offset',
+            mode: 'mode',
+            project: 'project',
+            cwd: 'cwd',
+            model: 'model',
+          }),
+        },
+      };
+    case 'oracle_learn':
+      return { method: 'POST', path: '/api/learn', body: args };
+    case 'oracle_stats':
+      return { method: 'GET', path: '/api/stats' };
+    case 'oracle_read':
+      return { method: 'GET', path: '/api/read', query: queryFrom(args, { file: 'file', id: 'id' }) };
+    case 'oracle_list':
+      return {
+        method: 'GET',
+        path: '/api/list',
+        query: {
+          ...queryFrom(args, { type: 'type', limit: 'limit', offset: 'offset' }),
+          group: 'false',
+        },
+      };
+    case 'oracle_inbox':
+      return { method: 'GET', path: '/api/inbox', query: queryFrom(args, { limit: 'limit', offset: 'offset', type: 'type' }) };
+    case 'oracle_handoff':
+      return { method: 'POST', path: '/api/handoff', body: args };
+    case 'oracle_thread':
+      return {
+        method: 'POST',
+        path: '/api/thread',
+        body: {
+          message: args.message,
+          thread_id: args.threadId,
+          title: args.title,
+          role: args.role ?? 'claude',
+          model: args.model,
+        },
+      };
+    case 'oracle_threads':
+      return { method: 'GET', path: '/api/threads', query: queryFrom(args, { status: 'status', limit: 'limit', offset: 'offset' }) };
+    case 'oracle_thread_read': {
+      const threadId = cleanQueryValue(args.threadId);
+      return threadId ? { method: 'GET', path: `/api/thread/${encodeURIComponent(threadId)}` } : null;
+    }
+    case 'oracle_thread_update': {
+      const threadId = cleanQueryValue(args.threadId);
+      return threadId ? { method: 'PATCH', path: `/api/thread/${encodeURIComponent(threadId)}/status`, body: { status: args.status } } : null;
+    }
+    case 'oracle_trace_list':
+      return { method: 'GET', path: '/api/traces', query: queryFrom(args, { query: 'query', status: 'status', project: 'project', limit: 'limit', offset: 'offset' }) };
+    case 'oracle_trace_get': {
+      const traceId = cleanQueryValue(args.traceId);
+      if (!traceId) return null;
+      return args.includeChain === true
+        ? { method: 'GET', path: `/api/traces/${encodeURIComponent(traceId)}/chain` }
+        : { method: 'GET', path: `/api/traces/${encodeURIComponent(traceId)}` };
+    }
+    case 'oracle_trace_link': {
+      const prevTraceId = cleanQueryValue(args.prevTraceId);
+      return prevTraceId ? { method: 'POST', path: `/api/traces/${encodeURIComponent(prevTraceId)}/link`, body: { nextId: args.nextTraceId } } : null;
+    }
+    case 'oracle_trace_unlink': {
+      const traceId = cleanQueryValue(args.traceId);
+      return traceId ? { method: 'DELETE', path: `/api/traces/${encodeURIComponent(traceId)}/link`, query: { direction: args.direction } } : null;
+    }
+    case 'oracle_trace_chain': {
+      const traceId = cleanQueryValue(args.traceId);
+      return traceId ? { method: 'GET', path: `/api/traces/${encodeURIComponent(traceId)}/linked-chain` } : null;
+    }
+    case 'oracle_reflect':
+      return { method: 'GET', path: '/api/reflect' };
+    default:
+      return null;
+  }
+}
+
+async function readHttpPayload(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+function httpPayloadToToolResponse(payload: unknown, isError = false): ToolResponse {
+  return {
+    content: [{
+      type: 'text',
+      text: typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2),
+    }],
+    ...(isError ? { isError: true } : {}),
+  };
+}
+
 class OracleMCPServer {
   private server: Server;
-  private sqlite: Database;
-  private db: BunSQLiteDatabase<typeof schema>;
+  private sqlite: Database | null = null;
+  private db: BunSQLiteDatabase<typeof schema> | null = null;
   private repoRoot: string;
-  private vectorStore: VectorStoreAdapter;
+  private vectorStore: VectorStoreAdapter | null = null;
   private vectorStatus: 'unknown' | 'connected' | 'unavailable' = 'unknown';
   private readOnly: boolean;
   private version: string;
   private disabledTools: Set<string>;
   private stopToolGroupsWatch: (() => void) | null = null;
+  private embeddedReady: Promise<void> | null = null;
+  private readonly oracleApiBase: string | null;
 
   constructor(options: { readOnly?: boolean; toolGroups?: ToolGroupConfig } = {}) {
     this.readOnly = options.readOnly ?? false;
     if (this.readOnly) {
       console.error('[Oracle] Running in READ-ONLY mode');
+    }
+    this.oracleApiBase = resolveOracleApiBase();
+    if (this.oracleApiBase) {
+      console.error(`[Oracle] Running in HTTP-client mode (ORACLE_API → ${this.oracleApiBase}) with lazy embedded fallback`);
+    } else {
+      console.error('[Oracle] Running in embedded mode (ORACLE_API=embedded)');
     }
     // Use safe REPO_ROOT from config.ts: never falls back to process.cwd(),
     // which would create parasitic ψ/ dirs in whatever directory the MCP
@@ -162,13 +343,6 @@ class OracleMCPServer {
       }, this.repoRoot);
     }
 
-    this.vectorStore = createVectorStore({
-      type: 'lancedb',
-      collectionName: 'oracle_knowledge_bge_m3',
-      embeddingProvider: 'ollama',
-      embeddingModel: 'bge-m3',
-    });
-
     const pkg = JSON.parse(fs.readFileSync(path.join(import.meta.dirname || __dirname, '..', 'package.json'), 'utf-8'));
     this.version = pkg.version;
     this.server = new Server(
@@ -176,17 +350,23 @@ class OracleMCPServer {
       { capabilities: { tools: {} } }
     );
 
-    const { sqlite, db } = createDatabase(DB_PATH);
-    this.sqlite = sqlite;
-    this.db = db;
+    if (!this.oracleApiBase) {
+      this.embeddedReady = this.initEmbedded();
+    }
 
     this.setupHandlers();
     this.setupErrorHandling();
-    this.verifyVectorHealth();
   }
 
   /** Build ToolContext from server state */
-  private get toolCtx(): ToolContext {
+  private async getToolCtx(): Promise<ToolContext> {
+    if (!this.embeddedReady) {
+      this.embeddedReady = this.initEmbedded();
+    }
+    await this.embeddedReady;
+    if (!this.sqlite || !this.db || !this.vectorStore) {
+      throw new Error('Embedded Oracle resources failed to initialize');
+    }
     return {
       db: this.db,
       sqlite: this.sqlite,
@@ -197,7 +377,32 @@ class OracleMCPServer {
     };
   }
 
+  private async initEmbedded(): Promise<void> {
+    if (this.sqlite && this.db && this.vectorStore) return;
+
+    const [{ createVectorStore }, { createDatabase }] = await Promise.all([
+      import('./vector/factory.ts'),
+      import('./db/index.ts'),
+    ]);
+
+    this.vectorStore = createVectorStore({
+      type: 'lancedb',
+      collectionName: 'oracle_knowledge_bge_m3',
+      embeddingProvider: 'ollama',
+      embeddingModel: 'bge-m3',
+    });
+
+    const { sqlite, db } = createDatabase(DB_PATH);
+    this.sqlite = sqlite;
+    this.db = db;
+    await this.verifyVectorHealth();
+  }
+
   private async verifyVectorHealth(): Promise<void> {
+    if (!this.vectorStore) {
+      this.vectorStatus = 'unavailable';
+      return;
+    }
     try {
       const stats = await this.vectorStore.getStats();
       if (stats.count > 0) {
@@ -225,8 +430,33 @@ class OracleMCPServer {
   }
 
   private async cleanup(): Promise<void> {
-    this.sqlite.close();
-    await this.vectorStore.close();
+    this.sqlite?.close();
+    await this.vectorStore?.close();
+  }
+
+  private async proxyToolCall(toolName: string, args: Record<string, unknown>): Promise<ToolResponse | null> {
+    if (!this.oracleApiBase) return null;
+
+    const proxyRequest = proxyRequestForTool(toolName, args);
+    if (!proxyRequest) return null;
+
+    const pathWithQuery = appendQuery(proxyRequest.path, proxyRequest.query);
+    try {
+      const response = await oracleApiFetch(this.oracleApiBase, pathWithQuery, {
+        method: proxyRequest.method,
+        headers: proxyRequest.body === undefined ? undefined : { 'content-type': 'application/json' },
+        body: proxyRequest.body === undefined ? undefined : JSON.stringify(proxyRequest.body),
+      });
+
+      const payload = await readHttpPayload(response);
+      return httpPayloadToToolResponse(payload, !response.ok);
+    } catch (err) {
+      if (err instanceof OracleApiUnavailableError) {
+        console.error(`[Oracle] ORACLE_API unavailable for ${toolName}; lazy-opening embedded fallback`);
+        return null;
+      }
+      throw err;
+    }
   }
 
   private setupHandlers(): void {
@@ -297,29 +527,51 @@ class OracleMCPServer {
         };
       }
 
-      const ctx = this.toolCtx;
-
       try {
+        const args = (request.params.arguments && typeof request.params.arguments === 'object')
+          ? request.params.arguments as Record<string, unknown>
+          : {};
+        const proxied = await this.proxyToolCall(toolName, args);
+        if (proxied) return proxied;
+
         switch (toolName) {
           // Core tools (delegated to src/tools/)
-          case 'oracle_search':
+          case 'oracle_search': {
+            const ctx = await this.getToolCtx();
             return await handleSearch(ctx, request.params.arguments as unknown as OracleSearchInput);
-          case 'oracle_read':
+          }
+          case 'oracle_read': {
+            const ctx = await this.getToolCtx();
             return await handleRead(ctx, request.params.arguments as unknown as OracleReadInput);
-          case 'oracle_learn':
+          }
+          case 'oracle_learn': {
+            const ctx = await this.getToolCtx();
             return await handleLearn(ctx, request.params.arguments as unknown as OracleLearnInput);
-          case 'oracle_list':
+          }
+          case 'oracle_list': {
+            const ctx = await this.getToolCtx();
             return await handleList(ctx, request.params.arguments as unknown as OracleListInput);
-          case 'oracle_stats':
+          }
+          case 'oracle_stats': {
+            const ctx = await this.getToolCtx();
             return await handleStats(ctx, request.params.arguments as unknown as OracleStatsInput);
-          case 'oracle_concepts':
+          }
+          case 'oracle_concepts': {
+            const ctx = await this.getToolCtx();
             return await handleConcepts(ctx, request.params.arguments as unknown as OracleConceptsInput);
-          case 'oracle_supersede':
+          }
+          case 'oracle_supersede': {
+            const ctx = await this.getToolCtx();
             return await handleSupersede(ctx, request.params.arguments as unknown as OracleSupersededInput);
-          case 'oracle_handoff':
+          }
+          case 'oracle_handoff': {
+            const ctx = await this.getToolCtx();
             return await handleHandoff(ctx, request.params.arguments as unknown as OracleHandoffInput);
-          case 'oracle_inbox':
+          }
+          case 'oracle_inbox': {
+            const ctx = await this.getToolCtx();
             return await handleInbox(ctx, request.params.arguments as unknown as OracleInboxInput);
+          }
           // Forum tools (delegated to src/tools/forum.ts)
           case 'oracle_thread':
             return await handleThread(request.params.arguments as unknown as OracleThreadInput);
@@ -345,10 +597,14 @@ class OracleMCPServer {
             return await handleTraceChain(request.params.arguments as unknown as { traceId: string });
 
           // Standalone tools (#972 wire — reflect + verify; schedule kept HTTP-only)
-          case 'oracle_reflect':
+          case 'oracle_reflect': {
+            const ctx = await this.getToolCtx();
             return await handleReflect(ctx, request.params.arguments as unknown as OracleReflectInput);
-          case 'oracle_verify':
+          }
+          case 'oracle_verify': {
+            const ctx = await this.getToolCtx();
             return await handleVerify(ctx, request.params.arguments as unknown as OracleVerifyInput);
+          }
 
           case '____IMPORTANT':
             return {
@@ -379,6 +635,12 @@ class OracleMCPServer {
   }
 
   async preConnectVector(): Promise<void> {
+    if (this.oracleApiBase) {
+      console.error('[Startup] Skipping vector pre-connect in HTTP-client mode');
+      return;
+    }
+    await this.getToolCtx();
+    if (!this.vectorStore) return;
     await this.vectorStore.connect();
   }
 
