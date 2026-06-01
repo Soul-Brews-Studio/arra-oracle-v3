@@ -33,6 +33,12 @@ registry:
       - "arra-oracle-data:/data"
 
     env:
+      # Docker MCP Toolkit starts this as a stdio container; embedded mode keeps
+      # it self-contained. To route through a long-running HTTP writer instead,
+      # change this to e.g. http://host.docker.internal:47778.
+      - name: ORACLE_API
+        value: "embedded"
+
       # Optional Ollama backend — semantic vector search lights up when reachable.
       # Without it, arra serves via FTS5-only (still fully functional).
       - name: OLLAMA_BASE_URL
