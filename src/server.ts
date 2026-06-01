@@ -41,6 +41,7 @@ import { pluginsRouter } from './routes/plugins/index.ts';
 import { oraclenetRoutes } from './routes/oraclenet/index.ts';
 import { sessionsRoutes } from './routes/sessions/index.ts';
 import { vaultRoutes } from './routes/vault/index.ts';
+import { peerRoutes } from './routes/peer/index.ts';
 import { createMenuRoutes } from './routes/menu/index.ts';
 
 // Indexer routes are optional — MCP server works without them
@@ -188,6 +189,7 @@ const app = new Elysia()
     }),
   )
   .use(gatewayPlugin(ORACLE_DATA_DIR, VECTOR_URL || undefined))
+  .use(peerRoutes)
   .get('/', () => ({
     server: MCP_SERVER_NAME,
     version: pkg.version,
