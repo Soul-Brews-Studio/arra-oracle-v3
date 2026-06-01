@@ -1,0 +1,98 @@
+# Custom Docker MCP Toolkit catalog entry for arra-oracle-v3.
+#
+# To register locally:
+#   1. Copy this file to ~/.docker/mcp/catalogs/arra-oracle.yaml
+#   2. Add `arra-oracle: { ref: "" }` under `registry:` in ~/.docker/mcp/registry.yaml
+#   3. Wire docker/mcp-gateway with --catalog=/mcp/catalogs/arra-oracle.yaml
+#
+# Schema shape was verified against docker/mcp-gateway pkg/catalog/types.go:
+# top-level version/name/displayName/registry, server type, per-server metadata,
+# object-form tool discovery hints, and optional env/allowHosts/volumes.
+
+version: 2
+name: arra-mcp
+displayName: Arra Oracle MCP Servers
+
+registry:
+  arra-oracle:
+    title: "Arra Oracle"
+    type: server
+    dateAdded: "2026-06-01T00:00:00Z"
+    image: ghcr.io/soul-brews-studio/arra-oracle-v3:stdio
+    description: |
+      Personal MCP memory server with semantic search over your Oracle vault.
+      SQLite FTS5 + LanceDB hybrid (degrades to FTS5-only if no Ollama backend).
+      20+ oracle_* tools across search / knowledge / session / forum / trace groups.
+      Backward-compatible aliases: arra_* and muninn_* both resolve to oracle_*.
+
+    # Ephemeral is safe: /data persists SQLite, LanceDB, and the vault between calls.
+    # Flip longLived to true later only if cold LanceDB startup becomes a bottleneck.
+    longLived: false
+
+    volumes:
+      - "arra-oracle-data:/data"
+
+    env:
+      # Optional Ollama backend — semantic vector search lights up when reachable.
+      # Without it, arra serves via FTS5-only (still fully functional).
+      - name: OLLAMA_BASE_URL
+        value: "{{ollama_base_url}}"
+
+    # Network controls — arra only needs host Ollama access for local embeddings.
+    # The MCP stdio channel itself does not require network access.
+    allowHosts:
+      - "host.docker.internal:11434"
+
+    # Tool entries are discovery hints for Docker Desktop, not enablement lists.
+    # arra always exposes the full MCP tool set from src/index.ts.
+    tools:
+      - name: oracle_search
+        description: "Hybrid FTS5 + vector search over the Oracle vault"
+      - name: oracle_learn
+        description: "Index a markdown file into the vault (semantic + FTS5)"
+      - name: oracle_list
+        description: "List indexed knowledge entries with filters"
+      - name: oracle_stats
+        description: "Vector + FTS5 counts, backend health, vault status"
+      - name: oracle_concepts
+        description: "Concept-tag aggregation across the corpus"
+      - name: oracle_supersede
+        description: "Mark an entry as superseded by a newer one"
+      - name: oracle_handoff
+        description: "Read or write session handoff notes"
+      - name: oracle_inbox
+        description: "Read or write Oracle inbox messages"
+      - name: oracle_read
+        description: "Read a specific vault file by path or id"
+      - name: oracle_thread
+        description: "Start a forum thread"
+      - name: oracle_threads
+        description: "List forum threads"
+      - name: oracle_thread_read
+        description: "Read a forum thread"
+      - name: oracle_thread_update
+        description: "Update a forum thread"
+      - name: oracle_trace
+        description: "Log a trace event (query + findings + friction score)"
+      - name: oracle_trace_list
+        description: "List recent traces"
+      - name: oracle_trace_get
+        description: "Get a specific trace by id"
+      - name: oracle_trace_link
+        description: "Link two traces (causal or topical)"
+      - name: oracle_trace_unlink
+        description: "Remove a trace link"
+      - name: oracle_trace_chain
+        description: "Walk a chain of linked traces"
+      - name: oracle_reflect
+        description: "Reflect on a topic across vault entries"
+      - name: oracle_verify
+        description: "Verify a claim against vault evidence"
+
+    secrets: []
+
+    metadata:
+      category: knowledge
+      tags: [memory, vault, mcp, semantic-search, oracle, fts5, lancedb]
+      license: BUSL-1.1
+      owner: Soul-Brews-Studio

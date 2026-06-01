@@ -16,6 +16,14 @@ jobs:
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: http-server
+            channel: http
+          - target: mcp-stdio
+            channel: stdio
     steps:
       - uses: actions/checkout@v4
 
@@ -29,21 +37,56 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/soul-brews-studio/arra-oracle-v3
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=tag
-            type=sha,prefix=sha-,format=short
+      - id: tags
+        name: Compose image tags
+        shell: bash
+        env:
+          IMAGE: ghcr.io/soul-brews-studio/arra-oracle-v3
+          TARGET: ${{ matrix.target }}
+          CHANNEL: ${{ matrix.channel }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          short_sha="${GITHUB_SHA::7}"
+          tags=()
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            # Preserve the existing release tag for the default HTTP image while
+            # adding explicit per-target tags for Docker MCP consumers.
+            if [[ "${TARGET}" == "http-server" ]]; then
+              tags+=("${IMAGE}:${GITHUB_REF_NAME}")
+            fi
+            tags+=("${IMAGE}:${GITHUB_REF_NAME}-${CHANNEL}")
+            tags+=("${IMAGE}:${CHANNEL}-sha-${short_sha}")
+          elif [[ "${GITHUB_REF_NAME}" == "${DEFAULT_BRANCH}" ]]; then
+            tags+=("${IMAGE}:${CHANNEL}")
+            tags+=("${IMAGE}:${CHANNEL}-sha-${short_sha}")
+            if [[ "${TARGET}" == "http-server" ]]; then
+              # Backward-compatible tags from the original single-target image.
+              tags+=("${IMAGE}:latest" "${IMAGE}:sha-${short_sha}")
+            fi
+          else
+            safe_ref="$(echo "${GITHUB_REF_NAME}" | tr '/[:upper:]' '-[:lower:]' | tr -cd 'a-z0-9_.-')"
+            tags+=("${IMAGE}:${safe_ref}-${CHANNEL}")
+            tags+=("${IMAGE}:${CHANNEL}-sha-${short_sha}")
+          fi
+
+          {
+            echo 'tags<<EOF'
+            printf '%s\n' "${tags[@]}"
+            echo 'EOF'
+          } >> "${GITHUB_OUTPUT}"
 
       - uses: docker/build-push-action@v6
         with:
           context: .
+          target: ${{ matrix.target }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=arra-oracle-v3-${{ matrix.channel }}
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}
           platforms: linux/amd64,linux/arm64
