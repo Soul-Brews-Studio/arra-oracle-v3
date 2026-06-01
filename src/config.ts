@@ -55,9 +55,25 @@ if (!fs.existsSync(ORACLE_DATA_DIR)) {
 }
 
 // Vector layer routing (#1071 phase 1.2)
-//   VECTOR_URL       — if set, vector calls proxy to this base URL (e.g. http://vector.local:8080)
-//                      if empty, the local vector adapter is used (backward compat).
+//   VECTOR_URL       — if set, the core HTTP server proxies vector calls to this
+//                      base URL (e.g. http://vector.local:8080). The vector
+//                      server itself must ignore inherited VECTOR_URL so it
+//                      cannot proxy back to itself or another sidecar.
 //   VECTOR_FALLBACK  — what to do when proxy is unreachable. 'fts5' = serve FTS5-only
 //                      results with vectorAvailable: false. (Future: 'cache', 'fail'.)
-export const VECTOR_URL = process.env.VECTOR_URL || '';
+export function isVectorServerEntrypoint(argv1: string | undefined): boolean {
+  return /(^|[/\\])vector-server\.(ts|js|mjs)$/.test(argv1 || '');
+}
+
+export function resolveVectorUrl(
+  env: Record<string, string | undefined> = process.env,
+  argv: string[] = process.argv,
+): string {
+  if (env.ORACLE_VECTOR_SERVER === '1' || isVectorServerEntrypoint(argv[1])) {
+    return '';
+  }
+  return env.VECTOR_URL || '';
+}
+
+export const VECTOR_URL = resolveVectorUrl();
 export const VECTOR_FALLBACK = process.env.VECTOR_FALLBACK || 'fts5';
