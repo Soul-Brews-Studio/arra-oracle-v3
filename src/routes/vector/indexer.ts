@@ -12,15 +12,14 @@
  */
 
 import { Elysia, t } from 'elysia';
-import { Database } from 'bun:sqlite';
 import { createVectorStore, getEmbeddingModels, getVectorStoreConfigByModel } from '../../vector/factory.ts';
-import { DB_PATH } from '../../config.ts';
 import type {
   EmbeddingProviderType,
   VectorDBType,
   VectorDocument,
   VectorStoreAdapter,
 } from '../../vector/types.ts';
+import { loadVectorIndexDocuments, type VectorIndexSource } from './indexer-source.ts';
 
 // ── In-memory status (no sqlite writes — avoids the disk I/O problem) ──
 
@@ -34,6 +33,8 @@ interface IndexJob {
   completedAt?: number;
   error?: string;
   strategy?: RebuildStrategy;
+  source?: Exclude<VectorIndexSource, 'auto'>;
+  repoRoot?: string;
 }
 
 let currentJob: IndexJob = {
@@ -101,39 +102,15 @@ export const vectorIndexerEndpoints = new Elysia()
 
     // Background indexing — fire and forget
     (async () => {
-      let sqlite: Database | undefined;
       let store: VectorStoreAdapter | undefined;
       try {
-        sqlite = new Database(DB_PATH, { readonly: true });
-
-        const rows = sqlite.prepare(`
-          SELECT d.id, d.type, GROUP_CONCAT(f.content, '\n') as content,
-                 d.source_file, d.concepts, d.project, d.created_at
-          FROM oracle_documents d
-          JOIN oracle_fts f ON d.id = f.id
-          GROUP BY d.id
-          ORDER BY d.created_at DESC
-        `).all() as Array<{
-          id: string; type: string; content: string;
-          source_file: string; concepts: string; project: string | null;
-          created_at: string;
-        }>;
-
-        currentJob.total = rows.length;
+        const loaded = loadVectorIndexDocuments({ source: body.source, repoRoot: body.repoRoot });
+        currentJob.source = loaded.source;
+        currentJob.repoRoot = loaded.repoRoot;
+        currentJob.total = loaded.docs.length;
 
         store = createVectorStore(storeConfig);
-        const docs: VectorDocument[] = rows.map(row => ({
-          id: row.id,
-          document: row.content,
-          metadata: {
-            type: row.type,
-            source_file: row.source_file,
-            concepts: row.concepts,
-            ...(row.project && { project: row.project }),
-          },
-        }));
-
-        const rebuild = await rebuildVectorCollection(store, docs, batchSize, current => {
+        const rebuild = await rebuildVectorCollection(store, loaded.docs, batchSize, current => {
           currentJob.current = current;
         });
 
@@ -146,7 +123,6 @@ export const vectorIndexerEndpoints = new Elysia()
         currentJob.completedAt = Date.now();
       } finally {
         try { await store?.close(); } catch {}
-        sqlite?.close();
       }
     })();
 
@@ -157,11 +133,14 @@ export const vectorIndexerEndpoints = new Elysia()
       adapter: storeConfig.type,
       collection: storeConfig.collectionName,
       batchSize,
+      source: body.source ?? 'auto',
     };
   }, {
     body: t.Object({
       model: t.Optional(t.String()),
       batchSize: t.Optional(t.Number()),
+      source: t.Optional(t.String()),
+      repoRoot: t.Optional(t.String()),
     }),
     detail: {
       tags: ['vector-indexer'],
