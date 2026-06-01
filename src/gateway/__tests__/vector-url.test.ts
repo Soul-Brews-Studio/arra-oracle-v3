@@ -66,7 +66,24 @@ describe('VECTOR_URL synthesized gateway config', () => {
 
       const map = await app.handle(new Request('http://localhost/api/map'));
       expect(map.status).toBe(200);
-      expect(await map.json()).toEqual({ results: [], source: 'gateway-fallback' });
+      expect(await map.json()).toEqual({
+        documents: [],
+        total: 0,
+        source: 'gateway-fallback',
+      });
+
+      const map3d = await app.handle(new Request('http://localhost/api/map3d'));
+      expect(map3d.status).toBe(200);
+      const map3dBody = await map3d.json();
+      expect(map3dBody.documents).toEqual([]);
+      expect(map3dBody.total).toBe(0);
+      expect(map3dBody.source).toBe('gateway-fallback');
+      expect(map3dBody.pca_info).toMatchObject({
+        variance_explained: [],
+        n_vectors: 0,
+        n_dimensions: 0,
+      });
+      expect(typeof map3dBody.pca_info.computed_at).toBe('string');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

@@ -48,8 +48,28 @@ function describeState(state: GatewayState): string {
   );
 }
 
-function emptyFallbackResponse(): Response {
-  return new Response(JSON.stringify({ results: [], source: 'gateway-fallback' }), {
+function emptyFallbackResponse(pathname: string): Response {
+  let payload: Record<string, unknown>;
+
+  if (pathname === '/api/map3d') {
+    payload = {
+      documents: [],
+      total: 0,
+      pca_info: {
+        variance_explained: [],
+        n_vectors: 0,
+        n_dimensions: 0,
+        computed_at: new Date().toISOString(),
+      },
+      source: 'gateway-fallback',
+    };
+  } else if (pathname === '/api/map') {
+    payload = { documents: [], total: 0, source: 'gateway-fallback' };
+  } else {
+    payload = { results: [], source: 'gateway-fallback' };
+  }
+
+  return new Response(JSON.stringify(payload), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   });
@@ -139,7 +159,7 @@ export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
       // If health registry says service is down, return fallback immediately
       if (!state.registry.isUp(match.service)) {
         const fallback = match.fallback ?? 'error';
-        if (fallback === 'empty') return emptyFallbackResponse();
+        if (fallback === 'empty') return emptyFallbackResponse(url.pathname);
         if (fallback === 'fts5') return;
         return serviceUnavailableResponse(match.service);
       }
@@ -182,7 +202,7 @@ export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
       // VECTOR_URL would bypass the intended FTS5/empty degradation path.
       if (response.status === 502 || response.status === 504) {
         const fallback = match.fallback ?? 'error';
-        if (fallback === 'empty') return emptyFallbackResponse();
+        if (fallback === 'empty') return emptyFallbackResponse(url.pathname);
         if (fallback === 'fts5') return;
       }
 
