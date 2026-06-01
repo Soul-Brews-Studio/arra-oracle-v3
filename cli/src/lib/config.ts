@@ -4,7 +4,12 @@ import { dirname, join, parse } from "node:path";
 
 export const DEFAULT_ORACLE_API = "http://localhost:47778";
 
-export type ArraConfig = { default?: string; targets?: Record<string, string> };
+export type ArraConfig = {
+  default?: string;
+  targets?: Record<string, string>;
+  disabledPlugins?: string[];
+  enabledPlugins?: string[];
+};
 export type LoadedConfig = { path: string; config: ArraConfig };
 export type OracleApiSource = "ORACLE_API" | "at" | "project" | "global" | "NEO_ARRA_API" | "default";
 
@@ -39,14 +44,33 @@ export function stripAtFlag(argv: string[]): string[] {
   return out;
 }
 
+function coercePluginList(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const names = value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return names.length ? [...new Set(names)].sort() : undefined;
+}
+
 function coerceConfig(raw: any): ArraConfig | null {
-  const srcTargets = raw?.targets;
-  if (!srcTargets || typeof srcTargets !== "object" || Array.isArray(srcTargets)) return null;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const srcTargets = raw.targets;
   const targets: Record<string, string> = {};
-  for (const [name, url] of Object.entries(srcTargets)) {
-    if (typeof url === "string" && url.trim()) targets[name] = normalizeApiBase(url);
+  if (srcTargets && typeof srcTargets === "object" && !Array.isArray(srcTargets)) {
+    for (const [name, url] of Object.entries(srcTargets)) {
+      if (typeof url === "string" && url.trim()) targets[name] = normalizeApiBase(url);
+    }
   }
-  return { default: typeof raw.default === "string" ? raw.default : undefined, targets };
+  const disabledPlugins = coercePluginList(raw.disabledPlugins);
+  const enabledPlugins = coercePluginList(raw.enabledPlugins);
+  if (Object.keys(targets).length === 0 && !disabledPlugins?.length && !enabledPlugins?.length) return null;
+  return {
+    default: typeof raw.default === "string" ? raw.default : undefined,
+    ...(Object.keys(targets).length ? { targets } : {}),
+    ...(disabledPlugins?.length ? { disabledPlugins } : {}),
+    ...(enabledPlugins?.length ? { enabledPlugins } : {}),
+  };
 }
 
 export function readArraConfig(path: string): LoadedConfig | null {
@@ -127,9 +151,21 @@ export function resolveOracleApi(argv = process.argv.slice(2), env = process.env
   return { baseUrl: DEFAULT_ORACLE_API, source: "default" };
 }
 
+function sortedUnique(values: string[] | undefined): string[] | undefined {
+  const unique = [...new Set((values ?? []).map((value) => value.trim()).filter(Boolean))].sort();
+  return unique.length ? unique : undefined;
+}
+
 function cleanConfig(config: ArraConfig): ArraConfig {
   const targets = Object.fromEntries(Object.entries(config.targets ?? {}).sort(([a], [b]) => a.localeCompare(b)));
-  return config.default ? { default: config.default, targets } : { targets };
+  const disabledPlugins = sortedUnique(config.disabledPlugins);
+  const enabledPlugins = sortedUnique(config.enabledPlugins);
+  return {
+    ...(config.default ? { default: config.default } : {}),
+    ...(Object.keys(targets).length ? { targets } : {}),
+    ...(disabledPlugins ? { disabledPlugins } : {}),
+    ...(enabledPlugins ? { enabledPlugins } : {}),
+  };
 }
 
 export function writeArraConfig(path: string, config: ArraConfig): void {
@@ -145,7 +181,7 @@ function writableGlobal(env = process.env): LoadedConfig {
 export function addGlobalTarget(name: string, url: string, env = process.env): LoadedConfig {
   const loaded = writableGlobal(env);
   const targets = { ...(loaded.config.targets ?? {}), [name]: normalizeApiBase(url) };
-  const config = { default: loaded.config.default ?? name, targets };
+  const config = { ...loaded.config, default: loaded.config.default ?? name, targets };
   writeArraConfig(loaded.path, config);
   return { path: loaded.path, config };
 }
@@ -156,4 +192,30 @@ export function useGlobalTarget(name: string, env = process.env): LoadedConfig {
   const config = { ...loaded.config, default: name };
   writeArraConfig(loaded.path, config);
   return { path: loaded.path, config };
+}
+
+function assertPluginName(name: string): void {
+  if (!/^[a-z0-9-]+$/.test(name)) {
+    throw new Error(`plugin name must match /^[a-z0-9-]+$/, got: ${JSON.stringify(name)}`);
+  }
+}
+
+export function disableGlobalPlugin(name: string, env = process.env): LoadedConfig {
+  assertPluginName(name);
+  const loaded = writableGlobal(env);
+  const disabledPlugins = sortedUnique([...(loaded.config.disabledPlugins ?? []), name]);
+  const enabledPlugins = sortedUnique((loaded.config.enabledPlugins ?? []).filter((entry) => entry !== name));
+  const config = { ...loaded.config, disabledPlugins, enabledPlugins };
+  writeArraConfig(loaded.path, config);
+  return { path: loaded.path, config: cleanConfig(config) };
+}
+
+export function enableGlobalPlugin(name: string, env = process.env): LoadedConfig {
+  assertPluginName(name);
+  const loaded = writableGlobal(env);
+  const disabledPlugins = sortedUnique((loaded.config.disabledPlugins ?? []).filter((entry) => entry !== name));
+  const enabledPlugins = sortedUnique([...(loaded.config.enabledPlugins ?? []), name]);
+  const config = { ...loaded.config, disabledPlugins, enabledPlugins };
+  writeArraConfig(loaded.path, config);
+  return { path: loaded.path, config: cleanConfig(config) };
 }

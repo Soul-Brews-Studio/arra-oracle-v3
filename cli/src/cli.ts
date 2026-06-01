@@ -8,6 +8,7 @@ import type { LoadedPlugin } from "./plugin/types.ts";
 import { pluginsList } from "./commands/plugins-list.ts";
 import { pluginsRemove } from "./commands/plugins-remove.ts";
 import { pluginsInfo } from "./commands/plugins-info.ts";
+import { pluginsDisable, pluginsEnable } from "./commands/plugins-toggle.ts";
 import { sessionList } from "./commands/session-list.ts";
 import { sessionShow } from "./commands/session-show.ts";
 import { sessionContext } from "./commands/session-context.ts";
@@ -182,6 +183,12 @@ async function main() {
     if (sub === "info") {
       process.exit(await pluginsInfo(rest));
     }
+    if (sub === "disable") {
+      process.exit(await pluginsDisable(rest));
+    }
+    if (sub === "enable") {
+      process.exit(await pluginsEnable(rest));
+    }
     if (!sub || sub === "--help" || sub === "-h") {
       console.log("arra-cli plugin <subcommand>\n");
       console.log("Subcommands:");
@@ -189,11 +196,13 @@ async function main() {
       console.log("  info <name>             show plugin details");
       console.log("  install <url-or-path>   install a plugin (see --help)");
       console.log("  remove <name>           remove an installed plugin");
+      console.log("  disable <name>          disable a standard/extra server plugin in config");
+      console.log("  enable <name>           enable a server plugin in config");
       console.log("\nOutput defaults to JSON; pass --yml for YAML.");
       return;
     }
     console.error(`\x1b[31m✗\x1b[0m unknown plugin subcommand: ${args[1]}`);
-    console.error("  try: arra-cli plugin list|info|install|remove");
+    console.error("  try: arra-cli plugin list|info|install|remove|enable|disable");
     process.exit(1);
   }
 

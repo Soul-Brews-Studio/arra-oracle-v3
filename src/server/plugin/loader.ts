@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia';
 
+import { loadServerPluginConfig } from './config.ts';
 import { parseDisabledPlugins, parseEnabledPlugins, validateServerPlugin } from './manifest.ts';
 import type {
   ElysiaApp,
@@ -13,13 +14,21 @@ import type {
 } from './types.ts';
 
 export function disabledPluginsFromEnv(): string[] {
-  const disabled = parseDisabledPlugins(process.env.ORACLE_DISABLED_PLUGINS ?? process.env.ARRA_DISABLED_PLUGINS);
+  const config = loadServerPluginConfig();
+  const disabled = [
+    ...config.disabledPlugins,
+    ...parseDisabledPlugins(process.env.ORACLE_DISABLED_PLUGINS ?? process.env.ARRA_DISABLED_PLUGINS),
+  ];
   if (process.env.FED_ENABLED?.toLowerCase() === 'false') disabled.push('federation');
   return [...new Set(disabled)];
 }
 
 export function enabledPluginsFromEnv(): string[] {
-  const enabled = parseEnabledPlugins(process.env.ORACLE_ENABLED_PLUGINS ?? process.env.ARRA_ENABLED_PLUGINS);
+  const config = loadServerPluginConfig();
+  const enabled = [
+    ...config.enabledPlugins,
+    ...parseEnabledPlugins(process.env.ORACLE_ENABLED_PLUGINS ?? process.env.ARRA_ENABLED_PLUGINS),
+  ];
   if (process.env.FED_ENABLED?.toLowerCase() === 'true') enabled.push('federation');
   return [...new Set(enabled)];
 }

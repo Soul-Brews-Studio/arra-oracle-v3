@@ -1,5 +1,5 @@
-import { describe, expect, test, afterAll } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { describe, expect, test, afterAll, afterEach } from 'bun:test';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Elysia } from 'elysia';
@@ -20,6 +20,8 @@ process.env.ORACLE_DB_PATH = join(tmp, 'oracle.db');
 process.env.ORACLE_REPO_ROOT = tmp;
 process.env.ORACLE_PORT = '0';
 process.env.VECTOR_URL = '';
+process.env.HOME = tmp;
+process.env.XDG_CONFIG_HOME = join(tmp, 'xdg');
 
 async function appWithConfig(disabledPlugins: string[], enabledPlugins: string[] = []) {
   const { createBuiltinServerPlugins } = await import('../plugin/builtin.ts');
@@ -52,6 +54,13 @@ function withEnv(key: string, value: string | undefined, fn: () => void) {
   }
 }
 
+
+function writeGlobalConfig(config: unknown) {
+  const dir = join(tmp, 'xdg', 'arra');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'config.json'), JSON.stringify(config, null, 2));
+}
+
 const testLifecycleOptions = {
   dataDir: tmp,
   vectorUrl: 'http://vector.local',
@@ -61,6 +70,10 @@ const testLifecycleOptions = {
     error: () => {},
   },
 };
+
+afterEach(() => {
+  rmSync(join(tmp, 'xdg'), { recursive: true, force: true });
+});
 
 afterAll(async () => {
   const { closeDb } = await import('../../db/index.ts');
@@ -120,6 +133,28 @@ describe('server plugin loader', () => {
     expect(conflicted.enabled.some((plugin) => plugin.name === 'federation')).toBe(false);
     expect((await conflicted.app.handle(new Request('http://local/info'))).status).toBe(404);
     expect((await conflicted.app.handle(new Request('http://local/api/health'))).status).toBe(200);
+  });
+
+  test('config file can disable standard plugins and enable opt-in plugins', async () => {
+    writeGlobalConfig({ disabledPlugins: ['gateway'], enabledPlugins: ['federation'] });
+    const { createBuiltinServerPlugins } = await import('../plugin/builtin.ts');
+    const loaded = loadServerPlugins(await createBuiltinServerPlugins({ dataDir: tmp }), {
+      disabledPlugins: disabledPluginsFromEnv(),
+      enabledPlugins: enabledPluginsFromEnv(),
+    });
+    const enabled = enabledServerPlugins(loaded);
+    expect(enabled.some((plugin) => plugin.name === 'gateway')).toBe(false);
+    expect(enabled.some((plugin) => plugin.name === 'federation')).toBe(true);
+  });
+
+  test('config file cannot disable core server plugins', async () => {
+    writeGlobalConfig({ disabledPlugins: ['search'] });
+    const { createBuiltinServerPlugins } = await import('../plugin/builtin.ts');
+    const plugins = await createBuiltinServerPlugins({ dataDir: tmp });
+    expect(() => loadServerPlugins(plugins, {
+      disabledPlugins: disabledPluginsFromEnv(),
+      enabledPlugins: enabledPluginsFromEnv(),
+    })).toThrow('Cannot disable core server plugin "search"');
   });
 
   test('dedicated federation plugin owns the peer route contract', async () => {

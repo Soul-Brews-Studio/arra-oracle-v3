@@ -28,6 +28,8 @@ function knownTargets(): Record<string, string> {
 
 function show(): number {
   const resolved = resolveOracleApi();
+  const projectConfig = loadProjectConfig()?.config;
+  const globalConfig = loadGlobalConfig()?.config;
   const targets = knownTargets();
   const active = resolved.target ?? Object.entries(targets)
     .find(([, url]) => normalizeApiBase(url) === resolved.baseUrl)?.[0];
@@ -41,6 +43,11 @@ function show(): number {
   for (const name of names) {
     console.log(`${name === active ? "*" : " "} ${name.padEnd(12)} ${targets[name]}`);
   }
+  const disabledPlugins = [...new Set([...(globalConfig?.disabledPlugins ?? []), ...(projectConfig?.disabledPlugins ?? [])])].sort();
+  const enabledPlugins = [...new Set([...(globalConfig?.enabledPlugins ?? []), ...(projectConfig?.enabledPlugins ?? [])])].sort();
+  console.log("Server plugins:");
+  console.log(`  disabled: ${disabledPlugins.join(", ") || "(none)"}`);
+  console.log(`  enabled:  ${enabledPlugins.join(", ") || "(none)"}`);
   return 0;
 }
 
