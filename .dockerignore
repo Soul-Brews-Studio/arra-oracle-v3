@@ -1,0 +1,37 @@
+# Never ship host-built native deps — they're arch-specific and rebuilt in-image.
+node_modules
+
+# VCS + CI
+.git
+.github
+.gitignore
+
+# Vault / indexed data — belongs in the mounted volume, not the image.
+ψ
+
+# Local data dirs (if anyone ran the server in the repo)
+.arra-oracle-v2
+.oracle
+*.db
+*.db-shm
+*.db-wal
+
+# Editor / OS noise
+.DS_Store
+.vscode
+.idea
+
+# Test + coverage artifacts
+coverage
+.nyc_output
+
+# Docker self
+Dockerfile
+.dockerignore
+
+# Misc local
+.serena
+.maw
+.rtk
+*.log
+dist

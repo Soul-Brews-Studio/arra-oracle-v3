@@ -1,0 +1,75 @@
+# arra-oracle-v3 — full stack: HTTP server + Ollama embedding sidecar
+#
+# This upgrades the lean FTS5-only image to FULL semantic vector search by
+# wiring an Ollama service. arra reaches it via OLLAMA_BASE_URL (service DNS).
+#
+#   docker compose up -d            # start arra + ollama + pull models
+#   docker compose logs -f arra     # watch the server
+#   curl -sf localhost:47778/api/health | jq .
+#   docker compose down             # stop (volumes persist)
+#   docker compose down -v          # stop + wipe data/models
+#
+# First run pulls embedding models (~1.5 GB for bge-m3 + nomic) into the
+# ollama-models volume — slow once, cached after. Until the pull finishes,
+# arra still serves (FTS5 fallback); vector search lights up when models land.
+
+services:
+  arra:
+    build: .
+    image: arra-oracle-v3:slim
+    ports:
+      - "47778:47778"
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434   # reach the sidecar by service name
+      ORACLE_DATA_DIR: /data
+      HOME: /data
+      ORACLE_PORT: "47778"
+    volumes:
+      - arra-data:/data                       # SQLite + LanceDB + ψ/ vault
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    # Expose 11434 on the host only if you want to poke ollama directly:
+    # ports:
+    #   - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama           # persist pulled models
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12                              # ~2 min grace for cold start
+    restart: unless-stopped
+    # GPU (NVIDIA only; no effect on macOS Docker Desktop — CPU works fine):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # One-shot: pull the embedding models, then exit. Re-runs are instant
+  # (already-pulled models are skipped). qwen3 is opt-in — uncomment if you
+  # query model=qwen3 (adds ~600 MB).
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "ollama pull bge-m3 &&
+       ollama pull nomic-embed-text"
+    #   && ollama pull qwen3-embedding"
+    restart: "no"
+
+volumes:
+  arra-data:
+  ollama-models:
