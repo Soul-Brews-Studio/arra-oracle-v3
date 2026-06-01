@@ -197,6 +197,44 @@ describe('server plugin loader', () => {
     });
   });
 
+  test('unified manifest plugin exposes api route and lifecycle from one handler', async () => {
+    const { createBuiltinServerPlugins } = await import('../plugin/builtin.ts');
+    const enabled = enabledServerPlugins(loadServerPlugins(await createBuiltinServerPlugins({ dataDir: tmp }), {
+      enabledPlugins: ['unified-example'],
+    }));
+    expect(enabled.some((plugin) => plugin.name === 'unified-example')).toBe(true);
+
+    const app = new Elysia();
+    for (const routes of serverPluginRoutes(enabled)) app.use(routes as any);
+
+    const response = await app.handle(new Request('http://local/api/unified-example', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ phase: 5 }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ok: true,
+      plugin: 'unified-example',
+      source: 'api',
+      method: 'POST',
+      body: { phase: 5 },
+    });
+
+    const events: string[] = [];
+    const unified = enabled.filter((plugin) => plugin.name === 'unified-example');
+    const lifecycle = await startServerPlugins(unified, {
+      ...testLifecycleOptions,
+      logger: {
+        info: (...args) => events.push(args.join(' ')),
+        warn: () => {},
+        error: () => {},
+      },
+    });
+    await lifecycle.stop();
+    expect(events).toEqual(['[unified-example] start', '[unified-example] stop']);
+  });
+
   test('direct route wins over api manifest route collision', async () => {
     const warnings: string[] = [];
     const { app } = appFromPlugins([

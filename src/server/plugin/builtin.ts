@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia';
 
 import { createFederationPlugin } from './federation.ts';
+import { createUnifiedManifestServerPlugins } from './unified.ts';
 import type { ServerPlugin } from './types.ts';
 
 import { authRoutes } from '../../routes/auth/index.ts';
@@ -68,6 +69,7 @@ export async function createBuiltinServerPlugins(options: BuiltinOptions): Promi
   const gatewayRoutes = gatewayPlugin(options.dataDir, options.vectorUrl);
   const menuRoutes = createMenuRoutes();
   const indexerPlugin = await optionalIndexerPlugin();
+  const unifiedManifestPlugins = await createUnifiedManifestServerPlugins();
   const plugins: Array<ServerPlugin | null> = [
     routePlugin('gateway', 'standard', () => gatewayRoutes, false),
     createApiManifestExamplePlugin(),
@@ -95,5 +97,8 @@ export async function createBuiltinServerPlugins(options: BuiltinOptions): Promi
     routePlugin('menu', 'standard', () => menuRoutes, false),
   ];
 
-  return plugins.filter((plugin): plugin is ServerPlugin => Boolean(plugin));
+  return [
+    ...plugins.filter((plugin): plugin is ServerPlugin => Boolean(plugin)),
+    ...unifiedManifestPlugins,
+  ];
 }
