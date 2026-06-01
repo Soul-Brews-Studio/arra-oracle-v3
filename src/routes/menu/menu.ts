@@ -16,10 +16,12 @@ import { MenuItemSchema, MenuResponseSchema, ScopeSchema, type MenuItem, type Me
 import { getFrontendMenuItems } from '../../menu/index.ts';
 import { getMenuConfig, getMenuSource, reloadMenuConfig } from '../../menu/config.ts';
 import { listCustomMenuItems } from '../../menu/custom-store.ts';
+import { getPluginMenuItems } from '../plugins/model.ts';
 import { db, menuItems } from '../../db/index.ts';
 
 export type MenuExtras = {
   items?: MenuItem[];
+  pluginItems?: MenuItem[];
   disable?: Iterable<string>;
 };
 
@@ -174,6 +176,15 @@ export function buildMenuItems(
     items.push(item);
   }
 
+  if (extras?.pluginItems) {
+    for (const item of extras.pluginItems) {
+      const key = `${item.group}:${item.path}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push(item);
+    }
+  }
+
   if (extras?.items) {
     for (const item of extras.items) {
       const key = `${item.group}:${item.path}`;
@@ -219,7 +230,7 @@ export function createMenuEndpoint() {
         return {
           items: buildMenuItems(
             readApiMenuItemsFromDb(host, scope),
-            { items, disable },
+            { items, pluginItems: getPluginMenuItems(), disable },
             listCustomMenuItems(),
           ),
         };
