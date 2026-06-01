@@ -22,7 +22,7 @@ export const statsEndpoint = new Elysia().get('/stats', async () => {
 }, {
   detail: {
     tags: ['health'],
-    menu: { group: 'tools', order: 50 },
+    menu: { group: 'tools', path: '/pulse', order: 50 },
     summary: 'Database and vector stats',
   },
 });

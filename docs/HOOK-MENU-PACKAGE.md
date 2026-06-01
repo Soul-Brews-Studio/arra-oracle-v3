@@ -11,7 +11,7 @@ The reusable parts of the Oracle navigation system — TypeBox schemas, `buildMe
 | In-tree source | hook-menu module |
 |---|---|
 | `src/routes/menu/model.ts` | `hook-menu/model` — `MenuItem`, `MenuItemSchema`, `MenuResponseSchema` |
-| `src/routes/menu/menu.ts` (`buildMenuItems` + `API_TO_STUDIO`) | `hook-menu/build` — `buildMenuItems`, `defineMenu`, `API_TO_STUDIO` |
+| `src/routes/menu/menu.ts` (`buildMenuItems` + route-declared `detail.menu.path`) | `hook-menu/build` — `buildMenuItems`, `defineMenu` |
 | `src/routes/menu/studio-tag.ts`, `studio-href.ts` | `hook-menu/studio` — `parseStudioTag`, `studioHref` |
 | `src/menu/frontend.ts` (hardcoded items) | `hook-menu/frontend` — `defineFrontendMenu` (parametrized — takes items as input) |
 | `src/routes/menu/menu.ts` (`createMenuEndpoint`) | `hook-menu/elysia` — `mountMenu` |

@@ -29,7 +29,7 @@ export const mapEndpoint = new Elysia().get('/map', async ({ set }) => {
 }, {
   detail: {
     tags: ['vector'],
-    menu: { group: 'tools', order: 20 },
+    menu: { group: 'tools', path: '/map', order: 20 },
     summary: '2D projection of embeddings',
   },
 });

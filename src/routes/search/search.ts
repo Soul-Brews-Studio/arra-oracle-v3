@@ -44,7 +44,7 @@ export const searchEndpoint = new Elysia().get(
     query: SearchQuery,
     detail: {
       tags: ['search'],
-      menu: { group: 'main', order: 10 },
+      menu: { group: 'main', path: '/search', order: 10 },
       summary: 'Hybrid search over oracle docs',
     },
   },

@@ -23,20 +23,20 @@ function clearMenu() {
 function fakeApiModule() {
   return new Elysia({ prefix: '/api' })
     .get('/search', () => ({}), {
-      detail: { tags: ['search'], menu: { group: 'main', order: 10 }, summary: 'Search' },
+      detail: { tags: ['search'], menu: { group: 'main', path: '/search', order: 10 }, summary: 'Search' },
     })
     .get('/list', () => ({}), {
       detail: {
         tags: ['search'],
-        menu: { group: 'main', order: 20 },
+        menu: { group: 'main', path: '/feed', order: 20 },
         summary: 'List oracle documents',
       },
     })
     .get('/map', () => ({}), {
-      detail: { tags: ['map'], menu: { group: 'tools', order: 20 }, summary: 'Map 2D' },
+      detail: { tags: ['map'], menu: { group: 'tools', path: '/map', order: 20 }, summary: 'Map 2D' },
     })
     .get('/map3d', () => ({}), {
-      detail: { tags: ['map'], menu: { group: 'tools', order: 30 }, summary: 'Map 3D' },
+      detail: { tags: ['map'], menu: { group: 'tools', path: '/map', order: 30 }, summary: 'Map 3D' },
     })
     .get('/settings', () => ({}), {
       detail: { tags: ['settings'], menu: { group: 'hidden' }, summary: 'Settings' },
@@ -82,7 +82,7 @@ describe('/api/menu', () => {
     expect(tools[0]).toMatchObject({ path: '/map', order: 20 });
   });
 
-  test('unmapped or untagged paths are skipped', () => {
+  test('routes without menu.path or menu metadata are skipped', () => {
     const sub = new Elysia({ prefix: '/api' })
       .get('/unknown', () => ({}), {
         detail: { menu: { group: 'main', order: 1 }, summary: 'Unknown' },

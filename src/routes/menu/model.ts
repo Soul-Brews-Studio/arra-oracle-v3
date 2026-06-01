@@ -7,9 +7,19 @@ import type { Static } from 'elysia';
 
 export interface MenuMeta {
   group: 'main' | 'tools' | 'admin' | 'hidden';
+  /**
+   * Studio/frontend path to expose in /api/menu. Route-declared menu items are
+   * opt-in: omit `path` for API endpoints that should not create nav rows.
+   */
+  path?: string;
   order?: number;
   label?: string;
   icon?: string;
+  /**
+   * Optional studio host for cross-studio menu entries, e.g.
+   * `canvas.buildwithoracle.com`. Null/undefined means the current studio.
+   */
+  studio?: string | null;
   access?: 'public' | 'auth';
 }
 
