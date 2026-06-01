@@ -20,3 +20,5 @@ export const unlinkQuery = t.Object({
 });
 
 export const linkBody = t.Unknown();
+
+export const traceCreateBody = t.Unknown();

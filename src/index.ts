@@ -226,6 +226,8 @@ function proxyRequestForTool(toolName: string, args: Record<string, unknown>): P
       const threadId = cleanQueryValue(args.threadId);
       return threadId ? { method: 'PATCH', path: `/api/thread/${encodeURIComponent(threadId)}/status`, body: { status: args.status } } : null;
     }
+    case 'oracle_trace':
+      return { method: 'POST', path: '/api/traces', body: args };
     case 'oracle_trace_list':
       return { method: 'GET', path: '/api/traces', query: queryFrom(args, { query: 'query', status: 'status', project: 'project', limit: 'limit', offset: 'offset' }) };
     case 'oracle_trace_get': {
