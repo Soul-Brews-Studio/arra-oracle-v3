@@ -26,6 +26,7 @@ import { seedMenuItems, type HasRoutes as SeedHasRoutes } from './db/seeders/men
 import { createBuiltinServerPlugins } from './server/plugin/builtin.ts';
 import {
   disabledPluginsFromEnv,
+  enabledPluginsFromEnv,
   enabledServerPlugins,
   loadServerPlugins,
   menuSeedRoutes,
@@ -63,7 +64,10 @@ const builtInPlugins = await createBuiltinServerPlugins({
   dataDir: ORACLE_DATA_DIR,
   vectorUrl: VECTOR_URL || undefined,
 });
-const loadedPlugins = loadServerPlugins(builtInPlugins, { disabledPlugins: disabledPluginsFromEnv() });
+const loadedPlugins = loadServerPlugins(builtInPlugins, {
+  disabledPlugins: disabledPluginsFromEnv(),
+  enabledPlugins: enabledPluginsFromEnv(),
+});
 const enabledPlugins = enabledServerPlugins(loadedPlugins);
 registerServerPlugins(loadedPlugins);
 

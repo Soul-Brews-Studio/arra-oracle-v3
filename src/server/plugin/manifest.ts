@@ -17,3 +17,5 @@ export function parseDisabledPlugins(raw: string | undefined): string[] {
     .map((s) => s.trim())
     .filter(Boolean);
 }
+
+export const parseEnabledPlugins = parseDisabledPlugins;

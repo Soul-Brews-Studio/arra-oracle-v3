@@ -1,4 +1,4 @@
-import { parseDisabledPlugins, validateServerPlugin } from './manifest.ts';
+import { parseDisabledPlugins, parseEnabledPlugins, validateServerPlugin } from './manifest.ts';
 import type { ElysiaApp, LoadedServerPlugin, LoadServerPluginsOptions, ServerPlugin } from './types.ts';
 
 export function disabledPluginsFromEnv(): string[] {
@@ -7,8 +7,19 @@ export function disabledPluginsFromEnv(): string[] {
   return [...new Set(disabled)];
 }
 
-function isDisabled(plugin: ServerPlugin, disabled: Set<string>): boolean {
-  if (plugin.enabled === false) return true;
+export function enabledPluginsFromEnv(): string[] {
+  const enabled = parseEnabledPlugins(process.env.ORACLE_ENABLED_PLUGINS ?? process.env.ARRA_ENABLED_PLUGINS);
+  if (process.env.FED_ENABLED?.toLowerCase() === 'true') enabled.push('federation');
+  return [...new Set(enabled)];
+}
+
+function isEnabled(plugin: ServerPlugin, enabled: Set<string>): boolean {
+  if (plugin.enabled !== false) return true;
+  return enabled.has('*') || enabled.has(plugin.name);
+}
+
+function isDisabled(plugin: ServerPlugin, disabled: Set<string>, enabled: Set<string>): boolean {
+  if (!isEnabled(plugin, enabled)) return true;
   return disabled.has('*') || disabled.has(plugin.name);
 }
 
@@ -17,6 +28,7 @@ export function loadServerPlugins(
   options: LoadServerPluginsOptions = {},
 ): LoadedServerPlugin[] {
   const disabled = new Set(options.disabledPlugins ?? []);
+  const enabled = new Set(options.enabledPlugins ?? []);
   return plugins.map((plugin) => {
     validateServerPlugin(plugin);
     if (plugin.tier === 'core') {
@@ -25,7 +37,7 @@ export function loadServerPlugins(
       }
       return { plugin, disabled: false };
     }
-    return { plugin, disabled: isDisabled(plugin, disabled) };
+    return { plugin, disabled: isDisabled(plugin, disabled, enabled) };
   });
 }
 

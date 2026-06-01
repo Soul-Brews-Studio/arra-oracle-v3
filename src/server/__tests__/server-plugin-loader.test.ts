@@ -6,6 +6,7 @@ import { Elysia } from 'elysia';
 
 import {
   disabledPluginsFromEnv,
+  enabledPluginsFromEnv,
   enabledServerPlugins,
   loadServerPlugins,
   serverPluginRoutes,
@@ -19,10 +20,11 @@ process.env.ORACLE_REPO_ROOT = tmp;
 process.env.ORACLE_PORT = '0';
 process.env.VECTOR_URL = '';
 
-async function appWithDisabled(disabledPlugins: string[]) {
+async function appWithConfig(disabledPlugins: string[], enabledPlugins: string[] = []) {
   const { createBuiltinServerPlugins } = await import('../plugin/builtin.ts');
   const loaded = loadServerPlugins(await createBuiltinServerPlugins({ dataDir: tmp }), {
     disabledPlugins,
+    enabledPlugins,
   });
   const enabled = enabledServerPlugins(loaded);
   const app = new Elysia();
@@ -69,27 +71,41 @@ describe('server plugin loader', () => {
     expect(enabled.map((plugin) => plugin.name)).toEqual(['search']);
   });
 
-  test('FED_ENABLED=false maps to the federation plugin disable switch', () => {
-    withEnv('FED_ENABLED', 'false', () => {
-      expect(disabledPluginsFromEnv()).toContain('federation');
+  test('FED_ENABLED=true maps to the federation plugin enable switch', () => {
+    withEnv('FED_ENABLED', 'true', () => {
+      expect(enabledPluginsFromEnv()).toContain('federation');
+      expect(disabledPluginsFromEnv()).not.toContain('federation');
     });
   });
 
-  test('federation plugin can be removed and restored around core routes', async () => {
-    const disabled = await appWithDisabled(['federation']);
+  test('ORACLE_ENABLED_PLUGINS can opt federation in', () => {
+    withEnv('ORACLE_ENABLED_PLUGINS', 'federation', () => {
+      expect(enabledPluginsFromEnv()).toContain('federation');
+    });
+  });
+
+  test('federation plugin is off by default and opt-in around core routes', async () => {
+    const disabled = await appWithConfig([]);
     expect(disabled.enabled.some((plugin) => plugin.name === 'federation')).toBe(false);
     expect((await disabled.app.handle(new Request('http://local/info'))).status).toBe(404);
     expect((await disabled.app.handle(new Request('http://local/api/identity'))).status).toBe(404);
     expect((await disabled.app.handle(new Request('http://local/api/health'))).status).toBe(200);
 
-    const restored = await appWithDisabled([]);
+    const restored = await appWithConfig([], ['federation']);
     expect(restored.enabled.some((plugin) => plugin.name === 'federation')).toBe(true);
     expect((await restored.app.handle(new Request('http://local/info'))).status).toBe(200);
     expect((await restored.app.handle(new Request('http://local/api/identity'))).status).toBe(200);
   });
 
+  test('ORACLE_DISABLED_PLUGINS still wins over explicit federation enable', async () => {
+    const conflicted = await appWithConfig(['federation'], ['federation']);
+    expect(conflicted.enabled.some((plugin) => plugin.name === 'federation')).toBe(false);
+    expect((await conflicted.app.handle(new Request('http://local/info'))).status).toBe(404);
+    expect((await conflicted.app.handle(new Request('http://local/api/health'))).status).toBe(200);
+  });
+
   test('disable everything still serves core search, learn, and stats over FTS5', async () => {
-    const { app, enabled } = await appWithDisabled(['*']);
+    const { app, enabled } = await appWithConfig(['*']);
     expect(enabled.every((plugin) => plugin.tier === 'core')).toBe(true);
 
     const pattern = 'server plugin core floor acceptance';

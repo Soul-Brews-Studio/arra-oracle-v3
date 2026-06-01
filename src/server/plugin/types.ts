@@ -20,4 +20,5 @@ export interface LoadedServerPlugin {
 
 export interface LoadServerPluginsOptions {
   disabledPlugins?: string[];
+  enabledPlugins?: string[];
 }

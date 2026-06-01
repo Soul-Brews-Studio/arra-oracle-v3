@@ -59,6 +59,7 @@ export async function createBuiltinServerPlugins(options: BuiltinOptions): Promi
     {
       name: 'federation',
       tier: 'standard',
+      enabled: false,
       seedMenu: false,
       routes: () => peerRoutes,
       start: () => {
