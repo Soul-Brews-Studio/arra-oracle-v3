@@ -48,6 +48,20 @@ function describeState(state: GatewayState): string {
   );
 }
 
+function emptyFallbackResponse(): Response {
+  return new Response(JSON.stringify({ results: [], source: 'gateway-fallback' }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+function serviceUnavailableResponse(service: string): Response {
+  return new Response(JSON.stringify({ error: 'Service unavailable', service }), {
+    status: 503,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
 export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
   const initial = loadGatewayConfig(dataDir, vectorUrl);
 
@@ -125,17 +139,9 @@ export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
       // If health registry says service is down, return fallback immediately
       if (!state.registry.isUp(match.service)) {
         const fallback = match.fallback ?? 'error';
-        if (fallback === 'empty') {
-          return new Response(JSON.stringify({ results: [], source: 'gateway-fallback' }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
+        if (fallback === 'empty') return emptyFallbackResponse();
         if (fallback === 'fts5') return;
-        return new Response(
-          JSON.stringify({ error: 'Service unavailable', service: match.service }),
-          { status: 503, headers: { 'Content-Type': 'application/json' } },
-        );
+        return serviceUnavailableResponse(match.service);
       }
 
       const ctx: GatewayContext = {
@@ -169,6 +175,15 @@ export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
         if (errResp) return errResp;
         if (ctx.meta.fallback_to_local) return; // fall through to local Elysia
         throw err;
+      }
+
+      // proxyToService converts network/timeout failures into 502/504
+      // responses. Apply route-level fallback here too; otherwise a down
+      // VECTOR_URL would bypass the intended FTS5/empty degradation path.
+      if (response.status === 502 || response.status === 504) {
+        const fallback = match.fallback ?? 'error';
+        if (fallback === 'empty') return emptyFallbackResponse();
+        if (fallback === 'fts5') return;
       }
 
       // ── onResponse hooks ──

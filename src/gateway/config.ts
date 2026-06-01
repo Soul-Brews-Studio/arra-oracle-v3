@@ -49,16 +49,26 @@ export function loadGatewayConfig(dataDir: string, vectorUrl?: string): GatewayC
     }
   }
 
-  // Backward compat: synthesize config from VECTOR_URL
+  // Backward compat: synthesize config from VECTOR_URL. Search can
+  // fall through to local FTS5 when the vector service is unreachable; pure
+  // vector routes must not fall back to local LanceDB inside the core process.
   if (vectorUrl) {
+    const vectorBase = vectorUrl.replace(/\/+$/, '');
     return {
       services: {
-        vector: { url: vectorUrl, timeout: 5000 },
+        vector: {
+          url: vectorUrl,
+          healthCheck: `${vectorBase}/api/vector/health`,
+          timeout: 5000,
+        },
       },
       routes: [
-        { match: '/api/vector/**', service: 'vector', fallback: 'fts5' },
-        { match: '/api/similar', service: 'vector', fallback: 'fts5' },
         { match: '/api/search', service: 'vector', fallback: 'fts5' },
+        { match: '/api/similar', service: 'vector', fallback: 'error' },
+        { match: '/api/compare', service: 'vector', fallback: 'error' },
+        { match: '/api/map', service: 'vector', fallback: 'empty' },
+        { match: '/api/map3d', service: 'vector', fallback: 'empty' },
+        { match: '/api/vector/**', service: 'vector', fallback: 'error' },
       ],
     };
   }
