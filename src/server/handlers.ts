@@ -125,6 +125,7 @@ export async function handleSearch(
 
   // Vector search (skip if fts-only mode)
   let vectorResults: SearchResult[] = [];
+  let remoteVectorTotal: number | undefined;
   // Tracks whether the vector leg succeeded. Stays `true` when mode === 'fts'
   // (vector wasn't asked for), flips to `false` if the proxy is enabled and
   // the remote call failed — clients use this to render a "vector down" hint
@@ -147,6 +148,7 @@ export async function handleSearch(
     });
     if (remote) {
       vectorResults = remote.results || [];
+      if (typeof remote.total === 'number') remoteVectorTotal = remote.total;
     } else {
       vectorAvailable = false;
       warning = 'Vector proxy unavailable — FTS5-only results';
@@ -242,7 +244,9 @@ export async function handleSearch(
   // For vector-only mode, ftsTotal is 0 and combined.length is just top-N,
   // so use the vector collection count as the total for accurate display
   let total = Math.max(ftsTotal, combined.length);
-  if (mode === 'vector' && vectorResults.length > 0) {
+  if (mode === 'vector' && vectorProxy && remoteVectorTotal !== undefined) {
+    total = remoteVectorTotal;
+  } else if (mode === 'vector' && vectorResults.length > 0) {
     try {
       const client = await ensureVectorStoreConnected(model && EMBEDDING_MODELS[model] ? model : undefined);
       const stats = await client.getStats();
