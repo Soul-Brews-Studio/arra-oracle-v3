@@ -20,6 +20,7 @@ import type {
   VectorStoreAdapter,
 } from '../../vector/types.ts';
 import { loadVectorIndexDocuments, type VectorIndexSource } from './indexer-source.ts';
+import { proxyVectorIndexer } from './indexer-proxy.ts';
 
 // ── In-memory status (no sqlite writes — avoids the disk I/O problem) ──
 
@@ -80,6 +81,12 @@ export const vectorIndexerEndpoints = new Elysia()
 
   // POST /vector/index/start
   .post('/vector/index/start', async ({ body, set }) => {
+    const remote = await proxyVectorIndexer('start', set, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    if (remote) return remote;
+
     if (currentJob.status === 'indexing') {
       set.status = 409;
       return { error: 'Indexing already in progress', job: currentJob };
@@ -149,7 +156,10 @@ export const vectorIndexerEndpoints = new Elysia()
   })
 
   // GET /vector/index/status
-  .get('/vector/index/status', () => {
+  .get('/vector/index/status', async ({ set }) => {
+    const remote = await proxyVectorIndexer('status', set);
+    if (remote) return remote;
+
     const elapsed = currentJob.startedAt
       ? (Date.now() - currentJob.startedAt) / 1000
       : 0;
@@ -172,7 +182,10 @@ export const vectorIndexerEndpoints = new Elysia()
   })
 
   // GET /vector/index/models
-  .get('/vector/index/models', async () => {
+  .get('/vector/index/models', async ({ set }) => {
+    const remote = await proxyVectorIndexer('models', set);
+    if (remote) return remote;
+
     const models = getEmbeddingModels();
     const result: Record<string, {
       collection: string;
