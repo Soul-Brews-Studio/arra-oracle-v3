@@ -122,6 +122,33 @@ describe('server plugin loader', () => {
     expect((await conflicted.app.handle(new Request('http://local/api/health'))).status).toBe(200);
   });
 
+  test('dedicated federation plugin owns the peer route contract', async () => {
+    const { createFederationPlugin } = await import('../plugin/federation.ts');
+    const plugin = createFederationPlugin();
+
+    expect(plugin.name).toBe('federation');
+    expect(plugin.tier).toBe('standard');
+    expect(plugin.enabled).toBe(false);
+    expect(plugin.seedMenu).toBe(false);
+
+    const app = new Elysia();
+    for (const routes of serverPluginRoutes([plugin])) app.use(routes as any);
+
+    const info = await app.handle(new Request('http://local/info'));
+    expect(info.status).toBe(200);
+    const infoBody = await info.json() as { maw?: { schema?: string }; node?: string; oracle?: string };
+    expect(infoBody.maw?.schema).toBe('1');
+    expect(infoBody.node).toStartWith('arra@');
+    expect(infoBody.oracle).toBe('arra');
+
+    const identity = await app.handle(new Request('http://local/api/identity'));
+    expect(identity.status).toBe(200);
+    const identityBody = await identity.json() as { pubkey?: string; node?: string; oracle?: string };
+    expect(identityBody.pubkey).toMatch(/^[0-9a-f]{64}$/);
+    expect(identityBody.node).toStartWith('arra@');
+    expect(identityBody.oracle).toBe('arra');
+  });
+
   test('api manifest mounts a built-in example plugin under its declared path', async () => {
     const { app, enabled } = await appWithConfig([], ['plugin-api-example']);
     expect(enabled.some((plugin) => plugin.name === 'plugin-api-example')).toBe(true);

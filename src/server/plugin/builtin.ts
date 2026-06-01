@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia';
 
+import { createFederationPlugin } from './federation.ts';
 import type { ServerPlugin } from './types.ts';
 
 import { authRoutes } from '../../routes/auth/index.ts';
@@ -21,10 +22,8 @@ import { pluginsRouter } from '../../routes/plugins/index.ts';
 import { oraclenetRoutes } from '../../routes/oraclenet/index.ts';
 import { sessionsRoutes } from '../../routes/sessions/index.ts';
 import { vaultRoutes } from '../../routes/vault/index.ts';
-import { peerRoutes } from '../../routes/peer/index.ts';
 import { createMenuRoutes } from '../../routes/menu/index.ts';
 import { gatewayPlugin } from '../../gateway/index.ts';
-import { startScoutAnnouncer, type ScoutAnnouncer } from '../../peer/scout-announcer.ts';
 
 interface BuiltinOptions {
   dataDir: string;
@@ -69,25 +68,10 @@ export async function createBuiltinServerPlugins(options: BuiltinOptions): Promi
   const gatewayRoutes = gatewayPlugin(options.dataDir, options.vectorUrl);
   const menuRoutes = createMenuRoutes();
   const indexerPlugin = await optionalIndexerPlugin();
-  let scoutAnnouncer: ScoutAnnouncer | null = null;
-
   const plugins: Array<ServerPlugin | null> = [
     routePlugin('gateway', 'standard', () => gatewayRoutes, false),
     createApiManifestExamplePlugin(),
-    {
-      name: 'federation',
-      tier: 'standard',
-      enabled: false,
-      seedMenu: false,
-      routes: () => peerRoutes,
-      start: () => {
-        scoutAnnouncer = startScoutAnnouncer();
-      },
-      stop: () => {
-        scoutAnnouncer?.stop();
-        scoutAnnouncer = null;
-      },
-    },
+    createFederationPlugin(),
     routePlugin('health', 'core', () => healthRoutes),
     routePlugin('search', 'core', () => searchRoutes),
     routePlugin('knowledge', 'core', () => knowledgeRoutes),
