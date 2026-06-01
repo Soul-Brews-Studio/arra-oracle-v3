@@ -11,3 +11,5 @@ export const SupersedeQuery = t.Object({
 });
 
 export const SupersedeBody = t.Any();
+
+export const SupersedeDocumentBody = t.Any();

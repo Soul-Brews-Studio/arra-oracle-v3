@@ -187,6 +187,8 @@ function proxyRequestForTool(toolName: string, args: Record<string, unknown>): P
       };
     case 'oracle_learn':
       return { method: 'POST', path: '/api/learn', body: args };
+    case 'oracle_supersede':
+      return { method: 'POST', path: '/api/supersede/document', body: args };
     case 'oracle_stats':
       return { method: 'GET', path: '/api/stats' };
     case 'oracle_concepts':
