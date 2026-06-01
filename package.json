@@ -5,9 +5,10 @@
   "type": "module",
   "main": "src/index.ts",
   "bin": {
+    "arra-oracle": "./bin/arra.ts",
+    "arra-cli": "./cli/src/cli.ts",
     "arra-oracle-v3": "./bin/arra.ts",
-    "arra-oracle-v2": "./src/index.ts",
-    "arra-cli": "./cli/src/cli.ts"
+    "arra-oracle-v2": "./src/index.ts"
   },
   "files": [
     "bin",

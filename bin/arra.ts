@@ -2,15 +2,16 @@
 const args = process.argv.slice(2);
 
 if (args.includes("--help") || args.includes("-h")) {
-  console.log(`arra-oracle-v3 — Arra Oracle HTTP server
+  console.log(`arra-oracle — Arra Oracle HTTP server
 
 Usage:
-  bunx --bun arra-oracle-v3@github:Soul-Brews-Studio/arra-oracle-v3 [options]
+  bunx --bun --package github:Soul-Brews-Studio/arra-oracle-v3 arra-oracle [options]
 
 Options:
   --port <n>    Port to listen on (default: 47778, env: ORACLE_PORT)
   -h, --help    Show this help
 
+Legacy alias kept working: arra-oracle-v3.
 Once running, open the UI with: bunx oracle-studio`);
   process.exit(0);
 }

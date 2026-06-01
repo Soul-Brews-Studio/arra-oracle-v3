@@ -21,11 +21,12 @@ For Docker MCP Toolkit / Gateway / n8n installs, see [docs/DOCKER-MCP-TOOLKIT.md
 ## Architecture
 
 ```
-arra-oracle-v3 (one package, two bins)
-├── bunx arra-oracle-v2                          → MCP server (src/index.ts)
-├── bunx --package arra-oracle-v2 oracle-vault   → Vault CLI (src/vault/cli.ts)
-├── bun run server                          → HTTP API (src/server.ts)
-└── bun run index                           → Indexer (src/indexer.ts)
+arra-oracle-v3 (one package, two primary bins + legacy aliases)
+├── bunx --package github:Soul-Brews-Studio/arra-oracle-v3 arra-oracle  → HTTP API (bin/arra.ts)
+├── bunx --package github:Soul-Brews-Studio/arra-oracle-v3 arra-cli     → operator CLI (cli/src/cli.ts)
+├── bunx arra-oracle-v2                                                  → legacy MCP alias (src/index.ts)
+├── bun run server                                                       → HTTP API (src/server.ts)
+└── bun run index                                                        → Indexer (src/indexer.ts)
 
 oracle-studio (separate repo)
 └── bunx oracle-studio                      → React dashboard
@@ -46,11 +47,11 @@ oracle-studio (separate repo)
 Distributed via GitHub — no npm publish needed:
 
 ```bash
-# Backend (MCP server)
-bunx --bun arra-oracle@github:Soul-Brews-Studio/arra-oracle-v3
+# HTTP server
+bunx --bun --package github:Soul-Brews-Studio/arra-oracle-v3 arra-oracle
 
-# CLI (plugin runner)
-bunx --bun arra-cli@github:Soul-Brews-Studio/arra-oracle-v3 --help
+# CLI (operator client)
+bunx --bun --package github:Soul-Brews-Studio/arra-oracle-v3 arra-cli --help
 
 # UI (dashboard — separate repo)
 bunx --bun oracle-studio@github:Soul-Brews-Studio/oracle-studio
@@ -58,6 +59,10 @@ bunx --bun oracle-studio@github:Soul-Brews-Studio/oracle-studio
 # Vault CLI (secondary bin — use --package)
 bunx --bun --package arra-oracle-v2@github:Soul-Brews-Studio/arra-oracle-v3#main oracle-vault --help
 ```
+
+Canonical bins are `arra-oracle` (server) and `arra-cli` (client).
+Legacy aliases `arra-oracle-v3` and `arra-oracle-v2` stay available for
+existing installs, Docker commands, and MCP configs. See [docs/BINS.md](docs/BINS.md).
 
 ### Add to Claude Code
 
