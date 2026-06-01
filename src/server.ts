@@ -30,6 +30,7 @@ import { feedRoutes } from './routes/feed/index.ts';
 import { healthRoutes } from './routes/health/index.ts';
 import { dashboardRoutes } from './routes/dashboard/index.ts';
 import { searchRoutes } from './routes/search/index.ts';
+import { conceptsRoutes } from './routes/concepts/index.ts';
 import { vectorRoutes } from './routes/vector/index.ts';
 import { knowledgeRoutes } from './routes/knowledge/index.ts';
 import { supersedeRoutes } from './routes/supersede/index.ts';
@@ -205,6 +206,7 @@ const apiModules = [
   healthRoutes,
   dashboardRoutes,
   searchRoutes,
+  conceptsRoutes,
   vectorRoutes,
   knowledgeRoutes,
   supersedeRoutes,

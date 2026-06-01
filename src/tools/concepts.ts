@@ -30,13 +30,13 @@ export const conceptsToolDef = {
   }
 };
 
-export async function handleConcepts(ctx: ToolContext, input: OracleConceptsInput): Promise<ToolResponse> {
+export function listConcepts(db: ToolContext['db'], input: OracleConceptsInput) {
   const { limit = 50, type = 'all' } = input;
 
   const baseCondition = and(isNotNull(oracleDocuments.concepts), ne(oracleDocuments.concepts, '[]'));
   const rows = type === 'all'
-    ? ctx.db.select({ concepts: oracleDocuments.concepts }).from(oracleDocuments).where(baseCondition).all()
-    : ctx.db.select({ concepts: oracleDocuments.concepts }).from(oracleDocuments).where(and(baseCondition, eq(oracleDocuments.type, type))).all();
+    ? db.select({ concepts: oracleDocuments.concepts }).from(oracleDocuments).where(baseCondition).all()
+    : db.select({ concepts: oracleDocuments.concepts }).from(oracleDocuments).where(and(baseCondition, eq(oracleDocuments.type, type))).all();
 
   const conceptCounts = new Map<string, number>();
   for (const row of rows as Array<{ concepts: string }>) {
@@ -65,13 +65,17 @@ export async function handleConcepts(ctx: ToolContext, input: OracleConceptsInpu
     .slice(0, limit);
 
   return {
+    concepts: sortedConcepts,
+    total_unique: conceptCounts.size,
+    filter_type: type,
+  };
+}
+
+export async function handleConcepts(ctx: ToolContext, input: OracleConceptsInput): Promise<ToolResponse> {
+  return {
     content: [{
       type: 'text',
-      text: JSON.stringify({
-        concepts: sortedConcepts,
-        total_unique: conceptCounts.size,
-        filter_type: type,
-      }, null, 2)
-    }]
+      text: JSON.stringify(listConcepts(ctx.db, input), null, 2),
+    }],
   };
 }

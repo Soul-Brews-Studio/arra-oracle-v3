@@ -189,6 +189,8 @@ function proxyRequestForTool(toolName: string, args: Record<string, unknown>): P
       return { method: 'POST', path: '/api/learn', body: args };
     case 'oracle_stats':
       return { method: 'GET', path: '/api/stats' };
+    case 'oracle_concepts':
+      return { method: 'GET', path: '/api/concepts', query: queryFrom(args, { limit: 'limit', type: 'type' }) };
     case 'oracle_read':
       return { method: 'GET', path: '/api/read', query: queryFrom(args, { file: 'file', id: 'id' }) };
     case 'oracle_list':
