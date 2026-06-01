@@ -122,6 +122,28 @@ describe('handleLearn — M5 enqueue branch', () => {
     expect(parsed.embedding).toBeDefined();
   });
 
+  it('writes vault interchange frontmatter fields to the learning markdown file', async () => {
+    const res = await handleLearn(h.ctx, {
+      pattern: `frontmatter interchange pattern ${Date.now()}-${Math.random()}`,
+      source: 'frontmatter-test',
+      concepts: ['frontmatter', 'vector'],
+    });
+    const parsed = JSON.parse(res.content[0].text);
+    expect(parsed.success).toBe(true);
+
+    const markdown = fs.readFileSync(path.join(SHARED_REPO_ROOT, parsed.file), 'utf-8');
+    expect(markdown).toContain(`id: ${parsed.id}`);
+    expect(markdown).toContain('type: learning');
+    expect(markdown).toContain('concepts: [frontmatter, vector]');
+    expect(markdown).toContain('tags: [frontmatter, vector]');
+    expect(markdown).toMatch(/^hash: sha256:[a-f0-9]{64}$/m);
+    expect(markdown).toMatch(/^indexed_at: .+Z$/m);
+    expect(markdown).toMatch(/^updated_at: .+Z$/m);
+    expect(markdown).toContain(`arra_id: ${parsed.id}`);
+    expect(markdown).toContain('arra_type: learning');
+    expect(markdown).toContain('arra_concepts: [frontmatter, vector]');
+  });
+
   it('ORACLE_INDEXER_ENQUEUE=1 → enqueues one job per registered model', async () => {
     process.env.ORACLE_INDEXER_ENQUEUE = '1';
     const res = await handleLearn(h.ctx, { pattern: `test pattern B ${Date.now()}-${Math.random()}` });

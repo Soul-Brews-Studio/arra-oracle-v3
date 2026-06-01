@@ -38,7 +38,10 @@ afterEach(() => {
 });
 
 test('oracle_learn proxies through ORACLE_API without opening the MCP DB', async () => {
-  const port = 49600 + Math.floor(Math.random() * 300);
+  // Keep learn on its own port band. This test runs concurrently with the
+  // verify proxy test under `bun test --isolate`; sharing the 496xx band made
+  // CI occasionally start two HTTP servers on the same port.
+  const port = 50600 + Math.floor(Math.random() * 300);
   const baseUrl = `http://127.0.0.1:${port}`;
   const serverDataDir = tempDir('arra-learn-proxy-server-');
   const serverRepoRoot = tempDir('arra-learn-proxy-repo-');

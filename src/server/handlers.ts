@@ -16,6 +16,7 @@ import { ensureVectorStoreConnected, EMBEDDING_MODELS } from '../vector/factory.
 import { detectProject } from './project-detect.ts';
 import { coerceConcepts } from '../tools/learn.ts';
 import { createVectorProxy } from './vector-proxy.ts';
+import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
 
 // Module-level proxy instance — bound to VECTOR_URL at boot. If VECTOR_URL is
 // unset, this is null and the local vector adapter runs in-process (legacy
@@ -686,7 +687,6 @@ export function persistLearningDoc(opts: {
 }): { file: string; id: string } {
   const { pattern, subdir, filename, id } = opts;
   const now = new Date();
-  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   const dir = path.join(REPO_ROOT, subdir);
   fs.mkdirSync(dir, { recursive: true });
@@ -698,24 +698,16 @@ export function persistLearningDoc(opts: {
 
   const title = pattern.split('\n')[0].substring(0, 80);
   const conceptsList = coerceConcepts(opts.concepts);
-  const footer = opts.footer ?? '*Added via Oracle Learn*';
-
-  const frontmatter = [
-    '---',
-    `title: ${title}`,
-    conceptsList.length > 0 ? `tags: [${conceptsList.join(', ')}]` : 'tags: []',
-    `created: ${dateStr}`,
-    `source: ${opts.source || 'Oracle Learn'}`,
-    '---',
-    '',
-    `# ${title}`,
-    '',
+  const frontmatter = buildLearningMarkdown({
+    id,
     pattern,
-    '',
-    '---',
-    footer,
-    ''
-  ].join('\n');
+    title,
+    concepts: conceptsList,
+    createdAt: now,
+    source: opts.source,
+    project: opts.project,
+    footer: opts.footer,
+  });
 
   fs.writeFileSync(filePath, frontmatter, 'utf-8');
 
@@ -756,7 +748,7 @@ export function handleLearn(
 ) {
   const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
   const d = new Date();
-  const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const dateStr = dateSlug(d);
 
   const slug = pattern
     .substring(0, 50)

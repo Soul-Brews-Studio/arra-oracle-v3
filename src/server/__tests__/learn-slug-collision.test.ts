@@ -66,6 +66,30 @@ describe('handleLearn — slug collision', () => {
     expect(res.success).toBe(true);
     expect(res.file).toMatch(/_completely-different-pattern-with-own-slug\.md$/);
   });
+
+  it('writes vector-server interchange metadata into HTTP learn markdown', () => {
+    const res = handleLearn(
+      'frontmatter contract pattern from HTTP learn',
+      'frontmatter-test',
+      ['frontmatter', 'vector'],
+      undefined,
+      'github.com/soul-brews-studio/arra-oracle-v3',
+    );
+    expect(res.success).toBe(true);
+
+    const markdown = fs.readFileSync(path.join(TMP_REPO_ROOT, res.file), 'utf-8');
+    expect(markdown).toContain(`id: ${res.id}`);
+    expect(markdown).toContain('type: learning');
+    expect(markdown).toContain('concepts: [frontmatter, vector]');
+    expect(markdown).toContain('tags: [frontmatter, vector]');
+    expect(markdown).toMatch(/^hash: sha256:[a-f0-9]{64}$/m);
+    expect(markdown).toMatch(/^indexed_at: .+Z$/m);
+    expect(markdown).toMatch(/^updated_at: .+Z$/m);
+    expect(markdown).toContain(`arra_id: ${res.id}`);
+    expect(markdown).toContain('arra_type: learning');
+    expect(markdown).toContain('arra_concepts: [frontmatter, vector]');
+    expect(markdown).toContain('project: github.com/soul-brews-studio/arra-oracle-v3');
+  });
 });
 
 afterAll(() => {

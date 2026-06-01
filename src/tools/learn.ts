@@ -11,6 +11,7 @@ import { oracleDocuments } from '../db/schema.ts';
 import { detectProject } from '../server/project-detect.ts';
 import { getVectorStoreByModel, getEmbeddingModels } from '../vector/factory.ts';
 import { REPO_ROOT } from '../config.ts';
+import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
 
 // Lazy-loaded on first use — avoids top-level await which causes a TDZ
 // error in consumers that import learnToolDef synchronously (the tools
@@ -184,7 +185,7 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
   }
 
   const now = new Date();
-  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const dateStr = dateSlug(now);
 
   const slug = pattern
     .substring(0, 50)
@@ -228,29 +229,20 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
     throw new Error(`File already exists: ${filename}`);
   }
 
+  const id = `learning_${dateStr}_${slug}`;
   const title = pattern.split('\n')[0].substring(0, 80);
   const conceptsList = coerceConcepts(concepts);
-  const frontmatter = [
-    '---',
-    `title: ${title}`,
-    conceptsList.length > 0 ? `tags: [${conceptsList.join(', ')}]` : 'tags: []',
-    `created: ${dateStr}`,
-    `source: ${source || 'Oracle Learn'}`,
-    ...(project ? [`project: ${project}`] : []),
-    '---',
-    '',
-    `# ${title}`,
-    '',
+  const frontmatter = buildLearningMarkdown({
+    id,
     pattern,
-    '',
-    '---',
-    '*Added via Oracle Learn*',
-    ''
-  ].join('\n');
+    title,
+    concepts: conceptsList,
+    createdAt: now,
+    source,
+    project,
+  });
 
   fs.writeFileSync(filePath, frontmatter, 'utf-8');
-
-  const id = `learning_${dateStr}_${slug}`;
 
   ctx.db.insert(oracleDocuments).values({
     id,
