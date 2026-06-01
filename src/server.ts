@@ -1,8 +1,9 @@
 /**
  * Arra Oracle HTTP Server — Elysia (bun-native).
  *
- * Composes 15 route modules from src/routes/. Every module is its own
- * Elysia sub-app, nested one file per endpoint.
+ * Composes built-in server plugins from src/server/plugin/. Phase 1 keeps
+ * behavior unchanged while moving hardcoded route/lifecycle registration
+ * behind a plugin-loader seam.
  */
 
 import { Elysia } from 'elysia';
@@ -22,39 +23,17 @@ import { PORT, ORACLE_DATA_DIR, VECTOR_URL } from './config.ts';
 import { MCP_SERVER_NAME } from './const.ts';
 import { db, sqlite, closeDb, indexingStatus } from './db/index.ts';
 import { seedMenuItems, type HasRoutes as SeedHasRoutes } from './db/seeders/menu-seeder.ts';
-import { startScoutAnnouncer, type ScoutAnnouncer } from './peer/scout-announcer.ts';
-
-// Elysia sub-apps — one per cluster
-import { authRoutes } from './routes/auth/index.ts';
-import { settingsRoutes } from './routes/settings/index.ts';
-import { feedRoutes } from './routes/feed/index.ts';
-import { healthRoutes } from './routes/health/index.ts';
-import { dashboardRoutes } from './routes/dashboard/index.ts';
-import { searchRoutes } from './routes/search/index.ts';
-import { conceptsRoutes } from './routes/concepts/index.ts';
-import { verifyRoutes } from './routes/verify/index.ts';
-import { vectorRoutes } from './routes/vector/index.ts';
-import { knowledgeRoutes } from './routes/knowledge/index.ts';
-import { supersedeRoutes } from './routes/supersede/index.ts';
-import { forumApi } from './routes/forum/index.ts';
-import { tracesApi } from './routes/traces/index.ts';
-import { scheduleApi } from './routes/schedule/index.ts';
-import { filesRouter } from './routes/files/index.ts';
-import { pluginsRouter } from './routes/plugins/index.ts';
-import { oraclenetRoutes } from './routes/oraclenet/index.ts';
-import { sessionsRoutes } from './routes/sessions/index.ts';
-import { vaultRoutes } from './routes/vault/index.ts';
-import { peerRoutes } from './routes/peer/index.ts';
-import { createMenuRoutes } from './routes/menu/index.ts';
-
-// Indexer routes are optional — MCP server works without them
-let indexerRoutes: any = null;
-try {
-  indexerRoutes = (await import('./routes/indexer/index.ts')).indexerRoutes;
-} catch {
-  console.log('[Indexer] Routes not loaded — indexer is optional');
-}
-import { gatewayPlugin } from './gateway/index.ts';
+import { createBuiltinServerPlugins } from './server/plugin/builtin.ts';
+import {
+  disabledPluginsFromEnv,
+  enabledServerPlugins,
+  loadServerPlugins,
+  menuSeedRoutes,
+  serverPluginRoutes,
+  startServerPlugins,
+  stopServerPlugins,
+} from './server/plugin/loader.ts';
+import { registerServerPlugins } from './server/plugin/registry.ts';
 
 import pkg from '../package.json' with { type: 'json' };
 
@@ -80,11 +59,17 @@ writePidFile({
   name: 'oracle-http',
 });
 
-let scoutAnnouncer: ScoutAnnouncer | null = null;
+const builtInPlugins = await createBuiltinServerPlugins({
+  dataDir: ORACLE_DATA_DIR,
+  vectorUrl: VECTOR_URL || undefined,
+});
+const loadedPlugins = loadServerPlugins(builtInPlugins, { disabledPlugins: disabledPluginsFromEnv() });
+const enabledPlugins = enabledServerPlugins(loadedPlugins);
+registerServerPlugins(loadedPlugins);
 
 registerSignalHandlers(async () => {
   console.log('\n🔮 Shutting down gracefully...');
-  scoutAnnouncer?.stop();
+  await stopServerPlugins(enabledPlugins);
   await performGracefulShutdown({
     resources: [{ close: () => { closeDb(); return Promise.resolve(); } }],
   });
@@ -109,9 +94,7 @@ const ALLOWED_ORIGINS = [
 
 function originAllowed(origin: string | undefined | null): string | null {
   if (!origin) return null;
-  if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
-    return origin;
-  }
+  if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) return origin;
   if (ALLOWED_ORIGINS.includes(origin)) return origin;
   try {
     const { hostname, protocol } = new URL(origin);
@@ -153,10 +136,7 @@ const app = new Elysia()
   .use(pnaMiddleware)
   .use(
     cors({
-      origin: (request) => {
-        const origin = request.headers.get('origin');
-        return originAllowed(origin) !== null;
-      },
+      origin: (request) => originAllowed(request.headers.get('origin')) !== null,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     }),
@@ -194,8 +174,6 @@ const app = new Elysia()
       },
     }),
   )
-  .use(gatewayPlugin(ORACLE_DATA_DIR, VECTOR_URL || undefined))
-  .use(peerRoutes)
   .get('/', () => ({
     server: MCP_SERVER_NAME,
     version: pkg.version,
@@ -204,31 +182,8 @@ const app = new Elysia()
     api: '/api',
   }));
 
-const apiModules = [
-  authRoutes,
-  settingsRoutes,
-  feedRoutes,
-  healthRoutes,
-  dashboardRoutes,
-  searchRoutes,
-  conceptsRoutes,
-  verifyRoutes,
-  vectorRoutes,
-  knowledgeRoutes,
-  supersedeRoutes,
-  forumApi,
-  tracesApi,
-  scheduleApi,
-  filesRouter,
-  pluginsRouter,
-  oraclenetRoutes,
-  sessionsRoutes,
-  vaultRoutes,
-  ...(indexerRoutes ? [indexerRoutes] : []),
-];
-
 try {
-  const result = seedMenuItems(apiModules as unknown as SeedHasRoutes[]);
+  const result = seedMenuItems(menuSeedRoutes(enabledPlugins) as unknown as SeedHasRoutes[]);
   console.log(
     `🔮 Menu seeded: ${result.inserted} inserted, ${result.updated} updated, ${result.preserved} preserved`,
   );
@@ -236,13 +191,8 @@ try {
   console.error('⚠️  Menu seeder failed:', e);
 }
 
-const menuRoutes = createMenuRoutes();
-
-const modules = [...apiModules, menuRoutes];
-
-for (const mod of modules) app.use(mod as any);
-
-scoutAnnouncer = startScoutAnnouncer();
+for (const mod of serverPluginRoutes(enabledPlugins)) app.use(mod as any);
+await startServerPlugins(enabledPlugins);
 
 console.log(`
 🔮 Arra Oracle HTTP Server running! (Elysia)
