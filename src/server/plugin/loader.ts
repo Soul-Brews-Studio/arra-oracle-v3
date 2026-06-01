@@ -2,7 +2,9 @@ import { parseDisabledPlugins, validateServerPlugin } from './manifest.ts';
 import type { ElysiaApp, LoadedServerPlugin, LoadServerPluginsOptions, ServerPlugin } from './types.ts';
 
 export function disabledPluginsFromEnv(): string[] {
-  return parseDisabledPlugins(process.env.ORACLE_DISABLED_PLUGINS ?? process.env.ARRA_DISABLED_PLUGINS);
+  const disabled = parseDisabledPlugins(process.env.ORACLE_DISABLED_PLUGINS ?? process.env.ARRA_DISABLED_PLUGINS);
+  if (process.env.FED_ENABLED?.toLowerCase() === 'false') disabled.push('federation');
+  return [...new Set(disabled)];
 }
 
 function isDisabled(plugin: ServerPlugin, disabled: Set<string>): boolean {
