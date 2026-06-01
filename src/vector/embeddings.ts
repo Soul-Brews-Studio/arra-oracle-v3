@@ -29,10 +29,14 @@ export class OllamaEmbeddings implements EmbeddingProvider {
   private baseUrl: string;
   private model: string;
   private _dimensionsDetected = false;
+  private attempts: number;
+  private retryDelayMs: number;
 
   constructor(config: { baseUrl?: string; model?: string } = {}) {
     this.baseUrl = config.baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     this.model = config.model || 'nomic-embed-text';
+    this.attempts = positiveInt(process.env.ORACLE_EMBED_ATTEMPTS, 3);
+    this.retryDelayMs = positiveInt(process.env.ORACLE_EMBED_RETRY_DELAY_MS, 150);
     // Known model dimensions (fallback before auto-detect).
     // For unknown models, set to 0 → adapters MUST probe via embed() before
     // creating columns (see #qwen3-dim-fallback issue).
@@ -85,18 +89,7 @@ export class OllamaEmbeddings implements EmbeddingProvider {
         // qwen3-embedding: passages stay raw per HF model card
       }
 
-      const response = await fetch(`${this.baseUrl}/api/embeddings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: this.model, prompt: truncated }),
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Ollama API error: ${error}`);
-      }
-
-      const data = await response.json() as { embedding: number[] };
+      const data = await this.embedOneWithRetry(truncated);
       embeddings.push(data.embedding);
 
       // Auto-detect dimensions from first response
@@ -108,6 +101,46 @@ export class OllamaEmbeddings implements EmbeddingProvider {
 
     return embeddings;
   }
+
+  private async embedOneWithRetry(prompt: string): Promise<{ embedding: number[] }> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= this.attempts; attempt++) {
+      try {
+        const response = await fetch(`${this.baseUrl}/api/embeddings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: this.model, prompt }),
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(`Ollama API error (${response.status}): ${error}`);
+        }
+
+        return await response.json() as { embedding: number[] };
+      } catch (err) {
+        lastError = err;
+        if (attempt < this.attempts) {
+          await sleep(this.retryDelayMs * attempt);
+        }
+      }
+    }
+
+    const message = lastError instanceof Error ? lastError.message : String(lastError);
+    throw new Error(`Ollama embedding failed after ${this.attempts} attempts: ${message}`, {
+      cause: lastError,
+    });
+  }
+}
+
+function positiveInt(raw: string | undefined, fallback: number): number {
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
