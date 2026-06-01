@@ -253,6 +253,8 @@ function proxyRequestForTool(toolName: string, args: Record<string, unknown>): P
     }
     case 'oracle_reflect':
       return { method: 'GET', path: '/api/reflect' };
+    case 'oracle_verify':
+      return { method: 'POST', path: '/api/verify', body: args };
     default:
       return null;
   }

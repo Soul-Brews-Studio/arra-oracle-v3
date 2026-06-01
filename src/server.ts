@@ -31,6 +31,7 @@ import { healthRoutes } from './routes/health/index.ts';
 import { dashboardRoutes } from './routes/dashboard/index.ts';
 import { searchRoutes } from './routes/search/index.ts';
 import { conceptsRoutes } from './routes/concepts/index.ts';
+import { verifyRoutes } from './routes/verify/index.ts';
 import { vectorRoutes } from './routes/vector/index.ts';
 import { knowledgeRoutes } from './routes/knowledge/index.ts';
 import { supersedeRoutes } from './routes/supersede/index.ts';
@@ -207,6 +208,7 @@ const apiModules = [
   dashboardRoutes,
   searchRoutes,
   conceptsRoutes,
+  verifyRoutes,
   vectorRoutes,
   knowledgeRoutes,
   supersedeRoutes,
