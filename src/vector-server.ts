@@ -17,6 +17,7 @@ import { swagger } from '@elysiajs/swagger';
 
 import { loadVectorConfig, generateDefaultConfig } from './vector/config.ts';
 import { vectorRoutes } from './routes/vector/index.ts';
+import { searchEndpoint } from './routes/search/search.ts';
 
 import pkg from '../package.json' with { type: 'json' };
 
@@ -25,27 +26,35 @@ const config = loadVectorConfig() ?? generateDefaultConfig();
 const PORT = Number(process.env.VECTOR_PORT ?? config.port);
 
 // ── App ─────────────────────────────────────────────────────────────
-const app = new Elysia()
-  .use(cors())                           // permissive — internal sidecar
-  .use(
-    swagger({
-      path: '/swagger',
-      documentation: {
-        info: {
-          title: 'Arra Vector Server',
-          version: pkg.version,
-          description: 'Standalone vector / embedding sidecar for Arra Oracle.',
+export function createVectorServerApp() {
+  return new Elysia()
+    .use(cors())                           // permissive — internal sidecar
+    .use(
+      swagger({
+        path: '/swagger',
+        documentation: {
+          info: {
+            title: 'Arra Vector Server',
+            version: pkg.version,
+            description: 'Standalone vector / embedding sidecar for Arra Oracle.',
+          },
         },
-      },
-    }),
-  )
-  .get('/', () => ({
-    server: 'arra-vector',
-    version: pkg.version,
-    status: 'ok',
-    docs: '/swagger',
-  }))
-  .use(vectorRoutes);
+      }),
+    )
+    .get('/', () => ({
+      server: 'arra-vector',
+      version: pkg.version,
+      status: 'ok',
+      docs: '/swagger',
+    }))
+    // VECTOR_URL/gateway proxies /api/search to the sidecar. Mount only the
+    // search endpoint (not reflect/list) so hybrid/vector search has a remote
+    // target while non-vector browsing remains core-owned.
+    .use(new Elysia({ prefix: '/api' }).use(searchEndpoint))
+    .use(vectorRoutes);
+}
+
+const app = createVectorServerApp();
 
 console.log(`
 🧭 Arra Vector Server running! (Elysia)
