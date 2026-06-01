@@ -15,7 +15,12 @@ import { Elysia, t } from 'elysia';
 import { Database } from 'bun:sqlite';
 import { createVectorStore, getEmbeddingModels, getVectorStoreConfigByModel } from '../../vector/factory.ts';
 import { DB_PATH } from '../../config.ts';
-import type { EmbeddingProviderType, VectorDBType } from '../../vector/types.ts';
+import type {
+  EmbeddingProviderType,
+  VectorDBType,
+  VectorDocument,
+  VectorStoreAdapter,
+} from '../../vector/types.ts';
 
 // ── In-memory status (no sqlite writes — avoids the disk I/O problem) ──
 
@@ -28,6 +33,7 @@ interface IndexJob {
   startedAt: number;
   completedAt?: number;
   error?: string;
+  strategy?: RebuildStrategy;
 }
 
 let currentJob: IndexJob = {
@@ -38,6 +44,34 @@ let currentJob: IndexJob = {
   total: 0,
   startedAt: 0,
 };
+
+export type RebuildStrategy = 'replace' | 'delete-add';
+
+export async function rebuildVectorCollection(
+  store: VectorStoreAdapter,
+  docs: VectorDocument[],
+  batchSize: number,
+  onProgress: (current: number) => void = () => {},
+): Promise<{ strategy: RebuildStrategy }> {
+  await store.connect();
+
+  if (typeof store.replaceDocuments === 'function') {
+    await store.replaceDocuments(docs);
+    onProgress(docs.length);
+    return { strategy: 'replace' };
+  }
+
+  try { await store.deleteCollection(); } catch {}
+  await store.ensureCollection();
+
+  for (let i = 0; i < docs.length; i += batchSize) {
+    const batch = docs.slice(i, i + batchSize);
+    await store.addDocuments(batch);
+    onProgress(Math.min(i + batch.length, docs.length));
+  }
+
+  return { strategy: 'delete-add' };
+}
 
 // ── Endpoints ──────────────────────────────────────────────────────────
 
@@ -68,6 +102,7 @@ export const vectorIndexerEndpoints = new Elysia()
     // Background indexing — fire and forget
     (async () => {
       let sqlite: Database | undefined;
+      let store: VectorStoreAdapter | undefined;
       try {
         sqlite = new Database(DB_PATH, { readonly: true });
 
@@ -86,30 +121,23 @@ export const vectorIndexerEndpoints = new Elysia()
 
         currentJob.total = rows.length;
 
-        const store = createVectorStore(storeConfig);
+        store = createVectorStore(storeConfig);
+        const docs: VectorDocument[] = rows.map(row => ({
+          id: row.id,
+          document: row.content,
+          metadata: {
+            type: row.type,
+            source_file: row.source_file,
+            concepts: row.concepts,
+            ...(row.project && { project: row.project }),
+          },
+        }));
 
-        await store.connect();
-        try { await store.deleteCollection(); } catch {}
-        await store.ensureCollection();
+        const rebuild = await rebuildVectorCollection(store, docs, batchSize, current => {
+          currentJob.current = current;
+        });
 
-        for (let i = 0; i < rows.length; i += batchSize) {
-          const batch = rows.slice(i, i + batchSize);
-          const docs = batch.map(row => ({
-            id: row.id,
-            document: row.content,
-            metadata: {
-              type: row.type,
-              source_file: row.source_file,
-              concepts: row.concepts,
-              ...(row.project && { project: row.project }),
-            },
-          }));
-
-          await store.addDocuments(docs);
-          currentJob.current = i + batch.length;
-        }
-
-        await store.close();
+        currentJob.strategy = rebuild.strategy;
         currentJob.status = 'completed';
         currentJob.completedAt = Date.now();
       } catch (e) {
@@ -117,6 +145,7 @@ export const vectorIndexerEndpoints = new Elysia()
         currentJob.error = e instanceof Error ? e.message : String(e);
         currentJob.completedAt = Date.now();
       } finally {
+        try { await store?.close(); } catch {}
         sqlite?.close();
       }
     })();
