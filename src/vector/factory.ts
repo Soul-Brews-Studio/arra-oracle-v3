@@ -15,7 +15,7 @@ import { LanceDBAdapter } from './adapters/lancedb.ts';
 import { QdrantAdapter } from './adapters/qdrant.ts';
 import { CloudflareVectorizeAdapter, CloudflareAIEmbeddings } from './adapters/cloudflare-vectorize.ts';
 import { createEmbeddingProvider } from './embeddings.ts';
-import { loadVectorConfig, configToModels } from './config.ts';
+import { loadVectorConfig, configToModels, type VectorModelRegistryEntry } from './config.ts';
 
 export interface VectorStoreConfig {
   type?: VectorDBType;
@@ -132,7 +132,7 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
 // Model-based registry for dual-index search
 // ============================================================================
 
-export function getEmbeddingModels(): Record<string, { collection: string; model: string; dataPath?: string }> {
+export function getEmbeddingModels(): Record<string, VectorModelRegistryEntry> {
   // If vector-server.json exists, use it as source of truth (#1071 phase 2)
   const cfg = loadVectorConfig();
   if (cfg) return configToModels(cfg);
@@ -140,25 +140,31 @@ export function getEmbeddingModels(): Record<string, { collection: string; model
   // Hardcoded fallback — always works even without config file
   return {
     nomic: {
+      adapter: 'lancedb',
       collection: COLLECTION_NAME,
       model: 'nomic-embed-text',
       dataPath: LANCEDB_DIR,
+      provider: 'ollama',
     },
     qwen3: {
+      adapter: 'lancedb',
       collection: 'oracle_knowledge_qwen3',
       model: 'qwen3-embedding',
       dataPath: LANCEDB_DIR,
+      provider: 'ollama',
     },
     'bge-m3': {
+      adapter: 'lancedb',
       collection: 'oracle_knowledge_bge_m3',
       model: 'bge-m3',
       dataPath: LANCEDB_DIR,
+      provider: 'ollama',
     },
   };
 }
 
 /** @deprecated Use getEmbeddingModels() — kept for backward compat */
-export const EMBEDDING_MODELS = new Proxy({} as Record<string, { collection: string; model: string; dataPath?: string }>, {
+export const EMBEDDING_MODELS = new Proxy({} as Record<string, VectorModelRegistryEntry>, {
   get(_, prop: string) { return getEmbeddingModels()[prop]; },
   has(_, prop: string) { return prop in getEmbeddingModels(); },
   ownKeys() { return Object.keys(getEmbeddingModels()); },
@@ -177,19 +183,30 @@ const modelStoreCache = new Map<string, VectorStoreAdapter>();
  */
 const connectPromises = new Map<string, Promise<void>>();
 
+export function getVectorStoreConfigByModel(model?: string): VectorStoreConfig {
+  const models = getEmbeddingModels();
+  const key = model && models[model] ? model : 'bge-m3';
+  const preset = models[key];
+  return {
+    type: preset.adapter || 'lancedb',
+    collectionName: preset.collection,
+    embeddingProvider: preset.provider || 'ollama',
+    embeddingModel: preset.model,
+    ...(preset.dataPath && { dataPath: preset.dataPath }),
+    ...(preset.pythonVersion && { pythonVersion: preset.pythonVersion }),
+    ...(preset.qdrantUrl && { qdrantUrl: preset.qdrantUrl }),
+    ...(preset.qdrantApiKey && { qdrantApiKey: preset.qdrantApiKey }),
+    ...(preset.cfAccountId && { cfAccountId: preset.cfAccountId }),
+    ...(preset.cfApiToken && { cfApiToken: preset.cfApiToken }),
+  };
+}
+
 export function getVectorStoreByModel(model?: string): VectorStoreAdapter {
   const models = getEmbeddingModels();
   const key = model && models[model] ? model : 'bge-m3';
   let store = modelStoreCache.get(key);
   if (!store) {
-    const preset = models[key];
-    store = createVectorStore({
-      type: 'lancedb',
-      collectionName: preset.collection,
-      embeddingProvider: 'ollama',
-      embeddingModel: preset.model,
-      ...(preset.dataPath && { dataPath: preset.dataPath }),
-    });
+    store = createVectorStore(getVectorStoreConfigByModel(model));
     modelStoreCache.set(key, store);
     // Auto-connect in background (non-blocking)
     connectPromises.set(key, store.connect().catch(e =>

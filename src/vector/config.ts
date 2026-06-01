@@ -12,13 +12,21 @@ import fs from 'fs';
 import path from 'path';
 import { ORACLE_DATA_DIR, LANCEDB_DIR } from '../config.ts';
 import { COLLECTION_NAME } from '../const.ts';
+import type { EmbeddingProviderType, VectorDBType } from './types.ts';
 
 export const VECTOR_CONFIG_FILE = 'vector-server.json';
 
 export interface VectorCollectionConfig {
   collection: string;
   model: string;
-  provider: string;
+  provider: EmbeddingProviderType;
+  adapter?: VectorDBType;
+  dataPath?: string;
+  pythonVersion?: string;
+  qdrantUrl?: string;
+  qdrantApiKey?: string;
+  cfAccountId?: string;
+  cfApiToken?: string;
   primary?: boolean;
 }
 
@@ -29,6 +37,19 @@ export interface VectorServerConfig {
   collections: Record<string, VectorCollectionConfig>;
   dataPath: string;
   embeddingEndpoint: string;
+}
+
+export interface VectorModelRegistryEntry {
+  collection: string;
+  model: string;
+  dataPath?: string;
+  adapter?: VectorDBType;
+  provider?: EmbeddingProviderType;
+  pythonVersion?: string;
+  qdrantUrl?: string;
+  qdrantApiKey?: string;
+  cfAccountId?: string;
+  cfApiToken?: string;
 }
 
 /** Absolute path to vector-server.json inside ORACLE_DATA_DIR. */
@@ -47,17 +68,20 @@ export function generateDefaultConfig(): VectorServerConfig {
     port: 8081,
     collections: {
       'bge-m3': {
+        adapter: 'lancedb',
         collection: 'oracle_knowledge_bge_m3',
         model: 'bge-m3',
         provider: 'ollama',
         primary: true,
       },
       nomic: {
+        adapter: 'lancedb',
         collection: COLLECTION_NAME,
         model: 'nomic-embed-text',
         provider: 'ollama',
       },
       qwen3: {
+        adapter: 'lancedb',
         collection: 'oracle_knowledge_qwen3',
         model: 'qwen3-embedding',
         provider: 'ollama',
@@ -90,6 +114,7 @@ export function loadVectorConfig(): VectorServerConfig | null {
  */
 export function writeVectorConfig(config: VectorServerConfig): string {
   const fp = configPath();
+  fs.mkdirSync(path.dirname(fp), { recursive: true });
   fs.writeFileSync(fp, JSON.stringify(config, null, 2) + '\n', 'utf-8');
   return fp;
 }
@@ -100,13 +125,20 @@ export function writeVectorConfig(config: VectorServerConfig): string {
  */
 export function configToModels(
   config: VectorServerConfig,
-): Record<string, { collection: string; model: string; dataPath?: string }> {
-  const out: Record<string, { collection: string; model: string; dataPath?: string }> = {};
+): Record<string, VectorModelRegistryEntry> {
+  const out: Record<string, VectorModelRegistryEntry> = {};
   for (const [key, col] of Object.entries(config.collections)) {
     out[key] = {
       collection: col.collection,
       model: col.model,
-      dataPath: config.dataPath || undefined,
+      adapter: col.adapter,
+      provider: col.provider,
+      dataPath: col.dataPath || config.dataPath || undefined,
+      pythonVersion: col.pythonVersion,
+      qdrantUrl: col.qdrantUrl,
+      qdrantApiKey: col.qdrantApiKey,
+      cfAccountId: col.cfAccountId,
+      cfApiToken: col.cfApiToken,
     };
   }
   return out;
