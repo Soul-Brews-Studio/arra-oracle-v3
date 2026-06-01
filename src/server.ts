@@ -1,9 +1,8 @@
 /**
  * Arra Oracle HTTP Server — Elysia (bun-native).
  *
- * Composes built-in server plugins from src/server/plugin/. Phase 1 keeps
- * behavior unchanged while moving hardcoded route/lifecycle registration
- * behind a plugin-loader seam.
+ * Composes built-in server plugins from src/server/plugin/. The loader owns
+ * route mounting, manifest API prefixes, and lifecycle startup/shutdown.
  */
 
 import { Elysia } from 'elysia';
@@ -195,7 +194,7 @@ try {
   console.error('⚠️  Menu seeder failed:', e);
 }
 
-for (const mod of serverPluginRoutes(enabledPlugins)) app.use(mod as any);
+for (const mod of serverPluginRoutes(enabledPlugins, { warn: console.warn })) app.use(mod as any);
 await startServerPlugins(enabledPlugins);
 
 console.log(`

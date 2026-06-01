@@ -32,6 +32,13 @@ async function appWithConfig(disabledPlugins: string[], enabledPlugins: string[]
   return { app, enabled };
 }
 
+function appFromPlugins(plugins: ServerPlugin[], warn?: (message: string) => void) {
+  const enabled = enabledServerPlugins(loadServerPlugins(plugins, { enabledPlugins: ['*'] }));
+  const app = new Elysia();
+  for (const routes of serverPluginRoutes(enabled, { warn })) app.use(routes as any);
+  return { app, enabled };
+}
+
 function withEnv(key: string, value: string | undefined, fn: () => void) {
   const prev = process.env[key];
   if (value === undefined) delete process.env[key];
@@ -102,6 +109,43 @@ describe('server plugin loader', () => {
     expect(conflicted.enabled.some((plugin) => plugin.name === 'federation')).toBe(false);
     expect((await conflicted.app.handle(new Request('http://local/info'))).status).toBe(404);
     expect((await conflicted.app.handle(new Request('http://local/api/health'))).status).toBe(200);
+  });
+
+  test('api manifest mounts a built-in example plugin under its declared path', async () => {
+    const { app, enabled } = await appWithConfig([], ['plugin-api-example']);
+    expect(enabled.some((plugin) => plugin.name === 'plugin-api-example')).toBe(true);
+
+    const response = await app.handle(new Request('http://local/api/plugin-example'));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ok: true,
+      plugin: 'plugin-api-example',
+      mountedBy: 'server-plugin-api-manifest',
+    });
+  });
+
+  test('direct route wins over api manifest route collision', async () => {
+    const warnings: string[] = [];
+    const { app } = appFromPlugins([
+      {
+        name: 'direct-conflict',
+        tier: 'standard',
+        routes: () => new Elysia().get('/api/plugin-conflict', () => ({ source: 'direct' })),
+      },
+      {
+        name: 'manifest-conflict',
+        tier: 'extra',
+        enabled: false,
+        api: { path: '/api/plugin-conflict', methods: ['GET'] },
+        routes: () => new Elysia().get('/', () => ({ source: 'manifest' })),
+      },
+    ], (message) => warnings.push(message));
+
+    const response = await app.handle(new Request('http://local/api/plugin-conflict'));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ source: 'direct' });
+    expect(warnings.some((message) => message.includes('direct route wins'))).toBe(true);
+    expect(warnings.some((message) => message.includes('manifest-conflict'))).toBe(true);
   });
 
   test('disable everything still serves core search, learn, and stats over FTS5', async () => {

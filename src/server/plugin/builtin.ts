@@ -1,3 +1,5 @@
+import { Elysia } from 'elysia';
+
 import type { ServerPlugin } from './types.ts';
 
 import { authRoutes } from '../../routes/auth/index.ts';
@@ -48,6 +50,21 @@ async function optionalIndexerPlugin(): Promise<ServerPlugin | null> {
   }
 }
 
+export function createApiManifestExamplePlugin(): ServerPlugin {
+  return {
+    name: 'plugin-api-example',
+    tier: 'extra',
+    enabled: false,
+    seedMenu: false,
+    api: { path: '/api/plugin-example', methods: ['GET'] },
+    routes: () => new Elysia().get('/', () => ({
+      ok: true,
+      plugin: 'plugin-api-example',
+      mountedBy: 'server-plugin-api-manifest',
+    })),
+  };
+}
+
 export async function createBuiltinServerPlugins(options: BuiltinOptions): Promise<ServerPlugin[]> {
   const gatewayRoutes = gatewayPlugin(options.dataDir, options.vectorUrl);
   const menuRoutes = createMenuRoutes();
@@ -56,6 +73,7 @@ export async function createBuiltinServerPlugins(options: BuiltinOptions): Promi
 
   const plugins: Array<ServerPlugin | null> = [
     routePlugin('gateway', 'standard', () => gatewayRoutes, false),
+    createApiManifestExamplePlugin(),
     {
       name: 'federation',
       tier: 'standard',
