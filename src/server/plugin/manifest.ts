@@ -10,6 +10,12 @@ export function validateServerPlugin(plugin: ServerPlugin): void {
   if (!TIERS.has(plugin.tier)) {
     throw new Error(`server plugin "${plugin.name}" has invalid tier: ${JSON.stringify(plugin.tier)}`);
   }
+  if (plugin.start !== undefined && typeof plugin.start !== 'function') {
+    throw new Error(`server plugin "${plugin.name}" start must be a function`);
+  }
+  if (plugin.stop !== undefined && typeof plugin.stop !== 'function') {
+    throw new Error(`server plugin "${plugin.name}" stop must be a function`);
+  }
   if (plugin.api) {
     if (!plugin.api.path || typeof plugin.api.path !== 'string' || !plugin.api.path.startsWith('/')) {
       throw new Error(`server plugin "${plugin.name}" api.path must be an absolute path`);

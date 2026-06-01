@@ -31,9 +31,9 @@ import {
   menuSeedRoutes,
   serverPluginRoutes,
   startServerPlugins,
-  stopServerPlugins,
 } from './server/plugin/loader.ts';
 import { registerServerPlugins } from './server/plugin/registry.ts';
+import type { StartedServerPlugins } from './server/plugin/types.ts';
 
 import pkg from '../package.json' with { type: 'json' };
 
@@ -69,10 +69,15 @@ const loadedPlugins = loadServerPlugins(builtInPlugins, {
 });
 const enabledPlugins = enabledServerPlugins(loadedPlugins);
 registerServerPlugins(loadedPlugins);
+let pluginLifecycle: StartedServerPlugins | null = null;
 
 registerSignalHandlers(async () => {
   console.log('\n🔮 Shutting down gracefully...');
-  await stopServerPlugins(enabledPlugins);
+  try {
+    await pluginLifecycle?.stop();
+  } catch (error) {
+    console.warn('[server-plugin] lifecycle stop failed:', error);
+  }
   await performGracefulShutdown({
     resources: [{ close: () => { closeDb(); return Promise.resolve(); } }],
   });
@@ -195,7 +200,11 @@ try {
 }
 
 for (const mod of serverPluginRoutes(enabledPlugins, { warn: console.warn })) app.use(mod as any);
-await startServerPlugins(enabledPlugins);
+pluginLifecycle = await startServerPlugins(enabledPlugins, {
+  dataDir: ORACLE_DATA_DIR,
+  vectorUrl: VECTOR_URL || undefined,
+  logger: console,
+});
 
 console.log(`
 🔮 Arra Oracle HTTP Server running! (Elysia)

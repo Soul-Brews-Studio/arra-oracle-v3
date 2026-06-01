@@ -10,6 +10,7 @@ import {
   enabledServerPlugins,
   loadServerPlugins,
   serverPluginRoutes,
+  startServerPlugins,
 } from '../plugin/loader.ts';
 import type { ServerPlugin } from '../plugin/types.ts';
 
@@ -50,6 +51,16 @@ function withEnv(key: string, value: string | undefined, fn: () => void) {
     else process.env[key] = prev;
   }
 }
+
+const testLifecycleOptions = {
+  dataDir: tmp,
+  vectorUrl: 'http://vector.local',
+  logger: {
+    info: () => {},
+    warn: () => {},
+    error: () => {},
+  },
+};
 
 afterAll(async () => {
   const { closeDb } = await import('../../db/index.ts');
@@ -146,6 +157,73 @@ describe('server plugin loader', () => {
     expect(await response.json()).toEqual({ source: 'direct' });
     expect(warnings.some((message) => message.includes('direct route wins'))).toBe(true);
     expect(warnings.some((message) => message.includes('manifest-conflict'))).toBe(true);
+  });
+
+  test('lifecycle starts plugins in order and stops them in reverse', async () => {
+    const events: string[] = [];
+    const plugins: ServerPlugin[] = [
+      {
+        name: 'worker-a',
+        tier: 'standard',
+        start: (context) => {
+          events.push(`start:a:${context.dataDir}:${context.vectorUrl}:${context.signal.aborted}`);
+        },
+        stop: (context) => {
+          events.push(`stop:a:${context.signal.aborted}`);
+        },
+      },
+      {
+        name: 'worker-b',
+        tier: 'standard',
+        start: () => {
+          events.push('start:b');
+        },
+        stop: () => {
+          events.push('stop:b');
+        },
+      },
+    ];
+
+    const lifecycle = await startServerPlugins(plugins, testLifecycleOptions);
+    expect(lifecycle.plugins.map((plugin) => plugin.name)).toEqual(['worker-a', 'worker-b']);
+    expect(events).toEqual([`start:a:${tmp}:http://vector.local:false`, 'start:b']);
+
+    await lifecycle.stop();
+    await lifecycle.stop();
+    expect(events).toEqual([`start:a:${tmp}:http://vector.local:false`, 'start:b', 'stop:b', 'stop:a:true']);
+  });
+
+  test('lifecycle rolls back already-started plugins when a later start fails', async () => {
+    const events: string[] = [];
+    let signal: AbortSignal | null = null;
+    const plugins: ServerPlugin[] = [
+      {
+        name: 'started-worker',
+        tier: 'standard',
+        start: (context) => {
+          signal = context.signal;
+          events.push('start:started');
+        },
+        stop: (context) => {
+          events.push(`stop:started:${context.signal.aborted}`);
+        },
+      },
+      {
+        name: 'broken-worker',
+        tier: 'standard',
+        start: () => {
+          events.push('start:broken');
+          throw new Error('boom');
+        },
+        stop: () => {
+          events.push('stop:broken');
+        },
+      },
+    ];
+
+    await expect(startServerPlugins(plugins, testLifecycleOptions)).rejects.toThrow('boom');
+    expect(signal?.aborted).toBe(true);
+    expect(events).toEqual(['start:started', 'start:broken', 'stop:started:true']);
   });
 
   test('disable everything still serves core search, learn, and stats over FTS5', async () => {

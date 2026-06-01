@@ -6,7 +6,10 @@ import type {
   LoadedServerPlugin,
   LoadServerPluginsOptions,
   ServerPlugin,
+  ServerPluginLifecycleContext,
+  ServerPluginLifecycleOptions,
   ServerPluginRoutesOptions,
+  StartedServerPlugins,
 } from './types.ts';
 
 export function disabledPluginsFromEnv(): string[] {
@@ -162,10 +165,69 @@ export function menuSeedRoutes(plugins: ServerPlugin[]): ElysiaApp[] {
   return serverPluginRoutes(plugins.filter((plugin) => plugin.seedMenu));
 }
 
-export async function startServerPlugins(plugins: ServerPlugin[]): Promise<void> {
-  for (const plugin of plugins) await plugin.start?.();
+const defaultLogger = {
+  info: (...args: unknown[]) => console.info(...args),
+  warn: (...args: unknown[]) => console.warn(...args),
+  error: (...args: unknown[]) => console.error(...args),
+};
+
+function lifecycleContext(
+  abortController: AbortController,
+  options: ServerPluginLifecycleOptions,
+): ServerPluginLifecycleContext {
+  return {
+    dataDir: options.dataDir,
+    vectorUrl: options.vectorUrl,
+    signal: abortController.signal,
+    logger: options.logger ?? defaultLogger,
+  };
 }
 
-export async function stopServerPlugins(plugins: ServerPlugin[]): Promise<void> {
-  for (const plugin of [...plugins].reverse()) await plugin.stop?.();
+export async function startServerPlugins(
+  plugins: ServerPlugin[],
+  options: ServerPluginLifecycleOptions,
+): Promise<StartedServerPlugins> {
+  const abortController = options.abortController ?? new AbortController();
+  const context = lifecycleContext(abortController, options);
+  const started: ServerPlugin[] = [];
+  let stopped = false;
+
+  try {
+    for (const plugin of plugins) {
+      await plugin.start?.(context);
+      started.push(plugin);
+    }
+  } catch (error) {
+    abortController.abort(error);
+    await stopServerPlugins(started, context);
+    throw error;
+  }
+
+  return {
+    plugins: started,
+    context,
+    stop: async () => {
+      if (stopped) return;
+      stopped = true;
+      abortController.abort();
+      await stopServerPlugins(started, context);
+    },
+  };
+}
+
+export async function stopServerPlugins(
+  plugins: ServerPlugin[],
+  context: ServerPluginLifecycleContext,
+): Promise<void> {
+  const errors: Error[] = [];
+  for (const plugin of [...plugins].reverse()) {
+    try {
+      await plugin.stop?.(context);
+    } catch (error) {
+      const cause = error instanceof Error ? error : new Error(String(error));
+      errors.push(new Error(`server plugin "${plugin.name}" stop failed: ${cause.message}`, { cause }));
+    }
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) throw new AggregateError(errors, 'server plugin stop failures');
 }

@@ -12,6 +12,19 @@ export interface ServerPluginApiManifest {
   methods?: string[];
 }
 
+export interface ServerPluginLogger {
+  info: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
+  error: (...args: unknown[]) => void;
+}
+
+export interface ServerPluginLifecycleContext {
+  dataDir: string;
+  vectorUrl?: string;
+  signal: AbortSignal;
+  logger: ServerPluginLogger;
+}
+
 export interface ServerPlugin {
   name: string;
   tier: ServerPluginTier;
@@ -19,8 +32,8 @@ export interface ServerPlugin {
   seedMenu?: boolean;
   api?: ServerPluginApiManifest;
   routes?: () => ElysiaApp | ElysiaApp[];
-  start?: () => void | Promise<void>;
-  stop?: () => void | Promise<void>;
+  start?: (context: ServerPluginLifecycleContext) => void | Promise<void>;
+  stop?: (context: ServerPluginLifecycleContext) => void | Promise<void>;
 }
 
 export interface LoadedServerPlugin {
@@ -35,4 +48,17 @@ export interface LoadServerPluginsOptions {
 
 export interface ServerPluginRoutesOptions {
   warn?: (message: string) => void;
+}
+
+export interface ServerPluginLifecycleOptions {
+  dataDir: string;
+  vectorUrl?: string;
+  logger?: ServerPluginLogger;
+  abortController?: AbortController;
+}
+
+export interface StartedServerPlugins {
+  plugins: ServerPlugin[];
+  context: ServerPluginLifecycleContext;
+  stop: () => Promise<void>;
 }
