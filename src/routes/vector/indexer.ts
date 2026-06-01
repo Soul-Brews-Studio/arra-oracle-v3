@@ -13,8 +13,9 @@
 
 import { Elysia, t } from 'elysia';
 import { Database } from 'bun:sqlite';
-import { createVectorStore, getEmbeddingModels } from '../../vector/factory.ts';
+import { createVectorStore, getEmbeddingModels, getVectorStoreConfigByModel } from '../../vector/factory.ts';
 import { DB_PATH } from '../../config.ts';
+import type { EmbeddingProviderType, VectorDBType } from '../../vector/types.ts';
 
 // ── In-memory status (no sqlite writes — avoids the disk I/O problem) ──
 
@@ -51,7 +52,7 @@ export const vectorIndexerEndpoints = new Elysia()
 
     const models = getEmbeddingModels();
     const key = body.model && models[body.model] ? body.model : 'bge-m3';
-    const preset = models[key];
+    const storeConfig = getVectorStoreConfigByModel(key);
     const batchSize = body.batchSize ?? (key === 'nomic' ? 100 : 50);
 
     const jobId = `vidx-${Date.now()}`;
@@ -85,13 +86,7 @@ export const vectorIndexerEndpoints = new Elysia()
 
         currentJob.total = rows.length;
 
-        const store = createVectorStore({
-          type: 'lancedb',
-          collectionName: preset.collection,
-          embeddingProvider: 'ollama',
-          embeddingModel: preset.model,
-          ...(preset.dataPath && { dataPath: preset.dataPath }),
-        });
+        const store = createVectorStore(storeConfig);
 
         await store.connect();
         try { await store.deleteCollection(); } catch {}
@@ -126,7 +121,14 @@ export const vectorIndexerEndpoints = new Elysia()
       }
     })();
 
-    return { jobId, status: 'started', model: key, batchSize };
+    return {
+      jobId,
+      status: 'started',
+      model: key,
+      adapter: storeConfig.type,
+      collection: storeConfig.collectionName,
+      batchSize,
+    };
   }, {
     body: t.Object({
       model: t.Optional(t.String()),
@@ -164,28 +166,39 @@ export const vectorIndexerEndpoints = new Elysia()
   // GET /vector/index/models
   .get('/vector/index/models', async () => {
     const models = getEmbeddingModels();
-    const result: Record<string, { collection: string; model: string; count?: number }> = {};
+    const result: Record<string, {
+      collection: string;
+      model: string;
+      adapter: VectorDBType;
+      provider: EmbeddingProviderType;
+      count?: number;
+    }> = {};
 
-    for (const [key, preset] of Object.entries(models)) {
-      const entry: { collection: string; model: string; count?: number } = {
-        collection: preset.collection,
-        model: preset.model,
+    for (const key of Object.keys(models)) {
+      const storeConfig = getVectorStoreConfigByModel(key);
+      const entry: {
+        collection: string;
+        model: string;
+        adapter: VectorDBType;
+        provider: EmbeddingProviderType;
+        count?: number;
+      } = {
+        collection: storeConfig.collectionName ?? key,
+        model: storeConfig.embeddingModel ?? key,
+        adapter: storeConfig.type ?? 'lancedb',
+        provider: storeConfig.embeddingProvider ?? 'ollama',
       };
+      let store: ReturnType<typeof createVectorStore> | null = null;
 
       try {
-        const store = createVectorStore({
-          type: 'lancedb',
-          collectionName: preset.collection,
-          embeddingProvider: 'ollama',
-          embeddingModel: preset.model,
-          ...(preset.dataPath && { dataPath: preset.dataPath }),
-        });
+        store = createVectorStore(storeConfig);
         await store.connect();
         const stats = await store.getStats();
         entry.count = stats.count;
-        await store.close();
       } catch {
         entry.count = 0;
+      } finally {
+        try { await store?.close(); } catch {}
       }
 
       result[key] = entry;
