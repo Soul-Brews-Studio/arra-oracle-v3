@@ -22,6 +22,7 @@ import { PORT, ORACLE_DATA_DIR, VECTOR_URL } from './config.ts';
 import { MCP_SERVER_NAME } from './const.ts';
 import { db, sqlite, closeDb, indexingStatus } from './db/index.ts';
 import { seedMenuItems, type HasRoutes as SeedHasRoutes } from './db/seeders/menu-seeder.ts';
+import { startScoutAnnouncer, type ScoutAnnouncer } from './peer/scout-announcer.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -79,8 +80,11 @@ writePidFile({
   name: 'oracle-http',
 });
 
+let scoutAnnouncer: ScoutAnnouncer | null = null;
+
 registerSignalHandlers(async () => {
   console.log('\n🔮 Shutting down gracefully...');
+  scoutAnnouncer?.stop();
   await performGracefulShutdown({
     resources: [{ close: () => { closeDb(); return Promise.resolve(); } }],
   });
@@ -237,6 +241,8 @@ const menuRoutes = createMenuRoutes();
 const modules = [...apiModules, menuRoutes];
 
 for (const mod of modules) app.use(mod as any);
+
+scoutAnnouncer = startScoutAnnouncer();
 
 console.log(`
 🔮 Arra Oracle HTTP Server running! (Elysia)
