@@ -39,7 +39,15 @@ export class LanceDBAdapter implements VectorStoreAdapter {
   }
 
   async ensureCollection(): Promise<void> {
-    if (!this.db) throw new Error('LanceDB not connected');
+    // Self-connect if a caller reaches a query/write path without an explicit
+    // connect() first. The MCP server builds the default vector store but only
+    // connect()s the per-model registry stores — so hybrid/default searches hit
+    // this with this.db === null and used to throw "LanceDB not connected",
+    // which vectorSearch() swallowed into [] (silent FTS-only fallback). connect()
+    // is idempotent (early-returns when this.db is set), so this is safe to call
+    // on every path. See vector/factory.ts getVectorStoreByModel for the
+    // registry path that already pre-connects.
+    if (!this.db) await this.connect();
 
     const tableNames = await this.db.tableNames();
     if (tableNames.includes(this.collectionName)) {
@@ -216,6 +224,13 @@ export class LanceDBAdapter implements VectorStoreAdapter {
 
   async getStats(): Promise<{ count: number }> {
     if (!this.table) {
+      // Self-connect first so health checks report the real row count instead
+      // of a false 0. verifyVectorHealth() calls getStats() before any query;
+      // without this it saw this.db === null, returned { count: 0 }, and set
+      // vectorStatus = 'connected' while the store was never actually opened.
+      if (!this.db) {
+        try { await this.connect(); } catch {}
+      }
       // Try to open existing table
       if (this.db) {
         try {
