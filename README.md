@@ -24,7 +24,7 @@ For Docker MCP Toolkit / Gateway / n8n installs, see [docs/DOCKER-MCP-TOOLKIT.md
 arra-oracle-v3 (one package, two primary bins + legacy aliases)
 ├── bunx --package github:Soul-Brews-Studio/arra-oracle-v3 arra-oracle  → HTTP API (bin/arra.ts)
 ├── bunx --package github:Soul-Brews-Studio/arra-oracle-v3 arra-cli     → operator CLI (cli/src/cli.ts)
-├── bunx arra-oracle-v2                                                  → legacy MCP alias (src/index.ts)
+├── bunx --package github:Soul-Brews-Studio/arra-oracle-v3 arra-oracle-v2 → legacy MCP alias (src/index.ts)
 ├── bun run server                                                       → HTTP API (src/server.ts)
 └── bun run index                                                        → Indexer (src/indexer.ts)
 
@@ -67,7 +67,7 @@ existing installs, Docker commands, and MCP configs. See [docs/BINS.md](docs/BIN
 ### Add to Claude Code
 
 ```bash
-claude mcp add arra-oracle-v2 -- bunx --bun arra-oracle-v2@github:Soul-Brews-Studio/arra-oracle-v3#main
+claude mcp add arra-oracle-v2 -- bunx --bun --package github:Soul-Brews-Studio/arra-oracle-v3 arra-oracle-v2
 ```
 
 Or in `~/.claude.json`:
@@ -76,11 +76,17 @@ Or in `~/.claude.json`:
   "mcpServers": {
     "arra-oracle-v2": {
       "command": "bunx",
-      "args": ["--bun", "arra-oracle-v2@github:Soul-Brews-Studio/arra-oracle-v3#main"]
+      "args": ["--bun", "--package", "github:Soul-Brews-Studio/arra-oracle-v3", "arra-oracle-v2"]
     }
   }
 }
 ```
+
+> For a canonical install that shares `ORACLE_DATA_DIR` with Codex / the HTTP API
+> (and gives pinned-commit control + offline starts), see
+> [Oracle 101 — ch03 "ติดตั้งจาก 0"](https://oracle101.vercel.app/ch03.html).
+> §3.11 note: if both Claude Code and Codex are installed, they MUST point at
+> the same `ORACLE_DATA_DIR`.
 
 ### From source
 
