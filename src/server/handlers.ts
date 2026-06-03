@@ -41,15 +41,25 @@ export async function handleSearch(
   // Auto-detect project from cwd if not explicitly specified
   const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
   const startTime = Date.now();
-  // Remove FTS5 special characters and HTML: ? * + - ( ) ^ ~ " ' : < > { } [ ] ; / \
+  // A1: allowlist sanitizer — keep ONLY Unicode letters/numbers/whitespace (so Thai and
+  // other scripts survive) and strip every punctuation char. The previous blocklist
+  // missed `=`, `.`, `,` (and more), which reach FTS5 MATCH as syntax and throw
+  // ("Search failed" → HTTP 400). An allowlist can never leak a syntax char.
   const safeQuery = query
-    .replace(/<[^>]*>/g, ' ')           // Strip HTML tags
-    .replace(/[?*+\-()^~"':;<>{}[\]\\\/]/g, ' ')  // Strip FTS5 + SQL special chars
+    .replace(/<[^>]*>/g, ' ')            // Strip HTML tags
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')   // Keep letters/numbers/space (Thai-safe); drop punctuation
     .replace(/\s+/g, ' ')
     .trim();
   if (!safeQuery) {
     return { results: [], total: 0, limit, offset, query };
   }
+  // A3: build the FTS5 MATCH expression as quoted OR-of-terms. Bareword separation is
+  // implicit-AND, so a long natural-language / Thai query needs EVERY term present →
+  // 0 hits when one rare word is absent. OR lets BM25 (ORDER BY rank) score by how many
+  // and how rare the matched terms are — real BM25 recall, not all-or-nothing. Quoting
+  // each term also makes AND/OR/NOT/NEAR appearing IN the query literal tokens, not
+  // operators, so the expression can't become malformed.
+  const ftsMatch = safeQuery.split(' ').filter(Boolean).map(t => `"${t}"`).join(' OR ');
 
   let warning: string | undefined;
 
@@ -66,60 +76,69 @@ export async function handleSearch(
 
   // FTS5 search must use raw SQL (Drizzle doesn't support virtual tables)
   if (mode !== 'vector') {
-    if (type === 'all') {
-      const countStmt = sqlite.prepare(`
-        SELECT COUNT(*) as total
-        FROM oracle_fts f
-        JOIN oracle_documents d ON f.id = d.id
-        WHERE oracle_fts MATCH ? AND ${projectFilter}
-      `);
-      ftsTotal = (countStmt.get(safeQuery, ...projectParams) as { total: number }).total;
+    try {
+      if (type === 'all') {
+        const countStmt = sqlite.prepare(`
+          SELECT COUNT(*) as total
+          FROM oracle_fts f
+          JOIN oracle_documents d ON f.id = d.id
+          WHERE oracle_fts MATCH ? AND ${projectFilter}
+        `);
+        ftsTotal = (countStmt.get(ftsMatch, ...projectParams) as { total: number }).total;
 
-      const stmt = sqlite.prepare(`
-        SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
-        FROM oracle_fts f
-        JOIN oracle_documents d ON f.id = d.id
-        WHERE oracle_fts MATCH ? AND ${projectFilter}
-        ORDER BY rank
-        LIMIT ?
-      `);
-      ftsResults = stmt.all(safeQuery, ...projectParams, limit * 2).map((row: any) => ({
-        id: row.id,
-        type: row.type,
-        content: row.content,
-        source_file: row.source_file,
-        concepts: JSON.parse(row.concepts || '[]'),
-        project: row.project,
-        source: 'fts' as const,
-        score: normalizeRank(row.score)
-      }));
-    } else {
-      const countStmt = sqlite.prepare(`
-        SELECT COUNT(*) as total
-        FROM oracle_fts f
-        JOIN oracle_documents d ON f.id = d.id
-        WHERE oracle_fts MATCH ? AND d.type = ? AND ${projectFilter}
-      `);
-      ftsTotal = (countStmt.get(safeQuery, type, ...projectParams) as { total: number }).total;
+        const stmt = sqlite.prepare(`
+          SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
+          FROM oracle_fts f
+          JOIN oracle_documents d ON f.id = d.id
+          WHERE oracle_fts MATCH ? AND ${projectFilter}
+          ORDER BY rank
+          LIMIT ?
+        `);
+        ftsResults = stmt.all(ftsMatch, ...projectParams, limit * 2).map((row: any) => ({
+          id: row.id,
+          type: row.type,
+          content: row.content,
+          source_file: row.source_file,
+          concepts: JSON.parse(row.concepts || '[]'),
+          project: row.project,
+          source: 'fts' as const,
+          score: normalizeRank(row.score)
+        }));
+      } else {
+        const countStmt = sqlite.prepare(`
+          SELECT COUNT(*) as total
+          FROM oracle_fts f
+          JOIN oracle_documents d ON f.id = d.id
+          WHERE oracle_fts MATCH ? AND d.type = ? AND ${projectFilter}
+        `);
+        ftsTotal = (countStmt.get(ftsMatch, type, ...projectParams) as { total: number }).total;
 
-      const stmt = sqlite.prepare(`
-        SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
-        FROM oracle_fts f
-        JOIN oracle_documents d ON f.id = d.id
-        WHERE oracle_fts MATCH ? AND d.type = ? AND ${projectFilter}
-        ORDER BY rank
-        LIMIT ?
-      `);
-      ftsResults = stmt.all(safeQuery, type, ...projectParams, limit * 2).map((row: any) => ({
-        id: row.id,
-        type: row.type,
-        content: row.content,
-        source_file: row.source_file,
-        concepts: JSON.parse(row.concepts || '[]'),
-        project: row.project,
-        source: 'fts' as const,
-        score: normalizeRank(row.score)
-      }));
+        const stmt = sqlite.prepare(`
+          SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
+          FROM oracle_fts f
+          JOIN oracle_documents d ON f.id = d.id
+          WHERE oracle_fts MATCH ? AND d.type = ? AND ${projectFilter}
+          ORDER BY rank
+          LIMIT ?
+        `);
+        ftsResults = stmt.all(ftsMatch, type, ...projectParams, limit * 2).map((row: any) => ({
+          id: row.id,
+          type: row.type,
+          content: row.content,
+          source_file: row.source_file,
+          concepts: JSON.parse(row.concepts || '[]'),
+          project: row.project,
+          source: 'fts' as const,
+          score: normalizeRank(row.score)
+        }));
+      }
+    } catch (err) {
+      // A2: a failing FTS leg must never 400 the whole request. Degrade to an empty FTS
+      // list so the vector leg — and the combiner's single-leg passthrough — still serve.
+      console.error('[FTS Search Error]', err instanceof Error ? err.message : String(err));
+      ftsResults = [];
+      ftsTotal = 0;
+      if (!warning) warning = 'FTS search error — vector-only results';
     }
   }
 
