@@ -182,7 +182,7 @@ export async function handleSearch(
         return chromaResults.ids
           .map((id: string, i: number) => {
             const distance = chromaResults.distances?.[i] || 0;
-            const similarity = 1 / (1 + distance / 100);
+            const similarity = Math.max(0, 1 - distance / 2);
             const docProject = projectMap.get(id);
             return {
               id,
@@ -289,34 +289,36 @@ function normalizeRank(rank: number): number {
  * Combine FTS and vector results with hybrid scoring
  */
 function combineSearchResults(fts: SearchResult[], vector: SearchResult[]): SearchResult[] {
-  const seen = new Map<string, SearchResult>();
+  // Single leg → preserve that leg's own scores (lever-fixed cosine similarity for
+  // vector-only, FTS rank for fts-only). RRF only makes sense when fusing two lists.
+  if (fts.length === 0) return vector;
+  if (vector.length === 0) return fts;
 
-  // Add FTS results first
-  for (const r of fts) {
-    seen.set(r.id, r);
-  }
+  // Hybrid → Reciprocal Rank Fusion (RRF, K=60): fuses two rank-sorted lists across
+  // incompatible score scales (FTS5 rank vs cosine similarity) without weight tuning,
+  // so a bounded cosine score can't be swamped by (or swamp) the keyword leg.
+  // fused(d) = Σ 1 / (K + rank_d). Inputs arrive already rank-sorted (rank = index).
+  const K = 60;
+  const merged = new Map<string, SearchResult>();
+  const rrf = new Map<string, number>();
+  const rank = (list: SearchResult[]) => list.forEach((r, i) => {
+    rrf.set(r.id, (rrf.get(r.id) || 0) + 1 / (K + i + 1));
+    const prev = merged.get(r.id);
+    // Keep first-seen content; let the vector leg contribute distance/model.
+    merged.set(r.id, prev ? { ...prev, distance: r.distance ?? prev.distance, model: r.model ?? prev.model } : r);
+  });
+  rank(fts);
+  rank(vector);
 
-  // Merge vector results (boost score if found in both)
-  for (const r of vector) {
-    if (seen.has(r.id)) {
-      const existing = seen.get(r.id)!;
-      // Use max score + bonus for appearing in both (hybrid boost)
-      const maxScore = Math.max(existing.score || 0, r.score || 0);
-      const bonus = 0.1; // Bonus for appearing in both FTS and vector
-      seen.set(r.id, {
-        ...existing,
-        score: Math.min(1, maxScore + bonus), // Cap at 1.0
-        source: 'hybrid' as const,
-        distance: r.distance,
-        model: r.model
-      });
-    } else {
-      seen.set(r.id, r);
-    }
-  }
-
-  // Sort by score descending
-  return Array.from(seen.values()).sort((a, b) => (b.score || 0) - (a.score || 0));
+  const ftsIds = new Set(fts.map(r => r.id));
+  const vecIds = new Set(vector.map(r => r.id));
+  return Array.from(merged.values())
+    .map(r => ({
+      ...r,
+      score: rrf.get(r.id) || 0,
+      source: (ftsIds.has(r.id) && vecIds.has(r.id) ? 'hybrid' : r.source) as SearchResult['source'],
+    }))
+    .sort((a, b) => (b.score || 0) - (a.score || 0));
 }
 
 /**
