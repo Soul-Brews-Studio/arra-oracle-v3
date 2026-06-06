@@ -6,6 +6,18 @@
  */
 
 import type { VectorStoreAdapter, VectorDocument, VectorQueryResult, EmbeddingProvider } from '../types.ts';
+import { createHash } from 'node:crypto';
+
+export function qdrantPointId(id: string): string {
+  const hex = createHash('sha256').update(id).digest('hex').slice(0, 32);
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    `5${hex.slice(13, 16)}`,
+    ((parseInt(hex.slice(16, 17), 16) & 0x3) | 0x8).toString(16) + hex.slice(17, 20),
+    hex.slice(20, 32),
+  ].join('-');
+}
 
 export class QdrantAdapter implements VectorStoreAdapter {
   readonly name = 'qdrant';
@@ -75,12 +87,20 @@ export class QdrantAdapter implements VectorStoreAdapter {
     if (docs.length === 0) return;
     if (!this.client) throw new Error('Qdrant not connected');
 
-    const texts = docs.map(d => d.document);
-    const embeddings = await this.embedder.embed(texts, 'passage');
+    const needEmbed: number[] = [];
+    for (let i = 0; i < docs.length; i++) {
+      if (!docs[i].vector) needEmbed.push(i);
+    }
+
+    let fresh: number[][] = [];
+    if (needEmbed.length > 0) {
+      fresh = await this.embedder.embed(needEmbed.map(i => docs[i].document), 'passage');
+    }
+    let freshIdx = 0;
 
     const points = docs.map((doc, i) => ({
-      id: this.hashId(doc.id),
-      vector: embeddings[i],
+      id: this.pointId(doc.id),
+      vector: doc.vector ?? fresh[freshIdx++],
       payload: {
         _id: doc.id,
         document: doc.document,
@@ -89,7 +109,12 @@ export class QdrantAdapter implements VectorStoreAdapter {
     }));
 
     await this.client.upsert(this.collectionName, { points });
-    console.log(`[Qdrant] Added ${docs.length} documents`);
+    const reused = docs.length - needEmbed.length;
+    if (reused > 0) {
+      console.log(`[Qdrant] Added ${docs.length} documents (${reused} with precomputed vectors)`);
+    } else {
+      console.log(`[Qdrant] Added ${docs.length} documents`);
+    }
   }
 
   async query(text: string, limit: number = 10, where?: Record<string, any>): Promise<VectorQueryResult> {
@@ -125,11 +150,11 @@ export class QdrantAdapter implements VectorStoreAdapter {
   async queryById(id: string, nResults: number = 5): Promise<VectorQueryResult> {
     if (!this.client) throw new Error('Qdrant not connected');
 
-    const numericId = this.hashId(id);
+    const pointId = this.pointId(id);
 
     // Get the point's vector (retrieve replaces getPoints in newer client versions)
     const points = await this.client.retrieve(this.collectionName, {
-      ids: [numericId],
+      ids: [pointId],
       with_vector: true,
     });
 
@@ -175,15 +200,11 @@ export class QdrantAdapter implements VectorStoreAdapter {
   }
 
   /**
-   * Convert string ID to numeric hash for Qdrant (requires integer or UUID IDs).
-   * Uses FNV-1a hash for deterministic mapping.
+   * Convert arbitrary document IDs to stable UUID-shaped point IDs.
+   * Qdrant accepts UUID strings; SHA-256 avoids the old 32-bit FNV collision
+   * space while keeping deterministic lookup for queryById().
    */
-  private hashId(id: string): number {
-    let hash = 0x811c9dc5;
-    for (let i = 0; i < id.length; i++) {
-      hash ^= id.charCodeAt(i);
-      hash = Math.imul(hash, 0x01000193);
-    }
-    return hash >>> 0; // Ensure positive 32-bit integer
+  private pointId(id: string): string {
+    return qdrantPointId(id);
   }
 }

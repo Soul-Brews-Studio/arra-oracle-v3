@@ -12,7 +12,7 @@ import { createEmbeddingProvider, OllamaEmbeddings } from '../embeddings.ts';
 import { SqliteVecAdapter } from '../adapters/sqlite-vec.ts';
 import { ChromaMcpAdapter } from '../adapters/chroma-mcp.ts';
 import { LanceDBAdapter } from '../adapters/lancedb.ts';
-import { QdrantAdapter } from '../adapters/qdrant.ts';
+import { QdrantAdapter, qdrantPointId } from '../adapters/qdrant.ts';
 import type { VectorStoreAdapter, VectorDocument } from '../types.ts';
 import { Database } from 'bun:sqlite';
 import path from 'path';
@@ -170,6 +170,43 @@ describe('createVectorStore factory', () => {
 
     expect(store.name).toBe('qdrant');
     expect(store).toBeInstanceOf(QdrantAdapter);
+  });
+});
+
+describe('QdrantAdapter parity helpers', () => {
+  test('qdrantPointId is a stable UUID, not a 32-bit integer hash', () => {
+    const id = qdrantPointId('learning_2026-06-06_qdrant-parity');
+
+    expect(id).toBe(qdrantPointId('learning_2026-06-06_qdrant-parity'));
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(Number.isInteger(Number(id))).toBe(false);
+  });
+
+  test('addDocuments honors doc.vector and embeds only missing vectors', async () => {
+    const embedCalls: string[][] = [];
+    const embedder = {
+      name: 'fake',
+      dimensions: 3,
+      embed: async (texts: string[]) => {
+        embedCalls.push(texts);
+        return texts.map((_, i) => [9 + i, 8 + i, 7 + i]);
+      },
+    };
+    const upserts: any[] = [];
+    const adapter = new QdrantAdapter('oracle_test_qdrant_parity', embedder);
+    (adapter as any).client = {
+      upsert: async (_collection: string, payload: any) => upserts.push(payload),
+    };
+
+    await adapter.addDocuments([
+      { id: 'with-vector', document: 'already embedded', metadata: { type: 'learning' }, vector: [1, 2, 3] },
+      { id: 'without-vector', document: 'needs embedding', metadata: { type: 'learning' } },
+    ]);
+
+    expect(embedCalls).toEqual([['needs embedding']]);
+    expect(upserts[0].points[0].vector).toEqual([1, 2, 3]);
+    expect(upserts[0].points[1].vector).toEqual([9, 8, 7]);
+    expect(upserts[0].points[0].id).toBe(qdrantPointId('with-vector'));
   });
 });
 
