@@ -3,14 +3,17 @@
  *
  * Controls which tool groups are registered at startup.
  * Config sources (in priority order):
- *   1. arra.config.json in repo root (ORACLE_REPO_ROOT or cwd)
- *   2. ORACLE_DATA_DIR/config.json (global, see const.ts)
- *   3. Defaults: all groups enabled
+ *   1. ORACLE_ENABLED_TOOLS / ORACLE_DISABLED_TOOLS env lists
+ *   2. arra.config.json or .arra/config.json in repo root (ORACLE_REPO_ROOT or cwd)
+ *   3. ORACLE_DATA_DIR/config.json (global, see const.ts)
+ *   4. Defaults: all groups enabled
  */
 
 import fs from 'fs';
 import path from 'path';
 import { ORACLE_DATA_DIR } from '../config.ts';
+
+export const META_TOOL_NAME = '____IMPORTANT';
 
 export const TOOL_GROUPS = {
   search: ['oracle_search', 'oracle_read', 'oracle_list', 'oracle_concepts'],
@@ -36,7 +39,10 @@ export type ToolGroupName = keyof typeof TOOL_GROUPS;
  */
 export type ToolGroupConfig = Record<ToolGroupName, boolean> & {
   disabled_tools?: string[];
+  /** Legacy override: re-enables listed tools after group/disabled_tools processing. */
   enabled_tools?: string[];
+  /** Strict allow-list: when present, every other MCP tool is hidden from tools/list and calls. */
+  allowed_tools?: string[];
 };
 
 const DEFAULT_CONFIG: ToolGroupConfig = {
@@ -49,9 +55,34 @@ const DEFAULT_CONFIG: ToolGroupConfig = {
 };
 
 /** All registered tool names — for validating disabled_tools / enabled_tools entries. */
-const ALL_TOOL_NAMES: ReadonlySet<string> = new Set(
-  Object.values(TOOL_GROUPS).flat() as string[],
-);
+const ALIAS_PREFIXES = ['arra_', 'muninn_'] as const;
+
+export function normalizeToolName(name: string): string {
+  for (const p of ALIAS_PREFIXES) {
+    if (name.startsWith(p)) return 'oracle_' + name.slice(p.length);
+  }
+  return name;
+}
+
+const ALL_TOOL_NAMES: ReadonlySet<string> = new Set([
+  META_TOOL_NAME,
+  ...(Object.values(TOOL_GROUPS).flat() as string[]),
+]);
+
+function parseToolList(raw: string | undefined): string[] {
+  if (!raw?.trim()) return [];
+  return raw
+    .split(/[\s,]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+function normalizeToolList(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  return raw
+    .filter((t: unknown): t is string => typeof t === 'string')
+    .map(normalizeToolName);
+}
 
 function readJsonSafe(filePath: string): Record<string, any> | null {
   try {
@@ -62,30 +93,59 @@ function readJsonSafe(filePath: string): Record<string, any> | null {
   }
 }
 
+function hasToolConfig(raw: Record<string, any>): boolean {
+  return Boolean(
+    raw.tools ||
+      raw.disabled_tools ||
+      raw.enabled_tools ||
+      raw.allowed_tools ||
+      raw.only_tools ||
+      raw.mcp_disabled_tools ||
+      raw.mcp_enabled_tools ||
+      raw.mcp_allowed_tools
+  );
+}
+
 function mergeRaw(raw: Record<string, any>): ToolGroupConfig {
   const merged: ToolGroupConfig = { ...DEFAULT_CONFIG, ...raw.tools };
-  if (Array.isArray(raw.disabled_tools)) {
-    merged.disabled_tools = raw.disabled_tools.filter((t: unknown) => typeof t === 'string');
-  }
-  if (Array.isArray(raw.enabled_tools)) {
-    merged.enabled_tools = raw.enabled_tools.filter((t: unknown) => typeof t === 'string');
-  }
+  const disabled = normalizeToolList(raw.disabled_tools ?? raw.mcp_disabled_tools);
+  if (disabled) merged.disabled_tools = disabled;
+  const enabled = normalizeToolList(raw.enabled_tools ?? raw.mcp_enabled_tools);
+  if (enabled) merged.enabled_tools = enabled;
+  const allowed = normalizeToolList(raw.allowed_tools ?? raw.only_tools ?? raw.mcp_allowed_tools);
+  if (allowed) merged.allowed_tools = allowed;
   return merged;
 }
 
 export function loadToolGroupConfig(repoRoot?: string): ToolGroupConfig {
   const root = repoRoot || process.env.ORACLE_REPO_ROOT || process.cwd();
 
-  // Priority 1: repo-local arra.config.json
-  const localConfig = readJsonSafe(path.join(root, 'arra.config.json'));
-  if (localConfig && (localConfig.tools || localConfig.disabled_tools || localConfig.enabled_tools)) {
-    console.error('[ToolGroups] Using arra.config.json from repo root');
-    return mergeRaw(localConfig);
+  const envAllowed = parseToolList(process.env.ORACLE_ENABLED_TOOLS).map(normalizeToolName);
+  const envDisabled = parseToolList(process.env.ORACLE_DISABLED_TOOLS).map(normalizeToolName);
+  if (envAllowed.length || envDisabled.length) {
+    console.error('[ToolGroups] Using ORACLE_ENABLED_TOOLS / ORACLE_DISABLED_TOOLS');
+    return {
+      ...DEFAULT_CONFIG,
+      ...(envAllowed.length ? { allowed_tools: envAllowed } : {}),
+      ...(envDisabled.length ? { disabled_tools: envDisabled } : {}),
+    };
+  }
+
+  // Priority 1: repo-local arra.config.json or .arra/config.json
+  for (const [label, filePath] of [
+    ['arra.config.json from repo root', path.join(root, 'arra.config.json')],
+    ['.arra/config.json from repo root', path.join(root, '.arra', 'config.json')],
+  ] as const) {
+    const localConfig = readJsonSafe(filePath);
+    if (localConfig && hasToolConfig(localConfig)) {
+      console.error(`[ToolGroups] Using ${label}`);
+      return mergeRaw(localConfig);
+    }
   }
 
   // Priority 2: global config.json in data dir
   const globalConfig = readJsonSafe(path.join(ORACLE_DATA_DIR, 'config.json'));
-  if (globalConfig && (globalConfig.tools || globalConfig.disabled_tools || globalConfig.enabled_tools)) {
+  if (globalConfig && hasToolConfig(globalConfig)) {
     console.error(`[ToolGroups] Using ${ORACLE_DATA_DIR}/config.json`);
     return mergeRaw(globalConfig);
   }
@@ -114,21 +174,42 @@ export function getDisabledTools(config: ToolGroupConfig): Set<string> {
       }
     }
   }
-  for (const t of config.disabled_tools ?? []) {
+  for (const raw of config.disabled_tools ?? []) {
+    const t = normalizeToolName(raw);
     if (!ALL_TOOL_NAMES.has(t)) {
       console.error(`[ToolGroups] disabled_tools: unknown tool "${t}" — ignored`);
       continue;
     }
     disabled.add(t);
   }
-  for (const t of config.enabled_tools ?? []) {
+  for (const raw of config.enabled_tools ?? []) {
+    const t = normalizeToolName(raw);
     if (!ALL_TOOL_NAMES.has(t)) {
       console.error(`[ToolGroups] enabled_tools: unknown tool "${t}" — ignored`);
       continue;
     }
     disabled.delete(t);
   }
+  if (config.allowed_tools?.length) {
+    const allowed = new Set<string>();
+    for (const raw of config.allowed_tools) {
+      const t = normalizeToolName(raw);
+      if (!ALL_TOOL_NAMES.has(t)) {
+        console.error(`[ToolGroups] allowed_tools: unknown tool "${raw}" — ignored`);
+        continue;
+      }
+      allowed.add(t);
+    }
+    for (const t of ALL_TOOL_NAMES) {
+      if (!allowed.has(t)) disabled.add(t);
+    }
+  }
   return disabled;
+}
+
+export function getEnabledToolNames(config: ToolGroupConfig): Set<string> {
+  const disabled = getDisabledTools(config);
+  return new Set([...ALL_TOOL_NAMES].filter((t) => !disabled.has(t)));
 }
 
 /**
@@ -147,6 +228,7 @@ export function watchToolGroupConfig(
 ): () => void {
   const root = repoRoot || process.env.ORACLE_REPO_ROOT || process.cwd();
   const localPath = path.join(root, 'arra.config.json');
+  const dotArraPath = path.join(root, '.arra', 'config.json');
   const globalPath = path.join(ORACLE_DATA_DIR, 'config.json');
   const watchers: fs.FSWatcher[] = [];
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -165,7 +247,7 @@ export function watchToolGroupConfig(
     }, 200);
   };
 
-  for (const target of [localPath, globalPath]) {
+  for (const target of [localPath, dotArraPath, globalPath]) {
     try {
       // Watch the file directly. fs.watch on a missing file throws on Linux
       // and silently fails on macOS, so probe with existsSync first.

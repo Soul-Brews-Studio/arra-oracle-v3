@@ -99,6 +99,17 @@ const WRITE_TOOLS = [
   'oracle_handoff',
 ];
 
+
+export function filterAdvertisedTools<T extends { name: string }>(
+  tools: T[],
+  disabledTools: Set<string>,
+  readOnly = false,
+): T[] {
+  return tools
+    .filter((t) => !disabledTools.has(t.name))
+    .filter((t) => !(readOnly && WRITE_TOOLS.includes(t.name)));
+}
+
 const DEFAULT_ORACLE_API = 'http://localhost:47778';
 const EMBEDDED_API_VALUES = new Set(['embedded', 'embed', 'off', 'none', 'false', '0']);
 
@@ -499,10 +510,7 @@ class OracleMCPServer {
         verifyToolDef,
       ];
 
-      let tools = allTools.filter(t => !this.disabledTools.has(t.name));
-      if (this.readOnly) {
-        tools = tools.filter(t => !WRITE_TOOLS.includes(t.name));
-      }
+      const tools = filterAdvertisedTools(allTools, this.disabledTools, this.readOnly);
 
       return { tools };
     });
@@ -674,4 +682,6 @@ async function main() {
   await server.run();
 }
 
-main().catch(console.error);
+if (import.meta.main) {
+  main().catch(console.error);
+}

@@ -5,6 +5,8 @@ import path from 'path';
 import {
   TOOL_GROUPS,
   getDisabledTools,
+  getEnabledToolNames,
+  normalizeToolName,
   loadToolGroupConfig,
   watchToolGroupConfig,
   type ToolGroupConfig,
@@ -91,6 +93,63 @@ describe('tool-groups', () => {
     // Typos didn't leak in
     expect(disabled.has('typo_search')).toBe(false);
     expect(disabled.has('also_typo')).toBe(false);
+  });
+
+
+  it('normalizes legacy arra_* and muninn_* aliases in per-tool config', () => {
+    expect(normalizeToolName('arra_search')).toBe('oracle_search');
+    expect(normalizeToolName('muninn_trace_get')).toBe('oracle_trace_get');
+
+    const disabled = getDisabledTools({
+      search: true, knowledge: true, session: true,
+      forum: true, trace: true, standalone: true,
+      disabled_tools: ['arra_search', 'muninn_trace_get'],
+    });
+
+    expect(disabled.has('oracle_search')).toBe(true);
+    expect(disabled.has('oracle_trace_get')).toBe(true);
+  });
+
+  it('allowed_tools is a strict MCP tool allow-list for context reduction', () => {
+    const enabled = getEnabledToolNames({
+      search: true, knowledge: true, session: true,
+      forum: true, trace: true, standalone: true,
+      allowed_tools: ['arra_search', 'muninn_trace_get'],
+    });
+
+    expect(enabled).toEqual(new Set(['oracle_search', 'oracle_trace_get']));
+  });
+
+  it('ORACLE_ENABLED_TOOLS and ORACLE_DISABLED_TOOLS load env tool filters', () => {
+    const oldEnabled = process.env.ORACLE_ENABLED_TOOLS;
+    const oldDisabled = process.env.ORACLE_DISABLED_TOOLS;
+    try {
+      process.env.ORACLE_ENABLED_TOOLS = 'arra_search, muninn_trace_get';
+      process.env.ORACLE_DISABLED_TOOLS = 'oracle_trace_get';
+      const config = loadToolGroupConfig('/nonexistent/path');
+      expect(config.allowed_tools).toEqual(['oracle_search', 'oracle_trace_get']);
+      expect(config.disabled_tools).toEqual(['oracle_trace_get']);
+      const enabled = getEnabledToolNames(config);
+      expect(enabled).toEqual(new Set(['oracle_search']));
+    } finally {
+      if (oldEnabled === undefined) delete process.env.ORACLE_ENABLED_TOOLS;
+      else process.env.ORACLE_ENABLED_TOOLS = oldEnabled;
+      if (oldDisabled === undefined) delete process.env.ORACLE_DISABLED_TOOLS;
+      else process.env.ORACLE_DISABLED_TOOLS = oldDisabled;
+    }
+  });
+
+  it('loads MCP tool filters from repo .arra/config.json', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-toolgroups-dotarra-'));
+    try {
+      fs.mkdirSync(path.join(dir, '.arra'));
+      fs.writeFileSync(path.join(dir, '.arra', 'config.json'), JSON.stringify({ allowed_tools: ['muninn_search'] }));
+      const config = loadToolGroupConfig(dir);
+      expect(config.allowed_tools).toEqual(['oracle_search']);
+      expect(getEnabledToolNames(config)).toEqual(new Set(['oracle_search']));
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('defaults to all groups enabled', () => {
