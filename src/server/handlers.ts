@@ -25,6 +25,17 @@ import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
 const vectorProxy = createVectorProxy(VECTOR_URL);
 
 /**
+ * LanceDB is configured for cosine distance, where nearest-neighbor distances
+ * are in the 0..2 range: 0 means identical, 2 means opposite. Convert that
+ * directly to a bounded relevance score instead of using the old L2 scaling
+ * formula, which saturated normal cosine distances around 0.99.
+ */
+export function cosineDistanceToSimilarity(distance: number): number {
+  if (!Number.isFinite(distance)) return 0;
+  return Math.max(0, Math.min(1, 1 - distance / 2));
+}
+
+/**
  * Search Oracle knowledge base with hybrid search (FTS5 + Vector)
  * HTTP server can safely use ChromaMcpClient since it's not an MCP server
  */
@@ -182,7 +193,7 @@ export async function handleSearch(
         return chromaResults.ids
           .map((id: string, i: number) => {
             const distance = chromaResults.distances?.[i] || 0;
-            const similarity = 1 / (1 + distance / 100);
+            const similarity = cosineDistanceToSimilarity(distance);
             const docProject = projectMap.get(id);
             return {
               id,
