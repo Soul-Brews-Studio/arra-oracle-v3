@@ -46,6 +46,7 @@ export interface VectorConfigUpdateCollection {
 }
 
 export interface VectorConfigUpdate {
+  enabled?: boolean;
   engine?: LocalVectorEngine;
   dataPath?: string;
   embeddingEndpoint?: string;
@@ -54,6 +55,7 @@ export interface VectorConfigUpdate {
 
 export interface VectorServerConfig {
   version: string;
+  enabled?: boolean;
   host: string;
   port: number;
   collections: Record<string, VectorCollectionConfig>;
@@ -86,6 +88,7 @@ export function configPath(): string {
 export function generateDefaultConfig(): VectorServerConfig {
   return {
     version: '1.0',
+    enabled: false,
     host: '0.0.0.0',
     port: 8081,
     collections: {
@@ -188,6 +191,8 @@ export function applyVectorConfigUpdate(
 ): VectorServerConfig {
   const next: VectorServerConfig = structuredClone(base);
 
+  if (update.enabled !== undefined) next.enabled = update.enabled;
+
   if (update.engine !== undefined) {
     if (!isLocalVectorEngine(update.engine)) {
       throw new Error(`Unsupported local vector engine: ${String(update.engine)}`);
@@ -233,4 +238,9 @@ export function applyVectorConfigUpdate(
   }
 
   return next;
+}
+
+
+export function isVectorSectionEnabled(config: VectorServerConfig | null = loadVectorConfig()): boolean {
+  return config?.enabled === true || process.env.ORACLE_VECTOR_ENABLED === '1';
 }

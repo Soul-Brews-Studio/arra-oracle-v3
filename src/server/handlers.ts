@@ -18,6 +18,7 @@ import { coerceConcepts } from '../tools/learn.ts';
 import { createVectorProxy } from './vector-proxy.ts';
 import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
 import { localNativeVectorDisabledReason, localVectorIndexMissingReason, logLocalVectorDisabled } from '../vector/cpu-capabilities.ts';
+import { isVectorSectionEnabled } from '../vector/config.ts';
 
 // Module-level proxy instance — bound to VECTOR_URL at boot. If VECTOR_URL is
 // unset, this is null and the local vector adapter runs in-process (legacy
@@ -106,6 +107,7 @@ export async function handleSearch(
   let effectiveMode = mode;
   let vectorDisabledReason: string | undefined;
   let vectorIndexMissingReason: string | undefined;
+  let vectorSectionDisabled = false;
   if (mode !== 'fts' && !vectorProxy) {
     const modelsToCheck = model === 'multi' ? ['bge-m3', 'nomic'] : [model];
     for (const modelKey of modelsToCheck) {
@@ -119,6 +121,9 @@ export async function handleSearch(
       effectiveMode = 'fts';
       warning = `${vectorDisabledReason}; falling back to FTS5-only results`;
       logLocalVectorDisabled(vectorDisabledReason);
+    } else if (!isVectorSectionEnabled()) {
+      vectorSectionDisabled = true;
+      effectiveMode = 'fts';
     } else if (vectorIndexMissingReason) {
       effectiveMode = 'fts';
     }
@@ -201,7 +206,7 @@ export async function handleSearch(
   // (vector wasn't asked for), flips to `false` if the proxy is enabled and
   // the remote call failed — clients use this to render a "vector down" hint
   // while still getting FTS5 results.
-  let vectorAvailable = !vectorDisabledReason && !vectorIndexMissingReason;
+  let vectorAvailable = !vectorSectionDisabled && !vectorDisabledReason && !vectorIndexMissingReason;
 
   // VECTOR_URL set → route the vector leg through the remote service.
   // FTS5 always runs locally above. If the proxy fails we return whatever FTS5

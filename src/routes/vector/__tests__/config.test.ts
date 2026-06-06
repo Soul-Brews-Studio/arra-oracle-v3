@@ -22,6 +22,8 @@ describe('/api/vector/config', () => {
     expect(res.status).toBe(200);
     expect(body.source).toBe('defaults');
     expect(body.engine).toBe('lancedb');
+    expect(body.enabled).toBe(false);
+    expect(body.state).toMatchObject({ enabled: false, ready: false, reason: 'vector section disabled' });
     expect(body.config.collections['bge-m3']).toMatchObject({
       adapter: 'lancedb',
       model: 'bge-m3',
@@ -35,6 +37,7 @@ describe('/api/vector/config', () => {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
+        enabled: true,
         engine: 'sqlite-vec',
         collections: {
           fast: {
@@ -52,6 +55,10 @@ describe('/api/vector/config', () => {
     expect(res.status).toBe(200);
     expect(body.source).toBe('file');
     expect(body.engine).toBe('sqlite-vec');
+    expect(body.enabled).toBe(true);
+    expect(body.state.enabled).toBe(true);
+    expect(body.state.ready).toBe(false);
+    expect(body.state.recommendedAction).toBe('POST /api/vector/index/start');
     expect(body.config.collections['bge-m3'].adapter).toBe('sqlite-vec');
     expect(body.config.collections.fast).toMatchObject({
       adapter: 'qdrant',

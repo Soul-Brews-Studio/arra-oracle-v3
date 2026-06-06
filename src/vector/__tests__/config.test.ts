@@ -25,6 +25,7 @@ const {
 describe('vector-server config', () => {
   test('default config advertises per-collection adapter/provider metadata', () => {
     const cfg = generateDefaultConfig();
+    expect(cfg.enabled).toBe(false);
     expect(cfg.collections['bge-m3'].adapter).toBe('lancedb');
     expect(cfg.collections['bge-m3'].provider).toBe('ollama');
     expect(cfg.collections.nomic.adapter).toBe('lancedb');
@@ -107,8 +108,9 @@ afterAll(() => {
 describe('local vector engine selection', () => {
   test('applyVectorConfigUpdate switches every default collection to sqlite-vec with sqlite path', async () => {
     const { applyVectorConfigUpdate } = await import('../config.ts');
-    const cfg = applyVectorConfigUpdate(generateDefaultConfig(), { engine: 'sqlite-vec' });
+    const cfg = applyVectorConfigUpdate(generateDefaultConfig(), { enabled: true, engine: 'sqlite-vec' });
 
+    expect(cfg.enabled).toBe(true);
     expect(cfg.dataPath.endsWith('vectors.db')).toBe(true);
     expect(Object.values(cfg.collections).every(c => c.adapter === 'sqlite-vec')).toBe(true);
     expect(configToModels(cfg)['bge-m3'].dataPath?.endsWith('vectors.db')).toBe(true);
