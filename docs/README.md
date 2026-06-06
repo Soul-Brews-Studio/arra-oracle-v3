@@ -8,6 +8,7 @@ Use this page as the one-hop map for the 2026-06-06/07 alpha docs wave.
 | --- | --- | --- |
 | [INSTALL.md](./INSTALL.md) | Fresh install through Bun, Docker GHCR, or Docker MCP Toolkit | `bunx`, `ghcr.io/soul-brews-studio/arra-oracle-v3:{http,stdio}`, `docker mcp` |
 | [FEDERATION.md](./FEDERATION.md) | Pair and secure Arra peers | `/info`, `/api/identity`, `/api/peer/feed`, `/api/peer/search`, TOFU pins |
+| [HUGINN-MUNINN.md](./HUGINN-MUNINN.md) | Understand the capture/recall naming split | Muninn recall, Huginn capture, no `huginn_*` aliases |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | Pick the correct repo/branch for PRs | two-repo rule, source PRs to `arra-oracle-v3:alpha` |
 | [CHANGELOG.md](../CHANGELOG.md) | Review what changed in the alpha wave | release notes, tracker issues, source PRs |
 | [TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md) | Find feature knobs and first commands | MCP modes, plugins, CLI targets, vectors, Docker, federation |
@@ -23,6 +24,7 @@ Use this page as the one-hop map for the 2026-06-06/07 alpha docs wave.
 | Docker/GHCR | [INSTALL.md](./INSTALL.md#channel-2-docker-ghcr-images) | `:http`, `:stdio`, `docker compose`, Docker volumes |
 | Docker MCP Toolkit | [INSTALL.md](./INSTALL.md#channel-3-docker-mcp-toolkit-install) | `catalog/arra-oracle.yaml`, `docker mcp profile create` |
 | Federation | [FEDERATION.md](./FEDERATION.md) | `ARRA_PEER_TOKEN`, `ARRA_NAMED_PEERS`, `ARRA_SCOUT_ANNOUNCE`, `peers-tofu.json` |
+| Capture/recall taxonomy | [HUGINN-MUNINN.md](./HUGINN-MUNINN.md) | `oracle_search`, `oracle_trace*`, `oracle_learn`, `oracle_handoff`, no `huginn_*` aliases |
 
 ## Source references
 

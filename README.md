@@ -26,10 +26,20 @@ The alpha docs wave is reachable from here in one hop:
 | [docs/README.md](docs/README.md) | Docs index and feature-knob map. |
 | [docs/INSTALL.md](docs/INSTALL.md) | Fresh install through Bun remote, Docker GHCR, and Docker MCP Toolkit. |
 | [docs/FEDERATION.md](docs/FEDERATION.md) | Pairing, Scout discovery, TOFU pins, peer feed/search, and peer auth. |
+| [docs/HUGINN-MUNINN.md](docs/HUGINN-MUNINN.md) | Capture/recall naming taxonomy: Arra=Muninn recall, Huginn=capture now. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Two-repo rule and PR target rules. |
 | [CHANGELOG.md](CHANGELOG.md) | Alpha wave release notes and source PR links. |
 | [docs/TONIGHT-SHIPPED.md](docs/TONIGHT-SHIPPED.md) | Consolidated feature reference and per-feature config knobs. |
 
+
+## Huginn & Muninn
+
+Arra is **Muninn**, the recall raven: `oracle_search`, `oracle_read`,
+`oracle_list`, `oracle_stats`, and `oracle_trace*` help recover what is already
+in memory. **Huginn** is capture-now: `oracle_learn`, `oracle_handoff`,
+write-time indexing, and future auto-capture work save the present so Muninn can
+recall it later. This taxonomy is for legibility, not a rename; do not add
+`huginn_*` aliases. See [docs/HUGINN-MUNINN.md](docs/HUGINN-MUNINN.md).
 
 ## Architecture
 
