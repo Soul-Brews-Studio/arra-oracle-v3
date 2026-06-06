@@ -161,6 +161,23 @@ arra plugins disable trace
 arra plugins enable trace
 ```
 
+Shell completions:
+
+```bash
+# zsh
+mkdir -p ~/.zsh/completions
+arra completions zsh > ~/.zsh/completions/_arra
+# then add to ~/.zshrc: fpath=(~/.zsh/completions $fpath); autoload -Uz compinit && compinit
+
+# bash
+arra completions bash > ~/.arra-completion.bash
+# then source ~/.arra-completion.bash from ~/.bashrc
+
+# fish
+mkdir -p ~/.config/fish/completions
+arra completions fish > ~/.config/fish/completions/arra.fish
+```
+
 <details>
 <summary>Install script (legacy)</summary>
 

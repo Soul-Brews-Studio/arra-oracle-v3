@@ -24,6 +24,8 @@ import {
 import { menuResetAll } from "./commands/menu-reset.ts";
 import { configCommand, useCommand } from "./commands/config.ts";
 import { doctorCommand } from "./commands/doctor.ts";
+import { completionsCommand } from "./commands/completions.ts";
+import { BUILTIN_COMMANDS } from "./commands/catalog.ts";
 
 const pkg = await Bun.file(join(import.meta.dir, "../package.json")).json();
 const VERSION: string = pkg.version;
@@ -32,13 +34,9 @@ function printHelp(commands: Array<{ command: string; help?: string }>) {
   console.log(`arra-cli v${VERSION} — ARRA Oracle V3 CLI\n`);
   console.log("Usage: arra-cli <command> [args...]\n");
   console.log("Commands:");
-  console.log(`  ${"plugin".padEnd(16)}manage installable CLI plugins`);
-  console.log(`  ${"plugins".padEnd(16)}manage MCP tool plugin manifest`);
-  console.log(`  ${"session".padEnd(16)}inspect sessions (list, show, context)`);
-  console.log(`  ${"menu".padEnd(16)}inspect and customize studio menu (list, add, remove)`);
-  console.log(`  ${"config".padEnd(16)}show resolved API target and config sources`);
-  console.log(`  ${"doctor".padEnd(16)}run operator diagnostics against the resolved target`);
-  console.log(`  ${"use".padEnd(16)}set the global default API target`);
+  for (const { command, help } of BUILTIN_COMMANDS) {
+    console.log(`  ${command.padEnd(16)}${help}`);
+  }
   for (const { command, help } of commands) {
     console.log(`  ${command.padEnd(16)}${help ?? ""}`);
   }
@@ -91,6 +89,10 @@ async function main() {
   if (cmd === "--version" || cmd === "version") {
     console.log(`arra-cli v${VERSION}`);
     return;
+  }
+
+  if (cmd === "completions") {
+    process.exit(await completionsCommand(args.slice(1)));
   }
 
   if (cmd === "config") {
