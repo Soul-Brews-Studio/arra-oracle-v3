@@ -2,6 +2,8 @@
 
 Complete guide for fresh installation with seed data.
 
+For the current alpha operator surface (MCP modes, CLI targets, plugins, vector adapters, Docker/GHCR, and federation-track notes), see [TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md).
+
 ## Quick Install (Recommended)
 
 ```bash
