@@ -4,7 +4,7 @@ Fresh-install guide for the current `arra-oracle-v3` alpha distribution
 channels: Bun remote, Docker GHCR, and Docker MCP Toolkit.
 
 For the full alpha operator surface (MCP modes, CLI targets, plugins, vector
-adapters, Docker/GHCR, and federation-track notes), see
+adapters, Docker/GHCR, and federation notes), see
 [TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md).
 
 ## Prerequisites
@@ -180,7 +180,7 @@ Common scanned paths include:
 ## Optional: Vector adapters
 
 Arra Oracle runs with local LanceDB vector storage by default. See
-[TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md#vector-store-adapters) for Qdrant,
+[TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md#vector-store-adapters-and-per-collection-config) for Qdrant,
 remote vector service, fallback, and read-only mode environment variables.
 
 ## Troubleshooting
@@ -231,6 +231,7 @@ docker mcp profile remove arra_oracle
 
 See also:
 
+- [README.md](./README.md) - Docs index and feature-knob map
 - [README.md](../README.md) - Overview
 - [TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md) - Current alpha operator reference
 - [FEDERATION.md](./FEDERATION.md) - Federation pairing, peer search/feed, and security guide

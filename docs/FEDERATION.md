@@ -254,3 +254,11 @@ bun run build
 
 The integration test covers public discovery, stable identity, token-protected
 feed/search, named peer probing, first-use pins, and mismatch detection.
+
+## See also
+
+- [README.md](./README.md) — docs index and feature-knob map.
+- [INSTALL.md](./INSTALL.md) — Bun, Docker GHCR, and Docker MCP Toolkit install paths.
+- [TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md#federation-peer-identity) — compact shipped-surface summary.
+- [../CONTRIBUTING.md](../CONTRIBUTING.md) — two-repo PR target rules.
+- [../CHANGELOG.md](../CHANGELOG.md) — alpha wave release notes.

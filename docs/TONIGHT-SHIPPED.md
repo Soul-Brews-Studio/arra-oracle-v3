@@ -2,6 +2,8 @@
 
 This is the compact operator map for the large 2026-06-06/07 alpha wave. It is meant to answer: *what shipped, where is the code, what knob controls it, and what is the first command to try?*
 
+See [README.md](./README.md) for the docs index that links every guide in this wave.
+
 ## Quick index
 
 | Surface | Status | Primary knobs | First command |
@@ -11,7 +13,7 @@ This is the compact operator map for the large 2026-06-06/07 alpha wave. It is m
 | Operator CLI targets | `alpha` | `ORACLE_API`, `--at`, `.arra/config.json`, XDG config | `arra config` |
 | Vector adapter selection | `alpha` | `ORACLE_VECTOR_DB`, `ORACLE_VECTOR_DB_PATH`, `QDRANT_URL`, `VECTOR_URL` | `ORACLE_VECTOR_DB=qdrant QDRANT_URL=http://localhost:6333 bun run server` |
 | Docker/GHCR | `alpha` | Docker targets `http-server`, `mcp-stdio` | `docker run --rm -p 47778:47778 ghcr.io/soul-brews-studio/arra-oracle-v3:http` |
-| Docker MCP Toolkit catalog | `alpha` | `catalog/arra-oracle.yaml` | copy catalog into Docker MCP Toolkit catalog dir |
+| Docker MCP Toolkit catalog | `alpha` | `catalog/arra-oracle.yaml` | `docker mcp profile create --server file://$(pwd)/catalog/arra-oracle.yaml` |
 | Federation / peer identity | shipped on `alpha` | `ARRA_SCOUT_ANNOUNCE`, `ARRA_PEER_TOKEN`, `ARRA_NAMED_PEERS` | see [FEDERATION.md](./FEDERATION.md) |
 
 ## MCP modes: embedded vs HTTP-proxy

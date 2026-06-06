@@ -29,15 +29,15 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - `arra plugins list|enable|disable` manages the local MCP plugin manifest from the CLI. ([tracker #31][t31], [source PR #1343][s1343])
 - `arra completions bash|zsh|fish` emits shell completion scripts for the operator CLI. ([tracker #37][t37], [source PR #1348][s1348])
 
-#### Federation — landing via #39
+#### Federation
 
-- Peer identity endpoints (`/info`, `/api/identity`) and persistent identity keys are landing in source via migration #39. ([tracker #6][t6], [tracker #39][t39], [source PR #1353][s1353])
-- Scout HELLO announcement support is landing in source via migration #39. ([tracker #17][t17], [tracker #39][t39], [source PR #1353][s1353])
-- Reverse peer query support for named peers is landing in source via migration #39. ([tracker #20][t20], [tracker #39][t39], [source PR #1353][s1353])
-- TOFU peer-key pinning and verification are landing in source via migration #39. ([tracker #23][t23], [tracker #39][t39], [source PR #1353][s1353])
-- Peer feed routes are landing in source via migration #39; these are separate from the local/oraclenet feed surface. ([tracker #27][t27], [tracker #39][t39], [source PR #1353][s1353])
-- Peer search integration is landing in source via migration #39. ([tracker #29][t29], [tracker #39][t39], [source PR #1353][s1353])
-- Peer endpoint token auth with `ARRA_PEER_TOKEN` is landing in source via migration #39. ([tracker #33][t33], [tracker #39][t39], [source PR #1353][s1353])
+- Peer identity endpoints (`/info`, `/api/identity`) and persistent identity keys landed in source via migration #39. ([tracker #6][t6], [tracker #39][t39], [source PR #1353][s1353])
+- Scout HELLO announcement support landed in source via migration #39. ([tracker #17][t17], [tracker #39][t39], [source PR #1353][s1353])
+- Reverse peer query support for named peers landed in source via migration #39. ([tracker #20][t20], [tracker #39][t39], [source PR #1353][s1353])
+- TOFU peer-key pinning and verification landed in source via migration #39. ([tracker #23][t23], [tracker #39][t39], [source PR #1353][s1353])
+- Peer feed routes landed in source via migration #39; these are separate from the local/oraclenet feed surface. ([tracker #27][t27], [tracker #39][t39], [source PR #1353][s1353])
+- Peer search integration landed in source via migration #39. ([tracker #29][t29], [tracker #39][t39], [source PR #1353][s1353])
+- Peer endpoint token auth with `ARRA_PEER_TOKEN` landed in source via migration #39. ([tracker #33][t33], [tracker #39][t39], [source PR #1353][s1353])
 
 #### Docker / Distribution
 

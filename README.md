@@ -16,8 +16,20 @@ Phukhao Oracle is landing here: https://phukhao.buildwithoracle.com/presentation
 TypeScript MCP server for semantic search over Oracle philosophy — SQLite FTS5 + ChromaDB hybrid search, HTTP API, and vault CLI.
 
 See [docs/LOCAL-DEV.md](docs/LOCAL-DEV.md) for local development.
-See [CONTRIBUTING.md](CONTRIBUTING.md) for repository topology and PR-target rules.
-See [docs/TONIGHT-SHIPPED.md](docs/TONIGHT-SHIPPED.md) for the consolidated reference covering the config, plugin, vector, federation-track, Docker, and GHCR features shipped in the 2026-06-06 alpha wave.
+
+## Docs navigation
+
+The alpha docs wave is reachable from here in one hop:
+
+| Guide | What it covers |
+| --- | --- |
+| [docs/README.md](docs/README.md) | Docs index and feature-knob map. |
+| [docs/INSTALL.md](docs/INSTALL.md) | Fresh install through Bun remote, Docker GHCR, and Docker MCP Toolkit. |
+| [docs/FEDERATION.md](docs/FEDERATION.md) | Pairing, Scout discovery, TOFU pins, peer feed/search, and peer auth. |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Two-repo rule and PR target rules. |
+| [CHANGELOG.md](CHANGELOG.md) | Alpha wave release notes and source PR links. |
+| [docs/TONIGHT-SHIPPED.md](docs/TONIGHT-SHIPPED.md) | Consolidated feature reference and per-feature config knobs. |
+
 
 ## Architecture
 
