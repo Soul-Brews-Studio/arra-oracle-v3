@@ -25,6 +25,49 @@ import { localNativeVectorDisabledReason, logLocalVectorDisabled } from '../vect
 // remote service; on remote failure we fall back to FTS5-only.
 const vectorProxy = createVectorProxy(VECTOR_URL);
 
+
+const FTS_TOKEN_LIMIT = 8;
+
+/**
+ * Convert natural-language input into a punctuation-safe FTS5 MATCH query.
+ *
+ * SQLite FTS5 treats punctuation such as '.', ',', ':' or parentheses as query
+ * syntax. Instead of maintaining a brittle blocklist, strip anything that is
+ * not a unicode letter/number/underscore into token boundaries, quote every
+ * token, and OR the terms. OR avoids the default implicit-AND behavior that
+ * made multi-word recall queries overly strict.
+ */
+export function buildFtsQuery(query: string): string {
+  const tokens = query
+    .replace(/<[^>]*>/g, ' ')
+    .normalize('NFKC')
+    .match(/[\p{L}\p{N}_]+/gu)
+    ?.map((token) => token.trim())
+    .filter((token) => token.length > 0)
+    .slice(0, FTS_TOKEN_LIMIT) ?? [];
+
+  const uniqueTokens = Array.from(new Set(tokens));
+  return uniqueTokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(' OR ');
+}
+
+function runFtsGet<T>(stmt: { get: (...args: any[]) => T }, args: unknown[]): T | null {
+  try {
+    return stmt.get(...args);
+  } catch (error) {
+    console.warn('[FTS5] MATCH query failed; degrading to empty keyword leg:', error instanceof Error ? error.message : String(error));
+    return null;
+  }
+}
+
+function runFtsAll<T>(stmt: { all: (...args: any[]) => T[] }, args: unknown[]): T[] {
+  try {
+    return stmt.all(...args);
+  } catch (error) {
+    console.warn('[FTS5] MATCH query failed; degrading to empty keyword leg:', error instanceof Error ? error.message : String(error));
+    return [];
+  }
+}
+
 /**
  * LanceDB is configured for cosine distance, where nearest-neighbor distances
  * are in the 0..2 range: 0 means identical, 2 means opposite. Convert that
@@ -53,13 +96,8 @@ export async function handleSearch(
   // Auto-detect project from cwd if not explicitly specified
   const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
   const startTime = Date.now();
-  // Remove FTS5 special characters and HTML: ? * + - ( ) ^ ~ " ' : < > { } [ ] ; / \
-  const safeQuery = query
-    .replace(/<[^>]*>/g, ' ')           // Strip HTML tags
-    .replace(/[?*+\-()^~"':;<>{}[\]\\\/]/g, ' ')  // Strip FTS5 + SQL special chars
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!safeQuery) {
+  const ftsQuery = buildFtsQuery(query);
+  if (!ftsQuery) {
     return { results: [], total: 0, limit, offset, query };
   }
 
@@ -101,7 +139,7 @@ export async function handleSearch(
         JOIN oracle_documents d ON f.id = d.id
         WHERE oracle_fts MATCH ? AND ${projectFilter}
       `);
-      ftsTotal = (countStmt.get(safeQuery, ...projectParams) as { total: number }).total;
+      ftsTotal = (runFtsGet(countStmt, [ftsQuery, ...projectParams]) as { total: number } | null)?.total ?? 0;
 
       const stmt = sqlite.prepare(`
         SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
@@ -111,7 +149,7 @@ export async function handleSearch(
         ORDER BY rank
         LIMIT ?
       `);
-      ftsResults = stmt.all(safeQuery, ...projectParams, limit * 2).map((row: any) => ({
+      ftsResults = runFtsAll<any>(stmt, [ftsQuery, ...projectParams, limit * 3]).map((row: any) => ({
         id: row.id,
         type: row.type,
         content: row.content,
@@ -128,7 +166,7 @@ export async function handleSearch(
         JOIN oracle_documents d ON f.id = d.id
         WHERE oracle_fts MATCH ? AND d.type = ? AND ${projectFilter}
       `);
-      ftsTotal = (countStmt.get(safeQuery, type, ...projectParams) as { total: number }).total;
+      ftsTotal = (runFtsGet(countStmt, [ftsQuery, type, ...projectParams]) as { total: number } | null)?.total ?? 0;
 
       const stmt = sqlite.prepare(`
         SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
@@ -138,7 +176,7 @@ export async function handleSearch(
         ORDER BY rank
         LIMIT ?
       `);
-      ftsResults = stmt.all(safeQuery, type, ...projectParams, limit * 2).map((row: any) => ({
+      ftsResults = runFtsAll<any>(stmt, [ftsQuery, type, ...projectParams, limit * 3]).map((row: any) => ({
         id: row.id,
         type: row.type,
         content: row.content,
@@ -314,36 +352,47 @@ function normalizeRank(rank: number): number {
 }
 
 /**
- * Combine FTS and vector results with hybrid scoring
+ * Combine FTS and vector results with rank-fusion hybrid scoring.
+ *
+ * Raw FTS rank and vector similarity are not calibrated to the same scale. Use
+ * each leg's normalized score plus reciprocal rank, then boost overlap. This
+ * keeps strong keyword-only hits visible while still letting semantic-only
+ * vector hits fill gaps in natural-language recall.
  */
 function combineSearchResults(fts: SearchResult[], vector: SearchResult[]): SearchResult[] {
   const seen = new Map<string, SearchResult>();
 
-  // Add FTS results first
-  for (const r of fts) {
-    seen.set(r.id, r);
-  }
+  const addScore = (base: number | undefined, rank: number, scoreWeight: number, rankWeight: number) => {
+    const score = Math.max(0, Math.min(1, base ?? 0));
+    return score * scoreWeight + (1 / (rank + 1)) * rankWeight;
+  };
 
-  // Merge vector results (boost score if found in both)
-  for (const r of vector) {
-    if (seen.has(r.id)) {
-      const existing = seen.get(r.id)!;
-      // Use max score + bonus for appearing in both (hybrid boost)
-      const maxScore = Math.max(existing.score || 0, r.score || 0);
-      const bonus = 0.1; // Bonus for appearing in both FTS and vector
+  fts.forEach((r, index) => {
+    seen.set(r.id, {
+      ...r,
+      score: addScore(r.score, index, 0.7, 0.3),
+    });
+  });
+
+  vector.forEach((r, index) => {
+    const vectorScore = addScore(r.score, index, 0.65, 0.35);
+    const existing = seen.get(r.id);
+    if (existing) {
       seen.set(r.id, {
         ...existing,
-        score: Math.min(1, maxScore + bonus), // Cap at 1.0
+        score: Math.min(1, (existing.score || 0) + vectorScore + 0.12),
         source: 'hybrid' as const,
         distance: r.distance,
-        model: r.model
+        model: r.model,
       });
     } else {
-      seen.set(r.id, r);
+      seen.set(r.id, {
+        ...r,
+        score: vectorScore,
+      });
     }
-  }
+  });
 
-  // Sort by score descending
   return Array.from(seen.values()).sort((a, b) => (b.score || 0) - (a.score || 0));
 }
 

@@ -79,21 +79,16 @@ export const searchToolDef = {
  * Removes FTS5 special characters that cause syntax errors.
  */
 export function sanitizeFtsQuery(query: string): string {
-  // Strip FTS5 special chars + SQL-comment / statement-terminator chars that
-  // can leak as raw FTS5 parser errors (e.g. ';' or '--' in user input).
-  let sanitized = query
-    .replace(/[?*+()^~"':.\/;,!=<>{}\[\]\\|&]/g, ' ')
-    .replace(/--+/g, ' ')   // collapse consecutive dashes (SQL comment)
-    .replace(/-+/g, ' ')    // and any remaining dashes (FTS5 prefix-NOT)
-    .replace(/\s+/g, ' ')
-    .trim();
+  const tokens = query
+    .replace(/<[^>]*>/g, ' ')
+    .normalize('NFKC')
+    .match(/[\p{L}\p{N}_]+/gu)
+    ?.map((token) => token.trim())
+    .filter((token) => token.length > 0)
+    .slice(0, 8) ?? [];
 
-  if (!sanitized) {
-    console.error('[FTS5] Query became empty after sanitization:', query);
-    return query;
-  }
-
-  return sanitized;
+  const uniqueTokens = Array.from(new Set(tokens));
+  return uniqueTokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(' OR ');
 }
 
 /**
@@ -345,27 +340,34 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
 
   // Run FTS5 search (skip if vector-only mode)
   let ftsRawResults: any[] = [];
-  if (mode !== 'vector') {
-    if (type === 'all') {
-      const stmt = ctx.sqlite.prepare(`
-        SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
-        FROM oracle_fts f
-        JOIN oracle_documents d ON f.id = d.id
-        WHERE oracle_fts MATCH ? ${projectFilter}
-        ORDER BY rank
-        LIMIT ?
-      `);
-      ftsRawResults = stmt.all(safeQuery, ...projectParams, limit * 2);
-    } else {
-      const stmt = ctx.sqlite.prepare(`
-        SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
-        FROM oracle_fts f
-        JOIN oracle_documents d ON f.id = d.id
-        WHERE oracle_fts MATCH ? AND d.type = ? ${projectFilter}
-        ORDER BY rank
-        LIMIT ?
-      `);
-      ftsRawResults = stmt.all(safeQuery, type, ...projectParams, limit * 2);
+  if (mode !== 'vector' && safeQuery) {
+    try {
+      if (type === 'all') {
+        const stmt = ctx.sqlite.prepare(`
+          SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
+          FROM oracle_fts f
+          JOIN oracle_documents d ON f.id = d.id
+          WHERE oracle_fts MATCH ? ${projectFilter}
+          ORDER BY rank
+          LIMIT ?
+        `);
+        ftsRawResults = stmt.all(safeQuery, ...projectParams, limit * 3);
+      } else {
+        const stmt = ctx.sqlite.prepare(`
+          SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
+          FROM oracle_fts f
+          JOIN oracle_documents d ON f.id = d.id
+          WHERE oracle_fts MATCH ? AND d.type = ? ${projectFilter}
+          ORDER BY rank
+          LIMIT ?
+        `);
+        ftsRawResults = stmt.all(safeQuery, type, ...projectParams, limit * 3);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      warning = `FTS5 keyword search unavailable: ${errorMessage}`;
+      console.error('[FTS5]', errorMessage);
+      ftsRawResults = [];
     }
   }
 
