@@ -49,6 +49,8 @@ export interface VectorConfigUpdate {
   engine?: LocalVectorEngine;
   dataPath?: string;
   embeddingEndpoint?: string;
+  /** Remote vector service base URL for backend-to-backend VECTOR_URL proxying. */
+  vectorProxyUrl?: string;
   collections?: Record<string, VectorConfigUpdateCollection>;
 }
 
@@ -56,6 +58,8 @@ export interface VectorServerConfig {
   version: string;
   host: string;
   port: number;
+  /** Optional remote vector service base URL used by core server proxy mode. */
+  vectorProxyUrl?: string;
   collections: Record<string, VectorCollectionConfig>;
   dataPath: string;
   embeddingEndpoint: string;
@@ -203,6 +207,11 @@ export function applyVectorConfigUpdate(
   }
 
   if (update.embeddingEndpoint !== undefined) next.embeddingEndpoint = update.embeddingEndpoint;
+  if (update.vectorProxyUrl !== undefined) {
+    const trimmed = update.vectorProxyUrl.trim();
+    if (trimmed) next.vectorProxyUrl = trimmed.replace(/\/+$/, '');
+    else delete next.vectorProxyUrl;
+  }
 
   for (const [key, patch] of Object.entries(update.collections ?? {})) {
     if (!key.trim()) throw new Error('Collection key cannot be empty');

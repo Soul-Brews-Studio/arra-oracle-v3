@@ -36,6 +36,7 @@ describe('/api/vector/config', () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         engine: 'sqlite-vec',
+        vectorProxyUrl: 'https://vectors.example.test/api-root/',
         collections: {
           fast: {
             adapter: 'qdrant',
@@ -53,6 +54,7 @@ describe('/api/vector/config', () => {
     expect(body.source).toBe('file');
     expect(body.engine).toBe('sqlite-vec');
     expect(body.config.collections['bge-m3'].adapter).toBe('sqlite-vec');
+    expect(body.config.vectorProxyUrl).toBe('https://vectors.example.test/api-root');
     expect(body.config.collections.fast).toMatchObject({
       adapter: 'qdrant',
       collection: 'oracle_fast_nomic',

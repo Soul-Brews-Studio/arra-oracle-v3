@@ -72,7 +72,25 @@ export function resolveVectorUrl(
   if (env.ORACLE_VECTOR_SERVER === '1' || isVectorServerEntrypoint(argv[1])) {
     return '';
   }
-  return env.VECTOR_URL || '';
+  if (env.VECTOR_URL?.trim()) return env.VECTOR_URL.trim();
+
+  // Durable cloud/sidecar routing: if vector-server.json declares a remote
+  // proxy URL, the core server uses it for vector legs while FTS remains local.
+  // Keep this small and local to avoid importing vector/config.ts here (that
+  // module imports config.ts for ORACLE_DATA_DIR and would create a cycle).
+  try {
+    const dataDir = env.ORACLE_DATA_DIR || process.env.ORACLE_DATA_DIR || ORACLE_DATA_DIR;
+    const raw = fs.readFileSync(path.join(dataDir, 'vector-server.json'), 'utf-8');
+    const config = JSON.parse(raw) as { vectorProxyUrl?: unknown; vectorUrl?: unknown };
+    const fromConfig = typeof config.vectorProxyUrl === 'string'
+      ? config.vectorProxyUrl
+      : typeof config.vectorUrl === 'string'
+        ? config.vectorUrl
+        : '';
+    return fromConfig.trim();
+  } catch {
+    return '';
+  }
 }
 
 export const VECTOR_URL = resolveVectorUrl();

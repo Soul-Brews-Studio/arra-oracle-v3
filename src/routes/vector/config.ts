@@ -83,6 +83,7 @@ export const vectorConfigEndpoint = new Elysia()
         engine: t.Optional(localEngineSchema),
         dataPath: t.Optional(t.String()),
         embeddingEndpoint: t.Optional(t.String()),
+        vectorProxyUrl: t.Optional(t.String()),
         collections: t.Optional(t.Record(t.String(), t.Object({
           collection: t.Optional(t.String()),
           model: t.Optional(t.String()),
