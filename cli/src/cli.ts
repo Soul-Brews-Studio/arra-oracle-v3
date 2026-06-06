@@ -6,6 +6,7 @@ import { registerPlugins, resolveCommand, listPlugins } from "./plugin/registry.
 import { invokePlugin } from "./plugin/invoke.ts";
 import type { LoadedPlugin } from "./plugin/types.ts";
 import { pluginsList } from "./commands/plugins-list.ts";
+import { pluginsCommand } from "./commands/plugins.ts";
 import { pluginsRemove } from "./commands/plugins-remove.ts";
 import { pluginsInfo } from "./commands/plugins-info.ts";
 import { sessionList } from "./commands/session-list.ts";
@@ -31,7 +32,8 @@ function printHelp(commands: Array<{ command: string; help?: string }>) {
   console.log(`arra-cli v${VERSION} — ARRA Oracle V3 CLI\n`);
   console.log("Usage: arra-cli <command> [args...]\n");
   console.log("Commands:");
-  console.log(`  ${"plugin".padEnd(16)}manage plugins (install)`);
+  console.log(`  ${"plugin".padEnd(16)}manage installable CLI plugins`);
+  console.log(`  ${"plugins".padEnd(16)}manage MCP tool plugin manifest`);
   console.log(`  ${"session".padEnd(16)}inspect sessions (list, show, context)`);
   console.log(`  ${"menu".padEnd(16)}inspect and customize studio menu (list, add, remove)`);
   console.log(`  ${"config".padEnd(16)}show resolved API target and config sources`);
@@ -178,6 +180,10 @@ async function main() {
     console.error(`\x1b[31m✗\x1b[0m unknown menu subcommand: ${args[1]}`);
     console.error("  try: arra-cli menu list|add|remove|gist-*|reset-all");
     process.exit(1);
+  }
+
+  if (cmd === "plugins") {
+    process.exit(await pluginsCommand(args.slice(1)));
   }
 
   if (cmd === "plugin") {

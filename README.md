@@ -156,6 +156,9 @@ arra use m5          # set global default target
 arra --at m5 health  # one-off target override
 arra doctor          # diagnose target, server, DB/vector, config, and MCP mode
 arra doctor --json   # machine-readable diagnostics
+arra plugins         # list MCP tool plugins from plugins.json
+arra plugins disable trace
+arra plugins enable trace
 ```
 
 <details>
