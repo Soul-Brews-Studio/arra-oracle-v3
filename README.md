@@ -111,8 +111,8 @@ curl -sSL https://raw.githubusercontent.com/Soul-Brews-Studio/arra-oracle-v3/mai
 | Problem | Fix |
 |---------|-----|
 | `bun: command not found` | `export PATH="$HOME/.bun/bin:$PATH"` |
-| LanceDB hangs/timeout | Skip it — SQLite FTS5 works fine without vectors |
-| Server crashes on empty DB | Run `bun run index` first to index knowledge base |
+| LanceDB missing/hangs/timeout | Skip it — SQLite FTS5 works fine without vectors |
+| Fresh install has no index yet | Start the server anyway; FTS search returns empty results and vector/hybrid modes degrade to FTS until vectors are indexed |
 
 </details>
 

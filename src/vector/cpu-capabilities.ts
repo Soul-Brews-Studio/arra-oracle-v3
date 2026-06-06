@@ -53,6 +53,29 @@ export function localNativeVectorDisabledReason(adapter: string | undefined = pr
   return undefined;
 }
 
+export interface LocalVectorIndexConfig {
+  type?: string;
+  dataPath?: string;
+  collectionName?: string;
+}
+
+export function localVectorIndexMissingReason(config: LocalVectorIndexConfig): string | undefined {
+  const type = config.type || process.env.ORACLE_VECTOR_DB || 'lancedb';
+  if (type === 'lancedb') {
+    const dataPath = config.dataPath;
+    const collectionName = config.collectionName;
+    if (!dataPath || !fs.existsSync(dataPath)) return 'local LanceDB directory is missing';
+    if (collectionName && !fs.existsSync(`${dataPath}/${collectionName}.lance`)) {
+      return `local LanceDB collection is missing (${collectionName})`;
+    }
+  }
+  if (type === 'sqlite-vec') {
+    const dataPath = config.dataPath;
+    if (!dataPath || !fs.existsSync(dataPath)) return 'local sqlite-vec database is missing';
+  }
+  return undefined;
+}
+
 export function logLocalVectorDisabled(reason: string): void {
   if (loggedDisable) return;
   loggedDisable = true;

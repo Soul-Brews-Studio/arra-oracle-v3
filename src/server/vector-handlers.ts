@@ -22,9 +22,11 @@ import {
   ensureVectorStoreConnected,
   getVectorStoreByModel,
   getEmbeddingModels,
+  getVectorStoreConfigByModel,
   EMBEDDING_MODELS,
 } from '../vector/factory.ts';
 import type { VectorStoreAdapter } from '../vector/types.ts';
+import { localNativeVectorDisabledReason, localVectorIndexMissingReason } from '../vector/cpu-capabilities.ts';
 import type { SearchResult } from './types.ts';
 
 /** Convenience wrapper used by every handler in this file. */
@@ -619,6 +621,12 @@ export async function handleVectorStats(): Promise<{
   await Promise.all(
     Object.entries(models).map(async ([key, preset]) => {
       try {
+        const cfg = getVectorStoreConfigByModel(key);
+        const unavailable = localNativeVectorDisabledReason(cfg.type) || localVectorIndexMissingReason(cfg);
+        if (unavailable) {
+          engines.push({ key, model: preset.model, collection: preset.collection, count: 0, enabled: false });
+          return;
+        }
         const store = await ensureVectorStoreConnected(key);
         const stats = await Promise.race([
           store.getStats(),
@@ -669,6 +677,12 @@ export async function handleVectorHealth(): Promise<{
   await Promise.all(
     Object.entries(models).map(async ([key, preset]) => {
       try {
+        const cfg = getVectorStoreConfigByModel(key);
+        const unavailable = localNativeVectorDisabledReason(cfg.type) || localVectorIndexMissingReason(cfg);
+        if (unavailable) {
+          engines.push({ key, model: preset.model, collection: preset.collection, ok: false, error: unavailable });
+          return;
+        }
         const store = await ensureVectorStoreConnected(key);
         await Promise.race([
           store.getStats(),

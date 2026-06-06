@@ -17,7 +17,7 @@ import { detectProject } from './project-detect.ts';
 import { coerceConcepts } from '../tools/learn.ts';
 import { createVectorProxy } from './vector-proxy.ts';
 import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
-import { localNativeVectorDisabledReason, logLocalVectorDisabled } from '../vector/cpu-capabilities.ts';
+import { localNativeVectorDisabledReason, localVectorIndexMissingReason, logLocalVectorDisabled } from '../vector/cpu-capabilities.ts';
 
 // Module-level proxy instance — bound to VECTOR_URL at boot. If VECTOR_URL is
 // unset, this is null and the local vector adapter runs in-process (legacy
@@ -105,17 +105,22 @@ export async function handleSearch(
   const requestedMode = mode;
   let effectiveMode = mode;
   let vectorDisabledReason: string | undefined;
+  let vectorIndexMissingReason: string | undefined;
   if (mode !== 'fts' && !vectorProxy) {
     const modelsToCheck = model === 'multi' ? ['bge-m3', 'nomic'] : [model];
     for (const modelKey of modelsToCheck) {
       const cfg = getVectorStoreConfigByModel(modelKey);
       vectorDisabledReason = localNativeVectorDisabledReason(cfg.type);
       if (vectorDisabledReason) break;
+      vectorIndexMissingReason = localVectorIndexMissingReason(cfg);
+      if (vectorIndexMissingReason) break;
     }
     if (vectorDisabledReason) {
       effectiveMode = 'fts';
       warning = `${vectorDisabledReason}; falling back to FTS5-only results`;
       logLocalVectorDisabled(vectorDisabledReason);
+    } else if (vectorIndexMissingReason) {
+      effectiveMode = 'fts';
     }
   }
 
@@ -196,7 +201,7 @@ export async function handleSearch(
   // (vector wasn't asked for), flips to `false` if the proxy is enabled and
   // the remote call failed — clients use this to render a "vector down" hint
   // while still getting FTS5 results.
-  let vectorAvailable = !vectorDisabledReason;
+  let vectorAvailable = !vectorDisabledReason && !vectorIndexMissingReason;
 
   // VECTOR_URL set → route the vector leg through the remote service.
   // FTS5 always runs locally above. If the proxy fails we return whatever FTS5
