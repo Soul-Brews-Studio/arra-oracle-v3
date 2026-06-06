@@ -16,9 +16,17 @@ import { OracleIndexer } from './index.ts';
 const scriptDir = import.meta.dirname || path.dirname(new URL(import.meta.url).pathname);
 const projectRoot = path.resolve(scriptDir, '..', '..');
 
+export function normalizeIndexerRepoRoot(root: string): string {
+  const resolved = path.resolve(root);
+  if (path.basename(resolved) === '\u03c8' && fs.existsSync(path.join(resolved, 'memory'))) {
+    return path.dirname(resolved);
+  }
+  return resolved;
+}
+
 export function resolveIndexerRepoRoot(explicitRoot?: string | null): string {
-  if (explicitRoot?.trim()) return path.resolve(explicitRoot);
-  if (process.env.ORACLE_REPO_ROOT?.trim()) return path.resolve(process.env.ORACLE_REPO_ROOT);
+  if (explicitRoot?.trim()) return normalizeIndexerRepoRoot(explicitRoot);
+  if (process.env.ORACLE_REPO_ROOT?.trim()) return normalizeIndexerRepoRoot(process.env.ORACLE_REPO_ROOT);
 
   const vaultResult = getVaultPsiRoot();
   const vaultRoot = 'path' in vaultResult ? vaultResult.path : null;
