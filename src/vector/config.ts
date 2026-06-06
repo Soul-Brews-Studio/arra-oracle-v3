@@ -10,11 +10,13 @@
 
 import fs from 'fs';
 import path from 'path';
-import { ORACLE_DATA_DIR, LANCEDB_DIR } from '../config.ts';
+import { ORACLE_DATA_DIR, LANCEDB_DIR, VECTORS_DB_PATH } from '../config.ts';
 import { COLLECTION_NAME } from '../const.ts';
 import type { EmbeddingProviderType, VectorDBType } from './types.ts';
 
 export const VECTOR_CONFIG_FILE = 'vector-server.json';
+export const LOCAL_VECTOR_ENGINES = ['lancedb', 'qdrant', 'sqlite-vec'] as const;
+export type LocalVectorEngine = typeof LOCAL_VECTOR_ENGINES[number];
 
 export interface VectorCollectionConfig {
   collection: string;
@@ -28,6 +30,26 @@ export interface VectorCollectionConfig {
   cfAccountId?: string;
   cfApiToken?: string;
   primary?: boolean;
+}
+
+
+export interface VectorConfigUpdateCollection {
+  collection?: string;
+  model?: string;
+  provider?: EmbeddingProviderType;
+  adapter?: LocalVectorEngine;
+  dataPath?: string;
+  pythonVersion?: string;
+  qdrantUrl?: string;
+  qdrantApiKey?: string;
+  primary?: boolean;
+}
+
+export interface VectorConfigUpdate {
+  engine?: LocalVectorEngine;
+  dataPath?: string;
+  embeddingEndpoint?: string;
+  collections?: Record<string, VectorConfigUpdateCollection>;
 }
 
 export interface VectorServerConfig {
@@ -142,4 +164,73 @@ export function configToModels(
     };
   }
   return out;
+}
+
+
+export function isLocalVectorEngine(value: unknown): value is LocalVectorEngine {
+  return typeof value === 'string' && (LOCAL_VECTOR_ENGINES as readonly string[]).includes(value);
+}
+
+export function defaultDataPathForEngine(engine: LocalVectorEngine): string {
+  if (engine === 'sqlite-vec') return VECTORS_DB_PATH;
+  if (engine === 'qdrant') return '';
+  return LANCEDB_DIR;
+}
+
+export function activeVectorEngine(config: VectorServerConfig): VectorDBType {
+  const primary = Object.values(config.collections).find(c => c.primary);
+  return primary?.adapter || Object.values(config.collections)[0]?.adapter || 'lancedb';
+}
+
+export function applyVectorConfigUpdate(
+  base: VectorServerConfig,
+  update: VectorConfigUpdate,
+): VectorServerConfig {
+  const next: VectorServerConfig = structuredClone(base);
+
+  if (update.engine !== undefined) {
+    if (!isLocalVectorEngine(update.engine)) {
+      throw new Error(`Unsupported local vector engine: ${String(update.engine)}`);
+    }
+    next.dataPath = update.dataPath ?? defaultDataPathForEngine(update.engine);
+    for (const collection of Object.values(next.collections)) {
+      collection.adapter = update.engine;
+      if (update.engine === 'qdrant') delete collection.dataPath;
+      else collection.dataPath = collection.dataPath || next.dataPath;
+    }
+  } else if (update.dataPath !== undefined) {
+    next.dataPath = update.dataPath;
+  }
+
+  if (update.embeddingEndpoint !== undefined) next.embeddingEndpoint = update.embeddingEndpoint;
+
+  for (const [key, patch] of Object.entries(update.collections ?? {})) {
+    if (!key.trim()) throw new Error('Collection key cannot be empty');
+    const existing = next.collections[key] ?? {
+      collection: key,
+      model: key,
+      provider: 'ollama' as EmbeddingProviderType,
+      adapter: update.engine ?? activeVectorEngine(next),
+    };
+    if (patch.adapter !== undefined && !isLocalVectorEngine(patch.adapter)) {
+      throw new Error(`Unsupported local vector engine: ${String(patch.adapter)}`);
+    }
+    next.collections[key] = {
+      ...existing,
+      ...patch,
+      collection: patch.collection ?? existing.collection ?? key,
+      model: patch.model ?? existing.model ?? key,
+      provider: patch.provider ?? existing.provider ?? 'ollama',
+      adapter: patch.adapter ?? existing.adapter ?? update.engine ?? activeVectorEngine(next),
+    };
+  }
+
+  const primaryKeys = Object.entries(next.collections).filter(([, c]) => c.primary).map(([key]) => key);
+  if (primaryKeys.length === 0 && next.collections['bge-m3']) next.collections['bge-m3'].primary = true;
+  if (primaryKeys.length > 1) {
+    const keep = primaryKeys[0];
+    for (const [key, collection] of Object.entries(next.collections)) collection.primary = key === keep;
+  }
+
+  return next;
 }

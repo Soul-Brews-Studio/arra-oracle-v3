@@ -103,3 +103,38 @@ afterAll(() => {
   if (originalDataDir) process.env.ORACLE_DATA_DIR = originalDataDir;
   else delete process.env.ORACLE_DATA_DIR;
 });
+
+describe('local vector engine selection', () => {
+  test('applyVectorConfigUpdate switches every default collection to sqlite-vec with sqlite path', async () => {
+    const { applyVectorConfigUpdate } = await import('../config.ts');
+    const cfg = applyVectorConfigUpdate(generateDefaultConfig(), { engine: 'sqlite-vec' });
+
+    expect(cfg.dataPath.endsWith('vectors.db')).toBe(true);
+    expect(Object.values(cfg.collections).every(c => c.adapter === 'sqlite-vec')).toBe(true);
+    expect(configToModels(cfg)['bge-m3'].dataPath?.endsWith('vectors.db')).toBe(true);
+  });
+
+  test('applyVectorConfigUpdate adds a selectable model collection without changing defaults', async () => {
+    const { applyVectorConfigUpdate } = await import('../config.ts');
+    const cfg = applyVectorConfigUpdate(generateDefaultConfig(), {
+      collections: {
+        fast: {
+          adapter: 'qdrant',
+          collection: 'oracle_fast_nomic',
+          model: 'nomic-embed-text',
+          provider: 'ollama',
+          qdrantUrl: 'http://localhost:6333',
+        },
+      },
+    });
+
+    expect(cfg.collections['bge-m3'].adapter).toBe('lancedb');
+    expect(configToModels(cfg).fast).toMatchObject({
+      adapter: 'qdrant',
+      collection: 'oracle_fast_nomic',
+      model: 'nomic-embed-text',
+      provider: 'ollama',
+      qdrantUrl: 'http://localhost:6333',
+    });
+  });
+});
