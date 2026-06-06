@@ -399,6 +399,11 @@ for categories and signature convention.
 
 Inspired by [claude-mem](https://github.com/thedotmack/claude-mem) by Alex Newman — process manager pattern, worker service architecture, and hook system concepts.
 
+
+### Opt-in HTTP API token
+
+Set `ARRA_API_TOKEN` to require `Authorization: Bearer <token>` (or `?token=`) for HTTP `/api/*` endpoints, including write/index routes such as `POST /api/learn` and `/api/indexer/*`. The default is unset/open for backward compatibility, and local MCP stdio calls do not use this HTTP gate. `/api/health`, `/info`, and `/api/identity` stay open for monitoring and federation handshakes; `/api/peer/*` continues to use the separate `ARRA_PEER_TOKEN` gate.
+
 ## Federation peer endpoints
 
 Arra exposes a MAW-compatible federation surface for peer oracles. See

@@ -22,6 +22,7 @@ import { PORT, ORACLE_DATA_DIR, VECTOR_URL } from './config.ts';
 import { ScoutAnnouncer, shouldStartScoutAnnouncer } from './peer/scout-announcer.ts';
 import { MCP_SERVER_NAME } from './const.ts';
 import { db, sqlite, closeDb, indexingStatus } from './db/index.ts';
+import { isApiAuthorized, isApiPathProtected, unauthorizedApiResponse } from './server/api-token-auth.ts';
 import { seedMenuItems, type HasRoutes as SeedHasRoutes } from './db/seeders/menu-seeder.ts';
 
 // Elysia sub-apps — one per cluster
@@ -162,6 +163,13 @@ const app = new Elysia()
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     }),
   )
+  .onBeforeHandle(({ request, set }) => {
+    const pathname = new URL(request.url).pathname;
+    if (isApiPathProtected(pathname) && !isApiAuthorized(request)) {
+      set.status = 401;
+      return unauthorizedApiResponse();
+    }
+  })
   .onAfterHandle(({ set }) => {
     set.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
     set.headers['X-Content-Type-Options'] = 'nosniff';
