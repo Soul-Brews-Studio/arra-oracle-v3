@@ -17,6 +17,7 @@ TypeScript MCP server for semantic search over Oracle philosophy — SQLite FTS5
 
 See [docs/LOCAL-DEV.md](docs/LOCAL-DEV.md) for local development.
 For Docker MCP Toolkit / Gateway / n8n installs, see [docs/DOCKER-MCP-TOOLKIT.md](docs/DOCKER-MCP-TOOLKIT.md).
+For the progressive first-run path from zero-config FTS to MCP, indexing, vectors, and audit logs, see [docs/ONBOARDING.md](docs/ONBOARDING.md).
 
 ## Architecture
 
@@ -39,6 +40,19 @@ oracle-studio (separate repo)
 - **Drizzle ORM** for type-safe queries
 - **Hono** for HTTP API
 - **MCP** protocol for Claude integration
+
+## Progressive onboarding
+
+Arra now starts with a low-friction floor and lets you opt into heavier pieces only when ready:
+
+1. **Install and search immediately** — start the HTTP server and use SQLite FTS5 via `GET /api/search?mode=fts&q=...`. A fresh install works without vector indexes; hybrid/vector requests degrade to FTS until vectors are ready (#1370).
+2. **Connect MCP with a small tool surface** — add the stdio MCP server, then trim exposed tools through config (`.arra/config.json`, `ORACLE_ENABLED_TOOLS`, `ORACLE_DISABLED_TOOLS`) or the `/tools/config` page backed by `GET/PUT /api/settings/tools` (#1372/#1373).
+3. **Save deploy credentials in the browser** — `/connect` stores `NEO_ARRA_API` plus optional `ARRA_API_TOKEN`, can generate a token for your server env, and renders `claude mcp add` / JSON snippets (#1374).
+4. **Index your ψ vault** — when a repo has `ψ/`, scan with `POST /api/indexer/scan` and populate SQLite/FTS with `POST /api/indexer/reindex` (#1375).
+5. **Enable vectors when ready** — choose local engine/model with `GET/PATCH /api/vector/config`, index vectors with `POST /api/vector/index/start`, or move vector work behind `VECTOR_URL`; `GET /api/health` reports `vectorMode` (`embedded`, `proxied`, `disabled`) once #1390 lands (#1377/#1390).
+6. **Review what the AI searched** — `/traces` reads `GET /api/logs` plus `GET /api/traces` / `GET /api/traces/:id`, including AI-search audit details so searches are inspectable (#1384).
+
+Detailed walkthrough: [docs/ONBOARDING.md](docs/ONBOARDING.md).
 
 ## Install
 
