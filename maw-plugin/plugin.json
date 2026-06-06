@@ -1,0 +1,15 @@
+{
+  "name": "arra",
+  "version": "1.0.0",
+  "entry": "./index.ts",
+  "sdk": "^1.0.0",
+  "description": "Query and write ARRA Oracle over HTTP from maw.",
+  "cli": {
+    "command": "arra",
+    "aliases": ["or"],
+    "help": "maw arra <search|learn|stats|health|trace>"
+  },
+  "capabilities": ["net:http"],
+  "weight": 50,
+  "schemaVersion": 1
+}
