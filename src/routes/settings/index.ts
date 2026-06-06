@@ -2,6 +2,7 @@ import { Elysia } from 'elysia';
 import { SESSION_COOKIE_NAME, isAuthenticated } from '../auth/index.ts';
 import { getSettingsRoute } from './get.ts';
 import { updateSettingsRoute } from './update.ts';
+import { toolSettingsRoute } from './tools.ts';
 
 export const settingsRoutes = new Elysia({ prefix: '/api/settings' })
   .onBeforeHandle(({ server, request, cookie, set }) => {
@@ -12,6 +13,7 @@ export const settingsRoutes = new Elysia({ prefix: '/api/settings' })
     }
   })
   .use(getSettingsRoute)
-  .use(updateSettingsRoute);
+  .use(updateSettingsRoute)
+  .use(toolSettingsRoute);
 
 export * from './model.ts';

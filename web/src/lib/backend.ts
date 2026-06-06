@@ -131,6 +131,25 @@ export interface ScheduleResponse {
   total?: number;
 }
 
+export interface ToolToggleItem {
+  name: string;
+  enabled: boolean;
+}
+
+export interface ToolToggleGroup {
+  group: string;
+  tools: ToolToggleItem[];
+}
+
+export interface ToolConfigResponse {
+  groups: ToolToggleGroup[];
+  enabled_tools: string[];
+  disabled_tools: string[];
+  config_path?: string;
+  env_override?: boolean;
+  success?: boolean;
+}
+
 export interface BackendClient {
   search(query: string): Promise<SearchResult[]>;
   learn(pattern: string, concepts?: string[], source?: string): Promise<Learning>;
@@ -152,6 +171,8 @@ export interface BackendClient {
   superseded(): Promise<SupersedeListResponse>;
   supersedeChain(path: string): Promise<SupersedeChainResponse>;
   schedule(): Promise<ScheduleResponse>;
+  toolConfig(): Promise<ToolConfigResponse>;
+  saveToolConfig(enabledTools: string[]): Promise<ToolConfigResponse>;
 }
 
 export class MockBackend implements BackendClient {
@@ -242,6 +263,31 @@ export class MockBackend implements BackendClient {
 
   async schedule(): Promise<ScheduleResponse> {
     return { items: [], total: 0 };
+  }
+
+  async toolConfig(): Promise<ToolConfigResponse> {
+    const groups: ToolToggleGroup[] = [
+      { group: "search", tools: ["oracle_search", "oracle_read", "oracle_list", "oracle_concepts"].map((name) => ({ name, enabled: true })) },
+      { group: "knowledge", tools: ["oracle_learn", "oracle_stats", "oracle_supersede"].map((name) => ({ name, enabled: true })) },
+      { group: "session", tools: ["oracle_handoff", "oracle_inbox"].map((name) => ({ name, enabled: true })) },
+      { group: "forum", tools: ["oracle_thread", "oracle_threads", "oracle_thread_read", "oracle_thread_update"].map((name) => ({ name, enabled: true })) },
+      { group: "trace", tools: ["oracle_trace", "oracle_trace_list", "oracle_trace_get", "oracle_trace_link", "oracle_trace_unlink", "oracle_trace_chain"].map((name) => ({ name, enabled: true })) },
+      { group: "standalone", tools: ["oracle_reflect", "oracle_verify"].map((name) => ({ name, enabled: true })) },
+    ];
+    const enabled_tools = groups.flatMap((g) => g.tools.map((t) => t.name));
+    return { groups, enabled_tools, disabled_tools: [] };
+  }
+
+  async saveToolConfig(enabledTools: string[]): Promise<ToolConfigResponse> {
+    const current = await this.toolConfig();
+    const enabled = new Set(enabledTools);
+    return {
+      ...current,
+      groups: current.groups.map((g) => ({ ...g, tools: g.tools.map((t) => ({ ...t, enabled: enabled.has(t.name) })) })),
+      enabled_tools: enabledTools,
+      disabled_tools: current.enabled_tools.filter((name) => !enabled.has(name)),
+      success: true,
+    };
   }
 }
 
@@ -364,6 +410,20 @@ export class RealBackend implements BackendClient {
 
   async schedule(): Promise<ScheduleResponse> {
     return this.get("/api/schedule");
+  }
+
+  async toolConfig(): Promise<ToolConfigResponse> {
+    return this.get("/api/settings/tools");
+  }
+
+  async saveToolConfig(enabledTools: string[]): Promise<ToolConfigResponse> {
+    const res = await fetch(`${this.baseUrl}/api/settings/tools`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled_tools: enabledTools }),
+    });
+    if (!res.ok) throw new Error(`Backend error ${res.status}: ${await res.text()}`);
+    return res.json() as Promise<ToolConfigResponse>;
   }
 }
 
