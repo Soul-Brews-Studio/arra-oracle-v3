@@ -48,6 +48,7 @@ jobs:
         with:
           context: .
           target: http-server
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ steps.image.outputs.image }}:http
@@ -60,6 +61,7 @@ jobs:
         with:
           context: .
           target: mcp-stdio
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ steps.image.outputs.image }}:stdio
