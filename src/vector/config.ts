@@ -12,6 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import { ORACLE_DATA_DIR, LANCEDB_DIR } from '../config.ts';
 import { COLLECTION_NAME } from '../const.ts';
+import type { VectorDBType } from './types.ts';
 
 export const VECTOR_CONFIG_FILE = 'vector-server.json';
 
@@ -19,6 +20,8 @@ export interface VectorCollectionConfig {
   collection: string;
   model: string;
   provider: string;
+  /** Vector adapter for this collection. Defaults to lancedb for embedded Bun. */
+  adapter?: VectorDBType;
   primary?: boolean;
 }
 
@@ -50,17 +53,20 @@ export function generateDefaultConfig(): VectorServerConfig {
         collection: 'oracle_knowledge_bge_m3',
         model: 'bge-m3',
         provider: 'ollama',
+        adapter: 'lancedb',
         primary: true,
       },
       nomic: {
         collection: COLLECTION_NAME,
         model: 'nomic-embed-text',
         provider: 'ollama',
+        adapter: 'lancedb',
       },
       qwen3: {
         collection: 'oracle_knowledge_qwen3',
         model: 'qwen3-embedding',
         provider: 'ollama',
+        adapter: 'lancedb',
       },
     },
     dataPath: LANCEDB_DIR,
@@ -100,12 +106,13 @@ export function writeVectorConfig(config: VectorServerConfig): string {
  */
 export function configToModels(
   config: VectorServerConfig,
-): Record<string, { collection: string; model: string; dataPath?: string }> {
-  const out: Record<string, { collection: string; model: string; dataPath?: string }> = {};
+): Record<string, { collection: string; model: string; adapter?: VectorDBType; dataPath?: string }> {
+  const out: Record<string, { collection: string; model: string; adapter?: VectorDBType; dataPath?: string }> = {};
   for (const [key, col] of Object.entries(config.collections)) {
     out[key] = {
       collection: col.collection,
       model: col.model,
+      adapter: col.adapter || 'lancedb',
       dataPath: config.dataPath || undefined,
     };
   }

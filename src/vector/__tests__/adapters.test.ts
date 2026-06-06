@@ -7,7 +7,7 @@
  */
 
 import { describe, test, expect, afterAll } from 'bun:test';
-import { createVectorStore } from '../factory.ts';
+import { createVectorStore, createVectorStoreForModel } from '../factory.ts';
 import { createEmbeddingProvider, OllamaEmbeddings } from '../embeddings.ts';
 import { SqliteVecAdapter } from '../adapters/sqlite-vec.ts';
 import { ChromaMcpAdapter } from '../adapters/chroma-mcp.ts';
@@ -159,6 +159,17 @@ describe('createVectorStore factory', () => {
     if (orig) process.env.ORACLE_VECTOR_DB = orig;
     else delete process.env.ORACLE_VECTOR_DB;
     delete process.env.ORACLE_VECTOR_DB_PATH;
+  });
+
+  test('creates model store from per-collection adapter config', () => {
+    const store = createVectorStoreForModel({
+      collection: 'oracle_test_qdrant',
+      model: 'bge-m3',
+      adapter: 'qdrant',
+    });
+
+    expect(store.name).toBe('qdrant');
+    expect(store).toBeInstanceOf(QdrantAdapter);
   });
 });
 

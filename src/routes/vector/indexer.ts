@@ -13,7 +13,7 @@
 
 import { Elysia, t } from 'elysia';
 import { Database } from 'bun:sqlite';
-import { createVectorStore, getEmbeddingModels } from '../../vector/factory.ts';
+import { createVectorStoreForModel, getEmbeddingModels } from '../../vector/factory.ts';
 import { DB_PATH } from '../../config.ts';
 
 // ── In-memory status (no sqlite writes — avoids the disk I/O problem) ──
@@ -85,13 +85,7 @@ export const vectorIndexerEndpoints = new Elysia()
 
         currentJob.total = rows.length;
 
-        const store = createVectorStore({
-          type: 'lancedb',
-          collectionName: preset.collection,
-          embeddingProvider: 'ollama',
-          embeddingModel: preset.model,
-          ...(preset.dataPath && { dataPath: preset.dataPath }),
-        });
+        const store = createVectorStoreForModel(preset);
 
         await store.connect();
         try { await store.deleteCollection(); } catch {}
@@ -164,22 +158,17 @@ export const vectorIndexerEndpoints = new Elysia()
   // GET /vector/index/models
   .get('/vector/index/models', async () => {
     const models = getEmbeddingModels();
-    const result: Record<string, { collection: string; model: string; count?: number }> = {};
+    const result: Record<string, { collection: string; model: string; adapter: string; count?: number }> = {};
 
     for (const [key, preset] of Object.entries(models)) {
-      const entry: { collection: string; model: string; count?: number } = {
+      const entry: { collection: string; model: string; adapter: string; count?: number } = {
         collection: preset.collection,
         model: preset.model,
+        adapter: preset.adapter || 'lancedb',
       };
 
       try {
-        const store = createVectorStore({
-          type: 'lancedb',
-          collectionName: preset.collection,
-          embeddingProvider: 'ollama',
-          embeddingModel: preset.model,
-          ...(preset.dataPath && { dataPath: preset.dataPath }),
-        });
+        const store = createVectorStoreForModel(preset);
         await store.connect();
         const stats = await store.getStats();
         entry.count = stats.count;

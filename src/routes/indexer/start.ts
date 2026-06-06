@@ -1,5 +1,5 @@
 import { Elysia, t } from 'elysia';
-import { createVectorStore, getEmbeddingModels } from '../../vector/factory.ts';
+import { createVectorStoreForModel, getEmbeddingModels } from '../../vector/factory.ts';
 import { createDatabase } from '../../db/index.ts';
 import { setIndexingStatus } from '../../indexer/status.ts';
 import { DB_PATH, REPO_ROOT } from '../../config.ts';
@@ -30,13 +30,7 @@ export const startEndpoint = new Elysia().post('/indexer/start', async ({ body }
     },
   };
 
-  const store = createVectorStore({
-    type: 'lancedb',
-    collectionName: preset.collection,
-    embeddingProvider: 'ollama',
-    embeddingModel: preset.model,
-    ...(preset.dataPath && { dataPath: preset.dataPath }),
-  });
+  const store = createVectorStoreForModel(preset);
 
   abortFlag = false;
 

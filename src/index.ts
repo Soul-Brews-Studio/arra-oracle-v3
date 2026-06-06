@@ -380,17 +380,13 @@ class OracleMCPServer {
   private async initEmbedded(): Promise<void> {
     if (this.sqlite && this.db && this.vectorStore) return;
 
-    const [{ createVectorStore }, { createDatabase }] = await Promise.all([
+    const [{ createVectorStoreForModel, getEmbeddingModels }, { createDatabase }] = await Promise.all([
       import('./vector/factory.ts'),
       import('./db/index.ts'),
     ]);
 
-    this.vectorStore = createVectorStore({
-      type: 'lancedb',
-      collectionName: 'oracle_knowledge_bge_m3',
-      embeddingProvider: 'ollama',
-      embeddingModel: 'bge-m3',
-    });
+    const models = getEmbeddingModels();
+    this.vectorStore = createVectorStoreForModel(models['bge-m3']);
 
     const { sqlite, db } = createDatabase(DB_PATH);
     this.sqlite = sqlite;

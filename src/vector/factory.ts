@@ -35,6 +35,13 @@ export interface VectorStoreConfig {
   cfApiToken?: string;
 }
 
+export interface EmbeddingModelConfig {
+  collection: string;
+  model: string;
+  adapter?: VectorDBType;
+  dataPath?: string;
+}
+
 /**
  * Create a VectorStoreAdapter from config or env vars.
  *
@@ -132,7 +139,7 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
 // Model-based registry for dual-index search
 // ============================================================================
 
-export function getEmbeddingModels(): Record<string, { collection: string; model: string; dataPath?: string }> {
+export function getEmbeddingModels(): Record<string, EmbeddingModelConfig> {
   // If vector-server.json exists, use it as source of truth (#1071 phase 2)
   const cfg = loadVectorConfig();
   if (cfg) return configToModels(cfg);
@@ -142,23 +149,26 @@ export function getEmbeddingModels(): Record<string, { collection: string; model
     nomic: {
       collection: COLLECTION_NAME,
       model: 'nomic-embed-text',
+      adapter: 'lancedb',
       dataPath: LANCEDB_DIR,
     },
     qwen3: {
       collection: 'oracle_knowledge_qwen3',
       model: 'qwen3-embedding',
+      adapter: 'lancedb',
       dataPath: LANCEDB_DIR,
     },
     'bge-m3': {
       collection: 'oracle_knowledge_bge_m3',
       model: 'bge-m3',
+      adapter: 'lancedb',
       dataPath: LANCEDB_DIR,
     },
   };
 }
 
 /** @deprecated Use getEmbeddingModels() — kept for backward compat */
-export const EMBEDDING_MODELS = new Proxy({} as Record<string, { collection: string; model: string; dataPath?: string }>, {
+export const EMBEDDING_MODELS = new Proxy({} as Record<string, EmbeddingModelConfig>, {
   get(_, prop: string) { return getEmbeddingModels()[prop]; },
   has(_, prop: string) { return prop in getEmbeddingModels(); },
   ownKeys() { return Object.keys(getEmbeddingModels()); },
@@ -177,19 +187,23 @@ const modelStoreCache = new Map<string, VectorStoreAdapter>();
  */
 const connectPromises = new Map<string, Promise<void>>();
 
+export function createVectorStoreForModel(preset: EmbeddingModelConfig): VectorStoreAdapter {
+  return createVectorStore({
+    type: preset.adapter || 'lancedb',
+    collectionName: preset.collection,
+    embeddingProvider: 'ollama',
+    embeddingModel: preset.model,
+    ...(preset.dataPath && { dataPath: preset.dataPath }),
+  });
+}
+
 export function getVectorStoreByModel(model?: string): VectorStoreAdapter {
   const models = getEmbeddingModels();
   const key = model && models[model] ? model : 'bge-m3';
   let store = modelStoreCache.get(key);
   if (!store) {
     const preset = models[key];
-    store = createVectorStore({
-      type: 'lancedb',
-      collectionName: preset.collection,
-      embeddingProvider: 'ollama',
-      embeddingModel: preset.model,
-      ...(preset.dataPath && { dataPath: preset.dataPath }),
-    });
+    store = createVectorStoreForModel(preset);
     modelStoreCache.set(key, store);
     // Auto-connect in background (non-blocking)
     connectPromises.set(key, store.connect().catch(e =>

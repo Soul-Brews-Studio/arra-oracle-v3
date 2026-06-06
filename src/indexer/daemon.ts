@@ -15,8 +15,8 @@
 
 import Database from 'bun:sqlite';
 import { Elysia } from 'elysia';
-import { DB_PATH, LANCEDB_DIR } from '../config.ts';
-import { createVectorStore, getEmbeddingModels } from '../vector/factory.ts';
+import { DB_PATH } from '../config.ts';
+import { createVectorStoreForModel, getEmbeddingModels } from '../vector/factory.ts';
 import { runWorker, type WorkerEvent } from './worker.ts';
 import { daemonApiPlugin, makeEventBus } from '../routes/indexer-daemon/index.ts';
 
@@ -42,17 +42,13 @@ export async function startDaemon(): Promise<void> {
 
   // Embed via the existing factory — produces a model-aware OllamaEmbeddings.
   // Lazy per model so we don't spin up unused embedders.
-  const stores = new Map<string, ReturnType<typeof createVectorStore>>();
-  const getStore = async (modelKey: string, collection: string) => {
+  const stores = new Map<string, ReturnType<typeof createVectorStoreForModel>>();
+  const getStore = async (modelKey: string) => {
     let s = stores.get(modelKey);
     if (!s) {
-      s = createVectorStore({
-        type: 'lancedb',
-        dataPath: LANCEDB_DIR,
-        collectionName: collection,
-        embeddingProvider: 'ollama',
-        embeddingModel: modelKey,
-      });
+      const preset = models[modelKey];
+      if (!preset) throw new Error(`Unknown model_key: ${modelKey}`);
+      s = createVectorStoreForModel(preset);
       await s.connect();
       await s.ensureCollection();
       stores.set(modelKey, s);
@@ -63,7 +59,7 @@ export async function startDaemon(): Promise<void> {
   const embed = async (modelKey: string, text: string): Promise<number[]> => {
     const preset = models[modelKey];
     if (!preset) throw new Error(`Unknown model_key: ${modelKey}`);
-    const store = await getStore(modelKey, preset.collection);
+    const store = await getStore(modelKey);
     const embedder = (store as { embedder?: { embed: (texts: string[], type?: 'query' | 'passage') => Promise<number[][]> } }).embedder;
     if (!embedder) throw new Error(`No embedder on store for ${modelKey}`);
     const [vector] = await embedder.embed([text], 'passage');
@@ -74,7 +70,7 @@ export async function startDaemon(): Promise<void> {
     const entry = Object.entries(models).find(([, m]) => m.collection === collection);
     if (!entry) throw new Error(`No registered model has collection: ${collection}`);
     const [modelKey] = entry;
-    const store = await getStore(modelKey, collection);
+    const store = await getStore(modelKey);
     await store.addDocuments([{ id: docId, document: '', metadata: { id: docId, indexed_at: Date.now() } }]);
     // TODO: extend VectorStoreAdapter with `upsert(id, vector, metadata)`
     // that doesn't re-embed. For now we accept the extra Ollama call.

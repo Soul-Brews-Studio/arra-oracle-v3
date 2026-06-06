@@ -9,7 +9,7 @@
  *   bun src/scripts/index-model.ts nomic
  */
 
-import { createVectorStore, EMBEDDING_MODELS } from '../vector/factory.ts';
+import { createVectorStoreForModel, EMBEDDING_MODELS } from '../vector/factory.ts';
 import { createDatabase, oracleDocuments } from '../db/index.ts';
 import { count } from 'drizzle-orm';
 import { DB_PATH } from '../config.ts';
@@ -32,6 +32,7 @@ async function main() {
   console.log(`DB: ${DB_PATH}`);
   console.log(`Collection: ${preset.collection}`);
   console.log(`Model: ${preset.model}`);
+  console.log(`Adapter: ${preset.adapter || 'lancedb'}`);
   console.log(`Batch size: ${BATCH_SIZE}`);
 
   // Use Drizzle for structured queries, raw sqlite only for FTS5 joins
@@ -39,13 +40,7 @@ async function main() {
   const [{ total: docCount }] = db.select({ total: count() }).from(oracleDocuments).all();
   console.log(`Documents: ${docCount}`);
 
-  const store = createVectorStore({
-    type: 'lancedb',
-    collectionName: preset.collection,
-    embeddingProvider: 'ollama',
-    embeddingModel: preset.model,
-    ...(preset.dataPath && { dataPath: preset.dataPath }),
-  });
+  const store = createVectorStoreForModel(preset);
 
   await store.connect();
 
