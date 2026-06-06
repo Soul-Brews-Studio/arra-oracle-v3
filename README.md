@@ -25,6 +25,7 @@ The alpha docs wave is reachable from here in one hop:
 | --- | --- |
 | [docs/README.md](docs/README.md) | Docs index and feature-knob map. |
 | [docs/INSTALL.md](docs/INSTALL.md) | Fresh install through Bun remote, Docker GHCR, and Docker MCP Toolkit. |
+| [docs/DEPLOY-DIGITALOCEAN.md](docs/DEPLOY-DIGITALOCEAN.md) | DigitalOcean runbook: provision, firewall/token, connect, seed, teardown. |
 | [docs/FEDERATION.md](docs/FEDERATION.md) | Pairing, Scout discovery, TOFU pins, peer feed/search, and peer auth. |
 | [docs/HUGINN-MUNINN.md](docs/HUGINN-MUNINN.md) | Capture/recall naming taxonomy: Arra=Muninn recall, Huginn=capture now. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Two-repo rule and PR target rules. |
