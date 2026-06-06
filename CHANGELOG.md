@@ -6,6 +6,88 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ## [Unreleased]
 
+### 2026-06-06 alpha wave — source release notes
+
+#### Core / MCP
+
+- MCP stdio can run embedded or proxy supported tool calls to a long-running HTTP server via `ORACLE_HTTP_URL` / `ORACLE_API` / `NEO_ARRA_API`. ([tracker #5][t5], [source PR #1334][s1334])
+- MCP tools are loaded from a local plugin manifest with tier/weight ordering and `dig` / `trace` plugin groups. ([tracker #24][t24], [source PR #1340][s1340])
+- Legacy MCP tool enable/disable toggles are preserved through the manifest loader, so #11 is superseded rather than a separate source gap. ([tracker #11][t11], [source PR #1340][s1340])
+- Raw Bun test isolation was hardened so the suite can run hermetically after the alpha wave. ([source PR #1350][s1350])
+
+#### Vector
+
+- Vector collections can select adapters independently through explicit config instead of one global vector backend. ([tracker #10][t10], [source PR #1336][s1336])
+- Qdrant now has parity with local adapters for precomputed vectors, avoiding unnecessary re-embedding. ([tracker #19][t19], [source PR #1337][s1337])
+- Qdrant point IDs now use stable SHA-256-derived UUIDs for deterministic upserts. ([tracker #19][t19], [source PR #1337][s1337])
+
+#### Commands
+
+- `arra` is now a short operator CLI bin alias alongside `arra-cli`. ([tracker #7][t7], [source PR #1335][s1335])
+- CLI target resolution is layered across `ORACLE_API`, `--at`, project `.arra/config.json`, XDG config, legacy `NEO_ARRA_API`, and localhost. ([tracker #16][t16], [source PR #1338][s1338])
+- `arra doctor` diagnoses server reachability, DB/vector status, adapter config, layered config, and MCP mode. ([tracker #25][t25], [source PR #1341][s1341])
+- `arra plugins list|enable|disable` manages the local MCP plugin manifest from the CLI. ([tracker #31][t31], [source PR #1343][s1343])
+- `arra completions bash|zsh|fish` emits shell completion scripts for the operator CLI. ([tracker #37][t37], [source PR #1348][s1348])
+
+#### Federation — landing via #39
+
+- Peer identity endpoints (`/info`, `/api/identity`) and persistent identity keys are landing in source via migration #39. ([tracker #6][t6], [tracker #39][t39], [source PR #1353][s1353])
+- Scout HELLO announcement support is landing in source via migration #39. ([tracker #17][t17], [tracker #39][t39], [source PR #1353][s1353])
+- Reverse peer query support for named peers is landing in source via migration #39. ([tracker #20][t20], [tracker #39][t39], [source PR #1353][s1353])
+- TOFU peer-key pinning and verification are landing in source via migration #39. ([tracker #23][t23], [tracker #39][t39], [source PR #1353][s1353])
+- Peer feed routes are landing in source via migration #39; these are separate from the local/oraclenet feed surface. ([tracker #27][t27], [tracker #39][t39], [source PR #1353][s1353])
+- Peer search integration is landing in source via migration #39. ([tracker #29][t29], [tracker #39][t39], [source PR #1353][s1353])
+- Peer endpoint token auth with `ARRA_PEER_TOKEN` is landing in source via migration #39. ([tracker #33][t33], [tracker #39][t39], [source PR #1353][s1353])
+
+#### Docker / Distribution
+
+- The repo now has multi-target Docker builds for HTTP API and MCP stdio images. ([tracker #12][t12], [source PR #1339][s1339])
+- Docker Compose provides a local HTTP smoke path on port `47778`. ([tracker #12][t12], [source PR #1339][s1339])
+- GHCR publishing covers HTTP and stdio images, including arm64 support for Apple Silicon and fleet nodes. ([source PR #1339][s1339], [source PR #1342][s1342])
+- Docker MCP Toolkit catalog/install docs and fresh install verification now cover bunx, Docker GHCR, and Docker MCP Toolkit channels. ([tracker #41][t41], [source PR #1349][s1349], [source PR #1351][s1351])
+
+#### Process
+
+- `CONTRIBUTING.md` documents the two-repo topology and requires code PRs to use `gh pr create --repo Soul-Brews-Studio/arra-oracle-v3 --base alpha`. ([tracker #43][t43], [source PR #1352][s1352])
+
+[t5]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/5
+[t6]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/6
+[t7]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/7
+[t10]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/10
+[t11]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/11
+[t12]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/12
+[t16]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/16
+[t17]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/17
+[t19]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/19
+[t20]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/20
+[t23]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/23
+[t24]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/24
+[t25]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/25
+[t27]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/27
+[t29]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/29
+[t31]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/31
+[t33]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/33
+[t37]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/37
+[t39]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/39
+[t41]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/41
+[t43]: https://github.com/Soul-Brews-Studio/arra-oracle-v3-oracle/issues/43
+[s1334]: https://github.com/Soul-Brews-Studio/arra-oracle-v3/pull/1334
+[s1335]: https://github.com/Soul-Brews-Studio/arra-oracle-v3/pull/1335
+[s1336]: https://github.com/Soul-Brews-Studio/arra-oracle-v3/pull/1336
+[s1337]: https://github.com/Soul-Brews-Studio/arra-oracle-v3/pull/1337
+[s1338]: https://github.com/Soul-Brews-Studio/arra-oracle-v3/pull/1338
+[s1339]: https://github.com/Soul-Brews-Studio/arra-oracle-v3/pull/1339
+[s1340]: https://github.com/Soul-Brews-Studio/arra-oracle-v3/pull/1340
+[s1341]: https://github.com/Soul-Brews-Studio/arra-oracle-v3/pull/1341
+[s1342]: https://github.com/Soul-Brews-Studio/arra-oracle-v3/pull/1342
+[s1343]: https://github.com/Soul-Brews-Studio/arra-oracle-v3/pull/1343
+[s1348]: https://github.com/Soul-Brews-Studio/arra-oracle-v3/pull/1348
+[s1349]: https://github.com/Soul-Brews-Studio/arra-oracle-v3/pull/1349
+[s1350]: https://github.com/Soul-Brews-Studio/arra-oracle-v3/pull/1350
+[s1351]: https://github.com/Soul-Brews-Studio/arra-oracle-v3/pull/1351
+[s1352]: https://github.com/Soul-Brews-Studio/arra-oracle-v3/pull/1352
+[s1353]: https://github.com/Soul-Brews-Studio/arra-oracle-v3/pull/1353
+
 ### Added — Neo ARRA V3 | Build with Oracle
 
 The MCP server (this repo, `src/`) now has two new consumer surfaces:
