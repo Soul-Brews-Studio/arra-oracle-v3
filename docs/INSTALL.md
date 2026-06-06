@@ -4,6 +4,49 @@ Complete guide for fresh installation with seed data.
 
 For the current alpha operator surface (MCP modes, CLI targets, plugins, vector adapters, Docker/GHCR, and federation-track notes), see [TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md).
 
+
+## Docker MCP Toolkit install (GHCR)
+
+Use this when you want Docker Desktop MCP Toolkit / Docker MCP Gateway to
+run Arra Oracle from the published multi-arch GHCR image instead of local
+source. The catalog file in this repo points at:
+
+```text
+ghcr.io/soul-brews-studio/arra-oracle-v3:stdio
+```
+
+That tag is the MCP stdio target and is published for both `linux/amd64` and
+`linux/arm64`. You can verify the tag before installing:
+
+```bash
+docker buildx imagetools inspect ghcr.io/soul-brews-studio/arra-oracle-v3:stdio
+```
+
+Install the local catalog entry into a Docker MCP profile:
+
+```bash
+# Requires Docker Desktop 4.62+ / Docker MCP CLI.
+# Run from a clone of Soul-Brews-Studio/arra-oracle-v3.
+docker mcp profile create --name arra-oracle \
+  --server file://$(pwd)/catalog/arra-oracle.yaml
+
+# Or add it to an existing profile.
+docker mcp profile server add <profile-id> \
+  --server file://$(pwd)/catalog/arra-oracle.yaml
+```
+
+Connect a client to the profile, or run the gateway directly:
+
+```bash
+docker mcp client connect claude-desktop --profile arra_oracle
+docker mcp gateway run --profile arra_oracle
+```
+
+Docker Desktop users can also open **MCP Toolkit → Catalog → Import catalog**
+and select `catalog/arra-oracle.yaml`; then add the `arra-oracle` server to a
+profile. The server stores Oracle data in the Docker volume
+`arra-oracle-data` and logs to stderr so stdio remains valid MCP JSON-RPC.
+
 ## Quick Install (Recommended)
 
 ```bash
