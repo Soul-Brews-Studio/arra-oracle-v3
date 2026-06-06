@@ -257,8 +257,8 @@ HTTP API on port 47778 (`bun run server`).
 | `GET` | `/api/dashboard/activity` | `dashboard` |  |
 | `GET` | `/api/dashboard/growth` | `dashboard` |  |
 | `GET` | `/api/session/stats` | `dashboard` | Session stats endpoint - tracks activity from DB (includes MCP usage) |
-| `GET` | `/api/feed` | `feed` |  |
-| `POST` | `/api/feed` | `feed` | Log an event to feed.log |
+| `GET` | `/api/peer/feed` | `feed` |  |
+| `POST` | `/api/peer/feed` | `feed` | Log an event to feed.log |
 | `GET` | `/api/graph` | `files` | Graph |
 | `GET` | `/api/context` | `files` | Context |
 | `GET` | `/api/file` | `files` | File - supports cross-repo access via ghq project paths |
@@ -375,3 +375,15 @@ for categories and signature convention.
 ## Acknowledgments
 
 Inspired by [claude-mem](https://github.com/thedotmack/claude-mem) by Alex Newman — process manager pattern, worker service architecture, and hook system concepts.
+
+## Federation peer endpoints
+
+Arra exposes a small MAW-compatible federation surface for peer oracles:
+
+- `GET /info` — public MAW schema/capability document.
+- `GET /api/identity` — public stable node identity and local TOFU pubkey.
+- `GET /api/peers` — probes peers from `ARRA_NAMED_PEERS` or `peers.json` and pins pubkeys on first contact.
+- `GET /api/peer/feed` — peer-readable feed (optionally protected).
+- `POST /api/peer/search` — peer-callable Arra search (also available as `POST /api/search`; existing `GET /api/search` is unchanged).
+
+Set `ARRA_PEER_TOKEN` to require `Authorization: Bearer <token>` (or `?token=`) for `/api/peer/feed` and peer search. `/info` and `/api/identity` stay open for discovery. Configure peers with `ARRA_NAMED_PEERS='{"mawjs":"http://host:port"}'` or `$ORACLE_DATA_DIR/peers.json`. Run `arra peers --token <token>` to probe them. Scout HELLO multicast is opt-in with `ARRA_SCOUT_ANNOUNCE=1`.

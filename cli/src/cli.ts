@@ -25,6 +25,7 @@ import { menuResetAll } from "./commands/menu-reset.ts";
 import { configCommand, useCommand } from "./commands/config.ts";
 import { doctorCommand } from "./commands/doctor.ts";
 import { completionsCommand } from "./commands/completions.ts";
+import { peersCommand } from "./commands/peers.ts";
 import { BUILTIN_COMMANDS } from "./commands/catalog.ts";
 
 const pkg = await Bun.file(join(import.meta.dir, "../package.json")).json();
@@ -101,6 +102,10 @@ async function main() {
 
   if (cmd === "doctor") {
     process.exit(await doctorCommand(args.slice(1)));
+  }
+
+  if (cmd === "peers") {
+    process.exit(await peersCommand(args.slice(1)));
   }
 
   if (cmd === "use") {

@@ -16,4 +16,5 @@ export const BUILTIN_COMMANDS: CommandSpec[] = [
   { command: "doctor", help: "run operator diagnostics against the resolved target", flags: ["--json", "--help", "-h"] },
   { command: "use", help: "set the global default API target" },
   { command: "completions", help: "print shell completion scripts", subcommands: ["bash", "zsh", "fish"], flags: ["--help", "-h"] },
+  { command: "peers", help: "probe configured federation peers", flags: ["--token", "--json", "--help", "-h"] },
 ];

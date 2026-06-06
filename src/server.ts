@@ -19,6 +19,7 @@ import {
 } from './process-manager/index.ts';
 
 import { PORT, ORACLE_DATA_DIR, VECTOR_URL } from './config.ts';
+import { ScoutAnnouncer, shouldStartScoutAnnouncer } from './peer/scout-announcer.ts';
 import { MCP_SERVER_NAME } from './const.ts';
 import { db, sqlite, closeDb, indexingStatus } from './db/index.ts';
 import { seedMenuItems, type HasRoutes as SeedHasRoutes } from './db/seeders/menu-seeder.ts';
@@ -42,6 +43,7 @@ import { oraclenetRoutes } from './routes/oraclenet/index.ts';
 import { sessionsRoutes } from './routes/sessions/index.ts';
 import { vaultRoutes } from './routes/vault/index.ts';
 import { createMenuRoutes } from './routes/menu/index.ts';
+import { peerRoutes } from './routes/peer/index.ts';
 
 // Indexer routes are optional — MCP server works without them
 let indexerRoutes: any = null;
@@ -76,10 +78,16 @@ writePidFile({
   name: 'oracle-http',
 });
 
+const scoutAnnouncer = shouldStartScoutAnnouncer() ? new ScoutAnnouncer() : null;
+scoutAnnouncer?.start();
+
 registerSignalHandlers(async () => {
   console.log('\n🔮 Shutting down gracefully...');
   await performGracefulShutdown({
-    resources: [{ close: () => { closeDb(); return Promise.resolve(); } }],
+    resources: [
+      { close: () => { scoutAnnouncer?.stop(); return Promise.resolve(); } },
+      { close: () => { closeDb(); return Promise.resolve(); } },
+    ],
   });
   removePidFile();
   console.log('👋 Arra Oracle HTTP Server stopped.');
@@ -188,6 +196,7 @@ const app = new Elysia()
     }),
   )
   .use(gatewayPlugin(ORACLE_DATA_DIR, VECTOR_URL || undefined))
+  .use(peerRoutes)
   .get('/', () => ({
     server: MCP_SERVER_NAME,
     version: pkg.version,
