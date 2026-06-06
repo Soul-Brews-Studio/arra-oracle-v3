@@ -6,13 +6,16 @@ import path from 'path';
 import { PLUGINS_DIR } from '../../config.ts';
 import { pluginParams } from './model.ts';
 
+const currentPluginsDir = () => process.env.ORACLE_DATA_DIR ? path.join(process.env.ORACLE_DATA_DIR, 'plugins') : PLUGINS_DIR;
+
+
 export const pluginByNameRoute = new Elysia().get(
   '/api/plugins/:name',
   ({ params, set }) => {
     const file = params.name.endsWith('.wasm')
       ? params.name
       : `${params.name}.wasm`;
-    const filePath = path.join(PLUGINS_DIR, file);
+    const filePath = path.join(currentPluginsDir(), file);
     if (!fs.existsSync(filePath)) {
       set.status = 404;
       return { error: 'Plugin not found' };

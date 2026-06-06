@@ -10,6 +10,8 @@ import path from 'path';
 import { eq, sql, or, inArray } from 'drizzle-orm';
 import { db, sqlite, oracleDocuments, indexingStatus, isDbLockError } from '../db/index.ts';
 import { REPO_ROOT, VECTOR_URL } from '../config.ts';
+
+const currentRepoRoot = () => process.env.ORACLE_REPO_ROOT || REPO_ROOT;
 import { logSearch, logDocumentAccess, logLearning } from './logging.ts';
 import type { SearchResult, SearchResponse } from './types.ts';
 import { ensureVectorStoreConnected, EMBEDDING_MODELS } from '../vector/factory.ts';
@@ -688,7 +690,7 @@ export function persistLearningDoc(opts: {
   const now = new Date();
   const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-  const dir = path.join(REPO_ROOT, subdir);
+  const dir = path.join(currentRepoRoot(), subdir);
   fs.mkdirSync(dir, { recursive: true });
   const filePath = path.join(dir, filename);
 
@@ -770,7 +772,7 @@ export function handleLearn(
   // until unique. Prevents 500s when two writes share a slug within one day
   // (e.g. repeated hot-write snapshots from the same agent).
   const subdir = 'ψ/memory/learnings';
-  const learningsDir = path.join(REPO_ROOT, subdir);
+  const learningsDir = path.join(currentRepoRoot(), subdir);
   let uniqueSlug = slug;
   let suffix = 2;
   while (fs.existsSync(path.join(learningsDir, `${dateStr}_${uniqueSlug}.md`))) {

@@ -275,39 +275,65 @@ export function watchToolGroupConfig(
   const globalPluginsPath = path.join(ORACLE_DATA_DIR, 'plugins.json');
   const watchers: fs.FSWatcher[] = [];
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let poller: ReturnType<typeof setInterval> | null = null;
   let last = JSON.stringify(loadToolGroupConfig(root));
+
+  const reloadIfChanged = (): void => {
+    const next = loadToolGroupConfig(root);
+    const serialized = JSON.stringify(next);
+    if (serialized === last) return;
+    last = serialized;
+    console.error('[ToolGroups] Config changed — reloading');
+    onChange(next);
+  };
 
   const tick = (): void => {
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
-      const next = loadToolGroupConfig(root);
-      const serialized = JSON.stringify(next);
-      if (serialized === last) return;
-      last = serialized;
-      console.error('[ToolGroups] Config changed — reloading');
-      onChange(next);
+      reloadIfChanged();
     }, 200);
   };
 
+  const byDir = new Map<string, Set<string>>();
   for (const target of [localPath, localPluginsPath, globalPath, globalPluginsPath]) {
+    const dir = path.dirname(target);
+    const names = byDir.get(dir) ?? new Set<string>();
+    names.add(path.basename(target));
+    byDir.set(dir, names);
+
     try {
-      // Watch the file directly. fs.watch on a missing file throws on Linux
-      // and silently fails on macOS, so probe with existsSync first.
+      // File watchers are useful for direct writes, but cannot observe a
+      // missing file being created and can go stale after unlink/replace.
       if (fs.existsSync(target)) {
         watchers.push(fs.watch(target, { persistent: false }, tick));
-      } else {
-        // Watch the directory so we catch creation. Ignored if dir is missing.
-        const dir = path.dirname(target);
-        if (fs.existsSync(dir)) {
-          const base = path.basename(target);
-          watchers.push(
-            fs.watch(dir, { persistent: false }, (_event, filename) => {
-              if (filename === base) tick();
-            }),
-          );
-        }
       }
+    } catch {
+      // fs.watch can fail on platforms without inotify — keep going.
+    }
+  }
+
+  // Poll as a safety net for raw `bun test` shared-process runs: fs.watch can
+  // drop creation events under load, while comparing the resolved config keeps
+  // no-op writes silent.
+  poller = setInterval(reloadIfChanged, 100);
+  poller.unref?.();
+
+  for (const [dir, names] of byDir) {
+    try {
+      // Always watch directories that exist so raw `bun test` shared-process
+      // runs reliably catch create/delete/replace events between test files.
+      if (!fs.existsSync(dir)) continue;
+      watchers.push(
+        fs.watch(dir, { persistent: false }, (_event, filename) => {
+          if (!filename) {
+            tick();
+            return;
+          }
+          const changed = Buffer.isBuffer(filename) ? filename.toString() : String(filename);
+          if (names.has(changed)) tick();
+        }),
+      );
     } catch {
       // fs.watch can fail on platforms without inotify — keep going.
     }
@@ -317,6 +343,10 @@ export function watchToolGroupConfig(
     if (timer) {
       clearTimeout(timer);
       timer = null;
+    }
+    if (poller) {
+      clearInterval(poller);
+      poller = null;
     }
     for (const w of watchers) {
       try {

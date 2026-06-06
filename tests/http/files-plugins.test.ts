@@ -9,6 +9,10 @@ import { join } from 'path';
 const WASM_HEADER = Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
 
 let tmp: string;
+const ORIGINAL_DATA_DIR = process.env.ORACLE_DATA_DIR;
+const ORIGINAL_HOME = process.env.HOME;
+const ORIGINAL_REPO_ROOT = process.env.ORACLE_REPO_ROOT;
+const ORIGINAL_GHQ_ROOT = process.env.GHQ_ROOT;
 // combined: mirrors production — files.ts registers /api/plugins first and
 // shadows plugins.ts. pluginsOnly: canonical dual-layout scanner in isolation.
 let combined: any;
@@ -74,6 +78,10 @@ const req = (path: string) => new Request(`http://localhost${path}`);
 
 afterAll(() => {
   if (tmp) rmSync(tmp, { recursive: true, force: true });
+  if (ORIGINAL_DATA_DIR) process.env.ORACLE_DATA_DIR = ORIGINAL_DATA_DIR; else delete process.env.ORACLE_DATA_DIR;
+  if (ORIGINAL_HOME) process.env.HOME = ORIGINAL_HOME; else delete process.env.HOME;
+  if (ORIGINAL_REPO_ROOT) process.env.ORACLE_REPO_ROOT = ORIGINAL_REPO_ROOT; else delete process.env.ORACLE_REPO_ROOT;
+  if (ORIGINAL_GHQ_ROOT) process.env.GHQ_ROOT = ORIGINAL_GHQ_ROOT; else delete process.env.GHQ_ROOT;
 });
 
 describe('GET /api/file — security', () => {

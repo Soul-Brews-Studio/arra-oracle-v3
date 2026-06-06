@@ -108,15 +108,17 @@ export function watchGatewayConfig(
   };
 
   try {
-    if (fs.existsSync(configPath)) {
-      watchers.push(fs.watch(configPath, { persistent: false }, tick));
-    } else if (fs.existsSync(dataDir)) {
-      // Watch the directory so we catch creation of the config file later.
+    if (fs.existsSync(dataDir)) {
+      // Always watch the directory: file watchers may miss unlink/replace
+      // events for a directly watched file on some platforms.
       watchers.push(
         fs.watch(dataDir, { persistent: false }, (_event, filename) => {
           if (filename === CONFIG_FILE) tick();
         }),
       );
+    }
+    if (fs.existsSync(configPath)) {
+      watchers.push(fs.watch(configPath, { persistent: false }, tick));
     }
   } catch {
     // fs.watch can fail on platforms without inotify — keep going.

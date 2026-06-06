@@ -13,6 +13,8 @@ import { REPO_ROOT } from '../../config.ts';
 import { getVaultPsiRoot } from '../../vault/handler.ts';
 import { fileQuery } from './model.ts';
 
+const currentRepoRoot = () => process.env.ORACLE_REPO_ROOT || REPO_ROOT;
+
 export const fileRoute = new Elysia().get(
   '/api/file',
   ({ query, set }) => {
@@ -38,13 +40,15 @@ export const fileRoute = new Elysia().get(
           const proc = Bun.spawnSync(['ghq', 'root']);
           GHQ_ROOT = proc.stdout.toString().trim();
         } catch {
-          const match = REPO_ROOT.match(/^(.+?)\/github\.com\//);
+          const root = currentRepoRoot();
+          const match = root.match(/^(.+?)\/github\.com\//);
           GHQ_ROOT = match
             ? match[1]
-            : path.dirname(path.dirname(path.dirname(REPO_ROOT)));
+            : path.dirname(path.dirname(path.dirname(root)));
         }
       }
-      const basePath = project ? path.join(GHQ_ROOT, project) : REPO_ROOT;
+      const root = currentRepoRoot();
+      const basePath = project ? path.join(GHQ_ROOT, project) : root;
 
       // Strip project prefix if source_file already contains it.
       let resolvedFilePath = filePath;
@@ -63,7 +67,7 @@ export const fileRoute = new Elysia().get(
       }
 
       const realGhqRoot = fs.realpathSync(GHQ_ROOT);
-      const realRepoRoot = fs.realpathSync(REPO_ROOT);
+      const realRepoRoot = fs.realpathSync(root);
       if (
         !realPath.startsWith(realGhqRoot) &&
         !realPath.startsWith(realRepoRoot)
@@ -80,7 +84,7 @@ export const fileRoute = new Elysia().get(
       // live in the universal vault (REPO_ROOT / ORACLE_DATA_DIR / ψ/), not
       // in the project's ghq checkout. Try REPO_ROOT before giving up.
       if (project) {
-        const repoFullPath = path.join(REPO_ROOT, filePath);
+        const repoFullPath = path.join(root, filePath);
         const realRepoFullPath = path.resolve(repoFullPath);
         if (
           realRepoFullPath.startsWith(realRepoRoot) &&

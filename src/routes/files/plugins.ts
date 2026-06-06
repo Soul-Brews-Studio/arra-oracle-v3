@@ -7,12 +7,15 @@ import fs from 'fs';
 import path from 'path';
 import { PLUGINS_DIR } from '../../config.ts';
 
+const currentPluginsDir = () => process.env.ORACLE_DATA_DIR ? path.join(process.env.ORACLE_DATA_DIR, 'plugins') : PLUGINS_DIR;
+
+
 export const pluginsListRoute = new Elysia().get('/api/plugins', () => {
   try {
-    if (!fs.existsSync(PLUGINS_DIR)) return { plugins: [] };
-    const files = fs.readdirSync(PLUGINS_DIR).filter((f) => f.endsWith('.wasm'));
+    if (!fs.existsSync(currentPluginsDir())) return { plugins: [] };
+    const files = fs.readdirSync(currentPluginsDir()).filter((f) => f.endsWith('.wasm'));
     const plugins = files.map((f) => {
-      const stat = fs.statSync(path.join(PLUGINS_DIR, f));
+      const stat = fs.statSync(path.join(currentPluginsDir(), f));
       return {
         name: f.replace('.wasm', ''),
         file: f,

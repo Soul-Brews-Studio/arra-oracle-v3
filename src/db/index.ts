@@ -129,10 +129,10 @@ if (!fs.existsSync(ORACLE_DATA_DIR)) {
 }
 
 const isReadonly = process.env.ORACLE_VECTOR_READONLY === '1';
-const defaultSqlite = isReadonly
+let defaultSqlite = isReadonly
   ? new Database(DB_PATH, { readonly: true })
   : new Database(DB_PATH);
-const defaultDb = drizzle(defaultSqlite, { schema });
+let defaultDb = drizzle(defaultSqlite, { schema });
 
 if (isReadonly) {
   console.log('[DB] Opened in READONLY mode (vector sidecar)');
@@ -141,8 +141,26 @@ if (isReadonly) {
   initializeDatabase(defaultSqlite, defaultDb);
 }
 
-export const sqlite = defaultSqlite;
-export const db = defaultDb;
+export let sqlite = defaultSqlite;
+export let db = defaultDb;
+
+/**
+ * Test-only escape hatch for raw `bun test` non-isolate runs. Some tests set
+ * ORACLE_DATA_DIR after another file has already imported the module-level DB;
+ * live bindings let them re-point the default connection without process-level
+ * isolation. Production callers should prefer createDatabase().
+ */
+export function resetDefaultDatabaseForTests(dbPath?: string): void {
+  try { defaultSqlite.close(); } catch {}
+  const resolvedPath = dbPath || process.env.ORACLE_DB_PATH || path.join(process.env.ORACLE_DATA_DIR || ORACLE_DATA_DIR, 'oracle.db');
+  const dir = path.dirname(resolvedPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  defaultSqlite = new Database(resolvedPath);
+  defaultDb = drizzle(defaultSqlite, { schema });
+  initializeDatabase(defaultSqlite, defaultDb);
+  sqlite = defaultSqlite;
+  db = defaultDb;
+}
 
 // Export schema for use in queries
 export * from './schema.ts';

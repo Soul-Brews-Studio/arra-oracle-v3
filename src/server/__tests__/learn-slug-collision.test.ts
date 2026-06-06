@@ -23,11 +23,14 @@ const TMP_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-learn-collision
 
 const ORIGINAL_REPO_ROOT = process.env.ORACLE_REPO_ROOT;
 const ORIGINAL_DATA_DIR = process.env.ORACLE_DATA_DIR;
+const ORIGINAL_DB_PATH = process.env.ORACLE_DB_PATH;
 
 process.env.ORACLE_REPO_ROOT = TMP_REPO_ROOT;
 process.env.ORACLE_DATA_DIR = TMP_DATA_DIR;
 
-// Dynamic import after env is set (REPO_ROOT and DB_PATH are module-frozen).
+// Dynamic imports after env is set; reset DB in case raw bun test imported db earlier.
+const { resetDefaultDatabaseForTests } = await import('../../db/index.ts');
+resetDefaultDatabaseForTests(path.join(TMP_DATA_DIR, 'oracle.db'));
 const { handleLearn } = await import('../handlers.ts');
 
 describe('handleLearn — slug collision', () => {
@@ -75,4 +78,7 @@ afterAll(() => {
   else delete process.env.ORACLE_REPO_ROOT;
   if (ORIGINAL_DATA_DIR) process.env.ORACLE_DATA_DIR = ORIGINAL_DATA_DIR;
   else delete process.env.ORACLE_DATA_DIR;
+  if (ORIGINAL_DB_PATH) process.env.ORACLE_DB_PATH = ORIGINAL_DB_PATH;
+  else delete process.env.ORACLE_DB_PATH;
+  resetDefaultDatabaseForTests();
 });
