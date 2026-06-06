@@ -22,6 +22,7 @@ import {
 } from "./commands/menu-gist.ts";
 import { menuResetAll } from "./commands/menu-reset.ts";
 import { configCommand, useCommand } from "./commands/config.ts";
+import { doctorCommand } from "./commands/doctor.ts";
 
 const pkg = await Bun.file(join(import.meta.dir, "../package.json")).json();
 const VERSION: string = pkg.version;
@@ -34,6 +35,7 @@ function printHelp(commands: Array<{ command: string; help?: string }>) {
   console.log(`  ${"session".padEnd(16)}inspect sessions (list, show, context)`);
   console.log(`  ${"menu".padEnd(16)}inspect and customize studio menu (list, add, remove)`);
   console.log(`  ${"config".padEnd(16)}show resolved API target and config sources`);
+  console.log(`  ${"doctor".padEnd(16)}run operator diagnostics against the resolved target`);
   console.log(`  ${"use".padEnd(16)}set the global default API target`);
   for (const { command, help } of commands) {
     console.log(`  ${command.padEnd(16)}${help ?? ""}`);
@@ -91,6 +93,10 @@ async function main() {
 
   if (cmd === "config") {
     process.exit(await configCommand(args.slice(1)));
+  }
+
+  if (cmd === "doctor") {
+    process.exit(await doctorCommand(args.slice(1)));
   }
 
   if (cmd === "use") {
