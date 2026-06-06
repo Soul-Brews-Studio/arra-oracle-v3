@@ -19,10 +19,12 @@ export interface RunResult {
 export async function runCli(
   args: string[],
   env: Record<string, string> = {},
+  options: { cwd?: string } = {},
 ): Promise<RunResult> {
   const proc = Bun.spawn(["bun", "run", CLI_ENTRY, ...args], {
     stdout: "pipe",
     stderr: "pipe",
+    cwd: options.cwd,
     env: { ...process.env, ...env },
   });
   const [stdout, stderr] = await Promise.all([

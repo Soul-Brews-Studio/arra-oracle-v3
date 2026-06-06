@@ -86,6 +86,36 @@ bun run dev          # MCP server
 bun run server       # HTTP API on :47778
 ```
 
+### Operator CLI targets
+
+`arra` and `arra-cli` resolve the HTTP API target in this order:
+
+1. `ORACLE_API=http://host:47778`
+2. `arra --at <name> <command>` from configured targets
+3. nearest project `.arra/config.json` default target
+4. global `$XDG_CONFIG_HOME/arra/config.json` (or `~/.config/arra/config.json`) default target
+5. legacy `NEO_ARRA_API`
+6. `http://localhost:47778`
+
+Config shape:
+
+```json
+{
+  "default": "local",
+  "targets": {
+    "local": "http://localhost:47778",
+    "m5": "http://m5.local:47778"
+  }
+}
+```
+
+```bash
+arra config          # show resolved target, sources, and targets
+arra config path     # print global config path
+arra use m5          # set global default target
+arra --at m5 health  # one-off target override
+```
+
 <details>
 <summary>Install script (legacy)</summary>
 

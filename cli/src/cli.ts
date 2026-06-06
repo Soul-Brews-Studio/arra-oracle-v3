@@ -21,6 +21,7 @@ import {
   menuGistReload,
 } from "./commands/menu-gist.ts";
 import { menuResetAll } from "./commands/menu-reset.ts";
+import { configCommand, useCommand } from "./commands/config.ts";
 
 const pkg = await Bun.file(join(import.meta.dir, "../package.json")).json();
 const VERSION: string = pkg.version;
@@ -32,10 +33,13 @@ function printHelp(commands: Array<{ command: string; help?: string }>) {
   console.log(`  ${"plugin".padEnd(16)}manage plugins (install)`);
   console.log(`  ${"session".padEnd(16)}inspect sessions (list, show, context)`);
   console.log(`  ${"menu".padEnd(16)}inspect and customize studio menu (list, add, remove)`);
+  console.log(`  ${"config".padEnd(16)}show resolved API target and config sources`);
+  console.log(`  ${"use".padEnd(16)}set the global default API target`);
   for (const { command, help } of commands) {
     console.log(`  ${command.padEnd(16)}${help ?? ""}`);
   }
   console.log("\nFlags:");
+  console.log("  --at <name>       Run against a named ARRA target from config");
   console.log("  --help, -h        Show this help");
   console.log("  -h <command>      Show command help + flags");
   console.log("  --version         Show version");
@@ -68,11 +72,29 @@ async function loadAll() {
 
 async function main() {
   const args = process.argv.slice(2);
+  const atIndex = args.indexOf("--at");
+  if (atIndex >= 0) {
+    const target = args[atIndex + 1];
+    if (!target) {
+      console.error("usage: arra --at <name> <command>");
+      process.exit(1);
+    }
+    process.env.ARRA_AT = target;
+    args.splice(atIndex, 2);
+  }
   const cmd = args[0]?.toLowerCase();
 
   if (cmd === "--version" || cmd === "version") {
     console.log(`arra-cli v${VERSION}`);
     return;
+  }
+
+  if (cmd === "config") {
+    process.exit(await configCommand(args.slice(1)));
+  }
+
+  if (cmd === "use") {
+    process.exit(await useCommand(args.slice(1)));
   }
 
   if (cmd === "session") {
