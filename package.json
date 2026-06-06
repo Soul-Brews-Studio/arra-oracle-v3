@@ -56,7 +56,9 @@
     "vault:pull": "bun src/vault/cli.ts pull",
     "vault:status": "bun src/vault/cli.ts status",
     "vault:migrate": "bun src/vault/cli.ts migrate",
-    "vault:rsync": "./scripts/vault-rsync.sh"
+    "vault:rsync": "./scripts/vault-rsync.sh",
+    "test:e2e:federation": "bun test tests/e2e/federation-smoke.test.ts",
+    "smoke:federation": "bun scripts/federation-smoke.ts"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",

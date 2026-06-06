@@ -81,31 +81,42 @@ export function watchGatewayConfig(
   const configPath = path.join(dataDir, CONFIG_FILE);
   const watchers: fs.FSWatcher[] = [];
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let poller: ReturnType<typeof setInterval> | null = null;
   let last = JSON.stringify(loadGatewayConfig(dataDir, vectorUrl));
+
+  const reloadIfChanged = (): void => {
+    // Malformed JSON survival: if the file exists but failed to parse,
+    // loadGatewayConfig returns null AND prints a warning. We only swap
+    // the live state when the new result is either a valid config or a
+    // genuine deletion (file no longer exists). Mid-edit syntax errors
+    // are silently ignored so the running gateway keeps its last good
+    // state until the user saves a valid file.
+    const fileMissing = !fs.existsSync(configPath);
+    const next = loadGatewayConfig(dataDir, vectorUrl);
+    if (next === null && !fileMissing && !vectorUrl) {
+      // file exists but failed to parse — hold last good
+      return;
+    }
+    const serialized = JSON.stringify(next);
+    if (serialized === last) return;
+    last = serialized;
+    console.log('[Gateway] Config changed — reloading');
+    onChange(next);
+  };
 
   const tick = (): void => {
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
-      // Malformed JSON survival: if the file exists but failed to parse,
-      // loadGatewayConfig returns null AND prints a warning. We only swap
-      // the live state when the new result is either a valid config or a
-      // genuine deletion (file no longer exists). Mid-edit syntax errors
-      // are silently ignored so the running gateway keeps its last good
-      // state until the user saves a valid file.
-      const fileMissing = !fs.existsSync(configPath);
-      const next = loadGatewayConfig(dataDir, vectorUrl);
-      if (next === null && !fileMissing && !vectorUrl) {
-        // file exists but failed to parse — hold last good
-        return;
-      }
-      const serialized = JSON.stringify(next);
-      if (serialized === last) return;
-      last = serialized;
-      console.log('[Gateway] Config changed — reloading');
-      onChange(next);
+      reloadIfChanged();
     }, 200);
   };
+
+  // fs.watch can drop create/delete events under raw `bun test` load. Polling
+  // the resolved config keeps no-op writes silent while making creation tests
+  // deterministic.
+  poller = setInterval(reloadIfChanged, 100);
+  poller.unref?.();
 
   try {
     if (fs.existsSync(dataDir)) {
@@ -128,6 +139,10 @@ export function watchGatewayConfig(
     if (timer) {
       clearTimeout(timer);
       timer = null;
+    }
+    if (poller) {
+      clearInterval(poller);
+      poller = null;
     }
     for (const w of watchers) {
       try {
