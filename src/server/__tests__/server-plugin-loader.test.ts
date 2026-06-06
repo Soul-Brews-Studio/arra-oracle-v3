@@ -182,6 +182,10 @@ describe('server plugin loader', () => {
     expect(identityBody.pubkey).toMatch(/^[0-9a-f]{64}$/);
     expect(identityBody.node).toStartWith('arra@');
     expect(identityBody.oracle).toBe('arra');
+
+    const peers = await app.handle(new Request('http://local/api/peers'));
+    expect(peers.status).toBe(200);
+    expect(await peers.json()).toEqual({ peers: [] });
   });
 
   test('api manifest mounts a built-in example plugin under its declared path', async () => {
