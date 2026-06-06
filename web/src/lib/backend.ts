@@ -245,13 +245,24 @@ export class MockBackend implements BackendClient {
   }
 }
 
+function storedApiToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem("ARRA_API_TOKEN") || window.localStorage.getItem("NEO_ARRA_API_TOKEN");
+}
+
 export class RealBackend implements BackendClient {
-  constructor(private baseUrl: string) {}
+  constructor(private baseUrl: string, private token: string | null = storedApiToken()) {}
+
+  private headers(init?: HeadersInit): HeadersInit {
+    return this.token
+      ? { ...(init as Record<string, string> | undefined), Authorization: `Bearer ${this.token}` }
+      : (init ?? {});
+  }
 
   private async post<T>(tool: string, args: Record<string, unknown>): Promise<T> {
     const res = await fetch(`${this.baseUrl}/api/${tool}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: this.headers({ "Content-Type": "application/json" }),
       body: JSON.stringify(args),
     });
     if (!res.ok) throw new Error(`Backend error ${res.status}: ${await res.text()}`);
@@ -265,7 +276,7 @@ export class RealBackend implements BackendClient {
           .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
           .join("&")
       : "";
-    const res = await fetch(`${this.baseUrl}${path}${qs}`);
+    const res = await fetch(`${this.baseUrl}${path}${qs}`, { headers: this.headers() });
     if (!res.ok) throw new Error(`Backend error ${res.status}: ${await res.text()}`);
     return res.json() as Promise<T>;
   }
@@ -319,7 +330,7 @@ export class RealBackend implements BackendClient {
   async consult(q: string, threadId?: number): Promise<ConsultResponse> {
     const res = await fetch(`${this.baseUrl}/api/thread`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: this.headers({ "Content-Type": "application/json" }),
       body: JSON.stringify({ message: q, thread_id: threadId, role: "human" }),
     });
     if (!res.ok) throw new Error(`Backend error ${res.status}: ${await res.text()}`);

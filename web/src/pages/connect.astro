@@ -1,0 +1,133 @@
+---
+import Base from "../layouts/Base.astro";
+---
+
+<Base title="Connect + MCP install | Neo ARRA V3">
+  <main class="max-w-4xl mx-auto px-6 py-16">
+    <a href="/" class="text-gray-500 hover:text-teal-300 text-sm transition-colors">← home</a>
+    <div class="mt-4 mb-10">
+      <p class="text-sm font-mono text-teal-400 mb-2">Deploy-prep credential helper</p>
+      <h1 class="text-5xl font-bold tracking-tight mb-4">Connect token + MCP install</h1>
+      <p class="text-gray-400 text-lg max-w-2xl">
+        Store your backend URL and optional <code class="text-teal-300">ARRA_API_TOKEN</code> in this browser,
+        then copy a Claude MCP install command/config that points at the same protected HTTP API.
+      </p>
+    </div>
+
+    <section class="grid gap-6 lg:grid-cols-[1fr_1fr]">
+      <div class="bg-gray-900/80 border border-gray-800 rounded-xl p-6 space-y-5">
+        <div>
+          <h2 class="text-xl font-semibold mb-2">1. Browser connection</h2>
+          <p class="text-gray-500 text-sm">Saved locally only. Leave token empty when the server has no <code>ARRA_API_TOKEN</code>.</p>
+        </div>
+        <label class="block">
+          <span class="text-sm text-gray-300">Backend URL</span>
+          <input id="api-url" class="mt-1 w-full bg-black/50 border border-gray-700 rounded-lg px-3 py-2 font-mono text-sm text-gray-100 focus:outline-none focus:border-teal-500" value="http://localhost:47778" />
+        </label>
+        <label class="block">
+          <span class="text-sm text-gray-300">ARRA_API_TOKEN</span>
+          <input id="api-token" type="password" class="mt-1 w-full bg-black/50 border border-gray-700 rounded-lg px-3 py-2 font-mono text-sm text-gray-100 focus:outline-none focus:border-teal-500" placeholder="paste token or generate one" />
+        </label>
+        <div class="flex flex-wrap gap-3">
+          <button id="generate-token" class="bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded-lg text-sm transition-colors">Generate token</button>
+          <button id="save-token" class="bg-teal-500 hover:bg-teal-400 text-gray-950 font-semibold px-4 py-2 rounded-lg text-sm transition-colors">Save connection</button>
+          <button id="clear-token" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg text-sm transition-colors">Clear</button>
+        </div>
+        <div id="status" class="text-sm text-gray-500">Not checked yet.</div>
+      </div>
+
+      <div class="bg-gray-900/80 border border-gray-800 rounded-xl p-6 space-y-5">
+        <div>
+          <h2 class="text-xl font-semibold mb-2">2. Server env</h2>
+          <p class="text-gray-500 text-sm">Set this on your HTTP server when you want the deploy gate enabled.</p>
+        </div>
+        <div class="relative">
+          <pre class="bg-black/60 border border-gray-800 rounded-lg p-4 overflow-x-auto text-sm text-teal-300 font-mono"><code id="env-snippet">ARRA_API_TOKEN=...</code></pre>
+          <button data-copy-target="env-snippet" class="copy-btn absolute top-2 right-2 text-xs bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-teal-300 px-3 py-1 rounded transition-colors">copy</button>
+        </div>
+        <p class="text-xs text-gray-500">The app never provisions server secrets remotely; generated tokens are shown so you can copy them into your deploy environment.</p>
+      </div>
+    </section>
+
+    <section class="mt-6 bg-gray-900/80 border border-gray-800 rounded-xl p-6 space-y-5">
+      <div>
+        <h2 class="text-xl font-semibold mb-2">3. Claude MCP install snippet</h2>
+        <p class="text-gray-500 text-sm">Copy one of these into your terminal or Claude config. Token is included only if provided.</p>
+      </div>
+      <div class="relative">
+        <pre class="bg-black/60 border border-gray-800 rounded-lg p-4 overflow-x-auto text-sm text-teal-300 font-mono"><code id="claude-snippet"></code></pre>
+        <button data-copy-target="claude-snippet" class="copy-btn absolute top-2 right-2 text-xs bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-teal-300 px-3 py-1 rounded transition-colors">copy</button>
+      </div>
+      <details class="group">
+        <summary class="cursor-pointer text-sm text-gray-400 hover:text-gray-200">Show JSON config</summary>
+        <div class="relative mt-3">
+          <pre class="bg-black/60 border border-gray-800 rounded-lg p-4 overflow-x-auto text-sm text-teal-300 font-mono"><code id="json-snippet"></code></pre>
+          <button data-copy-target="json-snippet" class="copy-btn absolute top-2 right-2 text-xs bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-teal-300 px-3 py-1 rounded transition-colors">copy</button>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <script>
+    const apiInput = document.getElementById("api-url") as HTMLInputElement;
+    const tokenInput = document.getElementById("api-token") as HTMLInputElement;
+    const status = document.getElementById("status") as HTMLDivElement;
+    const envSnippet = document.getElementById("env-snippet") as HTMLElement;
+    const claudeSnippet = document.getElementById("claude-snippet") as HTMLElement;
+    const jsonSnippet = document.getElementById("json-snippet") as HTMLElement;
+
+    function shellQuote(value: string) {
+      return `'${value.replaceAll("'", "'\\''")}'`;
+    }
+    function generateToken() {
+      const bytes = new Uint8Array(24);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    }
+    function currentApi() { return (apiInput.value || "http://localhost:47778").replace(/\/+$/, ""); }
+    function currentToken() { return tokenInput.value.trim(); }
+    function renderSnippets() {
+      const api = currentApi();
+      const token = currentToken();
+      envSnippet.textContent = token ? `ARRA_API_TOKEN=${token}` : "# optional: ARRA_API_TOKEN=<your-token>";
+      const envParts = [`ORACLE_API=${shellQuote(api)}`];
+      if (token) envParts.push(`ARRA_API_TOKEN=${shellQuote(token)}`);
+      claudeSnippet.textContent = `claude mcp add arra-oracle-v3 --env ${envParts.join(" --env ")} -- bunx --bun arra-oracle-v3@github:Soul-Brews-Studio/arra-oracle-v3`;
+      jsonSnippet.textContent = JSON.stringify({ mcpServers: { "arra-oracle-v3": { command: "bunx", args: ["--bun", "arra-oracle-v3@github:Soul-Brews-Studio/arra-oracle-v3"], env: token ? { ORACLE_API: api, ARRA_API_TOKEN: token } : { ORACLE_API: api } } } }, null, 2);
+    }
+    async function saveAndCheck() {
+      const api = currentApi();
+      const token = currentToken();
+      localStorage.setItem("NEO_ARRA_API", api);
+      if (token) { localStorage.setItem("ARRA_API_TOKEN", token); localStorage.setItem("NEO_ARRA_API_TOKEN", token); }
+      else { localStorage.removeItem("ARRA_API_TOKEN"); localStorage.removeItem("NEO_ARRA_API_TOKEN"); }
+      renderSnippets();
+      status.textContent = "checking /api/health…";
+      status.className = "text-sm text-amber-300";
+      try {
+        const res = await fetch(`${api}/api/health`, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
+        status.textContent = res.ok ? `saved ✓ backend reachable (${res.status})` : `saved, but backend returned ${res.status}`;
+        status.className = res.ok ? "text-sm text-teal-300" : "text-sm text-amber-300";
+      } catch (err) {
+        status.textContent = `saved locally; backend unreachable (${err instanceof Error ? err.message : String(err)})`;
+        status.className = "text-sm text-red-300";
+      }
+    }
+    apiInput.value = new URLSearchParams(window.location.search).get("api") || localStorage.getItem("NEO_ARRA_API") || apiInput.value;
+    tokenInput.value = localStorage.getItem("ARRA_API_TOKEN") || localStorage.getItem("NEO_ARRA_API_TOKEN") || "";
+    renderSnippets();
+    apiInput.addEventListener("input", renderSnippets);
+    tokenInput.addEventListener("input", renderSnippets);
+    document.getElementById("generate-token")?.addEventListener("click", () => { tokenInput.value = generateToken(); renderSnippets(); });
+    document.getElementById("save-token")?.addEventListener("click", saveAndCheck);
+    document.getElementById("clear-token")?.addEventListener("click", () => { tokenInput.value = ""; localStorage.removeItem("ARRA_API_TOKEN"); localStorage.removeItem("NEO_ARRA_API_TOKEN"); renderSnippets(); status.textContent = "token cleared locally"; status.className = "text-sm text-gray-500"; });
+    document.querySelectorAll<HTMLButtonElement>(".copy-btn[data-copy-target]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const target = document.getElementById(btn.dataset.copyTarget || "");
+        const text = target?.textContent || "";
+        try { await navigator.clipboard.writeText(text); btn.textContent = "copied ✓"; setTimeout(() => btn.textContent = "copy", 1200); }
+        catch { btn.textContent = "select + copy"; }
+      });
+    });
+  </script>
+</Base>

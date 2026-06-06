@@ -59,6 +59,7 @@ test('oracle_learn proxies through ORACLE_API without opening the MCP DB', async
       ORACLE_DB_PATH: join(serverDataDir, 'oracle.db'),
       ORACLE_REPO_ROOT: serverRepoRoot,
       ORACLE_INDEXER_ENQUEUE: '0',
+      ARRA_API_TOKEN: 'proxy-secret',
     },
   });
   childProcesses.push(server);
@@ -73,6 +74,7 @@ test('oracle_learn proxies through ORACLE_API without opening the MCP DB', async
       ORACLE_DATA_DIR: mcpDataDir,
       ORACLE_DB_PATH: mcpDbPath,
       ORACLE_INDEXER_ENQUEUE: '0',
+      ARRA_API_TOKEN: 'proxy-secret',
     },
     stderr: 'pipe',
   });

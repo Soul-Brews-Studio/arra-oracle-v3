@@ -134,10 +134,16 @@ function resolveOracleApiBase(): string | null {
   return trimmed.replace(/\/+$/, '');
 }
 
+function oracleApiHeaders(init?: RequestInit["headers"]): RequestInit["headers"] | undefined {
+  const token = process.env.ARRA_API_TOKEN?.trim() || process.env.NEO_ARRA_API_TOKEN?.trim();
+  if (!token) return init;
+  return { ...(init as Record<string, string> | undefined), Authorization: `Bearer ${token}` };
+}
+
 async function oracleApiFetch(baseUrl: string, apiPath: string, opts?: RequestInit): Promise<Response> {
   const url = `${baseUrl}${apiPath}`;
   try {
-    return await fetch(url, opts);
+    return await fetch(url, { ...opts, headers: oracleApiHeaders(opts?.headers) });
   } catch (err) {
     throw new OracleApiUnavailableError(baseUrl, err);
   }
