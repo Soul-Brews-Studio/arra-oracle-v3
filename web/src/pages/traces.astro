@@ -1,0 +1,263 @@
+---
+import Base from "../layouts/Base.astro";
+---
+
+<Base title="Audit Log | Neo ARRA V3">
+  <main class="max-w-6xl mx-auto px-6 py-16">
+    <a href="/" class="text-gray-500 hover:text-teal-300 text-sm transition-colors">← home</a>
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mt-4 mb-8">
+      <div>
+        <h1 class="text-5xl font-bold tracking-tight mb-3">Audit Log</h1>
+        <p class="text-gray-400 text-lg">AI search and trace history, with clickable detail.</p>
+      </div>
+      <form method="GET" action="/traces" class="flex gap-3">
+        <input
+          type="text"
+          name="q"
+          id="trace-query"
+          placeholder="Filter by query…"
+          class="w-full md:w-72 bg-gray-900/80 border border-gray-700 rounded-lg px-4 py-2.5 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/40 transition-colors"
+        />
+        <button class="bg-teal-500 hover:bg-teal-400 text-gray-950 font-semibold px-5 py-2.5 rounded-lg transition-colors">Filter</button>
+      </form>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,0.95fr)] gap-6">
+      <section class="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-semibold text-gray-200">AI search history</h2>
+          <span id="trace-count" class="text-xs text-gray-500 font-mono">loading…</span>
+        </div>
+        <div id="trace-list" class="space-y-3"></div>
+      </section>
+
+      <aside class="bg-gray-900/50 border border-gray-800 rounded-xl p-4 lg:sticky lg:top-6 h-fit">
+        <div id="trace-detail" class="text-gray-500 text-sm">Select an audit row to inspect query, mode, results, scores, time, and documents.</div>
+      </aside>
+    </div>
+  </main>
+</Base>
+
+<script>
+  import { getBackendClient } from "../lib/backend";
+
+  type AuditRow = Record<string, unknown> & { auditKind: "search" | "trace"; auditId: string };
+
+  const client = getBackendClient();
+  const params = new URLSearchParams(window.location.search);
+  const query = params.get("q")?.trim() ?? "";
+  const selected = params.get("id")?.trim() ?? "";
+  const qInput = document.getElementById("trace-query") as HTMLInputElement;
+  const listEl = document.getElementById("trace-list")!;
+  const countEl = document.getElementById("trace-count")!;
+  const detailEl = document.getElementById("trace-detail")!;
+
+  qInput.value = query;
+
+  const esc = (value: unknown) => String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+  function fmtTime(value: unknown) {
+    if (!value) return "unknown time";
+    const raw = typeof value === "number" || /^\d+$/.test(String(value)) ? Number(value) : String(value);
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+  }
+
+  function timestamp(value: unknown) {
+    if (!value) return 0;
+    const raw = typeof value === "number" || /^\d+$/.test(String(value)) ? Number(value) : String(value);
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+  }
+
+  function traceId(trace: Record<string, unknown>) {
+    return String(trace.traceId ?? trace.trace_id ?? trace.id ?? "");
+  }
+
+  function traceQuery(trace: Record<string, unknown>) {
+    return String(trace.query ?? trace.title ?? "untitled trace");
+  }
+
+  function traceCreated(trace: Record<string, unknown>) {
+    return trace.createdAt ?? trace.created_at ?? trace.timestamp ?? trace.time;
+  }
+
+  function parseResults(value: unknown): Array<Record<string, unknown>> {
+    if (Array.isArray(value)) return value as Array<Record<string, unknown>>;
+    if (typeof value === "string" && value.trim()) {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed as Array<Record<string, unknown>> : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  function digPoints(trace: Record<string, unknown>): Array<Record<string, unknown>> {
+    const raw = trace.digPoints ?? trace.dig_points ?? trace.results;
+    const parsed = parseResults(raw);
+    if (parsed.length) return parsed;
+
+    const sections: Array<[string, unknown]> = [
+      ["file", trace.foundFiles],
+      ["commit", trace.foundCommits],
+      ["issue", trace.foundIssues],
+      ["learning", trace.foundLearnings],
+      ["retro", trace.foundRetrospectives],
+      ["resonance", trace.foundResonance],
+    ];
+    return sections.flatMap(([kind, value]) => (Array.isArray(value) ? value.map((item) => (
+      typeof item === "object" && item !== null ? { kind, ...(item as Record<string, unknown>) } : { kind, doc: item }
+    )) : []));
+  }
+
+  function firstPresent(item: Record<string, unknown>, keys: string[]) {
+    for (const key of keys) if (item[key] !== undefined && item[key] !== null && item[key] !== "") return item[key];
+    return undefined;
+  }
+
+  function toAuditRows(logs: Array<Record<string, unknown>>, traces: Array<Record<string, unknown>>): AuditRow[] {
+    const searchRows = logs.map((log, index) => ({
+      ...log,
+      auditKind: "search" as const,
+      auditId: `search-${String(log.id ?? index)}`,
+      createdAt: log.created_at,
+      status: log.type ?? "search",
+    }));
+    const traceRows = traces.map((trace) => ({
+      ...trace,
+      auditKind: "trace" as const,
+      auditId: `trace-${traceId(trace)}`,
+    }));
+    return [...searchRows, ...traceRows].sort((a, b) => timestamp(traceCreated(b)) - timestamp(traceCreated(a)));
+  }
+
+  function renderList(rows: AuditRow[]) {
+    countEl.textContent = `${rows.length} shown`;
+    if (!rows.length) {
+      listEl.innerHTML = `<p class="text-gray-500 text-sm">No AI search or trace history yet. Run a search/trace against the backend, then refresh.</p>`;
+      return;
+    }
+
+    listEl.innerHTML = rows.map((row) => {
+      const id = row.auditId;
+      const href = new URL(window.location.href);
+      href.searchParams.set("id", id);
+      if (query) href.searchParams.set("q", query);
+      const active = id === selected;
+      return `
+        <a href="${esc(href.pathname + href.search)}" data-audit-id="${esc(id)}" class="block border rounded-lg p-4 transition-all ${active ? "border-teal-500 bg-teal-950/20" : "border-gray-800 bg-gray-950/40 hover:border-teal-700/70"}">
+          <div class="flex items-start justify-between gap-3 mb-2">
+            <div class="font-mono text-sm text-teal-300 break-all">${esc(traceQuery(row))}</div>
+            <span class="text-xs text-gray-500 shrink-0">${esc(row.auditKind === "search" ? `search/${row.mode ?? "unknown"}` : `trace/${row.status ?? "raw"}`)}</span>
+          </div>
+          <div class="flex flex-wrap gap-2 text-xs text-gray-500">
+            <span>${esc(fmtTime(traceCreated(row)))}</span>
+            ${row.project ? `<span>project: ${esc(row.project)}</span>` : ""}
+            <span>id: ${esc(id.replace(/^(search|trace)-/, "").slice(0, 12))}</span>
+          </div>
+        </a>`;
+    }).join("");
+
+    for (const link of listEl.querySelectorAll<HTMLAnchorElement>("[data-audit-id]")) {
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        const id = link.dataset.auditId!;
+        const url = new URL(window.location.href);
+        url.searchParams.set("id", id);
+        history.replaceState(null, "", url);
+        void loadDetail(id);
+      });
+    }
+  }
+
+  function renderDetail(row: AuditRow) {
+    const points = digPoints(row);
+    const mode = row.mode ?? row.queryType ?? row.query_type ?? row.scope ?? row.auditKind;
+    const countedResults = (Number(row.fileCount ?? row.file_count ?? 0) || 0)
+      + (Number(row.commitCount ?? row.commit_count ?? 0) || 0)
+      + (Number(row.issueCount ?? row.issue_count ?? 0) || 0);
+    const total = (row.resultsCount ?? row.results_count ?? row.totalResults ?? row.total_results ?? countedResults) || points.length;
+
+    detailEl.innerHTML = `
+      <div class="mb-4">
+        <div class="text-xs uppercase tracking-widest text-gray-500 mb-2">${esc(row.auditKind === "search" ? "AI search" : "Selected trace")}</div>
+        <h2 class="text-xl font-semibold text-gray-100 break-words">${esc(traceQuery(row))}</h2>
+        <div class="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
+          <span>mode: ${esc(mode)}</span>
+          <span>results: ${esc(total)}</span>
+          <span>${esc(fmtTime(traceCreated(row)))}</span>
+          ${row.search_time_ms ? `<span>${esc(row.search_time_ms)}ms</span>` : ""}
+        </div>
+      </div>
+
+      <dl class="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm mb-5">
+        <dt class="text-gray-500">id</dt><dd class="font-mono text-teal-300 break-all">${esc(row.auditKind === "trace" ? traceId(row) : row.id ?? row.auditId)}</dd>
+        <dt class="text-gray-500">project</dt><dd>${esc(row.project ?? "—")}</dd>
+        <dt class="text-gray-500">status</dt><dd>${esc(row.status ?? row.type ?? "search")}</dd>
+        <dt class="text-gray-500">doc</dt><dd class="break-all">${esc(row.document ?? row.doc ?? row.source_file ?? (row.auditKind === "search" ? "search_log" : "trace_log"))}</dd>
+      </dl>
+
+      <div>
+        <h3 class="font-semibold text-gray-200 mb-3">Results / dig points</h3>
+        ${points.length ? points.map((point, i) => {
+          const doc = firstPresent(point, ["doc", "document", "path", "file", "source_file", "url", "id", "hash", "shortHash", "title", "number"]);
+          const score = firstPresent(point, ["score", "similarity", "confidence", "rank", "matchReason"]);
+          const snippet = firstPresent(point, ["snippet", "content", "summary", "text", "quote", "message", "title", "matchReason"]);
+          const pointMode = firstPresent(point, ["mode", "type", "kind", "source"]);
+          return `
+            <article class="border border-gray-800 rounded-lg p-3 mb-3 bg-gray-950/50">
+              <div class="flex items-start justify-between gap-3 mb-2">
+                <div class="font-mono text-xs text-teal-300 break-all">${esc(doc ?? `result-${i + 1}`)}</div>
+                ${score !== undefined ? `<span class="text-xs bg-teal-900/60 text-teal-200 px-2 py-0.5 rounded-full">score ${esc(score)}</span>` : ""}
+              </div>
+              <div class="text-xs text-gray-500 mb-2">mode/source: ${esc(pointMode ?? mode)}</div>
+              ${snippet ? `<p class="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">${esc(snippet)}</p>` : `<pre class="text-xs text-gray-400 overflow-x-auto">${esc(JSON.stringify(point, null, 2))}</pre>`}
+            </article>`;
+        }).join("") : `<p class="text-gray-500 text-sm">No result detail stored on this audit row.</p>`}
+      </div>`;
+  }
+
+  let auditRows: AuditRow[] = [];
+
+  async function loadDetail(id: string) {
+    detailEl.innerHTML = `<p class="text-gray-400 animate-pulse">Loading audit detail…</p>`;
+    try {
+      let row = auditRows.find((entry) => entry.auditId === id);
+      if (row?.auditKind === "trace") {
+        row = { ...(await client.traceGet(traceId(row)) as unknown as Record<string, unknown>), auditKind: "trace", auditId: id };
+      }
+      if (!row) throw new Error("Audit row not found");
+      renderDetail(row);
+      for (const link of listEl.querySelectorAll<HTMLAnchorElement>("[data-audit-id]")) {
+        link.classList.toggle("border-teal-500", link.dataset.auditId === id);
+        link.classList.toggle("bg-teal-950/20", link.dataset.auditId === id);
+      }
+    } catch (error) {
+      detailEl.innerHTML = `<p class="text-red-400">Audit detail unavailable: ${esc(error instanceof Error ? error.message : String(error))}</p>`;
+    }
+  }
+
+  Promise.all([client.logs(), client.traces()])
+    .then(([logResponse, traceResponse]) => {
+      auditRows = toAuditRows(
+        (logResponse.logs ?? []) as unknown as Array<Record<string, unknown>>,
+        (traceResponse.traces ?? []) as unknown as Array<Record<string, unknown>>,
+      );
+      if (query) auditRows = auditRows.filter((t) => traceQuery(t).toLowerCase().includes(query.toLowerCase()));
+      renderList(auditRows);
+      const firstId = selected || auditRows[0]?.auditId || "";
+      if (firstId) void loadDetail(firstId);
+    })
+    .catch((error) => {
+      countEl.textContent = "unreachable";
+      listEl.innerHTML = `<p class="text-red-400 text-sm">Backend not reachable — connect with <code>?api=http://localhost:47778</code>. ${esc(error instanceof Error ? error.message : String(error))}</p>`;
+    });
+</script>
