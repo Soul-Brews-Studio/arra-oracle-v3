@@ -20,11 +20,11 @@ See [docs/LOCAL-DEV.md](docs/LOCAL-DEV.md) for local development.
 ## Architecture
 
 ```
-arra-oracle-v3 (one package, two bins)
-├── bunx arra-oracle-v2                          → MCP server (src/index.ts)
-├── bunx --package arra-oracle-v2 oracle-vault   → Vault CLI (src/vault/cli.ts)
-├── bun run server                          → HTTP API (src/server.ts)
-└── bun run index                           → Indexer (src/indexer.ts)
+arra-oracle-v3 (one package, four bins)
+├── bunx arra-oracle-v3                     → HTTP API / server launcher (bin/arra.ts)
+├── bunx arra-oracle-v2                     → MCP server (src/index.ts)
+├── bunx arra-cli                           → operator CLI (cli/src/cli.ts)
+└── bunx arra                               → operator CLI alias (cli/src/cli.ts)
 
 oracle-studio (separate repo)
 └── bunx oracle-studio                      → React dashboard
@@ -48,14 +48,15 @@ Distributed via GitHub — no npm publish needed:
 # Backend (MCP server)
 bunx --bun arra-oracle@github:Soul-Brews-Studio/arra-oracle-v3
 
-# CLI (plugin runner)
+# Operator CLI (plugin runner)
 bunx --bun arra-cli@github:Soul-Brews-Studio/arra-oracle-v3 --help
+
+# Short operator CLI alias
+bunx --bun arra@github:Soul-Brews-Studio/arra-oracle-v3 health
 
 # UI (dashboard — separate repo)
 bunx --bun oracle-studio@github:Soul-Brews-Studio/oracle-studio
 
-# Vault CLI (secondary bin — use --package)
-bunx --bun --package arra-oracle-v2@github:Soul-Brews-Studio/arra-oracle-v3#main oracle-vault --help
 ```
 
 ### Add to Claude Code

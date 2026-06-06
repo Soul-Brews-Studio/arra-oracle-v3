@@ -7,7 +7,8 @@
   "bin": {
     "arra-oracle-v3": "./bin/arra.ts",
     "arra-oracle-v2": "./src/index.ts",
-    "arra-cli": "./cli/src/cli.ts"
+    "arra-cli": "./cli/src/cli.ts",
+    "arra": "./cli/src/cli.ts"
   },
   "files": [
     "bin",
