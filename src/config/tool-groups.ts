@@ -26,6 +26,37 @@ export const TOOL_GROUPS = {
 } as const;
 
 export type ToolGroupName = keyof typeof TOOL_GROUPS;
+export type PluginTier = 'core' | 'standard' | 'extra';
+
+export interface PluginManifestEntry {
+  name: string;
+  enabled?: boolean;
+  tier?: PluginTier;
+  weight?: number;
+}
+
+export interface ToolPlugin {
+  name: string;
+  tier: PluginTier;
+  weight: number;
+  tools: readonly string[];
+}
+
+export const TOOL_PLUGINS: Record<string, ToolPlugin> = {
+  guide: { name: 'guide', tier: 'core', weight: 0, tools: ['____IMPORTANT'] },
+  search: { name: 'search', tier: 'core', weight: 10, tools: TOOL_GROUPS.search },
+  knowledge: { name: 'knowledge', tier: 'core', weight: 20, tools: TOOL_GROUPS.knowledge },
+  session: { name: 'session', tier: 'standard', weight: 30, tools: TOOL_GROUPS.session },
+  forum: { name: 'forum', tier: 'standard', weight: 40, tools: TOOL_GROUPS.forum },
+  trace: { name: 'trace', tier: 'standard', weight: 50, tools: ['oracle_trace'] },
+  dig: {
+    name: 'dig',
+    tier: 'standard',
+    weight: 60,
+    tools: ['oracle_trace_list', 'oracle_trace_get', 'oracle_trace_link', 'oracle_trace_unlink', 'oracle_trace_chain'],
+  },
+  standalone: { name: 'standalone', tier: 'extra', weight: 70, tools: TOOL_GROUPS.standalone },
+};
 
 /**
  * Resolved tool-group config used at request time.
@@ -35,6 +66,7 @@ export type ToolGroupName = keyof typeof TOOL_GROUPS;
  *   a disabled group OR cancels a per-tool block. Whitelist wins last.
  */
 export type ToolGroupConfig = Record<ToolGroupName, boolean> & {
+  plugins?: PluginManifestEntry[];
   disabled_tools?: string[];
   enabled_tools?: string[];
 };
@@ -50,8 +82,18 @@ const DEFAULT_CONFIG: ToolGroupConfig = {
 
 /** All registered tool names — for validating disabled_tools / enabled_tools entries. */
 const ALL_TOOL_NAMES: ReadonlySet<string> = new Set(
-  Object.values(TOOL_GROUPS).flat() as string[],
+  [...Object.values(TOOL_PLUGINS).flatMap((p) => p.tools), ...Object.values(TOOL_GROUPS).flat()] as string[],
 );
+
+const DEFAULT_TOOL_ORDER = Object.values(TOOL_PLUGINS)
+  .sort((a, b) => a.weight - b.weight || a.name.localeCompare(b.name))
+  .flatMap((p) => p.tools);
+
+export function normalizeToolName(name: string): string {
+  if (name.startsWith('arra_')) return 'oracle_' + name.slice('arra_'.length);
+  if (name.startsWith('muninn_')) return 'oracle_' + name.slice('muninn_'.length);
+  return name;
+}
 
 function readJsonSafe(filePath: string): Record<string, any> | null {
   try {
@@ -64,11 +106,21 @@ function readJsonSafe(filePath: string): Record<string, any> | null {
 
 function mergeRaw(raw: Record<string, any>): ToolGroupConfig {
   const merged: ToolGroupConfig = { ...DEFAULT_CONFIG, ...raw.tools };
+  if (Array.isArray(raw.plugins)) {
+    merged.plugins = raw.plugins
+      .filter((p: unknown): p is Record<string, unknown> => !!p && typeof p === 'object' && typeof (p as any).name === 'string')
+      .map((p) => ({
+        name: String(p.name),
+        ...(typeof p.enabled === 'boolean' && { enabled: p.enabled }),
+        ...((p.tier === 'core' || p.tier === 'standard' || p.tier === 'extra') && { tier: p.tier }),
+        ...(typeof p.weight === 'number' && { weight: p.weight }),
+      }));
+  }
   if (Array.isArray(raw.disabled_tools)) {
-    merged.disabled_tools = raw.disabled_tools.filter((t: unknown) => typeof t === 'string');
+    merged.disabled_tools = raw.disabled_tools.filter((t: unknown) => typeof t === 'string').map(normalizeToolName);
   }
   if (Array.isArray(raw.enabled_tools)) {
-    merged.enabled_tools = raw.enabled_tools.filter((t: unknown) => typeof t === 'string');
+    merged.enabled_tools = raw.enabled_tools.filter((t: unknown) => typeof t === 'string').map(normalizeToolName);
   }
   return merged;
 }
@@ -78,16 +130,30 @@ export function loadToolGroupConfig(repoRoot?: string): ToolGroupConfig {
 
   // Priority 1: repo-local arra.config.json
   const localConfig = readJsonSafe(path.join(root, 'arra.config.json'));
-  if (localConfig && (localConfig.tools || localConfig.disabled_tools || localConfig.enabled_tools)) {
+  if (localConfig && (localConfig.plugins || localConfig.tools || localConfig.disabled_tools || localConfig.enabled_tools)) {
     console.error('[ToolGroups] Using arra.config.json from repo root');
     return mergeRaw(localConfig);
   }
 
+  // Priority 1b: repo-local plugin manifest
+  const localPluginManifest = readJsonSafe(path.join(root, 'plugins.json'));
+  if (localPluginManifest && Array.isArray(localPluginManifest.plugins)) {
+    console.error('[ToolGroups] Using plugins.json from repo root');
+    return mergeRaw(localPluginManifest);
+  }
+
   // Priority 2: global config.json in data dir
   const globalConfig = readJsonSafe(path.join(ORACLE_DATA_DIR, 'config.json'));
-  if (globalConfig && (globalConfig.tools || globalConfig.disabled_tools || globalConfig.enabled_tools)) {
+  if (globalConfig && (globalConfig.plugins || globalConfig.tools || globalConfig.disabled_tools || globalConfig.enabled_tools)) {
     console.error(`[ToolGroups] Using ${ORACLE_DATA_DIR}/config.json`);
     return mergeRaw(globalConfig);
+  }
+
+  // Priority 2b: global plugin manifest
+  const globalPluginManifest = readJsonSafe(path.join(ORACLE_DATA_DIR, 'plugins.json'));
+  if (globalPluginManifest && Array.isArray(globalPluginManifest.plugins)) {
+    console.error(`[ToolGroups] Using ${ORACLE_DATA_DIR}/plugins.json`);
+    return mergeRaw(globalPluginManifest);
   }
 
   // Priority 3: all enabled
@@ -106,7 +172,11 @@ export function loadToolGroupConfig(repoRoot?: string): ToolGroupConfig {
  * a warning — typos shouldn't crash the server or silently disable real tools.
  */
 export function getDisabledTools(config: ToolGroupConfig): Set<string> {
+  const enabled = new Set(getEnabledToolNames(config));
   const disabled = new Set<string>();
+  for (const tool of ALL_TOOL_NAMES) {
+    if (!enabled.has(tool)) disabled.add(tool);
+  }
   for (const [group, tools] of Object.entries(TOOL_GROUPS)) {
     if (!config[group as ToolGroupName]) {
       for (const tool of tools) {
@@ -115,20 +185,73 @@ export function getDisabledTools(config: ToolGroupConfig): Set<string> {
     }
   }
   for (const t of config.disabled_tools ?? []) {
-    if (!ALL_TOOL_NAMES.has(t)) {
+    const tool = normalizeToolName(t);
+    if (!ALL_TOOL_NAMES.has(tool)) {
       console.error(`[ToolGroups] disabled_tools: unknown tool "${t}" — ignored`);
       continue;
     }
-    disabled.add(t);
+    disabled.add(tool);
   }
   for (const t of config.enabled_tools ?? []) {
-    if (!ALL_TOOL_NAMES.has(t)) {
+    const tool = normalizeToolName(t);
+    if (!ALL_TOOL_NAMES.has(tool)) {
       console.error(`[ToolGroups] enabled_tools: unknown tool "${t}" — ignored`);
       continue;
     }
-    disabled.delete(t);
+    disabled.delete(tool);
   }
   return disabled;
+}
+
+export function getEnabledToolNames(config: ToolGroupConfig): string[] {
+  const ordered = config.plugins
+    ? config.plugins
+        .map((entry) => {
+          const plugin = TOOL_PLUGINS[entry.name];
+          if (!plugin) {
+            console.error(`[ToolGroups] plugins: unknown plugin "${entry.name}" — ignored`);
+            return null;
+          }
+          return {
+            ...plugin,
+            enabled: entry.enabled !== false,
+            tier: entry.tier ?? plugin.tier,
+            weight: entry.weight ?? plugin.weight,
+          };
+        })
+        .filter((p): p is ToolPlugin & { enabled: boolean } => !!p && p.enabled)
+        .sort((a, b) => a.weight - b.weight || a.name.localeCompare(b.name))
+        .flatMap((p) => p.tools)
+    : DEFAULT_TOOL_ORDER;
+
+  const seen = new Set<string>();
+  const enabled = ordered.filter((tool) => {
+    if (seen.has(tool)) return false;
+    seen.add(tool);
+    return ALL_TOOL_NAMES.has(tool);
+  });
+
+  for (const [group, tools] of Object.entries(TOOL_GROUPS)) {
+    if (!config[group as ToolGroupName]) {
+      for (const tool of tools) seen.delete(tool);
+    }
+  }
+  for (const t of config.disabled_tools ?? []) {
+    const tool = normalizeToolName(t);
+    if (ALL_TOOL_NAMES.has(tool)) seen.delete(tool);
+  }
+  for (const t of config.enabled_tools ?? []) {
+    const tool = normalizeToolName(t);
+    if (ALL_TOOL_NAMES.has(tool)) seen.add(tool);
+  }
+
+  const finalOrder = [
+    ...enabled.filter((tool) => seen.has(tool)),
+    ...(config.enabled_tools ?? [])
+      .map(normalizeToolName)
+      .filter((tool) => seen.has(tool) && !enabled.includes(tool)),
+  ];
+  return finalOrder;
 }
 
 /**
@@ -147,7 +270,9 @@ export function watchToolGroupConfig(
 ): () => void {
   const root = repoRoot || process.env.ORACLE_REPO_ROOT || process.cwd();
   const localPath = path.join(root, 'arra.config.json');
+  const localPluginsPath = path.join(root, 'plugins.json');
   const globalPath = path.join(ORACLE_DATA_DIR, 'config.json');
+  const globalPluginsPath = path.join(ORACLE_DATA_DIR, 'plugins.json');
   const watchers: fs.FSWatcher[] = [];
   let timer: ReturnType<typeof setTimeout> | null = null;
   let last = JSON.stringify(loadToolGroupConfig(root));
@@ -165,7 +290,7 @@ export function watchToolGroupConfig(
     }, 200);
   };
 
-  for (const target of [localPath, globalPath]) {
+  for (const target of [localPath, localPluginsPath, globalPath, globalPluginsPath]) {
     try {
       // Watch the file directly. fs.watch on a missing file throws on Linux
       // and silently fails on macOS, so probe with existsSync first.

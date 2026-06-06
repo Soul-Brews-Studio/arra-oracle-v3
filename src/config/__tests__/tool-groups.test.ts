@@ -4,7 +4,9 @@ import os from 'os';
 import path from 'path';
 import {
   TOOL_GROUPS,
+  TOOL_PLUGINS,
   getDisabledTools,
+  getEnabledToolNames,
   loadToolGroupConfig,
   watchToolGroupConfig,
   type ToolGroupConfig,
@@ -19,6 +21,12 @@ describe('tool-groups', () => {
     expect(TOOL_GROUPS.forum).toHaveLength(4);
     expect(TOOL_GROUPS.trace).toHaveLength(6);
     expect(TOOL_GROUPS.standalone).toHaveLength(2);   // #972 wire: reflect + verify (schedule kept HTTP-only)
+  });
+
+  it('defines trace and dig as separate manifest plugins', () => {
+    expect(TOOL_PLUGINS.trace.tools).toEqual(['oracle_trace']);
+    expect(TOOL_PLUGINS.dig.tools).toContain('oracle_trace_get');
+    expect(TOOL_PLUGINS.dig.tools).not.toContain('oracle_trace');
   });
 
   it('returns empty set when all groups enabled', () => {
@@ -107,6 +115,69 @@ describe('tool-groups', () => {
       for (const tool of tools) {
         expect(tool).toMatch(/^oracle_/);
       }
+    }
+  });
+
+  it('defaults to manifest order when no plugin manifest is present', () => {
+    const config: ToolGroupConfig = {
+      search: true, knowledge: true, session: true,
+      forum: true, trace: true, standalone: true,
+    };
+    const names = getEnabledToolNames(config);
+
+    expect(names[0]).toBe('____IMPORTANT');
+    expect(names.indexOf('oracle_search')).toBeLessThan(names.indexOf('oracle_learn'));
+    expect(names.indexOf('oracle_trace')).toBeLessThan(names.indexOf('oracle_trace_get'));
+  });
+
+  it('plugin manifest controls enablement and weight order', () => {
+    const config: ToolGroupConfig = {
+      search: true, knowledge: true, session: true,
+      forum: true, trace: true, standalone: true,
+      plugins: [
+        { name: 'dig', enabled: true, tier: 'standard', weight: 10 },
+        { name: 'trace', enabled: false, tier: 'standard', weight: 1 },
+        { name: 'search', enabled: true, tier: 'core', weight: 20 },
+      ],
+    };
+    const names = getEnabledToolNames(config);
+
+    expect(names[0]).toBe('oracle_trace_list');
+    expect(names).toContain('oracle_trace_get');
+    expect(names).not.toContain('oracle_trace');
+    expect(names.indexOf('oracle_trace_get')).toBeLessThan(names.indexOf('oracle_search'));
+  });
+
+  it('legacy flat disabled/enabled tools override manifest and normalize aliases', () => {
+    const config: ToolGroupConfig = {
+      search: true, knowledge: true, session: true,
+      forum: true, trace: true, standalone: true,
+      plugins: [{ name: 'search', enabled: true }],
+      disabled_tools: ['oracle_search'],
+      enabled_tools: ['arra_trace_get'],
+    };
+    const names = getEnabledToolNames(config);
+    const disabled = getDisabledTools(config);
+
+    expect(names).not.toContain('oracle_search');
+    expect(names).toContain('oracle_trace_get');
+    expect(disabled.has('oracle_search')).toBe(true);
+    expect(disabled.has('oracle_trace_get')).toBe(false);
+  });
+
+  it('loads repo-local plugins.json manifest', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-plugin-manifest-'));
+    try {
+      fs.writeFileSync(
+        path.join(dir, 'plugins.json'),
+        JSON.stringify({ plugins: [{ name: 'dig', enabled: true, weight: 1 }] }),
+      );
+      const config = loadToolGroupConfig(dir);
+      expect(config.plugins?.[0]?.name).toBe('dig');
+      expect(getEnabledToolNames(config)).toContain('oracle_trace_chain');
+      expect(getEnabledToolNames(config)).not.toContain('oracle_search');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 });

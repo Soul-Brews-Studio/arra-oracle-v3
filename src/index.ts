@@ -18,7 +18,7 @@ import * as schema from './db/schema.ts';
 import type { VectorStoreAdapter } from './vector/types.ts';
 import path from 'path';
 import fs from 'fs';
-import { loadToolGroupConfig, getDisabledTools, watchToolGroupConfig, type ToolGroupConfig } from './config/tool-groups.ts';
+import { loadToolGroupConfig, getDisabledTools, getEnabledToolNames, watchToolGroupConfig, type ToolGroupConfig } from './config/tool-groups.ts';
 import { ORACLE_DATA_DIR, DB_PATH, REPO_ROOT } from './config.ts';
 import { MCP_SERVER_NAME } from './const.ts';
 
@@ -284,6 +284,7 @@ class OracleMCPServer {
   private readOnly: boolean;
   private version: string;
   private disabledTools: Set<string>;
+  private enabledToolNames: string[];
   private stopToolGroupsWatch: (() => void) | null = null;
   private embeddedReady: Promise<void> | null = null;
   private readonly oracleApiBase: string | null;
@@ -306,6 +307,7 @@ class OracleMCPServer {
 
     const groupConfig = options.toolGroups ?? loadToolGroupConfig(this.repoRoot);
     this.disabledTools = getDisabledTools(groupConfig);
+    this.enabledToolNames = getEnabledToolNames(groupConfig);
     const disabledGroups = Object.entries(groupConfig)
       .filter(([, v]) => typeof v === 'boolean' && !v)
       .map(([k]) => k);
@@ -328,6 +330,7 @@ class OracleMCPServer {
         const nextDisabled = getDisabledTools(next);
         this.disabledTools.clear();
         for (const t of nextDisabled) this.disabledTools.add(t);
+        this.enabledToolNames = getEnabledToolNames(next);
         const disabledGroups = Object.entries(next)
           .filter(([, v]) => typeof v === 'boolean' && !v)
           .map(([k]) => k);
@@ -486,7 +489,11 @@ class OracleMCPServer {
         verifyToolDef,
       ];
 
-      let tools = allTools.filter(t => !this.disabledTools.has(t.name));
+      const byName = new Map(allTools.map((tool) => [tool.name, tool]));
+      let tools = this.enabledToolNames
+        .map((name) => byName.get(name))
+        .filter((tool): tool is NonNullable<typeof tool> => !!tool)
+        .filter(t => !this.disabledTools.has(t.name));
       if (this.readOnly) {
         tools = tools.filter(t => !WRITE_TOOLS.includes(t.name));
       }
