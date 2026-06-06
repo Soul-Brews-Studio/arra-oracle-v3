@@ -12,11 +12,12 @@ import { db, sqlite, oracleDocuments, indexingStatus, isDbLockError } from '../d
 import { REPO_ROOT, VECTOR_URL } from '../config.ts';
 import { logSearch, logDocumentAccess, logLearning } from './logging.ts';
 import type { SearchResult, SearchResponse } from './types.ts';
-import { ensureVectorStoreConnected, EMBEDDING_MODELS } from '../vector/factory.ts';
+import { ensureVectorStoreConnected, EMBEDDING_MODELS, getVectorStoreConfigByModel } from '../vector/factory.ts';
 import { detectProject } from './project-detect.ts';
 import { coerceConcepts } from '../tools/learn.ts';
 import { createVectorProxy } from './vector-proxy.ts';
 import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
+import { localNativeVectorDisabledReason, logLocalVectorDisabled } from '../vector/cpu-capabilities.ts';
 
 // Module-level proxy instance — bound to VECTOR_URL at boot. If VECTOR_URL is
 // unset, this is null and the local vector adapter runs in-process (legacy
@@ -52,8 +53,24 @@ export async function handleSearch(
   }
 
   let warning: string | undefined;
+  const requestedMode = mode;
+  let effectiveMode = mode;
+  let vectorDisabledReason: string | undefined;
+  if (mode !== 'fts' && !vectorProxy) {
+    const modelsToCheck = model === 'multi' ? ['bge-m3', 'nomic'] : [model];
+    for (const modelKey of modelsToCheck) {
+      const cfg = getVectorStoreConfigByModel(modelKey);
+      vectorDisabledReason = localNativeVectorDisabledReason(cfg.type);
+      if (vectorDisabledReason) break;
+    }
+    if (vectorDisabledReason) {
+      effectiveMode = 'fts';
+      warning = `${vectorDisabledReason}; falling back to FTS5-only results`;
+      logLocalVectorDisabled(vectorDisabledReason);
+    }
+  }
 
-  // FTS5 search (skip if vector-only mode)
+  // FTS5 search (skip only when the effective mode is vector-only)
   let ftsResults: SearchResult[] = [];
   let ftsTotal = 0;
 
@@ -65,7 +82,7 @@ export async function handleSearch(
   const projectParams = resolvedProject ? [resolvedProject] : [];
 
   // FTS5 search must use raw SQL (Drizzle doesn't support virtual tables)
-  if (mode !== 'vector') {
+  if (effectiveMode !== 'vector') {
     if (type === 'all') {
       const countStmt = sqlite.prepare(`
         SELECT COUNT(*) as total
@@ -130,12 +147,12 @@ export async function handleSearch(
   // (vector wasn't asked for), flips to `false` if the proxy is enabled and
   // the remote call failed — clients use this to render a "vector down" hint
   // while still getting FTS5 results.
-  let vectorAvailable = true;
+  let vectorAvailable = !vectorDisabledReason;
 
   // VECTOR_URL set → route the vector leg through the remote service.
   // FTS5 always runs locally above. If the proxy fails we return whatever FTS5
   // produced and set vectorAvailable: false (per VECTOR_FALLBACK = 'fts5').
-  if (mode !== 'fts' && vectorProxy) {
+  if (effectiveMode !== 'fts' && vectorProxy) {
     const remote = await vectorProxy.search({
       q: query,
       type,
@@ -153,7 +170,7 @@ export async function handleSearch(
       vectorAvailable = false;
       warning = 'Vector proxy unavailable — FTS5-only results';
     }
-  } else if (mode !== 'fts') {
+  } else if (effectiveMode !== 'fts') {
     // Determine which models to query
     const isMulti = model === 'multi';
     const modelsToQuery = isMulti
@@ -244,9 +261,9 @@ export async function handleSearch(
   // For vector-only mode, ftsTotal is 0 and combined.length is just top-N,
   // so use the vector collection count as the total for accurate display
   let total = Math.max(ftsTotal, combined.length);
-  if (mode === 'vector' && vectorProxy && remoteVectorTotal !== undefined) {
+  if (requestedMode === 'vector' && vectorProxy && remoteVectorTotal !== undefined) {
     total = remoteVectorTotal;
-  } else if (mode === 'vector' && vectorResults.length > 0) {
+  } else if (requestedMode === 'vector' && vectorResults.length > 0) {
     try {
       const client = await ensureVectorStoreConnected(model && EMBEDDING_MODELS[model] ? model : undefined);
       const stats = await client.getStats();
@@ -261,7 +278,7 @@ export async function handleSearch(
 
   // Log search
   const searchTime = Date.now() - startTime;
-  logSearch(query, type, mode, total, searchTime, results);
+  logSearch(query, type, requestedMode, total, searchTime, results);
   results.forEach(r => logDocumentAccess(r.id, 'search'));
 
   return {
@@ -269,9 +286,9 @@ export async function handleSearch(
     total,
     offset,
     limit,
-    mode,
+    mode: requestedMode,
     ...(model === 'multi' ? { model: 'multi' } : model && EMBEDDING_MODELS[model] ? { model } : {}),
-    ...(mode !== 'fts' ? { vectorAvailable } : {}),
+    ...(requestedMode !== 'fts' ? { vectorAvailable } : {}),
     ...(warning && { warning })
   };
 }

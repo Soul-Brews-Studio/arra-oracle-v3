@@ -16,6 +16,7 @@ import { QdrantAdapter } from './adapters/qdrant.ts';
 import { CloudflareVectorizeAdapter, CloudflareAIEmbeddings } from './adapters/cloudflare-vectorize.ts';
 import { createEmbeddingProvider } from './embeddings.ts';
 import { loadVectorConfig, configToModels, type VectorModelRegistryEntry } from './config.ts';
+import { localNativeVectorDisabledReason, logLocalVectorDisabled } from './cpu-capabilities.ts';
 
 export interface VectorStoreConfig {
   type?: VectorDBType;
@@ -52,6 +53,11 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
     || 'lancedb';
 
   const collectionName = config.collectionName || COLLECTION_NAME;
+  const disabledReason = localNativeVectorDisabledReason(type);
+  if (disabledReason) {
+    logLocalVectorDisabled(disabledReason);
+    throw new Error(disabledReason);
+  }
 
   switch (type) {
     case 'sqlite-vec': {
