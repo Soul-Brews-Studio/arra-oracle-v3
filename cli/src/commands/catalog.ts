@@ -17,4 +17,5 @@ export const BUILTIN_COMMANDS: CommandSpec[] = [
   { command: "use", help: "set the global default API target" },
   { command: "completions", help: "print shell completion scripts", subcommands: ["bash", "zsh", "fish"], flags: ["--help", "-h"] },
   { command: "peers", help: "probe configured federation peers", flags: ["--token", "--json", "--help", "-h"] },
+  { command: "huginn", help: "run Huginn capture utilities", subcommands: ["sweep"], flags: ["--sessions-dir", "--repo-root", "--lookback-hours", "--max-files", "--json", "--help", "-h"] },
 ];
