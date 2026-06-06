@@ -237,3 +237,32 @@ See also:
 - [FEDERATION.md](./FEDERATION.md) - Federation pairing, peer search/feed, and security guide
 - [API.md](./API.md) - API documentation
 - [architecture.md](./architecture.md) - System architecture
+
+## DigitalOcean one-droplet alpha deploy
+
+For a small operator-hosted alpha, `scripts/deploy-do.sh` provisions a locked-down
+DigitalOcean Docker droplet and runs the published GHCR HTTP image. The lead
+should run the real command; contributors can inspect the plan safely first:
+
+```bash
+bash scripts/deploy-do.sh --dry-run --allow-ip 1.2.3.4 --token "$ARRA_API_TOKEN"
+```
+
+Real deploys require a DigitalOcean SSH key fingerprint (via `--ssh-key` or
+`DO_SSH_KEY_FINGERPRINT`) and doctl authentication. Inbound firewall rules are
+default-deny except SSH `22` and HTTP `80` from each repeated `--allow-ip`.
+
+```bash
+bash scripts/deploy-do.sh \
+  --allow-ip "$(curl -fsS https://ifconfig.me)/32" \
+  --ssh-key "$DO_SSH_KEY_FINGERPRINT" \
+  --token "$ARRA_API_TOKEN"
+```
+
+The script prints the public IP and `ORACLE_API=http://<ip>` when complete.
+Teardown is separate and also supports dry-run:
+
+```bash
+bash scripts/destroy-do.sh --dry-run
+bash scripts/destroy-do.sh --yes
+```
