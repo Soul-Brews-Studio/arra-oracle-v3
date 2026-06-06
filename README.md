@@ -77,6 +77,46 @@ Or in `~/.claude.json`:
 }
 ```
 
+
+### Docker / Docker MCP Toolkit
+
+The `alpha` branch publishes Docker images to GHCR for both runtime modes:
+
+| Image | Purpose |
+| --- | --- |
+| `ghcr.io/soul-brews-studio/arra-oracle-v3:http` | HTTP API on `:47778` |
+| `ghcr.io/soul-brews-studio/arra-oracle-v3:stdio` | MCP stdio server for Docker MCP Toolkit / Gateway |
+
+Build locally:
+
+```bash
+docker build -t arra-oracle-v3:http --target http-server .
+docker build -t arra-oracle-v3:stdio --target mcp-stdio .
+```
+
+Run the HTTP server:
+
+```bash
+docker run --rm -p 47778:47778 -v arra-data:/data ghcr.io/soul-brews-studio/arra-oracle-v3:http
+curl -sf http://localhost:47778/api/health
+```
+
+Or use Compose, which also serves the HTTP target on `:47778`:
+
+```bash
+docker compose up -d
+curl -sf http://localhost:47778/api/health
+```
+
+For Docker MCP Toolkit click-to-install, use `catalog/arra-oracle.yaml`. It points at the real published stdio image:
+
+```bash
+mkdir -p ~/.docker/mcp/catalogs
+cp catalog/arra-oracle.yaml ~/.docker/mcp/catalogs/
+```
+
+Then add `arra-oracle` to Docker MCP Toolkit's registry configuration and restart Docker Desktop / the MCP gateway.
+
 ### From source
 
 ```bash

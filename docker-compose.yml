@@ -1,0 +1,19 @@
+services:
+  arra:
+    build:
+      context: .
+      target: http-server
+    image: arra-oracle-v3:http
+    ports:
+      - "47778:47778"
+    environment:
+      HOME: /data
+      ORACLE_DATA_DIR: /data
+      ORACLE_PORT: "47778"
+      PORT: "47778"
+    volumes:
+      - arra-data:/data
+    restart: unless-stopped
+
+volumes:
+  arra-data:
