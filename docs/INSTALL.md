@@ -233,5 +233,6 @@ See also:
 
 - [README.md](../README.md) - Overview
 - [TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md) - Current alpha operator reference
+- [FEDERATION.md](./FEDERATION.md) - Federation pairing, peer search/feed, and security guide
 - [API.md](./API.md) - API documentation
 - [architecture.md](./architecture.md) - System architecture

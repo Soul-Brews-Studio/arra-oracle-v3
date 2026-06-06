@@ -378,12 +378,15 @@ Inspired by [claude-mem](https://github.com/thedotmack/claude-mem) by Alex Newma
 
 ## Federation peer endpoints
 
-Arra exposes a small MAW-compatible federation surface for peer oracles:
+Arra exposes a MAW-compatible federation surface for peer oracles. See
+[docs/FEDERATION.md](docs/FEDERATION.md) for the full operator guide, including
+pairing, Scout discovery, TOFU pinning, bearer-token protection, and an
+Arra↔mawjs worked example.
+
+Key paths:
 
 - `GET /info` — public MAW schema/capability document.
 - `GET /api/identity` — public stable node identity and local TOFU pubkey.
 - `GET /api/peers` — probes peers from `ARRA_NAMED_PEERS` or `peers.json` and pins pubkeys on first contact.
-- `GET /api/peer/feed` — peer-readable feed (optionally protected).
-- `POST /api/peer/search` — peer-callable Arra search (also available as `POST /api/search`; existing `GET /api/search` is unchanged).
-
-Set `ARRA_PEER_TOKEN` to require `Authorization: Bearer <token>` (or `?token=`) for `/api/peer/feed` and peer search. `/info` and `/api/identity` stay open for discovery. Configure peers with `ARRA_NAMED_PEERS='{"mawjs":"http://host:port"}'` or `$ORACLE_DATA_DIR/peers.json`. Run `arra peers --token <token>` to probe them. Scout HELLO multicast is opt-in with `ARRA_SCOUT_ANNOUNCE=1`.
+- `GET /api/peer/feed` — peer-readable feed (optionally protected); this is **not** `/api/feed`.
+- `POST /api/peer/search` — peer-callable Arra search.

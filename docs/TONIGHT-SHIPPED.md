@@ -2,8 +2,6 @@
 
 This is the compact operator map for the large 2026-06-06/07 alpha wave. It is meant to answer: *what shipped, where is the code, what knob controls it, and what is the first command to try?*
 
-> Branch note: this document is written for the `alpha` docs PR. Most config/plugin/vector/Docker surfaces are present on `alpha`. The federation/peer surfaces listed below were merged on the main-line federation track and are called out separately so operators can see the intended shape without mistaking them for mounted `alpha` endpoints.
-
 ## Quick index
 
 | Surface | Status | Primary knobs | First command |
@@ -14,7 +12,7 @@ This is the compact operator map for the large 2026-06-06/07 alpha wave. It is m
 | Vector adapter selection | `alpha` | `ORACLE_VECTOR_DB`, `ORACLE_VECTOR_DB_PATH`, `QDRANT_URL`, `VECTOR_URL` | `ORACLE_VECTOR_DB=qdrant QDRANT_URL=http://localhost:6333 bun run server` |
 | Docker/GHCR | `alpha` | Docker targets `http-server`, `mcp-stdio` | `docker run --rm -p 47778:47778 ghcr.io/soul-brews-studio/arra-oracle-v3:http` |
 | Docker MCP Toolkit catalog | `alpha` | `catalog/arra-oracle.yaml` | copy catalog into Docker MCP Toolkit catalog dir |
-| Federation / peer identity | main-line federation track | `FED_ENABLED`, `ARRA_SCOUT_ANNOUNCE`, `ARRA_PEER_TOKEN` | see [Federation status](#federation-status-main-line-track) |
+| Federation / peer identity | shipped on `alpha` | `ARRA_SCOUT_ANNOUNCE`, `ARRA_PEER_TOKEN`, `ARRA_NAMED_PEERS` | see [FEDERATION.md](./FEDERATION.md) |
 
 ## MCP modes: embedded vs HTTP-proxy
 
@@ -201,34 +199,42 @@ cp catalog/arra-oracle.yaml ~/.docker/mcp/catalogs/
 
 The catalog image is `ghcr.io/soul-brews-studio/arra-oracle-v3:stdio`, so click-to-install flows do not need a local build once GHCR publishing has run.
 
-## Federation status: main-line track
+## Federation / peer identity
 
-The current `alpha` tree for this docs PR does **not** contain the federation route/plugin files. The federation work exists on the main-line track and is relevant for operators following nightly merges:
+Federation is now mounted in the `alpha` source tree. Use the full operator
+guide in [FEDERATION.md](./FEDERATION.md) for pairing, Scout discovery,
+TOFU pinning, peer feed/search, and the Arra↔mawjs worked example.
 
-| Feature | PR / code path on main-line track | Knob |
+| Feature | Source path | Knob / endpoint |
 | --- | --- | --- |
-| Maw peer `/info` and `/api/identity` | PR #1249, `src/routes/peer/*`, `src/peer/identity-key.ts` | persistent TOFU pubkey under data dir |
-| Scout HELLO multicast | PR #1259, `src/peer/scout-announcer.ts` | `ARRA_SCOUT_ANNOUNCE=1` |
-| Federation plugin seam / lifecycle | PRs #1280, #1281, #1288, #1290 | plugin manifest / lifecycle config |
-| Federation opt-in default | PR #1283 | `FED_ENABLED=true` |
-| Config-backed plugin enable/disable UX | PR #1292 | `arra plugins enable/disable` on that track |
-| Peer auth | main-line federation contract | `ARRA_PEER_TOKEN` |
-| Peer APIs | main-line federation contract | `/api/peers`, `/api/feed`, `/api/peer/search` |
+| Maw peer info | `src/routes/peer/info.ts` | `GET /info` |
+| Stable identity | `src/routes/peer/identity.ts`, `src/peer/identity-key.ts` | `GET /api/identity`, `$ORACLE_DATA_DIR/peer-key.hex` |
+| Named peer probing | `src/routes/peer/peers.ts`, `src/peer/peer-query.ts` | `GET /api/peers`, `arra peers --token <token>` |
+| Peer feed | `src/routes/peer/feed.ts` | `GET /api/peer/feed` (**not** `/api/feed`) |
+| Peer search | `src/routes/peer/search.ts` | `POST /api/peer/search` |
+| Static peer config | `src/peer/peer-registry.ts` | `ARRA_NAMED_PEERS`, `$ORACLE_DATA_DIR/peers.json`, `ARRA_PEERS_CONFIG` |
+| TOFU trust store | `src/peer/peer-tofu.ts` | `$ORACLE_DATA_DIR/peers-tofu.json`, `ARRA_PEERS_TOFU_PATH` |
+| Peer auth | `src/peer/peer-auth.ts` | `ARRA_PEER_TOKEN` bearer auth or `?token=` for feed/search |
+| Scout HELLO multicast | `src/peer/scout-announcer.ts` | `ARRA_SCOUT_ANNOUNCE=1` |
 
-Operational intent:
+Quick smoke:
 
 ```bash
-# Main-line federation track shape; not mounted in this alpha tree.
-FED_ENABLED=true \
 ARRA_SCOUT_ANNOUNCE=1 \
 ARRA_PEER_TOKEN=<shared-token> \
 bun run server
 
 curl http://localhost:47778/info
 curl http://localhost:47778/api/identity
+curl 'http://localhost:47778/api/peer/feed?token=<shared-token>&limit=20'
+curl -X POST http://localhost:47778/api/peer/search \
+  -H 'content-type: application/json' \
+  -H 'Authorization: Bearer <shared-token>' \
+  -d '{"query":"federation","limit":5}'
 ```
 
-Treat first-seen peer keys as TOFU pins: verify unexpected key changes out-of-band before trusting search/feed results from that peer.
+Treat first-seen peer keys as TOFU pins: verify unexpected key changes
+out-of-band before trusting search/feed results from that peer.
 
 ## Verification checklist for this wave
 
