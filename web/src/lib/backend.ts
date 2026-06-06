@@ -271,7 +271,12 @@ export class RealBackend implements BackendClient {
   }
 
   async search(query: string): Promise<SearchResult[]> {
-    return this.post("arra_search", { query });
+    const response = await this.get<{ results: SearchResult[] }>("/api/search", {
+      q: query,
+      mode: "fts",
+      limit: 20,
+    });
+    return response.results;
   }
 
   async learn(pattern: string, concepts?: string[], source?: string): Promise<Learning> {
@@ -279,7 +284,12 @@ export class RealBackend implements BackendClient {
   }
 
   async list(type?: string, limit?: number): Promise<SearchResult[]> {
-    return this.post("arra_list", { type, limit });
+    const response = await this.get<{ results: SearchResult[] }>("/api/list", {
+      type: type ?? "all",
+      limit: limit ?? 20,
+      group: "false",
+    });
+    return response.results;
   }
 
   async trace(query: string): Promise<TraceResult> {
@@ -364,11 +374,11 @@ export function createBackendClient(): BackendClient {
   const envUrl = import.meta.env.PUBLIC_BACKEND_URL;
   if (envUrl) return new RealBackend(envUrl);
 
-  // Check ?api= query param in browser context
+  // Check ?api= query param or persisted home-page connection in browser context
   if (typeof window !== "undefined") {
     const params = new URLSearchParams(window.location.search);
-    const apiUrl = params.get("api");
-    if (apiUrl) return new RealBackend(apiUrl);
+    const apiUrl = params.get("api") || window.localStorage.getItem("NEO_ARRA_API");
+    if (apiUrl) return new RealBackend(apiUrl.replace(/\/+$/, ""));
   }
 
   return new MockBackend();
