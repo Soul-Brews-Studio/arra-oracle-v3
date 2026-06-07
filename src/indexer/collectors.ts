@@ -20,7 +20,14 @@ export function getAllMarkdownFiles(dir: string): string[] {
   const items = fs.readdirSync(dir);
   for (const item of items) {
     const fullPath = path.join(dir, item);
-    const stat = fs.statSync(fullPath);
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(fullPath);
+    } catch (err) {
+      const code = err && typeof err === 'object' && 'code' in err ? (err as NodeJS.ErrnoException).code : undefined;
+      if (code === 'ENOENT') continue;
+      throw err;
+    }
     if (stat.isDirectory()) {
       files.push(...getAllMarkdownFiles(fullPath));
     } else if (item.endsWith('.md')) {

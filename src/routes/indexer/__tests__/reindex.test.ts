@@ -12,7 +12,7 @@ function post(app: Elysia, body: unknown) {
 
 describe('POST /indexer/reindex', () => {
   it('runs the full reindex by default and waits for completion', async () => {
-    const runFull = mock(async ({ repoRoot }: { repoRoot?: string | null }) => ({ ok: true as const, repoRoot: repoRoot ?? '/repo' }));
+    const runFull = mock(async ({ repoRoot, append }: { repoRoot?: string | null; append?: boolean }) => ({ ok: true as const, repoRoot: repoRoot ?? '/repo', append: append === true }));
     const runRetros = mock(async (repoRoot: string) => ({ ok: true as const, repoRoot, documents: 0 }));
     const runRetroFile = mock(async (repoRoot: string, filePath: string) => ({ ok: true as const, repoRoot, filePath, documents: 0 }));
     const app = new Elysia().use(createReindexRoute({
@@ -30,11 +30,34 @@ describe('POST /indexer/reindex', () => {
     expect(body.status).toBe('complete');
     expect(body.repoRoot).toBe('/repo');
     expect(runFull).toHaveBeenCalledTimes(1);
+    expect(runFull).toHaveBeenCalledWith({ repoRoot: '/repo', append: false });
+    expect(runRetros).not.toHaveBeenCalled();
+  });
+
+  it('passes append mode to the full reindex runner', async () => {
+    const runFull = mock(async ({ repoRoot, append }: { repoRoot?: string | null; append?: boolean }) => ({ ok: true as const, repoRoot: repoRoot ?? '/repo', append: append === true }));
+    const runRetros = mock(async (repoRoot: string) => ({ ok: true as const, repoRoot, documents: 0 }));
+    const runRetroFile = mock(async (repoRoot: string, filePath: string) => ({ ok: true as const, repoRoot, filePath, documents: 0 }));
+    const app = new Elysia().use(createReindexRoute({
+      resolveRepoRoot: () => '/new-root',
+      runFull,
+      runRetros,
+      runRetroFile,
+    }));
+
+    const res = await post(app, { append: true });
+    const body = await res.json() as any;
+
+    expect(res.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.append).toBe(true);
+    expect(runFull).toHaveBeenCalledTimes(1);
+    expect(runFull).toHaveBeenCalledWith({ repoRoot: '/new-root', append: true });
     expect(runRetros).not.toHaveBeenCalled();
   });
 
   it('supports retrospective-only indexing without full smart-delete', async () => {
-    const runFull = mock(async ({ repoRoot }: { repoRoot?: string | null }) => ({ ok: true as const, repoRoot: repoRoot ?? '/repo' }));
+    const runFull = mock(async ({ repoRoot, append }: { repoRoot?: string | null; append?: boolean }) => ({ ok: true as const, repoRoot: repoRoot ?? '/repo', append: append === true }));
     const runRetros = mock(async (repoRoot: string) => ({ ok: true as const, repoRoot, documents: 3 }));
     const runRetroFile = mock(async (repoRoot: string, filePath: string) => ({ ok: true as const, repoRoot, filePath, documents: 0 }));
     const app = new Elysia().use(createReindexRoute({
@@ -57,7 +80,7 @@ describe('POST /indexer/reindex', () => {
   it('returns a 409 while a non-waiting job is active', async () => {
     let release!: () => void;
     const blocker = new Promise<void>(resolve => { release = resolve; });
-    const runFull = mock(async ({ repoRoot }: { repoRoot?: string | null }) => {
+    const runFull = mock(async ({ repoRoot }: { repoRoot?: string | null; append?: boolean }) => {
       await blocker;
       return { ok: true as const, repoRoot: repoRoot ?? '/repo' };
     });

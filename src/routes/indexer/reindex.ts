@@ -9,7 +9,7 @@ type ReindexResult =
 
 export interface ReindexDeps {
   resolveRepoRoot: (repoRoot?: string | null) => string;
-  runFull: (opts: { repoRoot?: string | null }) => Promise<ReindexResult>;
+  runFull: (opts: { repoRoot?: string | null; append?: boolean }) => Promise<ReindexResult>;
   runRetros: (repoRoot: string) => Promise<ReindexResult>;
   runRetroFile: (repoRoot: string, filePath: string) => Promise<ReindexResult>;
 }
@@ -28,6 +28,7 @@ export function createReindexRoute(deps: ReindexDeps = defaultDeps) {
     const requested = body ?? {};
     const scope = requested.scope ?? 'all';
     const wait = requested.wait !== false;
+    const append = requested.append === true;
     const repoRoot = deps.resolveRepoRoot(requested.repoRoot);
     const jobId = `reindex-${Date.now()}`;
 
@@ -42,7 +43,7 @@ export function createReindexRoute(deps: ReindexDeps = defaultDeps) {
         if (!requested.filePath) throw new Error('filePath is required for scope=retro-file');
         return deps.runRetroFile(repoRoot, requested.filePath);
       }
-      return deps.runFull({ repoRoot });
+      return deps.runFull({ repoRoot, append });
     };
 
     activeJob = { id: jobId, startedAt: new Date().toISOString() };
@@ -60,7 +61,7 @@ export function createReindexRoute(deps: ReindexDeps = defaultDeps) {
 
     // Ensure background failures are observed by the task catch above.
     void task;
-    return { ok: true, jobId, status: 'started', repoRoot, scope };
+    return { ok: true, jobId, status: 'started', repoRoot, scope, append };
   }, {
     body: t.Optional(t.Object({
       repoRoot: t.Optional(t.String()),
@@ -71,6 +72,7 @@ export function createReindexRoute(deps: ReindexDeps = defaultDeps) {
       ])),
       filePath: t.Optional(t.String()),
       wait: t.Optional(t.Boolean()),
+      append: t.Optional(t.Boolean()),
     })),
     detail: {
       tags: ['indexer'],
