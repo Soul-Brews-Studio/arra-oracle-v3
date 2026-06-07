@@ -12,15 +12,10 @@
  */
 
 import { Elysia, t } from 'elysia';
-import { createVectorStore, getEmbeddingModels, getVectorStoreConfigByModel } from '../../vector/factory.ts';
-import type {
-  EmbeddingProviderType,
-  VectorDBType,
-  VectorDocument,
-  VectorStoreAdapter,
-} from '../../vector/types.ts';
+import { getEmbeddingModels } from '../../vector/factory.ts';
 import { loadVectorIndexDocuments, type VectorIndexSource } from './indexer-source.ts';
 import { proxyVectorIndexer } from './indexer-proxy.ts';
+import { localVectorOperations, type RebuildStrategy } from '../../server/vector-operations.ts';
 
 // ── In-memory status (no sqlite writes — avoids the disk I/O problem) ──
 
@@ -47,33 +42,8 @@ let currentJob: IndexJob = {
   startedAt: 0,
 };
 
-export type RebuildStrategy = 'replace' | 'delete-add';
 
-export async function rebuildVectorCollection(
-  store: VectorStoreAdapter,
-  docs: VectorDocument[],
-  batchSize: number,
-  onProgress: (current: number) => void = () => {},
-): Promise<{ strategy: RebuildStrategy }> {
-  await store.connect();
-
-  if (typeof store.replaceDocuments === 'function') {
-    await store.replaceDocuments(docs);
-    onProgress(docs.length);
-    return { strategy: 'replace' };
-  }
-
-  try { await store.deleteCollection(); } catch {}
-  await store.ensureCollection();
-
-  for (let i = 0; i < docs.length; i += batchSize) {
-    const batch = docs.slice(i, i + batchSize);
-    await store.addDocuments(batch);
-    onProgress(Math.min(i + batch.length, docs.length));
-  }
-
-  return { strategy: 'delete-add' };
-}
+export const rebuildVectorCollection = localVectorOperations.rebuildCollection.bind(localVectorOperations);
 
 // ── Endpoints ──────────────────────────────────────────────────────────
 
@@ -94,7 +64,7 @@ export const vectorIndexerEndpoints = new Elysia()
 
     const models = getEmbeddingModels();
     const key = body.model && models[body.model] ? body.model : 'bge-m3';
-    const storeConfig = getVectorStoreConfigByModel(key);
+    const { store, config: storeConfig } = localVectorOperations.createStoreForModel(key);
     const batchSize = body.batchSize ?? (key === 'nomic' ? 100 : 50);
 
     const jobId = `vidx-${Date.now()}`;
@@ -109,15 +79,13 @@ export const vectorIndexerEndpoints = new Elysia()
 
     // Background indexing — fire and forget
     (async () => {
-      let store: VectorStoreAdapter | undefined;
       try {
         const loaded = loadVectorIndexDocuments({ source: body.source, repoRoot: body.repoRoot });
         currentJob.source = loaded.source;
         currentJob.repoRoot = loaded.repoRoot;
         currentJob.total = loaded.docs.length;
 
-        store = createVectorStore(storeConfig);
-        const rebuild = await rebuildVectorCollection(store, loaded.docs, batchSize, current => {
+        const rebuild = await localVectorOperations.rebuildCollection(store, loaded.docs, batchSize, current => {
           currentJob.current = current;
         });
 
@@ -186,46 +154,7 @@ export const vectorIndexerEndpoints = new Elysia()
     const remote = await proxyVectorIndexer('models', set);
     if (remote) return remote;
 
-    const models = getEmbeddingModels();
-    const result: Record<string, {
-      collection: string;
-      model: string;
-      adapter: VectorDBType;
-      provider: EmbeddingProviderType;
-      count?: number;
-    }> = {};
-
-    for (const key of Object.keys(models)) {
-      const storeConfig = getVectorStoreConfigByModel(key);
-      const entry: {
-        collection: string;
-        model: string;
-        adapter: VectorDBType;
-        provider: EmbeddingProviderType;
-        count?: number;
-      } = {
-        collection: storeConfig.collectionName ?? key,
-        model: storeConfig.embeddingModel ?? key,
-        adapter: storeConfig.type ?? 'lancedb',
-        provider: storeConfig.embeddingProvider ?? 'ollama',
-      };
-      let store: ReturnType<typeof createVectorStore> | null = null;
-
-      try {
-        store = createVectorStore(storeConfig);
-        await store.connect();
-        const stats = await store.getStats();
-        entry.count = stats.count;
-      } catch {
-        entry.count = 0;
-      } finally {
-        try { await store?.close(); } catch {}
-      }
-
-      result[key] = entry;
-    }
-
-    return { models: result };
+    return { models: await localVectorOperations.modelStats() };
   }, {
     detail: {
       tags: ['vector-indexer'],

@@ -21,13 +21,11 @@ import { db, oracleDocuments } from '../db/index.ts';
 import {
   ensureVectorStoreConnected,
   getVectorStoreByModel,
-  getEmbeddingModels,
-  getVectorStoreConfigByModel,
   EMBEDDING_MODELS,
 } from '../vector/factory.ts';
 import type { VectorStoreAdapter } from '../vector/types.ts';
-import { localNativeVectorDisabledReason, localVectorIndexMissingReason } from '../vector/cpu-capabilities.ts';
 import type { SearchResult } from './types.ts';
+import { localVectorOperations } from './vector-operations.ts';
 
 /** Convenience wrapper used by every handler in this file. */
 async function getVectorStore(model?: string): Promise<VectorStoreAdapter> {
@@ -613,44 +611,7 @@ export async function handleVectorStats(): Promise<{
   vector: { enabled: boolean; count: number; collection: string };
   vectors?: Array<{ key: string; model: string; collection: string; count: number; enabled: boolean }>;
 }> {
-  const timeout = parseInt(process.env.ORACLE_CHROMA_TIMEOUT || '5000', 10);
-  const models = getEmbeddingModels();
-  const engines: Array<{ key: string; model: string; collection: string; count: number; enabled: boolean }> = [];
-
-  // Query all registered engines in parallel
-  await Promise.all(
-    Object.entries(models).map(async ([key, preset]) => {
-      try {
-        const cfg = getVectorStoreConfigByModel(key);
-        const unavailable = localNativeVectorDisabledReason(cfg.type) || localVectorIndexMissingReason(cfg);
-        if (unavailable) {
-          engines.push({ key, model: preset.model, collection: preset.collection, count: 0, enabled: false });
-          return;
-        }
-        const store = await ensureVectorStoreConnected(key);
-        const stats = await Promise.race([
-          store.getStats(),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), timeout)
-          ),
-        ]);
-        engines.push({ key, model: preset.model, collection: preset.collection, count: stats.count, enabled: true });
-      } catch {
-        engines.push({ key, model: preset.model, collection: preset.collection, count: 0, enabled: false });
-      }
-    })
-  );
-
-  // Primary = bge-m3 (backward compat)
-  const primary = engines.find(e => e.key === 'bge-m3') || engines[0];
-  return {
-    vector: {
-      enabled: primary?.enabled ?? false,
-      count: primary?.count ?? 0,
-      collection: primary?.collection ?? 'oracle_knowledge_bge_m3',
-    },
-    vectors: engines,
-  };
+  return localVectorOperations.stats();
 }
 
 // ============================================================================
@@ -670,38 +631,5 @@ export async function handleVectorHealth(): Promise<{
   engines: Array<{ key: string; model: string; collection: string; ok: boolean; error?: string }>;
   checked_at: string;
 }> {
-  const timeout = parseInt(process.env.ORACLE_VECTOR_HEALTH_TIMEOUT || '2000', 10);
-  const models = getEmbeddingModels();
-  const engines: Array<{ key: string; model: string; collection: string; ok: boolean; error?: string }> = [];
-
-  await Promise.all(
-    Object.entries(models).map(async ([key, preset]) => {
-      try {
-        const cfg = getVectorStoreConfigByModel(key);
-        const unavailable = localNativeVectorDisabledReason(cfg.type) || localVectorIndexMissingReason(cfg);
-        if (unavailable) {
-          engines.push({ key, model: preset.model, collection: preset.collection, ok: false, error: unavailable });
-          return;
-        }
-        const store = await ensureVectorStoreConnected(key);
-        await Promise.race([
-          store.getStats(),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), timeout)
-          ),
-        ]);
-        engines.push({ key, model: preset.model, collection: preset.collection, ok: true });
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        engines.push({ key, model: preset.model, collection: preset.collection, ok: false, error: msg });
-      }
-    }),
-  );
-
-  const okCount = engines.filter(e => e.ok).length;
-  const status: 'ok' | 'degraded' | 'down' =
-    okCount === engines.length ? 'ok' :
-    okCount === 0 ? 'down' : 'degraded';
-
-  return { status, engines, checked_at: new Date().toISOString() };
+  return localVectorOperations.health();
 }
