@@ -29,16 +29,22 @@ describe('maw arra plugin', () => {
   test('help lists the full compact MCP surface', async () => {
     expect(listSubcommands()).toEqual([
       'concepts',
+      'feed',
       'frontend',
       'handoff',
       'health',
       'inbox',
+      'index',
       'learn',
       'list',
+      'menu',
       'open',
+      'plugins',
       'read',
       'reflect',
+      'scan',
       'search',
+      'settings',
       'stats',
       'supersede',
       'thread',
@@ -52,11 +58,14 @@ describe('maw arra plugin', () => {
       'trace_list',
       'trace_unlink',
       'ui',
+      'vector',
       'verify',
     ]);
 
     const help = await runArra(['help']);
     expect(help.output).toContain('frontend');
+    expect(help.output).toContain('index');
+    expect(help.output).toContain('vector');
     expect(help.output).toContain('trace_chain');
     expect(help.output).toContain('thread_update');
     expect(help.output).toContain('verify');
@@ -82,6 +91,12 @@ describe('maw arra plugin', () => {
     const cases: Array<[string[], string, string]> = [
       [['search', 'hello', '--mode', 'vector', '--limit', '3'], 'GET', '/api/search?q=hello&limit=3&mode=vector'],
       [['stats'], 'GET', '/api/stats'],
+      [['scan'], 'GET', '/api/indexer/scan'],
+      [['plugins'], 'GET', '/api/plugins'],
+      [['settings'], 'GET', '/api/settings/tools'],
+      [['feed'], 'GET', '/api/feed'],
+      [['menu'], 'GET', '/api/menu'],
+      [['vector'], 'GET', '/api/vector/config'],
       [['health'], 'GET', '/api/health'],
       [['trace_list', '--status', 'raw', '--limit', '2'], 'GET', '/api/traces?status=raw&limit=2'],
       [['trace_get', 'abc'], 'GET', '/api/traces/abc'],
@@ -107,6 +122,7 @@ describe('maw arra plugin', () => {
   test('routes write commands with compact JSON bodies', async () => {
     const cases: Array<[string[], string, string, unknown]> = [
       [['learn', 'new', 'pattern', '--project', 'demo'], 'POST', '/api/learn', { pattern: 'new pattern', project: 'demo' }],
+      [['index', '--project', 'demo', '--path', '/tmp/vault'], 'POST', '/api/indexer/reindex', { project: 'demo', path: '/tmp/vault' }],
       [['trace', 'audit', '--scope', 'project'], 'POST', '/api/traces', { query: 'audit', scope: 'project' }],
       [['trace_link', 'a', 'b'], 'POST', '/api/traces/a/link', { nextId: 'b' }],
       [['trace_unlink', 'a', '--direction', 'next'], 'DELETE', '/api/traces/a/link?direction=next', undefined],

@@ -23,6 +23,13 @@ maw arra search "query" --mode fts --limit 5
 maw arra learn "new project fact" --project my-repo
 maw arra stats
 maw arra health
+maw arra index --project my-repo --path /path/to/vault
+maw arra scan
+maw arra plugins
+maw arra settings
+maw arra feed
+maw arra menu
+maw arra vector
 
 maw arra trace "investigate auth loop" --scope project
 maw arra trace_list --status raw --limit 10
