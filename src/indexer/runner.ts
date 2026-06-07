@@ -47,6 +47,11 @@ export function createIndexerConfig(repoRoot: string): IndexerConfig {
       security_corpus: process.env.ORACLE_INDEX_SECURITY_CORPUS === '1'
         ? 'ψ/learn/security-corpus'
         : undefined,
+      // Opt-in: set ORACLE_INDEX_KNOWLEDGE_CORPUS=1 to include ψ/knowledge/book-corpus/
+      // (reference books distilled to markdown → RAG). Default OFF.
+      knowledge_corpus: process.env.ORACLE_INDEX_KNOWLEDGE_CORPUS === '1'
+        ? 'ψ/knowledge/book-corpus'
+        : undefined,
     },
   };
 }

@@ -248,3 +248,71 @@ export function parseSecurityCorpusFile(relativePath: string, content: string): 
 
   return documents;
 }
+
+/**
+ * Parse a knowledge/book corpus file (reference books distilled into markdown/text).
+ * Mirrors parseSecurityCorpusFile but for ψ/knowledge/book-corpus/.
+ * Path layout: ψ/knowledge/book-corpus/<topic>/<source>/<...>/<file>
+ * Note: each ## section becomes one doc, content capped at 8000 chars — chunk
+ * large books into ## sections (or extracted/*.md) for full recall coverage.
+ */
+export function parseKnowledgeCorpusFile(relativePath: string, content: string): OracleDocument[] {
+  const documents: OracleDocument[] = [];
+  const now = Date.now();
+
+  const parts = relativePath.split(path.sep);
+  const corpusIdx = parts.findIndex(p => p === 'book-corpus');
+  const topic = corpusIdx >= 0 && parts.length > corpusIdx + 1 ? parts[corpusIdx + 1] : 'unknown';
+  const source = corpusIdx >= 0 && parts.length > corpusIdx + 2 ? parts[corpusIdx + 2] : 'unknown';
+
+  const filename = path.basename(relativePath, path.extname(relativePath));
+  const safeFilename = filename.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
+  const pathHash = Bun.hash(relativePath).toString(36);
+
+  const baseConcepts = [topic, source].filter(c => c && c !== 'unknown');
+
+  // Section split if .md with ## headers; otherwise single doc
+  const isMarkdown = relativePath.endsWith('.md');
+  const sections = isMarkdown
+    ? content.split(/^##\s+/m).filter(s => s.trim() && s.trim().length > 50)
+    : [];
+
+  if (sections.length > 1) {
+    sections.forEach((section, index) => {
+      const lines = section.split('\n');
+      const sectionTitle = lines[0].trim();
+      const body = lines.slice(1).join('\n').trim();
+      if (!body || body.length < 50) return;
+
+      const id = `knowledge_corpus_${topic}_${safeFilename}_${pathHash}_${index}`;
+      const extracted = extractConcepts(sectionTitle, body);
+      const sectionContent = `[${topic}/${source}] ${sectionTitle}: ${body}`;
+      if (sectionContent.length > 8000) {
+        console.warn(`knowledge-corpus: truncating section "${sectionTitle}" in ${relativePath} (${sectionContent.length}→8000 chars) — split into smaller ## sections for full recall (suho #2)`);
+      }
+      documents.push({
+        id, type: 'knowledge-corpus', source_file: relativePath,
+        content: sectionContent.slice(0, 8000),
+        concepts: mergeConceptsWithTags(extracted, baseConcepts),
+        created_at: now, updated_at: now, project: undefined,
+      });
+    });
+  }
+
+  if (documents.length === 0) {
+    const id = `knowledge_corpus_${topic}_${safeFilename}_${pathHash}`;
+    const extracted = extractConcepts(filename, content.slice(0, 4000));
+    const fileContent = `[${topic}/${source}] ${filename}: ${content}`;
+    if (fileContent.length > 8000) {
+      console.warn(`knowledge-corpus: truncating ${relativePath} (${fileContent.length}→8000 chars) — add ## sections or split into extracted/*.md for full recall (suho #2)`);
+    }
+    documents.push({
+      id, type: 'knowledge-corpus', source_file: relativePath,
+      content: fileContent.slice(0, 8000),
+      concepts: mergeConceptsWithTags(extracted, baseConcepts),
+      created_at: now, updated_at: now, project: undefined,
+    });
+  }
+
+  return documents;
+}

@@ -1,15 +1,23 @@
 import { Database } from 'bun:sqlite';
 import { DB_PATH } from '../../config.ts';
-import { collectDocuments, collectSecurityCorpus } from '../../indexer/collectors.ts';
+import { collectDocuments, collectSecurityCorpus, collectKnowledgeCorpus, collectMachineLanes } from '../../indexer/collectors.ts';
 import { parseDistillationFile, parseLearningFile, parseResonanceFile, parseRetroFile } from '../../indexer/parser.ts';
 import { createIndexerConfig, resolveIndexerRepoRoot } from '../../indexer/runner.ts';
+import {
+  documentTypeMatchesVectorIndexCorpus,
+  normalizeVectorIndexCorpus,
+  sqlCorpusPredicate,
+  type VectorIndexCorpus,
+} from '../../search/corpus.ts';
 import type { OracleDocument } from '../../types.ts';
 import type { VectorDocument } from '../../vector/types.ts';
 
 export type VectorIndexSource = 'auto' | 'vault' | 'sqlite';
+export type { VectorIndexCorpus };
 
 export interface LoadedVectorIndexDocuments {
   source: Exclude<VectorIndexSource, 'auto'>;
+  corpus: VectorIndexCorpus;
   docs: VectorDocument[];
   repoRoot?: string;
 }
@@ -32,21 +40,40 @@ function toVectorDocs(documents: OracleDocument[]): VectorDocument[] {
   }));
 }
 
-export function loadVaultVectorDocuments(repoRoot = resolveIndexerRepoRoot()): LoadedVectorIndexDocuments {
+export function loadVaultVectorDocuments(
+  repoRoot = resolveIndexerRepoRoot(),
+  corpus: VectorIndexCorpus = 'memory',
+): LoadedVectorIndexDocuments {
   const config = createIndexerConfig(repoRoot);
+  if (corpus === 'books') {
+    config.sourcePaths.knowledge_corpus = config.sourcePaths.knowledge_corpus || 'ψ/knowledge/book-corpus';
+  } else {
+    config.sourcePaths.knowledge_corpus = undefined;
+  }
   const shared = { config, seenContentHashes: new Set<string>() };
-  const documents: OracleDocument[] = [
-    ...collectDocuments({ ...shared, subdir: 'resonance', parseFn: parseResonanceFile, label: 'resonance' }),
-    ...collectDocuments({ ...shared, subdir: 'learnings', parseFn: parseLearningFile, label: 'learning' }),
-    ...collectDocuments({ ...shared, subdir: 'retrospectives', parseFn: parseRetroFile, label: 'retrospective' }),
-    ...collectDocuments({ ...shared, subdir: 'distillations', parseFn: parseDistillationFile, label: 'distillation' }),
-    ...collectSecurityCorpus(shared),
-  ];
+  const documents: OracleDocument[] = corpus === 'books'
+    ? collectKnowledgeCorpus(shared)
+    : [
+        ...collectDocuments({ ...shared, subdir: 'resonance', parseFn: parseResonanceFile, label: 'resonance' }),
+        ...collectDocuments({ ...shared, subdir: 'learnings', parseFn: parseLearningFile, label: 'learning' }),
+        ...collectDocuments({ ...shared, subdir: 'retrospectives', parseFn: parseRetroFile, label: 'retrospective' }),
+        ...collectDocuments({ ...shared, subdir: 'distillations', parseFn: parseDistillationFile, label: 'distillation' }),
+        ...collectSecurityCorpus(shared),
+        ...collectMachineLanes(shared),
+      ];
 
-  return { source: 'vault', repoRoot, docs: toVectorDocs(documents) };
+  return {
+    source: 'vault',
+    corpus,
+    repoRoot,
+    docs: toVectorDocs(documents).filter(doc => documentTypeMatchesVectorIndexCorpus(String(doc.metadata.type), corpus)),
+  };
 }
 
-export function loadSqliteVectorDocuments(dbPath = DB_PATH): LoadedVectorIndexDocuments {
+export function loadSqliteVectorDocuments(
+  dbPath = DB_PATH,
+  corpus: VectorIndexCorpus = 'memory',
+): LoadedVectorIndexDocuments {
   const sqlite = new Database(dbPath, { readonly: true });
   try {
     const rows = sqlite.prepare(`
@@ -54,6 +81,7 @@ export function loadSqliteVectorDocuments(dbPath = DB_PATH): LoadedVectorIndexDo
              d.source_file, d.concepts, d.project, d.created_at
       FROM oracle_documents d
       JOIN oracle_fts f ON d.id = f.id
+      WHERE ${sqlCorpusPredicate('d', corpus)}
       GROUP BY d.id
       ORDER BY d.created_at DESC
     `).all() as Array<{
@@ -64,6 +92,7 @@ export function loadSqliteVectorDocuments(dbPath = DB_PATH): LoadedVectorIndexDo
 
     return {
       source: 'sqlite',
+      corpus,
       docs: rows.map(row => ({
         id: row.id,
         document: row.content,
@@ -84,14 +113,19 @@ export function loadVectorIndexDocuments(opts: {
   source?: string | null;
   repoRoot?: string | null;
   dbPath?: string;
+  corpus?: string | null;
 } = {}): LoadedVectorIndexDocuments {
   const source = resolveVectorIndexSource(opts.source);
+  const corpus = normalizeVectorIndexCorpus(opts.corpus);
   if (source !== 'sqlite') {
-    const vault = loadVaultVectorDocuments(opts.repoRoot ? resolveIndexerRepoRoot(opts.repoRoot) : undefined);
+    const vault = loadVaultVectorDocuments(
+      opts.repoRoot ? resolveIndexerRepoRoot(opts.repoRoot) : undefined,
+      corpus,
+    );
     if (source === 'vault' && vault.docs.length === 0) {
-      throw new Error(`Refusing vault vector reindex: found 0 vault documents at ${vault.repoRoot}`);
+      throw new Error(`Refusing vault vector reindex: found 0 ${corpus} documents at ${vault.repoRoot}`);
     }
     if (vault.docs.length > 0) return vault;
   }
-  return loadSqliteVectorDocuments(opts.dbPath);
+  return loadSqliteVectorDocuments(opts.dbPath, corpus);
 }
