@@ -1,11 +1,12 @@
 # Docker MCP Toolkit
 
-Arra ships two Docker targets:
+Arra ships three Docker targets:
 
 | Target | Image tag | Purpose |
 |---|---|---|
 | `http-server` | `ghcr.io/soul-brews-studio/arra-oracle-v3:http` / `:latest` | Long-running HTTP writer on port `47778` |
 | `mcp-stdio` | `ghcr.io/soul-brews-studio/arra-oracle-v3:stdio` | Stdio MCP server for Docker MCP Toolkit / Gateway |
+| `vector-server` | `ghcr.io/soul-brews-studio/arra-oracle-v3:vector` | Standalone vector sidecar for `VECTOR_URL` on port `47779` |
 
 The stdio target sets `ORACLE_LOG_TARGET=stderr` so JSON-RPC stays clean on stdout.
 
@@ -22,7 +23,24 @@ docker build -t arra-oracle-v3:stdio --target mcp-stdio .
 printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}' \
   | docker run -i --rm -v arra-oracle-data:/data arra-oracle-v3:stdio
+
+# Vector sidecar target
+docker build -t arra-oracle-v3:vector --target vector-server .
+docker run --rm -p 47903:47779 -v arra-oracle-data:/data arra-oracle-v3:vector
+curl -fsS http://localhost:47903/api/vector/health
 ```
+
+## Standalone vector sidecar profile
+
+Use the `vector` compose profile when you want core HTTP/FTS5 in one process and vector operations in another process. Set `VECTOR_URL=http://vector:47779` when enabling the profile; Compose starts the normal `arra` core plus the `vector` sidecar target.
+
+```bash
+VECTOR_URL=http://vector:47779 docker compose --profile vector up -d
+curl -fsS http://localhost:47778/api/health | jq .vectorMode   # proxied
+curl -fsS 'http://localhost:47778/api/search?q=oracle&mode=hybrid' | jq .vectorAvailable
+```
+
+FTS5 remains local to the core server. If the vector sidecar is unavailable, hybrid search returns local FTS5 results with `vectorAvailable: false`.
 
 ## Docker MCP Gateway (stdio clients)
 

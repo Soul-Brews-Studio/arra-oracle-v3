@@ -24,6 +24,8 @@ jobs:
             channel: http
           - target: mcp-stdio
             channel: stdio
+          - target: vector-server
+            channel: vector
     steps:
       - uses: actions/checkout@v4
 

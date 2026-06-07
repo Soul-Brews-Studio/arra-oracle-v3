@@ -1,6 +1,7 @@
 # arra-oracle-v3 — multi-target image
 #   Default target: http-server  (port 47778, used by docker-compose.yml)
-#   Alt target:     mcp-stdio    (no port, stdio MCP — for Docker MCP Toolkit)
+#   Alt target:     mcp-stdio     (no port, stdio MCP — for Docker MCP Toolkit)
+#   Alt target:     vector-server (port 47779, standalone vector sidecar)
 #
 # Vector search degrades gracefully to SQLite FTS5 when no Ollama embedding
 # backend is reachable — so both images are fully functional standalone.
@@ -8,7 +9,8 @@
 # Build:
 #   docker build -t arra-oracle-v3 .                              # default = http-server
 #   docker build -t arra-oracle-v3:http   --target http-server .  # explicit HTTP server
-#   docker build -t arra-oracle-v3:stdio  --target mcp-stdio .    # MCP stdio variant
+#   docker build -t arra-oracle-v3:stdio  --target mcp-stdio .     # MCP stdio variant
+#   docker build -t arra-oracle-v3:vector --target vector-server . # vector sidecar
 #
 # Run http-server (current behavior):
 #   docker run -p 47778:47778 -v arra-data:/data arra-oracle-v3
@@ -63,6 +65,19 @@ FROM base AS mcp-stdio
 # Force any incidental logging to stderr — protect the stdio JSON-RPC channel.
 ENV ORACLE_LOG_TARGET=stderr
 CMD ["bun", "src/index.ts"]
+
+# ─────────────────────────────────────────────────────────────────────────
+# Target — vector-server (standalone sidecar for VECTOR_URL)
+# ─────────────────────────────────────────────────────────────────────────
+# Runs only vector/search routes and opens oracle.db readonly by default so the
+# core HTTP writer can keep owning SQLite writes. Core points at this with:
+#   VECTOR_URL=http://vector:47779
+FROM base AS vector-server
+ENV ORACLE_VECTOR_SERVER=1 \
+    ORACLE_VECTOR_READONLY=1 \
+    VECTOR_PORT=47779
+EXPOSE 47779
+CMD ["sh", "-c", "touch ${ORACLE_DB_PATH:-/data/oracle.db} && exec bun src/vector-server.ts"]
 
 # ─────────────────────────────────────────────────────────────────────────
 # Target — http-server (DEFAULT; current docker-compose behavior)
