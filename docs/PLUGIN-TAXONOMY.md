@@ -48,6 +48,7 @@ type CanvasPlugin =
   | { id: string; label: string; kind: 'react'; renderer: CanvasReactRenderer };
 ```
 
-Future metadata endpoints such as `GET /api/plugins?kind=canvas` should expose
-CanvasPlugin metadata only. They should not imply dynamic execution of unsigned
-React or Three code from the database.
+`GET /api/plugins?kind=canvas` exposes CanvasPlugin metadata (`id`, `label`,
+`kind`, `renderer`) for Studio and future canvas hosts to share one plugin list.
+It exposes metadata only and does not imply dynamic execution of unsigned React
+or Three code from the database.
