@@ -13,6 +13,7 @@
         "commander": "^14.0.3",
         "drizzle-orm": "^0.45.2",
         "elysia": "^1.4.28",
+        "hook-menu": "github:Soul-Brews-Studio/hook-menu",
         "sqlite-vec": "^0.1.9",
       },
       "devDependencies": {
@@ -291,6 +292,8 @@
     "hasown": ["hasown@2.0.2", "", { "dependencies": { "function-bind": "^1.1.2" } }, "sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ=="],
 
     "hono": ["hono@4.12.14", "", {}, "sha512-am5zfg3yu6sqn5yjKBNqhnTX7Cv+m00ox+7jbaKkrLMRJ4rAdldd1xPd/JzbBWspqaQv6RSTrgFN95EsfhC+7w=="],
+
+    "hook-menu": ["hook-menu@github:Soul-Brews-Studio/hook-menu#cc5b563", { "peerDependencies": { "@sinclair/typebox": "^0.32.0", "elysia": "^1.0.0" } }, "Soul-Brews-Studio-hook-menu-cc5b563", "sha512-Ta7T8wEP3BDflB4sJpbLw5FptCpv5VnR4jpavuINRSONWyV3sI2XzU3d5Rk2VRHS/dJbOCnzFGSRXrgzmqtXCg=="],
 
     "hookable": ["hookable@5.5.3", "", {}, "sha512-Yc+BQe8SvoXH1643Qez1zqLRmbA5rCL+sSmk6TVos0LWVfNIB7PGncdlId77WzLGSIB5KaWgTaNTs2lNVEI6VQ=="],
 

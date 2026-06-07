@@ -67,6 +67,7 @@
     "commander": "^14.0.3",
     "drizzle-orm": "^0.45.2",
     "elysia": "^1.4.28",
+    "hook-menu": "github:Soul-Brews-Studio/hook-menu",
     "sqlite-vec": "^0.1.9"
   },
   "devDependencies": {
