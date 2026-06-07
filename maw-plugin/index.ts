@@ -1,23 +1,14 @@
 import { DEFAULT_ORACLE_API, normalizeApiBase } from '../cli/src/lib/config.ts';
 
-type InvokeContext = {
-  source?: string;
-  args?: string[];
-  writer?: (...args: unknown[]) => void;
-};
-
-type InvokeResult = {
-  ok: boolean;
-  output?: string;
-  error?: string;
-};
-
+type InvokeContext = { source?: string; args?: string[]; writer?: (...args: unknown[]) => void };
+type InvokeResult = { ok: boolean; output?: string; error?: string };
 type Requester = (path: string, init?: RequestInit) => Promise<unknown>;
+type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+type Parsed = { pos: string[]; flags: Record<string, string | boolean> };
+type Built = { path: string; query?: Record<string, unknown>; body?: Record<string, unknown> };
+type Spec = { tool: string; method: Method; help: string; write?: boolean; build: (p: Parsed) => Built; format?: (data: any, p: Parsed) => string };
 
-export const command = {
-  name: 'arra',
-  description: 'ARRA Oracle HTTP helper — search, learn, stats, health, trace.',
-};
+export const command = { name: 'arra', description: 'ARRA Oracle HTTP helper — 1:1 maw CLI surface for ARRA MCP tools.' };
 
 export function resolveBaseUrl(env: Record<string, string | undefined> = process.env): string {
   return normalizeApiBase(env.ORACLE_API?.trim() || env.NEO_ARRA_API?.trim() || DEFAULT_ORACLE_API);
@@ -29,20 +20,11 @@ export function authHeaders(env: Record<string, string | undefined> = process.en
 }
 
 async function requestJson(path: string, init: RequestInit = {}): Promise<unknown> {
-  const headers = {
-    ...(init.body ? { 'content-type': 'application/json' } : {}),
-    ...authHeaders(),
-    ...(init.headers as Record<string, string> | undefined),
-  };
+  const headers = { ...(init.body ? { 'content-type': 'application/json' } : {}), ...authHeaders(), ...(init.headers as Record<string, string> | undefined) };
   const base = resolveBaseUrl();
   let res: Response;
-  try {
-    // Reuse arra-cli's default URL + normalization helpers; keep maw plugin
-    // routing intentionally simple: ORACLE_API/NEO_ARRA_API or localhost.
-    res = await fetch(`${base}${path}`, { ...init, headers });
-  } catch (error) {
-    throw new Error(`Cannot reach ARRA at ${base}: ${error instanceof Error ? error.message : String(error)}`);
-  }
+  try { res = await fetch(`${base}${path}`, { ...init, headers }); }
+  catch (error) { throw new Error(`Cannot reach ARRA at ${base}: ${error instanceof Error ? error.message : String(error)}`); }
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) {
@@ -52,151 +34,91 @@ async function requestJson(path: string, init: RequestInit = {}): Promise<unknow
   return data;
 }
 
-function usage(): InvokeResult {
-  return {
-    ok: false,
-    error: 'usage',
-    output: [
-      'usage: maw arra <search|learn|stats|health|trace>',
-      '  search <q> [--mode fts|hybrid|vector] [--limit N]',
-      '  learn <text> [--project P]',
-      '  stats',
-      '  health',
-      '  trace [id]',
-    ].join('\n'),
-  };
-}
-
-function takeFlag(args: string[], name: string): string | undefined {
-  const idx = args.indexOf(name);
-  if (idx === -1) return undefined;
-  return args[idx + 1];
-}
-
-function positional(args: string[]): string[] {
-  const out: string[] = [];
+function parse(args: string[]): Parsed {
+  const pos: string[] = [];
+  const flags: Record<string, string | boolean> = {};
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (a.startsWith('--')) { i++; continue; }
-    out.push(a);
+    if (!a.startsWith('--')) { pos.push(a); continue; }
+    const raw = a.slice(2);
+    const eq = raw.indexOf('=');
+    const key = (eq >= 0 ? raw.slice(0, eq) : raw).replace(/-/g, '_');
+    if (eq >= 0) flags[key] = raw.slice(eq + 1);
+    else if (args[i + 1] && !args[i + 1].startsWith('--')) flags[key] = args[++i];
+    else flags[key] = true;
   }
-  return out;
+  return { pos, flags };
 }
 
-function oneLine(value: unknown, max = 140): string {
-  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
-}
+const key = (s: string) => s.toLowerCase().replace(/-/g, '_');
+const enc = encodeURIComponent;
+const clean = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== ''));
+const route = (path: string, query?: Record<string, unknown>, body?: Record<string, unknown>): Built => ({ path, query: query ? clean(query) : undefined, body: body ? clean(body) : undefined });
+function f(p: Parsed, name: string): string | undefined { const v = p.flags[name.replace(/-/g, '_')]; return v === undefined || v === false ? undefined : v === true ? 'true' : String(v); }
+function b(p: Parsed, name: string): boolean | undefined { const v = f(p, name); return v === undefined ? undefined : v === 'true' ? true : v === 'false' ? false : undefined; }
+function n(p: Parsed, name: string): number | undefined { const v = f(p, name); if (!v) return undefined; const x = Number(v); return Number.isFinite(x) ? x : undefined; }
+function first(p: Parsed, flag: string, label: string): string { const v = f(p, flag) || p.pos[0]; if (!v) throw new Error(`${label} required`); return v; }
+function text(p: Parsed, flag: string, label: string): string { const v = f(p, flag) || p.pos.join(' ').trim(); if (!v) throw new Error(`${label} required`); return v; }
+function qs(path: string, query?: Record<string, unknown>): string { const q = new URLSearchParams(); for (const [k, v] of Object.entries(query ?? {})) if (v !== undefined && v !== null && v !== '') q.set(k, String(v)); const s = q.toString(); return s ? `${path}?${s}` : path; }
+function one(v: unknown, max = 140): string { const s = String(v ?? '').replace(/\s+/g, ' ').trim(); return s.length > max ? `${s.slice(0, max - 1)}…` : s; }
+function preview(data: unknown, max = 700): string { return one(JSON.stringify(data), max); }
 
-function formatSearch(data: any, query: string): string {
+function formatSearch(data: any, p: Parsed): string {
+  const query = f(p, 'query') || p.pos.join(' ');
   const results = Array.isArray(data?.results) ? data.results : [];
   const total = data?.total ?? results.length;
   if (!results.length) return `arra search: 0 results for "${query}"`;
   const lines = [`arra search: ${total} result${Number(total) === 1 ? '' : 's'} for "${query}"`];
-  for (const [i, r] of results.slice(0, 8).entries()) {
-    const label = [r.type, r.source ?? r.mode].filter(Boolean).join('/');
-    lines.push(`${i + 1}. ${label ? `[${label}] ` : ''}${r.id ?? r.source_file ?? 'doc'} score=${r.score ?? 'n/a'}`);
-    lines.push(`   ${oneLine(r.content ?? r.snippet ?? r.text ?? '')}`);
-    if (r.source_file) lines.push(`   → ${r.source_file}`);
-  }
+  for (const [i, r] of results.slice(0, 8).entries()) lines.push(`${i + 1}. ${r.id ?? r.source_file ?? 'doc'} ${r.type ? `[${r.type}] ` : ''}score=${r.score ?? 'n/a'}\n   ${one(r.content ?? r.snippet ?? r.text ?? '')}`);
   return lines.join('\n');
 }
+function formatHealth(data: any): string { return [`arra health: ${data?.status ?? 'unknown'}`, data?.vectorMode && `vectorMode: ${data.vectorMode}`, data?.version && `version: ${data.version}`].filter(Boolean).join('\n'); }
+function formatStats(data: any): string { return ['arra stats', data?.total_documents !== undefined && `docs: ${data.total_documents}`, data?.total_docs !== undefined && `docs: ${data.total_docs}`, data?.vector && `vector: ${one(JSON.stringify(data.vector), 180)}`].filter(Boolean).join('\n'); }
+function formatRows(label: string, keys: string[]) { return (data: any) => { const rows = keys.map(k => data?.[k]).find(Array.isArray) ?? []; const total = data?.total ?? data?.chain_length ?? rows.length; return Array.isArray(rows) ? [`arra ${label}: ${total} item${Number(total) === 1 ? '' : 's'}`, ...rows.slice(0, 8).map((r: any) => `- ${r.id ?? r.trace_id ?? r.path ?? r.filename ?? r.name ?? '?'} ${one(r.title ?? r.query ?? r.content ?? r.preview ?? r.label ?? '')}`)].join('\n') : `arra ${label}: ${preview(data)}`; }; }
+function formatOk(label: string) { return (data: any) => [`arra ${label}: ${data?.success === false ? 'failed' : 'ok'}`, data?.id && `id: ${data.id}`, data?.trace_id && `trace_id: ${data.trace_id}`, data?.thread_id && `thread_id: ${data.thread_id}`, data?.message && one(data.message), data?.error && `error: ${one(data.error)}`].filter(Boolean).join('\n') || `arra ${label}: ${preview(data)}`; }
 
-function formatLearn(data: any): string {
-  return [
-    `arra learn: ${data?.success === false ? 'failed' : 'ok'}`,
-    data?.id ? `id: ${data.id}` : undefined,
-    data?.path || data?.file ? `file: ${data.path ?? data.file}` : undefined,
-    data?.message ? oneLine(data.message) : undefined,
-  ].filter(Boolean).join('\n');
-}
+export const COMMANDS: Record<string, Spec> = {
+  search: { tool: 'oracle_search', method: 'GET', help: 'search <q> [--mode fts|hybrid|vector] [--limit N]', build: p => route('/api/search', { q: text(p, 'query', 'query'), type: f(p, 'type'), limit: f(p, 'limit') || '5', offset: f(p, 'offset'), mode: f(p, 'mode') || 'fts', project: f(p, 'project'), cwd: f(p, 'cwd'), model: f(p, 'model') }), format: formatSearch },
+  learn: { tool: 'oracle_learn', method: 'POST', write: true, help: 'learn <text> [--project P] [--source S] [--concepts a,b]', build: p => route('/api/learn', undefined, { pattern: text(p, 'pattern', 'text'), project: f(p, 'project'), source: f(p, 'source'), concepts: f(p, 'concepts')?.split(',').map(s => s.trim()).filter(Boolean) }), format: formatOk('learn') },
+  stats: { tool: 'oracle_stats', method: 'GET', help: 'stats', build: () => route('/api/stats'), format: formatStats },
+  health: { tool: 'oracle_health', method: 'GET', help: 'health', build: () => route('/api/health'), format: formatHealth },
+  trace: { tool: 'oracle_trace', method: 'POST', write: true, help: 'trace <query> [--scope project|cross-project|human]', build: p => route('/api/traces', undefined, { query: text(p, 'query', 'query'), queryType: f(p, 'query_type'), scope: f(p, 'scope'), parentTraceId: f(p, 'parent_trace_id'), project: f(p, 'project'), agentCount: n(p, 'agent_count'), durationMs: n(p, 'duration_ms') }), format: formatOk('trace') },
+  trace_list: { tool: 'oracle_trace_list', method: 'GET', help: 'trace_list [--query Q] [--status S] [--project P] [--limit N]', build: p => route('/api/traces', { query: f(p, 'query'), status: f(p, 'status'), project: f(p, 'project'), limit: f(p, 'limit'), offset: f(p, 'offset') }), format: formatRows('trace_list', ['traces']) },
+  trace_get: { tool: 'oracle_trace_get', method: 'GET', help: 'trace_get <traceId> [--include-chain]', build: p => { const id = first(p, 'trace_id', 'traceId'); return route(`/api/traces/${enc(id)}${b(p, 'include_chain') ? '/chain' : ''}`); }, format: (d, p) => `arra trace: ${d?.trace_id ?? d?.traceId ?? d?.id ?? p.pos[0]}${d?.query ? `\nquery: ${one(d.query)}` : ''}` },
+  trace_link: { tool: 'oracle_trace_link', method: 'POST', write: true, help: 'trace_link <prevTraceId> <nextTraceId>', build: p => { const prev = first(p, 'prev_trace_id', 'prevTraceId'); const next = f(p, 'next_trace_id') || p.pos[1]; if (!next) throw new Error('nextTraceId required'); return route(`/api/traces/${enc(prev)}/link`, undefined, { nextId: next }); }, format: formatOk('trace_link') },
+  trace_unlink: { tool: 'oracle_trace_unlink', method: 'DELETE', write: true, help: 'trace_unlink <traceId> --direction prev|next', build: p => route(`/api/traces/${enc(first(p, 'trace_id', 'traceId'))}/link`, { direction: f(p, 'direction') || p.pos[1] }), format: formatOk('trace_unlink') },
+  trace_chain: { tool: 'oracle_trace_chain', method: 'GET', help: 'trace_chain <traceId>', build: p => route(`/api/traces/${enc(first(p, 'trace_id', 'traceId'))}/linked-chain`), format: formatRows('trace_chain', ['chain']) },
+  concepts: { tool: 'oracle_concepts', method: 'GET', help: 'concepts [--type all|learning|pattern] [--limit N]', build: p => route('/api/concepts', { type: f(p, 'type'), limit: f(p, 'limit') }), format: formatRows('concepts', ['concepts']) },
+  handoff: { tool: 'oracle_handoff', method: 'POST', write: true, help: 'handoff <content> [--slug S]', build: p => route('/api/handoff', undefined, { content: text(p, 'content', 'content'), slug: f(p, 'slug') }), format: formatOk('handoff') },
+  inbox: { tool: 'oracle_inbox', method: 'GET', help: 'inbox [--type handoff|all] [--limit N]', build: p => route('/api/inbox', { type: f(p, 'type'), limit: f(p, 'limit'), offset: f(p, 'offset') }), format: formatRows('inbox', ['files']) },
+  list: { tool: 'oracle_list', method: 'GET', help: 'list [--type all|learning|pattern] [--limit N]', build: p => route('/api/list', { type: f(p, 'type'), limit: f(p, 'limit'), offset: f(p, 'offset'), group: 'false' }), format: formatRows('list', ['documents', 'results']) },
+  read: { tool: 'oracle_read', method: 'GET', help: 'read <file-or-id> [--file F|--id ID]', build: p => route('/api/read', { file: f(p, 'file') || (!f(p, 'id') ? p.pos[0] : undefined), id: f(p, 'id') }), format: d => one(d?.content ?? d?.text ?? preview(d), 900) },
+  reflect: { tool: 'oracle_reflect', method: 'GET', help: 'reflect', build: () => route('/api/reflect'), format: d => `arra reflect: ${one(d?.text ?? d?.reflection ?? preview(d), 500)}` },
+  supersede: { tool: 'oracle_supersede', method: 'POST', write: true, help: 'supersede <oldId> <newId> [--reason R]', build: p => { const oldId = first(p, 'old_id', 'oldId'); const newId = f(p, 'new_id') || p.pos[1]; if (!newId) throw new Error('newId required'); return route('/api/supersede/document', undefined, { oldId, newId, reason: f(p, 'reason') }); }, format: formatOk('supersede') },
+  thread: { tool: 'oracle_thread', method: 'POST', write: true, help: 'thread <message> [--thread-id N] [--title T]', build: p => route('/api/thread', undefined, { message: text(p, 'message', 'message'), thread_id: n(p, 'thread_id'), title: f(p, 'title'), role: f(p, 'role') || 'human', model: f(p, 'model') }), format: formatOk('thread') },
+  threads: { tool: 'oracle_threads', method: 'GET', help: 'threads [--status active|closed] [--limit N]', build: p => route('/api/threads', { status: f(p, 'status'), limit: f(p, 'limit'), offset: f(p, 'offset') }), format: formatRows('threads', ['threads']) },
+  thread_read: { tool: 'oracle_thread_read', method: 'GET', help: 'thread_read <threadId>', build: p => route(`/api/thread/${enc(first(p, 'thread_id', 'threadId'))}`), format: d => [`arra thread: ${d?.thread?.id ?? d?.thread_id ?? '?'}`, d?.thread?.title && `title: ${d.thread.title}`, Array.isArray(d?.messages) && `messages: ${d.messages.length}`].filter(Boolean).join('\n') },
+  thread_update: { tool: 'oracle_thread_update', method: 'PATCH', write: true, help: 'thread_update <threadId> --status active|closed|answered|pending', build: p => route(`/api/thread/${enc(first(p, 'thread_id', 'threadId'))}/status`, undefined, { status: f(p, 'status') || p.pos[1] }), format: formatOk('thread_update') },
+  verify: { tool: 'oracle_verify', method: 'POST', write: true, help: 'verify [--check true|false] [--type all|learning|pattern]', build: p => route('/api/verify', undefined, { check: b(p, 'check'), type: f(p, 'type') }), format: d => `arra verify: ${preview(d, 500)}` },
+};
 
-function formatStats(data: any): string {
-  const docs = data?.total_documents ?? data?.totalDocuments ?? data?.documents ?? data?.stats?.documents;
-  const fts = data?.fts_count ?? data?.ftsCount ?? data?.stats?.fts;
-  const vector = data?.vector ?? data?.vectors ?? data?.vector_status;
-  return [
-    'arra stats',
-    docs !== undefined ? `docs: ${docs}` : undefined,
-    fts !== undefined ? `fts: ${fts}` : undefined,
-    vector !== undefined ? `vector: ${typeof vector === 'string' ? vector : oneLine(JSON.stringify(vector), 180)}` : undefined,
-  ].filter(Boolean).join('\n');
-}
-
-function formatHealth(data: any): string {
-  return [
-    `arra health: ${data?.status ?? 'unknown'}`,
-    data?.server ? `server: ${data.server}` : undefined,
-    data?.version ? `version: ${data.version}` : undefined,
-    data?.port ? `port: ${data.port}` : undefined,
-    data?.vectorMode ? `vectorMode: ${data.vectorMode}` : undefined,
-    data?.vectorUrl ? `vectorUrl: ${data.vectorUrl}` : undefined,
-    data?.vectorDisabledReason ? `vectorDisabledReason: ${oneLine(data.vectorDisabledReason)}` : undefined,
-  ].filter(Boolean).join('\n');
-}
-
-function formatTrace(data: any, id?: string): string {
-  if (id) {
-    const trace = data?.trace ?? data;
-    return [
-      `arra trace: ${trace?.trace_id ?? trace?.id ?? id}`,
-      trace?.query ? `query: ${oneLine(trace.query)}` : undefined,
-      trace?.status ? `status: ${trace.status}` : undefined,
-      trace?.created_at || trace?.createdAt ? `at: ${trace.created_at ?? trace.createdAt}` : undefined,
-    ].filter(Boolean).join('\n');
-  }
-  const logs = Array.isArray(data?.logs) ? data.logs : [];
-  const traces = Array.isArray(data?.traces) ? data.traces : [];
-  const rows = logs.length ? logs : traces;
-  if (!rows.length) return 'arra trace: no audit rows';
-  const kind = logs.length ? 'search logs' : 'traces';
-  const lines = [`arra trace: latest ${Math.min(rows.length, 8)} ${kind}`];
-  for (const row of rows.slice(0, 8)) {
-    lines.push(`- ${row.id ?? row.trace_id ?? '?'} ${oneLine(row.query ?? row.title ?? row.mode ?? row.type ?? '')}`);
-  }
-  return lines.join('\n');
-}
+function usage(): InvokeResult { return { ok: false, error: 'usage', output: ['usage: maw arra <subcommand> [args]', `subcommands: ${Object.keys(COMMANDS).sort().join('|')}`, '', ...Object.entries(COMMANDS).sort().map(([name, spec]) => `  ${name}  ${spec.help}`)].join('\n') }; }
+export function listSubcommands(): string[] { return Object.keys(COMMANDS).sort(); }
 
 export async function runArra(args: string[], request: Requester = requestJson): Promise<InvokeResult> {
-  const sub = (args[0] || '').toLowerCase();
-  const rest = args.slice(1);
+  const sub = key(args[0] || '');
+  if (!sub || sub === 'help' || sub === '--help' || sub === '-h') return usage();
+  const spec = COMMANDS[sub];
+  if (!spec) return usage();
   try {
-    if (sub === 'search') {
-      const mode = takeFlag(rest, '--mode') || 'fts';
-      if (!['fts', 'hybrid', 'vector'].includes(mode)) return { ok: false, error: `invalid mode: ${mode}` };
-      const limit = takeFlag(rest, '--limit') || '5';
-      const q = positional(rest).join(' ').trim();
-      if (!q) return { ok: false, error: 'query required', output: 'usage: maw arra search <q> [--mode fts|hybrid|vector] [--limit N]' };
-      const params = new URLSearchParams({ q, mode, limit });
-      const data = await request(`/api/search?${params}`);
-      return { ok: true, output: formatSearch(data, q) };
-    }
-
-    if (sub === 'learn') {
-      const project = takeFlag(rest, '--project');
-      const text = positional(rest).join(' ').trim();
-      if (!text) return { ok: false, error: 'text required', output: 'usage: maw arra learn <text> [--project P]' };
-      const data = await request('/api/learn', {
-        method: 'POST',
-        body: JSON.stringify({ pattern: text, ...(project ? { project } : {}) }),
-      });
-      return { ok: true, output: formatLearn(data) };
-    }
-
-    if (sub === 'stats') return { ok: true, output: formatStats(await request('/api/stats')) };
-    if (sub === 'health') return { ok: true, output: formatHealth(await request('/api/health')) };
-    if (sub === 'trace') {
-      const id = rest[0];
-      const data = await request(id ? `/api/traces/${encodeURIComponent(id)}` : '/api/logs?limit=8');
-      return { ok: true, output: formatTrace(data, id) };
-    }
-
-    return usage();
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
-  }
+    const parsed = parse(args.slice(1));
+    const built = spec.build(parsed);
+    const init: RequestInit = { method: spec.method };
+    if (built.body && Object.keys(built.body).length > 0) init.body = JSON.stringify(built.body);
+    if (spec.write) init.headers = authHeaders();
+    const data = await request(qs(built.path, built.query), init);
+    return { ok: true, output: (spec.format ?? ((d) => preview(d)))(data, parsed) };
+  } catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
 }
 
-export default async function handler(ctx: InvokeContext): Promise<InvokeResult> {
-  return runArra(ctx.args ?? []);
-}
+export default async function handler(ctx: InvokeContext): Promise<InvokeResult> { return runArra(ctx.args ?? []); }

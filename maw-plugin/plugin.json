@@ -6,10 +6,15 @@
   "description": "Query and write ARRA Oracle over HTTP from maw.",
   "cli": {
     "command": "arra",
-    "aliases": ["or"],
-    "help": "maw arra <search|learn|stats|health|trace>"
+    "aliases": [
+      "or"
+    ],
+    "help": "maw arra <search|learn|stats|health|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|thread|thread_read|thread_update|threads|verify>"
   },
-  "capabilities": ["net:http"],
+  "capabilities": [
+    "net:http"
+  ],
   "weight": 50,
-  "schemaVersion": 1
+  "schemaVersion": 1,
+  "help": "maw arra <search|learn|stats|health|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|thread|thread_read|thread_update|threads|verify>"
 }

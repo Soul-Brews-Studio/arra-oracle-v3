@@ -1,25 +1,47 @@
 # maw arra plugin
 
-`maw arra` is a compact ARRA Oracle HTTP client for the maw plugin system.
+Compact `maw arra` commands for the ARRA Oracle HTTP API. The plugin is a thin 1:1 CLI surface over the Oracle MCP tools, using `ORACLE_API` / `NEO_ARRA_API` as the base URL and falling back to `http://localhost:47778`.
 
-## Install from this repo
+## Install
 
-```bash
+```sh
 ln -s $(pwd)/maw-plugin ~/.maw/plugins/arra
 maw plugin enable arra
 ```
 
-## Usage
+## Auth
 
-```bash
-maw arra health
+Read commands are open. Write commands attach `Authorization: Bearer $ARRA_API_TOKEN` when `ARRA_API_TOKEN` (or `NEO_ARRA_API_TOKEN`) is set, matching the `/api/learn` token gate.
+
+## Commands
+
+```sh
+maw arra help
+maw arra search "query" --mode fts --limit 5
+maw arra learn "new project fact" --project my-repo
 maw arra stats
-maw arra search "oracle memory" --mode fts --limit 5
-maw arra learn "FTS stays useful before vectors" --project arra-oracle-v3
-maw arra trace
-maw arra trace <trace-id>
+maw arra health
+
+maw arra trace "investigate auth loop" --scope project
+maw arra trace_list --status raw --limit 10
+maw arra trace_get <traceId> [--include-chain]
+maw arra trace_link <prevTraceId> <nextTraceId>
+maw arra trace_unlink <traceId> --direction next
+maw arra trace_chain <traceId>
+
+maw arra concepts --limit 20
+maw arra handoff "handoff text" --slug next-step
+maw arra inbox --type handoff --limit 10
+maw arra list --type learning --limit 20
+maw arra read --id <docId>
+maw arra reflect
+maw arra supersede <oldId> <newId> --reason "merged duplicate"
+
+maw arra thread "message" --thread-id 42 --title "Investigation"
+maw arra threads --status active --limit 10
+maw arra thread_read 42
+maw arra thread_update 42 --status closed
+maw arra verify --check false --type learning
 ```
 
-The base URL resolves from `ORACLE_API`, then `NEO_ARRA_API`, then `http://localhost:47778`.
-
-`learn` sends `Authorization: Bearer $ARRA_API_TOKEN` when `ARRA_API_TOKEN` (or `NEO_ARRA_API_TOKEN`) is set, matching the optional HTTP write gate.
+Hyphenated aliases work for underscored commands, e.g. `trace-get` and `thread-update`.
