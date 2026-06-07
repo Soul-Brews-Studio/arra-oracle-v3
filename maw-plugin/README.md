@@ -17,6 +17,8 @@ Read commands are open. Write commands attach `Authorization: Bearer $ARRA_API_T
 
 ```sh
 maw arra help
+maw arra frontend          # opens https://studio.buildwithoracle.com/?api=<backend>
+maw arra ui --no-open      # prints the link only
 maw arra search "query" --mode fts --limit 5
 maw arra learn "new project fact" --project my-repo
 maw arra stats
@@ -43,5 +45,7 @@ maw arra thread_read 42
 maw arra thread_update 42 --status closed
 maw arra verify --check false --type learning
 ```
+
+`frontend`, `ui`, and `open` construct `/?api=<backend>` from `ARRA_FRONTEND_URL` (default `https://studio.buildwithoracle.com`) and `ORACLE_API` / `NEO_ARRA_API`.
 
 Hyphenated aliases work for underscored commands, e.g. `trace-get` and `thread-update`.

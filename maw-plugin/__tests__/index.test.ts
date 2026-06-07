@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { authHeaders, listSubcommands, resolveBaseUrl, runArra } from '../index.ts';
+import { authHeaders, buildFrontendUrl, listSubcommands, resolveBaseUrl, runArra } from '../index.ts';
 
 type Call = { path: string; init?: RequestInit };
 
@@ -29,11 +29,13 @@ describe('maw arra plugin', () => {
   test('help lists the full compact MCP surface', async () => {
     expect(listSubcommands()).toEqual([
       'concepts',
+      'frontend',
       'handoff',
       'health',
       'inbox',
       'learn',
       'list',
+      'open',
       'read',
       'reflect',
       'search',
@@ -49,13 +51,31 @@ describe('maw arra plugin', () => {
       'trace_link',
       'trace_list',
       'trace_unlink',
+      'ui',
       'verify',
     ]);
 
     const help = await runArra(['help']);
+    expect(help.output).toContain('frontend');
     expect(help.output).toContain('trace_chain');
     expect(help.output).toContain('thread_update');
     expect(help.output).toContain('verify');
+  });
+
+
+  test('builds and optionally opens the frontend link', async () => {
+    const env = { ORACLE_API: 'http://localhost:47778', ARRA_FRONTEND_URL: 'https://studio.buildwithoracle.com' };
+    expect(buildFrontendUrl(env)).toBe('https://studio.buildwithoracle.com/?api=http://localhost:47778');
+
+    const opened: string[] = [];
+    const openResult = await runArra(['ui'], async () => ({}), url => opened.push(url), env);
+    expect(openResult.ok).toBe(true);
+    expect(openResult.output).toContain('https://studio.buildwithoracle.com/?api=http://localhost:47778');
+    expect(opened).toEqual(['https://studio.buildwithoracle.com/?api=http://localhost:47778']);
+
+    const noOpenResult = await runArra(['open', '--no-open'], async () => ({}), url => opened.push(url), env);
+    expect(noOpenResult.output).toContain('not opened');
+    expect(opened).toEqual(['https://studio.buildwithoracle.com/?api=http://localhost:47778']);
   });
 
   test('routes read-only commands to the expected endpoints', async () => {

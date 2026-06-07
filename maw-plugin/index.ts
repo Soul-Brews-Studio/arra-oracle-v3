@@ -1,8 +1,10 @@
+import { spawn } from 'node:child_process';
 import { DEFAULT_ORACLE_API, normalizeApiBase } from '../cli/src/lib/config.ts';
 
 type InvokeContext = { source?: string; args?: string[]; writer?: (...args: unknown[]) => void };
 type InvokeResult = { ok: boolean; output?: string; error?: string };
 type Requester = (path: string, init?: RequestInit) => Promise<unknown>;
+type Opener = (url: string) => void;
 type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 type Parsed = { pos: string[]; flags: Record<string, string | boolean> };
 type Built = { path: string; query?: Record<string, unknown>; body?: Record<string, unknown> };
@@ -12,6 +14,19 @@ export const command = { name: 'arra', description: 'ARRA Oracle HTTP helper —
 
 export function resolveBaseUrl(env: Record<string, string | undefined> = process.env): string {
   return normalizeApiBase(env.ORACLE_API?.trim() || env.NEO_ARRA_API?.trim() || DEFAULT_ORACLE_API);
+}
+
+export function resolveFrontendUrl(env: Record<string, string | undefined> = process.env): string {
+  return normalizeApiBase(env.ARRA_FRONTEND_URL?.trim() || 'https://studio.buildwithoracle.com');
+}
+
+export function buildFrontendUrl(env: Record<string, string | undefined> = process.env): string {
+  return `${resolveFrontendUrl(env)}/?api=${resolveBaseUrl(env)}`;
+}
+
+function openUrl(url: string): void {
+  const cmd = process.platform === 'darwin' ? 'open' : 'xdg-open';
+  spawn(cmd, [url], { detached: true, stdio: 'ignore' }).unref();
 }
 
 export function authHeaders(env: Record<string, string | undefined> = process.env): Record<string, string> {
@@ -102,16 +117,29 @@ export const COMMANDS: Record<string, Spec> = {
   verify: { tool: 'oracle_verify', method: 'POST', write: true, help: 'verify [--check true|false] [--type all|learning|pattern]', build: p => route('/api/verify', undefined, { check: b(p, 'check'), type: f(p, 'type') }), format: d => `arra verify: ${preview(d, 500)}` },
 };
 
-function usage(): InvokeResult { return { ok: false, error: 'usage', output: ['usage: maw arra <subcommand> [args]', `subcommands: ${Object.keys(COMMANDS).sort().join('|')}`, '', ...Object.entries(COMMANDS).sort().map(([name, spec]) => `  ${name}  ${spec.help}`)].join('\n') }; }
-export function listSubcommands(): string[] { return Object.keys(COMMANDS).sort(); }
+const LOCAL_COMMANDS = { frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]' } as const;
 
-export async function runArra(args: string[], request: Requester = requestJson): Promise<InvokeResult> {
+function usage(): InvokeResult {
+  const commandNames = [...Object.keys(COMMANDS), ...Object.keys(LOCAL_COMMANDS)].sort();
+  return { ok: false, error: 'usage', output: ['usage: maw arra <subcommand> [args]', `subcommands: ${commandNames.join('|')}`, '', ...Object.entries(LOCAL_COMMANDS).sort().map(([name, help]) => `  ${name}  ${help}`), ...Object.entries(COMMANDS).sort().map(([name, spec]) => `  ${name}  ${spec.help}`)].join('\n') };
+}
+export function listSubcommands(): string[] { return [...Object.keys(COMMANDS), ...Object.keys(LOCAL_COMMANDS)].sort(); }
+
+function runFrontend(parsed: Parsed, opener: Opener, env: Record<string, string | undefined>): InvokeResult {
+  const url = buildFrontendUrl(env);
+  const shouldOpen = b(parsed, 'no_open') !== true;
+  if (shouldOpen) opener(url);
+  return { ok: true, output: [`arra frontend: ${url}`, shouldOpen ? 'opened browser' : 'not opened (--no-open)'].join('\n') };
+}
+
+export async function runArra(args: string[], request: Requester = requestJson, opener: Opener = openUrl, env: Record<string, string | undefined> = process.env): Promise<InvokeResult> {
   const sub = key(args[0] || '');
   if (!sub || sub === 'help' || sub === '--help' || sub === '-h') return usage();
+  const parsed = parse(args.slice(1));
+  if (sub === 'frontend' || sub === 'ui' || sub === 'open') return runFrontend(parsed, opener, env);
   const spec = COMMANDS[sub];
   if (!spec) return usage();
   try {
-    const parsed = parse(args.slice(1));
     const built = spec.build(parsed);
     const init: RequestInit = { method: spec.method };
     if (built.body && Object.keys(built.body).length > 0) init.body = JSON.stringify(built.body);
