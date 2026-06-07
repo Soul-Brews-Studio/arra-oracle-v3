@@ -31,12 +31,16 @@ export class OllamaEmbeddings implements EmbeddingProvider {
   private _dimensionsDetected = false;
   private attempts: number;
   private retryDelayMs: number;
+  private batchSize: number;
+  private timeoutMs: number;
 
   constructor(config: { baseUrl?: string; model?: string } = {}) {
     this.baseUrl = config.baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     this.model = config.model || 'nomic-embed-text';
     this.attempts = positiveInt(process.env.ORACLE_EMBED_ATTEMPTS, 3);
     this.retryDelayMs = positiveInt(process.env.ORACLE_EMBED_RETRY_DELAY_MS, 150);
+    this.batchSize = positiveInt(process.env.ORACLE_EMBED_BATCH_SIZE, 50);
+    this.timeoutMs = positiveInt(process.env.ORACLE_EMBED_TIMEOUT_MS, 30_000);
     // Known model dimensions (fallback before auto-detect).
     // For unknown models, set to 0 → adapters MUST probe via embed() before
     // creating columns (see #qwen3-dim-fallback issue).
@@ -59,42 +63,17 @@ export class OllamaEmbeddings implements EmbeddingProvider {
   }
 
   async embed(texts: string[], type?: EmbedType): Promise<number[][]> {
+    const prepared = texts.map(text => this.prepareText(text, type));
     const embeddings: number[][] = [];
 
-    for (const text of texts) {
-      // Truncate to ~2000 chars — Thai text uses 2-3x more tokens than English
-      let truncated = text.length > 2000 ? text.slice(0, 2000) : text;
-
-      // Instruction prefixes per model family. Wrong protocol = silent
-      // 5–30pt cross-language recall regression (observed on qwen3:4b).
-      //
-      //   - bge-v1.5 / multilingual-e5 → "query: ..." / "passage: ..."
-      //     (bge-m3 doesn't strictly require it but tolerates it)
-      //   - qwen3-embedding → "Instruct: <task>\nQuery: <q>" on QUERIES ONLY
-      //     passages stay raw. https://huggingface.co/Qwen/Qwen3-Embedding-0.6B
-      const isQwen3 = this.model.includes('qwen3-embedding');
-      const isE5 = this.model.includes('multilingual-e5') || this.model.includes('/e5-');
-      const isBge = this.model.includes('bge');
-
-      if (type === 'query') {
-        if (isQwen3) {
-          truncated = `Instruct: Given a search query, retrieve relevant passages that answer the query\nQuery: ${truncated}`;
-        } else if (isBge || isE5) {
-          truncated = `query: ${truncated}`;
-        }
-      } else if (type === 'passage') {
-        if (isBge || isE5) {
-          truncated = `passage: ${truncated}`;
-        }
-        // qwen3-embedding: passages stay raw per HF model card
-      }
-
-      const data = await this.embedOneWithRetry(truncated);
-      embeddings.push(data.embedding);
+    for (let i = 0; i < prepared.length; i += this.batchSize) {
+      const batch = prepared.slice(i, i + this.batchSize);
+      const data = await this.embedBatchWithRetry(batch);
+      embeddings.push(...data.embeddings);
 
       // Auto-detect dimensions from first response
-      if (!this._dimensionsDetected && data.embedding.length > 0) {
-        this.dimensions = data.embedding.length;
+      if (!this._dimensionsDetected && data.embeddings[0]?.length > 0) {
+        this.dimensions = data.embeddings[0].length;
         this._dimensionsDetected = true;
       }
     }
@@ -102,14 +81,48 @@ export class OllamaEmbeddings implements EmbeddingProvider {
     return embeddings;
   }
 
-  private async embedOneWithRetry(prompt: string): Promise<{ embedding: number[] }> {
+  private prepareText(text: string, type?: EmbedType): string {
+    // Truncate to ~2000 chars — Thai text uses 2-3x more tokens than English
+    let truncated = text.length > 2000 ? text.slice(0, 2000) : text;
+
+    // Instruction prefixes per model family. Wrong protocol = silent
+    // 5–30pt cross-language recall regression (observed on qwen3:4b).
+    //
+    //   - bge-v1.5 / multilingual-e5 → "query: ..." / "passage: ..."
+    //     (bge-m3 doesn't strictly require it but tolerates it)
+    //   - qwen3-embedding → "Instruct: <task>\nQuery: <q>" on QUERIES ONLY
+    //     passages stay raw. https://huggingface.co/Qwen/Qwen3-Embedding-0.6B
+    const isQwen3 = this.model.includes('qwen3-embedding');
+    const isE5 = this.model.includes('multilingual-e5') || this.model.includes('/e5-');
+    const isBge = this.model.includes('bge');
+
+    if (type === 'query') {
+      if (isQwen3) {
+        truncated = `Instruct: Given a search query, retrieve relevant passages that answer the query\nQuery: ${truncated}`;
+      } else if (isBge || isE5) {
+        truncated = `query: ${truncated}`;
+      }
+    } else if (type === 'passage') {
+      if (isBge || isE5) {
+        truncated = `passage: ${truncated}`;
+      }
+      // qwen3-embedding: passages stay raw per HF model card
+    }
+
+    return truncated;
+  }
+
+  private async embedBatchWithRetry(input: string[]): Promise<{ embeddings: number[][] }> {
     let lastError: unknown;
     for (let attempt = 1; attempt <= this.attempts; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
       try {
-        const response = await fetch(`${this.baseUrl}/api/embeddings`, {
+        const response = await fetch(`${this.baseUrl}/api/embed`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: this.model, prompt }),
+          body: JSON.stringify({ model: this.model, input }),
+          signal: controller.signal,
         });
 
         if (!response.ok) {
@@ -117,12 +130,19 @@ export class OllamaEmbeddings implements EmbeddingProvider {
           throw new Error(`Ollama API error (${response.status}): ${error}`);
         }
 
-        return await response.json() as { embedding: number[] };
+        const data = await response.json() as { embeddings?: number[][]; embedding?: number[] };
+        const embeddings = data.embeddings ?? (data.embedding ? [data.embedding] : undefined);
+        if (!embeddings || embeddings.length !== input.length) {
+          throw new Error(`Ollama returned ${embeddings?.length ?? 0} embeddings for ${input.length} inputs`);
+        }
+        return { embeddings };
       } catch (err) {
         lastError = err;
         if (attempt < this.attempts) {
           await sleep(this.retryDelayMs * attempt);
         }
+      } finally {
+        clearTimeout(timeout);
       }
     }
 

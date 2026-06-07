@@ -11,7 +11,7 @@ async function responseBody(res: Response) {
 }
 
 export async function proxyVectorIndexer(
-  path: 'start' | 'status' | 'models',
+  path: 'start' | 'status' | 'stop' | 'models',
   set: StatusSetter,
   init: RequestInit = {},
 ): Promise<unknown | null> {

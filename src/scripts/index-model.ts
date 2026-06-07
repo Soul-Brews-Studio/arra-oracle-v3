@@ -24,8 +24,9 @@ if (!modelKey || !EMBEDDING_MODELS[modelKey]) {
 
 const preset = EMBEDDING_MODELS[modelKey];
 
-// Larger models get smaller batches to avoid OOM / timeouts
-const BATCH_SIZE = modelKey === 'nomic' ? 100 : 50;
+// Keep script batches aligned with OllamaEmbeddings' /api/embed batching default.
+const parsedBatchSize = Number.parseInt(process.env.ORACLE_EMBED_BATCH_SIZE || '50', 10);
+const BATCH_SIZE = Number.isFinite(parsedBatchSize) && parsedBatchSize > 0 ? parsedBatchSize : 50;
 
 async function main() {
   console.log(`=== ${modelKey} Indexer ===`);

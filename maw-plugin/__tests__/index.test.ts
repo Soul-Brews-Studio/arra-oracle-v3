@@ -61,6 +61,10 @@ describe('maw arra plugin', () => {
       'trace_unlink',
       'ui',
       'vector',
+      'vector_index',
+      'vector_models',
+      'vector_status',
+      'vector_stop',
       'verify',
     ]);
 
@@ -69,6 +73,7 @@ describe('maw arra plugin', () => {
     expect(help.output).toContain('studio');
     expect(help.output).toContain('index');
     expect(help.output).toContain('vector');
+    expect(help.output).toContain('vector-index');
     expect(help.output).toContain('trace_chain');
     expect(help.output).toContain('thread_update');
     expect(help.output).toContain('verify');
@@ -134,6 +139,8 @@ describe('maw arra plugin', () => {
       [['menu'], 'GET', '/api/menu'],
       [['vector'], 'GET', '/api/vector/config'],
       [['health'], 'GET', '/api/health'],
+      [['vector-status'], 'GET', '/api/vector/index/status'],
+      [['vector-models'], 'GET', '/api/vector/index/models'],
       [['trace_list', '--status', 'raw', '--limit', '2'], 'GET', '/api/traces?status=raw&limit=2'],
       [['trace_get', 'abc'], 'GET', '/api/traces/abc'],
       [['trace-get', 'abc', '--include-chain'], 'GET', '/api/traces/abc/chain'],
@@ -161,6 +168,8 @@ describe('maw arra plugin', () => {
       [['index', '--project', 'demo', '--path', '/tmp/vault'], 'POST', '/api/indexer/reindex', { project: 'demo', path: '/tmp/vault' }],
       [['scan', '--path', '/tmp/vault'], 'POST', '/api/indexer/scan', { sourcePath: '/tmp/vault' }],
       [['trace', 'audit', '--scope', 'project'], 'POST', '/api/traces', { query: 'audit', scope: 'project' }],
+      [['vector-index', '--model', 'all'], 'POST', '/api/vector/index/start', { model: 'all' }],
+      [['vector-stop'], 'POST', '/api/vector/index/stop', undefined],
       [['trace_link', 'a', 'b'], 'POST', '/api/traces/a/link', { nextId: 'b' }],
       [['trace_unlink', 'a', '--direction', 'next'], 'DELETE', '/api/traces/a/link?direction=next', undefined],
       [['handoff', 'hello', '--slug', 'demo'], 'POST', '/api/handoff', { content: 'hello', slug: 'demo' }],

@@ -32,6 +32,10 @@ maw arra settings
 maw arra feed
 maw arra menu
 maw arra vector
+maw arra vector-index --model bge-m3
+maw arra vector-status
+maw arra vector-stop
+maw arra vector-models
 
 maw arra trace "investigate auth loop" --scope project
 maw arra trace_list --status raw --limit 10

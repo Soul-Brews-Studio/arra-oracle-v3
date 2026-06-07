@@ -26,6 +26,9 @@ const remote = Bun.serve({
     if (url.pathname === '/api/vector/index/status') {
       return Response.json({ status: 'completed', source: 'vault', current: 1, total: 1 });
     }
+    if (url.pathname === '/api/vector/index/stop') {
+      return Response.json({ status: 'stopping', stopped: true });
+    }
     if (url.pathname === '/api/vector/index/models') {
       return Response.json({ models: { 'bge-m3': { count: 1, adapter: 'lancedb' } } });
     }
@@ -76,10 +79,14 @@ describe('VECTOR_URL route boundary', () => {
     const status = await app.handle(new Request('http://localhost/api/vector/index/status'));
     expect((await status.json() as { source: string }).source).toBe('vault');
 
+    const stop = await app.handle(new Request('http://localhost/api/vector/index/stop', { method: 'POST' }));
+    expect((await stop.json() as { stopped: boolean }).stopped).toBe(true);
+
     const models = await app.handle(new Request('http://localhost/api/vector/index/models'));
     expect((await models.json() as { models: Record<string, unknown> }).models['bge-m3']).toBeDefined();
     expect(calls).toContain('POST /api/vector/index/start');
     expect(calls).toContain('GET /api/vector/index/status');
+    expect(calls).toContain('POST /api/vector/index/stop');
     expect(calls).toContain('GET /api/vector/index/models');
   });
 });
