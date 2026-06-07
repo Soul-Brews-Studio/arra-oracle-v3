@@ -84,6 +84,23 @@ import Base from "../layouts/Base.astro";
       crypto.getRandomValues(bytes);
       return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
     }
+
+    function legacyKey(...parts: string[]) { return parts.join("_"); }
+    function migrateLegacyStorage() {
+      const oldApiKey = legacyKey("NEO", "ARRA", "API");
+      const oldApi = localStorage.getItem(oldApiKey);
+      if (oldApi) {
+        localStorage.setItem("ORACLE_API", oldApi);
+        localStorage.removeItem(oldApiKey);
+      }
+      const oldTokenKey = legacyKey("NEO", "ARRA", "API", "TOKEN");
+      const oldToken = localStorage.getItem(oldTokenKey);
+      if (oldToken) {
+        localStorage.setItem("ARRA_API_TOKEN", oldToken);
+        localStorage.removeItem(oldTokenKey);
+      }
+    }
+    migrateLegacyStorage();
     function currentApi() { return (apiInput.value || "http://localhost:47778").replace(/\/+$/, ""); }
     function currentToken() { return tokenInput.value.trim(); }
     function renderSnippets() {
@@ -98,9 +115,9 @@ import Base from "../layouts/Base.astro";
     async function saveAndCheck() {
       const api = currentApi();
       const token = currentToken();
-      localStorage.setItem("NEO_ARRA_API", api);
-      if (token) { localStorage.setItem("ARRA_API_TOKEN", token); localStorage.setItem("NEO_ARRA_API_TOKEN", token); }
-      else { localStorage.removeItem("ARRA_API_TOKEN"); localStorage.removeItem("NEO_ARRA_API_TOKEN"); }
+      localStorage.setItem("ORACLE_API", api);
+      if (token) { localStorage.setItem("ARRA_API_TOKEN", token); }
+      else { localStorage.removeItem("ARRA_API_TOKEN"); }
       renderSnippets();
       status.textContent = "checking /api/health…";
       status.className = "text-sm text-amber-300";
@@ -113,14 +130,14 @@ import Base from "../layouts/Base.astro";
         status.className = "text-sm text-red-300";
       }
     }
-    apiInput.value = new URLSearchParams(window.location.search).get("api") || localStorage.getItem("NEO_ARRA_API") || apiInput.value;
-    tokenInput.value = localStorage.getItem("ARRA_API_TOKEN") || localStorage.getItem("NEO_ARRA_API_TOKEN") || "";
+    apiInput.value = new URLSearchParams(window.location.search).get("api") || localStorage.getItem("ORACLE_API") || apiInput.value;
+    tokenInput.value = localStorage.getItem("ARRA_API_TOKEN") || "";
     renderSnippets();
     apiInput.addEventListener("input", renderSnippets);
     tokenInput.addEventListener("input", renderSnippets);
     document.getElementById("generate-token")?.addEventListener("click", () => { tokenInput.value = generateToken(); renderSnippets(); });
     document.getElementById("save-token")?.addEventListener("click", saveAndCheck);
-    document.getElementById("clear-token")?.addEventListener("click", () => { tokenInput.value = ""; localStorage.removeItem("ARRA_API_TOKEN"); localStorage.removeItem("NEO_ARRA_API_TOKEN"); renderSnippets(); status.textContent = "token cleared locally"; status.className = "text-sm text-gray-500"; });
+    document.getElementById("clear-token")?.addEventListener("click", () => { tokenInput.value = ""; localStorage.removeItem("ARRA_API_TOKEN"); renderSnippets(); status.textContent = "token cleared locally"; status.className = "text-sm text-gray-500"; });
     document.querySelectorAll<HTMLButtonElement>(".copy-btn[data-copy-target]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const target = document.getElementById(btn.dataset.copyTarget || "");

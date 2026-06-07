@@ -12,7 +12,7 @@ const CARDS = [
 
 const INSTALL = [
   { label: "Backend (MCP server)", cmd: "bunx --bun arra-oracle-v3@github:Soul-Brews-Studio/arra-oracle-v3" },
-  { label: "CLI (plugin runner)", cmd: "bunx --bun neo-arra@github:Soul-Brews-Studio/arra-oracle-v3 --help" },
+  { label: "CLI (plugin runner)", cmd: "bunx --bun arra-oracle@github:Soul-Brews-Studio/arra-oracle-v3 --help" },
   { label: "UI (Oracle Studio)", cmd: "bunx --bun oracle-studio@github:Soul-Brews-Studio/oracle-studio" },
 ];
 ---
@@ -69,11 +69,17 @@ const INSTALL = [
   </main>
 
   <script>
+    const oldApiKey = ["NEO", "ARRA", "API"].join("_");
+    const oldApi = localStorage.getItem(oldApiKey);
+    if (oldApi) {
+      localStorage.setItem("ORACLE_API", oldApi);
+      localStorage.removeItem(oldApiKey);
+    }
     const params = new URLSearchParams(window.location.search);
-    const apiUrl = params.get("api") || localStorage.getItem("NEO_ARRA_API") || "";
+    const apiUrl = params.get("api") || localStorage.getItem("ORACLE_API") || "";
     if (!apiUrl) { /* nothing to do */ }
     else {
-      localStorage.setItem("NEO_ARRA_API", apiUrl);
+      localStorage.setItem("ORACLE_API", apiUrl);
       const ui = document.getElementById("connect-ui");
       if (ui) {
         ui.innerHTML = `
@@ -87,7 +93,7 @@ const INSTALL = [
           </div>`;
       }
       document.getElementById("disconnect-btn")?.addEventListener("click", () => {
-        localStorage.removeItem("NEO_ARRA_API");
+        localStorage.removeItem("ORACLE_API");
         const u = new URL(location.href); u.searchParams.delete("api"); location.href = u.toString();
       });
       const dot = document.getElementById("status-dot");

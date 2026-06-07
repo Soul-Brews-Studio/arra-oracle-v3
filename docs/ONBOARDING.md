@@ -93,8 +93,8 @@ http://localhost:47778/connect?api=http://localhost:47778
 
 The `/connect` page is a browser-local credential helper:
 
-- stores backend URL as `NEO_ARRA_API`;
-- stores optional token as `ARRA_API_TOKEN` / `NEO_ARRA_API_TOKEN` in localStorage;
+- stores backend URL as `ORACLE_API`;
+- stores optional token as `ARRA_API_TOKEN` in localStorage;
 - can generate a random token for you to copy into the server environment;
 - renders both `claude mcp add ...` and JSON config snippets.
 

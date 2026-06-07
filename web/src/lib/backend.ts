@@ -315,7 +315,7 @@ export class MockBackend implements BackendClient {
 
 function storedApiToken(): string | null {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem("ARRA_API_TOKEN") || window.localStorage.getItem("NEO_ARRA_API_TOKEN");
+  return window.localStorage.getItem("ARRA_API_TOKEN");
 }
 
 export class RealBackend implements BackendClient {
@@ -474,7 +474,7 @@ export function createBackendClient(): BackendClient {
   // Check ?api= query param or persisted home-page connection in browser context
   if (typeof window !== "undefined") {
     const params = new URLSearchParams(window.location.search);
-    const apiUrl = params.get("api") || window.localStorage.getItem("NEO_ARRA_API");
+    const apiUrl = params.get("api") || window.localStorage.getItem("ORACLE_API");
     if (apiUrl) return new RealBackend(apiUrl.replace(/\/+$/, ""));
   }
 

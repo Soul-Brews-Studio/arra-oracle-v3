@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "neo-arra-web",
+      "name": "arra-oracle-web",
       "dependencies": {
         "astro": "^5.17.0",
         "hook-menu": "github:Soul-Brews-Studio/hook-menu",
