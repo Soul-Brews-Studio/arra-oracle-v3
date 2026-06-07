@@ -8,21 +8,23 @@
     "build": "astro build",
     "preview": "astro preview",
     "deploy:preview": "astro build && wrangler deploy --config wrangler.preview.json",
-    "deploy:production": "astro build && wrangler deploy"
+    "deploy:production": "astro build && wrangler deploy",
+    "test": "bun test"
   },
   "dependencies": {
     "astro": "^5.17.0",
+    "hook-menu": "github:Soul-Brews-Studio/hook-menu",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "three": "^0.184.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "@types/three": "^0.184.0",
     "tailwindcss": "^4.1.0",
     "typescript": "^5.8.0",
-    "wrangler": "^4.63.0",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3"
+    "wrangler": "^4.63.0"
   }
 }
