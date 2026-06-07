@@ -97,7 +97,7 @@ export const COMMANDS: Record<string, Spec> = {
   learn: { tool: 'oracle_learn', method: 'POST', write: true, help: 'learn <text> [--project P] [--source S] [--concepts a,b]', build: p => route('/api/learn', undefined, { pattern: text(p, 'pattern', 'text'), project: f(p, 'project'), source: f(p, 'source'), concepts: f(p, 'concepts')?.split(',').map(s => s.trim()).filter(Boolean) }), format: formatOk('learn') },
   stats: { tool: 'oracle_stats', method: 'GET', help: 'stats', build: () => route('/api/stats'), format: formatStats },
   index: { tool: 'oracle_index', method: 'POST', write: true, help: 'index [--project P] [--path PATH]', build: p => route('/api/indexer/reindex', undefined, { project: f(p, 'project'), path: f(p, 'path') || p.pos[0] }), format: formatOk('index') },
-  scan: { tool: 'oracle_scan', method: 'GET', help: 'scan', build: () => route('/api/indexer/scan'), format: formatRows('scan', ['files', 'items']) },
+  scan: { tool: 'oracle_scan', method: 'POST', help: 'scan [--path PATH]', build: p => route('/api/indexer/scan', undefined, { sourcePath: f(p, 'path') || p.pos[0] }), format: formatRows('scan', ['files', 'items']) },
   plugins: { tool: 'oracle_plugins', method: 'GET', help: 'plugins', build: () => route('/api/plugins'), format: formatRows('plugins', ['plugins']) },
   settings: { tool: 'oracle_settings', method: 'GET', help: 'settings', build: () => route('/api/settings/tools'), format: d => `arra settings: ${preview(d, 700)}` },
   feed: { tool: 'oracle_feed', method: 'GET', help: 'feed', build: () => route('/api/feed'), format: formatRows('feed', ['feed', 'items', 'entries']) },

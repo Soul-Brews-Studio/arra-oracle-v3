@@ -91,7 +91,6 @@ describe('maw arra plugin', () => {
     const cases: Array<[string[], string, string]> = [
       [['search', 'hello', '--mode', 'vector', '--limit', '3'], 'GET', '/api/search?q=hello&limit=3&mode=vector'],
       [['stats'], 'GET', '/api/stats'],
-      [['scan'], 'GET', '/api/indexer/scan'],
       [['plugins'], 'GET', '/api/plugins'],
       [['settings'], 'GET', '/api/settings/tools'],
       [['feed'], 'GET', '/api/feed'],
@@ -123,6 +122,7 @@ describe('maw arra plugin', () => {
     const cases: Array<[string[], string, string, unknown]> = [
       [['learn', 'new', 'pattern', '--project', 'demo'], 'POST', '/api/learn', { pattern: 'new pattern', project: 'demo' }],
       [['index', '--project', 'demo', '--path', '/tmp/vault'], 'POST', '/api/indexer/reindex', { project: 'demo', path: '/tmp/vault' }],
+      [['scan', '--path', '/tmp/vault'], 'POST', '/api/indexer/scan', { sourcePath: '/tmp/vault' }],
       [['trace', 'audit', '--scope', 'project'], 'POST', '/api/traces', { query: 'audit', scope: 'project' }],
       [['trace_link', 'a', 'b'], 'POST', '/api/traces/a/link', { nextId: 'b' }],
       [['trace_unlink', 'a', '--direction', 'next'], 'DELETE', '/api/traces/a/link?direction=next', undefined],

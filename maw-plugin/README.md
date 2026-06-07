@@ -24,7 +24,7 @@ maw arra learn "new project fact" --project my-repo
 maw arra stats
 maw arra health
 maw arra index --project my-repo --path /path/to/vault
-maw arra scan
+maw arra scan --path /path/to/repo-or-ψ
 maw arra plugins
 maw arra settings
 maw arra feed

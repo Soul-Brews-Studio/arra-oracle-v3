@@ -37,4 +37,45 @@ describe('POST /indexer/scan', () => {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
+
+  test('classifies oracle workspace folders by type', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-scan-types-'));
+    try {
+      const psiRoot = path.join(tmp, 'ψ');
+      const cases: Array<[string, string]> = [
+        ['inbox/message.md', 'inbox'],
+        ['outbox/sent.md', 'outbox'],
+        ['plans/next.md', 'plans'],
+        ['writing/draft.md', 'writing'],
+        ['learn/topic.md', 'learn'],
+        ['incubate/project/plan.md', 'incubate'],
+        ['archive/old.md', 'archive'],
+        ['memory/learnings/scan.md', 'learning'],
+        ['retrospectives/day.md', 'retro'],
+        ['distillations/finding.md', 'distillation'],
+        ['principles/rule.md', 'principle'],
+      ];
+
+      for (const [relative, type] of cases) {
+        const file = path.join(psiRoot, relative);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, `# ${type}\n`);
+      }
+
+      const app = new Elysia().use(scanEndpoint);
+      const res = await post(app, { sourcePath: psiRoot });
+      const body = await res.json() as any;
+
+      expect(res.status).toBe(200);
+      for (const [, type] of cases) expect(body.byType[type]).toBeGreaterThanOrEqual(1);
+      expect(body.total).toBe(cases.length);
+
+      const filtered = await (await post(app, { sourcePath: psiRoot, types: ['inbox', 'plans'] })).json() as any;
+      expect(filtered.total).toBe(2);
+      expect(filtered.byType).toEqual({ inbox: 1, plans: 1 });
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
 });
