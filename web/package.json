@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "astro": "^5.17.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "three": "^0.184.0"
   },
   "devDependencies": {
@@ -19,6 +21,8 @@
     "@types/three": "^0.184.0",
     "tailwindcss": "^4.1.0",
     "typescript": "^5.8.0",
-    "wrangler": "^4.63.0"
+    "wrangler": "^4.63.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3"
   }
 }
