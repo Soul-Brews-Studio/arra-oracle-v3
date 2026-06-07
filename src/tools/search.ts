@@ -9,6 +9,7 @@
 import { detectProject } from '../server/project-detect.ts';
 import { rerankCandidates } from '../server/reranker.ts';
 import { ensureVectorStoreConnected } from '../vector/factory.ts';
+import { isVectorSectionEnabled } from '../vector/config.ts';
 import type { SearchResult } from '../server/types.ts';
 import type { ToolContext, ToolResponse, OracleSearchInput } from './types.ts';
 
@@ -337,10 +338,18 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
 
   let warning: string | undefined;
   let vectorSearchError = false;
+  const requestedMode = mode;
+  let effectiveMode = mode;
+  const vectorSectionEnabled = requestedMode !== 'fts' && isVectorSectionEnabled();
+  let vectorAvailable = requestedMode !== 'fts' ? vectorSectionEnabled : undefined;
 
-  // Run FTS5 search (skip if vector-only mode)
+  if (requestedMode !== 'fts' && !vectorSectionEnabled) {
+    effectiveMode = 'fts';
+  }
+
+  // Run FTS5 search (skip only when vector is both requested and available)
   let ftsRawResults: any[] = [];
-  if (mode !== 'vector' && safeQuery) {
+  if (effectiveMode !== 'vector' && safeQuery) {
     try {
       if (type === 'all') {
         const stmt = ctx.sqlite.prepare(`
@@ -371,13 +380,14 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
     }
   }
 
-  // Run vector search (skip if fts-only mode)
+  // Run vector search (skip if fts-only mode or vector section is disabled)
   let vecResults: Awaited<ReturnType<typeof vectorSearch>> = [];
-  if (mode !== 'fts') {
+  if (effectiveMode !== 'fts') {
     try {
       vecResults = await vectorSearch(ctx, query, type, limit * 2, model);
     } catch (error) {
       vectorSearchError = true;
+      vectorAvailable = false;
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('[ChromaDB]', errorMessage);
       warning = `Vector search unavailable: ${errorMessage}. Using FTS5 only.`;
@@ -467,6 +477,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
     vectorMatches: number;
     sources: { fts: number; vector: number; hybrid: number };
     searchTime: number;
+    vectorAvailable?: boolean;
     reranked?: boolean;
     rerankFallbackReason?: string;
     warning?: string;
@@ -479,6 +490,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
     vectorMatches: vecResults.length,
     sources: { fts: ftsCount, vector: vectorCount, hybrid: hybridCount },
     searchTime,
+    ...(requestedMode !== 'fts' ? { vectorAvailable: vectorAvailable === true } : {}),
     reranked: reranked.reranked,
     ...(reranked.fallbackReason ? { rerankFallbackReason: reranked.fallbackReason } : {}),
   };
