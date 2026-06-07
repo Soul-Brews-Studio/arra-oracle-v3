@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { authHeaders, buildFrontendUrl, listSubcommands, resolveBaseUrl, runArra } from '../index.ts';
 
 type Call = { path: string; init?: RequestInit };
+type RunCall = { cmd: string; args: string[]; options?: { cwd?: string; env?: Record<string, string | undefined>; inherit?: boolean; capture?: boolean } };
 
 async function route(args: string[], response: unknown = { success: true }): Promise<{ result: Awaited<ReturnType<typeof runArra>>; calls: Call[] }> {
   const calls: Call[] = [];
@@ -46,6 +47,7 @@ describe('maw arra plugin', () => {
       'search',
       'settings',
       'stats',
+      'studio',
       'supersede',
       'thread',
       'thread_read',
@@ -64,6 +66,7 @@ describe('maw arra plugin', () => {
 
     const help = await runArra(['help']);
     expect(help.output).toContain('frontend');
+    expect(help.output).toContain('studio');
     expect(help.output).toContain('index');
     expect(help.output).toContain('vector');
     expect(help.output).toContain('trace_chain');
@@ -86,6 +89,40 @@ describe('maw arra plugin', () => {
     expect(noOpenResult.output).toContain('not opened');
     expect(opened).toEqual(['https://studio.buildwithoracle.com/?api=http://localhost:47778']);
   });
+
+
+
+  test('starts local Oracle Studio through ghq with default and custom ports', async () => {
+    const calls: RunCall[] = [];
+    const runner = async (cmd: string, args: string[], options?: RunCall['options']) => {
+      calls.push({ cmd, args, options });
+      return { code: 0, stdout: cmd === 'ghq' && args[0] === 'root' ? '/tmp/ghq\n' : '' };
+    };
+
+    const result = await runArra(['studio'], async () => ({}), () => {}, {}, runner);
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain('port 4321');
+    expect(calls.map(c => [c.cmd, c.args])).toEqual([
+      ['ghq', ['get', '-u', 'Soul-Brews-Studio/oracle-studio']],
+      ['ghq', ['root']],
+      ['bun', ['install']],
+      ['bun', ['run', 'dev', '--port', '4321']],
+    ]);
+    expect(calls[2]?.options?.cwd).toBe('/tmp/ghq/github.com/Soul-Brews-Studio/oracle-studio');
+    expect(calls[3]?.options?.cwd).toBe('/tmp/ghq/github.com/Soul-Brews-Studio/oracle-studio');
+    expect(calls[3]?.options?.env?.VITE_ARRA_API).toBe('http://localhost:47778');
+
+    calls.length = 0;
+    await runArra(['studio', '--port', '3000'], async () => ({}), () => {}, {}, runner);
+    expect(calls[3]?.args).toEqual(['run', 'dev', '--port', '3000']);
+  });
+
+  test('rejects invalid studio ports', async () => {
+    const result = await runArra(['studio', '--port', 'nope'], async () => ({}), () => {}, {}, async () => ({ code: 0 }));
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('--port');
+  });
+
 
   test('routes read-only commands to the expected endpoints', async () => {
     const cases: Array<[string[], string, string]> = [

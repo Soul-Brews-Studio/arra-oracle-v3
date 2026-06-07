@@ -1,10 +1,14 @@
 import { spawn } from 'node:child_process';
+import { join } from 'node:path';
 import { DEFAULT_ORACLE_API, normalizeApiBase } from '../cli/src/lib/config.ts';
 
 type InvokeContext = { source?: string; args?: string[]; writer?: (...args: unknown[]) => void };
 type InvokeResult = { ok: boolean; output?: string; error?: string };
 type Requester = (path: string, init?: RequestInit) => Promise<unknown>;
 type Opener = (url: string) => void;
+type RunOptions = { cwd?: string; env?: Record<string, string | undefined>; inherit?: boolean; capture?: boolean };
+type RunResult = { code: number | null; stdout?: string; stderr?: string };
+type Runner = (cmd: string, args: string[], options?: RunOptions) => Promise<RunResult>;
 type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 type Parsed = { pos: string[]; flags: Record<string, string | boolean> };
 type Built = { path: string; query?: Record<string, unknown>; body?: Record<string, unknown> };
@@ -22,6 +26,38 @@ export function resolveFrontendUrl(env: Record<string, string | undefined> = pro
 
 export function buildFrontendUrl(env: Record<string, string | undefined> = process.env): string {
   return `${resolveFrontendUrl(env)}/?api=${resolveBaseUrl(env)}`;
+}
+
+
+function runCommand(cmd: string, args: string[], options: RunOptions = {}): Promise<RunResult> {
+  return new Promise((resolve, reject) => {
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    const child = spawn(cmd, args, {
+      cwd: options.cwd,
+      env: { ...process.env, ...options.env },
+      stdio: options.inherit ? 'inherit' : options.capture ? ['ignore', 'pipe', 'pipe'] : 'ignore',
+    });
+    if (options.capture && child.stdout) child.stdout.on('data', chunk => stdout.push(Buffer.from(chunk)));
+    if (options.capture && child.stderr) child.stderr.on('data', chunk => stderr.push(Buffer.from(chunk)));
+    child.on('error', reject);
+    child.on('close', code => resolve({ code, stdout: Buffer.concat(stdout).toString('utf8'), stderr: Buffer.concat(stderr).toString('utf8') }));
+  });
+}
+
+async function mustRun(runner: Runner, cmd: string, args: string[], options: RunOptions = {}): Promise<RunResult> {
+  const result = await runner(cmd, args, options);
+  if (result.code !== 0) {
+    const detail = result.stderr?.trim() || result.stdout?.trim();
+    throw new Error(`${cmd} ${args.join(' ')} failed${result.code === null ? '' : ` (${result.code})`}${detail ? `: ${detail}` : ''}`);
+  }
+  return result;
+}
+
+function parsePort(parsed: Parsed): string {
+  const port = f(parsed, 'port') || '4321';
+  if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) throw new Error('--port must be a number from 1 to 65535');
+  return port;
 }
 
 function openUrl(url: string): void {
@@ -124,7 +160,7 @@ export const COMMANDS: Record<string, Spec> = {
   verify: { tool: 'oracle_verify', method: 'POST', write: true, help: 'verify [--check true|false] [--type all|learning|pattern]', build: p => route('/api/verify', undefined, { check: b(p, 'check'), type: f(p, 'type') }), format: d => `arra verify: ${preview(d, 500)}` },
 };
 
-const LOCAL_COMMANDS = { frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]' } as const;
+const LOCAL_COMMANDS = { frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]', studio: 'studio [--port N]' } as const;
 
 function usage(): InvokeResult {
   const commandNames = [...Object.keys(COMMANDS), ...Object.keys(LOCAL_COMMANDS)].sort();
@@ -139,11 +175,25 @@ function runFrontend(parsed: Parsed, opener: Opener, env: Record<string, string 
   return { ok: true, output: [`arra frontend: ${url}`, shouldOpen ? 'opened browser' : 'not opened (--no-open)'].join('\n') };
 }
 
-export async function runArra(args: string[], request: Requester = requestJson, opener: Opener = openUrl, env: Record<string, string | undefined> = process.env): Promise<InvokeResult> {
+async function runStudio(parsed: Parsed, runner: Runner, env: Record<string, string | undefined>): Promise<InvokeResult> {
+  try {
+    const port = parsePort(parsed);
+    await mustRun(runner, 'ghq', ['get', '-u', 'Soul-Brews-Studio/oracle-studio'], { inherit: true });
+    const root = (await mustRun(runner, 'ghq', ['root'], { capture: true })).stdout?.trim();
+    if (!root) throw new Error('ghq root returned no path');
+    const cwd = join(root, 'github.com', 'Soul-Brews-Studio', 'oracle-studio');
+    await mustRun(runner, 'bun', ['install'], { cwd, inherit: true });
+    await mustRun(runner, 'bun', ['run', 'dev', '--port', port], { cwd, inherit: true, env: { ...env, VITE_ARRA_API: 'http://localhost:47778' } });
+    return { ok: true, output: `arra studio: stopped (port ${port})` };
+  } catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
+}
+
+export async function runArra(args: string[], request: Requester = requestJson, opener: Opener = openUrl, env: Record<string, string | undefined> = process.env, runner: Runner = runCommand): Promise<InvokeResult> {
   const sub = key(args[0] || '');
   if (!sub || sub === 'help' || sub === '--help' || sub === '-h') return usage();
   const parsed = parse(args.slice(1));
   if (sub === 'frontend' || sub === 'ui' || sub === 'open') return runFrontend(parsed, opener, env);
+  if (sub === 'studio') return runStudio(parsed, runner, env);
   const spec = COMMANDS[sub];
   if (!spec) return usage();
   try {

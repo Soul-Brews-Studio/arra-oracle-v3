@@ -9,12 +9,12 @@
     "aliases": [
       "or"
     ],
-    "help": "maw arra <frontend|ui|open|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|thread|thread_read|thread_update|threads|verify>"
+    "help": "maw arra <frontend|ui|open|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|thread|thread_read|thread_update|threads|verify>"
   },
   "capabilities": [
     "net:http"
   ],
   "weight": 50,
   "schemaVersion": 1,
-  "help": "maw arra <frontend|ui|open|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|thread|thread_read|thread_update|threads|verify>"
+  "help": "maw arra <frontend|ui|open|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|thread|thread_read|thread_update|threads|verify>"
 }

@@ -18,7 +18,9 @@ Read commands are open. Write commands attach `Authorization: Bearer $ARRA_API_T
 ```sh
 maw arra help
 maw arra frontend          # opens https://studio.buildwithoracle.com/?api=<backend>
-maw arra ui --no-open      # prints the link only
+maw arra ui --no-open      # prints the hosted link only
+maw arra studio            # ghq get/update oracle-studio + bun dev on :4321
+maw arra studio --port 3000
 maw arra search "query" --mode fts --limit 5
 maw arra learn "new project fact" --project my-repo
 maw arra stats
@@ -53,6 +55,8 @@ maw arra thread_update 42 --status closed
 maw arra verify --check false --type learning
 ```
 
-`frontend`, `ui`, and `open` construct `/?api=<backend>` from `ARRA_FRONTEND_URL` (default `https://studio.buildwithoracle.com`) and `ORACLE_API`.
+`frontend`, `ui`, and `open` construct hosted `/?api=<backend>` links from `ARRA_FRONTEND_URL` (default `https://studio.buildwithoracle.com`) and `ORACLE_API`.
+
+`studio` starts the local Oracle Studio dev server: it runs `ghq get -u Soul-Brews-Studio/oracle-studio`, installs dependencies in the ghq checkout, then runs `VITE_ARRA_API=http://localhost:47778 bun run dev --port <port>` (default `4321`). It requires `ghq` and `bun` on PATH.
 
 Hyphenated aliases work for underscored commands, e.g. `trace-get` and `thread-update`.
