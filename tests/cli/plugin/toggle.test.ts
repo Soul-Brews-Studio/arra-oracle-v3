@@ -6,7 +6,7 @@ import { runCli } from '../_run.ts';
 
 const temps: string[] = [];
 const tmp = () => (temps.push(mkdtempSync(join(tmpdir(), 'arra-plugin-toggle-'))), temps.at(-1)!);
-const env = (xdg: string) => ({ XDG_CONFIG_HOME: xdg, ORACLE_API: undefined, NEO_ARRA_API: undefined });
+const env = (xdg: string) => ({ XDG_CONFIG_HOME: xdg, ORACLE_API: undefined });
 
 afterEach(() => {
   for (const dir of temps.splice(0)) rmSync(dir, { recursive: true, force: true });

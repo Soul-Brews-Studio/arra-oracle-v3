@@ -13,7 +13,7 @@ type Spec = { tool: string; method: Method; help: string; write?: boolean; build
 export const command = { name: 'arra', description: 'ARRA Oracle HTTP helper — 1:1 maw CLI surface for ARRA MCP tools.' };
 
 export function resolveBaseUrl(env: Record<string, string | undefined> = process.env): string {
-  return normalizeApiBase(env.ORACLE_API?.trim() || env.NEO_ARRA_API?.trim() || DEFAULT_ORACLE_API);
+  return normalizeApiBase(env.ORACLE_API?.trim() || DEFAULT_ORACLE_API);
 }
 
 export function resolveFrontendUrl(env: Record<string, string | undefined> = process.env): string {
@@ -30,7 +30,7 @@ function openUrl(url: string): void {
 }
 
 export function authHeaders(env: Record<string, string | undefined> = process.env): Record<string, string> {
-  const token = env.ARRA_API_TOKEN?.trim() || env.NEO_ARRA_API_TOKEN?.trim();
+  const token = env.ARRA_API_TOKEN?.trim();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

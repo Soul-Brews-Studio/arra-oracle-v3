@@ -11,7 +11,7 @@ export type ArraConfig = {
   enabledPlugins?: string[];
 };
 export type LoadedConfig = { path: string; config: ArraConfig };
-export type OracleApiSource = "ORACLE_API" | "at" | "project" | "global" | "NEO_ARRA_API" | "default";
+export type OracleApiSource = "ORACLE_API" | "at" | "project" | "global" | "default";
 
 export interface ResolvedOracleApi {
   baseUrl: string;
@@ -147,7 +147,6 @@ export function resolveOracleApi(argv = process.argv.slice(2), env = process.env
   if (projectDefault) return projectDefault;
   const globalDefault = defaultFrom(global, "global");
   if (globalDefault) return globalDefault;
-  if (env.NEO_ARRA_API !== undefined) return { baseUrl: normalizeApiBase(env.NEO_ARRA_API), source: "NEO_ARRA_API" };
   return { baseUrl: DEFAULT_ORACLE_API, source: "default" };
 }
 

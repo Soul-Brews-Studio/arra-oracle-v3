@@ -13,7 +13,7 @@ import type {
   ServerPluginTier,
 } from './types.ts';
 
-const USER_PLUGIN_DIR = join(homedir(), '.neo-arra', 'plugins');
+const USER_PLUGIN_DIR = join(homedir(), '.arra', 'plugins');
 const BUNDLED_PLUGIN_DIR = join(import.meta.dir, '../../../cli/src/plugins');
 const TIMEOUT_MS = Number(process.env.ARRA_PLUGIN_TIMEOUT_MS ?? 5000);
 const TIERS = new Set(['core', 'standard', 'extra']);

@@ -128,14 +128,14 @@ class OracleApiUnavailableError extends Error {
 }
 
 function resolveOracleApiBase(): string | null {
-  const raw = process.env.ORACLE_API ?? process.env.NEO_ARRA_API ?? DEFAULT_ORACLE_API;
+  const raw = process.env.ORACLE_API ?? DEFAULT_ORACLE_API;
   const trimmed = raw.trim();
   if (!trimmed || EMBEDDED_API_VALUES.has(trimmed.toLowerCase())) return null;
   return trimmed.replace(/\/+$/, '');
 }
 
 function oracleApiHeaders(init?: RequestInit["headers"]): RequestInit["headers"] | undefined {
-  const token = process.env.ARRA_API_TOKEN?.trim() || process.env.NEO_ARRA_API_TOKEN?.trim();
+  const token = process.env.ARRA_API_TOKEN?.trim();
   if (!token) return init;
   return { ...(init as Record<string, string> | undefined), Authorization: `Bearer ${token}` };
 }

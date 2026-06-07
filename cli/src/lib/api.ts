@@ -3,7 +3,7 @@
  *
  * Resolves in priority order:
  * ORACLE_API env → --at <target> → project .arra config → global
- * ~/.config/arra config → legacy NEO_ARRA_API → localhost default.
+ * ~/.config/arra config → localhost default.
  * Note: issue #770 spec listed 3457 — real oracle default is 47778.
  */
 

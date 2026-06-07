@@ -7,7 +7,7 @@ import { runCli } from "../_run.ts";
 const cwd0 = process.cwd();
 const temps: string[] = [];
 const tmp = (p: string) => (temps.push(mkdtempSync(join(tmpdir(), p))), temps.at(-1)!);
-const env = (xdg: string, extra = {}) => ({ XDG_CONFIG_HOME: xdg, ORACLE_API: undefined, NEO_ARRA_API: undefined, ...extra });
+const env = (xdg: string, extra = {}) => ({ XDG_CONFIG_HOME: xdg, ORACLE_API: undefined, ...extra });
 function cfg(path: string, targets: Record<string, string>, def = "local") {
   mkdirSync(join(path, ".."), { recursive: true });
   writeFileSync(path, JSON.stringify({ default: def, targets }, null, 2));

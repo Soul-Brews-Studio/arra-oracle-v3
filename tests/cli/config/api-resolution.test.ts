@@ -20,7 +20,6 @@ function resetEnv(): void {
   for (const key of Object.keys(process.env)) delete process.env[key];
   Object.assign(process.env, env0);
   delete process.env.ORACLE_API;
-  delete process.env.NEO_ARRA_API;
   delete process.env.XDG_CONFIG_HOME;
 }
 
@@ -68,20 +67,18 @@ test("--at target wins over project default", () => {
   expect(oracleApiBase()).toBe("http://project-m5.local:47778");
 });
 
-test("project .arra/config.json default wins over global config and legacy env", () => {
+test("project .arra/config.json default wins over global config", () => {
   const project = tempDir("arra-project-");
   const child = join(project, "nested", "cwd");
   mkdirSync(child, { recursive: true });
   projectConfig(project, { local: "http://project.local:47778" });
   globalConfig(tempDir("arra-global-"), { local: "http://global.local:47778" });
-  process.env.NEO_ARRA_API = "http://legacy.local:47778";
   process.chdir(child);
   expect(oracleApiBase()).toBe("http://project.local:47778");
 });
 
-test("global config default wins over legacy env", () => {
+test("global config default wins over localhost default", () => {
   globalConfig(tempDir("arra-global-"), { m5: "http://m5.local:47778" }, "m5");
-  process.env.NEO_ARRA_API = "http://legacy.local:47778";
   expect(oracleApiBase()).toBe("http://m5.local:47778");
 });
 
@@ -90,12 +87,6 @@ test("global targets.json is supported for shell prototype interop", () => {
   process.env.XDG_CONFIG_HOME = home;
   config(join(home, "arra", "targets.json"), { local: "http://localhost:47778", docker: "http://localhost:47780/" }, "docker");
   expect(oracleApiBase()).toBe("http://localhost:47780");
-});
-
-test("legacy NEO_ARRA_API wins when no config exists", () => {
-  process.env.XDG_CONFIG_HOME = tempDir("arra-empty-global-");
-  process.env.NEO_ARRA_API = "http://legacy.local:47778/";
-  expect(oracleApiBase()).toBe("http://legacy.local:47778");
 });
 
 test("missing config falls back cleanly to localhost default", () => {

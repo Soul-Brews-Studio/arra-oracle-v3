@@ -1,6 +1,6 @@
 # maw arra plugin
 
-Compact `maw arra` commands for the ARRA Oracle HTTP API. The plugin is a thin 1:1 CLI surface over the Oracle MCP tools, using `ORACLE_API` / `NEO_ARRA_API` as the base URL and falling back to `http://localhost:47778`.
+Compact `maw arra` commands for the ARRA Oracle HTTP API. The plugin is a thin 1:1 CLI surface over the Oracle MCP tools, using `ORACLE_API` as the base URL and falling back to `http://localhost:47778`.
 
 ## Install
 
@@ -11,7 +11,7 @@ maw plugin enable arra
 
 ## Auth
 
-Read commands are open. Write commands attach `Authorization: Bearer $ARRA_API_TOKEN` when `ARRA_API_TOKEN` (or `NEO_ARRA_API_TOKEN`) is set, matching the `/api/learn` token gate.
+Read commands are open. Write commands attach `Authorization: Bearer $ARRA_API_TOKEN` when `ARRA_API_TOKEN` is set, matching the `/api/learn` token gate.
 
 ## Commands
 
@@ -46,6 +46,6 @@ maw arra thread_update 42 --status closed
 maw arra verify --check false --type learning
 ```
 
-`frontend`, `ui`, and `open` construct `/?api=<backend>` from `ARRA_FRONTEND_URL` (default `https://studio.buildwithoracle.com`) and `ORACLE_API` / `NEO_ARRA_API`.
+`frontend`, `ui`, and `open` construct `/?api=<backend>` from `ARRA_FRONTEND_URL` (default `https://studio.buildwithoracle.com`) and `ORACLE_API`.
 
 Hyphenated aliases work for underscored commands, e.g. `trace-get` and `thread-update`.
