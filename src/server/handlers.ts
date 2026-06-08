@@ -9,20 +9,20 @@ import fs from 'fs';
 import path from 'path';
 import { eq, sql, or, inArray } from 'drizzle-orm';
 import { db, sqlite, oracleDocuments, indexingStatus, isDbLockError } from '../db/index.ts';
-import { REPO_ROOT, VECTOR_URL } from '../config.ts';
+import { REPO_ROOT, resolveVectorUrl } from '../config.ts';
 import { logSearch, logDocumentAccess, logLearning } from './logging.ts';
 import type { SearchResult, SearchResponse } from './types.ts';
-import { ensureVectorStoreConnected, EMBEDDING_MODELS } from '../vector/factory.ts';
+import { ensureBooksVectorStoreConnected, ensureVectorStoreConnected, EMBEDDING_MODELS } from '../vector/factory.ts';
 import { detectProject } from './project-detect.ts';
 import { coerceConcepts } from '../tools/learn.ts';
 import { createVectorProxy } from './vector-proxy.ts';
 import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
+import { documentTypeMatchesSearchCorpus, normalizeSearchCorpus, sqlCorpusPredicate } from '../search/corpus.ts';
+import { RERANK_POOL_SIZE, rerankCandidates } from './reranker.ts';
 
-// Module-level proxy instance — bound to VECTOR_URL at boot. If VECTOR_URL is
-// unset, this is null and the local vector adapter runs in-process (legacy
-// behavior). When set, the vector leg of hybrid/vector search proxies to the
-// remote service; on remote failure we fall back to FTS5-only.
-const vectorProxy = createVectorProxy(VECTOR_URL);
+function getVectorProxy() {
+  return createVectorProxy(resolveVectorUrl());
+}
 
 /**
  * Search Oracle knowledge base with hybrid search (FTS5 + Vector)
@@ -36,8 +36,17 @@ export async function handleSearch(
   mode: 'hybrid' | 'fts' | 'vector' = 'hybrid',
   project?: string,  // If set: project + universal. If null/undefined: universal only
   cwd?: string,      // Auto-detect project from cwd if project not specified
-  model?: string     // Embedding model: 'bge-m3' (default, multilingual) or 'nomic' (fast)
-): Promise<SearchResponse & { mode?: string; warning?: string; model?: string; vectorAvailable?: boolean }> {
+  model?: string,    // Embedding model: 'bge-m3' (default, multilingual) or 'nomic' (fast)
+  corpus?: string    // Optional spike route: books | memory | both
+): Promise<SearchResponse & {
+  mode?: string;
+  warning?: string;
+  model?: string;
+  corpus?: string;
+  vectorAvailable?: boolean;
+  reranked?: boolean;
+  rerankFallbackReason?: string;
+}> {
   // Auto-detect project from cwd if not explicitly specified
   const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
   const startTime = Date.now();
@@ -62,6 +71,7 @@ export async function handleSearch(
   const ftsMatch = safeQuery.split(' ').filter(Boolean).map(t => `"${t}"`).join(' OR ');
 
   let warning: string | undefined;
+  const corpusMode = normalizeSearchCorpus(corpus);
 
   // FTS5 search (skip if vector-only mode)
   let ftsResults: SearchResult[] = [];
@@ -73,6 +83,8 @@ export async function handleSearch(
     ? '(d.project = ? OR d.project IS NULL)'
     : '1=1';
   const projectParams = resolvedProject ? [resolvedProject] : [];
+  const corpusFilter = sqlCorpusPredicate('d', corpusMode);
+  const baseFilter = `${projectFilter} AND ${corpusFilter}`;
 
   // FTS5 search must use raw SQL (Drizzle doesn't support virtual tables)
   if (mode !== 'vector') {
@@ -82,7 +94,7 @@ export async function handleSearch(
           SELECT COUNT(*) as total
           FROM oracle_fts f
           JOIN oracle_documents d ON f.id = d.id
-          WHERE oracle_fts MATCH ? AND ${projectFilter}
+          WHERE oracle_fts MATCH ? AND ${baseFilter}
         `);
         ftsTotal = (countStmt.get(ftsMatch, ...projectParams) as { total: number }).total;
 
@@ -90,7 +102,7 @@ export async function handleSearch(
           SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
           FROM oracle_fts f
           JOIN oracle_documents d ON f.id = d.id
-          WHERE oracle_fts MATCH ? AND ${projectFilter}
+          WHERE oracle_fts MATCH ? AND ${baseFilter}
           ORDER BY rank
           LIMIT ?
         `);
@@ -109,7 +121,7 @@ export async function handleSearch(
           SELECT COUNT(*) as total
           FROM oracle_fts f
           JOIN oracle_documents d ON f.id = d.id
-          WHERE oracle_fts MATCH ? AND d.type = ? AND ${projectFilter}
+          WHERE oracle_fts MATCH ? AND d.type = ? AND ${baseFilter}
         `);
         ftsTotal = (countStmt.get(ftsMatch, type, ...projectParams) as { total: number }).total;
 
@@ -117,7 +129,7 @@ export async function handleSearch(
           SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
           FROM oracle_fts f
           JOIN oracle_documents d ON f.id = d.id
-          WHERE oracle_fts MATCH ? AND d.type = ? AND ${projectFilter}
+          WHERE oracle_fts MATCH ? AND d.type = ? AND ${baseFilter}
           ORDER BY rank
           LIMIT ?
         `);
@@ -150,6 +162,7 @@ export async function handleSearch(
   // the remote call failed — clients use this to render a "vector down" hint
   // while still getting FTS5 results.
   let vectorAvailable = true;
+  const vectorProxy = getVectorProxy();
 
   // VECTOR_URL set → route the vector leg through the remote service.
   // FTS5 always runs locally above. If the proxy fails we return whatever FTS5
@@ -164,6 +177,7 @@ export async function handleSearch(
       project: resolvedProject ?? undefined,
       cwd,
       model,
+      corpus: corpusMode,
     });
     if (remote) {
       vectorResults = remote.results || [];
@@ -178,13 +192,20 @@ export async function handleSearch(
     const modelsToQuery = isMulti
       ? ['bge-m3', 'nomic']
       : [model && EMBEDDING_MODELS[model] ? model : undefined];
+    const queryScopes: Array<'memory' | 'books'> = corpusMode === 'books'
+      ? ['books']
+      : corpusMode === 'memory'
+        ? ['memory']
+        : ['memory', 'books'];
 
     // Query all models in parallel
     const modelResults = await Promise.allSettled(
-      modelsToQuery.map(async (m) => {
+      modelsToQuery.flatMap((m) => queryScopes.map(async (scope) => {
         const modelName = m || 'bge-m3';
-        console.log(`[Vector] Searching model=${modelName} for: "${query.substring(0, 30)}..."`);
-        const client = await ensureVectorStoreConnected(m);
+        console.log(`[Vector] Searching model=${modelName} corpus=${scope} for: "${query.substring(0, 30)}..."`);
+        const client = scope === 'books'
+          ? await ensureBooksVectorStoreConnected(m)
+          : await ensureVectorStoreConnected(m);
         const whereFilter = type !== 'all' ? { type } : undefined;
         const chromaResults = await client.query(query, isMulti ? limit : limit * 2, whereFilter);
 
@@ -202,7 +223,7 @@ export async function handleSearch(
           .map((id: string, i: number) => {
             const distance = chromaResults.distances?.[i] || 0;
             const similarity = Math.max(0, 1 - distance / 2);
-            const docProject = projectMap.get(id);
+            const docProject = projectMap.has(id) ? projectMap.get(id) : null;
             return {
               id,
               type: chromaResults.metadatas?.[i]?.type || 'unknown',
@@ -217,10 +238,11 @@ export async function handleSearch(
             };
           })
           .filter(r => {
+            if (!documentTypeMatchesSearchCorpus(r.type, scope)) return false;
             if (!resolvedProject) return true;
             return r.project === resolvedProject || r.project === null;
           });
-      })
+      }))
     );
 
     // Merge results from all models
@@ -259,7 +281,20 @@ export async function handleSearch(
   }
 
   // Combine results using hybrid ranking
-  const combined = combineSearchResults(ftsResults, vectorResults);
+  let combined = combineSearchResults(ftsResults, vectorResults);
+
+  // Cross-encoder rerank over hybrid head (parity with MCP tools/search.ts).
+  const rerankHead = combined.slice(0, RERANK_POOL_SIZE);
+  const rerankTail = combined.slice(RERANK_POOL_SIZE);
+  const reranked = await rerankCandidates({
+    query,
+    candidates: rerankHead,
+    getText: (r) => r.content,
+  });
+  if (reranked.reranked) {
+    combined = [...reranked.results, ...rerankTail];
+  }
+
   // For vector-only mode, ftsTotal is 0 and combined.length is just top-N,
   // so use the vector collection count as the total for accurate display
   let total = Math.max(ftsTotal, combined.length);
@@ -267,9 +302,15 @@ export async function handleSearch(
     total = remoteVectorTotal;
   } else if (mode === 'vector' && vectorResults.length > 0) {
     try {
-      const client = await ensureVectorStoreConnected(model && EMBEDDING_MODELS[model] ? model : undefined);
-      const stats = await client.getStats();
-      if (stats.count > 0) total = stats.count;
+      const targetModel = model && EMBEDDING_MODELS[model] ? model : undefined;
+      const memoryStats = corpusMode !== 'books'
+        ? await (await ensureVectorStoreConnected(targetModel)).getStats()
+        : { count: 0 };
+      const bookStats = corpusMode !== 'memory'
+        ? await (await ensureBooksVectorStoreConnected(targetModel)).getStats()
+        : { count: 0 };
+      const count = memoryStats.count + bookStats.count;
+      if (count > 0) total = count;
     } catch (error) {
       console.warn('[Hybrid] getStats for vector-only total failed:', error instanceof Error ? error.message : String(error));
     }
@@ -289,9 +330,12 @@ export async function handleSearch(
     offset,
     limit,
     mode,
+    ...(corpus ? { corpus: corpusMode } : {}),
     ...(model === 'multi' ? { model: 'multi' } : model && EMBEDDING_MODELS[model] ? { model } : {}),
     ...(mode !== 'fts' ? { vectorAvailable } : {}),
-    ...(warning && { warning })
+    ...(warning && { warning }),
+    reranked: reranked.reranked,
+    ...(reranked.fallbackReason ? { rerankFallbackReason: reranked.fallbackReason } : {}),
   };
 }
 

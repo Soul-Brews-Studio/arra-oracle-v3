@@ -12,7 +12,17 @@
  * Companion sidecar: arra-oracle-v3/services/reranker-py/.
  */
 
-const DEFAULT_TIMEOUT_MS = 2000;
+const DEFAULT_TIMEOUT_MS = Number(process.env.ORACLE_RERANKER_TIMEOUT_MS) || 8000;
+const DEFAULT_MAX_TEXT_CHARS = Number(process.env.ORACLE_RERANKER_MAX_TEXT) || 768;
+const DEFAULT_POOL_SIZE = Number(process.env.ORACLE_RERANKER_POOL_SIZE) || 16;
+
+/** Cap snippet length sent to the cross-encoder (full chunks timeout the sidecar). */
+export function rerankSnippet(text: string, maxChars = DEFAULT_MAX_TEXT_CHARS): string {
+  if (!text || text.length <= maxChars) return text;
+  return text.slice(0, maxChars);
+}
+
+export const RERANK_POOL_SIZE = DEFAULT_POOL_SIZE;
 
 export interface RerankInput<T> {
   /** The user's search query. */
@@ -72,7 +82,7 @@ export async function rerankCandidates<T>(input: RerankInput<T>): Promise<Rerank
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query,
-        candidates: candidates.map(getText),
+        candidates: candidates.map((c) => rerankSnippet(getText(c))),
         ...(topK !== undefined ? { top_k: topK } : {}),
       }),
       signal: controller.signal,

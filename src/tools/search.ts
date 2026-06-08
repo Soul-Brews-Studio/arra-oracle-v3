@@ -7,8 +7,14 @@
  */
 
 import { detectProject } from '../server/project-detect.ts';
-import { rerankCandidates } from '../server/reranker.ts';
-import { ensureVectorStoreConnected } from '../vector/factory.ts';
+import { RERANK_POOL_SIZE, rerankCandidates } from '../server/reranker.ts';
+import { ensureBooksVectorStoreConnected, ensureVectorStoreConnected } from '../vector/factory.ts';
+import {
+  documentTypeMatchesSearchCorpus,
+  normalizeSearchCorpus,
+  sqlCorpusPredicate,
+  type SearchCorpus,
+} from '../search/corpus.ts';
 import type { SearchResult } from '../server/types.ts';
 import type { ToolContext, ToolResponse, OracleSearchInput } from './types.ts';
 
@@ -64,6 +70,11 @@ export const searchToolDef = {
         type: 'string',
         enum: ['nomic', 'qwen3', 'bge-m3'],
         description: 'Embedding model: bge-m3 (default, multilingual Thai↔EN, 1024-dim), nomic (fast, 768-dim), or qwen3 (cross-language, 4096-dim)',
+      },
+      corpus: {
+        type: 'string',
+        enum: ['memory', 'books', 'both'],
+        description: 'Corpus route for spike search: memory (default), books, or both',
       }
     },
     required: ['query']
@@ -132,7 +143,8 @@ export async function vectorSearch(
   query: string,
   type: string,
   limit: number,
-  model?: string
+  model?: string,
+  corpus: SearchCorpus = 'memory'
 ): Promise<Array<{
   id: string;
   type: string;
@@ -145,17 +157,11 @@ export async function vectorSearch(
   source: 'vector';
 }>> {
   try {
-    const whereFilter = type !== 'all' ? { type } : undefined;
-    const store = model ? await ensureVectorStoreConnected(model) : ctx.vectorStore;
-    console.error(`[VectorSearch] Query: "${query.substring(0, 50)}..." limit=${limit} model=${model || 'default'}`);
-
-    const results = await store.query(query, limit, whereFilter);
-    console.error(`[VectorSearch] Results: ${results.ids?.length || 0} documents`);
-
-    if (!results.ids || results.ids.length === 0) {
-      return [];
-    }
-
+    const scopes: Array<'memory' | 'books'> = corpus === 'books'
+      ? ['books']
+      : corpus === 'both'
+        ? ['memory', 'books']
+        : ['memory'];
     const resolvedModelName = model || 'bge-m3';
     const mappedResults: Array<{
       id: string;
@@ -169,21 +175,38 @@ export async function vectorSearch(
       source: 'vector';
     }> = [];
 
-    for (let i = 0; i < results.ids.length; i++) {
-      const metadata = results.metadatas[i] as Record<string, unknown> | null;
+    for (const scope of scopes) {
+      const whereFilter = type !== 'all' ? { type } : undefined;
+      const store = scope === 'books'
+        ? await ensureBooksVectorStoreConnected(model)
+        : model
+          ? await ensureVectorStoreConnected(model)
+          : ctx.vectorStore;
+      console.error(`[VectorSearch] Query: "${query.substring(0, 50)}..." limit=${limit} model=${model || 'default'} corpus=${scope}`);
 
-      const rawDistance = results.distances[i] || 0;
-      mappedResults.push({
-        id: results.ids[i],
-        type: (metadata?.type as string) || 'unknown',
-        content: (results.documents[i] || '').substring(0, 500),
-        source_file: (metadata?.source_file as string) || '',
-        concepts: parseConceptsFromMetadata(metadata?.concepts),
-        score: rawDistance,
-        distance: rawDistance,
-        model: resolvedModelName,
-        source: 'vector',
-      });
+      const results = await store.query(query, limit, whereFilter);
+      console.error(`[VectorSearch] Results: ${results.ids?.length || 0} documents`);
+
+      if (!results.ids || results.ids.length === 0) continue;
+
+      for (let i = 0; i < results.ids.length; i++) {
+        const metadata = results.metadatas[i] as Record<string, unknown> | null;
+        const resultType = (metadata?.type as string) || 'unknown';
+        if (!documentTypeMatchesSearchCorpus(resultType, scope)) continue;
+
+        const rawDistance = results.distances[i] || 0;
+        mappedResults.push({
+          id: results.ids[i],
+          type: resultType,
+          content: (results.documents[i] || '').substring(0, 500),
+          source_file: (metadata?.source_file as string) || '',
+          concepts: parseConceptsFromMetadata(metadata?.concepts),
+          score: rawDistance,
+          distance: rawDistance,
+          model: resolvedModelName,
+          source: 'vector',
+        });
+      }
     }
 
     return mappedResults;
@@ -323,6 +346,7 @@ export function combineResults(
 export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): Promise<ToolResponse> {
   const startTime = Date.now();
   const { query, type = 'all', limit = 5, offset = 0, mode = 'hybrid', project, cwd, model } = input;
+  const corpus = normalizeSearchCorpus(input.corpus);
 
   if (!query || query.trim().length === 0) {
     throw new Error('Query cannot be empty');
@@ -339,6 +363,8 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
     ? 'AND (d.project = ? OR d.project IS NULL)'
     : '';
   const projectParams = resolvedProject ? [resolvedProject] : [];
+  const corpusPredicate = sqlCorpusPredicate('d', corpus);
+  const corpusFilter = corpusPredicate === '1=1' ? '' : `AND ${corpusPredicate}`;
 
   let warning: string | undefined;
   let vectorSearchError = false;
@@ -351,7 +377,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
         SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
         FROM oracle_fts f
         JOIN oracle_documents d ON f.id = d.id
-        WHERE oracle_fts MATCH ? ${projectFilter}
+        WHERE oracle_fts MATCH ? ${projectFilter} ${corpusFilter}
         ORDER BY rank
         LIMIT ?
       `);
@@ -361,7 +387,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
         SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
         FROM oracle_fts f
         JOIN oracle_documents d ON f.id = d.id
-        WHERE oracle_fts MATCH ? AND d.type = ? ${projectFilter}
+        WHERE oracle_fts MATCH ? AND d.type = ? ${projectFilter} ${corpusFilter}
         ORDER BY rank
         LIMIT ?
       `);
@@ -373,7 +399,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
   let vecResults: Awaited<ReturnType<typeof vectorSearch>> = [];
   if (mode !== 'fts') {
     try {
-      vecResults = await vectorSearch(ctx, query, type, limit * 2, model);
+      vecResults = await vectorSearch(ctx, query, type, limit * 2, model, corpus);
     } catch (error) {
       vectorSearchError = true;
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -408,7 +434,6 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
   // Reranker pass — cross-encoder over the top of the hybrid list.
   // No-op when ORACLE_RERANKER_URL is unset (the helper pass-throughs).
   // Empirical lift: +14.3 pts R@1 on cross-language Thai/EN smoke test.
-  const RERANK_POOL_SIZE = 50;
   const rerankHead = combinedResults.slice(0, RERANK_POOL_SIZE);
   const rerankTail = combinedResults.slice(RERANK_POOL_SIZE);
   const reranked = await rerankCandidates({
@@ -468,8 +493,10 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
     reranked?: boolean;
     rerankFallbackReason?: string;
     warning?: string;
+    corpus?: string;
   } = {
     mode,
+    corpus,
     limit,
     offset,
     total: totalMatches,
@@ -485,7 +512,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
     metadata.warning = warning;
   }
 
-  console.error(`[MCP:SEARCH] "${query}" (${type}, ${mode}, model=${model || 'default'}) → ${results.length} results in ${searchTime}ms`);
+  console.error(`[MCP:SEARCH] "${query}" (${type}, ${mode}, model=${model || 'default'}, corpus=${corpus}) → ${results.length} results in ${searchTime}ms`);
 
   try {
     const logSearch = await loadLogSearch();
