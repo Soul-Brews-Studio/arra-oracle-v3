@@ -12,6 +12,9 @@ export interface SearchResult {
   score?: number;
   distance?: number;
   model?: string;
+  // RRF debugging fields (optional, for hybrid search)
+  _ftsRank?: number;
+  _vectorRank?: number;
 }
 
 export interface SearchResponse {
@@ -101,4 +104,3 @@ export interface DashboardGrowth {
     searches: number;
   }>;
 }
-

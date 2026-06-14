@@ -283,35 +283,62 @@ function normalizeRank(rank: number): number {
 /**
  * Combine FTS and vector results with hybrid scoring
  */
-function combineSearchResults(fts: SearchResult[], vector: SearchResult[]): SearchResult[] {
-  const seen = new Map<string, SearchResult>();
+/**
+ * Reciprocal Rank Fusion (RRF) for hybrid search
+ * Combines FTS5 and vector search results using rank-based fusion
+ * score = Σ 1/(k + rank), where k=60 (standard RRF constant)
+ *
+ * Benefits over max()+bonus:
+ * - Documents ranked high in BOTH sources score higher than documents ranked high in only one
+ * - More robust to score scale differences between FTS and vector
+ * - Standard technique in production search systems (CERN, Elasticsearch)
+ */
+function combineSearchResults(fts: SearchResult[], vector: SearchResult[], k: number = 60): SearchResult[] {
+  // Build rank maps (1-indexed)
+  const ftsRankMap = new Map<string, number>();
+  const vectorRankMap = new Map<string, number>();
+  const allDocs = new Map<string, SearchResult>();
 
-  // Add FTS results first
-  for (const r of fts) {
-    seen.set(r.id, r);
+  // Index FTS results by ID
+  fts.forEach((r, i) => {
+    ftsRankMap.set(r.id, i + 1);
+    if (!allDocs.has(r.id)) allDocs.set(r.id, r);
+  });
+
+  // Index vector results by ID
+  vector.forEach((r, i) => {
+    vectorRankMap.set(r.id, i + 1);
+    if (!allDocs.has(r.id)) allDocs.set(r.id, r);
+  });
+
+  // Calculate RRF scores
+  const results: SearchResult[] = [];
+  for (const [id, doc] of allDocs) {
+    let rrfScore = 0;
+    const ftsRank = ftsRankMap.get(id);
+    const vectorRank = vectorRankMap.get(id);
+
+    // RRF formula: score = Σ 1/(k + rank)
+    // Documents appearing in both sources get ~2x the score of single-source documents at same rank
+    if (ftsRank) rrfScore += 1 / (k + ftsRank);
+    if (vectorRank) rrfScore += 1 / (k + vectorRank);
+
+    // Determine source type
+    let source: 'fts' | 'vector' | 'hybrid' = 'fts';
+    if (ftsRank && vectorRank) source = 'hybrid';
+    else if (vectorRank) source = 'vector';
+
+    results.push({
+      ...doc,
+      score: rrfScore,
+      source,
+      _ftsRank: ftsRank,
+      _vectorRank: vectorRank,
+    });
   }
 
-  // Merge vector results (boost score if found in both)
-  for (const r of vector) {
-    if (seen.has(r.id)) {
-      const existing = seen.get(r.id)!;
-      // Use max score + bonus for appearing in both (hybrid boost)
-      const maxScore = Math.max(existing.score || 0, r.score || 0);
-      const bonus = 0.1; // Bonus for appearing in both FTS and vector
-      seen.set(r.id, {
-        ...existing,
-        score: Math.min(1, maxScore + bonus), // Cap at 1.0
-        source: 'hybrid' as const,
-        distance: r.distance,
-        model: r.model
-      });
-    } else {
-      seen.set(r.id, r);
-    }
-  }
-
-  // Sort by score descending
-  return Array.from(seen.values()).sort((a, b) => (b.score || 0) - (a.score || 0));
+  // Sort by RRF score descending
+  return results.sort((a, b) => b.score - a.score);
 }
 
 /**
