@@ -42,6 +42,8 @@ export interface UnifiedServerManifest {
   autostart?: boolean;
 }
 
+export type PublicUnifiedServerManifest = Omit<UnifiedServerManifest, 'env'>;
+
 export interface UnifiedMenuManifest {
   label: string;
   path: string;
@@ -114,6 +116,20 @@ function assertMethods(methods: unknown, field: string): void {
   }
 }
 
+function assertStringArray(value: unknown, field: string): void {
+  if (value === undefined) return;
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    throw new Error(`${field} must be an array of strings`);
+  }
+}
+
+function assertStringRecord(value: unknown, field: string): void {
+  if (value === undefined) return;
+  if (!isRecord(value) || Object.values(value).some((item) => typeof item !== 'string')) {
+    throw new Error(`${field} must be a string map`);
+  }
+}
+
 export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedPluginManifest {
   if (!isRecord(raw)) throw new Error('manifest must be a JSON object');
   const manifest = raw as unknown as UnifiedPluginManifest;
@@ -151,6 +167,17 @@ export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedP
     if (!item.targetEnv || typeof item.targetEnv !== 'string') throw new Error('proxy.targetEnv must be a string');
     assertMethods(item.methods, 'proxy.methods');
   }
+  if (manifest.server) {
+    if (!manifest.server.command || typeof manifest.server.command !== 'string') {
+      throw new Error('server.command must be a string');
+    }
+    assertStringArray(manifest.server.args, 'server.args');
+    assertStringRecord(manifest.server.env, 'server.env');
+    if (manifest.server.healthPath !== undefined) assertAbsolutePath(manifest.server.healthPath, 'server.healthPath');
+    if (manifest.server.autostart !== undefined && typeof manifest.server.autostart !== 'boolean') {
+      throw new Error('server.autostart must be a boolean');
+    }
+  }
   for (const item of menu) {
     assertAbsolutePath(item.path, 'menu.path');
     if (!item.label || typeof item.label !== 'string') throw new Error('menu.label must be a string');
@@ -184,4 +211,16 @@ export function manifestSurfaces(manifest: NormalizedUnifiedPluginManifest): Uni
 
 export function mcpToolNamesForToggle(manifest: NormalizedUnifiedPluginManifest): string[] {
   return manifest.mcpTools.map((tool) => tool.name);
+}
+
+export function publicUnifiedServerManifest(
+  server?: UnifiedServerManifest,
+): PublicUnifiedServerManifest | undefined {
+  if (!server) return undefined;
+  return {
+    command: server.command,
+    args: server.args,
+    healthPath: server.healthPath,
+    autostart: server.autostart,
+  };
 }

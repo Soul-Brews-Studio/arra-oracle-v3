@@ -1,11 +1,11 @@
 import { Elysia } from 'elysia';
 import { readFileSync } from 'fs';
-import { pluginNameParams, resolveWasmPath } from './model.ts';
+import { pluginNameParams, resolveWasmPath, sanitizePluginName } from './model.ts';
 
 export const pluginGetByNameRoute = new Elysia().get(
   '/api/plugins/:name',
   ({ params, set }) => {
-    const name = params.name.replace(/[^\w.-]/g, '').replace(/\.wasm$/, '');
+    const name = sanitizePluginName(params.name);
     if (!name) {
       set.status = 400;
       return { error: 'invalid plugin name' };

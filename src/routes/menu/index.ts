@@ -24,10 +24,10 @@ export function createMenuRoutes(pluginItems: MenuItem[] = []) {
 
 export {
   buildMenuItems,
-  menuItemsFromUnifiedPlugins,
   menuItemsFromRoutes,
   readApiMenuItemsFromDb,
   scopeMatches,
   API_TO_STUDIO,
 } from './menu.ts';
+export { menuItemsFromUnifiedPlugins } from './unified-plugin-menu.ts';
 export type { MenuItem, MenuResponse, Scope } from './model.ts';

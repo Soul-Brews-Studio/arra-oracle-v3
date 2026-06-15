@@ -61,7 +61,7 @@ describe('unified plugin loader', () => {
     expect(runtime.menu.map((item) => item.path)).toEqual(['/surface-pack']);
     expect(runtime.cliSubcommands.map((cmd) => cmd.command)).toEqual(['surface-pack']);
     expect(runtime.servers.map((server) => server.plugin)).toEqual(['surface-pack']);
-    expect(runtime.routes).toHaveLength(2);
+    expect(runtime.routes).toHaveLength(3);
 
     const app = new Elysia();
     for (const route of runtime.routes) app.use(route as any);
