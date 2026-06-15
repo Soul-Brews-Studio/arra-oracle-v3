@@ -1,10 +1,8 @@
 #!/usr/bin/env bun
 
-import { join } from "path";
 import { discoverPlugins } from "./plugin/loader.ts";
 import { registerPlugins, resolveCommand, listCommands } from "./plugin/registry.ts";
 import { invokePluginCommand } from "./plugin/invoke.ts";
-import type { ResolvedCliCommand } from "./plugin/types.ts";
 import { pluginsList } from "./commands/plugins-list.ts";
 import { pluginsCommand } from "./commands/plugins.ts";
 import { pluginsRemove } from "./commands/plugins-remove.ts";
@@ -18,42 +16,13 @@ import { doctorCommand } from "./commands/doctor.ts";
 import { completionsCommand } from "./commands/completions.ts";
 import { peersCommand } from "./commands/peers.ts";
 import { huginnCommand } from "./commands/huginn.ts";
-import { BUILTIN_COMMANDS } from "./commands/catalog.ts";
-
-const pkg = await Bun.file(join(import.meta.dir, "../package.json")).json();
-const VERSION: string = pkg.version;
-
-function printHelp(commands: Array<{ command: string; help?: string }>) {
-  console.log(`arra-cli v${VERSION} — ARRA Oracle V3 CLI\n`);
-  console.log("Usage: arra-cli <command> [args...]\n");
-  console.log("Commands:");
-  for (const { command, help } of BUILTIN_COMMANDS) {
-    console.log(`  ${command.padEnd(16)}${help}`);
-  }
-  for (const { command, help } of commands) {
-    console.log(`  ${command.padEnd(16)}${help ?? ""}`);
-  }
-  console.log("\nFlags:");
-  console.log("  --at <name>       Run against a named ARRA target from config");
-  console.log("  --help, -h        Show this help");
-  console.log("  -h <command>      Show command help + flags");
-  console.log("  --version         Show version");
-}
-
-function printCommandHelp(command: ResolvedCliCommand) {
-  console.log(`${command.command} — ${command.help ?? "(no description)"}`);
-  if (command.aliases?.length) {
-    console.log(`  aliases: ${command.aliases.join(", ")}`);
-  }
-  if (command.flags && Object.keys(command.flags).length > 0) {
-    console.log("\nFlags:");
-    for (const [flag, desc] of Object.entries(command.flags)) {
-      console.log(`  ${flag.padEnd(20)}${desc}`);
-    }
-  } else {
-    console.log("  (no flags)");
-  }
-}
+import {
+  CLI_VERSION,
+  builtinHelpFor,
+  hasHelpFlag,
+  renderCommandHelp,
+  renderRootHelp,
+} from "../../src/cli/help.ts";
 
 async function loadAll() {
   const { plugins, bundled, user } = await discoverPlugins();
@@ -62,6 +31,19 @@ async function loadAll() {
   const parts: string[] = [`${bundled} bundled`];
   if (user > 0) parts.push(`${user} user`);
   console.log(`loaded ${total} plugin${total !== 1 ? "s" : ""} (${parts.join(", ")})`);
+}
+
+function printBuiltinHelp(command: string | undefined): boolean {
+  const help = builtinHelpFor(command);
+  if (!help) return false;
+  console.log(renderCommandHelp(help));
+  return true;
+}
+
+function printScopedBuiltinHelp(command: string, args: string[]): boolean {
+  const sub = args[0]?.toLowerCase();
+  if (sub && sub !== "--help" && sub !== "-h" && printBuiltinHelp(`${command} ${sub}`)) return true;
+  return printBuiltinHelp(command);
 }
 
 async function main() {
@@ -78,28 +60,59 @@ async function main() {
   }
   const cmd = args[0]?.toLowerCase();
 
-  if (cmd === "--version" || cmd === "version") {
-    console.log(`arra-cli v${VERSION}`);
+  if (cmd === "--version" || cmd === "-v" || cmd === "version") {
+    console.log(`arra-cli v${CLI_VERSION}`);
+    return;
+  }
+
+  if (!cmd || (cmd === "--help" || cmd === "-h") && !args[1]) {
+    await loadAll();
+    const commands = listCommands().map(c => ({ command: c.command, help: c.help }));
+    console.log(renderRootHelp(commands));
+    return;
+  }
+
+  if (cmd === "-h") {
+    const subcmd = args[1]?.toLowerCase();
+    if (!subcmd) {
+      await loadAll();
+      const commands = listCommands().map(c => ({ command: c.command, help: c.help }));
+      console.log(renderRootHelp(commands));
+      return;
+    }
+    if (printBuiltinHelp(subcmd)) return;
+    await loadAll();
+    const command = resolveCommand(subcmd);
+    if (!command) {
+      console.error(`unknown command: ${args[1]}`);
+      process.exit(1);
+    }
+    console.log(renderCommandHelp(command));
     return;
   }
 
   if (cmd === "completions") {
+    if (hasHelpFlag(args.slice(1))) return printScopedBuiltinHelp(cmd, args.slice(1));
     process.exit(await completionsCommand(args.slice(1)));
   }
 
   if (cmd === "config") {
+    if (hasHelpFlag(args.slice(1))) return printScopedBuiltinHelp(cmd, args.slice(1));
     process.exit(await configCommand(args.slice(1)));
   }
 
   if (cmd === "doctor") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
     process.exit(await doctorCommand(args.slice(1)));
   }
 
   if (cmd === "peers") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
     process.exit(await peersCommand(args.slice(1)));
   }
 
   if (cmd === "huginn") {
+    if (hasHelpFlag(args.slice(1))) return printScopedBuiltinHelp(cmd, args.slice(1));
     process.exit(await huginnCommand(args.slice(1)));
   }
 
@@ -114,12 +127,14 @@ async function main() {
   }
 
   if (cmd === "use") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
     process.exit(await useCommand(args.slice(1)));
   }
 
   if (cmd === "session") {
     const sub = args[1]?.toLowerCase();
     const rest = args.slice(2);
+    if (hasHelpFlag(rest)) return printScopedBuiltinHelp(cmd, args.slice(1));
     if (sub === "list" || sub === "ls") {
       process.exit(await sessionList(rest));
     }
@@ -129,33 +144,27 @@ async function main() {
     if (sub === "context") {
       process.exit(await sessionContext(rest));
     }
-    if (!sub || sub === "--help" || sub === "-h") {
-      console.log("arra-cli session <subcommand>\n");
-      console.log("Subcommands:");
-      console.log("  list                list all sessions");
-      console.log("  show <id>           show session summary");
-      console.log("  context <id>        dump full session context");
-      console.log("\nOutput defaults to JSON; pass --yml for YAML.");
-      console.log("\nEnv:");
-      console.log("  ORACLE_API          API base URL (default http://localhost:47778)");
-      return;
-    }
+    if (!sub || sub === "--help" || sub === "-h") return printBuiltinHelp(cmd);
     console.error(`\x1b[31m✗\x1b[0m unknown session subcommand: ${args[1]}`);
     console.error("  try: arra-cli session list|show|context");
     process.exit(1);
   }
 
   if (cmd === "menu") {
+    if (!args[1] || hasHelpFlag(args.slice(1))) return printScopedBuiltinHelp(cmd, args.slice(1));
     process.exit(await menuCommand(args.slice(1)));
   }
 
   if (cmd === "plugins") {
+    if (hasHelpFlag(args.slice(1))) return printScopedBuiltinHelp(cmd, args.slice(1));
     process.exit(await pluginsCommand(args.slice(1)));
   }
 
   if (cmd === "plugin") {
     const sub = args[1]?.toLowerCase();
     const rest = args.slice(2);
+    if (!sub || sub === "--help" || sub === "-h") return printBuiltinHelp(cmd);
+    if (hasHelpFlag(rest)) return printScopedBuiltinHelp(cmd, args.slice(1));
     if (sub === "install") {
       const { runInstallCli } = await import("./commands/plugins-install.ts");
       process.exit(await runInstallCli(rest));
@@ -169,43 +178,9 @@ async function main() {
     if (sub === "info") {
       process.exit(await pluginsInfo(rest));
     }
-    if (!sub || sub === "--help" || sub === "-h") {
-      console.log("arra-cli plugin <subcommand>\n");
-      console.log("Subcommands:");
-      console.log("  list                    list installed plugins");
-      console.log("  info <name>             show plugin details");
-      console.log("  install <url-or-path>   install a plugin (see --help)");
-      console.log("  remove <name>           remove an installed plugin");
-      console.log("\nOutput defaults to JSON; pass --yml for YAML.");
-      return;
-    }
     console.error(`\x1b[31m✗\x1b[0m unknown plugin subcommand: ${args[1]}`);
     console.error("  try: arra-cli plugin list|info|install|remove");
     process.exit(1);
-  }
-
-  if (!cmd || cmd === "--help") {
-    await loadAll();
-    const commands = listCommands().map(c => ({ command: c.command, help: c.help }));
-    printHelp(commands);
-    return;
-  }
-
-  if (cmd === "-h") {
-    const subcmd = args[1]?.toLowerCase();
-    await loadAll();
-    if (!subcmd) {
-      const commands = listCommands().map(c => ({ command: c.command, help: c.help }));
-      printHelp(commands);
-      return;
-    }
-    const command = resolveCommand(subcmd);
-    if (!command) {
-      console.error(`unknown command: ${args[1]}`);
-      process.exit(1);
-    }
-    printCommandHelp(command);
-    return;
   }
 
   await loadAll();
@@ -215,6 +190,10 @@ async function main() {
     console.error(`\x1b[31m✗\x1b[0m unknown command: ${args[0]}`);
     console.error(`  run 'arra-cli --help' to see available commands`);
     process.exit(1);
+  }
+  if (hasHelpFlag(args.slice(1))) {
+    console.log(renderCommandHelp(command));
+    return;
   }
 
   const result = await invokePluginCommand(command, {
