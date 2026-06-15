@@ -32,7 +32,6 @@ jobs:
           src/server/__tests__/
           tests/storage/
           tests/http/swagger/
-          tests/http/docs/
           tests/http/health/
           tests/lifecycle/
           tests/plugins/
