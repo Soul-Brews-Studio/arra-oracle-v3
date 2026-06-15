@@ -41,8 +41,8 @@ export interface VectorServerConfig {
 export type VectorProxyManifest = UnifiedProxyManifest;
 
 /** Absolute path to vector-server.json inside ORACLE_DATA_DIR. */
-export function configPath(): string {
-  return path.join(ORACLE_DATA_DIR, VECTOR_CONFIG_FILE);
+export function configPath(dataDir = ORACLE_DATA_DIR): string {
+  return path.join(dataDir, VECTOR_CONFIG_FILE);
 }
 
 /**
@@ -94,8 +94,7 @@ export function defaultVectorProxyManifest(): VectorProxyManifest[] {
  * Load vector-server.json from ORACLE_DATA_DIR.
  * Returns null if the file doesn't exist or is unparseable.
  */
-export function loadVectorConfig(): VectorServerConfig | null {
-  const fp = configPath();
+export function loadVectorConfig(fp = configPath()): VectorServerConfig | null {
   if (!fs.existsSync(fp)) return null;
   try {
     const raw = fs.readFileSync(fp, 'utf-8');
@@ -110,8 +109,7 @@ export function loadVectorConfig(): VectorServerConfig | null {
  * Write vector-server.json to ORACLE_DATA_DIR.
  * Creates the directory if needed.
  */
-export function writeVectorConfig(config: VectorServerConfig): string {
-  const fp = configPath();
+export function writeVectorConfig(config: VectorServerConfig, fp = configPath()): string {
   fs.writeFileSync(fp, JSON.stringify(config, null, 2) + '\n', 'utf-8');
   return fp;
 }

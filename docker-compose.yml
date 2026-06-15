@@ -15,5 +15,35 @@ services:
       - arra-data:/data
     restart: unless-stopped
 
+  test:
+    build:
+      context: .
+      target: http-server
+    environment:
+      HOME: /tmp/test-data
+      ORACLE_DATA_DIR: /tmp/test-data
+    volumes:
+      - ./src:/app/src:ro
+      - ./cli:/app/cli:ro
+      - ./tests:/app/tests:ro
+      - ./bunfig.toml:/app/bunfig.toml:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+    entrypoint: ["bun"]
+    command: ["test", "--bail"]
+    profiles: ["test"]
+
+  typecheck:
+    build:
+      context: .
+      target: http-server
+    volumes:
+      - ./src:/app/src:ro
+      - ./cli:/app/cli:ro
+      - ./tests:/app/tests:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+    entrypoint: ["bunx"]
+    command: ["tsc", "--noEmit"]
+    profiles: ["test"]
+
 volumes:
   arra-data:
