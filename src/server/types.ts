@@ -101,12 +101,21 @@ export interface HealthResponse {
   };
 }
 
+export interface MemoryUsageSnapshot {
+  rss: number;
+  heapTotal: number;
+  heapUsed: number;
+  external: number;
+  arrayBuffers: number;
+}
+
 export interface MetricsSnapshot {
   uptime: number;
   requestCount: number;
   avgResponseMs: number;
   activeConnections: number;
   lastRestart: string;
+  memoryUsage: MemoryUsageSnapshot;
 }
 
 export interface PluginEntryResponse {

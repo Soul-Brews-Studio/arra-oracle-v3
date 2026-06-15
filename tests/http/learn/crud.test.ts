@@ -7,6 +7,8 @@ import { join } from 'path';
 
 const savedDataDir = process.env.ORACLE_DATA_DIR;
 const savedDbPath = process.env.ORACLE_DB_PATH;
+const restoreDbPath = savedDbPath
+  ?? join(savedDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
 const root = join(tmpdir(), `arra-learn-crud-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 const dbPath = join(root, 'oracle.db');
 mkdirSync(root, { recursive: true });
@@ -40,11 +42,11 @@ beforeEach(() => {
 });
 
 afterAll(() => {
-  dbMod.closeDb();
   if (savedDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
   else process.env.ORACLE_DATA_DIR = savedDataDir;
   if (savedDbPath === undefined) delete process.env.ORACLE_DB_PATH;
   else process.env.ORACLE_DB_PATH = savedDbPath;
+  dbMod.resetDefaultDatabaseForTests(restoreDbPath);
   rmSync(root, { recursive: true, force: true });
 });
 

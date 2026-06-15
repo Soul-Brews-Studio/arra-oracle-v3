@@ -17,7 +17,10 @@ test('unmatched routes return structured not-found JSON', async () => {
   expect(missing.status).toBe(404);
   expect(await missing.json()).toEqual({
     error: 'Not Found',
-    path: '/api/v1/missing',
-    method: 'POST',
+    code: 404,
+    details: {
+      path: '/api/v1/missing',
+      method: 'POST',
+    },
   });
 });

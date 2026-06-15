@@ -1,12 +1,26 @@
 import { Elysia } from 'elysia';
 import { REQUEST_ID_HEADER, RESPONSE_TIME_HEADER, requestIdFor, responseTimeFor } from './correlation.ts';
 
+export type ApiErrorResponse = {
+  error: string;
+  code: number;
+  details?: unknown;
+};
+
 export type StructuredErrorResponse = {
   error: string;
   message: string;
   statusCode: number;
   correlationId: string;
 };
+
+export function apiErrorResponse<const T extends string, const C extends number, D>(
+  error: T,
+  code: C,
+  details: D,
+): { error: T; code: C; details: D } {
+  return { error, code, details };
+}
 
 export class HttpError extends Error {
   constructor(
@@ -39,6 +53,7 @@ export class UnprocessableEntityError extends HttpError {
 
 function statusLabel(statusCode: number): string {
   if (statusCode === 400) return 'Bad Request';
+  if (statusCode === 401) return 'Unauthorized';
   if (statusCode === 404) return 'Not Found';
   if (statusCode === 422) return 'Unprocessable Entity';
   if (statusCode === 503) return 'Service Unavailable';
@@ -86,11 +101,9 @@ export function createErrorMiddleware(logger: ErrorLogger = defaultErrorLogger) 
     set.headers[RESPONSE_TIME_HEADER] = responseTimeFor(request);
     set.headers['x-correlation-id'] = id;
     logger({ requestId: id, statusCode, code: String(code), message });
-    return {
-      error: error instanceof HttpError ? error.error : statusLabel(statusCode),
+    return apiErrorResponse(error instanceof HttpError ? error.error : statusLabel(statusCode), statusCode, {
       message,
-      statusCode,
       correlationId: id,
-    } satisfies StructuredErrorResponse;
+    }) satisfies ApiErrorResponse;
   });
 }

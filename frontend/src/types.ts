@@ -84,6 +84,57 @@ export interface SearchResponse {
   error?: string;
 }
 
+export interface LearnEntry {
+  id: string;
+  title: string;
+  content: string;
+  concepts: string[];
+  sourceFile: string;
+  createdAt: number;
+  updatedAt: number;
+  origin?: string | null;
+  project?: string | null;
+}
+
+export interface LearnListResponse {
+  items: LearnEntry[];
+  total: number;
+}
+
+export interface LearnMutationPayload {
+  pattern: string;
+  concepts?: string[];
+  source?: string;
+}
+
+export interface LearnCreateResponse {
+  success: boolean;
+  id: string;
+  file: string;
+}
+
+export interface LearnUpdateResponse {
+  id: string;
+  type: 'learning';
+  sourceFile: string;
+  concepts: string[];
+  createdAt: number;
+  updatedAt: number;
+  indexedAt: number;
+  origin?: string | null;
+  project?: string | null;
+  supersededAt?: number | null;
+  supersededBy?: string | null;
+  supersededReason?: string | null;
+  createdBy?: string | null;
+}
+
+export interface LearnDeleteResponse {
+  id: string;
+  deleted: 'soft';
+  supersededAt: number;
+}
+
 export interface McpToolsResponse {
   tools: McpTool[];
   total: number;
