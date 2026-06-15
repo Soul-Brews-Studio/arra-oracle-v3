@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiClient, type ApiClient, type VectorHealthResponse, type VectorIndexModelEntry, type VectorIndexModelsResponse } from '../api/client';
 import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
+import { VectorIndexPanel } from '../components/VectorIndexPanel';
 import { VectorSearchWidget } from '../components/VectorSearchWidget';
 import { vectorDocumentsPath, vectorSearchPath } from '../routePaths';
 
@@ -11,7 +12,6 @@ export type VectorExportFormat = 'json' | 'csv';
 type DownloadByCollection = Record<string, VectorExportFormat | undefined>;
 type ExportFetch = (input: RequestInfo | URL, init?: RequestInit) => Response | Promise<Response>;
 type SaveBlob = (blob: Blob, filename: string) => void | Promise<void>;
-
 export interface VectorCollectionCard {
   key: string;
   collection: string;
@@ -244,6 +244,7 @@ export function VectorPage({ modelsResponse = null, healthResponse = null, loadi
 
       <VectorDocumentsCard />
       <VectorSearchWidget onOpenResults={(query) => navigate(vectorSearchPath(query))} />
+      <VectorIndexPanel />
     </div>
   );
 }

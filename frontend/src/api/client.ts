@@ -21,6 +21,8 @@ export interface VectorIndexModelEntry {
   count?: number;
 }
 
+export type VectorIndexCollection = VectorIndexModelEntry;
+
 export interface VectorIndexModelsResponse {
   models: Record<string, VectorIndexModelEntry>;
 }
@@ -41,6 +43,28 @@ export interface VectorHealthResponse {
   error?: string;
 }
 
+export type VectorIndexJobStatus = 'idle' | 'indexing' | 'completed' | 'error';
+
+export interface VectorIndexStatusResponse {
+  jobId: string;
+  model: string;
+  status: VectorIndexJobStatus;
+  current: number;
+  total: number;
+  startedAt: number;
+  completedAt?: number;
+  error?: string;
+  docsPerSec: number;
+  eta: number;
+}
+
+export interface VectorIndexStartResponse {
+  jobId: string;
+  status: 'started';
+  model: string;
+  batchSize: number;
+}
+
 export interface ApiRouteResponses {
   '/api/health': HealthResponse;
   '/api/v1/metrics': MetricsSnapshot;
@@ -48,6 +72,7 @@ export interface ApiRouteResponses {
   '/api/menu/search': MenuSearchResponse;
   '/api/v1/vector/search': VectorSearchResponse;
   '/api/vector/index/models': VectorIndexModelsResponse;
+  '/api/vector/index/status': VectorIndexStatusResponse;
   '/api/vector/health': VectorHealthResponse;
   '/api/v1/plugins': PluginsResponse;
   '/api/v1/learn': LearnListResponse;
@@ -184,6 +209,14 @@ export class ApiClient {
     return this.fetchJson(`/api/v1/vector/search?${query.toString()}`);
   }
 
+  vectorIndexStatus(): Promise<VectorIndexStatusResponse> {
+    return this.request('/api/vector/index/status');
+  }
+
+  startVectorIndex(model: string): Promise<VectorIndexStartResponse> {
+    return this.fetchJson('/api/vector/index/start', { method: 'POST', body: JSON.stringify({ model }) });
+  }
+
   private async fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
     const fetcher = this.options.fetch ?? globalThis.fetch?.bind(globalThis);
     if (!fetcher) throw new ApiClientError(0, path, `${path} is unreachable: fetch is unavailable`);
@@ -212,8 +245,6 @@ export class ApiClient {
   }
 }
 
-export function createApiClient(options?: ApiClientOptions): ApiClient {
-  return new ApiClient(options);
-}
+export const createApiClient = (options?: ApiClientOptions): ApiClient => new ApiClient(options);
 
 export const apiClient = createApiClient();
