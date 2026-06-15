@@ -9,6 +9,12 @@ import {
   seedUnifiedPluginMenuItems,
 } from '../unified-loader.ts';
 
+import canvasInspectorDefault, {
+  canvasInspectCli,
+  canvasInspectorRoute,
+  inspectCanvasPlugin,
+} from '../../../docs/examples/unified-plugin/index.ts';
+
 const tmp = mkdtempSync(join(tmpdir(), 'arra-unified-example-'));
 const exampleRoot = join(process.cwd(), 'docs/examples');
 
@@ -22,6 +28,34 @@ async function loadExample() {
 }
 
 describe('reference unified plugin example', () => {
+
+  test('covers every executable example handler', () => {
+    expect(canvasInspectorDefault).toBe(canvasInspectorRoute);
+    expect(canvasInspectorRoute({ source: 'api', plugin: 'canvas-inspector' })).toEqual({
+      ok: true,
+      body: {
+        plugin: 'canvas-inspector',
+        surface: 'apiRoutes',
+        method: 'GET',
+        id: 'all',
+        menuPath: '/tools/canvas-inspector',
+        cliCommand: 'canvas-inspect',
+        embedderRequired: false,
+      },
+    });
+    expect(canvasInspectCli({ source: 'cli', plugin: 'canvas-inspector', args: ['demo'] })).toEqual({
+      ok: true,
+      output: 'canvas-inspector:demo menu=/tools/canvas-inspector',
+    });
+    expect(canvasInspectCli({ source: 'cli', plugin: 'canvas-inspector' })).toEqual({
+      ok: true,
+      output: 'canvas-inspector:all menu=/tools/canvas-inspector',
+    });
+    expect(inspectCanvasPlugin({ source: 'mcp', plugin: 'canvas-inspector' })).toEqual({
+      ok: true,
+      body: { plugin: 'canvas-inspector', surface: 'mcpTools', readOnly: true },
+    });
+  });
   test('registers cli, menu, mcp metadata, and api route without an embedder', async () => {
     const previousVectorUrl = process.env.VECTOR_URL;
     process.env.VECTOR_URL = '';
