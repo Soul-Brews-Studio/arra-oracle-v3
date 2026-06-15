@@ -147,9 +147,10 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
 // Model-based registry for dual-index search
 // ============================================================================
 
-export function getEmbeddingModels(): Record<string, EmbeddingModelConfig> {
+export function getEmbeddingModels(
+  cfg: ReturnType<typeof loadVectorConfig> = loadVectorConfig(),
+): Record<string, EmbeddingModelConfig> {
   // If vector-server.json exists, use it as source of truth (#1071 phase 2)
-  const cfg = loadVectorConfig();
   if (cfg) return configToModels(cfg);
 
   // Hardcoded fallback — always works even without config file
@@ -208,8 +209,11 @@ export function createVectorStoreForModel(preset: EmbeddingModelConfig): VectorS
   });
 }
 
-export function getVectorStoreByModel(model?: string): VectorStoreAdapter {
-  const models = getEmbeddingModels();
+export function getVectorStoreByModel(
+  model?: string,
+  models = getEmbeddingModels(),
+  connectStore: (store: VectorStoreAdapter) => Promise<void> = (store) => store.connect(),
+): VectorStoreAdapter {
   const key = model && models[model] ? model : 'bge-m3';
   let store = modelStoreCache.get(key);
   if (!store) {
@@ -217,7 +221,7 @@ export function getVectorStoreByModel(model?: string): VectorStoreAdapter {
     store = createVectorStoreForModel(preset);
     modelStoreCache.set(key, store);
     // Auto-connect in background (non-blocking)
-    connectPromises.set(key, store.connect().catch(e =>
+    connectPromises.set(key, connectStore(store).catch(e =>
       console.warn(`[VectorRegistry] Failed to connect ${key}:`, e instanceof Error ? e.message : String(e))
     ));
   }
@@ -225,10 +229,12 @@ export function getVectorStoreByModel(model?: string): VectorStoreAdapter {
 }
 
 /** Ensure a model's store is connected. Call before first query. */
-export async function ensureVectorStoreConnected(model?: string): Promise<VectorStoreAdapter> {
-  const models = getEmbeddingModels();
+export async function ensureVectorStoreConnected(
+  model?: string,
+  models = getEmbeddingModels(),
+): Promise<VectorStoreAdapter> {
   const key = model && models[model] ? model : 'bge-m3';
-  const store = getVectorStoreByModel(model);
+  const store = getVectorStoreByModel(model, models);
   const pending = connectPromises.get(key);
   if (pending) await pending;
   return store;
