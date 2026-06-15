@@ -9,6 +9,8 @@
  *   GET /api/map3d           — 3D PCA projection from real embeddings
  *   GET /api/vector/stats    — per-engine collection counts
  *   GET /api/vector/health   — adapter liveness probe
+ *   GET /api/vector/documents — browse indexed vector documents
+ *   GET /api/vector/export — stream vector documents as JSON or CSV
  *
  * Mounted with the `/api` prefix from server.ts. Phase 1 of #1071: separating
  * the vector layer from FTS/hybrid so it can later move behind VECTOR_URL.
@@ -25,6 +27,8 @@ import { vectorHealthEndpoint } from './health.ts';
 import { vectorConfigEndpoint } from './config.ts';
 import { vectorIndexerEndpoints } from './indexer.ts';
 import { vectorProxyEndpoint } from './proxy.ts';
+import { vectorDocumentsEndpoint } from './documents.ts';
+import { vectorExportEndpoint } from './export.ts';
 
 export const vectorRoutes = new Elysia({ prefix: '/api' })
   .use(vectorProxyEndpoint)
@@ -35,5 +39,7 @@ export const vectorRoutes = new Elysia({ prefix: '/api' })
   .use(map3dEndpoint)
   .use(vectorStatsEndpoint)
   .use(vectorHealthEndpoint)
+  .use(vectorDocumentsEndpoint)
+  .use(vectorExportEndpoint)
   .use(vectorConfigEndpoint)
   .use(vectorIndexerEndpoints);
