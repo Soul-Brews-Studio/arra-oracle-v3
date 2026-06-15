@@ -5,7 +5,7 @@ import type { UnifiedRuntime } from '../../plugins/unified-loader.ts';
 describe('plugin MCP registry adapter', () => {
   it('binds loader MCP tools to runtime handlers', async () => {
     const runtime: UnifiedRuntime = {
-      routes: [], menu: [], cliSubcommands: [], servers: [], init: async () => {}, stop: async () => {},
+      routes: [], menu: [], cliSubcommands: [], servers: [], pluginStatuses: () => [], init: async () => {}, stop: async () => {},
       mcpTools: [{
         plugin: 'demo', name: 'oracle_demo', description: 'Demo', handler: 'run',
         inputSchema: { type: 'object', properties: {} }, readOnly: true,

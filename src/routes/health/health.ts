@@ -5,6 +5,7 @@ import { db, settings } from '../../db/index.ts';
 import { scanPlugins } from '../plugins/model.ts';
 import { handleVectorHealth } from '../../server/vector-handlers.ts';
 import { mcpTools } from '../../tools/mcp-manifest.ts';
+import type { UnifiedPluginStatus } from '../../plugins/unified-loader.ts';
 import pkg from '../../../package.json' with { type: 'json' };
 
 type VectorHealth = Awaited<ReturnType<typeof handleVectorHealth>>;
@@ -16,6 +17,7 @@ export interface HealthEndpointOptions {
   isDraining?: () => boolean;
   uptimeSeconds?: () => number;
   vectorHealth?: () => Promise<VectorHealth>;
+  pluginStatuses?: () => UnifiedPluginStatus[] | Promise<UnifiedPluginStatus[]>;
 }
 
 function errorMessage(error: unknown): string {
@@ -67,7 +69,9 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
     const uptimeSeconds = Number(options.uptimeSeconds?.() ?? process.uptime());
     const dbStatus = readDbStatus();
     const vector = await readVectorStatus(options.vectorHealth);
-    const pluginCount = options.pluginCount ?? installedPluginCount();
+    const pluginItems = await options.pluginStatuses?.() ?? [];
+    const pluginCount = options.pluginCount ?? (pluginItems.length || installedPluginCount());
+    const pluginStatus = pluginItems.some((plugin) => plugin.status === 'degraded') ? 'degraded' : 'ok';
     const toolCount = mcpTools.length + (options.pluginMcpToolCount ?? 0);
 
     return {
@@ -79,13 +83,14 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
       uptimeSeconds: Math.round(uptimeSeconds * 1000) / 1000,
       dbStatus: dbStatus.status,
       vectorStatus: vector.status,
+      pluginStatus,
       mcpToolCount: toolCount,
       pluginCount,
       uptime: { seconds: Math.round(uptimeSeconds * 1000) / 1000 },
       db: { ...dbStatus, path: DB_PATH },
       vector,
       mcp: { toolCount },
-      plugins: { count: pluginCount },
+      plugins: { count: pluginCount, status: pluginStatus, items: pluginItems },
     };
   }, {
     detail: {
