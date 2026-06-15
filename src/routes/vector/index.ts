@@ -22,8 +22,10 @@ import { vectorStatsEndpoint } from './stats.ts';
 import { vectorHealthEndpoint } from './health.ts';
 import { vectorConfigEndpoint } from './config.ts';
 import { vectorIndexerEndpoints } from './indexer.ts';
+import { vectorProxyEndpoint } from './proxy.ts';
 
 export const vectorRoutes = new Elysia({ prefix: '/api' })
+  .use(vectorProxyEndpoint)
   .use(similarEndpoint)
   .use(compareEndpoint)
   .use(mapEndpoint)

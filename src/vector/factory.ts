@@ -8,13 +8,19 @@
 import path from 'path';
 import { VECTORS_DB_PATH, LANCEDB_DIR, CHROMADB_DIR } from '../config.ts';
 import { COLLECTION_NAME } from '../const.ts';
-import type { VectorStoreAdapter, VectorDBType, EmbeddingProviderType } from './types.ts';
+import type {
+  EmbedderConfig,
+  VectorStoreAdapter,
+  VectorDBType,
+  EmbeddingProviderType,
+} from './types.ts';
 import { ChromaMcpAdapter } from './adapters/chroma-mcp.ts';
 import { SqliteVecAdapter } from './adapters/sqlite-vec.ts';
 import { LanceDBAdapter } from './adapters/lancedb.ts';
 import { QdrantAdapter } from './adapters/qdrant.ts';
 import { CloudflareVectorizeAdapter, CloudflareAIEmbeddings } from './adapters/cloudflare-vectorize.ts';
 import { createEmbeddingProvider } from './embeddings.ts';
+import { resolveEmbeddingModel, resolveEmbeddingProviderType } from './embedder-config.ts';
 import { loadVectorConfig, configToModels } from './config.ts';
 
 export interface VectorStoreConfig {
@@ -25,6 +31,8 @@ export interface VectorStoreConfig {
   pythonVersion?: string;
   embeddingProvider?: EmbeddingProviderType;
   embeddingModel?: string;
+  embeddingUrl?: string;
+  embeddingDimensions?: number;
   /** Qdrant URL (default: http://localhost:6333) */
   qdrantUrl?: string;
   /** Qdrant API key */
@@ -40,6 +48,7 @@ export interface EmbeddingModelConfig {
   model: string;
   adapter?: VectorDBType;
   dataPath?: string;
+  embedder?: EmbedderConfig;
 }
 
 /**
@@ -47,7 +56,9 @@ export interface EmbeddingModelConfig {
  *
  * Env vars:
  *   ORACLE_VECTOR_DB          = 'chroma' | 'sqlite-vec' | 'lancedb' | 'qdrant' | 'cloudflare-vectorize'
- *   ORACLE_EMBEDDING_PROVIDER = 'chromadb-internal' | 'ollama' | 'openai' | 'cloudflare-ai'
+ *   ORACLE_EMBEDDER           = 'none' | 'local' | 'remote' (default: none/FTS5)
+ *   ORACLE_EMBEDDER_URL       = remote HTTP embedding endpoint
+ *   ORACLE_EMBEDDING_PROVIDER = legacy provider override
  *   ORACLE_EMBEDDING_MODEL    = model name override
  *   ORACLE_VECTOR_DB_PATH     = sqlite-vec / lancedb path
  *   CLOUDFLARE_ACCOUNT_ID     = CF account (for cloudflare-vectorize)
@@ -66,14 +77,13 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
         || process.env.ORACLE_VECTOR_DB_PATH
         || VECTORS_DB_PATH;
 
-      const embeddingType = config.embeddingProvider
-        || (process.env.ORACLE_EMBEDDING_PROVIDER as EmbeddingProviderType)
-        || 'ollama';
+      const embeddingType = resolveEmbeddingProviderType(config.embeddingProvider);
+      const embeddingModel = resolveEmbeddingModel(config.embeddingModel);
 
-      const embeddingModel = config.embeddingModel
-        || process.env.ORACLE_EMBEDDING_MODEL;
-
-      const embedder = createEmbeddingProvider(embeddingType, embeddingModel);
+      const embedder = createEmbeddingProvider(embeddingType, embeddingModel, {
+        url: config.embeddingUrl,
+        dimensions: config.embeddingDimensions,
+      });
       return new SqliteVecAdapter(collectionName, dbPath, embedder);
     }
 
@@ -82,26 +92,24 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
         || process.env.ORACLE_VECTOR_DB_PATH
         || LANCEDB_DIR;
 
-      const embeddingType = config.embeddingProvider
-        || (process.env.ORACLE_EMBEDDING_PROVIDER as EmbeddingProviderType)
-        || 'ollama';
+      const embeddingType = resolveEmbeddingProviderType(config.embeddingProvider);
+      const embeddingModel = resolveEmbeddingModel(config.embeddingModel);
 
-      const embeddingModel = config.embeddingModel
-        || process.env.ORACLE_EMBEDDING_MODEL;
-
-      const embedder = createEmbeddingProvider(embeddingType, embeddingModel);
+      const embedder = createEmbeddingProvider(embeddingType, embeddingModel, {
+        url: config.embeddingUrl,
+        dimensions: config.embeddingDimensions,
+      });
       return new LanceDBAdapter(collectionName, dbPath, embedder);
     }
 
     case 'qdrant': {
-      const embeddingType = config.embeddingProvider
-        || (process.env.ORACLE_EMBEDDING_PROVIDER as EmbeddingProviderType)
-        || 'ollama';
+      const embeddingType = resolveEmbeddingProviderType(config.embeddingProvider);
+      const embeddingModel = resolveEmbeddingModel(config.embeddingModel);
 
-      const embeddingModel = config.embeddingModel
-        || process.env.ORACLE_EMBEDDING_MODEL;
-
-      const embedder = createEmbeddingProvider(embeddingType, embeddingModel);
+      const embedder = createEmbeddingProvider(embeddingType, embeddingModel, {
+        url: config.embeddingUrl,
+        dimensions: config.embeddingDimensions,
+      });
       return new QdrantAdapter(collectionName, embedder, {
         url: config.qdrantUrl || process.env.QDRANT_URL,
         apiKey: config.qdrantApiKey || process.env.QDRANT_API_KEY,
@@ -183,7 +191,8 @@ const modelStoreCache = new Map<string, VectorStoreAdapter>();
 
 /**
  * Get a vector store for a specific embedding model.
- * Uses LanceDB + Ollama. Caches instances by model key.
+ * Uses the configured embedder backend. Default is none, so vector calls fail
+ * fast and callers keep serving FTS5-only results until local/remote is set.
  */
 const connectPromises = new Map<string, Promise<void>>();
 
@@ -191,8 +200,10 @@ export function createVectorStoreForModel(preset: EmbeddingModelConfig): VectorS
   return createVectorStore({
     type: preset.adapter || 'lancedb',
     collectionName: preset.collection,
-    embeddingProvider: 'ollama',
-    embeddingModel: preset.model,
+    embeddingProvider: preset.embedder?.backend ?? resolveEmbeddingProviderType(),
+    embeddingModel: preset.embedder?.model || preset.model,
+    embeddingUrl: preset.embedder?.url,
+    embeddingDimensions: preset.embedder?.dimensions,
     ...(preset.dataPath && { dataPath: preset.dataPath }),
   });
 }

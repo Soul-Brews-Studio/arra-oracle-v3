@@ -60,5 +60,21 @@ export interface EmbeddingProvider {
   embed(texts: string[], type?: EmbedType): Promise<number[][]>;
 }
 
+export type EmbedderBackend = 'none' | 'local' | 'remote';
+
+export interface EmbedderConfig {
+  backend: EmbedderBackend;
+  url?: string;
+  model?: string;
+  dimensions?: number;
+}
+
 export type VectorDBType = 'chroma' | 'sqlite-vec' | 'lancedb' | 'qdrant' | 'cloudflare-vectorize';
-export type EmbeddingProviderType = 'chromadb-internal' | 'ollama' | 'openai' | 'cloudflare-ai';
+export type EmbeddingProviderType =
+  | 'none'
+  | 'local'
+  | 'remote'
+  | 'chromadb-internal'
+  | 'ollama'
+  | 'openai'
+  | 'cloudflare-ai';

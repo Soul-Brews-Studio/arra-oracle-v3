@@ -59,5 +59,9 @@ if (!fs.existsSync(ORACLE_DATA_DIR)) {
 //                      if empty, the local vector adapter is used (backward compat).
 //   VECTOR_FALLBACK  — what to do when proxy is unreachable. 'fts5' = serve FTS5-only
 //                      results with vectorAvailable: false. (Future: 'cache', 'fail'.)
+//   VECTOR_DB_URL    — target for vector-server.json proxy manifests such as
+//                      /api/vector-db → sidecar vector DB passthrough.
+//   ORACLE_EMBEDDER  — 'none' (default), 'local', or 'remote'. Remote uses
+//                      ORACLE_EMBEDDER_URL and falls back to FTS5 on failure.
 export const VECTOR_URL = process.env.VECTOR_URL || '';
 export const VECTOR_FALLBACK = process.env.VECTOR_FALLBACK || 'fts5';
