@@ -19,7 +19,9 @@ import { closeCachedVectorStores } from './vector/factory.ts';
 import { isDraining, registerGracefulShutdown, trackRequest } from './lifecycle/shutdown.ts';
 import { createErrorMiddleware } from './middleware/errors.ts';
 import { validateStartupEnv } from './config/validate.ts';
-import { printStartupBanner, type BannerMiddleware } from './lifecycle/banner.ts';
+import { printStartupBanner } from './lifecycle/banner.ts';
+import { createStartupSelfTest, runStartupSelfTest } from './lifecycle/self-test.ts';
+import { readStartupDbStatus, runtimeMiddleware } from './lifecycle/startup-context.ts';
 import { createRequestLogger } from './middleware/logger.ts';
 import { createRateLimitMiddleware } from './middleware/rate-limit.ts';
 import { createApiVersionHeaderMiddleware, createApiVersionedFetch } from './middleware/api-version.ts';
@@ -28,6 +30,7 @@ import { createRequestTimeoutFetch } from './middleware/timeout.ts';
 import { createBodyLimitMiddleware } from './middleware/body-limit.ts';
 import { createNotFoundMiddleware } from './middleware/not-found.ts';
 import { createEtagMiddleware } from './middleware/etag.ts';
+import { createDbContextFetch } from './middleware/db-context.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -205,43 +208,27 @@ const modules = [...apiModules, mcpRoutes, menuRoutes];
 for (const mod of modules) app.use(mod as any);
 app.use(createNotFoundMiddleware());
 
+const dbStatus = () => readStartupDbStatus(() => db.select({ key: settings.key }).from(settings).limit(1).all());
+const middleware = runtimeMiddleware({
+  rateLimitTokensPerWindow: startupConfig.profile.rateLimit.tokensPerWindow,
+  gatewayEnabled: Boolean(VECTOR_URL) || process.env.ORACLE_GATEWAY_HOT_RELOAD !== '0',
+});
+
 printStartupBanner({
   version: pkg.version,
   port: Number(PORT),
   profile: startupConfig.profile.env,
-  middleware: enabledMiddleware(),
-  dbStatus: startupDbStatus(),
+  middleware,
+  dbStatus: dbStatus(),
+});
+await runStartupSelfTest({
+  checks: createStartupSelfTest({
+    dbPing: dbStatus,
+    healthFetch: () => app.fetch(new Request(`http://127.0.0.1:${PORT}/api/health`)),
+  }),
 });
 
-function startupDbStatus(): string {
-  try {
-    db.select({ key: settings.key }).from(settings).limit(1).all();
-    return 'ok';
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return `degraded (${message})`;
-  }
-}
-
-function enabledMiddleware(): BannerMiddleware[] {
-  return [
-    { name: 'request-logger' },
-    { name: 'correlation' },
-    { name: 'private-network-preflight' },
-    { name: 'cors' },
-    { name: 'body-limit' },
-    { name: 'rate-limit', detail: `${startupConfig.profile.rateLimit.tokensPerWindow}/min` },
-    { name: 'api-key-auth' },
-    { name: 'metrics' },
-    { name: 'etag' },
-    { name: 'structured-errors' },
-    { name: 'not-found' },
-    { name: 'swagger' },
-    { name: 'gateway', enabled: Boolean(VECTOR_URL) || process.env.ORACLE_GATEWAY_HOT_RELOAD !== '0' },
-  ];
-}
-
-const serverFetch = createRequestTimeoutFetch(createApiVersionedFetch((request) => app.fetch(request)));
+const serverFetch = createRequestTimeoutFetch(createApiVersionedFetch(createDbContextFetch((request: Request) => app.fetch(request))));
 
 export default {
   port: Number(PORT),

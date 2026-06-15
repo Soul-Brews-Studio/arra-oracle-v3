@@ -81,7 +81,7 @@ export function createCorrelationMiddleware(observer?: ResponseTimingObserver) {
   return new Elysia({ name: 'request-correlation' })
     .state({ requestId: '', requestStartedAtMs: 0, responseTimeMs: 0 })
     .onRequest(({ request, set, store }) => {
-      const requestId = rememberRequestId(request, createRequestId());
+      const requestId = requestIdFor(request);
       rememberRequestStart(request);
       updateStore(store, request, requestId);
       setRequestIdHeader(set, requestId);
