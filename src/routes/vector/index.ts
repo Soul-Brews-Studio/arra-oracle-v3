@@ -2,6 +2,7 @@
  * Vector Routes (Elysia) — composes the vector-only HTTP surface.
  *
  * Endpoints:
+ *   GET /api/vector/search  — vector-mode search alias
  *   GET /api/similar         — nearest-neighbor by doc id
  *   GET /api/compare         — fan-out search across embedding models
  *   GET /api/map             — 2D layout of all docs
@@ -14,6 +15,7 @@
  */
 
 import { Elysia } from 'elysia';
+import { vectorSearchEndpoint } from './search.ts';
 import { similarEndpoint } from './similar.ts';
 import { compareEndpoint } from './compare.ts';
 import { mapEndpoint } from './map.ts';
@@ -26,6 +28,7 @@ import { vectorProxyEndpoint } from './proxy.ts';
 
 export const vectorRoutes = new Elysia({ prefix: '/api' })
   .use(vectorProxyEndpoint)
+  .use(vectorSearchEndpoint)
   .use(similarEndpoint)
   .use(compareEndpoint)
   .use(mapEndpoint)

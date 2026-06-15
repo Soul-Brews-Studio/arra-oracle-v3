@@ -72,8 +72,9 @@ export function readPluginManifest(dir: string): RawPluginManifest | null {
 }
 
 function parseMenu(raw: unknown): PluginMenu | undefined {
-  if (!raw || typeof raw !== 'object') return undefined;
-  const m = raw as Record<string, unknown>;
+  const candidate = Array.isArray(raw) ? raw[0] : raw;
+  if (!candidate || typeof candidate !== 'object') return undefined;
+  const m = candidate as Record<string, unknown>;
   if (typeof m.label !== 'string' || !m.label) return undefined;
   const group =
     m.group === 'main' || m.group === 'tools' || m.group === 'hidden' ? m.group : undefined;
