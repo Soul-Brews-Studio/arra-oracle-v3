@@ -10,6 +10,7 @@ import { PluginsPage } from './pages/PluginsPage';
 import { SearchPage } from './pages/SearchPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { VectorPage } from './pages/VectorPage';
+import { VectorSearchPage } from './pages/VectorSearchPage';
 import { VectorDocumentsPage } from './pages/VectorDocumentsPage';
 import { VectorSearchResultsPage } from './pages/VectorSearchResultsPage';
 import type { LoadState, MenuItem, PluginEntry } from './types';
@@ -62,6 +63,7 @@ export function DashboardRoutes({
       <Route path="/learn" element={<LearnPage />} />
       <Route path="/menu" element={menuPage} />
       <Route path="/vector" element={<VectorPage />} />
+      <Route path="/vector/search" element={<VectorSearchPage />} />
       <Route path="/vector/documents" element={<VectorDocumentsPage />} />
       <Route path="/vector/results" element={<VectorSearchResultsPage />} />
       <Route path="/mcp" element={<McpPage />} />

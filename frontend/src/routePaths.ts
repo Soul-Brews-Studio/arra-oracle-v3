@@ -8,6 +8,13 @@ export function menuSearchPath(query: string): string {
   return `/search?${new URLSearchParams({ q })}`;
 }
 
+
+export function vectorSearchPath(query = ''): string {
+  const qs = new URLSearchParams();
+  if (query.trim()) qs.set('q', query.trim());
+  return qs.toString() ? `/vector/search?${qs}` : '/vector/search';
+}
+
 export function vectorResultsPath(query: string): string {
   const qs = new URLSearchParams();
   if (query.trim()) qs.set('q', query.trim());

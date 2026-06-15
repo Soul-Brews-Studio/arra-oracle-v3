@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { apiClient, type ApiClient, type VectorHealthResponse, type VectorIndexModelEntry, type VectorIndexModelsResponse } from '../api/client';
 import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
 import { VectorSearchWidget } from '../components/VectorSearchWidget';
-import { vectorDocumentsPath, vectorResultsPath } from '../routePaths';
+import { vectorDocumentsPath, vectorSearchPath } from '../routePaths';
 
 type PageState = 'loading' | 'ready' | 'error';
 type VectorStatusClient = Pick<ApiClient, 'vectorIndexModels' | 'vectorHealth'>;
@@ -243,7 +243,7 @@ export function VectorPage({ modelsResponse = null, healthResponse = null, loadi
       </section>
 
       <VectorDocumentsCard />
-      <VectorSearchWidget onOpenResults={(query) => navigate(vectorResultsPath(query))} />
+      <VectorSearchWidget onOpenResults={(query) => navigate(vectorSearchPath(query))} />
     </div>
   );
 }
