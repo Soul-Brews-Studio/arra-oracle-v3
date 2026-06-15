@@ -7,6 +7,7 @@ import { McpPage } from './pages/McpPage';
 import { McpToolDetailPage } from './pages/McpToolDetailPage';
 import { MenuPage } from './pages/MenuPage';
 import { PluginsPage } from './pages/PluginsPage';
+import { SearchPage } from './pages/SearchPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { VectorPage } from './pages/VectorPage';
 import { VectorSearchResultsPage } from './pages/VectorSearchResultsPage';
@@ -77,10 +78,9 @@ export function DashboardRoutes({
       <Route index element={menuPage} />
       <Route path="/plugins" element={pluginPage} />
       <Route path="/metrics" element={metricsPage} />
-      <Route path="/search" element={<VectorPage />} />
-      <Route path="/search/results" element={<VectorSearchResultsPage />} />
+      <Route path="/search" element={<SearchPage />} />
       <Route path="/menu" element={menuPage} />
-      <Route path="/vector" element={<Navigate to="/search" replace />} />
+      <Route path="/vector" element={<VectorPage />} />
       <Route path="/vector/results" element={<VectorSearchResultsPage />} />
       <Route path="/mcp" element={<McpPage />} />
       <Route path="/mcp/tools/:name" element={<McpToolDetailPage />} />

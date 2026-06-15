@@ -6,7 +6,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { sqliteTable, text, integer, index, type AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 
 // Main document index table
 export const oracleDocuments = sqliteTable('oracle_documents', {
@@ -227,115 +227,4 @@ export const traceLog = sqliteTable('trace_log', {
   index('idx_trace_created').on(table.createdAt),
 ]);
 
-// ============================================================================
-// Supersede Log (Issue #18) - Audit trail for "Nothing is Deleted"
-// ============================================================================
-
-// Tracks document supersessions even when original file is deleted
-// This is separate from oracle_documents.superseded_by to preserve history
-export const supersedeLog = sqliteTable('supersede_log', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-
-  // What was superseded
-  oldPath: text('old_path').notNull(),        // Original file path (may no longer exist)
-  oldId: text('old_id'),                       // Document ID if it was indexed
-  oldTitle: text('old_title'),                 // Preserved title for display
-  oldType: text('old_type'),                   // learning, principle, retro, etc.
-
-  // What replaced it (null if just deleted/archived)
-  newPath: text('new_path'),                   // Replacement file path
-  newId: text('new_id'),                       // Document ID of replacement
-  newTitle: text('new_title'),                 // Title of replacement
-
-  // Why and when
-  reason: text('reason'),                      // Why superseded (duplicate, outdated, merged)
-  supersededAt: integer('superseded_at').notNull(),
-  supersededBy: text('superseded_by'),         // Who made the decision (user, claude, indexer)
-
-  // Context
-  project: text('project'),                    // ghq format project path
-
-}, (table) => [
-  index('idx_supersede_old_path').on(table.oldPath),
-  index('idx_supersede_new_path').on(table.newPath),
-  index('idx_supersede_created').on(table.supersededAt),
-  index('idx_supersede_project').on(table.project),
-]);
-
-// ============================================================================
-// Activity Log - User activity tracking
-// ============================================================================
-
-export const activityLog = sqliteTable('activity_log', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  date: text('date').notNull(),             // YYYY-MM-DD
-  timestamp: text('timestamp').notNull(),   // ISO timestamp
-  type: text('type').notNull(),             // file_created, file_modified, etc.
-  path: text('path'),                        // File path if applicable
-  sizeBytes: integer('size_bytes'),
-  project: text('project'),                  // ghq format project path
-  metadata: text('metadata', { mode: 'json' }), // Additional data as JSON
-  createdAt: text('created_at'),             // Auto timestamp
-}, (table) => [
-  index('idx_activity_date').on(table.date),
-  index('idx_activity_type').on(table.type),
-  index('idx_activity_project').on(table.project),
-]);
-
-// ============================================================================
-// Schedule Table - Appointments & events (per-human, shared across Oracles)
-// ============================================================================
-
-export const schedule = sqliteTable('schedule', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  date: text('date').notNull(),          // YYYY-MM-DD (canonical, for queries)
-  dateRaw: text('date_raw'),             // Original input ("5 Mar", "28 ก.พ.")
-  time: text('time'),                    // HH:MM or "TBD"
-  event: text('event').notNull(),        // Event description
-  notes: text('notes'),                  // Optional notes
-  recurring: text('recurring'),          // null | "daily" | "weekly" | "monthly"
-  status: text('status').default('pending'), // pending | done | cancelled
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-}, (table) => [
-  index('idx_schedule_date').on(table.date),
-  index('idx_schedule_status').on(table.status),
-]);
-
-// ============================================================================
-// Settings Table - Key-value store for configuration
-// ============================================================================
-
-export const settings = sqliteTable('settings', {
-  key: text('key').primaryKey(),
-  value: text('value'),
-  updatedAt: integer('updated_at').notNull(),
-});
-
-// ============================================================================
-// Menu Items Table — studio navigation, seeded from route detail.menu metadata
-// ============================================================================
-
-export const menuItems = sqliteTable('menu_items', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  path: text('path').notNull(),
-  label: text('label').notNull(),
-  groupKey: text('group_key').notNull(),
-  parentId: integer('parent_id').references((): AnySQLiteColumn => menuItems.id, { onDelete: 'cascade' }),
-  position: integer('position').notNull().default(999),
-  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
-  access: text('access').notNull().default('public'),
-  source: text('source').notNull(),
-  icon: text('icon'),
-  host: text('host'),
-  hidden: integer('hidden', { mode: 'boolean' }).notNull().default(false),
-  scope: text('scope').notNull().default('main'),  // 'main' | 'sub' | 'both'
-  query: text('query'),
-  studio: text('studio'),
-  touchedAt: integer('touched_at', { mode: 'timestamp' }),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
-}, (t) => [
-  index('idx_menu_parent').on(t.parentId, t.position),
-  index('idx_menu_group').on(t.groupKey, t.position),
-]);
+export { activityLog, menuItems, schedule, settings, supersedeLog } from './logistics-schema.ts';

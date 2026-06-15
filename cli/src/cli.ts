@@ -150,6 +150,12 @@ async function main() {
     process.exit(await seedCommand(args.slice(1)));
   }
 
+  if (cmd === "backup") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    const { backupCommand } = await import("../../src/cli/commands/backup.ts");
+    process.exit(await backupCommand(args.slice(1)));
+  }
+
   if (cmd === "use") {
     if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
     process.exit(await useCommand(args.slice(1)));

@@ -38,7 +38,7 @@ describe('frontend router', () => {
     expect(htmlAt('/plugins')).toContain('Plugin list');
     expect(htmlAt('/metrics')).toContain('Backend metrics');
     expect(htmlAt('/metrics')).toContain('42');
-    expect(htmlAt('/search')).toContain('Vector search');
+    expect(htmlAt('/search')).toContain('Full-text menu search');
   });
 
   test('wraps routed children in the browser router and error boundary shell', () => {

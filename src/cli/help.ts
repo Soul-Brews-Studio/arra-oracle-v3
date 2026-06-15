@@ -104,6 +104,13 @@ export const BUILTIN_HELP: CliHelpEntry[] = [
     examples: ["arra-cli seed"],
   },
   {
+    command: "backup",
+    help: "dump SQLite DB to timestamped SQL",
+    usage: "arra-cli backup [--out-dir <dir>]",
+    flags: ["--out-dir <dir>", "--help", "-h"],
+    examples: ["arra-cli backup", "arra-cli backup --out-dir ./backups"],
+  },
+  {
     command: "changelog",
     help: "generate CHANGELOG.md from git history",
     usage: "arra-cli changelog [--since <tag>] [--out CHANGELOG.md] [--stdout]",
