@@ -18,7 +18,7 @@ export interface ApiRouteResponses {
   '/api/menu': MenuResponse;
   '/api/menu/search': MenuSearchResponse;
   '/api/vector/search': VectorSearchResponse;
-  '/api/plugins': PluginsResponse;
+  '/api/v1/plugins': PluginsResponse;
 }
 
 export type ApiRoute = keyof ApiRouteResponses;
@@ -110,7 +110,7 @@ export class ApiClient {
   }
 
   plugins(): Promise<PluginsResponse> {
-    return this.request('/api/plugins');
+    return this.request('/api/v1/plugins');
   }
 
   vectorSearch(query: string, limit?: number): Promise<VectorSearchResponse>;
