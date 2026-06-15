@@ -22,7 +22,7 @@ const DEFAULT_DIRS = [join(homedir(), '.arra', 'plugins'), join(homedir(), '.ora
 type ElysiaApp = Elysia<any, any, any, any, any, any, any>;
 type JsonRecord = Record<string, unknown>;
 
-interface LoadedUnifiedPlugin {
+export interface LoadedUnifiedPlugin {
   manifest: NormalizedUnifiedPluginManifest;
   dir: string;
   entryPath: string;
