@@ -22,6 +22,7 @@ import { db, sqlite, closeDb, indexingStatus } from './db/index.ts';
 import { isApiAuthorized, isApiPathProtected, unauthorizedApiResponse } from './server/api-token-auth.ts';
 import { seedMenuItems, type HasRoutes as SeedHasRoutes } from './db/seeders/menu-seeder.ts';
 import { createCorsMiddleware, createPrivateNetworkPreflightMiddleware } from './middleware/cors.ts';
+import { createContentTypeMiddleware } from './middleware/content-type.ts';
 import { createApiKeyAuthMiddleware } from './middleware/auth.ts';
 import { createCorrelationMiddleware } from './middleware/correlation.ts';
 import { loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
@@ -117,6 +118,7 @@ const app = new Elysia()
   .onRequest(requestLogger.onRequest)
   .use(createPrivateNetworkPreflightMiddleware())
   .use(createCorsMiddleware())
+  .use(createContentTypeMiddleware())
   .use(createCorrelationMiddleware())
   .use(createRateLimitMiddleware())
   .use(createApiKeyAuthMiddleware())
