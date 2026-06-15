@@ -191,27 +191,4 @@ export async function loadUnifiedPlugins(options: UnifiedLoaderOptions = {}): Pr
   }
 }
 
-export async function seedUnifiedPluginMenuItems(items: UnifiedRuntime['menu']): Promise<void> {
-  if (!items.length) return;
-  try {
-    const [{ db, menuItems }, { eq }] = await Promise.all([import('../db/index.ts'), import('drizzle-orm')]);
-    const now = new Date();
-    for (const item of items) {
-      const existing = db.select().from(menuItems).where(eq(menuItems.path, item.path)).get();
-      if (existing && existing.source !== 'plugin') continue;
-      const values = {
-        path: item.path,
-        label: item.label,
-        groupKey: item.group ?? 'tools',
-        position: item.order ?? 999,
-        source: 'plugin',
-        icon: item.icon ?? null,
-        updatedAt: now,
-      };
-      if (existing) db.update(menuItems).set(values).where(eq(menuItems.id, existing.id)).run();
-      else db.insert(menuItems).values({ ...values, access: 'public', enabled: true, createdAt: now }).run();
-    }
-  } catch (error) {
-    console.warn('[unified-plugin] menu seed skipped:', error instanceof Error ? error.message : String(error));
-  }
-}
+export { seedUnifiedPluginMenuItems } from './unified-menu-seeder.ts';
