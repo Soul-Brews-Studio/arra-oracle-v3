@@ -15,11 +15,7 @@ import { DB_PATH, ORACLE_DATA_DIR } from '../config.ts';
 import { createStorageBackend } from '../storage/registry.ts';
 import type { StorageBackend } from '../storage/types.ts';
 
-export {
-  initFts5,
-  initSupersedeLog,
-  initializeDrizzleSqlite,
-} from '../storage/drizzle-sqlite.ts';
+export { initializeDrizzleSqlite } from '../storage/drizzle-sqlite.ts';
 
 export interface DatabaseConnection {
   sqlite: Database;
