@@ -6,8 +6,8 @@ import {
 } from './config.ts';
 import { proxyRequestForManifest } from '../plugins/proxy-surface.ts';
 
-export function activeVectorProxyManifest(): VectorProxyManifest[] {
-  return loadVectorConfig()?.proxy ?? defaultVectorProxyManifest();
+export function activeVectorProxyManifest(config = loadVectorConfig()): VectorProxyManifest[] {
+  return config?.proxy ?? defaultVectorProxyManifest();
 }
 
 export function proxyVectorSidecarRequest(
