@@ -31,6 +31,7 @@ import { isDraining, registerGracefulShutdown, trackRequest } from './lifecycle/
 import { createErrorMiddleware } from './middleware/errors.ts';
 import { validateStartupEnv } from './config/validate.ts';
 import { createRequestLogger } from './middleware/logger.ts';
+import { createRateLimitMiddleware } from './middleware/rate-limit.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -94,12 +95,14 @@ const scoutAnnouncer = shouldStartScoutAnnouncer() ? new ScoutAnnouncer() : null
 scoutAnnouncer?.start();
 
 const unifiedPlugins = await loadUnifiedPlugins({ warn: (message) => console.warn(message) });
+await unifiedPlugins.init();
 const unifiedServers = await startUnifiedPluginServers(unifiedPlugins.servers);
 
 registerGracefulShutdown({
   close: async () => {
     console.log('\n🔮 Shutting down gracefully...');
     scoutAnnouncer?.stop();
+    await unifiedPlugins.stop();
     await unifiedServers.stop();
     await closeCachedVectorStores();
     closeDb();
@@ -115,6 +118,7 @@ const app = new Elysia()
   .use(createPrivateNetworkPreflightMiddleware())
   .use(createCorsMiddleware())
   .use(createCorrelationMiddleware())
+  .use(createRateLimitMiddleware())
   .use(createApiKeyAuthMiddleware())
   .use(createMetricsLifecycle())
   .onBeforeHandle(({ request, set }) => {

@@ -33,6 +33,7 @@ jobs:
           tests/storage/
           tests/http/swagger/
           tests/lifecycle/
+          tests/plugins/
           src/vault/__tests__/
           src/indexer/__tests__/
           src/drizzle-migration.test.ts

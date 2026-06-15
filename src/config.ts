@@ -9,8 +9,10 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import * as C from './const.ts';
+import { applyProfileDefaultsToProcessEnv } from './config/profiles.ts';
 import { validateEnv } from './config/validate.ts';
 
+applyProfileDefaultsToProcessEnv();
 validateEnv({ emitOptionalWarnings: false });
 
 // ES Module compatibility for __dirname

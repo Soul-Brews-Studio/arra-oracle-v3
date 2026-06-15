@@ -58,6 +58,13 @@ export interface UnifiedCliSubcommandManifest {
   handler?: string;
 }
 
+export interface UnifiedLifecycleManifest {
+  init?: string;
+  destroy?: string;
+  start?: boolean;
+  stop?: boolean;
+}
+
 export interface UnifiedPluginManifest {
   name: string;
   version: string;
@@ -75,7 +82,7 @@ export interface UnifiedPluginManifest {
 
   /** Legacy compatibility aliases used by existing ServerPlugin/CLI manifests. */
   api?: { path: string; methods?: UnifiedHttpMethod[] };
-  lifecycle?: { start?: boolean; stop?: boolean };
+  lifecycle?: UnifiedLifecycleManifest;
   seedMenu?: boolean;
   cli?: { command: string; help: string };
 }
@@ -185,6 +192,13 @@ export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedP
   for (const command of cliSubcommands) {
     if (!command.command || typeof command.command !== 'string') throw new Error('cliSubcommands.command must be a string');
     if (!command.help || typeof command.help !== 'string') throw new Error('cliSubcommands.help must be a string');
+  }
+  if (manifest.lifecycle) {
+    const { init, destroy, start, stop } = manifest.lifecycle;
+    if (init !== undefined && typeof init !== 'string') throw new Error('lifecycle.init must be a string');
+    if (destroy !== undefined && typeof destroy !== 'string') throw new Error('lifecycle.destroy must be a string');
+    if (start !== undefined && typeof start !== 'boolean') throw new Error('lifecycle.start must be a boolean');
+    if (stop !== undefined && typeof stop !== 'boolean') throw new Error('lifecycle.stop must be a boolean');
   }
 
   return {

@@ -21,6 +21,7 @@ const DEFAULT_DIRS = [join(homedir(), '.arra', 'plugins'), join(homedir(), '.ora
 
 type ElysiaApp = Elysia<any, any, any, any, any, any, any>;
 type JsonRecord = Record<string, unknown>;
+type LifecycleSource = 'init' | 'destroy';
 
 export interface LoadedUnifiedPlugin {
   manifest: NormalizedUnifiedPluginManifest;
@@ -42,11 +43,12 @@ export interface UnifiedRuntime {
   cliSubcommands: Array<UnifiedCliSubcommandManifest & { plugin: string }>;
   servers: UnifiedPluginServer[];
   callMcpTool: (name: string, args?: unknown) => Promise<unknown>;
+  init: () => Promise<void>;
   stop: () => Promise<void>;
 }
 
 interface InvokeContext {
-  source: 'api' | 'mcp' | 'cli' | 'server';
+  source: 'api' | 'mcp' | 'cli' | 'server' | LifecycleSource;
   plugin: string;
   args?: unknown[];
   request?: Request;
@@ -134,6 +136,10 @@ function responseFrom(result: unknown): unknown {
   return record;
 }
 
+function invokeFailed(result: unknown): result is InvokeResult & { ok: false } {
+  return !!result && typeof result === 'object' && (result as InvokeResult).ok === false;
+}
+
 function apiRoute(plugin: LoadedUnifiedPlugin, route: UnifiedApiRouteManifest, timeoutMs: number): ElysiaApp {
   const app = new Elysia({ name: `unified:${plugin.manifest.name}:api:${route.path}` });
   for (const method of route.methods?.length ? route.methods : ['GET']) {
@@ -160,6 +166,7 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
   const cliSubcommands: UnifiedRuntime['cliSubcommands'] = [];
   const servers: UnifiedRuntime['servers'] = [];
   const mcpInvokers = new Map<string, { plugin: LoadedUnifiedPlugin; tool: UnifiedMcpToolManifest }>();
+  const initialized = new Set<string>();
 
   for (const plugin of plugins) {
     for (const tool of plugin.manifest.mcpTools) {
@@ -188,7 +195,29 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
     if (!hit) return { ok: false, error: `MCP tool not found: ${name}` };
     return invoke(hit.plugin, hit.tool.handler, { source: 'mcp', plugin: hit.plugin.manifest.name, args: [args], body: args }, timeoutMs);
   };
-  return { pluginCount: plugins.length, routes, mcpTools, menu, cliSubcommands, servers, callMcpTool, stop: async () => {} };
+  const invokeLifecycle = async (source: LifecycleSource, plugin: LoadedUnifiedPlugin) => {
+    const result = await invoke(plugin, plugin.manifest.lifecycle?.[source], {
+      source,
+      plugin: plugin.manifest.name,
+    }, timeoutMs);
+    if (invokeFailed(result)) warn(options, `${plugin.manifest.name}.${source} failed: ${result.error ?? 'plugin failed'}`);
+    else if (source === 'init') initialized.add(plugin.manifest.name);
+  };
+  const init = async () => {
+    for (const plugin of plugins) {
+      if (!plugin.manifest.lifecycle?.init || initialized.has(plugin.manifest.name)) continue;
+      await invokeLifecycle('init', plugin);
+    }
+  };
+  const stop = async () => {
+    for (const plugin of [...plugins].reverse()) {
+      if (!plugin.manifest.lifecycle?.destroy) continue;
+      if (plugin.manifest.lifecycle.init && !initialized.has(plugin.manifest.name)) continue;
+      await invokeLifecycle('destroy', plugin);
+    }
+    initialized.clear();
+  };
+  return { pluginCount: plugins.length, routes, mcpTools, menu, cliSubcommands, servers, callMcpTool, init, stop };
 }
 
 export async function loadUnifiedPlugins(options: UnifiedLoaderOptions = {}): Promise<UnifiedRuntime> {
