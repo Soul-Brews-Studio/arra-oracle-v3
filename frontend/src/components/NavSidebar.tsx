@@ -15,9 +15,9 @@ function navClass({ isActive }: { isActive: boolean }) {
 
 export function NavSidebar({ items }: { items: NavItem[] }) {
   return (
-    <aside className="sticky top-2 z-20 lg:top-4 lg:h-[calc(100vh-2rem)]">
+    <aside aria-label="Application navigation" className="sticky top-2 z-20 lg:top-4 lg:h-[calc(100vh-2rem)]">
       <div className="flex h-full flex-col gap-4 rounded-3xl border border-slate-200 bg-white/90 p-3 shadow-2xl shadow-slate-200/70 backdrop-blur sm:p-4 dark:border-white/10 dark:bg-slate-950/80 dark:shadow-black/20">
-        <NavLink to="/menu" className="focus-ring rounded-2xl p-2">
+        <NavLink to="/menu" aria-label="Arra Oracle control surface home" className="focus-ring rounded-2xl p-2">
           <p className="text-xs font-medium uppercase tracking-[0.28em] text-teal-700 dark:text-teal-300">Arra Oracle</p>
           <h1 className="mt-2 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl dark:text-white">Control Surface</h1>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-500">React routes over the Elysia API.</p>
@@ -25,7 +25,7 @@ export function NavSidebar({ items }: { items: NavItem[] }) {
 
         <nav aria-label="Frontend sections" className="grid auto-cols-[minmax(10rem,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1 lg:grid-flow-row lg:grid-cols-1 lg:overflow-visible lg:pb-0">
           {items.map((item) => (
-            <NavLink key={item.to} to={item.to} className={navClass}>
+            <NavLink key={item.to} to={item.to} aria-label={`${item.label}: ${item.description}`} className={navClass}>
               <span className="flex items-center justify-between gap-3">
                 <span className="font-semibold">{item.label}</span>
                 {item.badge !== undefined ? (

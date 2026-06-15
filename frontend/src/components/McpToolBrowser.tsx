@@ -15,6 +15,7 @@ function ToolCard({ tool, onOpen }: { tool: McpTool; onOpen?: (tool: McpTool) =>
       <p className="mt-3 text-sm leading-6 text-slate-400">{tool.description || 'No description supplied.'}</p>
       {onOpen ? (
         <button
+          aria-label={`Open schema detail for ${tool.name}`}
           className="focus-ring mt-4 rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-200 hover:border-teal-300/40"
           type="button"
           onClick={() => onOpen(tool)}
@@ -68,6 +69,7 @@ export function McpToolBrowser({ onOpenTool }: { onOpenTool?: (tool: McpTool) =>
           <p className="mt-2 text-sm text-slate-400">Live tool schemas from /api/mcp/tools.</p>
         </div>
         <button
+          aria-label="Reload MCP tool list"
           className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={loading}
           type="button"
@@ -79,6 +81,7 @@ export function McpToolBrowser({ onOpenTool }: { onOpenTool?: (tool: McpTool) =>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
         <input
+          aria-label="Filter MCP tools"
           className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-600"
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
@@ -93,7 +96,7 @@ export function McpToolBrowser({ onOpenTool }: { onOpenTool?: (tool: McpTool) =>
         <ErrorMessage
           title="Could not load MCP tools."
           message={error}
-          action={<button className="focus-ring rounded-lg border border-red-200/30 px-3 py-2 font-semibold text-red-50 hover:bg-red-200/10" type="button" onClick={() => void load()}>Retry</button>}
+          action={<button aria-label="Retry loading MCP tools" className="focus-ring rounded-lg border border-red-200/30 px-3 py-2 font-semibold text-red-50 hover:bg-red-200/10" type="button" onClick={() => void load()}>Retry</button>}
         />
       ) : null}
       {state === 'ready' && !visible.length ? <p className="rounded-xl border border-dashed border-white/10 p-6 text-sm text-slate-400">No MCP tools matched.</p> : null}

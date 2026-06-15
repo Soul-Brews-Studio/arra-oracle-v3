@@ -4,7 +4,7 @@
 - Status: Draft
 - Last refreshed: 2026-06-15
 - Primary product surfaces: Routed frontend dashboard for menu, plugin, vector, MCP, and settings discovery.
-- Evidence reviewed: `web/src/pages/index.astro`, `web/src/styles/global.css`, `src/routes/menu/menu.ts`, `src/routes/plugins/model.ts`, `src/routes/plugins/list.ts`, `frontend/src/components/VectorSearchWidget.tsx`, `frontend/src/components/McpToolBrowser.tsx`.
+- Evidence reviewed: `web/src/pages/index.astro`, `web/src/styles/global.css`, `src/routes/menu/menu.ts`, `src/routes/plugins/model.ts`, `src/routes/plugins/list.ts`, `frontend/src/components/VectorSearchWidget.tsx`, `frontend/src/components/McpToolBrowser.tsx`, `frontend/index.html`.
 
 ## Brand
 - Personality: technical, calm, observability-first Oracle tooling.
@@ -14,7 +14,7 @@
 ## Product goals
 - Goals: expose routed pages for `/api/menu`, `/api/plugins`, vector search, MCP tools, and frontend runtime settings.
 - Non-goals: editing menus/plugins/settings, auth flows, or embedding the Astro marketing site.
-- Success signals: frontend build passes; users can navigate routes and scan menu, plugin, vector, MCP, and settings surfaces on desktop/mobile.
+- Success signals: frontend build passes; users can navigate routes and scan menu, plugin, vector, MCP, and settings surfaces on desktop/mobile; static frontend shell assets are installable/cacheable for offline revisit.
 
 ## Personas and jobs
 - Primary personas: Oracle operators, plugin authors, maintainers.
@@ -63,7 +63,7 @@
 - Error: retry button with error message.
 - Success: updated timestamp and populated cards.
 - Disabled: no disabled controls in this slice.
-- Offline/slow network: fetch timeout is browser-managed; retry is available.
+- Offline/slow network: fetch timeout is browser-managed; retry is available; service worker caches static shell assets while API data remains live-only.
 
 ## Content voice
 - Tone: concise, operational, transparent.
@@ -74,7 +74,7 @@
 - Framework/styling system: React + React Router + Vite + Tailwind in `frontend/`.
 - Design-token constraints: no new shared design system layer.
 - Performance constraints: small static bundle; parallel API fetches.
-- Compatibility constraints: `/api/*` dev proxy targets backend `:47778`.
+- Compatibility constraints: `/api/*` dev proxy targets backend `:47778`; service worker is production-only and skips `/api/*` caching.
 - Test/screenshot expectations: build verification for this slice.
 
 ## Open questions

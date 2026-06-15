@@ -69,7 +69,7 @@ export function SettingsPage({ menuCount, pluginCount, surfaceCount, updatedAt, 
             <h2 id="settings-page-title" className="mt-2 text-2xl font-semibold text-white">Runtime configuration</h2>
             <p className="mt-2 text-sm text-slate-400">Storage backend, embedder configuration, and Drizzle migration status.</p>
           </div>
-          <button className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" type="button" onClick={refreshAll}>
+          <button aria-label="Refresh runtime settings" className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" type="button" onClick={refreshAll}>
             {loading ? <Spinner label="Refreshing" /> : 'Refresh settings'}
           </button>
         </div>
