@@ -40,6 +40,7 @@ export interface UnifiedRuntime {
   menu: Array<UnifiedMenuManifest & { plugin: string }>;
   cliSubcommands: Array<UnifiedCliSubcommandManifest & { plugin: string }>;
   servers: Array<UnifiedServerManifest & { plugin: string }>;
+  callMcpTool: (name: string, args?: unknown) => Promise<unknown>;
   stop: () => Promise<void>;
 }
 
@@ -190,9 +191,13 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
   const menu: UnifiedRuntime['menu'] = [];
   const cliSubcommands: UnifiedRuntime['cliSubcommands'] = [];
   const servers: UnifiedRuntime['servers'] = [];
+  const mcpInvokers = new Map<string, { plugin: LoadedUnifiedPlugin; tool: UnifiedMcpToolManifest }>();
 
   for (const plugin of plugins) {
-    for (const tool of plugin.manifest.mcpTools) mcpTools.push({ ...tool, plugin: plugin.manifest.name });
+    for (const tool of plugin.manifest.mcpTools) {
+      mcpTools.push({ ...tool, plugin: plugin.manifest.name });
+      mcpInvokers.set(tool.name, { plugin, tool });
+    }
     for (const route of plugin.manifest.apiRoutes) routes.push(apiRoute(plugin, route, timeoutMs));
     for (const proxy of plugin.manifest.proxy) routes.push(proxyRoute(plugin, proxy));
     if (plugin.manifest.server) servers.push({ ...plugin.manifest.server, plugin: plugin.manifest.name });
@@ -202,7 +207,12 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
     }
   }
 
-  return { routes, mcpTools, menu, cliSubcommands, servers, stop: async () => {} };
+  const callMcpTool = async (name: string, args?: unknown): Promise<unknown> => {
+    const hit = mcpInvokers.get(name);
+    if (!hit) return { ok: false, error: `MCP tool not found: ${name}` };
+    return invoke(hit.plugin, hit.tool.handler, { source: 'mcp', plugin: hit.plugin.manifest.name, args: [args], body: args }, timeoutMs);
+  };
+  return { routes, mcpTools, menu, cliSubcommands, servers, callMcpTool, stop: async () => {} };
 }
 
 export async function loadUnifiedPlugins(options: UnifiedLoaderOptions = {}): Promise<UnifiedRuntime> {
