@@ -31,7 +31,7 @@ import { startUnifiedPluginServers } from './plugins/unified-server.ts';
 import { authRoutes } from './routes/auth/index.ts';
 import { settingsRoutes } from './routes/settings/index.ts';
 import { feedRoutes } from './routes/feed/index.ts';
-import { healthRoutes } from './routes/health/index.ts';
+import { createHealthRoutes } from './routes/health/index.ts';
 import { dashboardRoutes } from './routes/dashboard/index.ts';
 import { searchRoutes } from './routes/search/index.ts';
 import { vectorRoutes } from './routes/vector/index.ts';
@@ -153,6 +153,11 @@ const app = new Elysia()
     docs: '/swagger',
     api: '/api',
   }));
+
+const healthRoutes = createHealthRoutes({
+  pluginCount: unifiedPlugins.pluginCount,
+  pluginMcpToolCount: unifiedPlugins.mcpTools.length,
+});
 
 const apiModules = [
   authRoutes,
