@@ -50,6 +50,7 @@ import { vaultRoutes } from './routes/vault/index.ts';
 import { createMenuRoutes, menuItemsFromUnifiedPlugins } from './routes/menu/index.ts';
 import { peerRoutes } from './routes/peer/index.ts';
 import { createMcpRoutes } from './routes/mcp/index.ts';
+import { createMetricsLifecycle, metricsRoutes } from './routes/metrics/index.ts';
 
 // Indexer routes are optional — MCP server works without them
 let indexerRoutes: any = null;
@@ -106,6 +107,7 @@ const app = new Elysia()
   .use(createPrivateNetworkPreflightMiddleware())
   .use(createCorsMiddleware())
   .use(createApiKeyAuthMiddleware())
+  .use(createMetricsLifecycle())
   .onBeforeHandle(({ request, set }) => {
     const pathname = new URL(request.url).pathname;
     if (isApiPathProtected(pathname) && !isApiAuthorized(request)) {
@@ -167,6 +169,7 @@ const apiModules = [
   oraclenetRoutes,
   sessionsRoutes,
   vaultRoutes,
+  metricsRoutes,
   ...(indexerRoutes ? [indexerRoutes] : []),
   ...unifiedPlugins.routes,
 ];
