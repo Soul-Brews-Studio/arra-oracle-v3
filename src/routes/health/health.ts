@@ -13,6 +13,7 @@ type DbStatus = { status: 'ok' } | { status: 'down'; error: string };
 export interface HealthEndpointOptions {
   pluginCount?: number;
   pluginMcpToolCount?: number;
+  isDraining?: () => boolean;
   uptimeSeconds?: () => number;
   vectorHealth?: () => Promise<VectorHealth>;
 }
@@ -52,7 +53,17 @@ function installedPluginCount(): number {
 }
 
 export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
-  return new Elysia().get('/health', async () => {
+  return new Elysia().get('/health', async ({ set }) => {
+    if (options.isDraining?.()) {
+      set.status = 503;
+      return {
+        status: 'draining',
+        server: MCP_SERVER_NAME,
+        version: pkg.version,
+        draining: true,
+      };
+    }
+
     const uptimeSeconds = Number(options.uptimeSeconds?.() ?? process.uptime());
     const dbStatus = readDbStatus();
     const vector = await readVectorStatus(options.vectorHealth);
