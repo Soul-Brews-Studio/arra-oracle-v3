@@ -190,3 +190,31 @@ describe('DELETE /api/menu/items/:id', () => {
     expect(status).toBe(404);
   });
 });
+
+describe('POST/PUT/DELETE /api/menu', () => {
+  beforeEach(() => clearMenu());
+
+  test('creates, updates, then soft-deletes a menu row', async () => {
+    const app = createMenuRoutes();
+    const created = await call(app, 'POST', '/api/menu', {
+      path: '/crud-alias',
+      label: 'CRUD Alias',
+      groupKey: 'tools',
+    });
+    expect(created.status).toBe(201);
+    expect(created.json).toMatchObject({ path: '/crud-alias', source: 'custom' });
+
+    const updated = await call(app, 'PUT', `/api/menu/${created.json.id}`, {
+      label: 'CRUD Updated',
+      position: 7,
+    });
+    expect(updated.status).toBe(200);
+    expect(updated.json).toMatchObject({ label: 'CRUD Updated', position: 7 });
+
+    const deleted = await call(app, 'DELETE', `/api/menu/${created.json.id}`);
+    expect(deleted.status).toBe(200);
+    expect(deleted.json.deleted).toBe('soft');
+    const row = db.select().from(menuItems).where(eq(menuItems.id, created.json.id)).get();
+    expect(row?.enabled).toBe(false);
+  });
+});
