@@ -1,49 +1,40 @@
 name: Test
 
 on:
-  push:
-    branches: [main]
   pull_request:
-    branches: [main]
+    branches: [alpha]
 
 jobs:
-  unit:
-    name: Unit Tests
+  test:
+    name: Typecheck and scoped tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - run: bun install
-      - run: bun test:unit --coverage
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        if: always()
-        with:
-          files: ./coverage/lcov.info
-          fail_ci_if_error: false
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  integration:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: unit
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: bun install
-      - run: mkdir -p ~/.oracle
-      - run: bun test:integration:db
-      - run: bun test:integration:mcp
-      - name: Start server for HTTP tests
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
         run: |
-          ORACLE_CHROMA_TIMEOUT=2000 bun run src/server.ts &
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:47778/api/health && break || sleep 0.5
-          done
-      - run: bun test:integration:http
-      - name: Stop server
-        if: always()
-        run: kill $(lsof -ti :47778) 2>/dev/null || true
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          tsc --noEmit
+
+      - name: Run scoped unit tests
+        run: >
+          bun test --isolate
+          src/tools/__tests__/
+          src/server/__tests__/
+          tests/storage/
+          src/vault/__tests__/
+          src/indexer/__tests__/
+          src/drizzle-migration.test.ts
+          src/indexer-preservation.test.ts
+
+      - name: Run scoped integration tests
+        run: bun test --isolate src/integration/

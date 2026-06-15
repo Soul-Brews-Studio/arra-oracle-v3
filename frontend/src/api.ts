@@ -10,9 +10,26 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   headers.set('accept', 'application/json');
   if (init?.body && !headers.has('content-type')) headers.set('content-type', 'application/json');
-  const response = await fetch(path, { ...init, headers });
-  if (!response.ok) throw new ApiError(response.status, `${path} returned ${response.status}`);
-  return response.json() as Promise<T>;
+  let response: Response;
+  try {
+    response = await fetch(path, { ...init, headers });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new ApiError(0, `${path} is unreachable: ${message}`);
+  }
+  const payload = await response.text();
+  let data: unknown = {};
+  try {
+    data = payload ? JSON.parse(payload) : {};
+  } catch {
+    throw new ApiError(response.status, `${path} returned invalid JSON`);
+  }
+  if (!response.ok) {
+    const errorValue = data && typeof data === 'object' && 'error' in data ? data.error : undefined;
+    const detail = typeof errorValue === 'string' ? errorValue : response.statusText;
+    throw new ApiError(response.status, `${path} returned ${response.status}${detail ? `: ${detail}` : ''}`);
+  }
+  return data as T;
 }
 
 export async function fetchMenu(): Promise<MenuResponse> {

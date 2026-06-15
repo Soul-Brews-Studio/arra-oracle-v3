@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchMcpTools } from '../api';
+import { ErrorMessage, LoadingPanel, Spinner } from './AsyncState';
 import { groupLabel, toolMode } from './toolView';
 import type { McpTool } from '../types';
 
@@ -56,6 +57,7 @@ export function McpToolBrowser({ onOpenTool }: { onOpenTool?: (tool: McpTool) =>
   }, [filter, tools]);
 
   const groups = useMemo(() => new Set(tools.map(groupLabel)).size, [tools]);
+  const loading = state === 'loading';
 
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="mcp-tools-title">
@@ -65,8 +67,13 @@ export function McpToolBrowser({ onOpenTool }: { onOpenTool?: (tool: McpTool) =>
           <h2 id="mcp-tools-title" className="mt-2 text-2xl font-semibold text-white">Tool browser</h2>
           <p className="mt-2 text-sm text-slate-400">Live tool schemas from /api/mcp/tools.</p>
         </div>
-        <button className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" type="button" onClick={() => void load()}>
-          Reload
+        <button
+          className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={loading}
+          type="button"
+          onClick={() => void load()}
+        >
+          {loading ? <Spinner label="Reloading" /> : 'Reload'}
         </button>
       </div>
 
@@ -78,12 +85,21 @@ export function McpToolBrowser({ onOpenTool }: { onOpenTool?: (tool: McpTool) =>
           placeholder="Filter tools, groups, descriptions…"
           type="search"
         />
-        <p className="text-sm text-slate-500">{state === 'loading' ? 'Loading…' : `${visible.length}/${tools.length} tools · ${groups} groups`}</p>
+        <p className="text-sm text-slate-500">{loading ? <Spinner label="Loading tools" /> : `${visible.length}/${tools.length} tools · ${groups} groups`}</p>
       </div>
 
-      {state === 'error' ? <p className="rounded-xl border border-red-400/30 bg-red-950/40 p-3 text-sm text-red-100">{error}</p> : null}
+      {loading ? <LoadingPanel title="Loading MCP tools…" detail="Fetching /api/mcp/tools." /> : null}
+      {state === 'error' ? (
+        <ErrorMessage
+          title="Could not load MCP tools."
+          message={error}
+          action={<button className="focus-ring rounded-lg border border-red-200/30 px-3 py-2 font-semibold text-red-50 hover:bg-red-200/10" type="button" onClick={() => void load()}>Retry</button>}
+        />
+      ) : null}
       {state === 'ready' && !visible.length ? <p className="rounded-xl border border-dashed border-white/10 p-6 text-sm text-slate-400">No MCP tools matched.</p> : null}
-      <div className="grid gap-3 lg:grid-cols-2">{visible.map((tool) => <ToolCard key={`${tool.source ?? 'core'}:${tool.name}`} tool={tool} onOpen={onOpenTool} />)}</div>
+      <div className="grid gap-3 lg:grid-cols-2" aria-busy={loading}>
+        {!loading ? visible.map((tool) => <ToolCard key={`${tool.source ?? 'core'}:${tool.name}`} tool={tool} onOpen={onOpenTool} />) : null}
+      </div>
     </section>
   );
 }
