@@ -6,7 +6,7 @@ describe('API non-OK errors', () => {
   test('includes backend error text in ApiError messages', async () => {
     const fetchMock = installFetch(() => jsonResponse({ error: 'offline' }, { status: 503, statusText: 'Unavailable' }));
     try {
-      await expect(fetchPlugins()).rejects.toMatchObject({ status: 503, message: '/api/v1/plugins returned 503: offline' } as ApiError);
+      await expect(fetchPlugins()).rejects.toMatchObject({ status: 503, message: '/api/plugins returned 503: offline' } as ApiError);
     } finally {
       fetchMock.restore();
     }

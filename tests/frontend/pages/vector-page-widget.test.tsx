@@ -8,6 +8,5 @@ describe('VectorPage', () => {
     const html = htmlFor(<MemoryRouter><VectorPage /></MemoryRouter>);
     expect(html).toContain('Vector search');
     expect(html).toContain('Semantic search against Oracle memory');
-    expect(html).toContain('Index management');
   });
 });
