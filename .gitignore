@@ -60,3 +60,6 @@ agents/
 
 # omx per-session project memory (not source of truth)
 .omx/
+
+# volt-oracle per-machine tooling artifacts (not source of truth)
+.volt/
