@@ -3,8 +3,8 @@
 ## Source of truth
 - Status: Draft
 - Last refreshed: 2026-06-15
-- Primary product surfaces: Frontend dashboard for menu and plugin discovery.
-- Evidence reviewed: `web/src/pages/index.astro`, `web/src/styles/global.css`, `src/routes/menu/menu.ts`, `src/routes/plugins/model.ts`, `src/routes/plugins/list.ts`.
+- Primary product surfaces: Routed frontend dashboard for menu, plugin, vector, MCP, and settings discovery.
+- Evidence reviewed: `web/src/pages/index.astro`, `web/src/styles/global.css`, `src/routes/menu/menu.ts`, `src/routes/plugins/model.ts`, `src/routes/plugins/list.ts`, `frontend/src/components/VectorSearchWidget.tsx`, `frontend/src/components/McpToolBrowser.tsx`.
 
 ## Brand
 - Personality: technical, calm, observability-first Oracle tooling.
@@ -12,24 +12,24 @@
 - Avoid: decorative UI that hides operational state.
 
 ## Product goals
-- Goals: show `/api/menu` navigation rows and `/api/plugins` registered plugin metadata quickly.
-- Non-goals: editing menus/plugins, auth flows, or embedding the Astro marketing site.
-- Success signals: frontend build passes; users can scan menu groups and plugin surfaces on desktop/mobile.
+- Goals: expose routed pages for `/api/menu`, `/api/plugins`, vector search, MCP tools, and frontend runtime settings.
+- Non-goals: editing menus/plugins/settings, auth flows, or embedding the Astro marketing site.
+- Success signals: frontend build passes; users can navigate routes and scan menu, plugin, vector, MCP, and settings surfaces on desktop/mobile.
 
 ## Personas and jobs
 - Primary personas: Oracle operators, plugin authors, maintainers.
-- User jobs: confirm backend connectivity, inspect available navigation, inspect registered plugins/surfaces.
+- User jobs: confirm backend connectivity, inspect available navigation, inspect registered plugins/surfaces, run vector searches, and browse MCP tools.
 - Key contexts of use: local Vite dev proxy to `:47778`, same-origin deployed UI.
 
 ## Information architecture
-- Primary navigation: in-page anchors for Overview, Menu, Plugins.
-- Core routes/screens: single dashboard screen with two data panels.
-- Content hierarchy: connection status, summary stats, menu viewer, plugin list.
+- Primary navigation: responsive React Router sidebar for Menu, Plugins, Vector, MCP, and Settings.
+- Core routes/screens: `/menu`, `/plugins`, `/vector`, `/mcp`, `/settings`; `/` redirects to `/menu`.
+- Content hierarchy: sidebar navigation, connection/status summary, then one focused routed page at a time.
 
 ## Design principles
 - Principle 1: make live system state visible before details.
 - Principle 2: prefer dense but readable operational cards.
-- Tradeoffs: simple single-page UI over routing until more screens are required.
+- Tradeoffs: lightweight route components over a larger design-system layer.
 
 ## Visual language
 - Color: dark neutral base with teal/cyan Oracle accent and purple secondary accent.
@@ -40,8 +40,8 @@
 - Imagery/iconography: text badges over icon dependencies.
 
 ## Components
-- Existing components to reuse: none in `frontend/`; visual cues borrowed from `web/src/styles/global.css`.
-- New/changed components: status banner, stat cards, menu cards, plugin cards, badges.
+- Existing components to reuse: `VectorSearchWidget`, `McpToolBrowser`, menu/plugin cards, and visual cues from `web/src/styles/global.css`.
+- New/changed components: nav sidebar, routed pages, status banner, stat cards, menu cards, plugin cards, badges.
 - Variants and states: loading, error, empty, success.
 - Token/component ownership: local Tailwind utility classes in `frontend/src/styles.css` and React components.
 
@@ -54,7 +54,7 @@
 
 ## Responsive behavior
 - Supported breakpoints/devices: mobile single column, desktop two-column content grid.
-- Layout adaptations: summary cards wrap; menu/plugin panels stack below large screens.
+- Layout adaptations: sidebar stacks above content on small screens and becomes sticky at desktop widths; summary cards wrap.
 - Touch/hover differences: cards do not require hover-only controls.
 
 ## Interaction states
@@ -71,7 +71,7 @@
 - Microcopy rules: describe exact endpoint on failures.
 
 ## Implementation constraints
-- Framework/styling system: React + Vite + Tailwind in `frontend/`.
+- Framework/styling system: React + React Router + Vite + Tailwind in `frontend/`.
 - Design-token constraints: no new shared design system layer.
 - Performance constraints: small static bundle; parallel API fetches.
 - Compatibility constraints: `/api/*` dev proxy targets backend `:47778`.
