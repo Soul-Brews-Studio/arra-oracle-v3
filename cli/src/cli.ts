@@ -103,6 +103,16 @@ async function main() {
     process.exit(await huginnCommand(args.slice(1)));
   }
 
+  if (cmd === "export") {
+    const { exportCommand } = await import("../../src/cli/commands/export.ts");
+    process.exit(await exportCommand(args.slice(1)));
+  }
+
+  if (cmd === "import") {
+    const { importCommand } = await import("../../src/cli/commands/import.ts");
+    process.exit(await importCommand(args.slice(1)));
+  }
+
   if (cmd === "use") {
     process.exit(await useCommand(args.slice(1)));
   }
