@@ -35,6 +35,7 @@ import { createRequestLogger } from './middleware/logger.ts';
 import { createRateLimitMiddleware } from './middleware/rate-limit.ts';
 import { createApiVersionHeaderMiddleware, createApiVersionedFetch } from './middleware/api-version.ts';
 import { createSecurityHeadersMiddleware } from './middleware/security-headers.ts';
+import { createRequestTimeoutFetch } from './middleware/timeout.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -241,9 +242,9 @@ function enabledMiddleware(): BannerMiddleware[] {
   ];
 }
 
-const versionedFetch = createApiVersionedFetch((request) => app.fetch(request));
+const serverFetch = createRequestTimeoutFetch(createApiVersionedFetch((request) => app.fetch(request)));
 
 export default {
   port: Number(PORT),
-  fetch: (request: Request) => trackRequest(() => versionedFetch(request)),
+  fetch: (request: Request) => trackRequest(() => serverFetch(request)),
 };
