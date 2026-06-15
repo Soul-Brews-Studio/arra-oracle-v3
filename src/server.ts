@@ -26,6 +26,7 @@ import { seedMenuItems, type HasRoutes as SeedHasRoutes } from './db/seeders/men
 import { createCorsMiddleware, createPrivateNetworkPreflightMiddleware } from './server/cors.ts';
 import { loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
 import { startUnifiedPluginServers } from './plugins/unified-server.ts';
+import { createErrorMiddleware } from './middleware/errors.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -118,20 +119,7 @@ const app = new Elysia()
     set.headers['X-XSS-Protection'] = '1; mode=block';
     set.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
   })
-  .onError(({ code, error, set }) => {
-    if (code === 'NOT_FOUND') {
-      set.status = 404;
-      return { error: 'Not found' };
-    }
-    const msg = (error as any)?.message ?? String(error);
-    const isDbLock = msg.includes('disk I/O') || msg.includes('database is locked') || msg.includes('SQLITE_BUSY');
-    if (isDbLock) {
-      set.status = 503;
-      return { error: 'Database temporarily unavailable (indexing in progress)', indexing: true, detail: msg };
-    }
-    set.status = 500;
-    return { error: msg };
-  })
+  .use(createErrorMiddleware())
   .use(
     swagger({
       path: '/swagger',
