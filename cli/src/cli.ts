@@ -122,6 +122,12 @@ async function main() {
     process.exit(await changelogCommand(args.slice(1)));
   }
 
+  if (cmd === "release") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    const { releaseCommand } = await import("../../src/cli/commands/release.ts");
+    process.exit(await releaseCommand(args.slice(1)));
+  }
+
   if (cmd === "export") {
     const { exportCommand } = await import("../../src/cli/commands/export.ts");
     process.exit(await exportCommand(args.slice(1)));
@@ -130,6 +136,12 @@ async function main() {
   if (cmd === "import") {
     const { importCommand } = await import("../../src/cli/commands/import.ts");
     process.exit(await importCommand(args.slice(1)));
+  }
+
+  if (cmd === "migrate") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    const { migrateCommand } = await import("../../src/cli/commands/migrate.ts");
+    process.exit(await migrateCommand(args.slice(1)));
   }
 
   if (cmd === "use") {

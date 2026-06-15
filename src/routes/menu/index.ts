@@ -29,5 +29,6 @@ export {
   scopeMatches,
   API_TO_STUDIO,
 } from './menu.ts';
+export { createMenuListEndpoint } from './list-paginated.ts';
 export { menuItemsFromUnifiedPlugins } from './unified-plugin-menu.ts';
 export type { MenuItem, MenuResponse, Scope } from './model.ts';

@@ -8,7 +8,7 @@ const DB_PATH = process.env.ORACLE_DB_PATH || path.join(ORACLE_DATA_DIR, 'oracle
 
 export default defineConfig({
   dialect: 'sqlite',
-  schema: './src/db/schema.ts',
+  schema: ['./src/db/schema.ts', './src/storage/audit-log.ts'],
   out: './src/db/migrations',
   dbCredentials: {
     url: DB_PATH,
@@ -30,5 +30,6 @@ export default defineConfig({
     'settings',       // Auth & app settings
     'schedule',       // Appointments & events
     'menu_items',     // Studio navigation (seeded from route detail.menu)
+    'audit_log',      // Query write audit trail
   ],
 });

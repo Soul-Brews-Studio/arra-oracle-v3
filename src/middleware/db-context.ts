@@ -12,6 +12,7 @@ export type DbQueryTrace = DbRequestContext & {
 };
 
 export type DbQueryTraceObserver = (trace: DbQueryTrace) => void;
+export type DbQueryObserver = (query: string, params: unknown[]) => void;
 
 type FetchHandler = (request: Request) => Response | Promise<Response>;
 
@@ -42,16 +43,17 @@ export function setDbQueryTraceObserverForTests(observer?: DbQueryTraceObserver)
   };
 }
 
-function emitDbQueryTrace(query: string, params: unknown[]): void {
+export function emitDbQueryTrace(query: string, params: unknown[]): void {
   const requestId = currentDbRequestId();
   if (!requestId) return;
   dbQueryTraceObserver?.({ requestId, query, params });
 }
 
-export function createDbContextQueryLogger(observer = emitDbQueryTrace): Logger {
+export function createDbContextQueryLogger(...observers: DbQueryObserver[]): Logger {
   return {
     logQuery(query, params) {
-      observer(query, params);
+      emitDbQueryTrace(query, params);
+      for (const observer of observers) observer(query, params);
     },
   };
 }
