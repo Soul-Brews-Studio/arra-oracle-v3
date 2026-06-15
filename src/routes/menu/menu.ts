@@ -9,11 +9,10 @@
  *      gist extras, and custom items — preserving /api/menu response shape.
  */
 
-import { Elysia, t } from 'elysia';
-import { MenuItemSchema, ScopeSchema, type MenuItem, type Scope } from './model.ts';
-import { getMenuConfig, getMenuSource, reloadMenuConfig } from '../../menu/config.ts';
-import { listCustomMenuItems } from '../../menu/custom-store.ts';
-import { buildMenuItems, readApiMenuItemsFromDb } from './menu-items.ts';
+import { t } from 'elysia';
+import { MenuItemSchema, type MenuItem } from './model.ts';
+import { getMenuSource, reloadMenuConfig } from '../../menu/config.ts';
+import { createMenuListEndpoint } from './list-paginated.ts';
 
 export type MenuExtras = {
   items?: MenuItem[];
@@ -33,35 +32,7 @@ const MenuSourceSchema = t.Object({
 });
 
 export function createMenuEndpoint(pluginItems: MenuItem[] = []) {
-  return new Elysia()
-    .get(
-      '/menu',
-      async ({ query }) => {
-        const { items, disable } = await getMenuConfig();
-        const host = typeof query.host === 'string' && query.host.length > 0 ? query.host : undefined;
-        const validScopes = ['main', 'sub', 'both'] as const;
-        const scope = validScopes.includes(query.scope as Scope) ? (query.scope as Scope) : undefined;
-        return {
-          items: buildMenuItems(
-            readApiMenuItemsFromDb(host, scope),
-            { items, disable },
-            listCustomMenuItems(),
-            pluginItems,
-          ),
-        };
-      },
-      {
-        query: t.Object({
-          host: t.Optional(t.String()),
-          scope: t.Optional(ScopeSchema),
-        }),
-        detail: {
-          tags: ['menu'],
-          menu: { group: 'hidden' },
-          summary: 'Aggregated studio navigation from menu_items table',
-        },
-      },
-    )
+  return createMenuListEndpoint(pluginItems)
     .get('/menu/source', () => getMenuSource(), {
       response: MenuSourceSchema,
       detail: {
