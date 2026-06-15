@@ -89,6 +89,20 @@ export const BUILTIN_HELP: CliHelpEntry[] = [
     flags: ["--sessions-dir <path[:path...]>", "--repo-root <path>", "--lookback-hours <n>", "--max-files <n>", "--json", "--help", "-h"],
     examples: ["arra-cli huginn sweep --lookback-hours 24", "arra-cli huginn sweep --sessions-dir ~/.claude/projects --json"],
   },
+  {
+    command: "migrate",
+    help: "run Drizzle migration generate and push",
+    usage: "arra-cli migrate",
+    flags: ["--help", "-h"],
+    examples: ["arra-cli migrate"],
+  },
+  {
+    command: "changelog",
+    help: "generate CHANGELOG.md from git history",
+    usage: "arra-cli changelog [--since <tag>] [--out CHANGELOG.md] [--stdout]",
+    flags: ["--since <tag>", "--out <file>", "--stdout", "--help", "-h"],
+    examples: ["arra-cli changelog", "arra-cli changelog --since v1.2.3 --stdout"],
+  },
 ];
 
 const SUBCOMMAND_HELP: CliHelpEntry[] = [

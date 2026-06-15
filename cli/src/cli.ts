@@ -116,6 +116,12 @@ async function main() {
     process.exit(await huginnCommand(args.slice(1)));
   }
 
+  if (cmd === "changelog") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    const { changelogCommand } = await import("../../src/cli/commands/changelog.ts");
+    process.exit(await changelogCommand(args.slice(1)));
+  }
+
   if (cmd === "export") {
     const { exportCommand } = await import("../../src/cli/commands/export.ts");
     process.exit(await exportCommand(args.slice(1)));
@@ -124,6 +130,12 @@ async function main() {
   if (cmd === "import") {
     const { importCommand } = await import("../../src/cli/commands/import.ts");
     process.exit(await importCommand(args.slice(1)));
+  }
+
+  if (cmd === "migrate") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    const { migrateCommand } = await import("../../src/cli/commands/migrate.ts");
+    process.exit(await migrateCommand(args.slice(1)));
   }
 
   if (cmd === "use") {
