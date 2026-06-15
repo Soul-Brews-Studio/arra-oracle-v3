@@ -42,12 +42,16 @@ type CollectionHealth = {
 };
 
 function activeConfig(): { source: 'file' | 'defaults'; config: VectorServerConfig } {
-  const fromDisk = loadVectorConfig();
+  const fromDisk = loadVectorConfig(currentConfigPath());
   return { source: fromDisk ? 'file' : 'defaults', config: fromDisk ?? generateDefaultConfig() };
 }
 
+function currentConfigPath(): string {
+  return process.env.ORACLE_DATA_DIR ? configPath(process.env.ORACLE_DATA_DIR) : configPath();
+}
+
 function atomicWriteVectorConfig(config: VectorServerConfig): string {
-  const target = configPath();
+  const target = currentConfigPath();
   const dir = path.dirname(target);
   fs.mkdirSync(dir, { recursive: true });
   const tmp = path.join(dir, `.${path.basename(target)}.${process.pid}.${Date.now()}.tmp`);
