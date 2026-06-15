@@ -6,6 +6,7 @@
  */
 
 import type { EmbeddingProvider, EmbeddingProviderType, EmbedType } from './types.ts';
+import { NoneEmbeddings, RemoteHttpEmbeddings } from './embedding-backends.ts';
 
 /**
  * Placeholder for ChromaDB's internal embeddings.
@@ -158,12 +159,18 @@ export class OpenAIEmbeddings implements EmbeddingProvider {
  * Create embedding provider from type string
  */
 export function createEmbeddingProvider(
-  type: EmbeddingProviderType = 'chromadb-internal',
-  model?: string
+  type: EmbeddingProviderType = 'none',
+  model?: string,
+  options: { url?: string; dimensions?: number } = {},
 ): EmbeddingProvider {
   switch (type) {
+    case 'none':
+      return new NoneEmbeddings();
+    case 'local':
     case 'ollama':
       return new OllamaEmbeddings({ model });
+    case 'remote':
+      return new RemoteHttpEmbeddings({ model, url: options.url, dimensions: options.dimensions });
     case 'openai':
       return new OpenAIEmbeddings({ model });
     case 'cloudflare-ai': {
