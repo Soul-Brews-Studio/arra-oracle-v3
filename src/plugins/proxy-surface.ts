@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia';
 import type { UnifiedProxyManifest } from './unified-manifest.ts';
+import { cloneRetryableBody, retryableRequestBody, retryUpstreamRequest } from '../middleware/retry.ts';
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.ARRA_PLUGIN_PROXY_TIMEOUT_MS ?? 15_000);
 type ElysiaApp = Elysia<any, any, any, any, any, any, any>;
@@ -50,13 +51,14 @@ async function forward(request: Request, target: string): Promise<Response> {
   try {
     const headers = new Headers(request.headers);
     headers.delete('host');
-    const res = await fetch(target, {
+    const body = await retryableRequestBody(request);
+    const res = await retryUpstreamRequest(() => fetch(target, {
       method: request.method,
-      headers,
-      body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request.body,
+      headers: new Headers(headers),
+      body: cloneRetryableBody(body),
       signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
       duplex: 'half',
-    });
+    }));
     const responseHeaders = new Headers(res.headers);
     responseHeaders.set('x-unified-proxy-target', new URL(target).origin);
     return new Response(res.body, { status: res.status, statusText: res.statusText, headers: responseHeaders });
