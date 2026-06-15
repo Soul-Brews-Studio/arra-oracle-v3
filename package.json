@@ -64,7 +64,8 @@
     "smoke:federation": "bun scripts/federation-smoke.ts",
     "huginn:capture": "bun scripts/huginn-capture-hook.ts",
     "test:huginn": "bun test src/huginn/__tests__/capture.test.ts src/huginn/__tests__/sweep.test.ts",
-    "huginn:sweep": "bun scripts/huginn-sweep.ts"
+    "huginn:sweep": "bun scripts/huginn-sweep.ts",
+    "bench": "bun run benchmarks/run-all.ts"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
