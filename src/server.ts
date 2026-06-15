@@ -21,13 +21,16 @@ import { MCP_SERVER_NAME } from './const.ts';
 import { db, sqlite, closeDb, indexingStatus } from './db/index.ts';
 import { isApiAuthorized, isApiPathProtected, unauthorizedApiResponse } from './server/api-token-auth.ts';
 import { seedMenuItems, type HasRoutes as SeedHasRoutes } from './db/seeders/menu-seeder.ts';
-import { createCorsMiddleware, createPrivateNetworkPreflightMiddleware } from './server/cors.ts';
+import { createCorsMiddleware, createPrivateNetworkPreflightMiddleware } from './middleware/cors.ts';
 import { createApiKeyAuthMiddleware } from './middleware/auth.ts';
+import { createCorrelationMiddleware } from './middleware/correlation.ts';
 import { loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
 import { startUnifiedPluginServers } from './plugins/unified-server.ts';
 import { closeCachedVectorStores } from './vector/factory.ts';
 import { isDraining, registerGracefulShutdown, trackRequest } from './lifecycle/shutdown.ts';
 import { createErrorMiddleware } from './middleware/errors.ts';
+import { validateStartupEnv } from './config/validate.ts';
+import { createRequestLogger } from './middleware/logger.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -50,6 +53,7 @@ import { vaultRoutes } from './routes/vault/index.ts';
 import { createMenuRoutes, menuItemsFromUnifiedPlugins } from './routes/menu/index.ts';
 import { peerRoutes } from './routes/peer/index.ts';
 import { createMcpRoutes } from './routes/mcp/index.ts';
+import { createMetricsLifecycle, metricsRoutes } from './routes/metrics/index.ts';
 
 // Indexer routes are optional — MCP server works without them
 let indexerRoutes: any = null;
@@ -61,6 +65,8 @@ try {
 import { gatewayPlugin } from './gateway/index.ts';
 
 import pkg from '../package.json' with { type: 'json' };
+
+validateStartupEnv();
 
 try {
   db.update(indexingStatus).set({ isIndexing: 0 }).where(eq(indexingStatus.id, 1)).run();
@@ -104,10 +110,15 @@ registerGracefulShutdown({
   },
 });
 
+const requestLogger = createRequestLogger();
+
 const app = new Elysia()
+  .onRequest(requestLogger.onRequest)
   .use(createPrivateNetworkPreflightMiddleware())
   .use(createCorsMiddleware())
+  .use(createCorrelationMiddleware())
   .use(createApiKeyAuthMiddleware())
+  .use(createMetricsLifecycle())
   .onBeforeHandle(({ request, set }) => {
     const pathname = new URL(request.url).pathname;
     if (isApiPathProtected(pathname) && !isApiAuthorized(request)) {
@@ -122,6 +133,7 @@ const app = new Elysia()
     set.headers['X-XSS-Protection'] = '1; mode=block';
     set.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
   })
+  .onAfterResponse(requestLogger.onAfterResponse)
   .use(createErrorMiddleware())
   .use(
     swagger({
@@ -169,6 +181,7 @@ const apiModules = [
   oraclenetRoutes,
   sessionsRoutes,
   vaultRoutes,
+  metricsRoutes,
   ...(indexerRoutes ? [indexerRoutes] : []),
   ...unifiedPlugins.routes,
 ];
