@@ -28,6 +28,8 @@ export interface RouteMenuRow {
   studio?: string | null; // host subdomain (e.g. feed.buildwithoracle.com); null = legacy studio.*
 }
 
+type SeenRouteMenuRow = RouteMenuRow & { apiPath: string };
+
 function studioPathFor(apiPath: string): string | null {
   for (const [prefix, studio] of API_TO_STUDIO) {
     if (apiPath === prefix || apiPath.startsWith(prefix + '/')) return studio;
@@ -35,9 +37,22 @@ function studioPathFor(apiPath: string): string | null {
   return null;
 }
 
+function routeMenuKey(path: string, studio: string | null | undefined): string {
+  return `${studio ?? ''}\0${path}`;
+}
+
+function warnDuplicateRouteMenu(first: SeenRouteMenuRow, next: SeenRouteMenuRow): void {
+  console.warn(
+    `[menu-seeder] duplicate route menu path "${next.path}"` +
+      ` (studio=${next.studio ?? 'null'}); keeping ${first.apiPath}` +
+      ` (${first.groupKey}/${first.position}), skipping ${next.apiPath}` +
+      ` (${next.groupKey}/${next.position})`,
+  );
+}
+
 export function collectRouteMenuRows(sources: HasRoutes[]): RouteMenuRow[] {
   const rows: RouteMenuRow[] = [];
-  const seen = new Set<string>();
+  const seen = new Map<string, SeenRouteMenuRow>();
 
   for (const src of sources) {
     for (const route of src.routes) {
@@ -48,16 +63,11 @@ export function collectRouteMenuRows(sources: HasRoutes[]): RouteMenuRow[] {
       const studio = studioPathFor(route.path);
       if (!studio) continue;
 
-      const key = `${menu.group}:${studio}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
       const slug = studio.replace(/^\//, '') || 'home';
       const label = menu.label ?? slug.charAt(0).toUpperCase() + slug.slice(1);
       const order =
         typeof menu.order === 'number' && Number.isFinite(menu.order) ? menu.order : 999;
-
-      rows.push({
+      const row = {
         path: studio,
         label,
         groupKey: menu.group,
@@ -65,7 +75,17 @@ export function collectRouteMenuRows(sources: HasRoutes[]): RouteMenuRow[] {
         access: menu.access ?? 'public',
         icon: menu.icon ?? null,
         studio: null,
-      });
+      };
+      const seenRow = { ...row, apiPath: route.path };
+      const key = routeMenuKey(row.path, row.studio);
+      const first = seen.get(key);
+      if (first) {
+        warnDuplicateRouteMenu(first, seenRow);
+        continue;
+      }
+      seen.set(key, seenRow);
+
+      rows.push(row);
     }
   }
 
