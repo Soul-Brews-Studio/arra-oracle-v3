@@ -1,4 +1,4 @@
-export type MenuGroup = 'main' | 'tools' | 'hidden';
+export type MenuGroup = 'main' | 'tools' | 'admin' | 'hidden';
 
 export interface MenuItem {
   label: string;

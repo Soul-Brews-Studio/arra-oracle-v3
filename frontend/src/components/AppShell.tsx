@@ -7,6 +7,7 @@ import { PageChrome } from './PageChrome';
 import { StatCard } from './StatCard';
 import { ThemeToggle } from './ThemeToggle';
 import { GlobalSearch } from './GlobalSearch';
+import type { MetricsSnapshot } from '../../../src/server/types';
 
 type AppShellProps = {
   children: ReactNode;
@@ -15,6 +16,8 @@ type AppShellProps = {
   menuCount: number;
   pluginCount: number;
   surfaceCount: number;
+  metrics?: MetricsSnapshot | null;
+  metricsLoading?: boolean;
   updatedAt: string;
   onRefresh: () => void;
 };
@@ -26,6 +29,8 @@ export function AppShell({
   menuCount,
   pluginCount,
   surfaceCount,
+  metrics = null,
+  metricsLoading = false,
   updatedAt,
   onRefresh,
 }: AppShellProps) {
@@ -48,6 +53,11 @@ export function AppShell({
     { to: '/mcp', label: 'MCP', description: 'Tool schemas and groups' },
     { to: '/settings', label: 'Settings', description: 'Storage, embedder, and DB status' },
   ];
+  const requestValue = metricsLoading ? <Spinner label="Loading metrics" /> : metrics?.requestCount ?? '—';
+  const responseValue = metricsLoading ? <Spinner label="Loading metrics" /> : `${metrics?.avgResponseMs ?? 0} ms`;
+  const metricsDetail = metrics
+    ? `${metrics.activeConnections} active · uptime ${Math.round(metrics.uptime)}s`
+    : 'from /api/metrics';
   const retry = (
     <button
       aria-label="Retry loading backend dashboard data"
@@ -89,10 +99,12 @@ export function AppShell({
             </div>
           </header>
 
-          <section className="grid gap-3 sm:grid-cols-3 sm:gap-4" aria-label="Summary">
+          <section className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-5" aria-label="Summary">
             <StatCard label="Menu items" value={loading ? <Spinner label="Loading" /> : menuCount} detail="from /api/menu" />
             <StatCard label="Plugins" value={loading ? <Spinner label="Loading" /> : pluginCount} detail="from /api/plugins" />
             <StatCard label="Surfaces" value={loading ? <Spinner label="Loading" /> : surfaceCount} detail={`updated ${updatedAt}`} />
+            <StatCard label="Requests" value={requestValue} detail={metricsDetail} />
+            <StatCard label="Avg response" value={responseValue} detail="real-time backend latency" />
           </section>
 
           {error ? <ErrorMessage title="Could not load backend data." message={error} action={retry} /> : null}
