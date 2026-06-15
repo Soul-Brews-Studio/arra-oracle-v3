@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 /**
- * Export the Elysia /swagger/json spec to docs/openapi.json.
+ * Export the Elysia /api/docs/json spec to docs/openapi.json.
  *
  * Spawns `bun src/server.ts` on a scratch port, polls until /health
- * responds, fetches /swagger/json, writes the file, then kills the
+ * responds, fetches /api/docs/json, writes the file, then kills the
  * subprocess. Exits non-zero on any failure.
  *
  *   bun scripts/export-openapi.ts
@@ -67,8 +67,8 @@ process.on('SIGTERM', () => shutdown(143));
 try {
   await waitForServer(`http://127.0.0.1:${PORT}/`, BOOT_TIMEOUT_MS);
 
-  const res = await fetch(`http://127.0.0.1:${PORT}/swagger/json`);
-  if (!res.ok) throw new Error(`fetch /swagger/json failed: ${res.status}`);
+  const res = await fetch(`http://127.0.0.1:${PORT}/api/docs/json`);
+  if (!res.ok) throw new Error(`fetch /api/docs/json failed: ${res.status}`);
   const spec = await res.json();
 
   validateOpenAPI3(spec);

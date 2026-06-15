@@ -141,7 +141,10 @@ const app = new Elysia()
   .use(createErrorMiddleware())
   .use(
     swagger({
-      path: '/swagger',
+      provider: 'swagger-ui',
+      path: '/api/docs',
+      specPath: '/api/docs/json',
+      swaggerOptions: { url: '/api/docs/json' } as any,
       documentation: {
         info: {
           title: 'Arra Oracle API',
@@ -153,11 +156,13 @@ const app = new Elysia()
   )
   .use(gatewayPlugin(ORACLE_DATA_DIR, VECTOR_URL || undefined))
   .use(peerRoutes)
+  .get('/swagger', () => Response.redirect('/api/docs', 308), { detail: { hide: true } })
+  .get('/swagger/json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
   .get('/', () => ({
     server: MCP_SERVER_NAME,
     version: pkg.version,
     status: 'ok',
-    docs: '/swagger',
+    docs: '/api/docs',
     api: '/api/v1',
   }));
 
