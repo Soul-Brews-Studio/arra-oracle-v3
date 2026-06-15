@@ -24,9 +24,14 @@ ENV HOME=/tmp \
     ORACLE_DATA_DIR=/tmp/oracle \
     ORACLE_LOG_TARGET=stderr \
     PATH=/app/node_modules/.bin:$PATH
-COPY . .
+COPY package.json bun.lock ./
+COPY frontend/package.json ./frontend/package.json
 RUN bun install --frozen-lockfile \
+ && cd frontend \
+ && bun install \
+ && cd /app \
  && rm -rf node_modules/@lancedb/lancedb-*-musl
+COPY . .
 CMD ["sh", "-c", "bun test --isolate && tsc --noEmit"]
 
 FROM oven/bun:1-slim AS base
