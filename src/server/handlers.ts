@@ -10,6 +10,7 @@ import path from 'path';
 import { eq, sql, or, inArray } from 'drizzle-orm';
 import { db, sqlite, oracleDocuments, indexingStatus, isDbLockError } from '../db/index.ts';
 import { REPO_ROOT, VECTOR_URL } from '../config.ts';
+import { bangkokDateStr } from '../time-util.ts';
 import { logSearch, logDocumentAccess, logLearning } from './logging.ts';
 import type { SearchResult, SearchResponse } from './types.ts';
 import { ensureVectorStoreConnected, EMBEDDING_MODELS } from '../vector/factory.ts';
@@ -686,7 +687,7 @@ export function persistLearningDoc(opts: {
 }): { file: string; id: string } {
   const { pattern, subdir, filename, id } = opts;
   const now = new Date();
-  const dateStr = now.toISOString().split('T')[0];
+  const dateStr = bangkokDateStr(now); // GMT+7 date for in-doc frontmatter (not UTC)
 
   const dir = path.join(REPO_ROOT, subdir);
   fs.mkdirSync(dir, { recursive: true });
@@ -755,7 +756,7 @@ export function handleLearn(
   cwd?: string
 ) {
   const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
-  const dateStr = new Date().toISOString().split('T')[0];
+  const dateStr = bangkokDateStr(); // GMT+7 calendar date for id/filename (not UTC)
 
   const slug = pattern
     .substring(0, 50)

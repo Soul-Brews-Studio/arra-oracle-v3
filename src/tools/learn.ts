@@ -12,6 +12,7 @@ import { detectProject } from '../server/project-detect.ts';
 import { getVaultPsiRoot } from '../vault/handler.ts';
 import { getVectorStoreByModel, getEmbeddingModels } from '../vector/factory.ts';
 import { REPO_ROOT } from '../config.ts';
+import { bangkokDateStr } from '../time-util.ts';
 
 // Lazy-loaded on first use — avoids top-level await which causes a TDZ
 // error in consumers that import learnToolDef synchronously (the tools
@@ -123,7 +124,7 @@ export function extractProjectFromSource(source?: string): string | null {
 export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Promise<ToolResponse> {
   const { pattern, source, concepts, project: projectInput } = input;
   const now = new Date();
-  const dateStr = now.toISOString().split('T')[0];
+  const dateStr = bangkokDateStr(now); // GMT+7 calendar date for id/filename (not UTC)
 
   const slug = pattern
     .substring(0, 50)
