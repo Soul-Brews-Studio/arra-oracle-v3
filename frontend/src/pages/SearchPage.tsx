@@ -1,7 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient, type ApiClient, type MenuSearchResponse } from '../api/client';
 import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
 import { EmptyState } from '../components/EmptyState';
+import { menuSearchPath } from '../routePaths';
 import type { MenuItem } from '../types';
 
 type PageState = 'idle' | 'loading' | 'ready' | 'error';
@@ -80,16 +82,18 @@ export function MenuSearchResults({ query, results, state }: { query: string; re
 }
 
 export function SearchPage() {
-  const [query, setQuery] = useState('');
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const routeQuery = searchParams.get('q') ?? '';
+  const [query, setQuery] = useState(routeQuery);
   const [activeQuery, setActiveQuery] = useState('');
   const [results, setResults] = useState<MenuItem[]>([]);
   const [state, setState] = useState<PageState>('idle');
   const [error, setError] = useState('');
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const nextQuery = query.trim();
-    if (!nextQuery) {
+  async function runSearch(nextQuery: string) {
+    const q = nextQuery.trim();
+    if (!q) {
       setActiveQuery('');
       setResults([]);
       setError('');
@@ -99,9 +103,9 @@ export function SearchPage() {
 
     setState('loading');
     setError('');
-    setActiveQuery(nextQuery);
+    setActiveQuery(q);
     try {
-      const response = await searchMenuItems(nextQuery);
+      const response = await searchMenuItems(q);
       setResults(response.data);
       setState('ready');
     } catch (err) {
@@ -109,6 +113,18 @@ export function SearchPage() {
       setError(err instanceof Error ? err.message : String(err));
       setState('error');
     }
+  }
+
+  useEffect(() => {
+    setQuery(routeQuery);
+    void runSearch(routeQuery);
+  }, [routeQuery]);
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextQuery = query.trim();
+    navigate(menuSearchPath(nextQuery));
+    if (nextQuery === routeQuery.trim()) void runSearch(nextQuery);
   }
 
   const summary = menuSearchSummary(state, activeQuery, results.length);
