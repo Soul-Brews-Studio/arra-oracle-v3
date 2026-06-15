@@ -13,6 +13,7 @@ import {
   type UnifiedMcpToolManifest,
   type UnifiedMenuManifest,
 } from './unified-manifest.ts';
+import { sortPluginsByDependencies } from './dependency-resolver.ts';
 import { createUnifiedProxyRoute } from './proxy-surface.ts';
 import { unifiedPluginServerRoutes, type UnifiedPluginServer } from './unified-server.ts';
 
@@ -235,7 +236,8 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
 
 export async function loadUnifiedPlugins(options: UnifiedLoaderOptions = {}): Promise<UnifiedRuntime> {
   try {
-    return runtimeFrom(await discoverUnifiedPluginManifests(options), options);
+    const plugins = await discoverUnifiedPluginManifests(options);
+    return runtimeFrom(sortPluginsByDependencies(plugins, { warn: options.warn }), options);
   } catch (error) {
     warn(options, `loader disabled: ${error instanceof Error ? error.message : String(error)}`);
     return runtimeFrom([], options);
