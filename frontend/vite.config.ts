@@ -8,6 +8,8 @@ const proxyTarget = env?.FRONTEND_PROXY_TARGET ?? 'http://127.0.0.1:47778';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    port: Number(env?.VITE_PORT ?? 3000),
+    strictPort: true,
     proxy: {
       '/api': proxyTarget,
     },
