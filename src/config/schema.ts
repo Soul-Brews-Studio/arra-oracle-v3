@@ -3,6 +3,7 @@ import { Type, type Static } from '@sinclair/typebox';
 export const KNOWN_ENV_KEYS = [
   'HOME',
   'USERPROFILE',
+  'ARRA_ENV',
   'PORT',
   'DATABASE_URL',
   'VECTOR_URL',
@@ -19,6 +20,7 @@ export const KNOWN_ENV_KEYS = [
   'ARRA_CORS_ORIGINS',
   'ORACLE_CORS_ORIGIN',
   'CORS_ORIGIN',
+  'ARRA_API_KEY',
   'ARRA_API_TOKEN',
   'ORACLE_HTTP_URL',
   'ORACLE_API',
@@ -82,6 +84,11 @@ export const KNOWN_ENV_KEYS = [
   'ORACLE_HUGINN_SWEEP_DIRS',
   'ARRA_HUGINN_SWEEP_LOOKBACK_HOURS',
   'ARRA_HUGINN_SWEEP_MAX_FILES',
+  'ARRA_VERBOSE_LOGGING',
+  'ARRA_RATE_LIMIT_ENABLED',
+  'ARRA_RATE_LIMIT_TOKENS_PER_WINDOW',
+  'ARRA_RATE_LIMIT_WINDOW_MS',
+  'ARRA_RATE_LIMIT_BURST',
   'DEBUG',
 ] as const;
 
@@ -117,6 +124,7 @@ export const VECTOR_DB_VALUES = [
 ] as const;
 
 export const VECTOR_FALLBACK_VALUES = ['fts5', 'cache', 'fail', 'empty', 'error'] as const;
+export const ARRA_ENV_VALUES = ['development', 'staging', 'production'] as const;
 
 export const BOOLEAN_ENV_KEYS = [
   'ORACLE_VECTOR_READONLY',
@@ -128,6 +136,8 @@ export const BOOLEAN_ENV_KEYS = [
   'ORACLE_INDEX_SECURITY_CORPUS',
   'ARRA_HUGINN_CAPTURE',
   'ORACLE_HUGINN_CAPTURE',
+  'ARRA_VERBOSE_LOGGING',
+  'ARRA_RATE_LIMIT_ENABLED',
 ] as const;
 
 export const INTEGER_ENV_KEYS = [
@@ -149,6 +159,9 @@ export const INTEGER_ENV_KEYS = [
   'INDEXER_PORT',
   'ARRA_HUGINN_SWEEP_LOOKBACK_HOURS',
   'ARRA_HUGINN_SWEEP_MAX_FILES',
+  'ARRA_RATE_LIMIT_TOKENS_PER_WINDOW',
+  'ARRA_RATE_LIMIT_WINDOW_MS',
+  'ARRA_RATE_LIMIT_BURST',
 ] as const;
 
 export const PORT_ENV_KEYS = ['PORT', 'ORACLE_PORT', 'VECTOR_PORT', 'ARRA_PLUGIN_PORT', 'ARRA_SCOUT_PORT', 'INDEXER_PORT'] as const;
