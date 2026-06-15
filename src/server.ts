@@ -85,7 +85,7 @@ const scoutAnnouncer = shouldStartScoutAnnouncer() ? new ScoutAnnouncer() : null
 scoutAnnouncer?.start();
 
 const unifiedPlugins = await loadUnifiedPlugins({ warn: (message) => console.warn(message) });
-const unifiedServers = startUnifiedPluginServers(unifiedPlugins.servers);
+const unifiedServers = await startUnifiedPluginServers(unifiedPlugins.servers);
 
 registerSignalHandlers(async () => {
   console.log('\n🔮 Shutting down gracefully...');
