@@ -24,6 +24,7 @@ import { db, sqlite, closeDb, indexingStatus } from './db/index.ts';
 import { isApiAuthorized, isApiPathProtected, unauthorizedApiResponse } from './server/api-token-auth.ts';
 import { seedMenuItems, type HasRoutes as SeedHasRoutes } from './db/seeders/menu-seeder.ts';
 import { createCorsMiddleware, createPrivateNetworkPreflightMiddleware } from './server/cors.ts';
+import { createApiKeyAuthMiddleware } from './middleware/auth.ts';
 import { loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
 import { startUnifiedPluginServers } from './plugins/unified-server.ts';
 
@@ -104,6 +105,7 @@ registerSignalHandlers(async () => {
 const app = new Elysia()
   .use(createPrivateNetworkPreflightMiddleware())
   .use(createCorsMiddleware())
+  .use(createApiKeyAuthMiddleware())
   .onBeforeHandle(({ request, set }) => {
     const pathname = new URL(request.url).pathname;
     if (isApiPathProtected(pathname) && !isApiAuthorized(request)) {
