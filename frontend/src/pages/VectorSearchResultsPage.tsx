@@ -77,21 +77,22 @@ export function VectorSearchResultsPage() {
         </Link>
       </div>
 
-      <form onSubmit={submit} className="flex flex-col gap-3 sm:flex-row">
+      <form aria-label="Full-page vector search form" onSubmit={submit} className="flex flex-col gap-3 sm:flex-row">
         <input
+          aria-label="Vector search query"
           className="focus-ring min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100 placeholder:text-slate-600"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search vector memory…"
           type="search"
         />
-        <button className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-50" disabled={state === 'loading' || !query.trim()} type="submit">
+        <button aria-label="Run vector search" className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-50" disabled={state === 'loading' || !query.trim()} type="submit">
           {state === 'loading' ? 'Searching…' : 'Search'}
         </button>
       </form>
 
       <p className="mt-4 text-sm text-slate-500">{status}</p>
-      {error ? <p className="mt-3 rounded-xl border border-red-400/30 bg-red-950/40 p-3 text-sm text-red-100">{error}</p> : null}
+      {error ? <p role="alert" className="mt-3 rounded-xl border border-red-400/30 bg-red-950/40 p-3 text-sm text-red-100">{error}</p> : null}
       <div className="mt-5 grid gap-3 lg:grid-cols-2">{results.map((result) => <SearchResultCard key={result.id} result={result} />)}</div>
     </section>
   );
