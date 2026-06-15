@@ -1,0 +1,143 @@
+import { useState, type FormEvent } from 'react';
+import { apiClient, type ApiClient, type MenuSearchResponse } from '../api/client';
+import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
+import { EmptyState } from '../components/EmptyState';
+import type { MenuItem } from '../types';
+
+type PageState = 'idle' | 'loading' | 'ready' | 'error';
+type SearchClient = Pick<ApiClient, 'menuSearch'>;
+
+export type HighlightPart = {
+  text: string;
+  match: boolean;
+};
+
+export function highlightParts(text: string, query: string): HighlightPart[] {
+  const needle = query.trim().toLocaleLowerCase();
+  if (!needle) return [{ text, match: false }];
+
+  const parts: HighlightPart[] = [];
+  const haystack = text.toLocaleLowerCase();
+  let cursor = 0;
+  let index = haystack.indexOf(needle, cursor);
+
+  while (index !== -1) {
+    if (index > cursor) parts.push({ text: text.slice(cursor, index), match: false });
+    const end = index + needle.length;
+    parts.push({ text: text.slice(index, end), match: true });
+    cursor = end;
+    index = haystack.indexOf(needle, cursor);
+  }
+
+  if (cursor < text.length) parts.push({ text: text.slice(cursor), match: false });
+  return parts.length ? parts : [{ text, match: false }];
+}
+
+export function menuSearchSummary(state: PageState, query: string, total: number): string {
+  if (state === 'idle') return 'Enter a query to search the menu catalog.';
+  if (state === 'loading') return `Searching menu for “${query}”…`;
+  if (state === 'error') return 'Menu search failed.';
+  return total ? `${total} menu result${total === 1 ? '' : 's'} for “${query}”.` : `No menu results found for “${query}”.`;
+}
+
+export async function searchMenuItems(query: string, client: SearchClient = apiClient): Promise<MenuSearchResponse> {
+  return client.menuSearch(query.trim());
+}
+
+function HighlightedText({ text, query }: { text: string; query: string }) {
+  return (
+    <>
+      {highlightParts(text, query).map((part, index) => part.match ? (
+        <mark key={`${part.text}-${index}`} className="rounded bg-amber-300/25 px-0.5 text-amber-100">
+          {part.text}
+        </mark>
+      ) : <span key={`${part.text}-${index}`}>{part.text}</span>)}
+    </>
+  );
+}
+
+export function MenuSearchResults({ query, results, state }: { query: string; results: MenuItem[]; state: PageState }) {
+  if (state === 'loading') return <LoadingPanel title="Searching menu…" detail="Fetching /api/menu/search?q= from the Elysia backend." />;
+  if (state === 'idle') return <EmptyState text="Search labels and paths from /api/menu/search?q=." />;
+  if (state === 'error') return null;
+  if (!results.length) return <EmptyState text={`No menu results found for “${query}”.`} />;
+
+  return (
+    <ul className="grid gap-3" aria-label="Menu search results">
+      {results.map((item) => (
+        <li key={`${item.source ?? 'api'}:${item.path}:${item.label}`}>
+          <a className="focus-ring block rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-teal-300/40" href={item.path}>
+            <span className="text-lg font-semibold text-white"><HighlightedText text={item.label} query={query} /></span>
+            <span className="mt-1 block text-sm text-slate-400"><HighlightedText text={item.path} query={query} /></span>
+            <span className="mt-3 inline-flex rounded-full bg-teal-300/10 px-2 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-teal-200">
+              {item.group}
+            </span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function SearchPage() {
+  const [query, setQuery] = useState('');
+  const [activeQuery, setActiveQuery] = useState('');
+  const [results, setResults] = useState<MenuItem[]>([]);
+  const [state, setState] = useState<PageState>('idle');
+  const [error, setError] = useState('');
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const nextQuery = query.trim();
+    if (!nextQuery) {
+      setActiveQuery('');
+      setResults([]);
+      setError('');
+      setState('idle');
+      return;
+    }
+
+    setState('loading');
+    setError('');
+    setActiveQuery(nextQuery);
+    try {
+      const response = await searchMenuItems(nextQuery);
+      setResults(response.data);
+      setState('ready');
+    } catch (err) {
+      setResults([]);
+      setError(err instanceof Error ? err.message : String(err));
+      setState('error');
+    }
+  }
+
+  const summary = menuSearchSummary(state, activeQuery, results.length);
+
+  return (
+    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="menu-search-title">
+      <div className="mb-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Menu search</p>
+        <h1 id="menu-search-title" className="mt-2 text-3xl font-semibold text-white">Full-text menu search</h1>
+        <p className="mt-2 text-sm text-slate-400">Search dashboard labels and paths through /api/menu/search?q=.</p>
+      </div>
+
+      <form aria-label="Menu search form" className="flex flex-col gap-3 sm:flex-row" role="search" onSubmit={submit}>
+        <input
+          aria-label="Menu search query"
+          className="focus-ring min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100 placeholder:text-slate-600"
+          placeholder="Search menu items…"
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.currentTarget.value)}
+        />
+        <button className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-50" disabled={state === 'loading' || !query.trim()} type="submit">
+          {state === 'loading' ? 'Searching…' : 'Search'}
+        </button>
+      </form>
+
+      <p className="mt-4 text-sm text-slate-500">{summary}</p>
+      {state === 'error' ? <div className="mt-4"><ErrorMessage title="Menu search failed." message={error} /></div> : null}
+      <div className="mt-5"><MenuSearchResults query={activeQuery} results={results} state={state} /></div>
+    </section>
+  );
+}

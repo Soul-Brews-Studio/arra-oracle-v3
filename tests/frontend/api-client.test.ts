@@ -21,6 +21,7 @@ describe('frontend API client', () => {
         lastRestart: '2026-06-16T00:00:00.000Z',
       },
       '/api/menu': { items: [{ label: 'Vector', path: '/vector', group: 'tools', order: 1, source: 'api' }] },
+      '/api/menu/search?q=vector': { data: [{ label: 'Vector', path: '/vector', group: 'tools', order: 1, source: 'api' }], q: 'vector', total: 1 },
       '/api/vector/search?q=oracle+memory&limit=5&type=docs': {
         results: [{ id: 'doc-1', type: 'doc', content: 'Oracle memory', source_file: 'note.md', concepts: [] }],
         total: 1,
@@ -44,6 +45,7 @@ describe('frontend API client', () => {
     await expect(client.health()).resolves.toMatchObject({ status: 'ok', version: '26.5.30' });
     await expect(client.metrics()).resolves.toMatchObject({ requestCount: 7, activeConnections: 0 });
     await expect(client.menu()).resolves.toMatchObject({ items: [{ label: 'Vector' }] });
+    await expect(client.menuSearch('  vector  ')).resolves.toMatchObject({ total: 1, q: 'vector' });
     await expect(client.vectorSearch({ q: 'oracle memory', limit: 5, type: 'docs' })).resolves.toMatchObject({ total: 1, query: 'oracle memory' });
     await expect(client.plugins()).resolves.toMatchObject({ plugins: [{ name: 'echo' }] });
 
@@ -51,6 +53,7 @@ describe('frontend API client', () => {
       '/api/health',
       '/api/metrics',
       '/api/menu',
+      '/api/menu/search?q=vector',
       '/api/vector/search?q=oracle+memory&limit=5&type=docs',
       '/api/plugins',
     ]);
