@@ -14,7 +14,6 @@ import type {
   ExportOptions,
   SimilarResult,
   VaultFile,
-  VaultStats,
 } from "./lib/types.ts";
 import { slugify, slugifyPath, shortIdHash } from "./lib/slugify.ts";
 import { writeVault, writeStateFile } from "./lib/vault-writer.ts";
@@ -24,6 +23,8 @@ import { renderDocMarkdown, deriveTitle } from "./lib/render-body.ts";
 import { renderIndex } from "./lib/render-index.ts";
 import { renderConceptHub } from "./lib/concept-hub.ts";
 import { hashPayload } from "./lib/state-hash.ts";
+import { buildStats, groupByConcept } from "./lib/export-stats.ts";
+import { parseArgs } from "./lib/parse-args.ts";
 
 export default async function handler(ctx: InvokeContext): Promise<InvokeResult> {
   let opts: ExportOptions;
@@ -170,87 +171,4 @@ export default async function handler(ctx: InvokeContext): Promise<InvokeResult>
   return ok ? { ok, output: lines.join("\n") } : { ok, error: lines.join("\n") };
 }
 
-function buildStats(
-  docs: ApiDoc[],
-  similar: Map<string, SimilarResult[]>,
-  slugForId: (id: string) => string,
-): VaultStats {
-  const byType: Record<string, number> = {};
-  const byProject: Record<string, number> = {};
-  const conceptCount: Record<string, number> = {};
-  for (const d of docs) {
-    byType[d.type] = (byType[d.type] ?? 0) + 1;
-    if (d.project) byProject[d.project] = (byProject[d.project] ?? 0) + 1;
-    for (const c of d.concepts ?? []) conceptCount[c] = (conceptCount[c] ?? 0) + 1;
-  }
-
-  const topConcepts = Object.entries(conceptCount)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .slice(0, 30)
-    .map(([name, count]) => ({ name, count }));
-
-  const topLinked = docs
-    .map((d) => ({
-      slug: slugForId(d.id),
-      linkCount: (similar.get(d.id) ?? []).length,
-    }))
-    .filter((x) => x.linkCount > 0)
-    .sort((a, b) => b.linkCount - a.linkCount)
-    .slice(0, 20);
-
-  return {
-    total: docs.length,
-    byType,
-    byProject,
-    topConcepts,
-    topLinked,
-    generatedAt: new Date(),
-  };
-}
-
-function groupByConcept(docs: ApiDoc[]): Map<string, ApiDoc[]> {
-  const out = new Map<string, ApiDoc[]>();
-  for (const d of docs) {
-    for (const c of d.concepts ?? []) {
-      if (!out.has(c)) out.set(c, []);
-      out.get(c)!.push(d);
-    }
-  }
-  return out;
-}
-
-export function parseArgs(args: string[]): ExportOptions {
-  const opts: ExportOptions = {
-    out: "",
-    model: "bge-m3",
-    threshold: 0.75,
-    maxLinks: 8,
-    types: null,
-    project: null,
-    dryRun: false,
-    incremental: false,
-    format: "standard",
-  };
-
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i];
-    const next = () => args[++i];
-    if (a === "--out") opts.out = next() ?? "";
-    else if (a === "--model") opts.model = (next() as ExportOptions["model"]) ?? "bge-m3";
-    else if (a === "--threshold") opts.threshold = parseFloat(next() ?? "0.75") || 0.75;
-    else if (a === "--max-links") opts.maxLinks = parseInt(next() ?? "8", 10) || 8;
-    else if (a === "--types") opts.types = (next() ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-    else if (a === "--project") opts.project = next() ?? null;
-    else if (a === "--dry-run") opts.dryRun = true;
-    else if (a === "--incremental") opts.incremental = true;
-    else if (a === "--format") opts.format = (next() as ExportOptions["format"]) ?? "standard";
-  }
-
-  if (!opts.out) {
-    throw new Error("Usage: arra-cli export-obsidian --out <path> [flags]");
-  }
-  if (opts.threshold < 0 || opts.threshold > 1) {
-    throw new Error("--threshold must be between 0.0 and 1.0");
-  }
-  return opts;
-}
+export { parseArgs } from "./lib/parse-args.ts";
