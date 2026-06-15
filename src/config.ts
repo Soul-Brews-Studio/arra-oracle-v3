@@ -9,6 +9,9 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import * as C from './const.ts';
+import { validateEnv } from './config/validate.ts';
+
+validateEnv({ emitOptionalWarnings: false });
 
 // ES Module compatibility for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -23,9 +26,23 @@ if (!home) throw new Error('HOME environment variable not set — cannot resolve
 export const HOME_DIR = home;
 
 // Core paths
-export const PORT = parseInt(String(process.env.ORACLE_PORT || C.ORACLE_DEFAULT_PORT), 10);
+function pathFromDatabaseUrl(value?: string): string {
+  if (!value) return '';
+  try {
+    const url = new URL(value);
+    if (url.protocol === 'file:') return fileURLToPath(url);
+    if (url.protocol === 'sqlite:' || url.protocol === 'sqlite3:') {
+      return decodeURIComponent(url.pathname || url.host);
+    }
+  } catch {
+    return value;
+  }
+  return value;
+}
+
+export const PORT = parseInt(String(process.env.ORACLE_PORT || process.env.PORT || C.ORACLE_DEFAULT_PORT), 10);
 export const ORACLE_DATA_DIR = process.env.ORACLE_DATA_DIR || path.join(HOME_DIR, C.ORACLE_DATA_DIR_NAME);
-export const DB_PATH = process.env.ORACLE_DB_PATH || path.join(ORACLE_DATA_DIR, C.ORACLE_DB_FILE);
+export const DB_PATH = process.env.ORACLE_DB_PATH || pathFromDatabaseUrl(process.env.DATABASE_URL) || path.join(ORACLE_DATA_DIR, C.ORACLE_DB_FILE);
 
 // REPO_ROOT: where ψ/ lives.
 // Priority:

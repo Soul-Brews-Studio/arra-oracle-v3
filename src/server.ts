@@ -28,6 +28,7 @@ import { startUnifiedPluginServers } from './plugins/unified-server.ts';
 import { closeCachedVectorStores } from './vector/factory.ts';
 import { isDraining, registerGracefulShutdown, trackRequest } from './lifecycle/shutdown.ts';
 import { createErrorMiddleware } from './middleware/errors.ts';
+import { validateStartupEnv } from './config/validate.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -61,6 +62,8 @@ try {
 import { gatewayPlugin } from './gateway/index.ts';
 
 import pkg from '../package.json' with { type: 'json' };
+
+validateStartupEnv();
 
 try {
   db.update(indexingStatus).set({ isIndexing: 0 }).where(eq(indexingStatus.id, 1)).run();
