@@ -47,6 +47,7 @@ import { sessionsRoutes } from './routes/sessions/index.ts';
 import { vaultRoutes } from './routes/vault/index.ts';
 import { createMenuRoutes, menuItemsFromUnifiedPlugins } from './routes/menu/index.ts';
 import { peerRoutes } from './routes/peer/index.ts';
+import { createMcpRoutes } from './routes/mcp/index.ts';
 
 // Indexer routes are optional — MCP server works without them
 let indexerRoutes: any = null;
@@ -186,8 +187,9 @@ try {
 }
 
 const menuRoutes = createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu));
+const mcpRoutes = createMcpRoutes(unifiedPlugins.mcpTools);
 
-const modules = [...apiModules, menuRoutes];
+const modules = [...apiModules, mcpRoutes, menuRoutes];
 
 for (const mod of modules) app.use(mod as any);
 
