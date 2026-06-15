@@ -14,7 +14,7 @@ export interface MenuSearchResponse {
 
 export interface ApiRouteResponses {
   '/api/health': HealthResponse;
-  '/api/metrics': MetricsSnapshot;
+  '/api/v1/metrics': MetricsSnapshot;
   '/api/menu': MenuResponse;
   '/api/menu/search': MenuSearchResponse;
   '/api/vector/search': VectorSearchResponse;
@@ -97,7 +97,7 @@ export class ApiClient {
   }
 
   metrics(): Promise<MetricsSnapshot> {
-    return this.request('/api/metrics');
+    return this.request('/api/v1/metrics');
   }
 
   menu(): Promise<MenuResponse> {

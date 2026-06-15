@@ -1,17 +1,27 @@
 import { Elysia } from 'elysia';
 
+export interface MemoryUsageSnapshot {
+  rss: number;
+  heapTotal: number;
+  heapUsed: number;
+  external: number;
+  arrayBuffers: number;
+}
+
 export interface MetricsSnapshot {
   uptime: number;
   requestCount: number;
   avgResponseMs: number;
   activeConnections: number;
   lastRestart: string;
+  memoryUsage: MemoryUsageSnapshot;
 }
 
 export interface MetricsTrackerOptions {
   startedAtMs?: number;
   nowMs?: () => number;
   lastRestart?: string;
+  memoryUsage?: () => MemoryUsageSnapshot;
 }
 
 export interface MetricsTracker {
@@ -24,10 +34,22 @@ function round(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
 
+function processMemoryUsage(): MemoryUsageSnapshot {
+  const usage = process.memoryUsage();
+  return {
+    rss: usage.rss,
+    heapTotal: usage.heapTotal,
+    heapUsed: usage.heapUsed,
+    external: usage.external,
+    arrayBuffers: usage.arrayBuffers ?? 0,
+  };
+}
+
 export function createMetricsTracker(options: MetricsTrackerOptions = {}): MetricsTracker {
   const nowMs = options.nowMs ?? (() => Date.now());
   const startedAtMs = options.startedAtMs ?? nowMs();
   const lastRestart = options.lastRestart ?? new Date(startedAtMs).toISOString();
+  const memoryUsage = options.memoryUsage ?? processMemoryUsage;
   const starts = new WeakMap<Request, number>();
   let requestCount = 0;
   let totalResponseMs = 0;
@@ -53,6 +75,7 @@ export function createMetricsTracker(options: MetricsTrackerOptions = {}): Metri
         avgResponseMs: requestCount === 0 ? 0 : round(totalResponseMs / requestCount),
         activeConnections,
         lastRestart,
+        memoryUsage: memoryUsage(),
       };
     },
   };

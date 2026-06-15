@@ -12,6 +12,7 @@ test('GET /api/metrics reports lifecycle-tracked runtime counters', async () => 
     startedAtMs: 0,
     lastRestart: '2026-06-16T00:00:00.000Z',
     nowMs: () => now,
+    memoryUsage: () => ({ rss: 67108864, heapTotal: 33554432, heapUsed: 16777216, external: 1024, arrayBuffers: 0 }),
   });
   const app = new Elysia()
     .use(createMetricsLifecycle(tracker))
@@ -34,5 +35,6 @@ test('GET /api/metrics reports lifecycle-tracked runtime counters', async () => 
     avgResponseMs: 25,
     activeConnections: 1,
     lastRestart: '2026-06-16T00:00:00.000Z',
+    memoryUsage: { rss: 67108864, heapTotal: 33554432, heapUsed: 16777216, external: 1024, arrayBuffers: 0 },
   });
 });

@@ -14,6 +14,7 @@ const routeProps: DashboardRoutesProps = {
     avgResponseMs: 3.2,
     activeConnections: 1,
     lastRestart: '2026-06-16T00:00:00.000Z',
+    memoryUsage: { rss: 67108864, heapTotal: 33554432, heapUsed: 16777216, external: 1024, arrayBuffers: 0 },
   },
   surfaceCount: 1,
   updatedAt: '11:11',
@@ -36,8 +37,9 @@ describe('frontend router', () => {
   test('routes root, plugins, metrics, and search surfaces', () => {
     expect(htmlAt('/')).toContain('Menu viewer');
     expect(htmlAt('/plugins')).toContain('Registered plugins');
-    expect(htmlAt('/metrics')).toContain('Backend metrics');
+    expect(htmlAt('/metrics')).toContain('Metrics dashboard');
     expect(htmlAt('/metrics')).toContain('42');
+    expect(htmlAt('/metrics')).toContain('Memory usage');
     expect(htmlAt('/search')).toContain('Full-text menu search');
   });
 

@@ -13,12 +13,13 @@ describe('frontend API client', () => {
   test('calls each typed backend route with JSON accept headers', async () => {
     const payloads: Record<string, unknown> = {
       '/api/health': { status: 'ok', server: 'arra', version: '26.5.30', port: 47778 },
-      '/api/metrics': {
+      '/api/v1/metrics': {
         uptime: 4.2,
         requestCount: 7,
         avgResponseMs: 1.5,
         activeConnections: 0,
         lastRestart: '2026-06-16T00:00:00.000Z',
+        memoryUsage: { rss: 67108864, heapTotal: 33554432, heapUsed: 16777216, external: 1024, arrayBuffers: 0 },
       },
       '/api/menu': { items: [{ label: 'Vector', path: '/vector', group: 'tools', order: 1, source: 'api' }] },
       '/api/menu/search?q=vector': { data: [{ label: 'Vector', path: '/vector', group: 'tools', order: 1, source: 'api' }], q: 'vector', total: 1 },
@@ -51,7 +52,7 @@ describe('frontend API client', () => {
 
     expect(calls.map((call) => String(call.input))).toEqual([
       '/api/health',
-      '/api/metrics',
+      '/api/v1/metrics',
       '/api/menu',
       '/api/menu/search?q=vector',
       '/api/vector/search?q=oracle+memory&limit=5&type=docs',
@@ -99,8 +100,8 @@ describe('frontend API client', () => {
     const errorClient = createApiClient({ fetch: () => jsonResponse({ error: 'offline' }, { status: 503, statusText: 'Unavailable' }) });
     await expect(errorClient.metrics()).rejects.toMatchObject({
       status: 503,
-      path: '/api/metrics',
-      message: '/api/metrics returned 503: offline',
+      path: '/api/v1/metrics',
+      message: '/api/v1/metrics returned 503: offline',
     } as ApiClientError);
   });
 });
