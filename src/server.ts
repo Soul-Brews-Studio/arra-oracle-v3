@@ -88,12 +88,14 @@ const scoutAnnouncer = shouldStartScoutAnnouncer() ? new ScoutAnnouncer() : null
 scoutAnnouncer?.start();
 
 const unifiedPlugins = await loadUnifiedPlugins({ warn: (message) => console.warn(message) });
+await unifiedPlugins.init();
 const unifiedServers = await startUnifiedPluginServers(unifiedPlugins.servers);
 
 registerGracefulShutdown({
   close: async () => {
     console.log('\n🔮 Shutting down gracefully...');
     scoutAnnouncer?.stop();
+    await unifiedPlugins.stop();
     await unifiedServers.stop();
     await closeCachedVectorStores();
     closeDb();
