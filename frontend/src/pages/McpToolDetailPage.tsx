@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { fetchMcpTools } from '../api';
 import { groupLabel, schemaText, toolMode } from '../components/toolView';
 import type { McpTool } from '../types';
@@ -38,7 +39,17 @@ function ToolDetail({ tool }: { tool: McpTool }) {
   );
 }
 
-export function McpToolDetailPage({ name, onBack }: { name: string; onBack: () => void }) {
+function routeName(value?: string): string {
+  if (!value) return '';
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+export function McpToolDetailPage() {
+  const toolName = routeName(useParams().name);
   const [tools, setTools] = useState<McpTool[]>([]);
   const [state, setState] = useState<PageState>('loading');
   const [error, setError] = useState('');
@@ -61,9 +72,9 @@ export function McpToolDetailPage({ name, onBack }: { name: string; onBack: () =
     return () => {
       active = false;
     };
-  }, [name]);
+  }, [toolName]);
 
-  const tool = useMemo(() => tools.find((entry) => entry.name === name), [name, tools]);
+  const tool = useMemo(() => tools.find((entry) => entry.name === toolName), [toolName, tools]);
 
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="tool-detail-title">
@@ -72,14 +83,14 @@ export function McpToolDetailPage({ name, onBack }: { name: string; onBack: () =
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-purple-300">Detail viewer</p>
           <h1 id="tool-detail-title" className="mt-2 text-3xl font-semibold text-white">MCP tool detail</h1>
         </div>
-        <button className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" type="button" onClick={onBack}>
-          Back to dashboard
-        </button>
+        <Link className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" to="/mcp">
+          Back to MCP tools
+        </Link>
       </div>
       {state === 'loading' ? <p className="rounded-xl border border-dashed border-white/10 p-6 text-sm text-slate-400">Loading tool detail…</p> : null}
       {state === 'error' ? <p className="rounded-xl border border-red-400/30 bg-red-950/40 p-3 text-sm text-red-100">{error}</p> : null}
       {state === 'ready' && tool ? <ToolDetail tool={tool} /> : null}
-      {state === 'ready' && !tool ? <p className="rounded-xl border border-dashed border-white/10 p-6 text-sm text-slate-400">No MCP tool named {name}.</p> : null}
+      {state === 'ready' && !tool ? <p className="rounded-xl border border-dashed border-white/10 p-6 text-sm text-slate-400">No MCP tool named {toolName}.</p> : null}
     </section>
   );
 }

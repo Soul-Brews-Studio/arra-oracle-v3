@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { searchVector } from '../api';
 import { SearchResultCard } from '../components/SearchResultCard';
+import { vectorResultsPath } from '../routePaths';
 import type { SearchResult } from '../types';
 
 type PageState = 'idle' | 'loading' | 'ready' | 'error';
 
-export function VectorSearchResultsPage({ initialQuery, onBack, onSearch }: { initialQuery: string; onBack: () => void; onSearch: (query: string) => void }) {
+export function VectorSearchResultsPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialQuery = searchParams.get('q') ?? '';
   const [query, setQuery] = useState(initialQuery);
   const [activeQuery, setActiveQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -55,7 +60,7 @@ export function VectorSearchResultsPage({ initialQuery, onBack, onSearch }: { in
     event.preventDefault();
     const nextQuery = query.trim();
     if (!nextQuery) return;
-    onSearch(nextQuery);
+    navigate(vectorResultsPath(nextQuery));
     if (nextQuery === initialQuery.trim()) void runSearch(nextQuery);
   }
 
@@ -67,9 +72,9 @@ export function VectorSearchResultsPage({ initialQuery, onBack, onSearch }: { in
           <h1 id="vector-results-title" className="mt-2 text-3xl font-semibold text-white">Vector search results</h1>
           <p className="mt-2 text-sm text-slate-400">Full-page results from /api/search?mode=vector.</p>
         </div>
-        <button className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" type="button" onClick={onBack}>
-          Back to dashboard
-        </button>
+        <Link className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" to="/vector">
+          Back to vector search
+        </Link>
       </div>
 
       <form onSubmit={submit} className="flex flex-col gap-3 sm:flex-row">
