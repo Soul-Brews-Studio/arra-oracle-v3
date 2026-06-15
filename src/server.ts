@@ -32,6 +32,7 @@ import { createErrorMiddleware } from './middleware/errors.ts';
 import { validateStartupEnv } from './config/validate.ts';
 import { createRequestLogger } from './middleware/logger.ts';
 import { createRateLimitMiddleware } from './middleware/rate-limit.ts';
+import { createApiVersionHeaderMiddleware, createApiVersionedFetch } from './middleware/api-version.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -117,6 +118,7 @@ const app = new Elysia()
   .onRequest(requestLogger.onRequest)
   .use(createPrivateNetworkPreflightMiddleware())
   .use(createCorsMiddleware())
+  .use(createApiVersionHeaderMiddleware())
   .use(createCorrelationMiddleware())
   .use(createRateLimitMiddleware())
   .use(createApiKeyAuthMiddleware())
@@ -156,7 +158,7 @@ const app = new Elysia()
     version: pkg.version,
     status: 'ok',
     docs: '/swagger',
-    api: '/api',
+    api: '/api/v1',
   }));
 
 const healthRoutes = createHealthRoutes({
@@ -213,7 +215,9 @@ console.log(`
    Version: ${pkg.version}
 `);
 
+const versionedFetch = createApiVersionedFetch((request) => app.fetch(request));
+
 export default {
   port: Number(PORT),
-  fetch: (request: Request) => trackRequest(() => app.fetch(request)),
+  fetch: (request: Request) => trackRequest(() => versionedFetch(request)),
 };
