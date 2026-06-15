@@ -1,6 +1,7 @@
 import type { CommandSpec } from "./catalog.ts";
 import { BUILTIN_COMMANDS, COMMON_FLAGS } from "./catalog.ts";
 import { discoverPlugins } from "../plugin/loader.ts";
+import { pluginCliCommands } from "../plugin/registry.ts";
 
 function uniq(values: string[]): string[] {
   return [...new Set(values)].filter(Boolean).sort();
@@ -21,11 +22,11 @@ function zshWords(commands: CommandSpec[]): string {
 export async function getCompletionCommandSpecs(): Promise<CommandSpec[]> {
   const discovered = await discoverPlugins();
   const pluginCommands = discovered.plugins
-    .filter(p => p.manifest.cli?.command)
-    .map((p): CommandSpec => ({
-      command: p.manifest.cli!.command,
-      help: p.manifest.cli!.help ?? p.manifest.description ?? "ARRA command",
-      flags: Object.keys(p.manifest.cli!.flags ?? {}),
+    .flatMap(pluginCliCommands)
+    .map((c): CommandSpec => ({
+      command: c.command,
+      help: c.help ?? c.plugin.manifest.description ?? "ARRA command",
+      flags: Object.keys(c.flags ?? {}),
     }));
   const byCommand = new Map<string, CommandSpec>();
   for (const spec of [...BUILTIN_COMMANDS, ...pluginCommands]) byCommand.set(spec.command, spec);

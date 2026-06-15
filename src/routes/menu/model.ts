@@ -47,6 +47,7 @@ export const MenuItemSchema = t.Object({
     t.Literal('page'),
     t.Literal('plugin'),
   ]),
+  sourceName: t.Optional(t.String()),
   added: t.Optional(t.Boolean()),
   hidden: t.Optional(t.Boolean()),
   scope: t.Optional(ScopeSchema),

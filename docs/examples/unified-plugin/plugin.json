@@ -4,7 +4,7 @@
   "entry": "./index.ts",
   "sdk": "^0.1.0",
   "tier": "extra",
-  "enabled": false,
+  "enabled": true,
   "description": "Reference unified manifest plugin with MCP tool, API route, menu path, and CLI command surfaces.",
   "mcpTools": [
     {
@@ -13,7 +13,9 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" }
+          "id": {
+            "type": "string"
+          }
         }
       },
       "handler": "inspectCanvasPlugin",
@@ -25,7 +27,9 @@
   "apiRoutes": [
     {
       "path": "/api/plugins/canvas-inspector",
-      "methods": ["GET"],
+      "methods": [
+        "GET"
+      ],
       "handler": "canvasInspectorRoute"
     }
   ],

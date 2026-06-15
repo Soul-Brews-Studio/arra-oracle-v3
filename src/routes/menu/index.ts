@@ -11,10 +11,11 @@ import { createCustomMenuRoutes } from './custom.ts';
 import { createMenuAdminRoutes } from './admin.ts';
 import { createMenuOrderRoutes } from './admin-order.ts';
 import { createMenuSourceAdminRoutes } from './admin-source.ts';
+import type { MenuItem } from './model.ts';
 
-export function createMenuRoutes() {
+export function createMenuRoutes(pluginItems: MenuItem[] = []) {
   return new Elysia({ prefix: '/api' })
-    .use(createMenuEndpoint())
+    .use(createMenuEndpoint(pluginItems))
     .use(createCustomMenuRoutes())
     .use(createMenuAdminRoutes())
     .use(createMenuOrderRoutes())
@@ -23,6 +24,7 @@ export function createMenuRoutes() {
 
 export {
   buildMenuItems,
+  menuItemsFromUnifiedPlugins,
   menuItemsFromRoutes,
   readApiMenuItemsFromDb,
   scopeMatches,
