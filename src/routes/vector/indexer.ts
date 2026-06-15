@@ -13,10 +13,60 @@
 
 import { Elysia, t } from 'elysia';
 import { Database } from 'bun:sqlite';
-import { createVectorStoreForModel, getEmbeddingModels } from '../../vector/factory.ts';
+import { createVectorStoreForModel, getEmbeddingModels, type EmbeddingModelConfig } from '../../vector/factory.ts';
+import type { VectorStoreAdapter } from '../../vector/types.ts';
 import { DB_PATH } from '../../config.ts';
 
 // ── In-memory status (no sqlite writes — avoids the disk I/O problem) ──
+
+type VectorModelEntry = { collection: string; model: string; adapter: string; count?: number };
+
+export interface VectorModelsEndpointOptions {
+  getModels?: () => Record<string, EmbeddingModelConfig>;
+  createStore?: (preset: EmbeddingModelConfig) => Pick<VectorStoreAdapter, 'connect' | 'getStats' | 'close'>;
+}
+
+async function readVectorModels(options: VectorModelsEndpointOptions = {}) {
+  const models = (options.getModels ?? getEmbeddingModels)();
+  const createStore = options.createStore ?? createVectorStoreForModel;
+  const result: Record<string, VectorModelEntry> = {};
+
+  for (const [key, preset] of Object.entries(models)) {
+    const entry: VectorModelEntry = {
+      collection: preset.collection,
+      model: preset.model,
+      adapter: preset.adapter || 'lancedb',
+    };
+
+    let store: Pick<VectorStoreAdapter, 'connect' | 'getStats' | 'close'> | undefined;
+    try {
+      store = createStore(preset);
+      await store.connect();
+      const stats = await store.getStats();
+      entry.count = stats.count;
+    } catch {
+      entry.count = 0;
+    } finally {
+      await store?.close().catch(() => {});
+    }
+
+    result[key] = entry;
+  }
+
+  return { models: result };
+}
+
+export function createVectorModelEndpoints(options: VectorModelsEndpointOptions = {}) {
+  const readModels = () => readVectorModels(options);
+  const detail = {
+    tags: ['vector-indexer'],
+    summary: 'Available embedding models and collection counts',
+  };
+
+  return new Elysia()
+    .get('/vector/index/models', readModels, { detail })
+    .get('/vector/models', readModels, { detail: { ...detail, summary: 'Versioned vector model registry alias' } });
+}
 
 interface IndexJob {
   jobId: string;
@@ -155,35 +205,4 @@ export const vectorIndexerEndpoints = new Elysia()
     },
   })
 
-  // GET /vector/index/models
-  .get('/vector/index/models', async () => {
-    const models = getEmbeddingModels();
-    const result: Record<string, { collection: string; model: string; adapter: string; count?: number }> = {};
-
-    for (const [key, preset] of Object.entries(models)) {
-      const entry: { collection: string; model: string; adapter: string; count?: number } = {
-        collection: preset.collection,
-        model: preset.model,
-        adapter: preset.adapter || 'lancedb',
-      };
-
-      try {
-        const store = createVectorStoreForModel(preset);
-        await store.connect();
-        const stats = await store.getStats();
-        entry.count = stats.count;
-        await store.close();
-      } catch {
-        entry.count = 0;
-      }
-
-      result[key] = entry;
-    }
-
-    return { models: result };
-  }, {
-    detail: {
-      tags: ['vector-indexer'],
-      summary: 'Available embedding models and collection counts',
-    },
-  });
+  .use(createVectorModelEndpoints());

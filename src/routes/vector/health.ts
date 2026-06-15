@@ -14,11 +14,20 @@ import { handleVectorHealth } from '../../server/vector-handlers.ts';
 import { createVectorProxy } from '../../server/vector-proxy.ts';
 import { VECTOR_URL } from '../../config.ts';
 
-const proxy = createVectorProxy(VECTOR_URL);
+const defaultProxy = createVectorProxy(VECTOR_URL);
 
-export const vectorHealthEndpoint = new Elysia().get(
-  '/vector/health',
-  async ({ set }) => {
+type VectorHealthResult = Awaited<ReturnType<typeof handleVectorHealth>>;
+
+export interface VectorHealthEndpointOptions {
+  vectorHealth?: () => Promise<VectorHealthResult>;
+  proxy?: typeof defaultProxy;
+}
+
+export function createVectorHealthEndpoint(options: VectorHealthEndpointOptions = {}) {
+  const proxy = options.proxy === undefined ? defaultProxy : options.proxy;
+  const vectorHealth = options.vectorHealth ?? handleVectorHealth;
+
+  async function readHealth({ set }: { set: { status?: number | string } }) {
     if (proxy) {
       const ok = await proxy.available();
       if (ok) {
@@ -28,19 +37,30 @@ export const vectorHealthEndpoint = new Elysia().get(
       return { status: 'down' as const, engines: [], checked_at: new Date().toISOString(), proxy: VECTOR_URL };
     }
     try {
-      const result = await handleVectorHealth();
+      const result = await vectorHealth();
       if (result.status === 'down') set.status = 503;
       return result;
     } catch (e: any) {
       set.status = 500;
       return { error: e.message, status: 'down', engines: [], checked_at: new Date().toISOString() };
     }
-  },
-  {
-    detail: {
-      tags: ['vector'],
-      menu: { group: 'hidden' },
-      summary: 'Vector adapter liveness check',
-    },
-  },
-);
+  }
+
+  return new Elysia()
+    .get('/vector/health', readHealth, {
+      detail: {
+        tags: ['vector'],
+        menu: { group: 'hidden' },
+        summary: 'Vector adapter liveness check',
+      },
+    })
+    .get('/vector/status', readHealth, {
+      detail: {
+        tags: ['vector'],
+        menu: { group: 'hidden' },
+        summary: 'Versioned vector adapter status alias',
+      },
+    });
+}
+
+export const vectorHealthEndpoint = createVectorHealthEndpoint();
