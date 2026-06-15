@@ -97,6 +97,13 @@ export const BUILTIN_HELP: CliHelpEntry[] = [
     examples: ["arra-cli migrate"],
   },
   {
+    command: "seed",
+    help: "populate development DB sample data",
+    usage: "arra-cli seed",
+    flags: ["--help", "-h"],
+    examples: ["arra-cli seed"],
+  },
+  {
     command: "changelog",
     help: "generate CHANGELOG.md from git history",
     usage: "arra-cli changelog [--since <tag>] [--out CHANGELOG.md] [--stdout]",

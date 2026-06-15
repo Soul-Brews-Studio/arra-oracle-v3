@@ -19,6 +19,7 @@ export const BUILTIN_COMMANDS: CommandSpec[] = [
   { command: "peers", help: "probe configured federation peers", flags: ["--token", "--json", "--help", "-h"] },
   { command: "huginn", help: "run Huginn capture utilities", subcommands: ["sweep"], flags: ["--sessions-dir", "--repo-root", "--lookback-hours", "--max-files", "--json", "--help", "-h"] },
   { command: "migrate", help: "run Drizzle migration generate and push", flags: ["--help", "-h"] },
+  { command: "seed", help: "populate development DB sample data", flags: ["--help", "-h"] },
   { command: "changelog", help: "generate CHANGELOG.md from git history", flags: ["--since", "--out", "--stdout", "--help", "-h"] },
   { command: "release", help: "bump CalVer, write changelog, and create a tag", flags: ["--beta", "--stable", "--changelog", "--dry-run", "--help", "-h"] },
   { command: "export", help: "export vault data as JSON", flags: ["--format", "--out", "--help", "-h"] },
