@@ -1,15 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { apiClient, type ApiClient } from './api/client';
 import { AppShell } from './components/AppShell';
 import { countPluginSurfaces } from './plugin-surfaces';
-import { McpPage } from './pages/McpPage';
-import { McpToolDetailPage } from './pages/McpToolDetailPage';
-import { MenuPage } from './pages/MenuPage';
-import { PluginsPage } from './pages/PluginsPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { VectorPage } from './pages/VectorPage';
-import { VectorSearchResultsPage } from './pages/VectorSearchResultsPage';
+import { DashboardRoutes, isRouteLoading } from './router';
 import type { LoadState, MenuItem, PluginEntry } from './types';
 import type { MetricsSnapshot } from '../../src/server/types';
 
@@ -35,10 +28,6 @@ function errorText(error: unknown): string {
 
 function stateFor(key: DashboardKey, errors: DashboardErrors): LoadState {
   return errors[key] ? 'error' : 'ready';
-}
-
-function isLoading(state: LoadState): boolean {
-  return state === 'loading' || state === 'idle';
 }
 
 export async function loadDashboardData(client: DashboardClient = apiClient): Promise<DashboardLoadResult> {
@@ -103,39 +92,32 @@ export default function App() {
   }, []);
 
   const surfaceCount = useMemo(() => countPluginSurfaces(plugins), [plugins]);
-  const loading = isLoading(states.menu) || isLoading(states.plugins);
-  const metricsLoading = isLoading(states.metrics);
+  const loading = isRouteLoading(states.menu) || isRouteLoading(states.plugins);
+  const metricsLoading = isRouteLoading(states.metrics);
   const error = Object.values(errors).filter(Boolean).join(' · ');
   const refresh = () => void load();
 
   return (
-    <BrowserRouter>
-      <AppShell
-        error={error}
-        loading={loading}
-        menuCount={menu.length}
-        pluginCount={plugins.length}
-        surfaceCount={surfaceCount}
+    <AppShell
+      error={error}
+      loading={loading}
+      menuCount={menu.length}
+      pluginCount={plugins.length}
+      surfaceCount={surfaceCount}
+      metrics={metrics}
+      metricsLoading={metricsLoading}
+      updatedAt={updatedAt}
+      onRefresh={refresh}
+    >
+      <DashboardRoutes
+        menu={menu}
+        plugins={plugins}
+        states={states}
         metrics={metrics}
-        metricsLoading={metricsLoading}
+        surfaceCount={surfaceCount}
         updatedAt={updatedAt}
         onRefresh={refresh}
-      >
-        <Routes>
-          <Route index element={<Navigate to="/menu" replace />} />
-          <Route path="/menu" element={<MenuPage items={menu} loading={isLoading(states.menu)} />} />
-          <Route path="/plugins" element={<PluginsPage plugins={plugins} loading={isLoading(states.plugins)} />} />
-          <Route path="/vector" element={<VectorPage />} />
-          <Route path="/vector/results" element={<VectorSearchResultsPage />} />
-          <Route path="/mcp" element={<McpPage />} />
-          <Route path="/mcp/tools/:name" element={<McpToolDetailPage />} />
-          <Route
-            path="/settings"
-            element={<SettingsPage menuCount={menu.length} pluginCount={plugins.length} surfaceCount={surfaceCount} updatedAt={updatedAt} onRefresh={refresh} />}
-          />
-          <Route path="*" element={<Navigate to="/menu" replace />} />
-        </Routes>
-      </AppShell>
-    </BrowserRouter>
+      />
+    </AppShell>
   );
 }

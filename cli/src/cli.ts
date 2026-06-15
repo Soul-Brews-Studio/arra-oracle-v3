@@ -144,6 +144,12 @@ async function main() {
     process.exit(await migrateCommand(args.slice(1)));
   }
 
+  if (cmd === "seed") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    const { seedCommand } = await import("../../src/cli/commands/seed.ts");
+    process.exit(await seedCommand(args.slice(1)));
+  }
+
   if (cmd === "use") {
     if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
     process.exit(await useCommand(args.slice(1)));
