@@ -116,6 +116,12 @@ async function main() {
     process.exit(await huginnCommand(args.slice(1)));
   }
 
+  if (cmd === "changelog") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    const { changelogCommand } = await import("../../src/cli/commands/changelog.ts");
+    process.exit(await changelogCommand(args.slice(1)));
+  }
+
   if (cmd === "export") {
     const { exportCommand } = await import("../../src/cli/commands/export.ts");
     process.exit(await exportCommand(args.slice(1)));

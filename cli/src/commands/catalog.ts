@@ -18,6 +18,7 @@ export const BUILTIN_COMMANDS: CommandSpec[] = [
   { command: "completions", help: "print shell completion scripts", subcommands: ["bash", "zsh", "fish"], flags: ["--help", "-h"] },
   { command: "peers", help: "probe configured federation peers", flags: ["--token", "--json", "--help", "-h"] },
   { command: "huginn", help: "run Huginn capture utilities", subcommands: ["sweep"], flags: ["--sessions-dir", "--repo-root", "--lookback-hours", "--max-files", "--json", "--help", "-h"] },
+  { command: "changelog", help: "generate CHANGELOG.md from git history", flags: ["--since", "--out", "--stdout", "--help", "-h"] },
   { command: "export", help: "export vault data as JSON", flags: ["--format", "--out", "--help", "-h"] },
   { command: "import", help: "import vault data from JSON", flags: ["--format", "--in", "--help", "-h"] },
 ];
