@@ -203,7 +203,7 @@ const mcpRoutes = createMcpRoutes(unifiedPlugins.mcpTools);
 const modules = [...apiModules, mcpRoutes, menuRoutes];
 
 for (const mod of modules) app.use(mod as any);
-app.use(createNotFoundMiddleware());
+app.use(createNotFoundMiddleware(app.routes));
 
 printStartupBanner({
   version: pkg.version,
