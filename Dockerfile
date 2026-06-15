@@ -9,11 +9,16 @@
 #   docker build -t arra-oracle-v3:stdio --target mcp-stdio .
 #   docker build -t arra-test:test --target test .
 
-FROM oven/bun:1 AS builder
+FROM oven/bun:1 AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
+COPY frontend/package.json ./frontend/package.json
 RUN bun install --production --frozen-lockfile \
  && rm -rf node_modules/@lancedb/lancedb-*-musl
+
+FROM deps AS builder
+COPY src ./src
+RUN bun build src/server.ts src/index.ts --target bun --outdir dist
 
 FROM oven/bun:1 AS test
 WORKDIR /app
@@ -34,26 +39,26 @@ RUN bun install --frozen-lockfile \
 COPY . .
 CMD ["sh", "-c", "bun test --isolate && tsc --noEmit"]
 
-FROM oven/bun:1-slim AS base
+FROM oven/bun:1-slim AS production
 WORKDIR /app
 ENV HOME=/data \
-    ORACLE_DATA_DIR=/data
-
-COPY --from=builder /app/node_modules ./node_modules
+    ORACLE_DATA_DIR=/data \
+    BUN_ENV=production
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src/db/migrations ./db/migrations
 COPY package.json bun.lock ./
-COPY bin ./bin
-COPY cli ./cli
-COPY src ./src
-
 RUN mkdir -p /data
 VOLUME ["/data"]
 
-FROM base AS mcp-stdio
+FROM production AS mcp-stdio
 ENV ORACLE_LOG_TARGET=stderr
-CMD ["bun", "src/index.ts"]
+CMD ["bun", "dist/index.js"]
 
-FROM base AS http-server
+FROM production AS http-server
 ENV ORACLE_PORT=47778 \
     PORT=47778
 EXPOSE 47778
-CMD ["bun", "src/server.ts"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD bun -e "const r=await fetch('http://127.0.0.1:47778/api/health');process.exit(r.ok?0:1)"
+CMD ["bun", "dist/server.js"]
