@@ -119,12 +119,12 @@ const requestLogger = createRequestLogger();
 
 const app = new Elysia()
   .onRequest(requestLogger.onRequest)
+  .use(createCorrelationMiddleware())
   .use(createPrivateNetworkPreflightMiddleware())
   .use(createCorsMiddleware())
   .use(createApiVersionHeaderMiddleware())
   .use(createSecurityHeadersMiddleware())
   .use(createContentTypeMiddleware())
-  .use(createCorrelationMiddleware())
   .use(createRateLimitMiddleware())
   .use(createApiKeyAuthMiddleware())
   .use(createMetricsLifecycle())
@@ -231,9 +231,9 @@ function startupDbStatus(): string {
 function enabledMiddleware(): BannerMiddleware[] {
   return [
     { name: 'request-logger' },
+    { name: 'correlation' },
     { name: 'private-network-preflight' },
     { name: 'cors' },
-    { name: 'correlation' },
     { name: 'rate-limit', detail: `${startupConfig.profile.rateLimit.tokensPerWindow}/min` },
     { name: 'api-key-auth' },
     { name: 'metrics' },

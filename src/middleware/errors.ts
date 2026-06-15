@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { REQUEST_ID_HEADER, requestIdFor } from './correlation.ts';
+import { REQUEST_ID_HEADER, RESPONSE_TIME_HEADER, requestIdFor, responseTimeFor } from './correlation.ts';
 
 export type StructuredErrorResponse = {
   error: string;
@@ -83,6 +83,7 @@ export function createErrorMiddleware(logger: ErrorLogger = defaultErrorLogger) 
     const message = statusCode === 404 && code === 'NOT_FOUND' ? 'Route not found' : errorMessage(error);
     set.status = statusCode;
     set.headers[REQUEST_ID_HEADER] = id;
+    set.headers[RESPONSE_TIME_HEADER] = responseTimeFor(request);
     set.headers['x-correlation-id'] = id;
     logger({ requestId: id, statusCode, code: String(code), message });
     return {

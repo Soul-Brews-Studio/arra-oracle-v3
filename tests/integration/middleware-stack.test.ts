@@ -1,0 +1,110 @@
+import { afterEach, describe, expect, test } from 'bun:test';
+import { Elysia, t } from 'elysia';
+import { createApiKeyAuthMiddleware } from '../../src/middleware/auth.ts';
+import { createContentTypeMiddleware } from '../../src/middleware/content-type.ts';
+import { createCorrelationMiddleware } from '../../src/middleware/correlation.ts';
+import { createCorsMiddleware, parseCorsOrigins } from '../../src/middleware/cors.ts';
+import { BadRequestError, createErrorMiddleware } from '../../src/middleware/errors.ts';
+import { createRateLimitMiddleware } from '../../src/middleware/rate-limit.ts';
+
+const previousApiKey = process.env.ARRA_API_KEY;
+
+afterEach(() => {
+  if (previousApiKey === undefined) delete process.env.ARRA_API_KEY;
+  else process.env.ARRA_API_KEY = previousApiKey;
+});
+
+function createStackedApp(now = (() => 1_000)) {
+  const hits = new Map<string, number[]>();
+  process.env.ARRA_API_KEY = 'secret';
+  return new Elysia()
+    .use(createCorsMiddleware(parseCorsOrigins('https://studio.example')))
+    .use(createApiKeyAuthMiddleware())
+    .use(createRateLimitMiddleware({ rpm: 2, windowMs: 60_000, now, store: hits }))
+    .use(createCorrelationMiddleware())
+    .use(createContentTypeMiddleware())
+    .use(createErrorMiddleware(() => undefined))
+    .post('/api/echo', ({ body, requestId }) => ({ body, requestId }), {
+      body: t.Object({ name: t.String() }),
+    })
+    .get('/api/fail', () => {
+      throw new BadRequestError('stack boom');
+    });
+}
+
+function jsonRequest(path: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+  headers.set('origin', 'https://studio.example');
+  headers.set('accept', headers.get('accept') ?? 'application/json');
+  if (!headers.has('authorization')) headers.set('authorization', 'Bearer secret');
+  return new Request(`http://local${path}`, { ...init, headers });
+}
+
+describe('middleware stack integration', () => {
+  test('exercises cors, auth, rate-limit, correlation, content-type, body parsing, and errors in order', async () => {
+    const app = createStackedApp();
+
+    const preflight = await app.handle(jsonRequest('/api/echo', {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://studio.example',
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'authorization,content-type',
+      },
+    }));
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get('Access-Control-Allow-Origin')).toBe('https://studio.example');
+
+    const unauthenticated = await app.handle(jsonRequest('/api/echo', {
+      method: 'POST',
+      headers: { authorization: '', 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'blocked' }),
+    }));
+    expect(unauthenticated.status).toBe(401);
+    expect(unauthenticated.headers.get('Access-Control-Allow-Origin')).toBe('https://studio.example');
+    expect(await unauthenticated.json()).toMatchObject({ error: 'api_key_auth_required' });
+
+    const unsupported = await app.handle(jsonRequest('/api/echo', {
+      method: 'POST',
+      headers: { accept: 'text/html', 'content-type': 'application/json', 'x-forwarded-for': 'content-type-client' },
+      body: JSON.stringify({ name: 'html' }),
+    }));
+    expect(unsupported.status).toBe(406);
+    expect(unsupported.headers.get('X-Request-Id')).toBeTruthy();
+    expect(await unsupported.json()).toMatchObject({ error: 'not_acceptable' });
+
+    const parsed = await app.handle(jsonRequest('/api/echo', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': 'body-client' },
+      body: JSON.stringify({ name: 'oracle' }),
+    }));
+    const parsedBody = await parsed.json() as { body: { name: string }; requestId: string };
+    expect(parsed.status).toBe(200);
+    expect(parsed.headers.get('Content-Type')).toBe('application/json');
+    expect(parsedBody.body).toEqual({ name: 'oracle' });
+    expect(parsed.headers.get('X-Request-Id')).toBe(parsedBody.requestId);
+
+    const failed = await app.handle(jsonRequest('/api/fail', {
+      headers: { 'x-forwarded-for': 'error-client' },
+    }));
+    const failedBody = await failed.json() as { statusCode: number; correlationId: string };
+    expect(failed.status).toBe(400);
+    expect(failedBody.statusCode).toBe(400);
+    expect(failed.headers.get('X-Request-Id')).toBe(failedBody.correlationId);
+
+    const firstLimited = await app.handle(jsonRequest('/api/fail', {
+      headers: { 'x-forwarded-for': 'limited-client' },
+    }));
+    const secondLimited = await app.handle(jsonRequest('/api/fail', {
+      headers: { 'x-forwarded-for': 'limited-client' },
+    }));
+    const thirdLimited = await app.handle(jsonRequest('/api/fail', {
+      headers: { 'x-forwarded-for': 'limited-client' },
+    }));
+    expect(firstLimited.status).toBe(400);
+    expect(secondLimited.status).toBe(400);
+    expect(thirdLimited.status).toBe(429);
+    expect(thirdLimited.headers.get('Retry-After')).toBe('60');
+    expect(await thirdLimited.json()).toMatchObject({ error: 'Too Many Requests' });
+  });
+});
