@@ -97,3 +97,11 @@ export type {
 } from './types.ts';
 export { reflectToolDef, handleReflect } from './reflect.ts';
 export { verifyToolDef, handleVerify } from './verify.ts';
+
+// MCP-IN bridge tools: consume tools from external stdio MCP servers.
+export type { OracleMcpServerInput, OracleMcpCallInput } from './mcp-in.ts';
+export { mcpListToolsToolDef, mcpCallToolDef, handleMcpListTools, handleMcpCall } from './mcp-in.ts';
+
+// Unified runtime manifest for MCP-out registration.
+export type { RuntimeMcpToolManifest, RuntimeMcpHandler } from './mcp-manifest.ts';
+export { mcpTools, mcpToolByName, defaultMcpToolOrder, toMcpToolDefinition } from './mcp-manifest.ts';
