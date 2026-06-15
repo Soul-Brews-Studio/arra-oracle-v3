@@ -103,6 +103,13 @@ export const BUILTIN_HELP: CliHelpEntry[] = [
     flags: ["--since <tag>", "--out <file>", "--stdout", "--help", "-h"],
     examples: ["arra-cli changelog", "arra-cli changelog --since v1.2.3 --stdout"],
   },
+  {
+    command: "release",
+    help: "bump CalVer, write changelog, and create a tag",
+    usage: "arra-cli release [--beta|--stable] [--changelog CHANGELOG.md] [--dry-run]",
+    flags: ["--beta", "--stable", "--changelog <file>", "--dry-run", "--check", "--help", "-h"],
+    examples: ["arra-cli release", "arra-cli release --beta", "arra-cli release --dry-run"],
+  },
 ];
 
 const SUBCOMMAND_HELP: CliHelpEntry[] = [

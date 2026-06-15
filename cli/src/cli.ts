@@ -122,6 +122,12 @@ async function main() {
     process.exit(await changelogCommand(args.slice(1)));
   }
 
+  if (cmd === "release") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    const { releaseCommand } = await import("../../src/cli/commands/release.ts");
+    process.exit(await releaseCommand(args.slice(1)));
+  }
+
   if (cmd === "export") {
     const { exportCommand } = await import("../../src/cli/commands/export.ts");
     process.exit(await exportCommand(args.slice(1)));
