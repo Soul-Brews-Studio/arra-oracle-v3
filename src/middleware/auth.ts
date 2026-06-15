@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'crypto';
 import { Elysia } from 'elysia';
+import { apiErrorResponse } from './errors.ts';
 
 const HEALTH_BYPASS_PATH = '/api/health';
 
@@ -36,13 +37,12 @@ export function isApiKeyAuthorized(request: Request): boolean {
 }
 
 export function apiKeyUnauthorizedResponse(reason: AuthFailureReason) {
-  return {
-    error: 'api_key_auth_required',
+  return apiErrorResponse('api_key_auth_required', 401, {
     reason,
     message: reason === 'missing'
       ? 'Authorization: Bearer token required'
       : 'Invalid API key',
-  };
+  });
 }
 
 export function createApiKeyAuthMiddleware() {

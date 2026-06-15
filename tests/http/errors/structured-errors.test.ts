@@ -40,13 +40,19 @@ async function request(path: string, init?: RequestInit) {
   return { res, body };
 }
 
-function expectStructured(body: Record<string, unknown>, statusCode: number) {
+function expectStructured(body: Record<string, unknown>, code: number) {
   expect(body).toEqual({
     error: expect.any(String),
-    message: expect.any(String),
-    statusCode,
-    correlationId: expect.any(String),
+    code,
+    details: {
+      message: expect.any(String),
+      correlationId: expect.any(String),
+    },
   });
+}
+
+function detailsOf(body: Record<string, unknown>) {
+  return body.details as Record<string, unknown>;
 }
 
 describe('structured error middleware', () => {
@@ -57,9 +63,11 @@ describe('structured error middleware', () => {
     expect(res.headers.get('x-correlation-id')).toBe('test-correlation');
     expect(body).toEqual({
       error: 'Bad Request',
-      message: 'Query parameter q is required',
-      statusCode: 400,
-      correlationId: 'test-correlation',
+      code: 400,
+      details: {
+        message: 'Query parameter q is required',
+        correlationId: 'test-correlation',
+      },
     });
   });
 
@@ -84,7 +92,7 @@ describe('structured error middleware', () => {
 
     expect(res.status).toBe(404);
     expectStructured(body, 404);
-    expect(body.message).toBe('Plugin surface not found');
+    expect(detailsOf(body).message).toBe('Plugin surface not found');
   });
 
   test('maps validation failures to 422 JSON responses', async () => {
@@ -104,7 +112,7 @@ describe('structured error middleware', () => {
 
     expect(res.status).toBe(422);
     expectStructured(body, 422);
-    expect(body.message).toBe('Plugin manifest is invalid');
+    expect(detailsOf(body).message).toBe('Plugin manifest is invalid');
   });
 
   test('maps malformed JSON parse failures to 400 JSON responses', async () => {
@@ -133,6 +141,6 @@ describe('structured error middleware', () => {
     expect(res.status).toBe(500);
     expectStructured(body, 500);
     expect(body.error).toBe('Internal Server Error');
-    expect(body.message).toBe('boom');
+    expect(detailsOf(body).message).toBe('boom');
   });
 });

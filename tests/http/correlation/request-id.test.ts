@@ -46,8 +46,11 @@ describe('request correlation ID middleware', () => {
     expect(requestId).toMatch(UUID_RE);
     expect(body).toMatchObject({
       error: 'Internal Server Error',
-      message: 'boom',
-      correlationId: requestId,
+      code: 500,
+      details: {
+        message: 'boom',
+        correlationId: requestId,
+      },
     });
   });
 });

@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'crypto';
+import { apiErrorResponse } from '../middleware/errors.ts';
 
 const OPEN_PATHS = new Set(['/info', '/api/identity']);
 const OPEN_PREFIXES = ['/api/health', '/api/docs/', '/api/peer/'];
@@ -29,5 +30,5 @@ export function isApiAuthorized(request: Request) {
 }
 
 export function unauthorizedApiResponse() {
-  return { error: 'api_auth_required', message: 'ARRA API token required' };
+  return apiErrorResponse('api_auth_required', 401, { message: 'ARRA API token required' });
 }
