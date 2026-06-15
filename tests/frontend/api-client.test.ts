@@ -23,7 +23,7 @@ describe('frontend API client', () => {
       },
       '/api/menu': { items: [{ label: 'Vector', path: '/vector', group: 'tools', order: 1, source: 'api' }] },
       '/api/menu/search?q=vector': { data: [{ label: 'Vector', path: '/vector', group: 'tools', order: 1, source: 'api' }], q: 'vector', total: 1 },
-      '/api/vector/search?q=oracle+memory&limit=5&type=docs': {
+      '/api/v1/vector/search?q=oracle+memory&limit=5&type=docs': {
         results: [{ id: 'doc-1', type: 'doc', content: 'Oracle memory', source_file: 'note.md', concepts: [] }],
         total: 1,
         offset: 0,
@@ -70,7 +70,7 @@ describe('frontend API client', () => {
       '/api/v1/metrics',
       '/api/menu',
       '/api/menu/search?q=vector',
-      '/api/vector/search?q=oracle+memory&limit=5&type=docs',
+      '/api/v1/vector/search?q=oracle+memory&limit=5&type=docs',
       '/api/vector/index/models',
       '/api/vector/index/status',
       '/api/v1/plugins',

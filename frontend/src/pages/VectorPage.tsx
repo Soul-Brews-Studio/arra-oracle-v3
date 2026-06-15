@@ -4,7 +4,7 @@ import { apiClient, type ApiClient, type VectorHealthResponse, type VectorIndexM
 import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
 import { VectorIndexPanel } from '../components/VectorIndexPanel';
 import { VectorSearchWidget } from '../components/VectorSearchWidget';
-import { vectorDocumentsPath, vectorResultsPath } from '../routePaths';
+import { vectorDocumentsPath, vectorSearchPath } from '../routePaths';
 
 type PageState = 'loading' | 'ready' | 'error';
 type VectorStatusClient = Pick<ApiClient, 'vectorIndexModels' | 'vectorHealth'>;
@@ -243,7 +243,7 @@ export function VectorPage({ modelsResponse = null, healthResponse = null, loadi
       </section>
 
       <VectorDocumentsCard />
-      <VectorSearchWidget onOpenResults={(query) => navigate(vectorResultsPath(query))} />
+      <VectorSearchWidget onOpenResults={(query) => navigate(vectorSearchPath(query))} />
       <VectorIndexPanel />
     </div>
   );

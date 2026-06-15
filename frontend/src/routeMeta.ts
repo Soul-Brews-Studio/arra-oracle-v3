@@ -31,6 +31,14 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
     ]);
   }
 
+  if (pathname === '/vector/search') {
+    const query = new URLSearchParams(search).get('q')?.trim();
+    return base('Vector search preview', 'Vector', query ? `Preview semantic matches for “${query}”.` : 'Preview semantic matches by collection.', [
+      { label: 'Vector search', to: '/vector' },
+      { label: 'Preview' },
+    ]);
+  }
+
   if (pathname === '/vector/documents') {
     return base('Vector documents', 'Vector', 'Browse indexed document content and metadata by collection.', [
       { label: 'Vector search', to: '/vector' },

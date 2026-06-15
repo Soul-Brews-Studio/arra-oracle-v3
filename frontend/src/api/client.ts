@@ -70,7 +70,7 @@ export interface ApiRouteResponses {
   '/api/v1/metrics': MetricsSnapshot;
   '/api/menu': MenuResponse;
   '/api/menu/search': MenuSearchResponse;
-  '/api/vector/search': VectorSearchResponse;
+  '/api/v1/vector/search': VectorSearchResponse;
   '/api/vector/index/models': VectorIndexModelsResponse;
   '/api/vector/index/status': VectorIndexStatusResponse;
   '/api/vector/health': VectorHealthResponse;
@@ -206,7 +206,7 @@ export class ApiClient {
     addParam(query, 'project', params.project);
     addParam(query, 'cwd', params.cwd);
     addParam(query, 'model', params.model);
-    return this.fetchJson(`/api/vector/search?${query.toString()}`);
+    return this.fetchJson(`/api/v1/vector/search?${query.toString()}`);
   }
 
   vectorIndexStatus(): Promise<VectorIndexStatusResponse> {
