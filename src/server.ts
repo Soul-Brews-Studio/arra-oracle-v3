@@ -28,6 +28,7 @@ import { createRequestTimeoutFetch } from './middleware/timeout.ts';
 import { createBodyLimitMiddleware } from './middleware/body-limit.ts';
 import { createNotFoundMiddleware } from './middleware/not-found.ts';
 import { createEtagMiddleware } from './middleware/etag.ts';
+import { createDbContextFetch } from './middleware/db-context.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -241,7 +242,7 @@ function enabledMiddleware(): BannerMiddleware[] {
   ];
 }
 
-const serverFetch = createRequestTimeoutFetch(createApiVersionedFetch((request) => app.fetch(request)));
+const serverFetch = createRequestTimeoutFetch(createApiVersionedFetch(createDbContextFetch((request: Request) => app.fetch(request))));
 
 export default {
   port: Number(PORT),
