@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { fetchMenu, fetchPlugins } from './api';
 import { McpToolBrowser } from './components/McpToolBrowser';
+import { SettingsPage } from './components/SettingsPage';
 import { VectorSearchWidget } from './components/VectorSearchWidget';
 import type { LoadState, MenuItem, PluginEntry } from './types';
 
 type Surface = 'wasm' | 'menu' | 'server';
+type Page = 'dashboard' | 'settings';
 
 function surfacesFor(plugin: PluginEntry): Surface[] {
   const surfaces: Surface[] = [];
@@ -133,6 +135,7 @@ export default function App() {
   const [plugins, setPlugins] = useState<PluginEntry[]>([]);
   const [error, setError] = useState('');
   const [updatedAt, setUpdatedAt] = useState('never');
+  const [page, setPage] = useState<Page>('dashboard');
 
   async function load() {
     setState('loading');
@@ -167,44 +170,64 @@ export default function App() {
               Live menu and plugin inventory from the Elysia backend via the Vite `/api/*` proxy.
             </p>
           </div>
-          <button
-            className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200"
-            type="button"
-            onClick={() => void load()}
-          >
-            Refresh data
-          </button>
+          <div className="flex flex-wrap gap-3">
+            {(['dashboard', 'settings'] as Page[]).map((item) => (
+              <button
+                key={item}
+                className={item === page
+                  ? 'focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200'
+                  : 'focus-ring rounded-xl border border-white/10 px-5 py-3 font-semibold text-slate-200 transition hover:border-teal-300/40'}
+                type="button"
+                onClick={() => setPage(item)}
+              >
+                {item === 'dashboard' ? 'Dashboard' : 'Settings'}
+              </button>
+            ))}
+            <button
+              className="focus-ring rounded-xl border border-white/10 px-5 py-3 font-semibold text-slate-200 transition hover:border-teal-300/40"
+              type="button"
+              onClick={() => void load()}
+            >
+              Refresh data
+            </button>
+          </div>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-3" aria-label="Summary">
-          <StatCard label="Menu items" value={loading ? '…' : menu.length} detail="from /api/menu" />
-          <StatCard label="Plugins" value={loading ? '…' : plugins.length} detail="from /api/plugins" />
-          <StatCard label="Surfaces" value={loading ? '…' : surfaceCount} detail={`updated ${updatedAt}`} />
-        </section>
+        {page === 'settings' ? (
+          <SettingsPage />
+        ) : (
+          <>
+            <section className="grid gap-4 md:grid-cols-3" aria-label="Summary">
+              <StatCard label="Menu items" value={loading ? '…' : menu.length} detail="from /api/menu" />
+              <StatCard label="Plugins" value={loading ? '…' : plugins.length} detail="from /api/plugins" />
+              <StatCard label="Surfaces" value={loading ? '…' : surfaceCount} detail={`updated ${updatedAt}`} />
+            </section>
 
-        {state === 'error' ? (
-          <div className="rounded-2xl border border-red-400/30 bg-red-950/40 p-4 text-red-100">
-            <p className="font-semibold">Could not load backend data.</p>
-            <p className="mt-1 text-sm text-red-200/80">{error}</p>
-          </div>
-        ) : null}
+            {state === 'error' ? (
+              <div className="rounded-2xl border border-red-400/30 bg-red-950/40 p-4 text-red-100">
+                <p className="font-semibold">Could not load backend data.</p>
+                <p className="mt-1 text-sm text-red-200/80">{error}</p>
+              </div>
+            ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          <VectorSearchWidget />
-          <McpToolBrowser />
-        </div>
+            <div className="grid gap-6 xl:grid-cols-2">
+              <VectorSearchWidget />
+              <McpToolBrowser />
+            </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-          <section id="menu" className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
-            <h2 className="mb-4 text-2xl font-semibold text-white">Menu viewer</h2>
-            {loading ? <EmptyState text="Loading menu items…" /> : <MenuViewer items={menu} />}
-          </section>
+            <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+              <section id="menu" className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
+                <h2 className="mb-4 text-2xl font-semibold text-white">Menu viewer</h2>
+                {loading ? <EmptyState text="Loading menu items…" /> : <MenuViewer items={menu} />}
+              </section>
 
-          <section id="plugins" className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
-            <h2 className="mb-4 text-2xl font-semibold text-white">Plugin list</h2>
-            {loading ? <EmptyState text="Loading plugins…" /> : <PluginList plugins={plugins} />}
-          </section>
-        </div>
+              <section id="plugins" className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
+                <h2 className="mb-4 text-2xl font-semibold text-white">Plugin list</h2>
+                {loading ? <EmptyState text="Loading plugins…" /> : <PluginList plugins={plugins} />}
+              </section>
+            </div>
+          </>
+        )}
       </div>
     </main>
   );
