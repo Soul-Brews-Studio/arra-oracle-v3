@@ -25,6 +25,7 @@ export function runtimeMiddleware(options: RuntimeMiddlewareOptions): BannerMidd
     { name: 'rate-limit', detail: `${options.rateLimitTokensPerWindow}/min` },
     { name: 'api-key-auth' },
     { name: 'metrics' },
+    { name: 'compress' },
     { name: 'etag' },
     { name: 'structured-errors' },
     { name: 'not-found' },
