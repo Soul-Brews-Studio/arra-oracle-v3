@@ -6,15 +6,13 @@ import { pathToFileURL } from 'node:url';
 import { Elysia } from 'elysia';
 
 import {
-  normalizeUnifiedPluginManifest,
-  type NormalizedUnifiedPluginManifest,
-  type UnifiedApiRouteManifest,
-  type UnifiedCliSubcommandManifest,
-  type UnifiedMcpToolManifest,
-  type UnifiedMenuManifest,
+  normalizeUnifiedPluginManifest, type NormalizedUnifiedPluginManifest,
+  type UnifiedApiRouteManifest, type UnifiedCliSubcommandManifest,
+  type UnifiedMcpToolManifest, type UnifiedMenuManifest,
 } from './unified-manifest.ts';
 import { sortPluginsByDependencies } from './dependency-resolver.ts';
 import { pluginRegistryFromLoadedPlugins, type LoadedPluginRegistryEntry } from './registry.ts';
+import { runPluginSandbox } from './sandbox.ts';
 import { createUnifiedProxyRoute } from './proxy-surface.ts';
 import { unifiedPluginServerRoutes, type UnifiedPluginServer } from './unified-server.ts';
 
@@ -114,17 +112,19 @@ export async function discoverUnifiedPluginManifests(
 
 async function invoke(plugin: LoadedUnifiedPlugin, handler: string | undefined, ctx: InvokeContext, timeoutMs: number) {
   if (!handler) return { ok: true, plugin: plugin.manifest.name, source: ctx.source };
-  try {
+  const result = await runPluginSandbox({
+    plugin: plugin.manifest.name,
+    phase: ctx.source === 'init' || ctx.source === 'destroy' ? ctx.source : 'runtime',
+  }, async () => {
     const mod = await import(pathToFileURL(plugin.entryPath).href);
     const fn = handler === 'default' ? mod.default : (mod[handler] ?? mod.default);
-    if (typeof fn !== 'function') return { ok: false, error: `handler not found: ${handler}` };
+    if (typeof fn !== 'function') throw new Error(`handler not found: ${handler}`);
     return await Promise.race([
       Promise.resolve(fn(ctx)),
       new Promise((_, reject) => setTimeout(() => reject(new Error('handler timed out')), timeoutMs)),
     ]);
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
-  }
+  });
+  return result.ok ? result.value : { ok: false, error: result.error };
 }
 
 function responseFrom(result: unknown): unknown {
