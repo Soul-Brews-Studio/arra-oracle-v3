@@ -9,6 +9,7 @@ import path from 'path';
 import { DB_PATH } from '../config.ts';
 import * as schema from '../db/schema.ts';
 import { createDbContextQueryLogger } from '../middleware/db-context.ts';
+import { auditLog, createAuditLogObserver } from './audit-log.ts';
 import type { StorageBackend, StorageBackendOptions } from './types.ts';
 
 const MIGRATIONS_FOLDER = path.join(import.meta.dirname, '../db/migrations');
@@ -68,9 +69,15 @@ export function createDrizzleSqliteBackend(
   const sqlite = options.readonly
     ? new Database(resolvedPath, { readonly: true })
     : new Database(resolvedPath);
-  const db = drizzle(sqlite, { schema, logger: createDbContextQueryLogger() });
+  const migrationDb = drizzle(sqlite, { schema });
 
-  if (!options.readonly) initializeDrizzleSqlite(db);
+  if (!options.readonly) initializeDrizzleSqlite(migrationDb);
+
+  const auditDb = drizzle(sqlite, { schema: { auditLog } });
+  const logger = options.readonly
+    ? createDbContextQueryLogger()
+    : createDbContextQueryLogger(createAuditLogObserver(auditDb));
+  const db = drizzle(sqlite, { schema, logger });
 
   return {
     name: 'drizzle-sqlite',
