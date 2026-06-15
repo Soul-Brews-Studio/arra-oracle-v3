@@ -47,9 +47,10 @@ export function AppShell({
   }, [location.pathname, location.search]);
 
   const navItems: NavItem[] = [
-    { to: '/menu', label: 'Menu', description: 'Navigation rows from /api/menu', badge: loading ? '…' : menuCount },
+    { to: '/', label: 'Menu', description: 'Navigation rows from /api/menu', badge: loading ? '…' : menuCount },
     { to: '/plugins', label: 'Plugins', description: 'Registered plugins and surfaces', badge: loading ? '…' : pluginCount },
-    { to: '/vector', label: 'Vector', description: 'Semantic search over memory' },
+    { to: '/search', label: 'Search', description: 'Semantic search over memory' },
+    { to: '/metrics', label: 'Metrics', description: 'Runtime counters from /api/metrics' },
     { to: '/mcp', label: 'MCP', description: 'Tool schemas and groups' },
     { to: '/settings', label: 'Settings', description: 'Storage, embedder, and DB status' },
   ];

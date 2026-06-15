@@ -78,7 +78,7 @@ export function SettingsPage({ menuCount, pluginCount, surfaceCount, updatedAt, 
           <SettingCard label="API proxy" value="/api/* → :47778" detail="Vite forwards same-origin calls to the Elysia backend in development." />
           <SettingCard label="Frontend rows" value={`${menuCount} menu · ${pluginCount} plugins`} detail={`Last refreshed ${updatedAt}; use refresh after backend changes.`} />
           <SettingCard label="Plugin surfaces" value={surfaceCount} detail="Counts wasm, menu, server, and MCP surfaces exposed by plugin metadata." />
-          <SettingCard label="Client routes" value="/menu /plugins /vector /mcp /settings" detail="React Router owns client navigation while backend endpoints stay canonical." />
+          <SettingCard label="Client routes" value="/ /plugins /metrics /search" detail="React Router owns client navigation while backend endpoints stay canonical." />
         </dl>
       </section>
 

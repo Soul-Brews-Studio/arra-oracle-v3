@@ -5,5 +5,5 @@ export function mcpToolPath(name: string): string {
 export function vectorResultsPath(query: string): string {
   const qs = new URLSearchParams();
   if (query.trim()) qs.set('q', query.trim());
-  return qs.toString() ? `/vector/results?${qs}` : '/vector/results';
+  return qs.toString() ? `/search/results?${qs}` : '/search/results';
 }

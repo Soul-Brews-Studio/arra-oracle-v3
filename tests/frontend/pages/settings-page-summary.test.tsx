@@ -8,6 +8,6 @@ describe('SettingsPage summary', () => {
     expect(html).toContain('Runtime configuration');
     expect(html).toContain('3 menu · 2 plugins');
     expect(html).toContain('Plugin surfaces');
-    expect(html).toContain('/menu /plugins /vector /mcp /settings');
+    expect(html).toContain('/ /plugins /metrics /search');
   });
 });
