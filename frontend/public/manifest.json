@@ -1,0 +1,20 @@
+{
+  "name": "Arra Oracle Control Surface",
+  "short_name": "Arra Oracle",
+  "description": "Operational frontend for Arra Oracle menu, plugin, vector, MCP, and runtime settings surfaces.",
+  "start_url": "/menu",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#030712",
+  "theme_color": "#0f766e",
+  "orientation": "any",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/arra-oracle.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
