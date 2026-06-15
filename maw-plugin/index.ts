@@ -130,6 +130,30 @@ function formatHealth(data: any): string { return [`arra health: ${data?.status 
 function formatStats(data: any): string { return ['arra stats', data?.total_documents !== undefined && `docs: ${data.total_documents}`, data?.total_docs !== undefined && `docs: ${data.total_docs}`, data?.vector && `vector: ${one(JSON.stringify(data.vector), 180)}`].filter(Boolean).join('\n'); }
 function formatRows(label: string, keys: string[]) { return (data: any) => { const rows = keys.map(k => data?.[k]).find(Array.isArray) ?? []; const total = data?.total ?? data?.chain_length ?? rows.length; return Array.isArray(rows) ? [`arra ${label}: ${total} item${Number(total) === 1 ? '' : 's'}`, ...rows.slice(0, 8).map((r: any) => `- ${r.id ?? r.trace_id ?? r.path ?? r.filename ?? r.name ?? '?'} ${one(r.title ?? r.query ?? r.content ?? r.preview ?? r.label ?? '')}`)].join('\n') : `arra ${label}: ${preview(data)}`; }; }
 function formatOk(label: string) { return (data: any) => [`arra ${label}: ${data?.success === false ? 'failed' : 'ok'}`, data?.id && `id: ${data.id}`, data?.trace_id && `trace_id: ${data.trace_id}`, data?.thread_id && `thread_id: ${data.thread_id}`, data?.message && one(data.message), data?.error && `error: ${one(data.error)}`].filter(Boolean).join('\n') || `arra ${label}: ${preview(data)}`; }
+function formatVectorConfig(data: any): string {
+  const models = data?.models?.models && typeof data.models.models === 'object' ? data.models.models : {};
+  const engines = Array.isArray(data?.health?.engines) ? data.health.engines : [];
+  const lines = ['Collection | Adapter | Model | Docs | Status'];
+  for (const [key, raw] of Object.entries(models)) {
+    const m = raw as any;
+    const engine = engines.find((e: any) => e.key === key || e.collection === m.collection || e.model === m.model);
+    const status = engine ? (engine.ok === false ? 'down' : 'ok') : (data?.health?.status ?? 'unknown');
+    lines.push(`${m.collection ?? key} | ${m.adapter ?? 'lancedb'} | ${m.model ?? key} | ${m.count ?? m.docs ?? 0} | ${status}`);
+  }
+  if (lines.length === 1) lines.push('(none) | - | - | 0 | ' + (data?.health?.status ?? 'unknown'));
+  return lines.join('\n');
+}
+
+async function runVectorConfig(parsed: Parsed, request: Requester): Promise<InvokeResult> {
+  try {
+    const init: RequestInit = { method: 'GET' };
+    const data = {
+      models: await request('/api/vector/index/models', init),
+      health: await request('/api/vector/health', init),
+    };
+    return { ok: true, output: b(parsed, 'json') ? JSON.stringify(data, null, 2) : formatVectorConfig(data) };
+  } catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
+}
 
 export const COMMANDS: Record<string, Spec> = {
   search: { tool: 'oracle_search', method: 'GET', help: 'search <q> [--mode fts|hybrid|vector] [--limit N]', build: p => route('/api/search', { q: text(p, 'query', 'query'), type: f(p, 'type'), limit: f(p, 'limit') || '5', offset: f(p, 'offset'), mode: f(p, 'mode') || 'fts', project: f(p, 'project'), cwd: f(p, 'cwd'), model: f(p, 'model') }), format: formatSearch },
@@ -146,6 +170,7 @@ export const COMMANDS: Record<string, Spec> = {
   vector_status: { tool: 'oracle_vector_status', method: 'GET', help: 'vector-status', build: () => route('/api/vector/index/status'), format: d => `arra vector-status: ${preview(d, 700)}` },
   vector_stop: { tool: 'oracle_vector_stop', method: 'POST', write: true, help: 'vector-stop', build: () => route('/api/vector/index/stop'), format: formatOk('vector-stop') },
   vector_models: { tool: 'oracle_vector_models', method: 'GET', help: 'vector-models', build: () => route('/api/vector/index/models'), format: d => `arra vector-models: ${preview(d, 700)}` },
+  vector_config: { tool: 'oracle_vector_config', method: 'GET', help: 'vector-config [--json]', build: () => route('/api/vector/index/models'), format: formatVectorConfig },
   health: { tool: 'oracle_health', method: 'GET', help: 'health', build: () => route('/api/health'), format: formatHealth },
   trace: { tool: 'oracle_trace', method: 'POST', write: true, help: 'trace <query> [--scope project|cross-project|human]', build: p => route('/api/traces', undefined, { query: text(p, 'query', 'query'), queryType: f(p, 'query_type'), scope: f(p, 'scope'), parentTraceId: f(p, 'parent_trace_id'), project: f(p, 'project'), agentCount: n(p, 'agent_count'), durationMs: n(p, 'duration_ms') }), format: formatOk('trace') },
   trace_list: { tool: 'oracle_trace_list', method: 'GET', help: 'trace_list [--query Q] [--status S] [--project P] [--limit N]', build: p => route('/api/traces', { query: f(p, 'query'), status: f(p, 'status'), project: f(p, 'project'), limit: f(p, 'limit'), offset: f(p, 'offset') }), format: formatRows('trace_list', ['traces']) },
@@ -168,7 +193,6 @@ export const COMMANDS: Record<string, Spec> = {
 };
 
 const LOCAL_COMMANDS = { frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]', serve: 'serve [--stop|--status] [--port N]', studio: 'studio [--port N]' } as const;
-
 function usage(): InvokeResult {
   const commandNames = [...Object.keys(COMMANDS), ...Object.keys(LOCAL_COMMANDS)].sort();
   return { ok: false, error: 'usage', output: ['usage: maw arra <subcommand> [args]', `subcommands: ${commandNames.join('|')}`, '', ...Object.entries(LOCAL_COMMANDS).sort().map(([name, help]) => `  ${name}  ${help}`), ...Object.entries(COMMANDS).sort().map(([name, spec]) => `  ${name}  ${spec.help}`)].join('\n') };
@@ -202,6 +226,7 @@ export async function runArra(args: string[], request: Requester = requestJson, 
   if (sub === 'frontend' || sub === 'ui' || sub === 'open') return runFrontend(parsed, opener, env);
   if (sub === 'studio') return runStudio(parsed, runner, env);
   if (sub === 'serve') return runServe(parsed, runner, env, serveDeps);
+  if (sub === 'vector_config') return runVectorConfig(parsed, request);
   const spec = COMMANDS[sub];
   if (!spec) return usage();
   try {

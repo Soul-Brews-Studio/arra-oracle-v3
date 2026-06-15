@@ -34,6 +34,8 @@ maw arra settings
 maw arra feed
 maw arra menu
 maw arra vector
+maw arra vector-config
+maw arra vector-config --json
 
 maw arra trace "investigate auth loop" --scope project
 maw arra trace_list --status raw --limit 10

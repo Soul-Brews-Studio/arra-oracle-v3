@@ -61,6 +61,7 @@ describe('maw arra plugin', () => {
       'trace_unlink',
       'ui',
       'vector',
+      'vector_config',
       'vector_index',
       'vector_models',
       'vector_status',
@@ -72,6 +73,7 @@ describe('maw arra plugin', () => {
     expect(help.output).toContain('frontend');
     expect(help.output).toContain('index');
     expect(help.output).toContain('vector');
+    expect(help.output).toContain('vector-config [--json]');
     expect(help.output).toContain('trace_chain');
     expect(help.output).toContain('thread_update');
     expect(help.output).toContain('serve [--stop|--status] [--port N]');
