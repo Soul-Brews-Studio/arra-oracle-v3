@@ -30,6 +30,19 @@ describe('frontend API client', () => {
         limit: 5,
         query: 'oracle memory',
       },
+      '/api/vector/index/models': {
+        models: { 'bge-m3': { collection: 'oracle_bge_m3', model: 'bge-m3', adapter: 'lancedb', count: 12 } },
+      },
+      '/api/vector/index/status': {
+        jobId: 'vidx-1',
+        model: 'bge-m3',
+        status: 'indexing',
+        current: 5,
+        total: 12,
+        startedAt: 1781560000000,
+        docsPerSec: 2.5,
+        eta: 3,
+      },
       '/api/v1/plugins': {
         dir: '/tmp/plugins',
         plugins: [{ name: 'echo', file: 'echo.wasm', size: 12, modified: '2026-06-16T00:00:00.000Z' }],
@@ -48,6 +61,8 @@ describe('frontend API client', () => {
     await expect(client.menu()).resolves.toMatchObject({ items: [{ label: 'Vector' }] });
     await expect(client.menuSearch('  vector  ')).resolves.toMatchObject({ total: 1, q: 'vector' });
     await expect(client.vectorSearch({ q: 'oracle memory', limit: 5, type: 'docs' })).resolves.toMatchObject({ total: 1, query: 'oracle memory' });
+    await expect(client.vectorIndexModels()).resolves.toMatchObject({ models: { 'bge-m3': { count: 12 } } });
+    await expect(client.vectorIndexStatus()).resolves.toMatchObject({ status: 'indexing', current: 5, total: 12 });
     await expect(client.plugins()).resolves.toMatchObject({ plugins: [{ name: 'echo' }] });
 
     expect(calls.map((call) => String(call.input))).toEqual([
@@ -56,6 +71,8 @@ describe('frontend API client', () => {
       '/api/menu',
       '/api/menu/search?q=vector',
       '/api/vector/search?q=oracle+memory&limit=5&type=docs',
+      '/api/vector/index/models',
+      '/api/vector/index/status',
       '/api/v1/plugins',
     ]);
     for (const call of calls) {
@@ -75,11 +92,15 @@ describe('frontend API client', () => {
     });
 
     await client.request('/api/menu', { method: 'POST', body: JSON.stringify({ refresh: true }) });
+    await client.startVectorIndex('qwen3');
 
     expect(String(calls[0]?.input)).toBe('http://localhost:47778/api/menu');
     const headers = new Headers(calls[0]?.init?.headers);
     expect(headers.get('x-client')).toBe('studio');
     expect(headers.get('content-type')).toBe('application/json');
+    expect(String(calls[1]?.input)).toBe('http://localhost:47778/api/vector/index/start');
+    expect(calls[1]?.init?.method).toBe('POST');
+    expect(calls[1]?.init?.body).toBe(JSON.stringify({ model: 'qwen3' }));
   });
 
   test('wraps network, JSON parse, and non-OK failures', async () => {

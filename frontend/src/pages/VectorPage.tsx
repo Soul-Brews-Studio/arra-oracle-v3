@@ -1,11 +1,12 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { VectorIndexPanel } from '../components/VectorIndexPanel';
 import { VectorSearchWidget } from '../components/VectorSearchWidget';
 import { vectorDocumentsPath, vectorResultsPath } from '../routePaths';
 
 export function VectorPage() {
   const navigate = useNavigate();
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-5">
       <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Documents</p>
         <h2 className="mt-2 text-2xl font-semibold text-white">Browse indexed documents</h2>
@@ -15,6 +16,7 @@ export function VectorPage() {
         </Link>
       </div>
       <VectorSearchWidget onOpenResults={(query) => navigate(vectorResultsPath(query))} />
+      <VectorIndexPanel />
     </div>
   );
 }

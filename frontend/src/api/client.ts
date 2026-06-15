@@ -19,6 +19,8 @@ export interface ApiRouteResponses {
   '/api/menu': MenuResponse;
   '/api/menu/search': MenuSearchResponse;
   '/api/vector/search': VectorSearchResponse;
+  '/api/vector/index/models': VectorIndexModelsResponse;
+  '/api/vector/index/status': VectorIndexStatusResponse;
   '/api/v1/plugins': PluginsResponse;
   '/api/v1/learn': LearnListResponse;
 }
@@ -41,6 +43,39 @@ export interface VectorSearchParams {
   project?: string;
   cwd?: string;
   model?: string;
+}
+
+export interface VectorIndexCollection {
+  collection: string;
+  model: string;
+  adapter: string;
+  count?: number;
+}
+
+export interface VectorIndexModelsResponse {
+  models: Record<string, VectorIndexCollection>;
+}
+
+export type VectorIndexJobStatus = 'idle' | 'indexing' | 'completed' | 'error';
+
+export interface VectorIndexStatusResponse {
+  jobId: string;
+  model: string;
+  status: VectorIndexJobStatus;
+  current: number;
+  total: number;
+  startedAt: number;
+  completedAt?: number;
+  error?: string;
+  docsPerSec: number;
+  eta: number;
+}
+
+export interface VectorIndexStartResponse {
+  jobId: string;
+  status: 'started';
+  model: string;
+  batchSize: number;
 }
 
 export class ApiClientError extends Error {
@@ -144,6 +179,18 @@ export class ApiClient {
     addParam(query, 'cwd', params.cwd);
     addParam(query, 'model', params.model);
     return this.fetchJson(`/api/vector/search?${query.toString()}`);
+  }
+
+  vectorIndexModels(): Promise<VectorIndexModelsResponse> {
+    return this.request('/api/vector/index/models');
+  }
+
+  vectorIndexStatus(): Promise<VectorIndexStatusResponse> {
+    return this.request('/api/vector/index/status');
+  }
+
+  startVectorIndex(model: string): Promise<VectorIndexStartResponse> {
+    return this.fetchJson('/api/vector/index/start', { method: 'POST', body: JSON.stringify({ model }) });
   }
 
   private async fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
