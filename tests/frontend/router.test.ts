@@ -35,7 +35,7 @@ describe('frontend router', () => {
 
   test('routes root, plugins, metrics, and search surfaces', () => {
     expect(htmlAt('/')).toContain('Menu viewer');
-    expect(htmlAt('/plugins')).toContain('Plugin list');
+    expect(htmlAt('/plugins')).toContain('Registered plugins');
     expect(htmlAt('/metrics')).toContain('Backend metrics');
     expect(htmlAt('/metrics')).toContain('42');
     expect(htmlAt('/search')).toContain('Full-text menu search');

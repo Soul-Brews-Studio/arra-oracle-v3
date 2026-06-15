@@ -8,7 +8,7 @@ import { createServer } from 'node:net';
 const REPO_ROOT = new URL('../../../', import.meta.url).pathname.replace(/\/$/, '');
 
 describe('OpenAPI export', () => {
-  test('writes a valid spec from the Elysia swagger endpoint', async () => {
+  test('writes a valid spec from the Elysia Swagger docs endpoint', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'arra-openapi-test-'));
     try {
       const out = join(dir, 'openapi.json');
@@ -34,7 +34,7 @@ describe('OpenAPI export', () => {
       expect(spec.openapi).toBe('3.0.3');
       expect(spec.info.title).toBe('Arra Oracle API');
       expect(spec.paths['/api/health']).toBeDefined();
-      expect(spec.paths['/swagger/json']).toBeUndefined();
+      expect(spec.paths['/api/docs/json']).toBeUndefined();
     } finally {
       rmSync(dir, { recursive: true });
     }

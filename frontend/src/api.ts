@@ -38,7 +38,7 @@ export async function fetchMenu(): Promise<MenuResponse> {
 }
 
 export async function fetchPlugins(): Promise<PluginsResponse> {
-  const data = await getJson<PluginsResponse>('/api/plugins');
+  const data = await getJson<PluginsResponse>('/api/v1/plugins');
   return {
     dir: typeof data.dir === 'string' ? data.dir : '',
     plugins: Array.isArray(data.plugins) ? data.plugins : [],

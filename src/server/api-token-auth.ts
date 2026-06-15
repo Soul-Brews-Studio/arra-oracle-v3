@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'crypto';
 
 const OPEN_PATHS = new Set(['/info', '/api/identity']);
-const OPEN_PREFIXES = ['/api/health', '/api/peer/'];
+const OPEN_PREFIXES = ['/api/health', '/api/docs/', '/api/peer/'];
 
 export function apiToken() { return process.env.ARRA_API_TOKEN?.trim() || ''; }
 export function isApiTokenEnabled() { return apiToken().length > 0; }

@@ -2,11 +2,11 @@
 
 Base URL defaults to `http://localhost:47778`. Frontend dev servers proxy `/api/*` to
 that backend. When `ARRA_API_TOKEN` is set, protected `/api/*` calls need
-`Authorization: Bearer <token>` or `?token=<token>`; `/api/health`, `/api/peer/*`,
-and `/api/identity` stay open.
+`Authorization: Bearer <token>` or `?token=<token>`; `/api/health`,
+`/api/docs`, `/api/peer/*`, and `/api/identity` stay open.
 
 This page covers the active menu, plugin, vector, and MCP tool-listing surfaces.
-Swagger is also mounted at `/swagger`.
+Swagger UI is mounted at `/api/docs`; legacy `/swagger` redirects there.
 
 ## Common error shape
 

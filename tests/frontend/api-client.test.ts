@@ -29,7 +29,7 @@ describe('frontend API client', () => {
         limit: 5,
         query: 'oracle memory',
       },
-      '/api/plugins': {
+      '/api/v1/plugins': {
         dir: '/tmp/plugins',
         plugins: [{ name: 'echo', file: 'echo.wasm', size: 12, modified: '2026-06-16T00:00:00.000Z' }],
       },
@@ -55,7 +55,7 @@ describe('frontend API client', () => {
       '/api/menu',
       '/api/menu/search?q=vector',
       '/api/vector/search?q=oracle+memory&limit=5&type=docs',
-      '/api/plugins',
+      '/api/v1/plugins',
     ]);
     for (const call of calls) {
       expect(new Headers(call.init?.headers).get('accept')).toBe('application/json');
@@ -92,8 +92,8 @@ describe('frontend API client', () => {
     const invalidClient = createApiClient({ fetch: () => new Response('{nope', { status: 200 }) });
     await expect(invalidClient.plugins()).rejects.toMatchObject({
       status: 200,
-      path: '/api/plugins',
-      message: '/api/plugins returned invalid JSON',
+      path: '/api/v1/plugins',
+      message: '/api/v1/plugins returned invalid JSON',
     } as ApiClientError);
 
     const errorClient = createApiClient({ fetch: () => jsonResponse({ error: 'offline' }, { status: 503, statusText: 'Unavailable' }) });

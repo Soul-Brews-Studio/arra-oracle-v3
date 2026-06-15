@@ -15,7 +15,7 @@ export interface StartupBannerOptions {
 }
 
 export function formatStartupBanner(options: StartupBannerOptions): string {
-  const docsPath = options.docsPath ?? '/swagger';
+  const docsPath = options.docsPath ?? '/api/docs';
   return [
     '╭────────────────────────────────────────────╮',
     '│ 🔮 Arra Oracle HTTP Server                 │',
