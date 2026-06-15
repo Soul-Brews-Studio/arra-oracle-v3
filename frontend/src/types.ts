@@ -46,15 +46,20 @@ export interface PluginEntry {
   size: number;
   modified: string;
   version?: string;
+  status?: 'ok' | 'degraded' | 'disabled' | string;
+  enabled?: boolean;
+  error?: string;
   description?: string;
   menu?: PluginMenu;
   server?: PublicServerManifest;
   mcpTools?: McpTool[];
+  surfaces?: string[];
 }
 
 export interface PluginsResponse {
   plugins: PluginEntry[];
   dir: string;
+  count?: number;
 }
 
 export interface SearchResult {

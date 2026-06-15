@@ -115,6 +115,10 @@ export interface PluginEntryResponse {
   size: number;
   modified: string;
   version?: string;
+  status?: 'ok' | 'degraded' | 'disabled' | string;
+  enabled?: boolean;
+  error?: string;
+  surfaces?: string[];
   description?: string;
   menu?: {
     label: string;
@@ -134,6 +138,7 @@ export interface PluginEntryResponse {
 export interface PluginsResponse {
   plugins: PluginEntryResponse[];
   dir: string;
+  count?: number;
 }
 
 export type VectorSearchResponse = Omit<SearchResponse, 'query' | 'offset' | 'limit'> & {
