@@ -1,5 +1,5 @@
 import { Elysia, t } from 'elysia';
-import { and, asc, eq, like, or } from 'drizzle-orm';
+import { and, asc, eq, isNull, like, or } from 'drizzle-orm';
 import { db, menuItems } from '../../db/index.ts';
 import { menuRowToItem } from './list-paginated.ts';
 
@@ -16,6 +16,7 @@ function searchMenuRows(q: string) {
     .where(
       and(
         eq(menuItems.enabled, true),
+        isNull(menuItems.deletedAt),
         or(like(menuItems.label, pattern), like(menuItems.path, pattern)),
       ),
     )

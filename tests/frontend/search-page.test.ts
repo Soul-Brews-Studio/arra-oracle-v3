@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { createElement } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { htmlFor } from './_render';
 import {
   MenuSearchResults,
@@ -18,11 +19,21 @@ const result = {
 
 describe('frontend SearchPage', () => {
   test('renders the initial full-text menu search form', () => {
-    const html = htmlFor(createElement(SearchPage));
+    const html = htmlFor(createElement(MemoryRouter, null, createElement(SearchPage)));
     expect(html).toContain('Full-text menu search');
     expect(html).toContain('aria-label="Menu search form"');
     expect(html).toContain('aria-label="Menu search query"');
     expect(html).toContain('/api/menu/search?q=');
+  });
+
+
+  test('seeds the input from the shareable route query', () => {
+    const html = htmlFor(createElement(
+      MemoryRouter,
+      { initialEntries: ['/search?q=plugins'] },
+      createElement(SearchPage),
+    ));
+    expect(html).toContain('value="plugins"');
   });
 
   test('summarizes idle, loading, ready, empty, and error states', () => {

@@ -48,7 +48,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src/db/migrations ./db/migrations
 COPY package.json bun.lock ./
-RUN mkdir -p /data
+RUN mkdir -p /data \
+ && chown -R bun:bun /data
+USER bun
 VOLUME ["/data"]
 
 FROM production AS mcp-stdio
