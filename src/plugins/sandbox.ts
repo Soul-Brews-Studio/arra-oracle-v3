@@ -1,3 +1,9 @@
+/**
+ * Error Containment.
+ *
+ * Catches plugin exceptions and reports them; this does NOT provide process
+ * isolation, VM boundaries, or any security boundary.
+ */
 import { pluginEventBus, type PluginErrorPhase, type PluginEventBus } from './event-bus.ts';
 
 export interface PluginSandboxOptions {
@@ -14,6 +20,7 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Error containment wrapper — catches plugin exceptions, does NOT provide process isolation. */
 export async function runPluginSandbox<T>(
   options: PluginSandboxOptions,
   operation: () => T | Promise<T>,

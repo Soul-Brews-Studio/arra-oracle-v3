@@ -1,8 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-
 import { Elysia } from 'elysia';
 
 import {
@@ -15,6 +14,7 @@ import { pluginRegistryFromLoadedPlugins, type LoadedPluginRegistryEntry } from 
 import { runPluginSandbox } from './sandbox.ts';
 import { createUnifiedProxyRoute } from './proxy-surface.ts';
 import { unifiedPluginServerRoutes, type UnifiedPluginServer } from './unified-server.ts';
+import { resolveContainedPluginEntry } from './path-containment.ts';
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.ARRA_PLUGIN_TIMEOUT_MS ?? 5000);
 const DEFAULT_DIRS = [join(homedir(), '.arra', 'plugins'), join(homedir(), '.oracle', 'plugins')];
@@ -85,7 +85,7 @@ async function readPluginDir(dir: string, options: UnifiedLoaderOptions): Promis
     const raw = await Bun.file(path).json();
     const manifest = normalizeUnifiedPluginManifest(raw);
     if (manifest.enabled === false) return null;
-    return { manifest, dir, entryPath: resolve(dir, manifest.entry) };
+    return { manifest, dir, entryPath: resolveContainedPluginEntry(dir, manifest.entry) };
   } catch (error) {
     warn(options, `skipped ${dir}: ${error instanceof Error ? error.message : String(error)}`);
     return null;
