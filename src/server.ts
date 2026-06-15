@@ -28,6 +28,7 @@ import { createApiKeyAuthMiddleware } from './middleware/auth.ts';
 import { loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
 import { startUnifiedPluginServers } from './plugins/unified-server.ts';
 import { createErrorMiddleware } from './middleware/errors.ts';
+import { createRateLimitMiddleware } from './middleware/rate-limit.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -106,6 +107,7 @@ registerSignalHandlers(async () => {
 const app = new Elysia()
   .use(createPrivateNetworkPreflightMiddleware())
   .use(createCorsMiddleware())
+  .use(createRateLimitMiddleware())
   .use(createApiKeyAuthMiddleware())
   .onBeforeHandle(({ request, set }) => {
     const pathname = new URL(request.url).pathname;
