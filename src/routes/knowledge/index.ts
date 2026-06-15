@@ -7,7 +7,7 @@
  */
 
 import { Elysia } from 'elysia';
-import { learnEndpoint } from './learn.ts';
+import { createLearnCrudRoutes } from '../learn/index.ts';
 import { handoffEndpoint } from './handoff.ts';
 import { inboxEndpoint } from './inbox.ts';
 
@@ -18,6 +18,6 @@ export const knowledgeRoutes = new Elysia({ prefix: '/api' })
       return { error: error instanceof Error ? error.message : 'Parse error' };
     }
   })
-  .use(learnEndpoint)
+  .use(createLearnCrudRoutes())
   .use(handoffEndpoint)
   .use(inboxEndpoint);
