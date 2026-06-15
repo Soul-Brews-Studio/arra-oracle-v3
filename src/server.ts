@@ -23,6 +23,7 @@ import { isApiAuthorized, isApiPathProtected, unauthorizedApiResponse } from './
 import { seedMenuItems, type HasRoutes as SeedHasRoutes } from './db/seeders/menu-seeder.ts';
 import { createCorsMiddleware, createPrivateNetworkPreflightMiddleware } from './server/cors.ts';
 import { createApiKeyAuthMiddleware } from './middleware/auth.ts';
+import { createCorrelationMiddleware } from './middleware/correlation.ts';
 import { loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
 import { startUnifiedPluginServers } from './plugins/unified-server.ts';
 import { closeCachedVectorStores } from './vector/factory.ts';
@@ -105,6 +106,7 @@ registerGracefulShutdown({
 const app = new Elysia()
   .use(createPrivateNetworkPreflightMiddleware())
   .use(createCorsMiddleware())
+  .use(createCorrelationMiddleware())
   .use(createApiKeyAuthMiddleware())
   .onBeforeHandle(({ request, set }) => {
     const pathname = new URL(request.url).pathname;

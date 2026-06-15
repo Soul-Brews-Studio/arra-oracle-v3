@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia';
+import { REQUEST_ID_HEADER, requestIdFor } from './correlation.ts';
 
 export type StructuredErrorResponse = {
   error: string;
@@ -68,19 +69,25 @@ function knownStatus(code: string, error: unknown): number {
   return 500;
 }
 
-function correlationId(request: Request): string {
-  return request.headers.get('x-correlation-id') || crypto.randomUUID();
+type ErrorLogger = (entry: { requestId: string; statusCode: number; code: string; message: string }) => void;
+
+function defaultErrorLogger(entry: { requestId: string; statusCode: number; code: string; message: string }) {
+  if (entry.statusCode < 500) return;
+  console.error(`[HTTP:${entry.requestId}] ${entry.statusCode} ${entry.code}: ${entry.message}`);
 }
 
-export function createErrorMiddleware() {
+export function createErrorMiddleware(logger: ErrorLogger = defaultErrorLogger) {
   return new Elysia({ name: 'structured-errors' }).onError({ as: 'global' }, ({ code, error, request, set }) => {
     const statusCode = knownStatus(String(code), error);
-    const id = correlationId(request);
+    const id = requestIdFor(request);
+    const message = statusCode === 404 && code === 'NOT_FOUND' ? 'Route not found' : errorMessage(error);
     set.status = statusCode;
+    set.headers[REQUEST_ID_HEADER] = id;
     set.headers['x-correlation-id'] = id;
+    logger({ requestId: id, statusCode, code: String(code), message });
     return {
       error: error instanceof HttpError ? error.error : statusLabel(statusCode),
-      message: statusCode === 404 && code === 'NOT_FOUND' ? 'Route not found' : errorMessage(error),
+      message,
       statusCode,
       correlationId: id,
     } satisfies StructuredErrorResponse;
