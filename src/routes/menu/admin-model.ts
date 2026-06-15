@@ -43,6 +43,7 @@ export function toResponse(row: MenuRow) {
     scope: row.scope,
     query: parseQuery(row.query),
     touchedAt: row.touchedAt ? row.touchedAt.getTime() : null,
+    deletedAt: row.deletedAt ? row.deletedAt.getTime() : null,
     createdAt: row.createdAt.getTime(),
     updatedAt: row.updatedAt.getTime(),
   };

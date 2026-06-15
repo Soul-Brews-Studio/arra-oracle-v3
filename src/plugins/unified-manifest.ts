@@ -1,4 +1,5 @@
 import type { ServerPluginTier } from '../server/plugin/types.ts';
+import { validatePluginConfig, type JsonSchema } from './config-schema.ts';
 
 export type UnifiedPluginSurface =
   | 'mcpTools'
@@ -74,6 +75,8 @@ export interface UnifiedPluginManifest {
   enabled?: boolean;
   description?: string;
   depends?: string[];
+  config?: unknown;
+  configSchema?: JsonSchema;
   mcpTools?: UnifiedMcpToolManifest[];
   apiRoutes?: UnifiedApiRouteManifest[];
   proxy?: UnifiedProxyManifest[];
@@ -196,6 +199,8 @@ export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedP
     if (!command.command || typeof command.command !== 'string') throw new Error('cliSubcommands.command must be a string');
     if (!command.help || typeof command.help !== 'string') throw new Error('cliSubcommands.help must be a string');
   }
+  if (manifest.configSchema !== undefined) validatePluginConfig(manifest.config ?? {}, manifest.configSchema, manifest.name);
+
   if (manifest.lifecycle) {
     const { init, destroy, start, stop } = manifest.lifecycle;
     if (init !== undefined && typeof init !== 'string') throw new Error('lifecycle.init must be a string');
@@ -231,14 +236,7 @@ export function mcpToolNamesForToggle(manifest: NormalizedUnifiedPluginManifest)
   return manifest.mcpTools.map((tool) => tool.name);
 }
 
-export function publicUnifiedServerManifest(
-  server?: UnifiedServerManifest,
-): PublicUnifiedServerManifest | undefined {
+export function publicUnifiedServerManifest(server?: UnifiedServerManifest): PublicUnifiedServerManifest | undefined {
   if (!server) return undefined;
-  return {
-    command: server.command,
-    args: server.args,
-    healthPath: server.healthPath,
-    autostart: server.autostart,
-  };
+  return { command: server.command, args: server.args, healthPath: server.healthPath, autostart: server.autostart };
 }

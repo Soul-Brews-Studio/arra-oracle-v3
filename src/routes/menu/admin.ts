@@ -8,6 +8,7 @@ import { Elysia, t } from 'elysia';
 import { eq, asc } from 'drizzle-orm';
 import { db, menuItems } from '../../db/index.ts';
 import { ScopeSchema } from './model.ts';
+import { softDeleteMenuItemById } from '../../storage/soft-delete.ts';
 import { AccessSchema, GroupSchema, buildTree, toResponse, type MenuRow } from './admin-model.ts';
 
 export function createMenuAdminRoutes() {
@@ -173,11 +174,7 @@ export function createMenuAdminRoutes() {
           db.delete(menuItems).where(eq(menuItems.id, id)).run();
           return { id, deleted: 'hard' as const };
         }
-        const now = new Date();
-        db.update(menuItems)
-          .set({ enabled: false, touchedAt: now, updatedAt: now })
-          .where(eq(menuItems.id, id))
-          .run();
+        softDeleteMenuItemById(db, id, new Date());
         return { id, deleted: 'soft' as const };
       },
       {
@@ -185,7 +182,7 @@ export function createMenuAdminRoutes() {
         detail: {
           tags: ['menu'],
           menu: { group: 'admin', order: 904 },
-          summary: 'Hard-delete custom items; soft-delete (enabled=false) others',
+          summary: 'Hard-delete custom items; timestamp soft-delete route rows',
         },
       },
     );

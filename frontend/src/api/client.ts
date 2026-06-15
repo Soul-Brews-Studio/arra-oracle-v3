@@ -1,4 +1,4 @@
-import type { MenuResponse } from '../../../src/routes/menu/model';
+import type { MenuItem, MenuResponse } from '../../../src/routes/menu/model';
 import type {
   HealthResponse,
   MetricsSnapshot,
@@ -6,10 +6,17 @@ import type {
   VectorSearchResponse,
 } from '../../../src/server/types';
 
+export interface MenuSearchResponse {
+  data: MenuItem[];
+  q: string;
+  total: number;
+}
+
 export interface ApiRouteResponses {
   '/api/health': HealthResponse;
   '/api/metrics': MetricsSnapshot;
   '/api/menu': MenuResponse;
+  '/api/menu/search': MenuSearchResponse;
   '/api/vector/search': VectorSearchResponse;
   '/api/plugins': PluginsResponse;
 }
@@ -95,6 +102,11 @@ export class ApiClient {
 
   menu(): Promise<MenuResponse> {
     return this.request('/api/menu');
+  }
+
+  menuSearch(q: string): Promise<MenuSearchResponse> {
+    const query = new URLSearchParams({ q: q.trim() });
+    return this.fetchJson(`/api/menu/search?${query.toString()}`);
   }
 
   plugins(): Promise<PluginsResponse> {
