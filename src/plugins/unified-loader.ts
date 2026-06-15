@@ -12,9 +12,9 @@ import {
   type UnifiedCliSubcommandManifest,
   type UnifiedMcpToolManifest,
   type UnifiedMenuManifest,
-  type UnifiedServerManifest,
 } from './unified-manifest.ts';
 import { createUnifiedProxyRoute } from './proxy-surface.ts';
+import { unifiedPluginServerRoutes, type UnifiedPluginServer } from './unified-server.ts';
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.ARRA_PLUGIN_TIMEOUT_MS ?? 5000);
 const DEFAULT_DIRS = [join(homedir(), '.arra', 'plugins'), join(homedir(), '.oracle', 'plugins')];
@@ -39,7 +39,7 @@ export interface UnifiedRuntime {
   mcpTools: Array<UnifiedMcpToolManifest & { plugin: string }>;
   menu: Array<UnifiedMenuManifest & { plugin: string }>;
   cliSubcommands: Array<UnifiedCliSubcommandManifest & { plugin: string }>;
-  servers: Array<UnifiedServerManifest & { plugin: string }>;
+  servers: UnifiedPluginServer[];
   callMcpTool: (name: string, args?: unknown) => Promise<unknown>;
   stop: () => Promise<void>;
 }
@@ -167,12 +167,20 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
     }
     for (const route of plugin.manifest.apiRoutes) routes.push(apiRoute(plugin, route, timeoutMs));
     for (const proxy of plugin.manifest.proxy) routes.push(createUnifiedProxyRoute(plugin.manifest.name, proxy));
-    if (plugin.manifest.server) servers.push({ ...plugin.manifest.server, plugin: plugin.manifest.name });
+    if (plugin.manifest.server) {
+      servers.push({
+        ...plugin.manifest.server,
+        plugin: plugin.manifest.name,
+        dir: plugin.dir,
+        routePrefix: `/api/plugins/${plugin.manifest.name}/server`,
+      });
+    }
     for (const item of plugin.manifest.menu) menu.push({ ...item, plugin: plugin.manifest.name });
     for (const command of plugin.manifest.cliSubcommands) {
       cliSubcommands.push({ ...command, plugin: plugin.manifest.name });
     }
   }
+  if (servers.length) routes.push(unifiedPluginServerRoutes(servers));
 
   const callMcpTool = async (name: string, args?: unknown): Promise<unknown> => {
     const hit = mcpInvokers.get(name);
@@ -191,27 +199,4 @@ export async function loadUnifiedPlugins(options: UnifiedLoaderOptions = {}): Pr
   }
 }
 
-export async function seedUnifiedPluginMenuItems(items: UnifiedRuntime['menu']): Promise<void> {
-  if (!items.length) return;
-  try {
-    const [{ db, menuItems }, { eq }] = await Promise.all([import('../db/index.ts'), import('drizzle-orm')]);
-    const now = new Date();
-    for (const item of items) {
-      const existing = db.select().from(menuItems).where(eq(menuItems.path, item.path)).get();
-      if (existing && existing.source !== 'plugin') continue;
-      const values = {
-        path: item.path,
-        label: item.label,
-        groupKey: item.group ?? 'tools',
-        position: item.order ?? 999,
-        source: 'plugin',
-        icon: item.icon ?? null,
-        updatedAt: now,
-      };
-      if (existing) db.update(menuItems).set(values).where(eq(menuItems.id, existing.id)).run();
-      else db.insert(menuItems).values({ ...values, access: 'public', enabled: true, createdAt: now }).run();
-    }
-  } catch (error) {
-    console.warn('[unified-plugin] menu seed skipped:', error instanceof Error ? error.message : String(error));
-  }
-}
+export { seedUnifiedPluginMenuItems } from './unified-menu-seeder.ts';

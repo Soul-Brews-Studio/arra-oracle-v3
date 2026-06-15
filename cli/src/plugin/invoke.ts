@@ -1,6 +1,8 @@
 import type { LoadedPlugin, InvokeContext, InvokeResult, ResolvedCliCommand } from "./types.ts";
 
-const TIMEOUT_MS = Number(process.env.ARRA_PLUGIN_TIMEOUT_MS ?? 5000);
+function timeoutMs(): number {
+  return Number(process.env.ARRA_PLUGIN_TIMEOUT_MS ?? 5000);
+}
 
 type PluginModule = Record<string, unknown> & { default?: unknown };
 type Handler = (ctx: InvokeContext) => InvokeResult | Promise<InvokeResult>;
@@ -9,10 +11,11 @@ async function invokeHandler(label: string, handler: unknown, ctx: InvokeContext
   if (typeof handler !== "function") {
     return { ok: false, error: `${label}: handler must be a function` };
   }
+  const ms = timeoutMs();
   const result = await Promise.race([
     (handler as Handler)(ctx),
     new Promise<InvokeResult>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out after ${TIMEOUT_MS}ms`)), TIMEOUT_MS)
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
     ),
   ]);
   return result ?? { ok: true };

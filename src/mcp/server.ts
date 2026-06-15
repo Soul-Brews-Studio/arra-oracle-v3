@@ -26,6 +26,22 @@ function loadPackageVersion(): string {
   return JSON.parse(fs.readFileSync(pkgPath, 'utf-8')).version;
 }
 
+type EmbeddedDeps = {
+  createVectorStoreForModel: (preset: any) => VectorStoreAdapter;
+  getEmbeddingModels: () => Record<string, any>;
+  createDatabase: (dbPath?: string) => {
+    sqlite: Database;
+    db: BunSQLiteDatabase<typeof schema>;
+  };
+};
+
+export type OracleMCPServerOptions = {
+  readOnly?: boolean;
+  toolGroups?: ToolGroupConfig;
+  embeddedDeps?: EmbeddedDeps | Promise<EmbeddedDeps>;
+  watchToolGroups?: typeof watchToolGroupConfig;
+};
+
 export class OracleMCPServer {
   private server: Server;
   private sqlite: Database | null = null;
@@ -43,9 +59,13 @@ export class OracleMCPServer {
   private embeddedReady: Promise<void> | null = null;
   private readonly oracleApiBase: string | null;
   private readonly unifiedRuntimeReady: Promise<UnifiedRuntime>;
+  private readonly embeddedDeps?: EmbeddedDeps | Promise<EmbeddedDeps>;
+  private readonly watchToolGroups: typeof watchToolGroupConfig;
 
-  constructor(options: { readOnly?: boolean; toolGroups?: ToolGroupConfig } = {}) {
+  constructor(options: OracleMCPServerOptions = {}) {
     this.readOnly = options.readOnly ?? false;
+    this.embeddedDeps = options.embeddedDeps;
+    this.watchToolGroups = options.watchToolGroups ?? watchToolGroupConfig;
     if (this.readOnly) console.error('[Oracle] Running in READ-ONLY mode');
     this.oracleApiBase = resolveOracleApiBase();
     console.error(this.oracleApiBase
@@ -84,7 +104,7 @@ export class OracleMCPServer {
 
   private watchToolGroupsIfNeeded(pinnedConfig?: ToolGroupConfig): void {
     if (pinnedConfig || process.env.ORACLE_TOOL_GROUPS_HOT_RELOAD === '0') return;
-    this.stopToolGroupsWatch = watchToolGroupConfig((next) => {
+    this.stopToolGroupsWatch = this.watchToolGroups((next) => {
       this.applyToolGroupConfig(next);
       this.logToolGroupConfig(next);
       console.error('[ToolGroups] Reloaded');
@@ -100,15 +120,21 @@ export class OracleMCPServer {
 
   private async initEmbedded(): Promise<void> {
     if (this.sqlite && this.db && this.vectorStore) return;
-    const [{ createVectorStoreForModel, getEmbeddingModels }, { createDatabase }] = await Promise.all([
-      import('../vector/factory.ts'),
-      import('../db/index.ts'),
-    ]);
+    const { createVectorStoreForModel, getEmbeddingModels, createDatabase } = await this.loadEmbeddedDeps();
     this.vectorStore = createVectorStoreForModel(getEmbeddingModels()['bge-m3']);
     const { sqlite, db } = createDatabase(DB_PATH);
     this.sqlite = sqlite;
     this.db = db;
     await this.verifyVectorHealth();
+  }
+
+  private async loadEmbeddedDeps(): Promise<EmbeddedDeps> {
+    if (this.embeddedDeps) return await this.embeddedDeps;
+    const [{ createVectorStoreForModel, getEmbeddingModels }, { createDatabase }] = await Promise.all([
+      import('../vector/factory.ts'),
+      import('../db/index.ts'),
+    ]);
+    return { createVectorStoreForModel, getEmbeddingModels, createDatabase };
   }
 
   private async verifyVectorHealth(): Promise<void> {

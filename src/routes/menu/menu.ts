@@ -92,8 +92,8 @@ export {
   API_TO_STUDIO,
   buildMenuItems,
   hostMatches,
-  menuItemsFromUnifiedPlugins,
   menuItemsFromRoutes,
   readApiMenuItemsFromDb,
   scopeMatches,
 } from './menu-items.ts';
+export { menuItemsFromUnifiedPlugins } from './unified-plugin-menu.ts';

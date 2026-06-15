@@ -59,7 +59,9 @@ loads normalized manifests at boot, then registers whichever surfaces are presen
 
 - `apiRoutes[]` become Elysia routes that call the named handler from `entry`.
 - `proxy[]` become best-effort Elysia proxy routes using `targetEnv`.
-- `server` entries are autostarted unless `autostart: false`.
+- `server` entries are autostarted unless `autostart: false`, get `PORT` /
+  `ARRA_PLUGIN_PORT`, must pass `healthPath` (default `/health`), and are proxied
+  behind `/api/plugins/<name>/server/*`.
 - `menu[]` entries are seeded into `menu_items` as plugin-owned rows.
 - `mcpTools[]` and `cliSubcommands[]` are collected as registry metadata for the
   MCP/CLI loaders to consume in follow-up slices.
@@ -135,6 +137,6 @@ because no static tool names change.
 ## Non-goals for this PR
 
 - No dynamic MCP execution yet.
-- No long-lived health supervisor for plugin-owned servers yet.
+- No restart/backoff supervisor for plugin-owned servers yet.
 - No npm package extraction.
 - No subdomain deploy work.
