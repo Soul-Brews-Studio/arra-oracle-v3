@@ -31,6 +31,13 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
     ]);
   }
 
+  if (pathname === '/vector/documents') {
+    return base('Vector documents', 'Vector', 'Browse indexed document content and metadata by collection.', [
+      { label: 'Vector search', to: '/vector' },
+      { label: 'Documents' },
+    ]);
+  }
+
   if (pathname === '/vector/results') {
     const query = new URLSearchParams(search).get('q')?.trim();
     return base('Vector search results', 'Vector', query ? `Semantic matches for “${query}”.` : 'Full-page vector search results.', [

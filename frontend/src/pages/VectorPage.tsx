@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { apiClient, type ApiClient, type VectorHealthResponse, type VectorIndexModelEntry, type VectorIndexModelsResponse } from '../api/client';
 import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
 import { VectorSearchWidget } from '../components/VectorSearchWidget';
-import { vectorResultsPath } from '../routePaths';
+import { vectorDocumentsPath, vectorResultsPath } from '../routePaths';
 
 type PageState = 'loading' | 'ready' | 'error';
 type VectorStatusClient = Pick<ApiClient, 'vectorIndexModels' | 'vectorHealth'>;
@@ -115,6 +115,19 @@ function VectorCollectionCards({ cards }: { cards: VectorCollectionCard[] }) {
   );
 }
 
+function VectorDocumentsCard() {
+  return (
+    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-documents-title">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Documents</p>
+      <h2 id="vector-documents-title" className="mt-2 text-2xl font-semibold text-white">Browse indexed documents</h2>
+      <p className="mt-2 text-sm text-slate-400">Open the collection-level document browser for full content and metadata.</p>
+      <Link className="focus-ring mt-4 inline-flex rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" to={vectorDocumentsPath()}>
+        Open document browser
+      </Link>
+    </section>
+  );
+}
+
 export function VectorPage({ modelsResponse = null, healthResponse = null, loading = true, client = apiClient }: VectorPageProps) {
   const navigate = useNavigate();
   const [models, setModels] = useState(modelsResponse);
@@ -163,6 +176,7 @@ export function VectorPage({ modelsResponse = null, healthResponse = null, loadi
         {cards.length ? <VectorCollectionCards cards={cards} /> : null}
       </section>
 
+      <VectorDocumentsCard />
       <VectorSearchWidget onOpenResults={(query) => navigate(vectorResultsPath(query))} />
     </div>
   );

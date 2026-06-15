@@ -13,3 +13,7 @@ export function vectorResultsPath(query: string): string {
   if (query.trim()) qs.set('q', query.trim());
   return qs.toString() ? `/vector/results?${qs}` : '/vector/results';
 }
+
+export function vectorDocumentsPath(): string {
+  return '/vector/documents';
+}

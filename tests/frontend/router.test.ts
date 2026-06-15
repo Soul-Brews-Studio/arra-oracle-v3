@@ -42,6 +42,7 @@ describe('frontend router', () => {
     expect(htmlAt('/metrics')).toContain('Memory usage');
     expect(htmlAt('/search')).toContain('Full-text menu search');
     expect(htmlAt('/learn')).toContain('Learn entries');
+    expect(htmlAt('/vector/documents')).toContain('Vector documents');
   });
 
   test('wraps routed children in the browser router and error boundary shell', () => {
