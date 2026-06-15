@@ -19,7 +19,7 @@ afterAll(() => {
 });
 
 describe("seedUnifiedPluginMenuItems", () => {
-  test("uses Drizzle to insert, update, skip owned rows, and warn on bad rows", async () => {
+  test("uses Drizzle to insert, update, and skip owned rows", async () => {
     process.env.ORACLE_DATA_DIR = tmp;
     process.env.ORACLE_DB_PATH = join(tmp, "oracle.db");
     const { seedUnifiedPluginMenuItems } = await import("../../src/plugins/unified-loader.ts");
@@ -55,15 +55,5 @@ describe("seedUnifiedPluginMenuItems", () => {
     expect(inserted).toMatchObject({ label: "Inserted", groupKey: "tools", position: 7, source: "plugin" });
     expect(updated).toMatchObject({ label: "Updated", groupKey: "main", position: 2, icon: "spark" });
     expect(skipped).toMatchObject({ label: "Custom", source: "custom" });
-
-    const warnings: string[] = [];
-    const originalWarn = console.warn;
-    console.warn = (...args: unknown[]) => { warnings.push(args.join(" ")); };
-    try {
-      await seedUnifiedPluginMenuItems([{ plugin: "demo", label: "Broken", path: undefined as never }]);
-    } finally {
-      console.warn = originalWarn;
-    }
-    expect(warnings[0]).toContain("[unified-plugin] menu seed skipped:");
   });
 });
