@@ -19,7 +19,7 @@ export function resolveEmbeddingProviderType(
   const legacy = process.env.ORACLE_EMBEDDING_PROVIDER as EmbeddingProviderType | undefined;
   if (legacy) return normalizeProvider(legacy);
 
-  return normalizeProvider(process.env.ORACLE_EMBEDDER || process.env.ORACLE_EMBEDDER_BACKEND);
+  return normalizeProvider(process.env.ORACLE_EMBEDDER || process.env.ORACLE_EMBEDDER_BACKEND || process.env.EMBEDDER_TYPE);
 }
 
 export function resolveEmbeddingModel(configured?: string): string | undefined {
