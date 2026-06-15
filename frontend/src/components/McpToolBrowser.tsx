@@ -1,19 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchMcpTools } from '../api';
 import { ErrorMessage, LoadingPanel, Spinner } from './AsyncState';
+import { groupLabel, toolMode } from './toolView';
 import type { McpTool } from '../types';
 
-function groupLabel(tool: McpTool): string {
-  return tool.group || (tool.plugin ? `plugin:${tool.plugin}` : 'mcp');
-}
-
-function toolMode(tool: McpTool): string {
-  if (tool.readOnly === true) return 'read-only';
-  if (tool.readOnly === false) return 'write';
-  return 'unspecified';
-}
-
-function ToolCard({ tool }: { tool: McpTool }) {
+function ToolCard({ tool, onOpen }: { tool: McpTool; onOpen?: (tool: McpTool) => void }) {
   return (
     <article className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -22,19 +13,20 @@ function ToolCard({ tool }: { tool: McpTool }) {
         <span className="rounded-full bg-purple-300/10 px-2 py-1 text-xs text-purple-200">{toolMode(tool)}</span>
       </div>
       <p className="mt-3 text-sm leading-6 text-slate-400">{tool.description || 'No description supplied.'}</p>
-      <details className="mt-3">
-        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 hover:text-teal-200">
-          Input schema
-        </summary>
-        <pre className="mt-3 max-h-56 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-slate-300">
-          {JSON.stringify(tool.inputSchema ?? {}, null, 2)}
-        </pre>
-      </details>
+      {onOpen ? (
+        <button
+          className="focus-ring mt-4 rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-200 hover:border-teal-300/40"
+          type="button"
+          onClick={() => onOpen(tool)}
+        >
+          Open schema detail
+        </button>
+      ) : null}
     </article>
   );
 }
 
-export function McpToolBrowser() {
+export function McpToolBrowser({ onOpenTool }: { onOpenTool?: (tool: McpTool) => void }) {
   const [tools, setTools] = useState<McpTool[]>([]);
   const [filter, setFilter] = useState('');
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -105,7 +97,9 @@ export function McpToolBrowser() {
         />
       ) : null}
       {state === 'ready' && !visible.length ? <p className="rounded-xl border border-dashed border-white/10 p-6 text-sm text-slate-400">No MCP tools matched.</p> : null}
-      <div className="grid gap-3 lg:grid-cols-2" aria-busy={loading}>{!loading ? visible.map((tool) => <ToolCard key={`${tool.source ?? 'core'}:${tool.name}`} tool={tool} />) : null}</div>
+      <div className="grid gap-3 lg:grid-cols-2" aria-busy={loading}>
+        {!loading ? visible.map((tool) => <ToolCard key={`${tool.source ?? 'core'}:${tool.name}`} tool={tool} onOpen={onOpenTool} />) : null}
+      </div>
     </section>
   );
 }

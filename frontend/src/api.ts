@@ -1,4 +1,4 @@
-import type { McpToolsResponse, MenuResponse, PluginsResponse, SearchResponse } from './types';
+import type { McpToolsResponse, MenuResponse, PluginsResponse, SearchResponse, SettingsSystemResponse } from './types';
 
 export class ApiError extends Error {
   constructor(readonly status: number, message: string) {
@@ -64,4 +64,8 @@ export async function fetchMcpTools(): Promise<McpToolsResponse> {
     tools: Array.isArray(data.tools) ? data.tools : [],
     total: Number.isFinite(data.total) ? data.total : 0,
   };
+}
+
+export async function fetchSettingsSystem(): Promise<SettingsSystemResponse> {
+  return getJson<SettingsSystemResponse>('/api/settings/system');
 }
