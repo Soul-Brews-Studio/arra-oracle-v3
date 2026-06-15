@@ -1,22 +1,36 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  color-scheme: light;
+  background: #f8fafc;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+:root.dark {
   color-scheme: dark;
   background: #030712;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: #f8fafc;
 }
 
-#root {
-  min-height: 100vh;
-}
+.dark body { background: #030712; }
+
+#root { min-height: 100vh; }
 
 .oracle-shell {
+  background:
+    radial-gradient(circle at top left, rgba(13, 148, 136, 0.14), transparent 32rem),
+    radial-gradient(circle at bottom right, rgba(124, 58, 237, 0.08), transparent 30rem),
+    #f8fafc;
+}
+
+.dark .oracle-shell {
   background:
     radial-gradient(circle at top left, rgba(45, 212, 191, 0.18), transparent 32rem),
     radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.14), transparent 30rem),
@@ -24,6 +38,26 @@ body {
 }
 
 .focus-ring:focus-visible {
-  outline: 2px solid #2dd4bf;
+  outline: 2px solid #0d9488;
   outline-offset: 3px;
 }
+
+.light .border-white\/10 { border-color: rgb(203 213 225 / 0.85); }
+.light .bg-slate-950\/70,
+.light .bg-slate-950\/60,
+.light .bg-slate-950\/80 { background-color: rgb(255 255 255 / 0.86); }
+.light .bg-slate-950 { background-color: rgb(255 255 255 / 0.96); }
+.light .bg-white\/\[0\.03\],
+.light .bg-white\/\[0\.04\] { background-color: rgb(255 255 255 / 0.72); }
+.light .bg-black\/30 { background-color: rgb(15 23 42 / 0.08); }
+.light .text-white,
+.light .text-slate-100 { color: #0f172a; }
+.light .text-slate-200,
+.light .text-slate-300 { color: #334155; }
+.light .text-slate-400 { color: #475569; }
+.light .text-slate-500 { color: #64748b; }
+.light .text-teal-200,
+.light .text-teal-300 { color: #0f766e; }
+.light .text-purple-200,
+.light .text-purple-300 { color: #7e22ce; }
+.light .hover\:bg-slate-900:hover { background-color: rgb(241 245 249 / 0.95); }

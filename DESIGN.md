@@ -24,7 +24,7 @@
 ## Information architecture
 - Primary navigation: responsive React Router sidebar for Menu, Plugins, Vector, MCP, and Settings.
 - Core routes/screens: `/menu`, `/plugins`, `/vector`, `/mcp`, `/settings`; `/` redirects to `/menu`.
-- Content hierarchy: sidebar navigation, connection/status summary, then one focused routed page at a time.
+- Content hierarchy: sidebar navigation, breadcrumb trail, route-specific title, connection/status summary, then one focused routed page at a time.
 
 ## Design principles
 - Principle 1: make live system state visible before details.
@@ -41,7 +41,7 @@
 
 ## Components
 - Existing components to reuse: `VectorSearchWidget`, `McpToolBrowser`, menu/plugin cards, and visual cues from `web/src/styles/global.css`.
-- New/changed components: nav sidebar, routed pages, status banner, stat cards, menu cards, plugin cards, badges.
+- New/changed components: nav sidebar, breadcrumb/title chrome, routed pages, status banner, stat cards, menu cards, plugin cards, badges.
 - Variants and states: loading, error, empty, success.
 - Token/component ownership: local Tailwind utility classes in `frontend/src/styles.css` and React components.
 
