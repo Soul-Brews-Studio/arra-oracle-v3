@@ -30,6 +30,7 @@ import { closeCachedVectorStores } from './vector/factory.ts';
 import { isDraining, registerGracefulShutdown, trackRequest } from './lifecycle/shutdown.ts';
 import { createErrorMiddleware } from './middleware/errors.ts';
 import { validateStartupEnv } from './config/validate.ts';
+import { createRequestLogger } from './middleware/logger.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -106,7 +107,10 @@ registerGracefulShutdown({
   },
 });
 
+const requestLogger = createRequestLogger();
+
 const app = new Elysia()
+  .onRequest(requestLogger.onRequest)
   .use(createPrivateNetworkPreflightMiddleware())
   .use(createCorsMiddleware())
   .use(createCorrelationMiddleware())
@@ -125,6 +129,7 @@ const app = new Elysia()
     set.headers['X-XSS-Protection'] = '1; mode=block';
     set.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
   })
+  .onAfterResponse(requestLogger.onAfterResponse)
   .use(createErrorMiddleware())
   .use(
     swagger({
