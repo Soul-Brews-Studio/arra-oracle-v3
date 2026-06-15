@@ -27,6 +27,11 @@ function parsePositiveInt(value: string | undefined, fallback: number, max?: num
   return max ? Math.min(normalized, max) : normalized;
 }
 
+function parseOffset(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
 function normalizeMetadata(metadata: unknown): Record<string, unknown> {
   if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
     return metadata as Record<string, unknown>;
@@ -76,9 +81,10 @@ export function createVectorDocumentsEndpoint(deps: VectorDocumentsDeps = {}) {
     '/vector/documents',
     async ({ query, set }) => {
       const collection = query.collection || DEFAULT_COLLECTION;
-      const page = parsePositiveInt(query.page, DEFAULT_PAGE);
       const limit = parsePositiveInt(query.limit, DEFAULT_LIMIT, MAX_LIMIT);
-      const offset = (page - 1) * limit;
+      const pageFallback = parsePositiveInt(query.page, DEFAULT_PAGE);
+      const offset = parseOffset(query.offset, (pageFallback - 1) * limit);
+      const page = query.page ? pageFallback : Math.floor(offset / limit) + 1;
 
       try {
         const store = getStore(collection);
@@ -101,11 +107,11 @@ export function createVectorDocumentsEndpoint(deps: VectorDocumentsDeps = {}) {
           listed = await listWithQuery(store, offset, limit);
         }
 
-        return { items: listed.items, total: stats.count || listed.totalFallback, page, limit };
+        return { items: listed.items, total: stats.count || listed.totalFallback, page, limit, offset };
       } catch (error) {
         set.status = 500;
         const message = error instanceof Error ? error.message : String(error);
-        return { error: 'Vector documents browse failed', message, items: [], total: 0, page, limit };
+        return { error: 'Vector documents browse failed', message, items: [], total: 0, page, limit, offset };
       }
     },
     {
@@ -113,6 +119,7 @@ export function createVectorDocumentsEndpoint(deps: VectorDocumentsDeps = {}) {
         collection: t.Optional(t.String()),
         page: t.Optional(t.String()),
         limit: t.Optional(t.String()),
+        offset: t.Optional(t.String()),
       }),
       detail: {
         tags: ['vector'],

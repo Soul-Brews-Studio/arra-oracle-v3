@@ -26,7 +26,7 @@ export class LanceDBAdapter implements VectorStoreAdapter {
 
     const lancedb = await import('@lancedb/lancedb');
     this.db = await lancedb.connect(this.dbPath);
-    console.error(`[LanceDB] Connected at ${this.dbPath}`);
+    console.log(`[LanceDB] Connected ${this.collectionName} at ${this.dbPath}`);
   }
 
   async close(): Promise<void> {

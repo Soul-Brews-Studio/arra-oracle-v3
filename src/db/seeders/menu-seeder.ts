@@ -41,8 +41,8 @@ function routeMenuKey(path: string, studio: string | null | undefined): string {
   return `${studio ?? ''}\0${path}`;
 }
 
-function warnDuplicateRouteMenu(first: SeenRouteMenuRow, next: SeenRouteMenuRow): void {
-  console.warn(
+function debugDuplicateRouteMenu(first: SeenRouteMenuRow, next: SeenRouteMenuRow): void {
+  console.debug(
     `[menu-seeder] duplicate route menu path "${next.path}"` +
       ` (studio=${next.studio ?? 'null'}); keeping ${first.apiPath}` +
       ` (${first.groupKey}/${first.position}), skipping ${next.apiPath}` +
@@ -80,7 +80,7 @@ export function collectRouteMenuRows(sources: HasRoutes[]): RouteMenuRow[] {
       const key = routeMenuKey(row.path, row.studio);
       const first = seen.get(key);
       if (first) {
-        warnDuplicateRouteMenu(first, seenRow);
+        debugDuplicateRouteMenu(first, seenRow);
         continue;
       }
       seen.set(key, seenRow);

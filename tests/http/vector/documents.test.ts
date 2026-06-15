@@ -52,19 +52,20 @@ function createFetch(store: VectorStoreAdapter, collections: string[]) {
   return createApiVersionedFetch((request) => app.handle(request));
 }
 
-test('GET /api/v1/vector/documents returns paged vector documents', async () => {
+test('GET /api/v1/vector/documents returns offset-paged vector documents', async () => {
   const store = createStore();
   const collections: string[] = [];
   const fetcher = createFetch(store, collections);
 
   const res = await fetcher(new Request(
-    'http://local/api/v1/vector/documents?collection=bge-m3&page=2&limit=2',
+    'http://local/api/v1/vector/documents?collection=bge-m3&limit=2&offset=2',
   ));
   const body = await res.json() as {
     items: Array<{ id: string; document: string; metadata: Record<string, unknown> }>;
     total: number;
     page: number;
     limit: number;
+    offset: number;
   };
 
   expect(res.status).toBe(200);
@@ -77,6 +78,7 @@ test('GET /api/v1/vector/documents returns paged vector documents', async () => 
     total: 5,
     page: 2,
     limit: 2,
+    offset: 2,
   });
   expect(store.getAllEmbeddings).toHaveBeenCalledWith(4);
 });
