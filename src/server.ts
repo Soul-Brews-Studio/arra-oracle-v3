@@ -34,6 +34,7 @@ import { printStartupBanner, type BannerMiddleware } from './lifecycle/banner.ts
 import { createRequestLogger } from './middleware/logger.ts';
 import { createRateLimitMiddleware } from './middleware/rate-limit.ts';
 import { createApiVersionHeaderMiddleware, createApiVersionedFetch } from './middleware/api-version.ts';
+import { createSecurityHeadersMiddleware } from './middleware/security-headers.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -120,6 +121,7 @@ const app = new Elysia()
   .use(createPrivateNetworkPreflightMiddleware())
   .use(createCorsMiddleware())
   .use(createApiVersionHeaderMiddleware())
+  .use(createSecurityHeadersMiddleware())
   .use(createCorrelationMiddleware())
   .use(createRateLimitMiddleware())
   .use(createApiKeyAuthMiddleware())
@@ -133,9 +135,6 @@ const app = new Elysia()
   })
   .onAfterHandle(({ set }) => {
     set.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-    set.headers['X-Content-Type-Options'] = 'nosniff';
-    set.headers['X-Frame-Options'] = 'DENY';
-    set.headers['X-XSS-Protection'] = '1; mode=block';
     set.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
   })
   .onAfterResponse(requestLogger.onAfterResponse)
