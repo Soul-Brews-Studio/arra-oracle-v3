@@ -1,0 +1,22 @@
+# CI-only compose file: build the Docker test target once, then run
+# backend tests/typecheck and the frontend build as independent services.
+# Usage: docker compose -f docker-compose.ci.yml up --build --exit-code-from test
+
+x-test-image: &test-image
+  build:
+    context: .
+    dockerfile: Dockerfile
+    target: test
+  image: arra-test:test
+  environment:
+    HOME: /tmp
+    ORACLE_DATA_DIR: /tmp/oracle
+    ORACLE_LOG_TARGET: stderr
+
+services:
+  test:
+    <<: *test-image
+
+  frontend-build:
+    <<: *test-image
+    command: ["sh", "-c", "cd frontend && bun run build && tail -f /dev/null"]
