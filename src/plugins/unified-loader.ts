@@ -120,7 +120,7 @@ async function invoke(plugin: LoadedUnifiedPlugin, handler: string | undefined, 
     const fn = handler === 'default' ? mod.default : (mod[handler] ?? mod.default);
     if (typeof fn !== 'function') throw new Error(`handler not found: ${handler}`);
     return await Promise.race([
-      Promise.resolve(fn(ctx)),
+      Promise.resolve(fn({ ...ctx, config: plugin.manifest.config ?? {} })),
       new Promise((_, reject) => setTimeout(() => reject(new Error('handler timed out')), timeoutMs)),
     ]);
   });
