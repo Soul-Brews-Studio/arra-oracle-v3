@@ -7,8 +7,7 @@ describe('App shell render', () => {
     const restore = installBrowserLocation('/menu');
     try {
       const html = htmlFor(<App />);
-      expect(html).toContain('Control Surface');
-      expect(html).toContain('Menu viewer');
+      expect(html).toContain('Operational dashboard');
       expect(html).toContain('Arra Oracle');
       expect(html).toContain('Loading menu items');
     } finally {
