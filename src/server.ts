@@ -30,9 +30,9 @@ import { createRequestTimeoutFetch } from './middleware/timeout.ts';
 import { createBodyLimitMiddleware } from './middleware/body-limit.ts';
 import { createNotFoundMiddleware } from './middleware/not-found.ts';
 import { createEtagMiddleware } from './middleware/etag.ts';
+import { createCompressMiddleware } from './middleware/compress.ts';
 import { createDbContextFetch } from './middleware/db-context.ts';
 
-// Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
 import { settingsRoutes } from './routes/settings/index.ts';
 import { feedRoutes } from './routes/feed/index.ts';
@@ -55,7 +55,6 @@ import { peerRoutes } from './routes/peer/index.ts';
 import { createMcpRoutes } from './routes/mcp/index.ts';
 import { createMetricsLifecycle, metricsRoutes } from './routes/metrics/index.ts';
 
-// Indexer routes are optional — MCP server works without them
 let indexerRoutes: any = null;
 try {
   indexerRoutes = (await import('./routes/indexer/index.ts')).indexerRoutes;
@@ -124,6 +123,7 @@ const app = new Elysia()
   .use(createRateLimitMiddleware())
   .use(createApiKeyAuthMiddleware())
   .use(createMetricsLifecycle())
+  .use(createCompressMiddleware())
   .use(createEtagMiddleware())
   .onBeforeHandle(({ request, set }) => {
     const pathname = new URL(request.url).pathname;
