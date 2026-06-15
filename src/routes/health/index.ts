@@ -2,11 +2,15 @@
  * Health Routes (Elysia) — /api/health, /api/stats, /api/oracles
  */
 import { Elysia } from 'elysia';
-import { healthEndpoint } from './health.ts';
+import { createHealthEndpoint, type HealthEndpointOptions } from './health.ts';
 import { statsEndpoint } from './stats.ts';
 import { oraclesEndpoint } from './oracles.ts';
 
-export const healthRoutes = new Elysia({ prefix: '/api' })
-  .use(healthEndpoint)
-  .use(statsEndpoint)
-  .use(oraclesEndpoint);
+export function createHealthRoutes(options: HealthEndpointOptions = {}) {
+  return new Elysia({ prefix: '/api' })
+    .use(createHealthEndpoint(options))
+    .use(statsEndpoint)
+    .use(oraclesEndpoint);
+}
+
+export const healthRoutes = createHealthRoutes();

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ErrorMessage, Spinner } from './AsyncState';
 import { NavSidebar, type NavItem } from './NavSidebar';
@@ -6,6 +6,7 @@ import { routeMeta } from '../routeMeta';
 import { PageChrome } from './PageChrome';
 import { StatCard } from './StatCard';
 import { ThemeToggle } from './ThemeToggle';
+import { GlobalSearch } from './GlobalSearch';
 
 type AppShellProps = {
   children: ReactNode;
@@ -29,11 +30,16 @@ export function AppShell({
   onRefresh,
 }: AppShellProps) {
   const location = useLocation();
+  const contentRef = useRef<HTMLDivElement>(null);
   const meta = useMemo(() => routeMeta(location.pathname, location.search), [location.pathname, location.search]);
 
   useEffect(() => {
     document.title = `${meta.title} · Arra Oracle`;
   }, [meta.title]);
+
+  useEffect(() => {
+    contentRef.current?.focus({ preventScroll: true });
+  }, [location.pathname, location.search]);
 
   const navItems: NavItem[] = [
     { to: '/menu', label: 'Menu', description: 'Navigation rows from /api/menu', badge: loading ? '…' : menuCount },
@@ -43,28 +49,43 @@ export function AppShell({
     { to: '/settings', label: 'Settings', description: 'Storage, embedder, and DB status' },
   ];
   const retry = (
-    <button className="focus-ring rounded-lg border border-red-200/30 px-3 py-2 font-semibold text-red-50 hover:bg-red-200/10" type="button" onClick={onRefresh}>
+    <button
+      aria-label="Retry loading backend dashboard data"
+      className="focus-ring rounded-lg border border-red-200/30 px-3 py-2 font-semibold text-red-50 hover:bg-red-200/10"
+      type="button"
+      onClick={onRefresh}
+    >
       Retry
     </button>
   );
 
   return (
     <main className="oracle-shell min-h-screen text-slate-900 transition-colors dark:text-slate-100">
+      <a
+        className="focus-ring sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-teal-300 focus:px-4 focus:py-3 focus:font-semibold focus:text-slate-950"
+        href="#main-content"
+      >
+        Skip to main content
+      </a>
       <div className="mx-auto grid w-full max-w-7xl gap-4 px-3 py-3 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[18rem_1fr] lg:px-8">
         <NavSidebar items={navItems} />
         <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
           <header className="flex flex-col gap-5 rounded-3xl border border-slate-200 bg-white/85 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur sm:p-6 lg:flex-row lg:items-end lg:justify-between dark:border-white/10 dark:bg-slate-950/70 dark:shadow-black/30">
             <PageChrome meta={meta} />
-            <div className="grid gap-3 sm:flex sm:items-center sm:justify-end">
-              <ThemeToggle />
-              <button
-                className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={loading}
-                type="button"
-                onClick={onRefresh}
-              >
-                {loading ? <Spinner label="Refreshing" /> : 'Refresh data'}
-              </button>
+            <div className="grid w-full gap-3 lg:max-w-md">
+              <GlobalSearch />
+              <div className="grid gap-3 sm:flex sm:items-center sm:justify-end">
+                <ThemeToggle />
+                <button
+                  aria-label="Refresh menu and plugin dashboard data"
+                  className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={loading}
+                  type="button"
+                  onClick={onRefresh}
+                >
+                  {loading ? <Spinner label="Refreshing" /> : 'Refresh data'}
+                </button>
+              </div>
             </div>
           </header>
 
@@ -75,7 +96,9 @@ export function AppShell({
           </section>
 
           {error ? <ErrorMessage title="Could not load backend data." message={error} action={retry} /> : null}
-          {children}
+          <div id="main-content" ref={contentRef} tabIndex={-1} className="focus:outline-none">
+            {children}
+          </div>
         </div>
       </div>
     </main>

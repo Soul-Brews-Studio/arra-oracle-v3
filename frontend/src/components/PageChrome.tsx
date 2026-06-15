@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import type { RouteMeta } from '../routeMeta';
 
 function BreadcrumbLink({ label, to }: { label: string; to?: string }) {
-  if (!to) return <span className="text-slate-300">{label}</span>;
+  if (!to) return <span className="text-slate-300" aria-current="page">{label}</span>;
   return <Link className="focus-ring rounded-md text-slate-500 transition hover:text-teal-200" to={to}>{label}</Link>;
 }
 

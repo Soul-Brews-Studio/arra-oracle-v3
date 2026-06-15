@@ -35,6 +35,7 @@ export interface UnifiedLoaderOptions {
 }
 
 export interface UnifiedRuntime {
+  pluginCount?: number;
   routes: ElysiaApp[];
   mcpTools: Array<UnifiedMcpToolManifest & { plugin: string }>;
   menu: Array<UnifiedMenuManifest & { plugin: string }>;
@@ -187,7 +188,7 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
     if (!hit) return { ok: false, error: `MCP tool not found: ${name}` };
     return invoke(hit.plugin, hit.tool.handler, { source: 'mcp', plugin: hit.plugin.manifest.name, args: [args], body: args }, timeoutMs);
   };
-  return { routes, mcpTools, menu, cliSubcommands, servers, callMcpTool, stop: async () => {} };
+  return { pluginCount: plugins.length, routes, mcpTools, menu, cliSubcommands, servers, callMcpTool, stop: async () => {} };
 }
 
 export async function loadUnifiedPlugins(options: UnifiedLoaderOptions = {}): Promise<UnifiedRuntime> {

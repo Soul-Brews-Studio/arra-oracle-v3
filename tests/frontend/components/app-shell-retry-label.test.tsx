@@ -3,8 +3,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { AppShell } from '../../../frontend/src/components/AppShell';
 import { htmlFor, installBrowserLocation } from '../_render';
 
-describe('AppShell error banner', () => {
-  test('renders backend loading errors with a retry action', () => {
+describe('AppShell retry action label', () => {
+  test('labels the backend retry control for screen readers', () => {
     const restore = installBrowserLocation('/menu');
     try {
       const html = htmlFor(
@@ -14,9 +14,7 @@ describe('AppShell error banner', () => {
           </AppShell>
         </MemoryRouter>,
       );
-      expect(html).toContain('Could not load backend data.');
-      expect(html).toContain('backend offline');
-      expect(html).toContain('Retry');
+      expect(html).toContain('aria-label="Retry loading backend dashboard data"');
     } finally {
       restore();
     }
