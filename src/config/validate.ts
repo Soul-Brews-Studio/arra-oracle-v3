@@ -1,5 +1,6 @@
 import { Value } from '@sinclair/typebox/value';
 import {
+  ARRA_ENV_VALUES,
   BOOLEAN_ENV_KEYS,
   EMBEDDER_VALUES,
   EnvSchema,
@@ -11,6 +12,7 @@ import {
   VECTOR_FALLBACK_VALUES,
   type RuntimeEnv,
 } from './schema.ts';
+import { applyProfileDefaults, resolveConfigProfile, type ConfigProfile } from './profiles.ts';
 
 export class ConfigValidationError extends Error {
   constructor(readonly issues: string[]) {
@@ -27,6 +29,7 @@ interface ValidateEnvOptions {
 
 export interface ConfigValidationResult {
   env: RuntimeEnv;
+  profile: ConfigProfile;
   warnings: string[];
 }
 
@@ -34,7 +37,7 @@ const BOOL_VALUES = new Set(['0', '1', 'true', 'false', 'yes', 'no', 'on', 'off'
 const SQLITE_PROTOCOLS = ['file:', 'sqlite:', 'sqlite3:'];
 
 export function validateEnv(options: ValidateEnvOptions = {}): ConfigValidationResult {
-  const env = cleanEnv(options.env ?? process.env);
+  const env = applyProfileDefaults(cleanEnv(options.env ?? process.env));
   const issues = schemaIssues(env);
 
   requireHome(env, issues);
@@ -51,7 +54,7 @@ export function validateEnv(options: ValidateEnvOptions = {}): ConfigValidationR
   if (options.emitOptionalWarnings !== false) {
     for (const warning of warnings) (options.warn ?? console.warn)(`[Config] ${warning}`);
   }
-  return { env, warnings };
+  return { env, profile: resolveConfigProfile(env), warnings };
 }
 
 export function validateStartupEnv(): ConfigValidationResult {
@@ -125,6 +128,7 @@ function validateUrls(env: RuntimeEnv, issues: string[]): void {
 }
 
 function validateEnums(env: RuntimeEnv, issues: string[]): void {
+  checkEnum(env, issues, ['ARRA_ENV'], ARRA_ENV_VALUES);
   checkEnum(env, issues, ['ORACLE_EMBEDDER', 'ORACLE_EMBEDDER_BACKEND', 'ORACLE_EMBEDDING_PROVIDER', 'EMBEDDER_TYPE'], EMBEDDER_VALUES);
   checkEnum(env, issues, ['ORACLE_VECTOR_DB'], VECTOR_DB_VALUES);
   checkEnum(env, issues, ['VECTOR_FALLBACK'], VECTOR_FALLBACK_VALUES);
