@@ -9,6 +9,11 @@ import { t, type Static } from 'elysia';
 import { readdirSync, statSync, readFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
 import { homedir } from 'os';
+import {
+  normalizeUnifiedPluginManifest,
+  publicUnifiedServerManifest,
+  type PublicUnifiedServerManifest,
+} from '../../plugins/unified-manifest.ts';
 
 export const PLUGIN_DIR = join(homedir(), '.oracle', 'plugins');
 
@@ -30,6 +35,7 @@ export type PluginEntry = {
   version?: string;
   description?: string;
   menu?: PluginMenu;
+  server?: PublicUnifiedServerManifest;
 };
 
 export type MenuItem = {
@@ -44,6 +50,27 @@ export type MenuItem = {
 
 export const pluginNameParams = t.Object({ name: t.String() });
 
+type RawPluginManifest = {
+  name?: string;
+  version?: string;
+  description?: string;
+  wasm?: string;
+  menu?: unknown;
+  server?: unknown;
+};
+
+export function sanitizePluginName(name: string): string {
+  return name.replace(/[^\w.-]/g, '').replace(/\.wasm$/, '');
+}
+
+export function readPluginManifest(dir: string): RawPluginManifest | null {
+  try {
+    return JSON.parse(readFileSync(join(dir, 'plugin.json'), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
 function parseMenu(raw: unknown): PluginMenu | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const m = raw as Record<string, unknown>;
@@ -56,47 +83,60 @@ function parseMenu(raw: unknown): PluginMenu | undefined {
   return { label: m.label, group, order, icon, path };
 }
 
+function serverEntry(manifest: RawPluginManifest): PublicUnifiedServerManifest | undefined {
+  if (!manifest.server) return undefined;
+  try {
+    return publicUnifiedServerManifest(normalizeUnifiedPluginManifest(manifest).server);
+  } catch {
+    return undefined;
+  }
+}
+
 export function readNestedPlugin(
   dir: string,
   entryName: string,
 ): PluginEntry | null {
   const manifestPath = join(dir, 'plugin.json');
   if (!existsSync(manifestPath)) return null;
-  let manifest: {
-    name?: string;
-    version?: string;
-    description?: string;
-    wasm?: string;
-    menu?: unknown;
+  const manifest = readPluginManifest(dir);
+  if (!manifest) return null;
+
+  const server = serverEntry(manifest);
+  const base = {
+    name: typeof manifest.name === 'string' && manifest.name ? manifest.name : entryName,
+    version: typeof manifest.version === 'string' ? manifest.version : undefined,
+    description: typeof manifest.description === 'string' ? manifest.description : undefined,
+    menu: parseMenu(manifest.menu),
+    server,
   };
-  try {
-    manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-  } catch {
-    return null;
-  }
   const wasmName = manifest.wasm;
-  if (!wasmName || typeof wasmName !== 'string') return null;
+  if (!wasmName || typeof wasmName !== 'string') {
+    if (!server) return null;
+    const st = statSync(manifestPath);
+    return { ...base, file: '', size: 0, modified: st.mtime.toISOString() };
+  }
 
   // Try manifest path as-is, then fall back to basename (plugins copied flat
   // by `arra-cli plugin install` keep the source path in manifest.wasm).
   let wasmPath = join(dir, wasmName);
   let resolvedName = wasmName;
   if (!existsSync(wasmPath)) {
-    const base = basename(wasmName);
-    const basePath = join(dir, base);
-    if (!existsSync(basePath)) return null;
+    const baseName = basename(wasmName);
+    const basePath = join(dir, baseName);
+    if (!existsSync(basePath)) {
+      if (!server) return null;
+      const st = statSync(manifestPath);
+      return { ...base, file: '', size: 0, modified: st.mtime.toISOString() };
+    }
     wasmPath = basePath;
-    resolvedName = base;
+    resolvedName = baseName;
   }
   const st = statSync(wasmPath);
   return {
-    name: typeof manifest.name === 'string' && manifest.name ? manifest.name : entryName,
+    ...base,
     file: resolvedName,
     size: st.size,
     modified: st.mtime.toISOString(),
-    version: typeof manifest.version === 'string' ? manifest.version : undefined,
-    description: typeof manifest.description === 'string' ? manifest.description : undefined,
-    menu: parseMenu(manifest.menu),
   };
 }
 
