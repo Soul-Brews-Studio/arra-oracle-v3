@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiClient, type ApiClient, type VectorHealthResponse, type VectorIndexModelEntry, type VectorIndexModelsResponse } from '../api/client';
-import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
+import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
 import { VectorSearchWidget } from '../components/VectorSearchWidget';
 import { vectorDocumentsPath, vectorResultsPath } from '../routePaths';
 
 type PageState = 'loading' | 'ready' | 'error';
 type VectorStatusClient = Pick<ApiClient, 'vectorIndexModels' | 'vectorHealth'>;
+export type VectorExportFormat = 'json' | 'csv';
+type DownloadByCollection = Record<string, VectorExportFormat | undefined>;
+type ExportFetch = (input: RequestInfo | URL, init?: RequestInit) => Response | Promise<Response>;
+type SaveBlob = (blob: Blob, filename: string) => void | Promise<void>;
 
 export interface VectorCollectionCard {
   key: string;
@@ -69,6 +73,42 @@ export function vectorDashboardSummary(cards: VectorCollectionCard[], state: Pag
   return `${healthy}/${cards.length} vector collections healthy.`;
 }
 
+export function vectorExportPath(collection: string, format: VectorExportFormat): string {
+  return `/api/vector/export?${new URLSearchParams({ collection, format }).toString()}`;
+}
+
+export function vectorExportFilename(collection: string, format: VectorExportFormat): string {
+  const safeName = collection.trim().replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'collection';
+  return `${safeName}.${format}`;
+}
+
+export function saveBlobAsDownload(blob: Blob, filename: string): void {
+  if (!globalThis.document?.createElement || !globalThis.URL?.createObjectURL) throw new Error('Browser downloads are unavailable');
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.style.display = 'none';
+  document.body?.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadVectorCollection(
+  collection: string,
+  format: VectorExportFormat,
+  deps: { fetch?: ExportFetch; saveBlob?: SaveBlob } = {},
+): Promise<void> {
+  const fetcher = deps.fetch ?? globalThis.fetch?.bind(globalThis);
+  if (!fetcher) throw new Error('fetch is unavailable');
+  const response = await fetcher(vectorExportPath(collection, format), {
+    headers: { accept: format === 'json' ? 'application/json' : 'text/csv' },
+  });
+  if (!response.ok) throw new Error(`/api/vector/export returned ${response.status}`);
+  await (deps.saveBlob ?? saveBlobAsDownload)(await response.blob(), vectorExportFilename(collection, format));
+}
+
 function docCountLabel(count?: number): string {
   if (typeof count !== 'number') return 'unknown docs';
   return `${count.toLocaleString()} doc${count === 1 ? '' : 's'}`;
@@ -80,37 +120,48 @@ function statusClasses(healthy: boolean): string {
     : 'border-red-300/30 bg-red-300/10 text-red-100';
 }
 
-function VectorCollectionCards({ cards }: { cards: VectorCollectionCard[] }) {
+export function VectorCollectionCards({
+  cards,
+  downloads = {},
+  onExport,
+}: {
+  cards: VectorCollectionCard[];
+  downloads?: DownloadByCollection;
+  onExport?: (collection: string, format: VectorExportFormat) => void;
+}) {
   return (
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" aria-label="Vector collections">
-      {cards.map((card) => (
-        <article key={card.key} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Collection</p>
-              <h2 className="mt-1 text-lg font-semibold text-white">{card.collection}</h2>
+      {cards.map((card) => {
+        const downloading = downloads[card.collection];
+        const disabled = Boolean(downloading);
+        return (
+          <article key={card.key} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Collection</p>
+                <h2 className="mt-1 text-lg font-semibold text-white">{card.collection}</h2>
+              </div>
+              <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${statusClasses(card.healthy)}`}>
+                {card.healthLabel}
+              </span>
             </div>
-            <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${statusClasses(card.healthy)}`}>
-              {card.healthLabel}
-            </span>
-          </div>
-          <dl className="mt-4 grid gap-3 text-sm">
-            <div>
-              <dt className="text-slate-500">Adapter</dt>
-              <dd className="font-medium text-slate-100">{card.adapter}</dd>
+            <dl className="mt-4 grid gap-3 text-sm">
+              <div><dt className="text-slate-500">Adapter</dt><dd className="font-medium text-slate-100">{card.adapter}</dd></div>
+              <div><dt className="text-slate-500">Model</dt><dd className="font-medium text-slate-100">{card.model}</dd></div>
+              <div><dt className="text-slate-500">Documents</dt><dd className="font-medium text-slate-100">{docCountLabel(card.count)}</dd></div>
+            </dl>
+            {card.healthDetail ? <p className="mt-3 text-xs text-red-200">{card.healthDetail}</p> : null}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button className="focus-ring rounded-xl border border-teal-300/30 px-3 py-2 text-sm font-semibold text-teal-100 hover:bg-teal-300/10 disabled:cursor-not-allowed disabled:opacity-50" disabled={disabled} type="button" onClick={() => onExport?.(card.collection, 'json')}>
+                {downloading === 'json' ? <Spinner label="Downloading JSON" /> : 'Export JSON'}
+              </button>
+              <button className="focus-ring rounded-xl border border-purple-300/30 px-3 py-2 text-sm font-semibold text-purple-100 hover:bg-purple-300/10 disabled:cursor-not-allowed disabled:opacity-50" disabled={disabled} type="button" onClick={() => onExport?.(card.collection, 'csv')}>
+                {downloading === 'csv' ? <Spinner label="Downloading CSV" /> : 'Export CSV'}
+              </button>
             </div>
-            <div>
-              <dt className="text-slate-500">Model</dt>
-              <dd className="font-medium text-slate-100">{card.model}</dd>
-            </div>
-            <div>
-              <dt className="text-slate-500">Documents</dt>
-              <dd className="font-medium text-slate-100">{docCountLabel(card.count)}</dd>
-            </div>
-          </dl>
-          {card.healthDetail ? <p className="mt-3 text-xs text-red-200">{card.healthDetail}</p> : null}
-        </article>
-      ))}
+          </article>
+        );
+      })}
     </div>
   );
 }
@@ -134,6 +185,8 @@ export function VectorPage({ modelsResponse = null, healthResponse = null, loadi
   const [health, setHealth] = useState(healthResponse);
   const [state, setState] = useState<PageState>(loading ? 'loading' : 'ready');
   const [error, setError] = useState('');
+  const [downloads, setDownloads] = useState<DownloadByCollection>({});
+  const [downloadError, setDownloadError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -154,6 +207,18 @@ export function VectorPage({ modelsResponse = null, healthResponse = null, loadi
     return () => { cancelled = true; };
   }, [client]);
 
+  async function onExport(collection: string, format: VectorExportFormat) {
+    setDownloadError('');
+    setDownloads((current) => ({ ...current, [collection]: format }));
+    try {
+      await downloadVectorCollection(collection, format);
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDownloads(({ [collection]: _done, ...rest }) => rest);
+    }
+  }
+
   const cards = useMemo(() => buildVectorCollectionCards(models, health), [models, health]);
   const summary = vectorDashboardSummary(cards, state);
   const isLoading = state === 'loading';
@@ -172,8 +237,9 @@ export function VectorPage({ modelsResponse = null, healthResponse = null, loadi
 
         {isLoading ? <LoadingPanel title="Loading vector status…" detail="Fetching /api/vector/index/models and /api/vector/health." /> : null}
         {state === 'error' ? <ErrorMessage title="Could not load vector status." message={error} /> : null}
+        {downloadError ? <div className="mb-4"><ErrorMessage title="Vector export failed." message={downloadError} /></div> : null}
         {!isLoading && state !== 'error' && cards.length === 0 ? <p className="text-sm text-slate-400">No vector collections are registered.</p> : null}
-        {cards.length ? <VectorCollectionCards cards={cards} /> : null}
+        {cards.length ? <VectorCollectionCards cards={cards} downloads={downloads} onExport={onExport} /> : null}
       </section>
 
       <VectorDocumentsCard />
