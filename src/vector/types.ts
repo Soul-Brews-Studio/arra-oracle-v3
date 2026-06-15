@@ -44,7 +44,12 @@ export interface VectorStoreAdapter {
   queryById(id: string, nResults?: number): Promise<VectorQueryResult>;
   getStats(): Promise<{ count: number }>;
   getCollectionInfo(): Promise<{ count: number; name: string }>;
-  getAllEmbeddings?(limit?: number): Promise<{ ids: string[]; embeddings: number[][]; metadatas: any[] }>;
+  getAllEmbeddings?(limit?: number): Promise<{
+    ids: string[];
+    embeddings: number[][];
+    metadatas: any[];
+    documents?: string[];
+  }>;
 }
 
 export type EmbedType = 'query' | 'passage';

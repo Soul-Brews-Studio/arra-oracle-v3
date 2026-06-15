@@ -3,6 +3,7 @@ import type {
   HealthResponse,
   MetricsSnapshot,
   PluginsResponse,
+  RuntimeStatus,
   VectorSearchResponse,
 } from '../../../src/server/types';
 import type { LearnCreateResponse, LearnDeleteResponse, LearnListResponse, LearnMutationPayload, LearnUpdateResponse } from '../types';
@@ -13,47 +14,33 @@ export interface MenuSearchResponse {
   total: number;
 }
 
-export interface ApiRouteResponses {
-  '/api/health': HealthResponse;
-  '/api/v1/metrics': MetricsSnapshot;
-  '/api/menu': MenuResponse;
-  '/api/menu/search': MenuSearchResponse;
-  '/api/vector/search': VectorSearchResponse;
-  '/api/vector/index/models': VectorIndexModelsResponse;
-  '/api/vector/index/status': VectorIndexStatusResponse;
-  '/api/v1/plugins': PluginsResponse;
-  '/api/v1/learn': LearnListResponse;
-}
-
-export type ApiRoute = keyof ApiRouteResponses;
-export type ApiResponse<Route extends ApiRoute> = ApiRouteResponses[Route];
-export type ApiFetch = (input: RequestInfo | URL, init?: RequestInit) => Response | Promise<Response>;
-
-export interface ApiClientOptions {
-  baseUrl?: string;
-  fetch?: ApiFetch;
-  headers?: HeadersInit;
-}
-
-export interface VectorSearchParams {
-  q: string;
-  limit?: number;
-  offset?: number;
-  type?: string;
-  project?: string;
-  cwd?: string;
-  model?: string;
-}
-
-export interface VectorIndexCollection {
+export interface VectorIndexModelEntry {
   collection: string;
   model: string;
   adapter: string;
   count?: number;
 }
 
+export type VectorIndexCollection = VectorIndexModelEntry;
+
 export interface VectorIndexModelsResponse {
-  models: Record<string, VectorIndexCollection>;
+  models: Record<string, VectorIndexModelEntry>;
+}
+
+export interface VectorHealthEngine {
+  key?: string;
+  model?: string;
+  collection?: string;
+  ok?: boolean;
+  error?: string;
+}
+
+export interface VectorHealthResponse {
+  status: RuntimeStatus;
+  engines: VectorHealthEngine[];
+  checked_at: string;
+  proxy?: string;
+  error?: string;
 }
 
 export type VectorIndexJobStatus = 'idle' | 'indexing' | 'completed' | 'error';
@@ -76,6 +63,39 @@ export interface VectorIndexStartResponse {
   status: 'started';
   model: string;
   batchSize: number;
+}
+
+export interface ApiRouteResponses {
+  '/api/health': HealthResponse;
+  '/api/v1/metrics': MetricsSnapshot;
+  '/api/menu': MenuResponse;
+  '/api/menu/search': MenuSearchResponse;
+  '/api/vector/search': VectorSearchResponse;
+  '/api/vector/index/models': VectorIndexModelsResponse;
+  '/api/vector/index/status': VectorIndexStatusResponse;
+  '/api/vector/health': VectorHealthResponse;
+  '/api/v1/plugins': PluginsResponse;
+  '/api/v1/learn': LearnListResponse;
+}
+
+export type ApiRoute = keyof ApiRouteResponses;
+export type ApiResponse<Route extends ApiRoute> = ApiRouteResponses[Route];
+export type ApiFetch = (input: RequestInfo | URL, init?: RequestInit) => Response | Promise<Response>;
+
+export interface ApiClientOptions {
+  baseUrl?: string;
+  fetch?: ApiFetch;
+  headers?: HeadersInit;
+}
+
+export interface VectorSearchParams {
+  q: string;
+  limit?: number;
+  offset?: number;
+  type?: string;
+  project?: string;
+  cwd?: string;
+  model?: string;
 }
 
 export class ApiClientError extends Error {
@@ -166,6 +186,14 @@ export class ApiClient {
     return this.fetchJson(`/api/v1/learn/${encodeURIComponent(id)}`, { method: 'DELETE' });
   }
 
+  vectorIndexModels(): Promise<VectorIndexModelsResponse> {
+    return this.request('/api/vector/index/models');
+  }
+
+  vectorHealth(): Promise<VectorHealthResponse> {
+    return this.request('/api/vector/health');
+  }
+
   vectorSearch(query: string, limit?: number): Promise<VectorSearchResponse>;
   vectorSearch(params: VectorSearchParams): Promise<VectorSearchResponse>;
   vectorSearch(input: string | VectorSearchParams, limit?: number): Promise<VectorSearchResponse> {
@@ -179,10 +207,6 @@ export class ApiClient {
     addParam(query, 'cwd', params.cwd);
     addParam(query, 'model', params.model);
     return this.fetchJson(`/api/vector/search?${query.toString()}`);
-  }
-
-  vectorIndexModels(): Promise<VectorIndexModelsResponse> {
-    return this.request('/api/vector/index/models');
   }
 
   vectorIndexStatus(): Promise<VectorIndexStatusResponse> {
@@ -221,8 +245,6 @@ export class ApiClient {
   }
 }
 
-export function createApiClient(options?: ApiClientOptions): ApiClient {
-  return new ApiClient(options);
-}
+export const createApiClient = (options?: ApiClientOptions): ApiClient => new ApiClient(options);
 
 export const apiClient = createApiClient();

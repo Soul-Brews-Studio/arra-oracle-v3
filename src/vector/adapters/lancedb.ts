@@ -176,13 +176,14 @@ export class LanceDBAdapter implements VectorStoreAdapter {
     return { count: stats.count, name: this.collectionName };
   }
 
-  async getAllEmbeddings(limit: number = 5000): Promise<{ ids: string[]; embeddings: number[][]; metadatas: any[] }> {
-    if (!this.table) return { ids: [], embeddings: [], metadatas: [] };
+  async getAllEmbeddings(limit: number = 5000): Promise<{ ids: string[]; embeddings: number[][]; metadatas: any[]; documents: string[] }> {
+    if (!this.table) return { ids: [], documents: [], embeddings: [], metadatas: [] };
 
     const rows = await this.table.query().limit(limit).toArray();
 
     return {
       ids: rows.map((r: any) => r.id),
+      documents: rows.map((r: any) => r.text),
       embeddings: rows.map((r: any) => Array.from(r.vector)),
       metadatas: rows.map((r: any) => JSON.parse(r.metadata || '{}')),
     };
