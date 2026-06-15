@@ -73,6 +73,7 @@ export interface UnifiedPluginManifest {
   tier?: ServerPluginTier;
   enabled?: boolean;
   description?: string;
+  depends?: string[];
   mcpTools?: UnifiedMcpToolManifest[];
   apiRoutes?: UnifiedApiRouteManifest[];
   proxy?: UnifiedProxyManifest[];
@@ -89,6 +90,7 @@ export interface UnifiedPluginManifest {
 
 export interface NormalizedUnifiedPluginManifest extends Omit<UnifiedPluginManifest, 'api' | 'cli' | 'seedMenu'> {
   sdk: string;
+  depends: string[];
   apiRoutes: UnifiedApiRouteManifest[];
   mcpTools: UnifiedMcpToolManifest[];
   proxy: UnifiedProxyManifest[];
@@ -148,6 +150,7 @@ export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedP
     throw new Error(`manifest.version must be semver, got: ${JSON.stringify(manifest.version)}`);
   }
   if (!manifest.entry || typeof manifest.entry !== 'string') throw new Error('manifest.entry must be a string path');
+  assertStringArray(manifest.depends, 'depends');
 
   const apiRoutes = [...asArray(manifest.apiRoutes)];
   if (manifest.api) apiRoutes.push({ path: manifest.api.path, methods: manifest.api.methods });
@@ -204,6 +207,7 @@ export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedP
   return {
     ...manifest,
     sdk: manifest.sdk ?? '^0.0.1',
+    depends: manifest.depends ?? [],
     apiRoutes,
     mcpTools,
     proxy,
