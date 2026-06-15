@@ -1,6 +1,7 @@
 import { asc } from 'drizzle-orm';
 import { db, menuItems } from '../../db/index.ts';
 import { getFrontendMenuItems } from '../../menu/index.ts';
+import { getPluginMenuItems } from '../plugins/model.ts';
 import type { MenuExtras } from './menu.ts';
 import type { MenuItem, MenuMeta, Scope } from './model.ts';
 
@@ -134,6 +135,7 @@ export function buildMenuItems(
   apiItems: MenuItem[],
   extras?: MenuExtras,
   customItems: MenuItem[] = [],
+  pluginItems: MenuItem[] = [],
 ): MenuItem[] {
   const items: MenuItem[] = [];
   const seen = new Set<string>();
@@ -143,6 +145,8 @@ export function buildMenuItems(
   appendUnique(items, seen, getFrontendMenuItems());
   if (extras?.items) appendUnique(items, seen, extras.items);
   appendUnique(items, seen, customItems.map((item) => ({ ...item, added: true }) as MenuItem));
+  appendUnique(items, seen, getPluginMenuItems());
+  appendUnique(items, seen, pluginItems);
 
   const filtered = disableSet.size ? items.filter((i) => !disableSet.has(i.path)) : items;
   filtered.sort((a, b) => GROUP_RANK[a.group] - GROUP_RANK[b.group] || a.order - b.order);

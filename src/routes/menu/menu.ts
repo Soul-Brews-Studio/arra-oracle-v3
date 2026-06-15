@@ -14,6 +14,7 @@ import { MenuItemSchema, ScopeSchema, type MenuItem, type Scope } from './model.
 import { getMenuConfig, getMenuSource, reloadMenuConfig } from '../../menu/config.ts';
 import { listCustomMenuItems } from '../../menu/custom-store.ts';
 import { buildMenuItems, readApiMenuItemsFromDb } from './menu-items.ts';
+import { unifiedPluginMenuItems } from '../plugins/unified.ts';
 
 export type MenuExtras = {
   items?: MenuItem[];
@@ -46,6 +47,7 @@ export function createMenuEndpoint() {
             readApiMenuItemsFromDb(host, scope),
             { items, disable },
             listCustomMenuItems(),
+            unifiedPluginMenuItems(),
           ),
         };
       },
