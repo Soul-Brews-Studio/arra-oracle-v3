@@ -18,7 +18,7 @@ import {
 import { PORT, ORACLE_DATA_DIR, VECTOR_URL } from './config.ts';
 import { ScoutAnnouncer, shouldStartScoutAnnouncer } from './peer/scout-announcer.ts';
 import { MCP_SERVER_NAME } from './const.ts';
-import { db, sqlite, closeDb, indexingStatus } from './db/index.ts';
+import { db, sqlite, closeDb, indexingStatus, settings } from './db/index.ts';
 import { isApiAuthorized, isApiPathProtected, unauthorizedApiResponse } from './server/api-token-auth.ts';
 import { seedMenuItems, type HasRoutes as SeedHasRoutes } from './db/seeders/menu-seeder.ts';
 import { createCorsMiddleware, createPrivateNetworkPreflightMiddleware } from './middleware/cors.ts';
@@ -30,6 +30,7 @@ import { closeCachedVectorStores } from './vector/factory.ts';
 import { isDraining, registerGracefulShutdown, trackRequest } from './lifecycle/shutdown.ts';
 import { createErrorMiddleware } from './middleware/errors.ts';
 import { validateStartupEnv } from './config/validate.ts';
+import { printStartupBanner, type BannerMiddleware } from './lifecycle/banner.ts';
 import { createRequestLogger } from './middleware/logger.ts';
 import { createRateLimitMiddleware } from './middleware/rate-limit.ts';
 
@@ -67,7 +68,7 @@ import { gatewayPlugin } from './gateway/index.ts';
 
 import pkg from '../package.json' with { type: 'json' };
 
-validateStartupEnv();
+const startupConfig = validateStartupEnv();
 
 try {
   db.update(indexingStatus).set({ isIndexing: 0 }).where(eq(indexingStatus.id, 1)).run();
@@ -205,13 +206,39 @@ const modules = [...apiModules, mcpRoutes, menuRoutes];
 
 for (const mod of modules) app.use(mod as any);
 
-console.log(`
-🔮 Arra Oracle HTTP Server running! (Elysia)
+printStartupBanner({
+  version: pkg.version,
+  port: Number(PORT),
+  profile: startupConfig.profile.env,
+  middleware: enabledMiddleware(),
+  dbStatus: startupDbStatus(),
+});
 
-   URL:     http://localhost:${PORT}
-   Swagger: http://localhost:${PORT}/swagger
-   Version: ${pkg.version}
-`);
+
+function startupDbStatus(): string {
+  try {
+    db.select({ key: settings.key }).from(settings).limit(1).all();
+    return 'ok';
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return `degraded (${message})`;
+  }
+}
+
+function enabledMiddleware(): BannerMiddleware[] {
+  return [
+    { name: 'request-logger' },
+    { name: 'private-network-preflight' },
+    { name: 'cors' },
+    { name: 'correlation' },
+    { name: 'rate-limit', detail: `${startupConfig.profile.rateLimit.tokensPerWindow}/min` },
+    { name: 'api-key-auth' },
+    { name: 'metrics' },
+    { name: 'structured-errors' },
+    { name: 'swagger' },
+    { name: 'gateway', enabled: Boolean(VECTOR_URL) || process.env.ORACLE_GATEWAY_HOT_RELOAD !== '0' },
+  ];
+}
 
 export default {
   port: Number(PORT),
