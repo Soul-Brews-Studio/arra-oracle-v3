@@ -55,7 +55,6 @@ import { createMenuRoutes, menuItemsFromUnifiedPlugins } from './routes/menu/ind
 import { peerRoutes } from './routes/peer/index.ts';
 import { createMcpRoutes } from './routes/mcp/index.ts';
 import { createMetricsLifecycle, metricsRoutes } from './routes/metrics/index.ts';
-import { requestStatsRoutes, serverRequestStats } from './routes/stats/index.ts';
 
 let indexerRoutes: any = null;
 try {
@@ -111,7 +110,7 @@ registerGracefulShutdown({
   },
 });
 
-const requestLogger = createRequestLogger({ stats: serverRequestStats });
+const requestLogger = createRequestLogger();
 
 const app = new Elysia()
   .onRequest(requestLogger.onRequest)
@@ -193,7 +192,6 @@ const apiModules = [
   sessionsRoutes,
   vaultRoutes,
   metricsRoutes,
-  requestStatsRoutes,
   ...(indexerRoutes ? [indexerRoutes] : []),
   ...unifiedPlugins.routes,
 ];
