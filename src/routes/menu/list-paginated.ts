@@ -1,5 +1,5 @@
 import { Elysia, t } from 'elysia';
-import { asc, count, eq } from 'drizzle-orm';
+import { and, asc, count, eq, isNull } from 'drizzle-orm';
 import { db, menuItems } from '../../db/index.ts';
 import { getMenuConfig } from '../../menu/config.ts';
 import { listCustomMenuItems } from '../../menu/custom-store.ts';
@@ -70,7 +70,7 @@ export function menuRowToItem(row: MenuRow): MenuItem {
 }
 
 function readPaginatedMenuItems(pageSize: number, offset: number) {
-  const where = eq(menuItems.enabled, true);
+  const where = and(eq(menuItems.enabled, true), isNull(menuItems.deletedAt));
   const total = Number(
     db.select({ total: count() }).from(menuItems).where(where).get()?.total ?? 0,
   );
