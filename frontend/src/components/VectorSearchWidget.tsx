@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { searchVector } from '../api';
+import { ErrorMessage, LoadingPanel, Spinner } from './AsyncState';
 import type { SearchResult } from '../types';
 
 function titleFor(result: SearchResult): string {
@@ -40,6 +41,7 @@ export function VectorSearchWidget() {
   const [total, setTotal] = useState(0);
   const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [error, setError] = useState('');
+  const [lastQuery, setLastQuery] = useState('');
 
   const status = useMemo(() => {
     if (state === 'loading') return 'Searching vector memory…';
@@ -49,12 +51,11 @@ export function VectorSearchWidget() {
     return `${results.length} shown${total > results.length ? ` of ${total}` : ''}`;
   }, [results.length, state, total]);
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const q = query.trim();
+  async function runSearch(q: string) {
     if (!q) return;
     setState('loading');
     setError('');
+    setLastQuery(q);
     try {
       const response = await searchVector(q);
       setResults(response.results);
@@ -66,6 +67,11 @@ export function VectorSearchWidget() {
       setError(err instanceof Error ? err.message : String(err));
       setState('error');
     }
+  }
+
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await runSearch(query.trim());
   }
 
   return (
@@ -89,13 +95,22 @@ export function VectorSearchWidget() {
           disabled={state === 'loading' || !query.trim()}
           type="submit"
         >
-          {state === 'loading' ? 'Searching…' : 'Search'}
+          {state === 'loading' ? <Spinner label="Searching" /> : 'Search'}
         </button>
       </form>
 
       <p className="mt-4 text-sm text-slate-500">{status}</p>
-      {error ? <p className="mt-3 rounded-xl border border-red-400/30 bg-red-950/40 p-3 text-sm text-red-100">{error}</p> : null}
-      <div className="mt-5 grid gap-3">{results.map((result) => <ResultCard key={result.id} result={result} />)}</div>
+      {state === 'loading' ? <div className="mt-3"><LoadingPanel title="Searching vector memory…" detail="Fetching /api/search?mode=vector." /></div> : null}
+      {error ? (
+        <div className="mt-3">
+          <ErrorMessage
+            title="Vector search failed."
+            message={error}
+            action={lastQuery ? <button className="focus-ring rounded-lg border border-red-200/30 px-3 py-2 font-semibold text-red-50 hover:bg-red-200/10" type="button" onClick={() => void runSearch(lastQuery)}>Retry search</button> : null}
+          />
+        </div>
+      ) : null}
+      <div className="mt-5 grid gap-3" aria-busy={state === 'loading'}>{state !== 'loading' ? results.map((result) => <ResultCard key={result.id} result={result} />) : null}</div>
     </section>
   );
 }

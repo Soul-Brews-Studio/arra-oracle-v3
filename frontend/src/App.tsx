@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { fetchMenu, fetchPlugins } from './api';
+import { ErrorMessage, LoadingPanel, Spinner } from './components/AsyncState';
 import { McpToolBrowser } from './components/McpToolBrowser';
 import { VectorSearchWidget } from './components/VectorSearchWidget';
 import type { LoadState, MenuItem, PluginEntry } from './types';
@@ -22,7 +23,7 @@ function groupMenu(items: MenuItem[]) {
   }, {});
 }
 
-function StatCard({ label, value, detail }: { label: string; value: string | number; detail: string }) {
+function StatCard({ label, value, detail }: { label: string; value: ReactNode; detail: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-xl shadow-black/10">
       <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">{label}</p>
@@ -155,6 +156,15 @@ export default function App() {
 
   const surfaceCount = useMemo(() => plugins.reduce((total, plugin) => total + Math.max(1, surfacesFor(plugin).length), 0), [plugins]);
   const loading = state === 'loading' || state === 'idle';
+  const retryButton = (
+    <button
+      className="focus-ring rounded-lg border border-red-200/30 px-3 py-2 text-sm font-semibold text-red-50 hover:bg-red-200/10"
+      type="button"
+      onClick={() => void load()}
+    >
+      Retry
+    </button>
+  );
 
   return (
     <main className="oracle-shell min-h-screen text-slate-100">
@@ -169,24 +179,22 @@ export default function App() {
           </div>
           <button
             className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200"
+            disabled={loading}
             type="button"
             onClick={() => void load()}
           >
-            Refresh data
+            {loading ? <Spinner label="Refreshing" /> : 'Refresh data'}
           </button>
         </header>
 
         <section className="grid gap-4 md:grid-cols-3" aria-label="Summary">
-          <StatCard label="Menu items" value={loading ? '…' : menu.length} detail="from /api/menu" />
-          <StatCard label="Plugins" value={loading ? '…' : plugins.length} detail="from /api/plugins" />
-          <StatCard label="Surfaces" value={loading ? '…' : surfaceCount} detail={`updated ${updatedAt}`} />
+          <StatCard label="Menu items" value={loading ? <Spinner label="Loading" /> : menu.length} detail="from /api/menu" />
+          <StatCard label="Plugins" value={loading ? <Spinner label="Loading" /> : plugins.length} detail="from /api/plugins" />
+          <StatCard label="Surfaces" value={loading ? <Spinner label="Loading" /> : surfaceCount} detail={`updated ${updatedAt}`} />
         </section>
 
         {state === 'error' ? (
-          <div className="rounded-2xl border border-red-400/30 bg-red-950/40 p-4 text-red-100">
-            <p className="font-semibold">Could not load backend data.</p>
-            <p className="mt-1 text-sm text-red-200/80">{error}</p>
-          </div>
+          <ErrorMessage title="Could not load backend data." message={error} action={retryButton} />
         ) : null}
 
         <div className="grid gap-6 xl:grid-cols-2">
@@ -197,12 +205,12 @@ export default function App() {
         <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
           <section id="menu" className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
             <h2 className="mb-4 text-2xl font-semibold text-white">Menu viewer</h2>
-            {loading ? <EmptyState text="Loading menu items…" /> : <MenuViewer items={menu} />}
+            {loading ? <LoadingPanel title="Loading menu items…" detail="Fetching /api/menu from the Elysia backend." /> : <MenuViewer items={menu} />}
           </section>
 
           <section id="plugins" className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
             <h2 className="mb-4 text-2xl font-semibold text-white">Plugin list</h2>
-            {loading ? <EmptyState text="Loading plugins…" /> : <PluginList plugins={plugins} />}
+            {loading ? <LoadingPanel title="Loading plugins…" detail="Fetching /api/plugins and plugin server manifests." /> : <PluginList plugins={plugins} />}
           </section>
         </div>
       </div>
