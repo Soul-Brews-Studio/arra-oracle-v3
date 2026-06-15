@@ -30,6 +30,7 @@ import { closeCachedVectorStores } from './vector/factory.ts';
 import { isDraining, registerGracefulShutdown, trackRequest } from './lifecycle/shutdown.ts';
 import { createErrorMiddleware } from './middleware/errors.ts';
 import { validateStartupEnv } from './config/validate.ts';
+import { createRequestLogger } from './middleware/logger.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -52,6 +53,7 @@ import { vaultRoutes } from './routes/vault/index.ts';
 import { createMenuRoutes, menuItemsFromUnifiedPlugins } from './routes/menu/index.ts';
 import { peerRoutes } from './routes/peer/index.ts';
 import { createMcpRoutes } from './routes/mcp/index.ts';
+import { createMetricsLifecycle, metricsRoutes } from './routes/metrics/index.ts';
 
 // Indexer routes are optional — MCP server works without them
 let indexerRoutes: any = null;
@@ -106,11 +108,15 @@ registerGracefulShutdown({
   },
 });
 
+const requestLogger = createRequestLogger();
+
 const app = new Elysia()
+  .onRequest(requestLogger.onRequest)
   .use(createPrivateNetworkPreflightMiddleware())
   .use(createCorsMiddleware())
   .use(createCorrelationMiddleware())
   .use(createApiKeyAuthMiddleware())
+  .use(createMetricsLifecycle())
   .onBeforeHandle(({ request, set }) => {
     const pathname = new URL(request.url).pathname;
     if (isApiPathProtected(pathname) && !isApiAuthorized(request)) {
@@ -125,6 +131,7 @@ const app = new Elysia()
     set.headers['X-XSS-Protection'] = '1; mode=block';
     set.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
   })
+  .onAfterResponse(requestLogger.onAfterResponse)
   .use(createErrorMiddleware())
   .use(
     swagger({
@@ -172,6 +179,7 @@ const apiModules = [
   oraclenetRoutes,
   sessionsRoutes,
   vaultRoutes,
+  metricsRoutes,
   ...(indexerRoutes ? [indexerRoutes] : []),
   ...unifiedPlugins.routes,
 ];
