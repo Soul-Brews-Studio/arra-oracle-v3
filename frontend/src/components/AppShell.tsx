@@ -29,7 +29,7 @@ export function AppShell({
     { to: '/plugins', label: 'Plugins', description: 'Registered plugins and surfaces', badge: loading ? '…' : pluginCount },
     { to: '/vector', label: 'Vector', description: 'Semantic search over memory' },
     { to: '/mcp', label: 'MCP', description: 'Tool schemas and groups' },
-    { to: '/settings', label: 'Settings', description: 'Frontend/API runtime notes' },
+    { to: '/settings', label: 'Settings', description: 'Storage, embedder, and DB status' },
   ];
   const retry = (
     <button className="focus-ring rounded-lg border border-red-200/30 px-3 py-2 font-semibold text-red-50 hover:bg-red-200/10" type="button" onClick={onRefresh}>
