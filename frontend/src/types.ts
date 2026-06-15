@@ -84,4 +84,49 @@ export interface McpToolsResponse {
   total: number;
 }
 
+
+export interface SettingsStorageConfig {
+  activeBackend: string;
+  configuredBackend: string;
+  defaultBackend: string;
+  dbPath: string;
+  dataDir: string;
+  repoRoot: string;
+}
+
+export interface SettingsEmbedderCollection {
+  key: string;
+  collection: string;
+  model: string;
+  provider: string;
+  adapter?: string;
+  primary?: boolean;
+}
+
+export interface SettingsEmbedderConfig {
+  source: string;
+  backend: string;
+  model: string | null;
+  url: string | null;
+  dimensions: number | null;
+  embeddingEndpoint: string;
+  collections: SettingsEmbedderCollection[];
+}
+
+export interface SettingsMigrationStatus {
+  status: 'current' | 'pending';
+  tablePresent: boolean;
+  appliedCount: number;
+  availableCount: number;
+  pendingCount: number;
+  latestKnown: string | null;
+  latestAppliedAt: string | null;
+}
+
+export interface SettingsSystemResponse {
+  storage: SettingsStorageConfig;
+  embedder: SettingsEmbedderConfig;
+  migrations: SettingsMigrationStatus;
+}
+
 export type LoadState = 'idle' | 'loading' | 'ready' | 'error';
