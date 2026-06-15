@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { fetchMenu, fetchPlugins } from './api';
 import { McpToolBrowser } from './components/McpToolBrowser';
 import { VectorSearchWidget } from './components/VectorSearchWidget';
+import { McpToolDetailPage } from './pages/McpToolDetailPage';
+import { VectorSearchResultsPage } from './pages/VectorSearchResultsPage';
+import { useHashRoute } from './routes';
 import type { LoadState, MenuItem, PluginEntry } from './types';
 
 type Surface = 'wasm' | 'menu' | 'server';
@@ -133,6 +136,7 @@ export default function App() {
   const [plugins, setPlugins] = useState<PluginEntry[]>([]);
   const [error, setError] = useState('');
   const [updatedAt, setUpdatedAt] = useState('never');
+  const [route, navigate] = useHashRoute();
 
   async function load() {
     setState('loading');
@@ -189,22 +193,34 @@ export default function App() {
           </div>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          <VectorSearchWidget />
-          <McpToolBrowser />
-        </div>
+        {route.kind === 'tool-detail' ? (
+          <McpToolDetailPage name={route.name} onBack={() => navigate({ kind: 'dashboard' })} />
+        ) : route.kind === 'vector-results' ? (
+          <VectorSearchResultsPage
+            initialQuery={route.query}
+            onBack={() => navigate({ kind: 'dashboard' })}
+            onSearch={(query) => navigate({ kind: 'vector-results', query })}
+          />
+        ) : (
+          <>
+            <div className="grid gap-6 xl:grid-cols-2">
+              <VectorSearchWidget onOpenResults={(query) => navigate({ kind: 'vector-results', query })} />
+              <McpToolBrowser onOpenTool={(tool) => navigate({ kind: 'tool-detail', name: tool.name })} />
+            </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-          <section id="menu" className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
-            <h2 className="mb-4 text-2xl font-semibold text-white">Menu viewer</h2>
-            {loading ? <EmptyState text="Loading menu items…" /> : <MenuViewer items={menu} />}
-          </section>
+            <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+              <section id="menu" className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
+                <h2 className="mb-4 text-2xl font-semibold text-white">Menu viewer</h2>
+                {loading ? <EmptyState text="Loading menu items…" /> : <MenuViewer items={menu} />}
+              </section>
 
-          <section id="plugins" className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
-            <h2 className="mb-4 text-2xl font-semibold text-white">Plugin list</h2>
-            {loading ? <EmptyState text="Loading plugins…" /> : <PluginList plugins={plugins} />}
-          </section>
-        </div>
+              <section id="plugins" className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
+                <h2 className="mb-4 text-2xl font-semibold text-white">Plugin list</h2>
+                {loading ? <EmptyState text="Loading plugins…" /> : <PluginList plugins={plugins} />}
+              </section>
+            </div>
+          </>
+        )}
       </div>
     </main>
   );

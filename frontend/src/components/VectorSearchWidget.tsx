@@ -1,40 +1,9 @@
 import { useMemo, useState } from 'react';
 import { searchVector } from '../api';
+import { SearchResultCard } from './SearchResultCard';
 import type { SearchResult } from '../types';
 
-function titleFor(result: SearchResult): string {
-  return result.title || result.source_file || result.id;
-}
-
-function previewFor(result: SearchResult): string {
-  const text = result.content || 'No preview returned.';
-  return text.length > 320 ? `${text.slice(0, 320)}…` : text;
-}
-
-function scoreLabel(score?: number): string | null {
-  if (typeof score !== 'number') return null;
-  return `${Math.round(score * 100)}%`;
-}
-
-function ResultCard({ result }: { result: SearchResult }) {
-  const score = scoreLabel(result.score);
-  return (
-    <article className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 transition hover:border-teal-300/30">
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="break-all font-mono text-sm text-teal-200">{titleFor(result)}</h3>
-        {score ? <span className="rounded-full bg-teal-300/10 px-2 py-1 text-xs font-semibold text-teal-200">{score}</span> : null}
-      </div>
-      <p className="mt-3 text-sm leading-6 text-slate-400">{previewFor(result)}</p>
-      <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-        {result.type ? <span>type: {result.type}</span> : null}
-        {result.source ? <span>source: {result.source}</span> : null}
-        {result.project ? <span>project: {result.project}</span> : null}
-      </div>
-    </article>
-  );
-}
-
-export function VectorSearchWidget() {
+export function VectorSearchWidget({ onOpenResults }: { onOpenResults?: (query: string) => void }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [total, setTotal] = useState(0);
@@ -93,9 +62,19 @@ export function VectorSearchWidget() {
         </button>
       </form>
 
-      <p className="mt-4 text-sm text-slate-500">{status}</p>
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-slate-500">{status}</p>
+        <button
+          className="focus-ring rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-200 hover:border-teal-300/40 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={!query.trim()}
+          type="button"
+          onClick={() => onOpenResults?.(query.trim())}
+        >
+          Open results page
+        </button>
+      </div>
       {error ? <p className="mt-3 rounded-xl border border-red-400/30 bg-red-950/40 p-3 text-sm text-red-100">{error}</p> : null}
-      <div className="mt-5 grid gap-3">{results.map((result) => <ResultCard key={result.id} result={result} />)}</div>
+      <div className="mt-5 grid gap-3">{results.map((result) => <SearchResultCard key={result.id} result={result} />)}</div>
     </section>
   );
 }
