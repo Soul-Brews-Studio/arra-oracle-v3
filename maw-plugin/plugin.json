@@ -1,0 +1,20 @@
+{
+  "name": "arra",
+  "version": "1.0.0",
+  "entry": "./index.ts",
+  "sdk": "^1.0.0",
+  "description": "Query and write ARRA Oracle over HTTP from maw.",
+  "cli": {
+    "command": "arra",
+    "aliases": [
+      "or"
+    ],
+    "help": "maw arra <frontend|ui|open|serve|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|vector_index|vector_status|vector_stop|vector_models|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|thread|thread_read|thread_update|threads|verify>"
+  },
+  "capabilities": [
+    "net:http"
+  ],
+  "weight": 50,
+  "schemaVersion": 1,
+  "help": "maw arra <frontend|ui|open|serve|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|vector_index|vector_status|vector_stop|vector_models|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|thread|thread_read|thread_update|threads|verify>"
+}
