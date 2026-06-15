@@ -1,0 +1,47 @@
+{
+  "name": "canvas-inspector",
+  "version": "1.0.0",
+  "entry": "./index.ts",
+  "sdk": "^0.1.0",
+  "tier": "extra",
+  "enabled": false,
+  "description": "Reference unified manifest plugin with MCP tool, API route, menu path, and CLI command surfaces.",
+  "mcpTools": [
+    {
+      "name": "oracle_canvas_inspect",
+      "description": "Inspect registered canvas plugin metadata.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }
+        }
+      },
+      "handler": "inspectCanvasPlugin",
+      "group": "canvas",
+      "readOnly": true,
+      "enabledByDefault": false
+    }
+  ],
+  "apiRoutes": [
+    {
+      "path": "/api/plugins/canvas-inspector",
+      "methods": ["GET"],
+      "handler": "canvasInspectorRoute"
+    }
+  ],
+  "menu": [
+    {
+      "label": "Canvas Inspector",
+      "path": "/tools/canvas-inspector",
+      "group": "tools",
+      "order": 82
+    }
+  ],
+  "cliSubcommands": [
+    {
+      "command": "canvas-inspect",
+      "help": "Inspect canvas plugin metadata",
+      "handler": "canvasInspectCli"
+    }
+  ]
+}
