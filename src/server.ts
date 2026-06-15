@@ -9,11 +9,7 @@ import { Elysia } from 'elysia';
 import { swagger } from '@elysiajs/swagger';
 import { eq } from 'drizzle-orm';
 
-import {
-  configure,
-  writePidFile,
-  removePidFile,
-} from './process-manager/index.ts';
+import { configure, writePidFile, removePidFile } from './process-manager/index.ts';
 import { PORT, ORACLE_DATA_DIR, VECTOR_URL } from './config.ts';
 import { ScoutAnnouncer, shouldStartScoutAnnouncer } from './peer/scout-announcer.ts';
 import { MCP_SERVER_NAME } from './const.ts';
@@ -36,6 +32,7 @@ import { createRateLimitMiddleware } from './middleware/rate-limit.ts';
 import { createApiVersionHeaderMiddleware, createApiVersionedFetch } from './middleware/api-version.ts';
 import { createSecurityHeadersMiddleware } from './middleware/security-headers.ts';
 import { createRequestTimeoutFetch } from './middleware/timeout.ts';
+import { createBodyLimitMiddleware } from './middleware/body-limit.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -125,6 +122,7 @@ const app = new Elysia()
   .use(createApiVersionHeaderMiddleware())
   .use(createSecurityHeadersMiddleware())
   .use(createContentTypeMiddleware())
+  .use(createBodyLimitMiddleware())
   .use(createRateLimitMiddleware())
   .use(createApiKeyAuthMiddleware())
   .use(createMetricsLifecycle())
@@ -234,6 +232,7 @@ function enabledMiddleware(): BannerMiddleware[] {
     { name: 'correlation' },
     { name: 'private-network-preflight' },
     { name: 'cors' },
+    { name: 'body-limit' },
     { name: 'rate-limit', detail: `${startupConfig.profile.rateLimit.tokensPerWindow}/min` },
     { name: 'api-key-auth' },
     { name: 'metrics' },
