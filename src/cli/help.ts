@@ -89,6 +89,13 @@ export const BUILTIN_HELP: CliHelpEntry[] = [
     flags: ["--sessions-dir <path[:path...]>", "--repo-root <path>", "--lookback-hours <n>", "--max-files <n>", "--json", "--help", "-h"],
     examples: ["arra-cli huginn sweep --lookback-hours 24", "arra-cli huginn sweep --sessions-dir ~/.claude/projects --json"],
   },
+  {
+    command: "migrate",
+    help: "run Drizzle migration generate and push",
+    usage: "arra-cli migrate",
+    flags: ["--help", "-h"],
+    examples: ["arra-cli migrate"],
+  },
 ];
 
 const SUBCOMMAND_HELP: CliHelpEntry[] = [

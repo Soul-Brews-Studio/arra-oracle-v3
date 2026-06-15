@@ -126,6 +126,12 @@ async function main() {
     process.exit(await importCommand(args.slice(1)));
   }
 
+  if (cmd === "migrate") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    const { migrateCommand } = await import("../../src/cli/commands/migrate.ts");
+    process.exit(await migrateCommand(args.slice(1)));
+  }
+
   if (cmd === "use") {
     if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
     process.exit(await useCommand(args.slice(1)));
