@@ -54,10 +54,10 @@ describe('collectRouteMenuRows', () => {
     expect(collectRouteMenuRows([sub])).toHaveLength(1);
   });
 
-  test('warns and keeps the first row when route menu paths collide', () => {
-    const originalWarn = console.warn;
-    const warnings: string[] = [];
-    console.warn = (...args: unknown[]) => warnings.push(String(args[0]));
+  test('debug-logs and keeps the first row when route menu paths collide', () => {
+    const originalDebug = console.debug;
+    const debugLogs: string[] = [];
+    console.debug = (...args: unknown[]) => debugLogs.push(String(args[0]));
 
     try {
       const duplicate = new Elysia({ prefix: '/api' })
@@ -73,12 +73,12 @@ describe('collectRouteMenuRows', () => {
       expect(rows).toEqual([
         { path: '/map', label: 'Map', groupKey: 'tools', position: 20, access: 'public', icon: null, studio: null },
       ]);
-      expect(warnings).toHaveLength(1);
-      expect(warnings[0]).toContain('duplicate route menu path "/map"');
-      expect(warnings[0]).toContain('keeping /api/map');
-      expect(warnings[0]).toContain('skipping /api/map3d');
+      expect(debugLogs).toHaveLength(1);
+      expect(debugLogs[0]).toContain('duplicate route menu path "/map"');
+      expect(debugLogs[0]).toContain('keeping /api/map');
+      expect(debugLogs[0]).toContain('skipping /api/map3d');
     } finally {
-      console.warn = originalWarn;
+      console.debug = originalDebug;
     }
   });
 });
