@@ -30,15 +30,16 @@ function htmlAt(path: string): string {
 
 describe('frontend router', () => {
   test('declares the public dashboard route set', () => {
-    expect([...frontendRoutes]).toEqual(['/', '/plugins', '/metrics', '/search']);
+    expect([...frontendRoutes]).toEqual(['/', '/plugins', '/metrics', '/search', '/learn']);
   });
 
-  test('routes root, plugins, metrics, and search surfaces', () => {
+  test('routes root, plugins, metrics, search, and learn surfaces', () => {
     expect(htmlAt('/')).toContain('Menu viewer');
     expect(htmlAt('/plugins')).toContain('Registered plugins');
     expect(htmlAt('/metrics')).toContain('Backend metrics');
     expect(htmlAt('/metrics')).toContain('42');
     expect(htmlAt('/search')).toContain('Full-text menu search');
+    expect(htmlAt('/learn')).toContain('Learn entries');
   });
 
   test('wraps routed children in the browser router and error boundary shell', () => {

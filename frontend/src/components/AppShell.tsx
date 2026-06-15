@@ -50,6 +50,7 @@ export function AppShell({
     { to: '/', label: 'Menu', description: 'Navigation rows from /api/menu', badge: loading ? '…' : menuCount },
     { to: '/plugins', label: 'Plugins', description: 'Registered plugins and surfaces', badge: loading ? '…' : pluginCount },
     { to: '/search', label: 'Search', description: 'Full-text menu search' },
+    { to: '/learn', label: 'Learn', description: 'Create and edit learnings' },
     { to: '/metrics', label: 'Metrics', description: 'Runtime counters from /api/metrics' },
     { to: '/mcp', label: 'MCP', description: 'Tool schemas and groups' },
     { to: '/settings', label: 'Settings', description: 'Storage, embedder, and DB status' },
