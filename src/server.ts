@@ -1,5 +1,3 @@
-/** Arra Oracle HTTP Server — Elysia (bun-native). */
-
 import { Elysia } from 'elysia';
 import { swagger } from '@elysiajs/swagger';
 import { eq } from 'drizzle-orm';
@@ -29,6 +27,7 @@ import { createSecurityHeadersMiddleware } from './middleware/security-headers.t
 import { createRequestTimeoutFetch } from './middleware/timeout.ts';
 import { createBodyLimitMiddleware } from './middleware/body-limit.ts';
 import { createNotFoundMiddleware } from './middleware/not-found.ts';
+import { createEtagMiddleware } from './middleware/etag.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -122,6 +121,7 @@ const app = new Elysia()
   .use(createRateLimitMiddleware())
   .use(createApiKeyAuthMiddleware())
   .use(createMetricsLifecycle())
+  .use(createEtagMiddleware())
   .onBeforeHandle(({ request, set }) => {
     const pathname = new URL(request.url).pathname;
     if (isApiPathProtected(pathname) && !isApiAuthorized(request)) {
@@ -233,6 +233,7 @@ function enabledMiddleware(): BannerMiddleware[] {
     { name: 'rate-limit', detail: `${startupConfig.profile.rateLimit.tokensPerWindow}/min` },
     { name: 'api-key-auth' },
     { name: 'metrics' },
+    { name: 'etag' },
     { name: 'structured-errors' },
     { name: 'not-found' },
     { name: 'swagger' },
