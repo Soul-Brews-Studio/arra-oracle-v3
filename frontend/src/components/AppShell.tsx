@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { ErrorMessage, Spinner } from './AsyncState';
 import { NavSidebar, type NavItem } from './NavSidebar';
 import { StatCard } from './StatCard';
+import { ThemeToggle } from './ThemeToggle';
 
 type AppShellProps = {
   children: ReactNode;
@@ -38,29 +39,32 @@ export function AppShell({
   );
 
   return (
-    <main className="oracle-shell min-h-screen text-slate-100">
-      <div className="mx-auto grid w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[18rem_1fr] lg:px-8">
+    <main className="oracle-shell min-h-screen text-slate-900 transition-colors dark:text-slate-100">
+      <div className="mx-auto grid w-full max-w-7xl gap-4 px-3 py-3 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[18rem_1fr] lg:px-8">
         <NavSidebar items={navItems} />
-        <div className="flex min-w-0 flex-col gap-6">
-          <header className="flex flex-col gap-5 rounded-3xl border border-white/10 bg-slate-950/70 p-6 shadow-2xl shadow-black/30 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
+          <header className="flex flex-col gap-5 rounded-3xl border border-slate-200 bg-white/85 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur sm:p-6 lg:flex-row lg:items-end lg:justify-between dark:border-white/10 dark:bg-slate-950/70 dark:shadow-black/30">
             <div>
-              <p className="text-sm font-medium uppercase tracking-[0.28em] text-teal-300">Frontend UI</p>
-              <h2 className="mt-3 text-4xl font-bold tracking-tight text-white sm:text-5xl">Operational dashboard</h2>
-              <p className="mt-3 max-w-2xl text-slate-400">
+              <p className="text-sm font-medium uppercase tracking-[0.28em] text-teal-700 dark:text-teal-300">Frontend UI</p>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-950 sm:text-5xl dark:text-white">Operational dashboard</h2>
+              <p className="mt-3 max-w-2xl text-slate-600 dark:text-slate-400">
                 Routed menu, plugin, vector, MCP, and settings pages over the Vite `/api/*` proxy.
               </p>
             </div>
-            <button
-              className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={loading}
-              type="button"
-              onClick={onRefresh}
-            >
-              {loading ? <Spinner label="Refreshing" /> : 'Refresh data'}
-            </button>
+            <div className="grid gap-3 sm:flex sm:items-center sm:justify-end">
+              <ThemeToggle />
+              <button
+                className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={loading}
+                type="button"
+                onClick={onRefresh}
+              >
+                {loading ? <Spinner label="Refreshing" /> : 'Refresh data'}
+              </button>
+            </div>
           </header>
 
-          <section className="grid gap-4 md:grid-cols-3" aria-label="Summary">
+          <section className="grid gap-3 sm:grid-cols-3 sm:gap-4" aria-label="Summary">
             <StatCard label="Menu items" value={loading ? <Spinner label="Loading" /> : menuCount} detail="from /api/menu" />
             <StatCard label="Plugins" value={loading ? <Spinner label="Loading" /> : pluginCount} detail="from /api/plugins" />
             <StatCard label="Surfaces" value={loading ? <Spinner label="Loading" /> : surfaceCount} detail={`updated ${updatedAt}`} />
