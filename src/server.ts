@@ -45,7 +45,7 @@ import { pluginsRouter } from './routes/plugins/index.ts';
 import { oraclenetRoutes } from './routes/oraclenet/index.ts';
 import { sessionsRoutes } from './routes/sessions/index.ts';
 import { vaultRoutes } from './routes/vault/index.ts';
-import { createMenuRoutes } from './routes/menu/index.ts';
+import { createMenuRoutes, menuItemsFromUnifiedPlugins } from './routes/menu/index.ts';
 import { peerRoutes } from './routes/peer/index.ts';
 
 // Indexer routes are optional — MCP server works without them
@@ -185,7 +185,7 @@ try {
   console.error('⚠️  Menu seeder failed:', e);
 }
 
-const menuRoutes = createMenuRoutes();
+const menuRoutes = createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu));
 
 const modules = [...apiModules, menuRoutes];
 

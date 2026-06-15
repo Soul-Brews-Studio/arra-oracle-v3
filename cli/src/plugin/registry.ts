@@ -1,4 +1,4 @@
-import type { LoadedPlugin } from "./types.ts";
+import type { LoadedPlugin, ResolvedCliCommand } from "./types.ts";
 
 const registry: LoadedPlugin[] = [];
 
@@ -12,13 +12,39 @@ export function registerPlugins(plugins: LoadedPlugin[]): void {
   registry.push(...sorted);
 }
 
-export function resolveCommand(command: string): LoadedPlugin | null {
+export function pluginCliCommands(plugin: LoadedPlugin): ResolvedCliCommand[] {
+  const commands: ResolvedCliCommand[] = [];
+  const legacy = plugin.manifest.cli;
+  if (legacy) {
+    commands.push({
+      plugin,
+      command: legacy.command,
+      help: legacy.help,
+      aliases: legacy.aliases,
+      flags: legacy.flags,
+    });
+  }
+  for (const subcommand of plugin.manifest.cliSubcommands ?? []) {
+    commands.push({
+      plugin,
+      command: subcommand.command,
+      help: subcommand.help,
+      handler: subcommand.handler,
+    });
+  }
+  return commands;
+}
+
+export function listCommands(): ResolvedCliCommand[] {
+  return registry.flatMap(pluginCliCommands);
+}
+
+export function resolveCommand(command: string): ResolvedCliCommand | null {
   const cmd = command.toLowerCase();
-  for (const plugin of registry) {
-    if (!plugin.manifest.cli) continue;
-    if (plugin.manifest.cli.command.toLowerCase() === cmd) return plugin;
-    for (const alias of plugin.manifest.cli.aliases ?? []) {
-      if (alias.toLowerCase() === cmd) return plugin;
+  for (const resolved of listCommands()) {
+    if (resolved.command.toLowerCase() === cmd) return resolved;
+    for (const alias of resolved.aliases ?? []) {
+      if (alias.toLowerCase() === cmd) return resolved;
     }
   }
   return null;
