@@ -81,14 +81,9 @@ describe('versioned integration smoke endpoints', () => {
     })).toBe(true);
 
     const learn = await fetchJson('/api/v1/learn');
-    expectJson(learn.response, 405);
-    expect(learn.response.headers.get('allow')).toContain('POST');
-    expect(learn.body).toMatchObject({
-      error: 'Method Not Allowed',
-      code: 405,
-      details: { path: '/api/v1/learn', method: 'GET' },
-    });
-    expect((learn.body.details as JsonRecord).allowedMethods).toContain('POST');
+    expectJson(learn.response, 200);
+    expect(Array.isArray(learn.body.items)).toBe(true);
+    expect(typeof learn.body.total).toBe('number');
 
     const metrics = await fetchJson('/api/v1/metrics');
     expectJson(metrics.response, 200);
