@@ -3,6 +3,7 @@ import type {
   HealthResponse,
   MetricsSnapshot,
   PluginsResponse,
+  RuntimeStatus,
   VectorSearchResponse,
 } from '../../../src/server/types';
 import type { LearnCreateResponse, LearnDeleteResponse, LearnListResponse, LearnMutationPayload, LearnUpdateResponse } from '../types';
@@ -13,12 +14,41 @@ export interface MenuSearchResponse {
   total: number;
 }
 
+export interface VectorIndexModelEntry {
+  collection: string;
+  model: string;
+  adapter: string;
+  count?: number;
+}
+
+export interface VectorIndexModelsResponse {
+  models: Record<string, VectorIndexModelEntry>;
+}
+
+export interface VectorHealthEngine {
+  key?: string;
+  model?: string;
+  collection?: string;
+  ok?: boolean;
+  error?: string;
+}
+
+export interface VectorHealthResponse {
+  status: RuntimeStatus;
+  engines: VectorHealthEngine[];
+  checked_at: string;
+  proxy?: string;
+  error?: string;
+}
+
 export interface ApiRouteResponses {
   '/api/health': HealthResponse;
   '/api/v1/metrics': MetricsSnapshot;
   '/api/menu': MenuResponse;
   '/api/menu/search': MenuSearchResponse;
   '/api/vector/search': VectorSearchResponse;
+  '/api/vector/index/models': VectorIndexModelsResponse;
+  '/api/vector/health': VectorHealthResponse;
   '/api/v1/plugins': PluginsResponse;
   '/api/v1/learn': LearnListResponse;
 }
@@ -129,6 +159,14 @@ export class ApiClient {
 
   deleteLearn(id: string): Promise<LearnDeleteResponse> {
     return this.fetchJson(`/api/v1/learn/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+
+  vectorIndexModels(): Promise<VectorIndexModelsResponse> {
+    return this.request('/api/vector/index/models');
+  }
+
+  vectorHealth(): Promise<VectorHealthResponse> {
+    return this.request('/api/vector/health');
   }
 
   vectorSearch(query: string, limit?: number): Promise<VectorSearchResponse>;
