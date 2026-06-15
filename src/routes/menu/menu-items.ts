@@ -1,6 +1,7 @@
 import { asc } from 'drizzle-orm';
 import { db, menuItems } from '../../db/index.ts';
 import { getFrontendMenuItems } from '../../menu/index.ts';
+import { getPluginMenuItems } from '../plugins/model.ts';
 import type { MenuExtras } from './menu.ts';
 import type { MenuItem, MenuMeta, Scope } from './model.ts';
 
@@ -36,6 +37,14 @@ function studioPathFor(apiPath: string): string | null {
 
 type RouteLike = { method?: string; path: string; hooks?: { detail?: unknown } };
 type HasRoutes = { routes: RouteLike[] };
+type UnifiedMenuLike = {
+  label: string;
+  path: string;
+  group?: 'main' | 'tools' | 'hidden';
+  order?: number;
+  icon?: string;
+  plugin?: string;
+};
 
 export function menuItemsFromRoutes(sources: HasRoutes[]): MenuItem[] {
   const items: MenuItem[] = [];
@@ -102,7 +111,7 @@ export function readApiMenuItemsFromDb(host?: string, scope?: Scope): MenuItem[]
       label: row.label,
       group,
       order: row.position,
-      source: 'api',
+      source: row.source === 'plugin' ? 'plugin' : 'api',
     };
 
     if (row.icon) item.icon = row.icon;
@@ -114,6 +123,21 @@ export function readApiMenuItemsFromDb(host?: string, scope?: Scope): MenuItem[]
     items.push(item);
   }
   return items;
+}
+
+export function menuItemsFromUnifiedPlugins(source: UnifiedMenuLike[]): MenuItem[] {
+  return source.map((item) => {
+    const menuItem: MenuItem = {
+      path: item.path,
+      label: item.label,
+      group: item.group ?? 'tools',
+      order: item.order ?? 999,
+      source: 'plugin',
+    };
+    if (item.icon) menuItem.icon = item.icon;
+    if (item.plugin) menuItem.sourceName = item.plugin;
+    return menuItem;
+  });
 }
 
 function setQuery(item: MenuItem, query: string | null) {
@@ -134,6 +158,7 @@ export function buildMenuItems(
   apiItems: MenuItem[],
   extras?: MenuExtras,
   customItems: MenuItem[] = [],
+  pluginItems: MenuItem[] = [],
 ): MenuItem[] {
   const items: MenuItem[] = [];
   const seen = new Set<string>();
@@ -143,6 +168,8 @@ export function buildMenuItems(
   appendUnique(items, seen, getFrontendMenuItems());
   if (extras?.items) appendUnique(items, seen, extras.items);
   appendUnique(items, seen, customItems.map((item) => ({ ...item, added: true }) as MenuItem));
+  appendUnique(items, seen, getPluginMenuItems());
+  appendUnique(items, seen, pluginItems);
 
   const filtered = disableSet.size ? items.filter((i) => !disableSet.has(i.path)) : items;
   filtered.sort((a, b) => GROUP_RANK[a.group] - GROUP_RANK[b.group] || a.order - b.order);

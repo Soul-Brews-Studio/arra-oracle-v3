@@ -32,7 +32,7 @@ const MenuSourceSchema = t.Object({
   ]),
 });
 
-export function createMenuEndpoint() {
+export function createMenuEndpoint(pluginItems: MenuItem[] = []) {
   return new Elysia()
     .get(
       '/menu',
@@ -46,6 +46,7 @@ export function createMenuEndpoint() {
             readApiMenuItemsFromDb(host, scope),
             { items, disable },
             listCustomMenuItems(),
+            pluginItems,
           ),
         };
       },
@@ -91,6 +92,7 @@ export {
   API_TO_STUDIO,
   buildMenuItems,
   hostMatches,
+  menuItemsFromUnifiedPlugins,
   menuItemsFromRoutes,
   readApiMenuItemsFromDb,
   scopeMatches,
