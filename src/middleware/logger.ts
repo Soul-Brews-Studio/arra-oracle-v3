@@ -26,8 +26,11 @@ export type RequestLogEntry = {
   headers: Record<string, string>;
 };
 
+export type RequestStatsRecorder = { record(entry: RequestLogEntry): void };
+
 export type RequestLoggerOptions = {
   log?: (entry: RequestLogEntry) => void;
+  stats?: RequestStatsRecorder;
 };
 
 const REDACTED = '[REDACTED]';
@@ -79,15 +82,17 @@ export function createRequestLogger(options: RequestLoggerOptions = {}) {
       const endedAt = nowMs();
       const startedAt = meta?.startedAt ?? endedAt;
       const durationMs = Math.max(0, Math.round((endedAt - startedAt) * 100) / 100);
-      log({
-        event: 'http_request',
+      const entry = {
+        event: 'http_request' as const,
         method: request.method,
         path: safePath(request),
         status: responseStatus(responseValue, set.status),
         durationMs,
         correlationId: meta?.correlationId ?? requestCorrelationId(request),
         headers: meta?.headers ?? redactHeaders(request.headers),
-      });
+      };
+      options.stats?.record(entry);
+      log(entry);
       metaByRequest.delete(request);
     },
   };
