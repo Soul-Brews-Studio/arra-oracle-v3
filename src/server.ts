@@ -21,7 +21,7 @@ import { MCP_SERVER_NAME } from './const.ts';
 import { db, sqlite, closeDb, indexingStatus } from './db/index.ts';
 import { isApiAuthorized, isApiPathProtected, unauthorizedApiResponse } from './server/api-token-auth.ts';
 import { seedMenuItems, type HasRoutes as SeedHasRoutes } from './db/seeders/menu-seeder.ts';
-import { createCorsMiddleware, createPrivateNetworkPreflightMiddleware } from './server/cors.ts';
+import { createCorsMiddleware, createPrivateNetworkPreflightMiddleware } from './middleware/cors.ts';
 import { createApiKeyAuthMiddleware } from './middleware/auth.ts';
 import { createCorrelationMiddleware } from './middleware/correlation.ts';
 import { loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
