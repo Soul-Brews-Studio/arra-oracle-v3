@@ -20,7 +20,7 @@ describe("loadUnifiedPlugins", () => {
     });
     const runtime = await loadUnifiedPlugins({ dirs: [tmp] });
     expect(runtime.mcpTools).toHaveLength(1);
-    expect(runtime.routes).toHaveLength(2);
+    expect(runtime.routes).toHaveLength(3);
     expect(runtime.servers).toHaveLength(1);
     expect(runtime.menu).toHaveLength(1);
     expect(runtime.cliSubcommands).toHaveLength(1);
