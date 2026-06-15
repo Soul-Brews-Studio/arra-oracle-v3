@@ -12,6 +12,7 @@ import { createMenuAdminRoutes } from './admin.ts';
 import { createMenuOrderRoutes } from './admin-order.ts';
 import { createMenuSourceAdminRoutes } from './admin-source.ts';
 import { createMenuSearchEndpoint } from './search.ts';
+import { createMenuCrudRoutes } from './crud.ts';
 import type { MenuItem } from './model.ts';
 
 export function createMenuRoutes(pluginItems: MenuItem[] = []) {
@@ -21,7 +22,8 @@ export function createMenuRoutes(pluginItems: MenuItem[] = []) {
     .use(createCustomMenuRoutes())
     .use(createMenuAdminRoutes())
     .use(createMenuOrderRoutes())
-    .use(createMenuSourceAdminRoutes());
+    .use(createMenuSourceAdminRoutes())
+    .use(createMenuCrudRoutes());
 }
 
 export {
@@ -33,5 +35,6 @@ export {
 } from './menu.ts';
 export { createMenuListEndpoint } from './list-paginated.ts';
 export { createMenuSearchEndpoint } from './search.ts';
+export { createMenuCrudRoutes } from './crud.ts';
 export { menuItemsFromUnifiedPlugins } from './unified-plugin-menu.ts';
 export type { MenuItem, MenuResponse, Scope } from './model.ts';
