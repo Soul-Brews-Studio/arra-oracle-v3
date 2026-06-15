@@ -17,7 +17,23 @@ export function validateManifest(m: PluginManifest): void {
   if (!m.entry || typeof m.entry !== "string") {
     throw new Error(`manifest.entry must be a string path`);
   }
-  if (!m.sdk || typeof m.sdk !== "string") {
+  if (m.sdk !== undefined && typeof m.sdk !== "string") {
     throw new Error(`manifest.sdk must be a semver range string`);
+  }
+  if (m.cliSubcommands !== undefined) {
+    if (!Array.isArray(m.cliSubcommands)) {
+      throw new Error("manifest.cliSubcommands must be an array");
+    }
+    for (const subcommand of m.cliSubcommands) {
+      if (!subcommand.command || typeof subcommand.command !== "string") {
+        throw new Error("manifest.cliSubcommands.command must be a string");
+      }
+      if (!subcommand.help || typeof subcommand.help !== "string") {
+        throw new Error("manifest.cliSubcommands.help must be a string");
+      }
+      if (subcommand.handler !== undefined && typeof subcommand.handler !== "string") {
+        throw new Error("manifest.cliSubcommands.handler must be a string");
+      }
+    }
   }
 }
