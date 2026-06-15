@@ -1,5 +1,6 @@
 const DEFAULT_RETRY_COUNT = 2;
 const RETRIABLE_STATUSES = new Set([500, 502, 503, 504]);
+export const UPSTREAM_RETRY_ATTEMPTS_HEADER = 'X-Upstream-Retry-Attempts';
 
 type RetryAttempt = (attempt: number) => Promise<Response>;
 type RetryableResponse = (response: Response) => boolean;
@@ -26,6 +27,12 @@ export function cloneRetryableBody(body: ArrayBuffer | undefined): ArrayBuffer |
   return body ? body.slice(0) : undefined;
 }
 
+function responseWithRetryAttempts(response: Response, attempts: number): Response {
+  const headers = new Headers(response.headers);
+  headers.set(UPSTREAM_RETRY_ATTEMPTS_HEADER, String(attempts));
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 async function discard(response: Response): Promise<void> {
   const cancelled = response.body?.cancel();
   if (cancelled) await cancelled.catch(() => undefined);
@@ -44,7 +51,7 @@ export async function retryUpstreamRequest(
         await discard(response);
         return run(current + 1);
       }
-      return response;
+      return responseWithRetryAttempts(response, current);
     } catch (error) {
       if (current >= maxRetries) throw error;
       return run(current + 1);

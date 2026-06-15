@@ -48,8 +48,8 @@ afterAll(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-describe('POST/GET/PUT /api/learn', () => {
-  test('creates, reads, and updates a learning through Drizzle rows', async () => {
+describe('POST/GET/PUT/DELETE /api/learn', () => {
+  test('creates, reads, updates, and soft-deletes a learning through Drizzle rows', async () => {
     const created = await call('POST', '/api/learn', {
       pattern: 'Learn CRUD captures route behavior',
       concepts: ['learn', 'crud'],
@@ -83,5 +83,19 @@ describe('POST/GET/PUT /api/learn', () => {
       sourceFile: 'ψ/memory/learnings/updated.md',
     });
     expect(updated.json.updatedAt).toBeGreaterThanOrEqual(stored!.updatedAt);
+
+    const deleted = await call('DELETE', `/api/learn/${created.json.id}`);
+    expect(deleted.status).toBe(200);
+    expect(deleted.json).toMatchObject({ id: created.json.id, deleted: 'soft' });
+    expect(deleted.json.supersededAt).toBeGreaterThan(0);
+
+    const afterDelete = dbMod.db.select().from(dbMod.oracleDocuments)
+      .where(eq(dbMod.oracleDocuments.id, created.json.id)).get();
+    expect(afterDelete?.supersededAt).toBe(deleted.json.supersededAt);
+    expect(afterDelete?.supersededReason).toBe('soft-deleted via DELETE /api/learn/:id');
+
+    const stillReadable = await call('GET', `/api/learn/${created.json.id}`);
+    expect(stillReadable.status).toBe(200);
+    expect(stillReadable.json.supersededAt).toBe(deleted.json.supersededAt);
   });
 });

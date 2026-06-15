@@ -5,17 +5,13 @@ import fs from 'fs';
 import path from 'path';
 import { REPO_ROOT } from '../../config.ts';
 import { db, learnLog, oracleDocuments } from '../../db/index.ts';
-
 type LearnDoc = typeof oracleDocuments.$inferSelect;
-
 const oracleFts = sqliteTable('oracle_fts', {
   id: text('id'),
   content: text('content'),
   concepts: text('concepts'),
 });
-
 const repoRoot = () => process.env.ORACLE_REPO_ROOT || REPO_ROOT;
-
 type LearnCreateBody = {
   pattern?: string;
   concepts?: string[] | string;
@@ -25,14 +21,11 @@ type LearnCreateBody = {
   id?: string;
   sourceFile?: string;
 };
-
 type LearnUpdateBody = Partial<Pick<LearnCreateBody, 'pattern' | 'concepts' | 'origin' | 'project' | 'sourceFile'>> & {
   supersededBy?: string | null;
   supersededReason?: string | null;
 };
-
 const ConceptInput = t.Optional(t.Union([t.Array(t.String()), t.String()]));
-
 const CreateBody = t.Object({
   pattern: t.Optional(t.String()),
   concepts: ConceptInput,
@@ -42,7 +35,6 @@ const CreateBody = t.Object({
   id: t.Optional(t.String()),
   sourceFile: t.Optional(t.String()),
 });
-
 const UpdateBody = t.Object({
   pattern: t.Optional(t.String()),
   concepts: ConceptInput,
@@ -52,11 +44,9 @@ const UpdateBody = t.Object({
   supersededBy: t.Optional(t.Nullable(t.String())),
   supersededReason: t.Optional(t.Nullable(t.String())),
 });
-
 function cleanConcepts(values: unknown[]): string[] {
   return values.map(String).map((c) => c.trim()).filter(Boolean);
 }
-
 function conceptsFrom(value: LearnCreateBody['concepts']): string[] {
   if (Array.isArray(value)) return cleanConcepts(value);
   if (typeof value === 'string') {
@@ -68,7 +58,6 @@ function conceptsFrom(value: LearnCreateBody['concepts']): string[] {
   }
   return [];
 }
-
 function slugFor(pattern: string): string {
   const slug = pattern
     .slice(0, 50)
@@ -79,7 +68,6 @@ function slugFor(pattern: string): string {
     .replace(/^-|-$/g, '');
   return slug || 'learning';
 }
-
 function learningContent(pattern: string, concepts: string[], source?: string): string {
   const title = pattern.split('\n')[0].slice(0, 80);
   const today = new Date().toISOString().slice(0, 10);
@@ -100,25 +88,21 @@ function learningContent(pattern: string, concepts: string[], source?: string): 
     '',
   ].join('\n');
 }
-
 function writeLearningFile(sourceFile: string, content: string): void {
   const filePath = path.join(repoRoot(), sourceFile);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, content, 'utf-8');
 }
-
 function ftsContent(id: string): string | null {
   return db.select({ content: oracleFts.content })
     .from(oracleFts)
     .where(eq(oracleFts.id, id))
     .get()?.content ?? null;
 }
-
 function upsertFts(id: string, content: string, concepts: string[]): void {
   db.delete(oracleFts).where(eq(oracleFts.id, id)).run();
   db.insert(oracleFts).values({ id, content, concepts: concepts.join(' ') }).run();
 }
-
 function nextIdentity(pattern: string, requestedId?: string, requestedSourceFile?: string) {
   if (requestedId) {
     return {
@@ -126,7 +110,6 @@ function nextIdentity(pattern: string, requestedId?: string, requestedSourceFile
       sourceFile: requestedSourceFile ?? `ψ/memory/learnings/${requestedId}.md`,
     };
   }
-
   const date = new Date().toISOString().slice(0, 10);
   const slug = slugFor(pattern);
   let suffix = 1;
@@ -147,27 +130,22 @@ function nextIdentity(pattern: string, requestedId?: string, requestedSourceFile
     suffix += 1;
   }
 }
-
 function rowById(id: string): LearnDoc | undefined {
   return db.select().from(oracleDocuments)
     .where(and(eq(oracleDocuments.id, id), eq(oracleDocuments.type, 'learning')))
     .get();
 }
-
 function responseRow(row: LearnDoc) {
   return { ...row, concepts: conceptsFrom(row.concepts) };
 }
-
 function createLearning(body: LearnCreateBody) {
   const pattern = body.pattern?.trim();
   if (!pattern) return { status: 400, body: { error: 'Missing required field: pattern' } };
-
   const now = Date.now();
   const concepts = conceptsFrom(body.concepts);
   const identity = nextIdentity(pattern, body.id, body.sourceFile);
   if (rowById(identity.id)) return { status: 409, body: { error: 'Learning already exists' } };
   const content = learningContent(pattern, concepts, body.source);
-
   writeLearningFile(identity.sourceFile, content);
   db.insert(oracleDocuments).values({
     id: identity.id,
@@ -190,10 +168,8 @@ function createLearning(body: LearnCreateBody) {
     createdAt: now,
     project: body.project?.toLowerCase() ?? null,
   }).run();
-
   return { status: 200, body: { success: true, file: identity.sourceFile, id: identity.id } };
 }
-
 function updateLearning(id: string, body: LearnUpdateBody) {
   const existing = rowById(id);
   if (!existing) return { status: 404, body: { error: 'Learning not found' } };
@@ -205,13 +181,11 @@ function updateLearning(id: string, body: LearnUpdateBody) {
   if (body.project !== undefined) set.project = body.project?.toLowerCase() ?? null;
   if (body.supersededBy !== undefined) set.supersededBy = body.supersededBy;
   if (body.supersededReason !== undefined) set.supersededReason = body.supersededReason;
-
   const nextConcepts = body.concepts === undefined ? conceptsFrom(existing.concepts) : conceptsFrom(body.concepts);
   const content = body.pattern?.trim()
     ? learningContent(body.pattern.trim(), nextConcepts)
     : ftsContent(id) ?? learningContent(existing.sourceFile, nextConcepts);
   upsertFts(id, content, nextConcepts);
-
   const row = db.update(oracleDocuments)
     .set(set)
     .where(and(eq(oracleDocuments.id, id), eq(oracleDocuments.type, 'learning')))
@@ -219,7 +193,23 @@ function updateLearning(id: string, body: LearnUpdateBody) {
     .get();
   return { status: 200, body: responseRow(row) };
 }
-
+function softDeleteLearning(id: string) {
+  const existing = rowById(id);
+  if (!existing) return { status: 404, body: { error: 'Learning not found' } };
+  const now = Date.now();
+  const row = db.update(oracleDocuments)
+    .set({
+      updatedAt: now,
+      indexedAt: now,
+      supersededAt: now,
+      supersededReason: existing.supersededReason ?? 'soft-deleted via DELETE /api/learn/:id',
+    })
+    .where(and(eq(oracleDocuments.id, id), eq(oracleDocuments.type, 'learning')))
+    .returning()
+    .get();
+  db.delete(oracleFts).where(eq(oracleFts.id, id)).run();
+  return { status: 200, body: { id: row.id, deleted: 'soft', supersededAt: row.supersededAt } };
+}
 export function createLearnCrudRoutes() {
   return new Elysia()
     .post('/learn', ({ body, set }) => {
@@ -239,7 +229,11 @@ export function createLearnCrudRoutes() {
       const result = updateLearning(params.id, body as LearnUpdateBody);
       set.status = result.status;
       return result.body;
-    }, { body: UpdateBody, detail: { tags: ['knowledge'], menu: { group: 'hidden' }, summary: 'Update a learning' } });
+    }, { body: UpdateBody, detail: { tags: ['knowledge'], menu: { group: 'hidden' }, summary: 'Update a learning' } })
+    .delete('/learn/:id', ({ params, set }) => {
+      const result = softDeleteLearning(params.id);
+      set.status = result.status;
+      return result.body;
+    }, { detail: { tags: ['knowledge'], menu: { group: 'hidden' }, summary: 'Soft-delete a learning' } });
 }
-
 export const learnCrudRoutes = createLearnCrudRoutes();
