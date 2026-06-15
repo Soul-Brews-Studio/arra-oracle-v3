@@ -2,9 +2,7 @@
 import { Elysia } from 'elysia';
 import { pluginsListRoute } from './list.ts';
 import { pluginGetByNameRoute } from './get-by-name.ts';
-import { createUnifiedPluginApiRoutes } from './unified.ts';
 
 export const pluginsRouter = new Elysia()
   .use(pluginsListRoute)
-  .use(pluginGetByNameRoute)
-  .use(createUnifiedPluginApiRoutes());
+  .use(pluginGetByNameRoute);

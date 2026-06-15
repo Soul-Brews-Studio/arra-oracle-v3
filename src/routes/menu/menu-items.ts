@@ -37,6 +37,14 @@ function studioPathFor(apiPath: string): string | null {
 
 type RouteLike = { method?: string; path: string; hooks?: { detail?: unknown } };
 type HasRoutes = { routes: RouteLike[] };
+type UnifiedMenuLike = {
+  label: string;
+  path: string;
+  group?: 'main' | 'tools' | 'hidden';
+  order?: number;
+  icon?: string;
+  plugin?: string;
+};
 
 export function menuItemsFromRoutes(sources: HasRoutes[]): MenuItem[] {
   const items: MenuItem[] = [];
@@ -103,7 +111,7 @@ export function readApiMenuItemsFromDb(host?: string, scope?: Scope): MenuItem[]
       label: row.label,
       group,
       order: row.position,
-      source: 'api',
+      source: row.source === 'plugin' ? 'plugin' : 'api',
     };
 
     if (row.icon) item.icon = row.icon;
@@ -115,6 +123,21 @@ export function readApiMenuItemsFromDb(host?: string, scope?: Scope): MenuItem[]
     items.push(item);
   }
   return items;
+}
+
+export function menuItemsFromUnifiedPlugins(source: UnifiedMenuLike[]): MenuItem[] {
+  return source.map((item) => {
+    const menuItem: MenuItem = {
+      path: item.path,
+      label: item.label,
+      group: item.group ?? 'tools',
+      order: item.order ?? 999,
+      source: 'plugin',
+    };
+    if (item.icon) menuItem.icon = item.icon;
+    if (item.plugin) menuItem.sourceName = item.plugin;
+    return menuItem;
+  });
 }
 
 function setQuery(item: MenuItem, query: string | null) {

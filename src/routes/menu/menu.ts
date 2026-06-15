@@ -14,7 +14,6 @@ import { MenuItemSchema, ScopeSchema, type MenuItem, type Scope } from './model.
 import { getMenuConfig, getMenuSource, reloadMenuConfig } from '../../menu/config.ts';
 import { listCustomMenuItems } from '../../menu/custom-store.ts';
 import { buildMenuItems, readApiMenuItemsFromDb } from './menu-items.ts';
-import { unifiedPluginMenuItems } from '../plugins/unified.ts';
 
 export type MenuExtras = {
   items?: MenuItem[];
@@ -33,7 +32,7 @@ const MenuSourceSchema = t.Object({
   ]),
 });
 
-export function createMenuEndpoint() {
+export function createMenuEndpoint(pluginItems: MenuItem[] = []) {
   return new Elysia()
     .get(
       '/menu',
@@ -47,7 +46,7 @@ export function createMenuEndpoint() {
             readApiMenuItemsFromDb(host, scope),
             { items, disable },
             listCustomMenuItems(),
-            unifiedPluginMenuItems(),
+            pluginItems,
           ),
         };
       },
@@ -93,6 +92,7 @@ export {
   API_TO_STUDIO,
   buildMenuItems,
   hostMatches,
+  menuItemsFromUnifiedPlugins,
   menuItemsFromRoutes,
   readApiMenuItemsFromDb,
   scopeMatches,

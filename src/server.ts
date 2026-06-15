@@ -6,7 +6,6 @@
  */
 
 import { Elysia } from 'elysia';
-import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
 import { eq } from 'drizzle-orm';
 
@@ -24,6 +23,9 @@ import { MCP_SERVER_NAME } from './const.ts';
 import { db, sqlite, closeDb, indexingStatus } from './db/index.ts';
 import { isApiAuthorized, isApiPathProtected, unauthorizedApiResponse } from './server/api-token-auth.ts';
 import { seedMenuItems, type HasRoutes as SeedHasRoutes } from './db/seeders/menu-seeder.ts';
+import { createCorsMiddleware, createPrivateNetworkPreflightMiddleware } from './server/cors.ts';
+import { loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
+import { startUnifiedPluginServers } from './plugins/unified-server.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -43,7 +45,7 @@ import { pluginsRouter } from './routes/plugins/index.ts';
 import { oraclenetRoutes } from './routes/oraclenet/index.ts';
 import { sessionsRoutes } from './routes/sessions/index.ts';
 import { vaultRoutes } from './routes/vault/index.ts';
-import { createMenuRoutes } from './routes/menu/index.ts';
+import { createMenuRoutes, menuItemsFromUnifiedPlugins } from './routes/menu/index.ts';
 import { peerRoutes } from './routes/peer/index.ts';
 
 // Indexer routes are optional — MCP server works without them
@@ -82,11 +84,15 @@ writePidFile({
 const scoutAnnouncer = shouldStartScoutAnnouncer() ? new ScoutAnnouncer() : null;
 scoutAnnouncer?.start();
 
+const unifiedPlugins = await loadUnifiedPlugins({ warn: (message) => console.warn(message) });
+const unifiedServers = startUnifiedPluginServers(unifiedPlugins.servers);
+
 registerSignalHandlers(async () => {
   console.log('\n🔮 Shutting down gracefully...');
   await performGracefulShutdown({
     resources: [
       { close: () => { scoutAnnouncer?.stop(); return Promise.resolve(); } },
+      { close: () => unifiedServers.stop() },
       { close: () => { closeDb(); return Promise.resolve(); } },
     ],
   });
@@ -94,75 +100,9 @@ registerSignalHandlers(async () => {
   console.log('👋 Arra Oracle HTTP Server stopped.');
 });
 
-const DEFAULT_ALLOWED_ORIGINS = [
-  'https://studio.buildwithoracle.com',
-  'https://neo.buildwithoracle.com',
-];
-const envExtraOrigins = (process.env.ORACLE_CORS_ORIGIN ?? '')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
-const legacyOrigin = process.env.CORS_ORIGIN?.trim();
-const ALLOWED_ORIGINS = [
-  ...DEFAULT_ALLOWED_ORIGINS,
-  ...envExtraOrigins,
-  ...(legacyOrigin ? [legacyOrigin] : []),
-];
-
-function originAllowed(origin: string | undefined | null): string | null {
-  if (!origin) return null;
-  if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
-    return origin;
-  }
-  if (ALLOWED_ORIGINS.includes(origin)) return origin;
-  try {
-    const { hostname, protocol } = new URL(origin);
-    if (protocol === 'https:' && (hostname === 'buildwithoracle.com' || hostname.endsWith('.buildwithoracle.com'))) {
-      return origin;
-    }
-  } catch {}
-  return null;
-}
-
-// Private Network Access preflight (Chrome 117+). Must intercept OPTIONS
-// before @elysiajs/cors, because the cors plugin answers preflights itself
-// without emitting the `Access-Control-Allow-Private-Network` header that
-// Chrome requires for https→localhost fetches.
-const pnaMiddleware = new Elysia().onRequest(({ request }) => {
-  if (
-    request.method === 'OPTIONS' &&
-    request.headers.get('access-control-request-private-network') === 'true'
-  ) {
-    const origin = originAllowed(request.headers.get('origin'));
-    if (!origin) return;
-    return new Response(null, {
-      status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': origin,
-        'Access-Control-Allow-Credentials': 'true',
-        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,PATCH,OPTIONS',
-        'Access-Control-Allow-Headers':
-          request.headers.get('access-control-request-headers') ?? 'content-type',
-        'Access-Control-Allow-Private-Network': 'true',
-        'Access-Control-Max-Age': '86400',
-        Vary: 'Origin',
-      },
-    });
-  }
-});
-
 const app = new Elysia()
-  .use(pnaMiddleware)
-  .use(
-    cors({
-      origin: (request) => {
-        const origin = request.headers.get('origin');
-        return originAllowed(origin) !== null;
-      },
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    }),
-  )
+  .use(createPrivateNetworkPreflightMiddleware())
+  .use(createCorsMiddleware())
   .onBeforeHandle(({ request, set }) => {
     const pathname = new URL(request.url).pathname;
     if (isApiPathProtected(pathname) && !isApiAuthorized(request)) {
@@ -232,10 +172,12 @@ const apiModules = [
   sessionsRoutes,
   vaultRoutes,
   ...(indexerRoutes ? [indexerRoutes] : []),
+  ...unifiedPlugins.routes,
 ];
 
 try {
   const result = seedMenuItems(apiModules as unknown as SeedHasRoutes[]);
+  await seedUnifiedPluginMenuItems(unifiedPlugins.menu);
   console.log(
     `🔮 Menu seeded: ${result.inserted} inserted, ${result.updated} updated, ${result.preserved} preserved`,
   );
@@ -243,7 +185,7 @@ try {
   console.error('⚠️  Menu seeder failed:', e);
 }
 
-const menuRoutes = createMenuRoutes();
+const menuRoutes = createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu));
 
 const modules = [...apiModules, menuRoutes];
 
