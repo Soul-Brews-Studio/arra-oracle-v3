@@ -12,9 +12,9 @@ import {
   type UnifiedCliSubcommandManifest,
   type UnifiedMcpToolManifest,
   type UnifiedMenuManifest,
-  type UnifiedProxyManifest,
   type UnifiedServerManifest,
 } from './unified-manifest.ts';
+import { createUnifiedProxyRoute } from './proxy-surface.ts';
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.ARRA_PLUGIN_TIMEOUT_MS ?? 5000);
 const DEFAULT_DIRS = [join(homedir(), '.arra', 'plugins'), join(homedir(), '.oracle', 'plugins')];
@@ -40,6 +40,7 @@ export interface UnifiedRuntime {
   menu: Array<UnifiedMenuManifest & { plugin: string }>;
   cliSubcommands: Array<UnifiedCliSubcommandManifest & { plugin: string }>;
   servers: Array<UnifiedServerManifest & { plugin: string }>;
+  callMcpTool: (name: string, args?: unknown) => Promise<unknown>;
   stop: () => Promise<void>;
 }
 
@@ -150,39 +151,6 @@ function apiRoute(plugin: LoadedUnifiedPlugin, route: UnifiedApiRouteManifest, t
   return app;
 }
 
-function proxyTarget(proxy: UnifiedProxyManifest, request: Request): string | null {
-  const base = process.env[proxy.targetEnv]?.replace(/\/+$/, '');
-  if (!base) return null;
-  const url = new URL(request.url);
-  const suffix = proxy.stripPrefix
-    ? (url.pathname.slice(proxy.path.length) || '/')
-    : url.pathname;
-  return `${base}${suffix.startsWith('/') ? suffix : `/${suffix}`}${url.search}`;
-}
-
-function proxyRoute(plugin: LoadedUnifiedPlugin, proxy: UnifiedProxyManifest): ElysiaApp {
-  const app = new Elysia({ name: `unified:${plugin.manifest.name}:proxy:${proxy.path}` });
-  for (const method of proxy.methods?.length ? proxy.methods : ['ALL']) {
-    (app as any).route(method.toUpperCase(), proxy.path, async ({ request }: any) => {
-      const target = proxyTarget(proxy, request);
-      if (!target) return Response.json({ ok: false, error: `${proxy.targetEnv} is unset` }, { status: 502 });
-      try {
-        return await fetch(target, {
-          method: request.method,
-          headers: request.headers,
-          body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request.body,
-        });
-      } catch (error) {
-        return Response.json(
-          { ok: false, error: error instanceof Error ? error.message : String(error) },
-          { status: 502 },
-        );
-      }
-    });
-  }
-  return app;
-}
-
 function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptions): UnifiedRuntime {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const routes: ElysiaApp[] = [];
@@ -190,11 +158,15 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
   const menu: UnifiedRuntime['menu'] = [];
   const cliSubcommands: UnifiedRuntime['cliSubcommands'] = [];
   const servers: UnifiedRuntime['servers'] = [];
+  const mcpInvokers = new Map<string, { plugin: LoadedUnifiedPlugin; tool: UnifiedMcpToolManifest }>();
 
   for (const plugin of plugins) {
-    for (const tool of plugin.manifest.mcpTools) mcpTools.push({ ...tool, plugin: plugin.manifest.name });
+    for (const tool of plugin.manifest.mcpTools) {
+      mcpTools.push({ ...tool, plugin: plugin.manifest.name });
+      mcpInvokers.set(tool.name, { plugin, tool });
+    }
     for (const route of plugin.manifest.apiRoutes) routes.push(apiRoute(plugin, route, timeoutMs));
-    for (const proxy of plugin.manifest.proxy) routes.push(proxyRoute(plugin, proxy));
+    for (const proxy of plugin.manifest.proxy) routes.push(createUnifiedProxyRoute(plugin.manifest.name, proxy));
     if (plugin.manifest.server) servers.push({ ...plugin.manifest.server, plugin: plugin.manifest.name });
     for (const item of plugin.manifest.menu) menu.push({ ...item, plugin: plugin.manifest.name });
     for (const command of plugin.manifest.cliSubcommands) {
@@ -202,7 +174,12 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
     }
   }
 
-  return { routes, mcpTools, menu, cliSubcommands, servers, stop: async () => {} };
+  const callMcpTool = async (name: string, args?: unknown): Promise<unknown> => {
+    const hit = mcpInvokers.get(name);
+    if (!hit) return { ok: false, error: `MCP tool not found: ${name}` };
+    return invoke(hit.plugin, hit.tool.handler, { source: 'mcp', plugin: hit.plugin.manifest.name, args: [args], body: args }, timeoutMs);
+  };
+  return { routes, mcpTools, menu, cliSubcommands, servers, callMcpTool, stop: async () => {} };
 }
 
 export async function loadUnifiedPlugins(options: UnifiedLoaderOptions = {}): Promise<UnifiedRuntime> {

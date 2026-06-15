@@ -47,10 +47,17 @@ describe('unified plugin loader', () => {
       export function api(ctx) {
         return { ok: true, body: { plugin: ctx.plugin, method: ctx.request.method, body: ctx.body } };
       }
+      export function tool(ctx) {
+        return { ok: true, body: { plugin: ctx.plugin, source: ctx.source, args: ctx.args } };
+      }
     `);
 
     const runtime = await loadUnifiedPlugins({ dirs: [tmp] });
     expect(runtime.mcpTools.map((tool) => tool.name)).toEqual(['oracle_surface_pack']);
+    expect(await runtime.callMcpTool('oracle_surface_pack', { ok: true })).toEqual({
+      ok: true,
+      body: { plugin: 'surface-pack', source: 'mcp', args: [{ ok: true }] },
+    });
     expect(runtime.menu.map((item) => item.path)).toEqual(['/surface-pack']);
     expect(runtime.cliSubcommands.map((cmd) => cmd.command)).toEqual(['surface-pack']);
     expect(runtime.servers.map((server) => server.plugin)).toEqual(['surface-pack']);
