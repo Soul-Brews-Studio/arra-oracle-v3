@@ -31,6 +31,7 @@ import { createBodyLimitMiddleware } from './middleware/body-limit.ts';
 import { createNotFoundMiddleware } from './middleware/not-found.ts';
 import { createEtagMiddleware } from './middleware/etag.ts';
 import { createCompressMiddleware } from './middleware/compress.ts';
+import { createRequestDedupFetch } from './middleware/dedup.ts';
 import { createDbContextFetch } from './middleware/db-context.ts';
 
 import { authRoutes } from './routes/auth/index.ts';
@@ -46,7 +47,7 @@ import { forumApi } from './routes/forum/index.ts';
 import { tracesApi } from './routes/traces/index.ts';
 import { scheduleApi } from './routes/schedule/index.ts';
 import { filesRouter } from './routes/files/index.ts';
-import { pluginsRouter } from './routes/plugins/index.ts';
+import { createPluginsRouter } from './routes/plugins/index.ts';
 import { oraclenetRoutes } from './routes/oraclenet/index.ts';
 import { sessionsRoutes } from './routes/sessions/index.ts';
 import { vaultRoutes } from './routes/vault/index.ts';
@@ -181,7 +182,7 @@ const apiModules = [
   tracesApi,
   scheduleApi,
   filesRouter,
-  pluginsRouter,
+  createPluginsRouter({ registry: unifiedPlugins.pluginRegistry }),
   oraclenetRoutes,
   sessionsRoutes,
   vaultRoutes,
@@ -228,7 +229,9 @@ await runStartupSelfTest({
   }),
 });
 
-const serverFetch = createRequestTimeoutFetch(createApiVersionedFetch(createDbContextFetch((request: Request) => app.fetch(request))));
+const serverFetch = createRequestTimeoutFetch(
+  createRequestDedupFetch(createApiVersionedFetch(createDbContextFetch((request: Request) => app.fetch(request)))),
+);
 
 export default {
   port: Number(PORT),

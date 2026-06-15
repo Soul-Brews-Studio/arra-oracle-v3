@@ -14,6 +14,7 @@ import {
   type UnifiedMenuManifest,
 } from './unified-manifest.ts';
 import { sortPluginsByDependencies } from './dependency-resolver.ts';
+import { pluginRegistryFromLoadedPlugins, type LoadedPluginRegistryEntry } from './registry.ts';
 import { createUnifiedProxyRoute } from './proxy-surface.ts';
 import { unifiedPluginServerRoutes, type UnifiedPluginServer } from './unified-server.ts';
 
@@ -47,6 +48,7 @@ export interface UnifiedRuntime {
   servers: UnifiedPluginServer[];
   callMcpTool: (name: string, args?: unknown) => Promise<unknown>;
   pluginStatuses: () => UnifiedPluginStatus[];
+  pluginRegistry: () => LoadedPluginRegistryEntry[];
   init: () => Promise<void>;
   stop: () => Promise<void>;
 }
@@ -231,7 +233,8 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
   };
   const pluginStatuses = () => plugins.map((plugin) => pluginStatus.get(plugin.manifest.name)
     ?? { name: plugin.manifest.name, status: 'ok' as const });
-  return { pluginCount: plugins.length, routes, mcpTools, menu, cliSubcommands, servers, callMcpTool, pluginStatuses, init, stop };
+  const pluginRegistry = () => pluginRegistryFromLoadedPlugins(plugins, pluginStatuses());
+  return { pluginCount: plugins.length, routes, mcpTools, menu, cliSubcommands, servers, callMcpTool, pluginStatuses, pluginRegistry, init, stop };
 }
 
 export async function loadUnifiedPlugins(options: UnifiedLoaderOptions = {}): Promise<UnifiedRuntime> {

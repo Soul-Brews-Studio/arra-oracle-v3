@@ -46,7 +46,7 @@ function parseQuery(raw: string | null): Record<string, string> | undefined {
   }
 }
 
-function toMenuItem(row: MenuRow): MenuItem {
+export function menuRowToItem(row: MenuRow): MenuItem {
   const item: MenuItem = {
     id: String(row.id),
     parentId: row.parentId == null ? null : String(row.parentId),
@@ -89,7 +89,7 @@ function paginatedMenuResponse(query: Record<string, unknown>) {
   const { page, pageSize, offset } = pageParams(query);
   const { rows, total } = readPaginatedMenuItems(pageSize, offset);
   return {
-    data: rows.map(toMenuItem),
+    data: rows.map(menuRowToItem),
     total,
     page,
     pageSize,
