@@ -96,6 +96,13 @@ export const BUILTIN_HELP: CliHelpEntry[] = [
     flags: ["--help", "-h"],
     examples: ["arra-cli migrate"],
   },
+  {
+    command: "changelog",
+    help: "generate CHANGELOG.md from git history",
+    usage: "arra-cli changelog [--since <tag>] [--out CHANGELOG.md] [--stdout]",
+    flags: ["--since <tag>", "--out <file>", "--stdout", "--help", "-h"],
+    examples: ["arra-cli changelog", "arra-cli changelog --since v1.2.3 --stdout"],
+  },
 ];
 
 const SUBCOMMAND_HELP: CliHelpEntry[] = [
