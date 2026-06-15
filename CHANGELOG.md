@@ -6,6 +6,54 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 ## [Unreleased]
 
+### 2026-06-15 session wave — unified surfaces, coverage, and UI
+
+34 PRs merged into `alpha` on 2026-06-15 (13:16-15:52 UTC). Each PR is
+represented once below.
+
+#### Surfaces
+
+- Menu route internals were split under the file-size rule, and duplicate route
+  menu seeding now keys by `(path, studio)` so multi-studio paths can coexist.
+  PRs: #1463, #1466.
+- Unified plugin support landed end-to-end: manifest loader foundation, CLI
+  adapter, API route/menu row adaptation, MCP routing through the manifest,
+  preserved plugin menu aggregation, and plugin-owned web-server routing.
+  PRs: #1468, #1471, #1473, #1474, #1476, #1478.
+- Vector and storage surfaces gained production-ready swappability: sidecar vector
+  proxy manifests, optional none/local/remote embedders with FTS fallback, and a
+  swappable storage backend. PRs: #1475, #1469.
+
+#### Coverage
+
+- HTTP and route contracts were isolated and expanded for trace, menu edge cases,
+  unified plugin example registration, vector proxy/embedder paths, learn
+  frontmatter, ORM-only storage, MCP bridges, CLI plugin adapter/loader, and
+  sqlite-vector default behavior. PRs: #1465, #1472, #1477, #1479, #1480,
+  #1481, #1482, #1483, #1485.
+- Live smoke coverage now exercises CLI/API data paths, health/storage/plugin
+  registration, and React proxy behavior with unified plugin data.
+  PRs: #1490, #1491, #1492.
+
+#### UI
+
+- Frontend work added the server status dashboard, React app shell, menu/plugins
+  views, vector and MCP widgets, shared loading/error states, routed pages, the
+  runtime settings page, MCP detail pages, and vector results pages.
+  PRs: #1487, #1488, #1493, #1496, #1501, #1502, #1503.
+
+#### Docs
+
+- Documentation now includes the unified plugin authoring guide and a focused API
+  reference for menu, plugin, vector, and MCP tool-listing endpoints.
+  PRs: #1495, #1499.
+
+#### Infra
+
+- Drizzle migration workflow docs/scripts were aligned, the Docker test stage is
+  self-contained, and alpha PR CI now runs scoped Bun tests.
+  PRs: #1486, #1494, #1500.
+
 ### 2026-06-06 alpha wave — source release notes
 
 #### Core / MCP
