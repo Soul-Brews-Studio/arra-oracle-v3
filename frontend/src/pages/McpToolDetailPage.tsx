@@ -87,8 +87,8 @@ export function McpToolDetailPage() {
           Back to MCP tools
         </Link>
       </div>
-      {state === 'loading' ? <p className="rounded-xl border border-dashed border-white/10 p-6 text-sm text-slate-400">Loading tool detail…</p> : null}
-      {state === 'error' ? <p className="rounded-xl border border-red-400/30 bg-red-950/40 p-3 text-sm text-red-100">{error}</p> : null}
+      {state === 'loading' ? <p role="status" className="rounded-xl border border-dashed border-white/10 p-6 text-sm text-slate-400">Loading tool detail…</p> : null}
+      {state === 'error' ? <p role="alert" className="rounded-xl border border-red-400/30 bg-red-950/40 p-3 text-sm text-red-100">{error}</p> : null}
       {state === 'ready' && tool ? <ToolDetail tool={tool} /> : null}
       {state === 'ready' && !tool ? <p className="rounded-xl border border-dashed border-white/10 p-6 text-sm text-slate-400">No MCP tool named {toolName}.</p> : null}
     </section>

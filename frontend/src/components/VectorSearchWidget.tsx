@@ -51,8 +51,9 @@ export function VectorSearchWidget({ onOpenResults }: { onOpenResults?: (query: 
         <p className="mt-2 text-sm text-slate-400">Semantic search against Oracle memory through the Elysia API.</p>
       </div>
 
-      <form onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row">
+      <form aria-label="Vector search form" onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row">
         <input
+          aria-label="Vector search query"
           className="focus-ring min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100 placeholder:text-slate-600"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -71,6 +72,7 @@ export function VectorSearchWidget({ onOpenResults }: { onOpenResults?: (query: 
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-slate-500">{status}</p>
         <button
+          aria-label="Open full vector search results page"
           className="focus-ring rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-200 hover:border-teal-300/40 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={!query.trim()}
           type="button"
@@ -85,7 +87,7 @@ export function VectorSearchWidget({ onOpenResults }: { onOpenResults?: (query: 
           <ErrorMessage
             title="Vector search failed."
             message={error}
-            action={lastQuery ? <button className="focus-ring rounded-lg border border-red-200/30 px-3 py-2 font-semibold text-red-50 hover:bg-red-200/10" type="button" onClick={() => void runSearch(lastQuery)}>Retry search</button> : null}
+            action={lastQuery ? <button aria-label={`Retry vector search for ${lastQuery}`} className="focus-ring rounded-lg border border-red-200/30 px-3 py-2 font-semibold text-red-50 hover:bg-red-200/10" type="button" onClick={() => void runSearch(lastQuery)}>Retry search</button> : null}
           />
         </div>
       ) : null}
