@@ -1,9 +1,4 @@
-/**
- * Arra Oracle HTTP Server — Elysia (bun-native).
- *
- * Composes 15 route modules from src/routes/. Every module is its own
- * Elysia sub-app, nested one file per endpoint.
- */
+/** Arra Oracle HTTP Server — Elysia (bun-native). */
 
 import { Elysia } from 'elysia';
 import { swagger } from '@elysiajs/swagger';
@@ -33,6 +28,7 @@ import { createApiVersionHeaderMiddleware, createApiVersionedFetch } from './mid
 import { createSecurityHeadersMiddleware } from './middleware/security-headers.ts';
 import { createRequestTimeoutFetch } from './middleware/timeout.ts';
 import { createBodyLimitMiddleware } from './middleware/body-limit.ts';
+import { createNotFoundMiddleware } from './middleware/not-found.ts';
 
 // Elysia sub-apps — one per cluster
 import { authRoutes } from './routes/auth/index.ts';
@@ -207,6 +203,7 @@ const mcpRoutes = createMcpRoutes(unifiedPlugins.mcpTools);
 const modules = [...apiModules, mcpRoutes, menuRoutes];
 
 for (const mod of modules) app.use(mod as any);
+app.use(createNotFoundMiddleware());
 
 printStartupBanner({
   version: pkg.version,
@@ -237,6 +234,7 @@ function enabledMiddleware(): BannerMiddleware[] {
     { name: 'api-key-auth' },
     { name: 'metrics' },
     { name: 'structured-errors' },
+    { name: 'not-found' },
     { name: 'swagger' },
     { name: 'gateway', enabled: Boolean(VECTOR_URL) || process.env.ORACLE_GATEWAY_HOT_RELOAD !== '0' },
   ];

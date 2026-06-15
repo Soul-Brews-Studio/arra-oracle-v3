@@ -4,6 +4,7 @@ export const API_VERSION = 'v1';
 export const API_VERSION_HEADER = 'X-API-Version';
 const API_PREFIX = '/api';
 const VERSIONED_PREFIX = `${API_PREFIX}/${API_VERSION}`;
+const publicPaths = new WeakMap<Request, string>();
 
 type FetchHandler = (request: Request) => Response | Promise<Response>;
 
@@ -21,6 +22,10 @@ function isVersionedApiPath(pathname: string): boolean {
   return pathname === VERSIONED_PREFIX || pathname.startsWith(`${VERSIONED_PREFIX}/`);
 }
 
+export function apiRequestPath(request: Request): string {
+  return publicPaths.get(request) ?? new URL(request.url).pathname;
+}
+
 function versionedLocation(request: Request): string | null {
   const url = new URL(request.url);
   if (!isApiPath(url.pathname) || isVersionedApiPath(url.pathname)) return null;
@@ -32,9 +37,12 @@ function versionedLocation(request: Request): string | null {
 function rewriteVersionedRequest(request: Request): Request {
   const url = new URL(request.url);
   if (!isVersionedApiPath(url.pathname)) return request;
+  const publicPath = url.pathname;
   const suffix = url.pathname.slice(VERSIONED_PREFIX.length);
   url.pathname = `${API_PREFIX}${suffix}`;
-  return new Request(url.toString(), request);
+  const rewritten = new Request(url.toString(), request);
+  publicPaths.set(rewritten, publicPath);
+  return rewritten;
 }
 
 function withVersionHeader(response: Response): Response {
