@@ -11,8 +11,9 @@
  */
 
 import { spawn } from 'bun';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 
 const args = parseArgs(process.argv.slice(2));
 const PORT = args.port ?? '48900';
@@ -20,9 +21,29 @@ const OUT = resolve(args.out ?? 'docs/openapi.json');
 const BOOT_TIMEOUT_MS = 30_000;
 const POLL_INTERVAL_MS = 200;
 
+const scratch = await mkdtemp(join(tmpdir(), 'arra-openapi-'));
+const homeDir = join(scratch, 'home');
+const dataDir = join(scratch, 'data');
+const repoRoot = join(scratch, 'repo');
+await Promise.all([
+  mkdir(homeDir, { recursive: true }),
+  mkdir(dataDir, { recursive: true }),
+  mkdir(repoRoot, { recursive: true }),
+]);
+
 const child = spawn({
   cmd: ['bun', 'src/server.ts'],
-  env: { ...process.env, ORACLE_PORT: PORT, NODE_ENV: 'development' },
+  env: {
+    ...process.env,
+    HOME: homeDir,
+    ORACLE_PORT: PORT,
+    ORACLE_DATA_DIR: dataDir,
+    ORACLE_DB_PATH: join(dataDir, 'oracle.db'),
+    ORACLE_REPO_ROOT: repoRoot,
+    ARRA_SCOUT_ANNOUNCE: '0',
+    ORACLE_EMBEDDER: 'none',
+    NODE_ENV: 'development',
+  },
   stdout: 'pipe',
   stderr: 'pipe',
 });
@@ -36,6 +57,7 @@ const shutdown = async (code: number): Promise<never> => {
     ]);
     if (!child.killed) child.kill('SIGKILL');
   } catch {}
+  await rm(scratch, { recursive: true }).catch(() => undefined);
   process.exit(code);
 };
 
