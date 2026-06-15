@@ -68,11 +68,80 @@ export interface DashboardSummary {
   };
 }
 
-export interface HealthResponse {
-  status: string;
-  server?: string;
-  port?: number | string;
+export type RuntimeStatus = 'ok' | 'down' | 'degraded' | 'draining' | string;
+
+export interface VectorHealthResponse {
+  status: RuntimeStatus;
+  engines: Array<Record<string, unknown>>;
+  checked_at: string;
+  error?: string;
 }
+
+export interface HealthResponse {
+  status: RuntimeStatus;
+  server: string;
+  version: string;
+  port?: number;
+  oracle?: 'connected' | 'degraded';
+  uptimeSeconds?: number;
+  dbStatus?: 'ok' | 'down';
+  vectorStatus?: RuntimeStatus;
+  pluginStatus?: 'ok' | 'degraded';
+  mcpToolCount?: number;
+  pluginCount?: number;
+  draining?: boolean;
+  uptime?: { seconds: number };
+  db?: { status: 'ok'; path: string } | { status: 'down'; error: string; path: string };
+  vector?: VectorHealthResponse;
+  mcp?: { toolCount: number };
+  plugins?: {
+    count: number;
+    status: 'ok' | 'degraded';
+    items: Array<{ name: string; status: 'ok' | 'degraded'; error?: string }>;
+  };
+}
+
+export interface MetricsSnapshot {
+  uptime: number;
+  requestCount: number;
+  avgResponseMs: number;
+  activeConnections: number;
+  lastRestart: string;
+}
+
+export interface PluginEntryResponse {
+  name: string;
+  file: string;
+  size: number;
+  modified: string;
+  version?: string;
+  description?: string;
+  menu?: {
+    label: string;
+    group?: 'main' | 'tools' | 'hidden';
+    order?: number;
+    icon?: string;
+    path?: string;
+  };
+  server?: {
+    command: string;
+    args?: string[];
+    healthPath?: string;
+    autostart?: boolean;
+  };
+}
+
+export interface PluginsResponse {
+  plugins: PluginEntryResponse[];
+  dir: string;
+}
+
+export type VectorSearchResponse = Omit<SearchResponse, 'query' | 'offset' | 'limit'> & {
+  query: string;
+  offset?: number;
+  limit?: number;
+  error?: string;
+};
 
 export interface DashboardActivity {
   searches: Array<{
@@ -101,4 +170,3 @@ export interface DashboardGrowth {
     searches: number;
   }>;
 }
-
