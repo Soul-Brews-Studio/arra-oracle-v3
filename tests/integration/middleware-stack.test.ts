@@ -87,10 +87,10 @@ describe('middleware stack integration', () => {
     const failed = await app.handle(jsonRequest('/api/fail', {
       headers: { 'x-forwarded-for': 'error-client' },
     }));
-    const failedBody = await failed.json() as { statusCode: number; correlationId: string };
+    const failedBody = await failed.json() as { code: number; details: { correlationId: string } };
     expect(failed.status).toBe(400);
-    expect(failedBody.statusCode).toBe(400);
-    expect(failed.headers.get('X-Request-Id')).toBe(failedBody.correlationId);
+    expect(failedBody.code).toBe(400);
+    expect(failed.headers.get('X-Request-Id')).toBe(failedBody.details.correlationId);
 
     const firstLimited = await app.handle(jsonRequest('/api/fail', {
       headers: { 'x-forwarded-for': 'limited-client' },

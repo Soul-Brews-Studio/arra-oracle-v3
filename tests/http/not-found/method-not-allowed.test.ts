@@ -14,8 +14,11 @@ test('known routes hit with the wrong method return 405 JSON', async () => {
   expect(response.headers.get('Allow')).toBe('GET');
   expect(await response.json()).toEqual({
     error: 'Method Not Allowed',
-    path: '/api/v1/known',
-    method: 'POST',
-    allowedMethods: ['GET'],
+    code: 405,
+    details: {
+      path: '/api/v1/known',
+      method: 'POST',
+      allowedMethods: ['GET'],
+    },
   });
 });

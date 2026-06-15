@@ -5,6 +5,7 @@ import type {
   PluginsResponse,
   VectorSearchResponse,
 } from '../../../src/server/types';
+import type { LearnCreateResponse, LearnDeleteResponse, LearnListResponse, LearnMutationPayload, LearnUpdateResponse } from '../types';
 
 export interface MenuSearchResponse {
   data: MenuItem[];
@@ -14,11 +15,12 @@ export interface MenuSearchResponse {
 
 export interface ApiRouteResponses {
   '/api/health': HealthResponse;
-  '/api/metrics': MetricsSnapshot;
+  '/api/v1/metrics': MetricsSnapshot;
   '/api/menu': MenuResponse;
   '/api/menu/search': MenuSearchResponse;
   '/api/vector/search': VectorSearchResponse;
   '/api/v1/plugins': PluginsResponse;
+  '/api/v1/learn': LearnListResponse;
 }
 
 export type ApiRoute = keyof ApiRouteResponses;
@@ -97,7 +99,7 @@ export class ApiClient {
   }
 
   metrics(): Promise<MetricsSnapshot> {
-    return this.request('/api/metrics');
+    return this.request('/api/v1/metrics');
   }
 
   menu(): Promise<MenuResponse> {
@@ -111,6 +113,22 @@ export class ApiClient {
 
   plugins(): Promise<PluginsResponse> {
     return this.request('/api/v1/plugins');
+  }
+
+  learn(): Promise<LearnListResponse> {
+    return this.request('/api/v1/learn');
+  }
+
+  createLearn(payload: LearnMutationPayload): Promise<LearnCreateResponse> {
+    return this.fetchJson('/api/v1/learn', { method: 'POST', body: JSON.stringify(payload) });
+  }
+
+  updateLearn(id: string, payload: LearnMutationPayload): Promise<LearnUpdateResponse> {
+    return this.fetchJson(`/api/v1/learn/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) });
+  }
+
+  deleteLearn(id: string): Promise<LearnDeleteResponse> {
+    return this.fetchJson(`/api/v1/learn/${encodeURIComponent(id)}`, { method: 'DELETE' });
   }
 
   vectorSearch(query: string, limit?: number): Promise<VectorSearchResponse>;

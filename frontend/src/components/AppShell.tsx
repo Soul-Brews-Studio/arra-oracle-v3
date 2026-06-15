@@ -50,7 +50,8 @@ export function AppShell({
     { to: '/', label: 'Menu', description: 'Navigation rows from /api/menu', badge: loading ? '…' : menuCount },
     { to: '/plugins', label: 'Plugins', description: 'Registered plugins and surfaces', badge: loading ? '…' : pluginCount },
     { to: '/search', label: 'Search', description: 'Full-text menu search' },
-    { to: '/metrics', label: 'Metrics', description: 'Runtime counters from /api/metrics' },
+    { to: '/learn', label: 'Learn', description: 'Create and edit learnings' },
+    { to: '/metrics', label: 'Metrics', description: 'Runtime counters from /api/v1/metrics' },
     { to: '/mcp', label: 'MCP', description: 'Tool schemas and groups' },
     { to: '/settings', label: 'Settings', description: 'Storage, embedder, and DB status' },
   ];
@@ -58,7 +59,7 @@ export function AppShell({
   const responseValue = metricsLoading ? <Spinner label="Loading metrics" /> : `${metrics?.avgResponseMs ?? 0} ms`;
   const metricsDetail = metrics
     ? `${metrics.activeConnections} active · uptime ${Math.round(metrics.uptime)}s`
-    : 'from /api/metrics';
+    : 'from /api/v1/metrics';
   const retry = (
     <button
       aria-label="Retry loading backend dashboard data"

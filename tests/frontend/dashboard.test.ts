@@ -9,7 +9,7 @@ describe('dashboard data loading', () => {
     const result = await loadDashboardData({
       menu: async () => ({ items: [{ label: 'Menu', path: '/menu', group: 'main', order: 1, source: 'api' }] }),
       plugins: async () => ({ dir: '/plugins', plugins: [{ name: 'echo', file: 'echo.wasm', size: 12, modified: 'now' }] }),
-      metrics: async () => ({ uptime: 12.5, requestCount: 42, avgResponseMs: 3.2, activeConnections: 1, lastRestart: '2026-06-16T00:00:00.000Z' }),
+      metrics: async () => ({ uptime: 12.5, requestCount: 42, avgResponseMs: 3.2, activeConnections: 1, lastRestart: '2026-06-16T00:00:00.000Z', memoryUsage: { rss: 67108864, heapTotal: 33554432, heapUsed: 16777216, external: 1024, arrayBuffers: 0 } }),
     });
 
     expect(result.errors).toEqual({});
@@ -22,13 +22,13 @@ describe('dashboard data loading', () => {
     const result = await loadDashboardData({
       menu: async () => ({ items: [] }),
       plugins: async () => ({ dir: '/plugins', plugins: [] }),
-      metrics: async () => { throw new Error('/api/metrics unavailable'); },
+      metrics: async () => { throw new Error('/api/v1/metrics unavailable'); },
     });
 
     expect(result.menu).toEqual([]);
     expect(result.plugins).toEqual([]);
     expect(result.metrics).toBeNull();
-    expect(result.errors.metrics).toBe('Metrics: /api/metrics unavailable');
+    expect(result.errors.metrics).toBe('Metrics: /api/v1/metrics unavailable');
   });
 
   test('renders dashboard metric cards with loading state before effects resolve', () => {
@@ -38,7 +38,7 @@ describe('dashboard data loading', () => {
       expect(html).toContain('Requests');
       expect(html).toContain('Avg response');
       expect(html).toContain('Loading metrics');
-      expect(html).toContain('/api/metrics');
+      expect(html).toContain('/api/v1/metrics');
     } finally {
       restore();
     }
