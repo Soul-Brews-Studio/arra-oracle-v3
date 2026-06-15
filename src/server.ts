@@ -31,6 +31,7 @@ import { createBodyLimitMiddleware } from './middleware/body-limit.ts';
 import { createNotFoundMiddleware } from './middleware/not-found.ts';
 import { createEtagMiddleware } from './middleware/etag.ts';
 import { createCompressMiddleware } from './middleware/compress.ts';
+import { createRequestDedupFetch } from './middleware/dedup.ts';
 import { createDbContextFetch } from './middleware/db-context.ts';
 
 import { authRoutes } from './routes/auth/index.ts';
@@ -228,7 +229,9 @@ await runStartupSelfTest({
   }),
 });
 
-const serverFetch = createRequestTimeoutFetch(createApiVersionedFetch(createDbContextFetch((request: Request) => app.fetch(request))));
+const serverFetch = createRequestTimeoutFetch(
+  createRequestDedupFetch(createApiVersionedFetch(createDbContextFetch((request: Request) => app.fetch(request)))),
+);
 
 export default {
   port: Number(PORT),
