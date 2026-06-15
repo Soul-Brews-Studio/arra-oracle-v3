@@ -4,6 +4,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { McpPage } from './pages/McpPage';
 import { MetricsPage } from './pages/MetricsPage';
 import { McpToolDetailPage } from './pages/McpToolDetailPage';
+import { LearnPage } from './pages/LearnPage';
 import { MenuPage } from './pages/MenuPage';
 import { PluginsPage } from './pages/PluginsPage';
 import { SearchPage } from './pages/SearchPage';
@@ -13,7 +14,7 @@ import { VectorSearchResultsPage } from './pages/VectorSearchResultsPage';
 import type { LoadState, MenuItem, PluginEntry } from './types';
 import type { MetricsSnapshot } from '../../src/server/types';
 
-export const frontendRoutes = ['/', '/plugins', '/metrics', '/search'] as const;
+export const frontendRoutes = ['/', '/plugins', '/metrics', '/search', '/learn'] as const;
 export type FrontendRoute = typeof frontendRoutes[number];
 
 export type DashboardRouteStates = Record<'menu' | 'plugins' | 'metrics', LoadState>;
@@ -57,6 +58,7 @@ export function DashboardRoutes({
       <Route path="/plugins" element={pluginPage} />
       <Route path="/metrics" element={<MetricsPage metrics={metrics} loading={isRouteLoading(states.metrics)} />} />
       <Route path="/search" element={<SearchPage />} />
+      <Route path="/learn" element={<LearnPage />} />
       <Route path="/menu" element={menuPage} />
       <Route path="/vector" element={<VectorPage />} />
       <Route path="/vector/results" element={<VectorSearchResultsPage />} />
