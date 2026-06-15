@@ -239,3 +239,11 @@ export async function ensureVectorStoreConnected(
   if (pending) await pending;
   return store;
 }
+
+export async function closeCachedVectorStores(): Promise<void> {
+  const stores = [...modelStoreCache.values()];
+  modelStoreCache.clear(); connectPromises.clear();
+  await Promise.all(stores.map((store) => store.close().catch((e) =>
+    console.warn(`[VectorRegistry] Failed to close ${store.name}:`, e instanceof Error ? e.message : String(e))
+  )));
+}

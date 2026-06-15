@@ -13,8 +13,6 @@ import {
   configure,
   writePidFile,
   removePidFile,
-  registerSignalHandlers,
-  performGracefulShutdown,
 } from './process-manager/index.ts';
 
 import { PORT, ORACLE_DATA_DIR, VECTOR_URL } from './config.ts';
@@ -27,6 +25,8 @@ import { createCorsMiddleware, createPrivateNetworkPreflightMiddleware } from '.
 import { createApiKeyAuthMiddleware } from './middleware/auth.ts';
 import { loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
 import { startUnifiedPluginServers } from './plugins/unified-server.ts';
+import { closeCachedVectorStores } from './vector/factory.ts';
+import { isDraining, registerGracefulShutdown, trackRequest } from './lifecycle/shutdown.ts';
 import { createErrorMiddleware } from './middleware/errors.ts';
 
 // Elysia sub-apps — one per cluster
@@ -90,17 +90,16 @@ scoutAnnouncer?.start();
 const unifiedPlugins = await loadUnifiedPlugins({ warn: (message) => console.warn(message) });
 const unifiedServers = await startUnifiedPluginServers(unifiedPlugins.servers);
 
-registerSignalHandlers(async () => {
-  console.log('\n🔮 Shutting down gracefully...');
-  await performGracefulShutdown({
-    resources: [
-      { close: () => { scoutAnnouncer?.stop(); return Promise.resolve(); } },
-      { close: () => unifiedServers.stop() },
-      { close: () => { closeDb(); return Promise.resolve(); } },
-    ],
-  });
-  removePidFile();
-  console.log('👋 Arra Oracle HTTP Server stopped.');
+registerGracefulShutdown({
+  close: async () => {
+    console.log('\n🔮 Shutting down gracefully...');
+    scoutAnnouncer?.stop();
+    await unifiedServers.stop();
+    await closeCachedVectorStores();
+    closeDb();
+    removePidFile();
+    console.log('👋 Arra Oracle HTTP Server stopped.');
+  },
 });
 
 const app = new Elysia()
@@ -147,6 +146,7 @@ const app = new Elysia()
 const healthRoutes = createHealthRoutes({
   pluginCount: unifiedPlugins.pluginCount,
   pluginMcpToolCount: unifiedPlugins.mcpTools.length,
+  isDraining,
 });
 
 const apiModules = [
@@ -198,5 +198,5 @@ console.log(`
 
 export default {
   port: Number(PORT),
-  fetch: app.fetch,
+  fetch: (request: Request) => trackRequest(() => app.fetch(request)),
 };
