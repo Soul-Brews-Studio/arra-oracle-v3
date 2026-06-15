@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { fetchMenu, fetchPlugins } from './api';
+import { McpToolBrowser } from './components/McpToolBrowser';
+import { VectorSearchWidget } from './components/VectorSearchWidget';
 import type { LoadState, MenuItem, PluginEntry } from './types';
 
 type Surface = 'wasm' | 'menu' | 'server';
@@ -186,6 +188,11 @@ export default function App() {
             <p className="mt-1 text-sm text-red-200/80">{error}</p>
           </div>
         ) : null}
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <VectorSearchWidget />
+          <McpToolBrowser />
+        </div>
 
         <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
           <section id="menu" className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
