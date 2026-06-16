@@ -79,6 +79,9 @@ The batch output includes:
 - `all-collections.json`
 - `manifest.json`
 
+`manifest.json` includes collection counts plus a deterministic file inventory
+with byte sizes and SHA-256 checksums for integrity checks before migration.
+
 ## CLI Usage
 
 Use `maw arra export` for the operator-facing CLI bridge.

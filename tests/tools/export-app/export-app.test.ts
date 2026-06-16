@@ -96,6 +96,13 @@ describe('standalone export app', () => {
       expect(documentsJson).toMatchObject({ collection: 'oracle_documents', rowCount: 2 });
       const all = JSON.parse(readFileSync(join(outputDir, 'all-collections.json'), 'utf8'));
       expect(all.collections.oracle_documents.map((row: { id: string }) => row.id)).toContain('doc-old');
+      const manifest = JSON.parse(readFileSync(join(outputDir, 'manifest.json'), 'utf8'));
+      const exportedFile = manifest.files.find(
+        (entry: { path: string }) => entry.path === 'documents/markdown/learn_old.md',
+      );
+      expect(exportedFile.bytes).toBeGreaterThan(0);
+      expect(exportedFile.sha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(manifest.files.map((entry: { path: string }) => entry.path)).toContain('all-collections.json');
 
       const relationships = JSON.parse(readFileSync(join(outputDir, 'relationships.json'), 'utf8'));
       expect(relationships.rows).toEqual(expect.arrayContaining([

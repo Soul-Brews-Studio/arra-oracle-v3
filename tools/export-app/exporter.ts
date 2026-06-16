@@ -14,6 +14,7 @@ import {
   normalizeRecords,
   type ExportRecord,
 } from './formats.ts';
+import { buildFileManifest } from './file-manifest.ts';
 import { graphRelationships } from './graph.ts';
 import { exportOracleV2Documents } from './documents.ts';
 
@@ -77,10 +78,12 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
     const documentExport = await exportOracleV2Documents({ ...options, outputDir, connection, progress });
     await writeCollectionFiles(outputDir, 'relationships', relationships);
     await writeJson(path.join(outputDir, 'all-collections.json'), { exportedAt, collections: allCollections });
+    const files = await buildFileManifest(outputDir);
     await writeJson(path.join(outputDir, 'manifest.json'), {
       exportedAt,
       dbPath: options.dbPath ?? DB_PATH,
       formats: EXPORT_FORMATS,
+      files,
       collectionCount: tables.length,
       rowCount,
       relationshipCount: relationships.length,
