@@ -4,7 +4,7 @@ export const setupSteps = [
   "Welcome",
   "Provider",
   "Vault path",
-  "Index",
+  "Done",
 ] as const;
 
 export function StepBody({
@@ -30,7 +30,7 @@ export function StepBody({
   if (step === 2) return <VaultPlan config={config} />;
   return (
     <p className="mt-2 text-sm text-slate-300">
-      Done. Continue to the dashboard or watch live progress in Vector Settings.
+      Done. Continue to the Vector dashboard or watch live progress in Vector Settings.
     </p>
   );
 }

@@ -165,6 +165,31 @@ test('CLI progress-json flag emits machine-readable progress', async () => {
   }));
 });
 
+test('CLI dry-run reports counts without writing a backup bundle', async () => {
+  const dbPath = join(root, 'dry-run.db');
+  const outputDir = join(root, 'dry-run-export');
+  const connection = createDatabase(dbPath);
+  seed(connection);
+  connection.storage.close();
+
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const code = await runExportApp(
+    ['--output', outputDir, '--db', dbPath, '--dry-run'],
+    (message) => stdout.push(message),
+    (message) => stderr.push(message),
+  );
+  const payload = JSON.parse(stdout.join(''));
+
+  expect(code).toBe(0);
+  expect(stderr.join('')).toBe('');
+  expect(payload).toMatchObject({ success: true, dryRun: true, dbPath, documentCount: 2 });
+  expect(payload.collectionCount).toBeGreaterThan(5);
+  expect(payload.rowCount).toBeGreaterThanOrEqual(3);
+  expect(payload.collections).toContainEqual(expect.objectContaining({ name: 'oracle_documents', rowCount: 2 }));
+  expect(existsSync(outputDir)).toBe(false);
+});
+
 test('CLI rejects unknown flags before exporting', () => {
   expect(() => parseArgs(['--output', './backup', '--bogus'])).toThrow('unknown flag: --bogus');
   expect(() => parseArgs(['--output'])).toThrow('missing value for --output');

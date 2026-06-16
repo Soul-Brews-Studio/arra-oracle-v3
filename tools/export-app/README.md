@@ -67,7 +67,11 @@ connection.
 ```sh
 bun run tools/export-app/index.ts --output ./backup/export-app
 bun run tools/export-app/index.ts --output ./backup/export-app --db ./oracle.db
+bun run tools/export-app/index.ts --output ./backup/export-app --dry-run
 ```
+
+Use `--dry-run` to print collection, row, relationship, and document counts
+without creating files. It is a safe preflight before long-running exports.
 
 The batch output includes:
 

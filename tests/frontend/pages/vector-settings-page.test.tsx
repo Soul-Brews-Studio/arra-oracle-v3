@@ -3,7 +3,7 @@ import { VectorSettingsPage } from '../../../frontend/src/pages/VectorSettingsPa
 import { htmlFor } from '../_render';
 
 describe('VectorSettingsPage', () => {
-  test('composes vector search, provider, storage, adapter, and index panels', () => {
+  test('composes vector search, provider, storage, adapter, model guidance, and index panels', () => {
     const html = htmlFor(<VectorSettingsPage />);
     expect(html).toContain('Vector settings');
     expect(html).toContain('Enable vector search');
