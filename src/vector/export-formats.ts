@@ -94,8 +94,32 @@ function streamCsv(dump: EmbeddingDump): ReadableStream<Uint8Array> {
   });
 }
 
+function markdownBlocks(dump: EmbeddingDump): string {
+  const files = new Map<string, string[]>();
+  for (let i = 0; i < dump.ids.length; i++) {
+    const row = rowAt(dump, i);
+    const path = row.source_file || row.id || `document-${i + 1}`;
+    const blocks = files.get(path) ?? [];
+    if (row.document.trim()) blocks.push(row.document.trim());
+    files.set(path, blocks);
+  }
+  return [...files.entries()]
+    .map(([path, blocks]) => [`<!-- source: ${path} -->`, ...blocks].join('\n\n'))
+    .join('\n\n---\n\n');
+}
+
+function streamMarkdown(dump: EmbeddingDump): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(markdownBlocks(dump)));
+      controller.close();
+    },
+  });
+}
+
 export const exportFormatters: Record<string, ExportFormatter> = {
   json: streamJson,
   jsonl: streamJsonl,
   csv: streamCsv,
+  markdown: streamMarkdown,
 };
