@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { mkdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -18,16 +18,21 @@ process.env.ORACLE_REPO_ROOT = root;
 const dbMod = await import('../../../src/db/index.ts');
 dbMod.resetDefaultDatabaseForTests(dbPath);
 const { sessionsRoutes } = await import('../../../src/routes/sessions/index.ts');
+const { createTenantFetch, DEFAULT_TENANT_ID, TENANT_HEADER } = await import('../../../src/middleware/tenant.ts');
 
 function restore(name: string, value: string | undefined) {
   if (value === undefined) delete process.env[name];
   else process.env[name] = value;
 }
 
-function post(id: string, body: unknown) {
-  return sessionsRoutes.handle(new Request(`http://local/api/session/${id}/summary`, {
+function post(id: string, body: unknown, tenantId?: string) {
+  const headers = {
+    'content-type': 'application/json',
+    ...(tenantId ? { [TENANT_HEADER]: tenantId } : {}),
+  };
+  return createTenantFetch((request) => sessionsRoutes.handle(request))(new Request(`http://local/api/session/${id}/summary`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
   }));
 }
@@ -45,6 +50,40 @@ describe('session summary HTTP route', () => {
     const res = await post('empty-session', { summary: '   ' });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: 'Missing required field: summary' });
+  });
+
+  test('separates identical session summary ids by active tenant', async () => {
+    const sessionId = `shared-session-${Date.now()}`;
+    const tenantA = `session-a-${Date.now()}`;
+    const tenantB = `session-b-${Date.now()}`;
+    const defaultRes = await post(sessionId, { summary: 'Default tenant summary.' });
+    const tenantARes = await post(sessionId, { summary: 'Tenant A summary.', oracle: 'codex' }, tenantA);
+    const tenantBRes = await post(sessionId, { summary: 'Tenant B summary.', oracle: 'codex' }, tenantB);
+    const bodies = await Promise.all([defaultRes, tenantARes, tenantBRes].map(async (res) => await res.json() as Record<string, any>));
+
+    expect([defaultRes.status, tenantARes.status, tenantBRes.status]).toEqual([201, 201, 201]);
+    expect(bodies.map((body) => body.tenant_id)).toEqual([DEFAULT_TENANT_ID, tenantA, tenantB]);
+    expect(new Set(bodies.map((body) => body.learning_id)).size).toBe(3);
+    expect(bodies[0].source_file).toBe(`ψ/memory/session-summaries/${sessionId}.md`);
+    expect(bodies[1].source_file).toBe(`ψ/memory/session-summaries/${tenantA}/${sessionId}.md`);
+    expect(bodies[2].source_file).toBe(`ψ/memory/session-summaries/${tenantB}/${sessionId}.md`);
+
+    const ids = bodies.map((body) => String(body.learning_id));
+    const docs = dbMod.db.select({ id: dbMod.oracleDocuments.id, tenantId: dbMod.oracleDocuments.tenantId })
+      .from(dbMod.oracleDocuments)
+      .where(inArray(dbMod.oracleDocuments.id, ids))
+      .all();
+    const logs = dbMod.db.select({ documentId: dbMod.learnLog.documentId, tenantId: dbMod.learnLog.tenantId })
+      .from(dbMod.learnLog)
+      .where(inArray(dbMod.learnLog.documentId, ids))
+      .all();
+    const ftsRows = ids.map((id) => dbMod.sqlite.prepare('SELECT id FROM oracle_fts WHERE id = ?').get(id));
+
+    expect(docs).toHaveLength(3);
+    expect(logs).toHaveLength(3);
+    expect(docs.map((row) => row.tenantId).sort()).toEqual([DEFAULT_TENANT_ID, tenantA, tenantB].sort());
+    expect(logs.map((row) => row.tenantId).sort()).toEqual([DEFAULT_TENANT_ID, tenantA, tenantB].sort());
+    expect(ftsRows.every(Boolean)).toBe(true);
   });
 
   test('persists a valid session summary as a learning document', async () => {
