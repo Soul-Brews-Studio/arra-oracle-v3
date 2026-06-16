@@ -2,6 +2,7 @@ import { Elysia, t } from 'elysia';
 import { and, asc, eq, isNull, like, or } from 'drizzle-orm';
 import { db, menuItems } from '../../db/index.ts';
 import { menuRowToItem } from './list-paginated.ts';
+import { menuVisibleWhere } from '../../menu/tenant.ts';
 
 function searchTerm(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -14,11 +15,11 @@ function searchMenuRows(q: string) {
     .select()
     .from(menuItems)
     .where(
-      and(
+      menuVisibleWhere(and(
         eq(menuItems.enabled, true),
         isNull(menuItems.deletedAt),
         or(like(menuItems.label, pattern), like(menuItems.path, pattern)),
-      ),
+      )),
     )
     .orderBy(asc(menuItems.position), asc(menuItems.id))
     .all();

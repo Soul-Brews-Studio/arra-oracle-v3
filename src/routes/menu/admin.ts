@@ -8,15 +8,21 @@ import { Elysia, t } from 'elysia';
 import { eq, asc } from 'drizzle-orm';
 import { db, menuItems } from '../../db/index.ts';
 import { ScopeSchema } from './model.ts';
-import { softDeleteMenuItemById } from '../../storage/soft-delete.ts';
+import { softDeleteWhere } from '../../storage/soft-delete.ts';
 import { AccessSchema, GroupSchema, buildTree, toResponse, type MenuRow } from './admin-model.ts';
+import { menuOwnedWhere, menuTenantIdForWrite, menuVisibleWhere } from '../../menu/tenant.ts';
 
 export function createMenuAdminRoutes() {
   return new Elysia()
     .get(
       '/menu/tree',
       () => {
-        const rows = db.select().from(menuItems).orderBy(asc(menuItems.position)).all();
+        const rows = db
+          .select()
+          .from(menuItems)
+          .where(menuVisibleWhere())
+          .orderBy(asc(menuItems.position))
+          .all();
         return { items: buildTree(rows) };
       },
       {
@@ -33,6 +39,7 @@ export function createMenuAdminRoutes() {
         const rows = db
           .select()
           .from(menuItems)
+          .where(menuVisibleWhere())
           .orderBy(asc(menuItems.groupKey), asc(menuItems.position))
           .all();
         return { items: rows.map(toResponse) };
@@ -53,6 +60,7 @@ export function createMenuAdminRoutes() {
           const inserted = db
             .insert(menuItems)
             .values({
+              tenantId: menuTenantIdForWrite(),
               path: body.path,
               label: body.label,
               groupKey: body.groupKey ?? 'main',
@@ -126,7 +134,7 @@ export function createMenuAdminRoutes() {
         const updated = db
           .update(menuItems)
           .set(patch)
-          .where(eq(menuItems.id, id))
+          .where(menuOwnedWhere(eq(menuItems.id, id)))
           .returning()
           .get();
         if (!updated) {
@@ -165,16 +173,20 @@ export function createMenuAdminRoutes() {
           set.status = 400;
           return { error: 'invalid id' };
         }
-        const row = db.select().from(menuItems).where(eq(menuItems.id, id)).get();
+        const row = db.select().from(menuItems).where(menuOwnedWhere(eq(menuItems.id, id))).get();
         if (!row) {
           set.status = 404;
           return { error: 'not found' };
         }
         if (row.source === 'custom') {
-          db.delete(menuItems).where(eq(menuItems.id, id)).run();
+          db.delete(menuItems).where(menuOwnedWhere(eq(menuItems.id, id))).run();
           return { id, deleted: 'hard' as const };
         }
-        softDeleteMenuItemById(db, id, new Date());
+        const deletedAt = new Date();
+        softDeleteWhere(db, menuItems, menuOwnedWhere(eq(menuItems.id, id))!, {
+          deletedAt,
+          set: { enabled: false, touchedAt: deletedAt },
+        });
         return { id, deleted: 'soft' as const };
       },
       {

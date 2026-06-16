@@ -6,6 +6,7 @@
 
 import { eq, and, ne, isNotNull } from 'drizzle-orm';
 import { oracleDocuments } from '../db/schema.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 import type { ToolContext, ToolResponse, OracleConceptsInput } from './types.ts';
 
 export const conceptsToolDef = {
@@ -33,7 +34,10 @@ export const conceptsToolDef = {
 export function listConcepts(db: ToolContext['db'], input: OracleConceptsInput) {
   const { limit = 50, type = 'all' } = input;
 
-  const baseCondition = and(isNotNull(oracleDocuments.concepts), ne(oracleDocuments.concepts, '[]'));
+  const filters = [isNotNull(oracleDocuments.concepts), ne(oracleDocuments.concepts, '[]')];
+  const tenantId = currentTenantId();
+  if (tenantId) filters.push(eq(oracleDocuments.tenantId, tenantId));
+  const baseCondition = and(...filters);
   const rows = type === 'all'
     ? db.select({ concepts: oracleDocuments.concepts }).from(oracleDocuments).where(baseCondition).all()
     : db.select({ concepts: oracleDocuments.concepts }).from(oracleDocuments).where(and(baseCondition, eq(oracleDocuments.type, type))).all();

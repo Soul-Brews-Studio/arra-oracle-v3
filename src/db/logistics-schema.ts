@@ -84,6 +84,7 @@ export const settings = sqliteTable('settings', {
 
 export const menuItems = sqliteTable('menu_items', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  tenantId: text('tenant_id').default('default').notNull(),
   path: text('path').notNull(),
   label: text('label').notNull(),
   groupKey: text('group_key').notNull(),
@@ -103,6 +104,8 @@ export const menuItems = sqliteTable('menu_items', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),
 }, (table) => [
+  index('idx_menu_tenant').on(table.tenantId),
+  index('idx_menu_tenant_deleted_position').on(table.tenantId, table.deletedAt, table.position),
   index('idx_menu_parent').on(table.parentId, table.position),
   index('idx_menu_group').on(table.groupKey, table.position),
   index('idx_menu_deleted_at').on(table.deletedAt),

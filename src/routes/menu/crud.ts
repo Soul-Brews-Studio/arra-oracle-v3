@@ -1,9 +1,10 @@
 import { Elysia, t } from 'elysia';
 import { eq } from 'drizzle-orm';
 import { db, menuItems } from '../../db/index.ts';
-import { softDeleteMenuItemById } from '../../storage/soft-delete.ts';
+import { softDeleteWhere } from '../../storage/soft-delete.ts';
 import { ScopeSchema } from './model.ts';
 import { AccessSchema, GroupSchema, toResponse, type MenuRow } from './admin-model.ts';
+import { menuOwnedWhere, menuTenantIdForWrite } from '../../menu/tenant.ts';
 
 function idParam(value: string): number | null {
   const id = Number(value);
@@ -15,6 +16,7 @@ function insertMenuItem(body: MenuCreateBody) {
   return db
     .insert(menuItems)
     .values({
+      tenantId: menuTenantIdForWrite(),
       path: body.path,
       label: body.label,
       groupKey: body.groupKey ?? 'main',
@@ -88,7 +90,7 @@ export function createMenuCrudRoutes() {
         set.status = 400;
         return { error: 'invalid id' };
       }
-      const updated = db.update(menuItems).set(updatePatch(body)).where(eq(menuItems.id, id)).returning().get();
+      const updated = db.update(menuItems).set(updatePatch(body)).where(menuOwnedWhere(eq(menuItems.id, id))).returning().get();
       if (!updated) {
         set.status = 404;
         return { error: 'not found' };
@@ -101,7 +103,11 @@ export function createMenuCrudRoutes() {
         set.status = 400;
         return { error: 'invalid id' };
       }
-      const updated = softDeleteMenuItemById(db, id).rows[0];
+      const deletedAt = new Date();
+      const updated = softDeleteWhere(db, menuItems, menuOwnedWhere(eq(menuItems.id, id))!, {
+        deletedAt,
+        set: { enabled: false, touchedAt: deletedAt },
+      }).rows[0];
       if (!updated) {
         set.status = 404;
         return { error: 'not found' };
