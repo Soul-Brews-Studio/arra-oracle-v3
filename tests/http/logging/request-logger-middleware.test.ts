@@ -37,33 +37,52 @@ function app(logs: StructuredRequestLogEntry[], ticks = [10, 14.25]) {
     .get('/raw', () => new Response('raw', { status: 202 }));
 }
 
-describe('structured request logging middleware', () => {
-  test('default sink emits a JSON request log line', async () => {
-    const original = console.log;
-    const lines: string[] = [];
-    console.log = (message?: unknown) => { lines.push(String(message)); };
-    try {
-      const res = await new Elysia()
-        .use(createRequestLoggingMiddleware({
-          now: () => 1,
-          timestamp: () => '2026-06-16T00:00:00.000Z',
-        }))
-        .get('/json-log', () => ({ ok: true }))
-        .fetch(new Request('http://local/json-log', { headers: { 'x-correlation-id': 'json-1' } }));
+async function collectDefaultLogLine(format: string | undefined, path: string, correlationId: string) {
+  const originalLog = console.log;
+  const originalFormat = process.env.LOG_FORMAT;
+  const lines: string[] = [];
+  if (format === undefined) delete process.env.LOG_FORMAT;
+  else process.env.LOG_FORMAT = format;
+  console.log = (message?: unknown) => { lines.push(String(message)); };
+  try {
+    const res = await new Elysia()
+      .use(createRequestLoggingMiddleware({
+        now: () => 1,
+        timestamp: () => '2026-06-16T00:00:00.000Z',
+      }))
+      .get(path, () => ({ ok: true }))
+      .fetch(new Request(`http://local${path}`, { headers: { 'x-correlation-id': correlationId } }));
 
-      expect(res.status).toBe(200);
-      const entry = JSON.parse(await waitForLine(lines)) as StructuredRequestLogEntry;
-      expect(entry).toMatchObject({
-        event: 'http_request',
-        method: 'GET',
-        path: '/json-log',
-        status: 200,
-        correlationId: 'json-1',
-        sandbox: 'dev',
-      });
-    } finally {
-      console.log = original;
-    }
+    expect(res.status).toBe(200);
+    return await waitForLine(lines);
+  } finally {
+    console.log = originalLog;
+    if (originalFormat === undefined) delete process.env.LOG_FORMAT;
+    else process.env.LOG_FORMAT = originalFormat;
+  }
+}
+
+describe('structured request logging middleware', () => {
+  test('default sink emits nginx request log lines when LOG_FORMAT is unset', async () => {
+    const line = await collectDefaultLogLine(undefined, '/nginx-log', 'nginx-1');
+    expect(line).toBe('GET /nginx-log 200 0ms [nginx-1] [dev]');
+  });
+
+  test('default sink honors LOG_FORMAT=json and LOG_FORMAT=short', async () => {
+    const json = await collectDefaultLogLine('json', '/json-log', 'json-1');
+    const entry = JSON.parse(json) as StructuredRequestLogEntry;
+    expect(entry).toMatchObject({
+      event: 'http_request',
+      method: 'GET',
+      path: '/json-log',
+      status: 200,
+      timestamp: '2026-06-16T00:00:00.000Z',
+      correlationId: 'json-1',
+      sandbox: 'dev',
+    });
+
+    const short = await collectDefaultLogLine('short', '/short-log', 'short-1');
+    expect(short).toBe('200 GET /short-log 0ms');
   });
 
   test('logs structured JSON request metadata with redacted headers', async () => {
