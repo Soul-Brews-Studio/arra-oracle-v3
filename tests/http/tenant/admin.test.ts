@@ -24,3 +24,19 @@ test('tenant admin API creates and lists tenants', async () => {
   const body = await listed.json() as { tenants: Array<{ id: string }> };
   expect(body.tenants.map((tenant) => tenant.id)).toContain(tenantId);
 });
+
+test('tenant admin API rejects blank or unsafe tenant ids', async () => {
+  for (const id of ['   ', '../escape', 'bad tenant']) {
+    const res = await tenantsRoutes.handle(new Request('http://local/api/tenants', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id }),
+    }));
+    const body = await res.json() as { error: string };
+
+    expect(res.status).toBe(400);
+    expect(body.error).toContain('tenant id');
+  }
+
+  expect(db.select().from(tenants).where(eq(tenants.id, '')).get()).toBeUndefined();
+});
