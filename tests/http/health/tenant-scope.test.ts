@@ -37,7 +37,7 @@ function createFetch() {
   return createTenantFetch((request) => app.handle(request));
 }
 
-test.skip('GET /api/stats scopes document counts by tenant header', async () => {
+test('GET /api/stats scopes document counts by tenant header', async () => {
   const res = await createFetch()(new Request('http://local/api/stats', {
     headers: { [TENANT_HEADER]: tenantA },
   }));
