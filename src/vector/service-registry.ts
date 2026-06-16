@@ -15,8 +15,10 @@ import {
   type VectorStorageConfig,
   type VectorStorageService,
 } from './config.ts';
+import { VECTOR_PROXY_ROUTES, buildVectorProxyUrl } from './proxy-protocol.ts';
 
 export type RegisteredServiceType = 'builtin' | 'proxy';
+export { buildVectorProxyUrl as vectorServiceUrl } from './proxy-protocol.ts';
 
 export interface RegisteredVectorService {
   name: string;
@@ -42,11 +44,6 @@ export interface VectorServiceRegistryClient {
 }
 
 const HEALTH_TIMEOUT_MS = 5_000;
-
-export function vectorServiceUrl(endpoint: string, suffix: string): string {
-  const safeBase = endpoint.replace(/\/+$/, '');
-  return `${safeBase}${suffix.startsWith('/') ? suffix : `/${suffix}`}`;
-}
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -198,7 +195,7 @@ export class VectorServiceRegistry implements VectorServiceRegistryClient {
         if (!endpoint) {
           throw new Error('missing endpoint');
         }
-        const healthUrl = vectorServiceUrl(endpoint, '/health');
+        const healthUrl = buildVectorProxyUrl(endpoint, VECTOR_PROXY_ROUTES.health);
         const response = await fetch(healthUrl, {
           method: 'GET',
           signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),

@@ -51,7 +51,11 @@ test('TurboVec sidecar reference speaks the vector proxy protocol', async () => 
   sidecar.on('error', (error) => { throw error; });
   await waitForHealth(base);
 
-  expect(await json(`${base}/health`)).toMatchObject({ status: 'ok', name: 'turbovec-test' });
+  expect(await json(`${base}/health`)).toMatchObject({
+    status: 'ok',
+    name: 'turbovec-test',
+    protocol: 'vector-proxy-v1',
+  });
   expect(await json(`${base}/vectors/stats`)).toMatchObject({ count: 0, name: 'turbovec-test' });
 
   const docs = [
