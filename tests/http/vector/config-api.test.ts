@@ -112,6 +112,31 @@ test('GET and PUT /api/v1/vector/config expose and update vector-server.json', a
     adapter: 'qdrant',
   });
 
+  const addRes = await call('/api/v1/vector/config/phase2', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ collection: 'phase2_collection', model: 'phase2-model', primary: true }),
+  });
+  expect(addRes.status).toBe(200);
+  expect(addRes.body.config.collections.phase2).toMatchObject({
+    collection: 'phase2_collection',
+    model: 'phase2-model',
+    provider: 'none',
+    adapter: 'lancedb',
+    primary: true,
+  });
+  expect(addRes.body.config.collections.phase1.primary).toBe(false);
+
+  const primaryRes = await call('/api/v1/vector/config/phase1/primary', { method: 'POST' });
+  expect(primaryRes.status).toBe(200);
+  expect(primaryRes.body.config.collections.phase1.primary).toBe(true);
+  expect(primaryRes.body.config.collections.phase2.primary).toBe(false);
+
+  const removeRes = await call('/api/v1/vector/config/phase2', { method: 'DELETE' });
+  expect(removeRes.status).toBe(200);
+  expect(removeRes.body.removed).toBe('phase2');
+  expect(removeRes.body.config.collections.phase2).toBeUndefined();
+
   const reloadRes = await call('/api/v1/vector/config/reload', { method: 'POST' });
   expect(reloadRes.status).toBe(200);
   expect(reloadRes.body).toMatchObject({ success: true, reloaded: true, source: 'file' });
