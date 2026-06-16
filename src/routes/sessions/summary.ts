@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
-import { handleSessionSummary } from '../../server/handlers.ts';
 import { SummaryParams, SummaryBody, MAX_SUMMARY_CHARS } from './model.ts';
+import { persistSessionSummary } from './store.ts';
 
 export const summaryRoute = new Elysia().post(
   '/api/session/:id/summary',
@@ -15,7 +15,7 @@ export const summaryRoute = new Elysia().post(
       return { error: `summary exceeds max length (${MAX_SUMMARY_CHARS} chars)` };
     }
     set.status = 201;
-    return handleSessionSummary(params.id, summary, body.oracle);
+    return persistSessionSummary(params.id, summary, body.oracle);
   },
   {
     params: SummaryParams,

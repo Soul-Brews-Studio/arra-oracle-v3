@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia';
 import { getSetting, isDbLockError } from '../../db/index.ts';
+import { activeTenantId } from '../../middleware/tenant.ts';
 import {
   SESSION_COOKIE_NAME,
   isAuthenticated,
@@ -14,8 +15,9 @@ export const statusRoute = new Elysia().get('/status', ({ server, request, cooki
     const localBypass = getSetting('auth_local_bypass') !== 'false';
     const isLocal = isLocalNetwork(server, request);
     const authenticated = isAuthenticated(server, request, sessionValue);
+    const tenantId = activeTenantId();
 
-    return { authenticated, authEnabled, hasPassword, localBypass, isLocal };
+    return { authenticated, authEnabled, hasPassword, localBypass, isLocal, tenantId };
   } catch (err) {
     if (isDbLockError(err)) {
       return {
@@ -24,6 +26,7 @@ export const statusRoute = new Elysia().get('/status', ({ server, request, cooki
         hasPassword: false,
         localBypass: true,
         isLocal: true,
+        tenantId: activeTenantId(),
         indexing: true,
       };
     }
