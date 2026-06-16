@@ -22,7 +22,11 @@ function preview(value: unknown): string {
 }
 
 function csvCell(value: unknown): string {
-  return `"${text(value).replaceAll('"', '""')}"`;
+  return `"${spreadsheetSafe(text(value)).replaceAll('"', '""')}"`;
+}
+
+function spreadsheetSafe(value: string): string {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
 }
 
 function csvRow(collection: string, row: ExportRecord): string[] {

@@ -4,7 +4,11 @@ const COLUMNS = ['id', 'source', 'type', 'concepts', 'content_preview', 'metadat
 
 function csvCell(value: unknown): string {
   const text = value == null ? '' : String(value);
-  return `"${text.replaceAll('"', '""')}"`;
+  return `"${spreadsheetSafe(text).replaceAll('"', '""')}"`;
+}
+
+function spreadsheetSafe(value: string): string {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
 }
 
 function preview(content: string): string {
