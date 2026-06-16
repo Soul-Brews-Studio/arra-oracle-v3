@@ -6,7 +6,7 @@ import { Elysia } from 'elysia';
 import { normalizeUnifiedPluginManifest, type NormalizedUnifiedPluginManifest, type UnifiedApiRouteManifest, type UnifiedCliSubcommandManifest, type UnifiedMcpToolManifest, type UnifiedMenuManifest } from './unified-manifest.ts';
 import { sortPluginsByDependencies } from './dependency-resolver.ts';
 import { pluginRegistryFromLoadedPlugins, type LoadedPluginRegistryEntry } from './registry.ts';
-import { runPluginSandbox } from './sandbox.ts';
+import { runPluginWithErrorContainment } from './error-containment.ts';
 import { createUnifiedProxyRoute } from './proxy-surface.ts';
 import { unifiedPluginServerRoutes, type UnifiedPluginServer } from './unified-server.ts';
 import { resolveContainedPluginEntry } from './path-containment.ts';
@@ -107,7 +107,7 @@ export async function discoverUnifiedPluginManifests(
 
 async function invoke(plugin: LoadedUnifiedPlugin, handler: string | undefined, ctx: InvokeContext, timeoutMs: number) {
   if (!handler) return { ok: true, plugin: plugin.manifest.name, source: ctx.source };
-  const result = await runPluginSandbox({
+  const result = await runPluginWithErrorContainment({
     plugin: plugin.manifest.name,
     phase: ctx.source === 'init' || ctx.source === 'destroy' ? ctx.source : 'runtime',
   }, async () => {
