@@ -8,10 +8,11 @@ describe('PluginsPage admin view', () => {
     const html = htmlFor(<PluginsPage plugins={plugins} loading={false} />);
 
     expect(pluginAdminSummary(plugins, enabledStateForPlugins(plugins))).toBe('1 enabled · 0 disabled · 1 registered');
-    expect(html).toContain('GET /api/v1/plugins');
+    expect(html).toContain('GET /api/plugins');
     expect(html).toContain('canvas');
     expect(html).toContain('1.2.3');
-    expect(html).toContain('active');
+    expect(html).toContain('ok');
     expect(html).toContain('healthy');
+    expect(html).toContain('Unified backend surfaces');
   });
 });
