@@ -13,6 +13,7 @@ import { createVectorStoreForModel, EMBEDDING_MODELS } from '../vector/factory.t
 import { createDatabase, oracleDocuments } from '../db/index.ts';
 import { count } from 'drizzle-orm';
 import { DB_PATH } from '../config.ts';
+import { formatIndexProgress, normalizeBatchSize } from './indexer-progress.ts';
 
 const modelKey = process.argv[2];
 
@@ -25,8 +26,7 @@ if (!modelKey || !EMBEDDING_MODELS[modelKey]) {
 const preset = EMBEDDING_MODELS[modelKey];
 
 // Keep script batches aligned with OllamaEmbeddings' /api/embed batching default.
-const parsedBatchSize = Number.parseInt(process.env.ORACLE_EMBED_BATCH_SIZE || '50', 10);
-const BATCH_SIZE = Number.isFinite(parsedBatchSize) && parsedBatchSize > 0 ? parsedBatchSize : 50;
+const BATCH_SIZE = normalizeBatchSize(process.env.ORACLE_EMBED_BATCH_SIZE, 50);
 
 async function main() {
   console.log(`=== ${modelKey} Indexer ===`);
@@ -102,10 +102,8 @@ async function main() {
       }
       indexed += docs.length;
 
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
-      const rate = (indexed / Number(elapsed)).toFixed(1);
-      const eta = ((rows.length - indexed) / Number(rate)).toFixed(0);
-      console.log(`  Batch ${batchNum}/${totalBatches} — ${indexed}/${rows.length} docs — ${rate}/s — ETA ${eta}s`);
+      const progress = formatIndexProgress({ indexed, total: rows.length, startTimeMs: startTime });
+      console.log(`  Batch ${batchNum}/${totalBatches} — ${indexed}/${rows.length} docs — ${progress.rate}/s — ETA ${progress.eta}s`);
     } catch (e) {
       errors++;
       console.error(`  Batch ${batchNum} FAILED:`, e instanceof Error ? e.message : String(e));
