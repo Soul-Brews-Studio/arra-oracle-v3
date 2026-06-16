@@ -76,6 +76,15 @@ describe('config env validation', () => {
       .toThrow(/Proxy vector DB requires ORACLE_PROXY_VECTOR_URL/);
   });
 
+  test('requires provider credentials for remote embedding backends', () => {
+    expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', ORACLE_EMBEDDER: 'remote' }, emitOptionalWarnings: false }))
+      .toThrow(/Remote embedder requires ORACLE_EMBEDDER_URL or ORACLE_REMOTE_EMBEDDING_URL/);
+    expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', ORACLE_EMBEDDER: 'openai' }, emitOptionalWarnings: false }))
+      .toThrow(/OpenAI embedder requires OPENAI_API_KEY/);
+    expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', ORACLE_VECTOR_DB: 'cloudflare-vectorize' }, emitOptionalWarnings: false }))
+      .toThrow(/Cloudflare vector\/AI config requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN/);
+  });
+
   test('rejects non-http remote service URLs clearly', () => {
     expect(() => validateEnv({
       env: { HOME: '/tmp/arra-home', ORACLE_VECTOR_DB: 'proxy', ORACLE_PROXY_VECTOR_URL: 'ftp://vectors' },

@@ -60,6 +60,34 @@ test('OracleV2Client avoids duplicating /api when base URL already includes it',
   expect(urls).toEqual(['https://old.example/api/collections']);
 });
 
+test('OracleV2Client normalizes alternate payload keys and string documents', async () => {
+  const urls: string[] = [];
+  const client = new OracleV2Client({
+    baseUrl: 'https://old.example',
+    fetch: async (input) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.endsWith('/api/collections')) {
+        return json({ items: [{ key: ' trace_log ', rowCount: 2 }, { id: 'docs', documentCount: 1 }] });
+      }
+      return json({ rows: ['plain body', { id: 'doc-2', title: 'Second' }] });
+    },
+  });
+
+  await expect(client.listCollections()).resolves.toMatchObject([
+    { name: 'trace_log', rowCount: 2 },
+    { name: 'docs', documentCount: 1 },
+  ]);
+  await expect(client.listDocuments(' trace_log ')).resolves.toEqual([
+    { collection: 'trace_log', content: 'plain body' },
+    { collection: 'trace_log', id: 'doc-2', title: 'Second' },
+  ]);
+  expect(urls).toEqual([
+    'https://old.example/api/collections',
+    'https://old.example/api/documents?collection=trace_log',
+  ]);
+});
+
 test('OracleV2Client reports invalid inputs and backend errors', async () => {
   const client = new OracleV2Client({
     baseUrl: 'https://old.example',
