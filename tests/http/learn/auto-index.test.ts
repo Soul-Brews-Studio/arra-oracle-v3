@@ -4,6 +4,7 @@ import os from 'os';
 import path from 'path';
 import type { IndexerConfig } from '../../../src/types.ts';
 import { collectPsiLearn } from '../../../src/indexer/collectors.ts';
+import { createIndexerConfig } from '../../../src/indexer/cli.ts';
 
 let repoRoot = '';
 
@@ -28,6 +29,13 @@ afterEach(() => {
 });
 
 describe('ψ/learn auto-index source discovery', () => {
+  test('CLI indexer config includes ψ/learn in scan paths', () => {
+    const config = createIndexerConfig('/tmp/arra-psi-learn-config-test');
+
+    expect(config.sourcePaths.learn).toBe('ψ/learn');
+    expect(Object.values(config.sourcePaths)).toContain('ψ/learn');
+  });
+
   test('standard index scan includes ψ/learn markdown by default', () => {
     const config = makeConfig();
     const learnDir = path.join(repoRoot, 'ψ', 'learn', 'github.com', 'owner', 'repo');

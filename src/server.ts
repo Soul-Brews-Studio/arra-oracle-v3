@@ -42,6 +42,7 @@ import { createHealthRoutes } from './routes/health/index.ts';
 import { dashboardRoutes } from './routes/dashboard/index.ts';
 import { searchRoutes } from './routes/search/index.ts';
 import { vectorRoutes } from './routes/vector/index.ts';
+import { vectorConfigApiRoutes } from './routes/vector/config-api.ts';
 import { knowledgeRoutes } from './routes/knowledge/index.ts';
 import { supersedeRoutes } from './routes/supersede/index.ts';
 import { forumApi } from './routes/forum/index.ts';
@@ -56,10 +57,15 @@ import { createMenuRoutes, menuItemsFromUnifiedPlugins } from './routes/menu/ind
 import { peerRoutes } from './routes/peer/index.ts';
 import { createMcpRoutes } from './routes/mcp/index.ts';
 import { createMetricsLifecycle, metricsRoutes } from './routes/metrics/index.ts';
+import { exportRoutes } from './routes/export/index.ts';
 import { memoryRoutes } from './routes/memory/index.ts';
 import { canvasRoutes } from './routes/canvas/index.ts';
 import { tenantsRoutes } from './routes/tenants/index.ts';
-
+import { watcherRoutes } from './routes/watcher/index.ts';
+import { fileWatcherService } from './services/file-watcher.ts';
+import { exportAppRoutes } from './routes/export/app.ts';
+import { exportBatchRoutes } from './routes/export/batch.ts';
+import { exportImportRoutes } from './routes/export/import.ts';
 let indexerRoutes: any = null;
 try {
   indexerRoutes = (await import('./routes/indexer/index.ts')).indexerRoutes;
@@ -80,19 +86,13 @@ try {
 console.log('[Vector] mode:', VECTOR_URL ? 'proxy → ' + VECTOR_URL : 'local');
 
 try {
-  const bt = sqlite.prepare('PRAGMA busy_timeout').get();
-  console.log(`[DB] busy_timeout = ${JSON.stringify(bt)}`);
+  console.log(`[DB] busy_timeout = ${JSON.stringify(sqlite.prepare('PRAGMA busy_timeout').get())}`);
 } catch {}
-
 configure({ dataDir: ORACLE_DATA_DIR, pidFileName: 'oracle-http.pid' });
-writePidFile({
-  pid: process.pid,
-  port: Number(PORT),
-  startedAt: new Date().toISOString(),
-  name: 'oracle-http',
-});
+writePidFile({ pid: process.pid, port: Number(PORT), startedAt: new Date().toISOString(), name: 'oracle-http' });
 const scoutAnnouncer = shouldStartScoutAnnouncer() ? new ScoutAnnouncer() : null;
 scoutAnnouncer?.start();
+if (process.env.ORACLE_FILE_WATCHER !== '0') fileWatcherService.start();
 
 const unifiedPlugins = await loadUnifiedPlugins({
   dirs: defaultUnifiedPluginDirs([join(import.meta.dir, 'plugins')]),
@@ -105,6 +105,7 @@ registerGracefulShutdown({
     console.log('\n🔮 Shutting down gracefully...');
     await runShutdownSteps([
       { name: 'scout-announcer', run: () => scoutAnnouncer?.stop() },
+      { name: 'file-watcher', run: () => { fileWatcherService.stop(); } },
       { name: 'unified-plugins', run: () => unifiedPlugins.stop() },
       { name: 'unified-plugin-servers', run: () => unifiedServers.stop() },
       { name: 'vector-stores', run: () => closeCachedVectorStores() },
@@ -169,14 +170,12 @@ const app = new Elysia()
     docs: '/api/docs',
     api: '/api/v1',
   }));
-
 const healthRoutes = createHealthRoutes({
   pluginCount: unifiedPlugins.pluginCount,
   pluginMcpToolCount: unifiedPlugins.mcpTools.length,
   pluginStatuses: unifiedPlugins.pluginStatuses,
   isDraining,
 });
-
 const apiModules = [
   authRoutes,
   settingsRoutes,
@@ -185,6 +184,7 @@ const apiModules = [
   dashboardRoutes,
   searchRoutes,
   vectorRoutes,
+  vectorConfigApiRoutes,
   knowledgeRoutes,
   supersedeRoutes,
   forumApi,
@@ -196,13 +196,17 @@ const apiModules = [
   sessionsRoutes,
   vaultRoutes,
   metricsRoutes,
+  exportRoutes,
   memoryRoutes,
   canvasRoutes,
   tenantsRoutes,
+  watcherRoutes,
+  exportAppRoutes,
+  exportBatchRoutes,
+  exportImportRoutes,
   ...(indexerRoutes ? [indexerRoutes] : []),
   ...unifiedPlugins.routes,
 ];
-
 try {
   const result = seedMenuItems(apiModules as unknown as SeedHasRoutes[]);
   await seedUnifiedPluginMenuItems(unifiedPlugins.menu);
@@ -215,9 +219,7 @@ try {
 
 const menuRoutes = createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu));
 const mcpRoutes = createMcpRoutes(unifiedPlugins.mcpTools);
-
 const modules = [...apiModules, mcpRoutes, menuRoutes];
-
 for (const mod of modules) app.use(mod as any);
 app.use(createNotFoundMiddleware(app.routes));
 
@@ -226,7 +228,6 @@ const middleware = runtimeMiddleware({
   rateLimitTokensPerWindow: startupConfig.profile.rateLimit.tokensPerWindow,
   gatewayEnabled: Boolean(VECTOR_URL) || process.env.ORACLE_GATEWAY_HOT_RELOAD !== '0',
 });
-
 printStartupBanner({
   version: pkg.version,
   port: Number(PORT),
@@ -243,7 +244,6 @@ await runStartupSelfTest({
 const serverFetch = createRequestTimeoutFetch(
   createRequestDedupFetch(createApiVersionedFetch(createTenantFetch(createDbContextFetch((request: Request) => app.fetch(request))))),
 );
-
 export default {
   port: Number(PORT),
   fetch: (request: Request) => drainingResponseFor(request) ?? trackRequest(() => serverFetch(request)),

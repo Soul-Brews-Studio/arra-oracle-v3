@@ -9,9 +9,15 @@ interface CliOptions {
 
 function readValue(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag);
-  if (index >= 0) return args[index + 1];
+  if (index >= 0) {
+    const value = args[index + 1];
+    if (!value || value.startsWith('-')) throw new Error(`missing value for ${flag}`);
+    return value;
+  }
   const prefix = `${flag}=`;
-  return args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+  const value = args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+  if (value === '') throw new Error(`missing value for ${flag}`);
+  return value;
 }
 
 export function parseArgs(args: string[]): CliOptions {
@@ -24,8 +30,7 @@ function printHelp(write: Writer): void {
   write([
     'bun run tools/export-app/index.ts --output ./backup/ [--db ./oracle.db]',
     '',
-    'Exports all Drizzle-known Oracle collections as markdown, JSON, and CSV.',
-    'Also writes all-collections.json, graph relationships, and manifest.json.',
+    'Exports Oracle docs plus all Drizzle collections without starting the server.',
     '',
     'Flags:',
     '  --output, -o <dir>   destination backup directory',

@@ -1,19 +1,23 @@
-import { getTableName } from 'drizzle-orm';
+import { getTableName, isTable } from 'drizzle-orm';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { DB_PATH } from '../../src/config.ts';
-import type { DatabaseConnection } from '../../src/db/index.ts';
 import { introspectDrizzleTables } from '../../src/cli/commands/backup.ts';
+import type { DatabaseConnection } from '../../src/db/index.ts';
+import * as schema from '../../src/db/schema.ts';
 import { createStorageBackend } from '../../src/storage/registry.ts';
 import {
   EXPORT_FORMATS,
   extensionFor,
   formatCollection,
+  normalizeRecord,
   normalizeRecords,
   type ExportRecord,
 } from './formats.ts';
+import { graphRelationships } from './graph.ts';
+import { exportOracleV2Documents } from './documents.ts';
 
-type DumpTable = ReturnType<typeof introspectDrizzleTables>[number];
+type ExportTable = Parameters<typeof getTableName>[0];
 type Progress = (message: string) => void;
 
 export interface ExportAppOptions {
@@ -24,21 +28,29 @@ export interface ExportAppOptions {
   now?: () => Date;
 }
 
-export interface ExportAppResult {
+export interface ExportOracleDataResult {
   outputDir: string;
   collectionCount: number;
   rowCount: number;
   relationshipCount: number;
+  documentCount: number;
 }
 
-export type GraphRelationship = {
-  type: string;
-  from: string;
-  to: string;
-  metadata?: Record<string, unknown>;
-};
+export interface ExportMarkdownResult {
+  outputDir: string;
+  collectionCount: number;
+  fileCount: number;
+}
 
-export async function exportOracleData(options: ExportAppOptions): Promise<ExportAppResult> {
+export { graphRelationships, type GraphRelationship } from './graph.ts';
+export { exportOracleV2Documents, readOracleV2Documents } from './documents.ts';
+
+export function schemaTables(): ExportTable[] {
+  return (Object.values(schema).filter(isTable) as ExportTable[])
+    .sort((a, b) => getTableName(a).localeCompare(getTableName(b)));
+}
+
+export async function exportOracleData(options: ExportAppOptions): Promise<ExportOracleDataResult> {
   const close = options.connection ? undefined : openReadonlyConnection(options.dbPath);
   const connection = options.connection ?? close!.connection;
   const tables = introspectDrizzleTables();
@@ -62,17 +74,48 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
     }
 
     const relationships = graphRelationships(allCollections);
+    const documentExport = await exportOracleV2Documents({ ...options, outputDir, connection, progress });
     await writeCollectionFiles(outputDir, 'relationships', relationships);
-    await writeFile(path.join(outputDir, 'all-collections.json'), JSON.stringify({ exportedAt, collections: allCollections }, null, 2) + '\n');
-    await writeFile(path.join(outputDir, 'manifest.json'), JSON.stringify({
+    await writeJson(path.join(outputDir, 'all-collections.json'), { exportedAt, collections: allCollections });
+    await writeJson(path.join(outputDir, 'manifest.json'), {
       exportedAt,
       dbPath: options.dbPath ?? DB_PATH,
       formats: EXPORT_FORMATS,
       collectionCount: tables.length,
       rowCount,
       relationshipCount: relationships.length,
-    }, null, 2) + '\n');
-    return { outputDir, collectionCount: tables.length, rowCount, relationshipCount: relationships.length };
+      documentCount: documentExport.documentCount,
+    });
+    return {
+      outputDir,
+      collectionCount: tables.length,
+      rowCount,
+      relationshipCount: relationships.length,
+      documentCount: documentExport.documentCount,
+    };
+  } finally {
+    close?.connection.storage.close();
+  }
+}
+
+export async function exportMarkdownData(options: ExportAppOptions): Promise<ExportMarkdownResult> {
+  const close = options.connection ? undefined : openReadonlyConnection(options.dbPath);
+  const connection = options.connection ?? close!.connection;
+  const tables = schemaTables();
+  const outputDir = path.resolve(options.outputDir);
+  const progress = options.progress ?? ((message) => console.error(message));
+  let fileCount = 0;
+
+  try {
+    await mkdir(outputDir, { recursive: true });
+    for (let i = 0; i < tables.length; i += 1) {
+      const table = tables[i]!;
+      const name = getTableName(table);
+      const rows = selectRows(connection, table).map(normalizeRecord);
+      progress(`[${i + 1}/${tables.length}] ${name}: ${rows.length} rows`);
+      fileCount += await writeCollectionMarkdown(outputDir, name, rows);
+    }
+    return { outputDir, collectionCount: tables.length, fileCount };
   } finally {
     close?.connection.storage.close();
   }
@@ -83,7 +126,7 @@ function openReadonlyConnection(dbPath = DB_PATH): { connection: DatabaseConnect
   return { connection: { sqlite: storage.sqlite, db: storage.db, storage } };
 }
 
-function selectRows(connection: DatabaseConnection, table: DumpTable): ExportRecord[] {
+function selectRows(connection: DatabaseConnection, table: ExportTable): ExportRecord[] {
   return (connection.db as any).select().from(table).all() as ExportRecord[];
 }
 
@@ -94,53 +137,68 @@ async function writeCollectionFiles(baseDir: string, name: string, rows: ExportR
   }
 }
 
+async function writeCollectionMarkdown(baseDir: string, name: string, rows: ExportRecord[]): Promise<number> {
+  const collectionDir = path.join(baseDir, safeName(name));
+  const usedNames = new Map<string, number>();
+  await mkdir(collectionDir, { recursive: true });
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index]!;
+    const id = rowIdentity(row, index);
+    const fileName = uniqueFileName(safeName(id), usedNames);
+    await writeFile(path.join(collectionDir, `${fileName}.md`), documentMarkdown(name, id, row), 'utf8');
+  }
+  return rows.length;
+}
+
+async function writeJson(file: string, value: unknown): Promise<void> {
+  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
 function safeName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/^_+|_+$/g, '') || 'row';
 }
 
-export function graphRelationships(collections: Record<string, ExportRecord[]>): GraphRelationship[] {
+function uniqueFileName(base: string, usedNames: Map<string, number>): string {
+  const count = usedNames.get(base) ?? 0;
+  usedNames.set(base, count + 1);
+  return count === 0 ? base : `${base}-${count + 1}`;
+}
+
+function rowIdentity(row: ExportRecord, index: number): string {
+  const id = row.id ?? row.traceId ?? row.key ?? row.documentId;
+  return id == null || id === '' ? `row-${index + 1}` : String(id);
+}
+
+function documentMarkdown(collection: string, id: string, row: ExportRecord): string {
   return [
-    ...documentRelationships(collections.oracle_documents ?? []),
-    ...traceRelationships(collections.trace_log ?? []),
-  ];
+    '---',
+    `id: ${yamlScalar(id)}`,
+    `collection: ${yamlScalar(collection)}`,
+    timestampsYaml(row),
+    '---',
+    '',
+    `# ${collection}/${id}`,
+    '',
+    '```json',
+    JSON.stringify(row, null, 2),
+    '```',
+    '',
+  ].join('\n');
 }
 
-function text(value: unknown): string | undefined {
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
+function timestampsYaml(row: ExportRecord): string {
+  const entries = Object.entries(row).filter(([key, value]) => isTimestampKey(key) && value != null);
+  if (entries.length === 0) return 'timestamps: {}';
+  return ['timestamps:', ...entries.map(([key, value]) => `  ${key}: ${yamlScalar(value)}`)].join('\n');
 }
 
-function documentRelationships(rows: ExportRecord[]): GraphRelationship[] {
-  return rows.flatMap((row) => {
-    const from = text(row.id);
-    const to = text(row.supersededBy);
-    if (!from || !to) return [];
-    return [{ type: 'document_superseded_by', from, to, metadata: { reason: row.supersededReason, at: row.supersededAt } }];
-  });
+function isTimestampKey(key: string): boolean {
+  return key.endsWith('At') || key.endsWith('_at');
 }
 
-function traceRelationships(rows: ExportRecord[]): GraphRelationship[] {
-  const out: GraphRelationship[] = [];
-  for (const row of rows) {
-    const traceId = text(row.traceId);
-    if (!traceId) continue;
-    const parent = text(row.parentTraceId);
-    const prev = text(row.prevTraceId);
-    const next = text(row.nextTraceId);
-    if (parent) out.push({ type: 'trace_parent', from: traceId, to: parent });
-    if (prev) out.push({ type: 'trace_prev', from: traceId, to: prev });
-    if (next) out.push({ type: 'trace_next', from: traceId, to: next });
-    for (const child of childTraceIds(row.childTraceIds)) out.push({ type: 'trace_child', from: traceId, to: child });
-  }
-  return out;
-}
-
-function childTraceIds(value: unknown): string[] {
-  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string');
-  if (typeof value !== 'string') return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
-  } catch {
-    return [];
-  }
+function yamlScalar(value: unknown): string {
+  if (value == null) return 'null';
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'null';
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  return JSON.stringify(String(value));
 }
