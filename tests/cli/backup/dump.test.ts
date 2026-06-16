@@ -5,12 +5,6 @@ import { basename, join } from 'node:path';
 
 const savedDataDir = process.env.ORACLE_DATA_DIR;
 const savedRepoRoot = process.env.ORACLE_REPO_ROOT;
-const savedDbPath = process.env.ORACLE_DB_PATH;
-
-function restoreDbPath() {
-  return savedDbPath
-    ?? join(savedDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
-}
 
 const importRoot = mkdtempSync(join(tmpdir(), 'arra-backup-import-'));
 process.env.ORACLE_DATA_DIR = join(importRoot, 'data');
@@ -34,7 +28,7 @@ afterAll(() => {
   else process.env.ORACLE_DATA_DIR = savedDataDir;
   if (savedRepoRoot === undefined) delete process.env.ORACLE_REPO_ROOT;
   else process.env.ORACLE_REPO_ROOT = savedRepoRoot;
-  resetDefaultDatabaseForTests(restoreDbPath());
+  resetDefaultDatabaseForTests(':memory:');
   rmSync(importRoot, { recursive: true, force: true });
 });
 
@@ -105,6 +99,22 @@ describe('SQLite backup dump command', () => {
       expect(sql).toContain('COMMIT;');
     } finally {
       connection.storage.close();
+    }
+  });
+
+  test('rejects missing and unknown backup options before opening the DB', async () => {
+    const cases = [
+      { args: ['--out-dir'], error: 'missing value for --out-dir' },
+      { args: ['--out-dir='], error: 'missing value for --out-dir' },
+      { args: ['--out-dir', '--json'], error: 'missing value for --out-dir' },
+      { args: ['--unknown'], error: 'unknown backup option: --unknown' },
+    ];
+
+    for (const item of cases) {
+      const stderr: string[] = [];
+      const code = await backupCommand(item.args, { stderr: msg => stderr.push(msg) });
+      expect(code).toBe(1);
+      expect(stderr.join('')).toContain(item.error);
     }
   });
 });

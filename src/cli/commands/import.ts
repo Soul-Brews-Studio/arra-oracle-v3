@@ -20,15 +20,37 @@ function printHelp(): void {
 
 function readValue(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag);
-  if (index >= 0) return args[index + 1];
+  if (index >= 0) {
+    const value = args[index + 1];
+    if (!value || value.startsWith("--")) throw new Error(`missing value for ${flag}`);
+    return value;
+  }
   const prefix = `${flag}=`;
-  return args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+  const value = args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+  if (value === "") throw new Error(`missing value for ${flag}`);
+  return value;
+}
+
+function consumeFlag(args: string[], flag: string, consumed: Set<number>): void {
+  const index = args.indexOf(flag);
+  if (index >= 0) {
+    consumed.add(index);
+    consumed.add(index + 1);
+  }
+  const prefix = `${flag}=`;
+  const inline = args.findIndex((arg) => arg.startsWith(prefix));
+  if (inline >= 0) consumed.add(inline);
 }
 
 export function parseImportOptions(args: string[]): DataImportOptions {
+  const consumed = new Set<number>();
   const format = readValue(args, "--format") ?? "json";
+  consumeFlag(args, "--format", consumed);
   if (format !== "json") throw new Error(`unsupported format: ${format}`);
   const inFile = readValue(args, "--in");
+  consumeFlag(args, "--in", consumed);
+  const unknown = args.find((_, index) => !consumed.has(index));
+  if (unknown) throw new Error(`unknown import option: ${unknown}`);
   return inFile ? { format, inFile } : { format };
 }
 

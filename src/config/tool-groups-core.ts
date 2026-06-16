@@ -71,20 +71,36 @@ function readJsonSafe(filePath: string): Record<string, any> | null {
 }
 
 function mergeRaw(raw: Record<string, any>): ToolGroupConfig {
-  const merged: ToolGroupConfig = { ...DEFAULT_CONFIG, ...raw.tools };
+  const merged: ToolGroupConfig = { ...DEFAULT_CONFIG };
+  if (isRecord(raw.tools)) {
+    for (const group of Object.keys(TOOL_GROUPS) as ToolGroupName[]) {
+      if (typeof raw.tools[group] === 'boolean') merged[group] = raw.tools[group];
+    }
+  }
   if (Array.isArray(raw.plugins)) {
-    merged.plugins = raw.plugins
-      .filter((p: unknown): p is Record<string, unknown> => !!p && typeof p === 'object' && typeof (p as any).name === 'string')
-      .map((p) => ({
-        name: String(p.name),
-        ...(typeof p.enabled === 'boolean' && { enabled: p.enabled }),
-        ...((p.tier === 'core' || p.tier === 'standard' || p.tier === 'extra') && { tier: p.tier }),
-        ...(typeof p.weight === 'number' && { weight: p.weight }),
-      }));
+    merged.plugins = raw.plugins.map(normalizePluginEntry).filter((p): p is PluginManifestEntry => !!p);
   }
   if (Array.isArray(raw.disabled_tools)) merged.disabled_tools = raw.disabled_tools.filter((t: unknown) => typeof t === 'string').map(normalizeToolName);
   if (Array.isArray(raw.enabled_tools)) merged.enabled_tools = raw.enabled_tools.filter((t: unknown) => typeof t === 'string').map(normalizeToolName);
   return merged;
+}
+
+function normalizePluginEntry(entry: unknown): PluginManifestEntry | null {
+  if (!isRecord(entry) || typeof entry.name !== 'string' || !entry.name.trim()) return null;
+  return {
+    name: entry.name.trim(),
+    ...(typeof entry.enabled === 'boolean' && { enabled: entry.enabled }),
+    ...(isPluginTier(entry.tier) && { tier: entry.tier }),
+    ...(typeof entry.weight === 'number' && Number.isFinite(entry.weight) && { weight: entry.weight }),
+  };
+}
+
+function isPluginTier(value: unknown): value is PluginTier {
+  return value === 'core' || value === 'standard' || value === 'extra';
+}
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 export function loadToolGroupConfig(repoRoot?: string): ToolGroupConfig {

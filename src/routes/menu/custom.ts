@@ -40,9 +40,14 @@ export function createCustomMenuRoutes() {
     .post(
       '/menu/custom',
       ({ body, set }) => {
-        const result = addCustomMenuItem(body);
-        set.status = result.replaced ? 200 : 201;
-        return { ...result, item: { ...result.item, added: true } };
+        try {
+          const result = addCustomMenuItem(body);
+          set.status = result.replaced ? 200 : 201;
+          return { ...result, item: { ...result.item, added: true } };
+        } catch (error) {
+          set.status = 400;
+          return { error: error instanceof Error ? error.message : String(error) };
+        }
       },
       {
         body: t.Object({
