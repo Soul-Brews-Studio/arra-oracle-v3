@@ -141,6 +141,30 @@ test('CLI quiet flag suppresses progress output', async () => {
   expect(existsSync(join(outputDir, 'manifest.json'))).toBe(true);
 });
 
+test('CLI progress-json flag emits machine-readable progress', async () => {
+  const dbPath = join(root, 'progress-json.db');
+  const outputDir = join(root, 'progress-json-export');
+  const connection = createDatabase(dbPath);
+  seed(connection);
+  connection.storage.close();
+
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const code = await runExportApp(
+    ['--output', outputDir, '--db', dbPath, '--progress-json'],
+    (message) => stdout.push(message),
+    (message) => stderr.push(message),
+  );
+  const events = stderr.join('').trim().split('\n').map((line) => JSON.parse(line));
+
+  expect(code).toBe(0);
+  expect(JSON.parse(stdout.join('')).success).toBe(true);
+  expect(events).toContainEqual(expect.objectContaining({
+    event: 'export_progress',
+    message: expect.stringContaining('oracle_documents'),
+  }));
+});
+
 test('CLI rejects unknown flags before exporting', () => {
   expect(() => parseArgs(['--output', './backup', '--bogus'])).toThrow('unknown flag: --bogus');
   expect(() => parseArgs(['--output'])).toThrow('missing value for --output');
