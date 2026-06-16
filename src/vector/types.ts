@@ -74,7 +74,13 @@ export interface EmbedderConfig {
   dimensions?: number;
 }
 
-export type VectorDBType = 'chroma' | 'sqlite-vec' | 'lancedb' | 'qdrant' | 'cloudflare-vectorize';
+export type VectorDBType =
+  | 'chroma'
+  | 'sqlite-vec'
+  | 'lancedb'
+  | 'qdrant'
+  | 'cloudflare-vectorize'
+  | 'proxy';
 export type EmbeddingProviderType =
   | 'none'
   | 'local'

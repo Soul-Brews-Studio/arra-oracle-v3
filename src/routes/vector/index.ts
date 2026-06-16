@@ -34,6 +34,7 @@ import { vectorIndexerEndpoints } from './indexer.ts';
 import { vectorProxyEndpoint } from './proxy.ts';
 import { vectorDocumentsEndpoint } from './documents.ts';
 import { vectorExportEndpoint } from './export.ts';
+import { vectorServicesApiEndpoint } from './services.ts';
 
 export const vectorRoutes = new Elysia({ prefix: '/api' })
   .use(vectorProxyEndpoint)
@@ -47,4 +48,5 @@ export const vectorRoutes = new Elysia({ prefix: '/api' })
   .use(vectorDocumentsEndpoint)
   .use(vectorExportEndpoint)
   .use(vectorConfigApiEndpoint)
+  .use(vectorServicesApiEndpoint)
   .use(vectorIndexerEndpoints);

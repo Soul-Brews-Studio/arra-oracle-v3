@@ -17,17 +17,35 @@ import type { EmbedderConfig, VectorDBType } from './types.ts';
 
 export const VECTOR_CONFIG_FILE = 'vector-server.json';
 
+export interface VectorStorageService {
+  type: 'builtin' | 'proxy';
+  endpoint?: string;
+  capabilities?: Record<string, unknown>;
+}
+
+export interface VectorStorageConfig {
+  default: string;
+  services: Record<string, VectorStorageService>;
+}
+
+export interface VectorServerV2Storage {
+  storage: VectorStorageConfig;
+}
+
 export interface VectorCollectionConfig {
   collection: string;
   model: string;
   provider: string;
   /** Vector adapter for this collection. Defaults to lancedb for embedded Bun. */
   adapter?: VectorDBType;
+  service?: string;
+  /** Explicit endpoint for proxy adapter (optional, defaults to registered service). */
+  endpoint?: string;
   primary?: boolean;
 }
 
 export interface VectorServerConfig {
-  version: string;
+  version: '1' | '1.0' | '2' | '2.0' | 'legacy';
   host: string;
   port: number;
   collections: Record<string, VectorCollectionConfig>;
@@ -35,6 +53,7 @@ export interface VectorServerConfig {
   /** Default is none: semantic failures fall back to SQLite FTS5. */
   embedder?: EmbedderConfig;
   embeddingEndpoint: string;
+  storage?: VectorStorageConfig;
   proxy?: VectorProxyManifest[];
 }
 
@@ -78,6 +97,12 @@ export function generateDefaultConfig(): VectorServerConfig {
     dataPath: LANCEDB_DIR,
     embedder: { backend: 'none' },
     embeddingEndpoint: '',
+    storage: {
+      default: 'lancedb',
+      services: {
+        lancedb: { type: 'builtin' },
+      },
+    },
     proxy: defaultVectorProxyManifest(),
   };
 }
@@ -135,6 +160,8 @@ export function configToModels(
   adapter?: VectorDBType;
   dataPath?: string;
   embedder?: EmbedderConfig;
+  service?: string;
+  endpoint?: string;
 }> {
   const out: Record<string, {
     collection: string;
@@ -142,15 +169,62 @@ export function configToModels(
     adapter?: VectorDBType;
     dataPath?: string;
     embedder?: EmbedderConfig;
+    service?: string;
+    endpoint?: string;
   }> = {};
   for (const [key, col] of Object.entries(config.collections)) {
+    const adapter = col.adapter || 'lancedb';
+    const serviceEndpoint = col.endpoint
+      || resolveServiceEndpoint(config, col.service)
+      || (col.service && col.service !== 'lancedb' ? undefined : undefined);
+
     out[key] = {
       collection: col.collection,
       model: col.model,
-      adapter: col.adapter || 'lancedb',
+      adapter,
+      service: col.service,
+      endpoint: serviceEndpoint,
       dataPath: config.dataPath || undefined,
       embedder: embedderFor(config, col),
     };
   }
   return out;
+}
+
+export function isV2Config(config: VectorServerConfig): boolean {
+  return config.version.startsWith('2') || Boolean(config.storage);
+}
+
+export function getBuiltInStorageService(config: VectorServerConfig): VectorStorageConfig | null {
+  const storage = config.storage;
+  if (!storage) return null;
+  const primary = storage.services[storage.default];
+  if (!primary || primary.type !== 'builtin') return null;
+  return storage;
+}
+
+export function resolveServiceEndpoint(config: VectorServerConfig, serviceName?: string): string | undefined {
+  if (!serviceName) return undefined;
+  const svc = config.storage?.services[serviceName];
+  if (!svc || svc.type !== 'proxy') return undefined;
+  return svc.endpoint;
+}
+
+export function fallbackCollectionsFor(config: VectorServerConfig): VectorCollectionConfig[] {
+  if (Object.keys(config.collections).length > 0) return [];
+  if (!config.storage) return [];
+
+  const storageService = getBuiltInStorageService(config);
+  if (!storageService) return [];
+
+  return Object.entries(storageService.services)
+    .filter(([, svc]) => svc.type === 'builtin')
+    .map(([name]) => ({
+      collection: `oracle_knowledge_${name.replace(/[^a-z0-9]+/g, '_')}`,
+      model: 'bge-m3',
+      provider: 'none',
+      adapter: 'lancedb',
+      service: name,
+      primary: name === storageService.default,
+    }));
 }
