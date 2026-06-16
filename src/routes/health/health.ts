@@ -161,6 +161,7 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
       plugins: { count: pluginCount, status: pluginStatus, items: pluginItems },
     };
   }, {
+    response: HealthResponseSchema,
     detail: {
       tags: ['health'],
       menu: { group: 'hidden' },
