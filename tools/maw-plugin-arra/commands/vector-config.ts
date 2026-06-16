@@ -19,6 +19,10 @@ function json(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+function wantsJson(parsed: ParsedArgs): boolean {
+  return flag(parsed, 'json') === 'true';
+}
+
 function object(value: unknown): JsonObject | undefined {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as JsonObject : undefined;
 }
@@ -57,8 +61,38 @@ function collectionPayload(payload: JsonObject, collection: string): JsonObject 
 function listPayload(payload: JsonObject): JsonObject {
   const collections = Array.isArray(payload.collections)
     ? payload.collections
-    : Object.entries(configCollections(payload)).map(([key, value]) => ({ key, ...object(value) }));
+    : Object.entries(configCollections(payload)).map(([key, value]) => ({
+        key,
+        ...object(value),
+        count: object(payload.doc_counts)?.[key] ?? 0,
+        status: object(object(payload.health)?.[key])?.status ?? 'unknown',
+      }));
   return { source: payload.source, collections };
+}
+
+function rowText(row: unknown): string {
+  const item = object(row) ?? {};
+  const key = String(item.collection ?? item.key ?? 'unknown');
+  const mark = item.primary === true ? ' ★' : '';
+  return [
+    `${key}${mark}`,
+    String(item.adapter ?? 'lancedb'),
+    String(item.model ?? item.key ?? 'unknown'),
+    String(item.count ?? item.docs ?? 0),
+    String(item.status ?? 'unknown'),
+  ].join(' | ');
+}
+
+function table(payload: JsonObject): string {
+  const listed = listPayload(payload);
+  const rows = Array.isArray(listed.collections) ? listed.collections : [];
+  const lines = ['Collection | Adapter | Model | Docs | Status'];
+  lines.push(...rows.map(rowText));
+  if (!rows.length) lines.push('(none) | - | - | 0 | unknown');
+  const config = object(payload.config) ?? {};
+  const embedder = config.embedder ? `Embedder: ${JSON.stringify(config.embedder)}` : undefined;
+  const data = config.dataPath ? `Data: ${String(config.dataPath)}` : undefined;
+  return [...lines, '★ = primary', embedder, data].filter(Boolean).join('\n') + '\n';
 }
 
 function flagUpdates(parsed: ParsedArgs, fields = updateFields): JsonObject {
@@ -151,7 +185,10 @@ async function switchBackend(parsed: ParsedArgs): Promise<JsonObject> {
 export async function runVectorConfigCommand(args: string[]): Promise<string> {
   const parsed = parseArgs(args);
   const action = (parsed.positionals[0] ?? 'list').toLowerCase().replace(/-/g, '_');
-  if (action === 'list') return json(listPayload(await readConfig()));
+  if (action === 'list') {
+    const payload = await readConfig();
+    return wantsJson(parsed) ? json(payload) : table(payload);
+  }
   if (action === 'get') {
     const payload = await readConfig();
     const collection = parsed.positionals[1];
@@ -167,7 +204,10 @@ export async function runVectorConfigCommand(args: string[]): Promise<string> {
     if (!body.model) throw new Error('add requires --model <model>');
     return json(await createCollection(collection, body));
   }
-  if (action === 'remove') return json(await removeCollection(requiredCollection(parsed)));
+  if (action === 'remove') {
+    if (flag(parsed, 'yes') !== 'true') throw new Error('remove requires --yes');
+    return json(await removeCollection(requiredCollection(parsed)));
+  }
   if (action === 'set_primary' || action === 'primary') {
     const collection = requiredCollection(parsed);
     return json(await postAction(`/api/v1/vector/config/${encodeURIComponent(collection)}/primary`));
@@ -180,4 +220,4 @@ export async function runVectorConfigCommand(args: string[]): Promise<string> {
   throw new Error(usage);
 }
 
-export const VECTOR_CONFIG_HELP = 'vector-config list|get|set|switch|add|remove|set-primary|reload|test';
+export const VECTOR_CONFIG_HELP = 'vector-config [--json]|list|get|set|switch|add|remove --yes|set-primary|reload|test';
