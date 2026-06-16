@@ -5,8 +5,9 @@
  * "Nothing is Deleted" — old doc preserved but marked outdated.
  */
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { oracleDocuments } from '../db/schema.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 import type { ToolContext, ToolResponse, OracleSupersededInput } from './types.ts';
 
 type SupersedeRunResult = {
@@ -88,13 +89,17 @@ export function runSupersede(db: ToolContext['db'], input: OracleSupersededInput
   }
 
   const now = Date.now();
+  const tenantId = currentTenantId();
+  const docWhere = (id: string) => tenantId
+    ? and(eq(oracleDocuments.id, id), eq(oracleDocuments.tenantId, tenantId))
+    : eq(oracleDocuments.id, id);
   const oldDoc = db.select({ id: oracleDocuments.id, type: oracleDocuments.type })
     .from(oracleDocuments)
-    .where(eq(oracleDocuments.id, oldId))
+    .where(docWhere(oldId))
     .get();
   const newDoc = db.select({ id: oracleDocuments.id, type: oracleDocuments.type })
     .from(oracleDocuments)
-    .where(eq(oracleDocuments.id, newId))
+    .where(docWhere(newId))
     .get();
 
   if (!oldDoc) throw new Error(`Old document not found: ${oldId}`);
@@ -106,7 +111,7 @@ export function runSupersede(db: ToolContext['db'], input: OracleSupersededInput
       supersededAt: now,
       supersededReason: typeof reason === 'string' ? reason : null,
     })
-    .where(eq(oracleDocuments.id, oldId))
+    .where(docWhere(oldId))
     .run();
 
   console.error(`[SUPERSEDE] ${oldId} → superseded by → ${newId}`);

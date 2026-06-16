@@ -12,6 +12,7 @@ import path from 'path';
 import { REPO_ROOT } from '../../config.ts';
 import { getVaultPsiRoot } from '../../vault/handler.ts';
 import { fileQuery } from './model.ts';
+import { projectAllowedForTenant } from './tenant.ts';
 
 const currentRepoRoot = () => process.env.ORACLE_REPO_ROOT || REPO_ROOT;
 
@@ -24,6 +25,10 @@ export const fileRoute = new Elysia().get(
     if (!filePath) {
       set.status = 400;
       return { error: 'Missing path parameter' };
+    }
+
+    if (project && !projectAllowedForTenant(project)) {
+      return new Response('File not found', { status: 404 });
     }
 
     // SECURITY: Block path traversal attempts (belt-and-suspenders with TypeBox pattern).
