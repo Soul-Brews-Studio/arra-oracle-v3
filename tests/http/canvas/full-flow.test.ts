@@ -75,6 +75,21 @@ describe('canvas.buildwithoracle.com full integration flow', () => {
     }
   });
 
+
+  test('acceptance URLs render directly while Studio canvas route metadata remains canonical', async () => {
+    for (const id of ['wave', 'map', 'planets']) {
+      const res = await handleCanvasRequest(new Request(`${HOST}/?plugin=${id}`));
+      const html = await res.text();
+      expect(res.status, id).toBe(200);
+      expect(html, id).toContain(`plugin=${id}`);
+      expect(html, id).toContain('aria-label="Hot-swap canvas plugin"');
+      expect(html, id).toContain('canvas.buildwithoracle.com');
+    }
+    const registry = await workerJson('/api/canvas/registry');
+    expect(registry.body.standalone).toMatchObject({ host: 'canvas.buildwithoracle.com' });
+    expect(registry.body.plugins.find((plugin: { id: string }) => plugin.id === 'wave').path).toBe('/canvas');
+  });
+
   test('worker config keeps canvas custom domain running first', () => {
     const config = readFileSync('workers/canvas/wrangler.toml', 'utf8');
     expect(config).toContain('canvas.buildwithoracle.com');
