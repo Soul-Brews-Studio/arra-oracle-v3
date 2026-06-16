@@ -6,7 +6,7 @@ describe('vector route metadata', () => {
     expect(routeMeta('/vector')).toMatchObject({ title: 'Vector dashboard', eyebrow: 'Vector' });
     expect(routeMeta('/vector/export')).toMatchObject({
       title: 'Vector export',
-      description: 'Download vector collections as JSON or CSV.',
+      description: 'Download vector collections in available formats.',
     });
   });
 });

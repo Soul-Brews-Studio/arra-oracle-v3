@@ -14,9 +14,21 @@ describe('VectorExportPage', () => {
     const html = htmlFor(<VectorExportPage modelsResponse={modelsResponse} loading={false} />);
     expect(html).toContain('Vector export');
     expect(html).toContain('aria-label="Export collection"');
+    expect(html).toContain('aria-label="Export format"');
     expect(html).toContain('oracle_bge');
-    expect(html).toContain('Export JSON');
-    expect(html).toContain('Export CSV');
+    expect(html).toContain('JSON');
+    expect(html).toContain('CSV');
+    expect(html).toContain('Export');
+  });
+
+  test('renders provided available formats', () => {
+    const html = htmlFor(<VectorExportPage
+      modelsResponse={modelsResponse}
+      loading={false}
+      formats={[{ format: 'jsonl', label: 'JSONL', mimeType: 'application/x-ndjson', extension: 'jsonl' }]}
+    />);
+    expect(html).toContain('JSONL');
+    expect(html).not.toContain('CSV');
   });
 
   test('normalizes model response entries into export collections', () => {

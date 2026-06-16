@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient, type ApiClient, type VectorIndexModelsResponse } from '../api/client';
 import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
-import { downloadVectorCollection, type VectorExportFormat } from './VectorPage';
+import {
+  downloadVectorCollection,
+  fallbackVectorExportFormats,
+  fetchVectorExportFormats,
+  formatLabelFor,
+  type VectorExportFormat,
+  type VectorExportFormatOption,
+} from '../vectorExport';
 
 type LoadState = 'loading' | 'ready' | 'error';
 type VectorExportClient = Pick<ApiClient, 'vectorIndexModels'>;
@@ -19,6 +26,8 @@ export interface VectorExportPageProps {
   modelsResponse?: VectorIndexModelsResponse | null;
   loading?: boolean;
   download?: (collection: string, format: VectorExportFormat) => Promise<void>;
+  formats?: VectorExportFormatOption[];
+  loadFormats?: () => Promise<VectorExportFormatOption[]>;
 }
 
 export function exportCollectionsFromModels(response?: VectorIndexModelsResponse | null): VectorExportCollection[] {
@@ -43,10 +52,14 @@ export function VectorExportPage({
   modelsResponse = null,
   loading = true,
   download = downloadVectorCollection,
+  formats = fallbackVectorExportFormats,
+  loadFormats = fetchVectorExportFormats,
 }: VectorExportPageProps) {
   const initialCollections = useMemo(() => exportCollectionsFromModels(modelsResponse), [modelsResponse]);
   const [collections, setCollections] = useState(initialCollections);
   const [collection, setCollection] = useState(initialCollections[0]?.collection ?? '');
+  const [formatOptions, setFormatOptions] = useState(formats);
+  const [format, setFormat] = useState(formats[0]?.format ?? 'json');
   const [state, setState] = useState<LoadState>(loading ? 'loading' : 'ready');
   const [error, setError] = useState('');
   const [downloadError, setDownloadError] = useState('');
@@ -57,12 +70,15 @@ export function VectorExportPage({
     let cancelled = false;
     setState('loading');
     setError('');
-    client.vectorIndexModels()
-      .then((response) => {
+    Promise.all([client.vectorIndexModels(), loadFormats()])
+      .then(([response, nextFormats]) => {
         if (cancelled) return;
         const next = exportCollectionsFromModels(response);
         setCollections(next);
         setCollection((current) => current || next[0]?.collection || '');
+        const available = nextFormats.length ? nextFormats : fallbackVectorExportFormats;
+        setFormatOptions(available);
+        setFormat((current) => available.some((item) => item.format === current) ? current : available[0]?.format ?? 'json');
         setState('ready');
       })
       .catch((err) => {
@@ -77,10 +93,10 @@ export function VectorExportPage({
     if (state === 'loading') return 'Loading vector collections…';
     if (state === 'error') return 'Could not load vector collections.';
     if (!collections.length) return 'No vector collections are available to export.';
-    return `Ready to export ${collection || 'a collection'} as JSON or CSV.`;
-  }, [collection, collections.length, state]);
+    return `Ready to export ${collection || 'a collection'} as ${formatLabelFor(formatOptions, format)}.`;
+  }, [collection, collections.length, format, formatOptions, state]);
 
-  async function exportSelected(format: VectorExportFormat) {
+  async function exportSelected() {
     if (!collection) return;
     setDownloadError('');
     setDownloading(format);
@@ -98,7 +114,7 @@ export function VectorExportPage({
       <div className="mb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Vector</p>
         <h1 id="vector-export-title" className="mt-2 text-3xl font-semibold text-white">Vector export</h1>
-        <p className="mt-2 text-sm text-slate-400">Download vector collections from /api/vector/export as JSON or CSV.</p>
+        <p className="mt-2 text-sm text-slate-400">Download vector collections from /api/v1/vector/export in any available format.</p>
       </div>
 
       {state === 'loading' ? <LoadingPanel title="Loading vector collections…" detail="Fetching /api/vector/index/models." /> : null}
@@ -118,14 +134,22 @@ export function VectorExportPage({
             )) : <option value="">No collections loaded</option>}
           </select>
         </label>
+        <label className="grid gap-2 text-sm font-medium text-slate-300">
+          Format
+          <select
+            aria-label="Export format"
+            className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100"
+            value={format}
+            onChange={(event) => setFormat(event.target.value)}
+          >
+            {formatOptions.map((item) => <option key={item.format} value={item.format}>{item.label}</option>)}
+          </select>
+        </label>
         <p className="text-sm text-slate-500">{status}</p>
         {downloadError ? <ErrorMessage title="Vector export failed." message={downloadError} /> : null}
         <div className="flex flex-wrap gap-2">
-          <button className="focus-ring rounded-xl border border-teal-300/30 px-4 py-2 text-sm font-semibold text-teal-100 hover:bg-teal-300/10 disabled:cursor-not-allowed disabled:opacity-50" disabled={!collection || Boolean(downloading)} type="button" onClick={() => void exportSelected('json')}>
-            {downloading === 'json' ? <Spinner label="Downloading JSON" /> : 'Export JSON'}
-          </button>
-          <button className="focus-ring rounded-xl border border-purple-300/30 px-4 py-2 text-sm font-semibold text-purple-100 hover:bg-purple-300/10 disabled:cursor-not-allowed disabled:opacity-50" disabled={!collection || Boolean(downloading)} type="button" onClick={() => void exportSelected('csv')}>
-            {downloading === 'csv' ? <Spinner label="Downloading CSV" /> : 'Export CSV'}
+          <button className="focus-ring rounded-xl border border-teal-300/30 px-4 py-2 text-sm font-semibold text-teal-100 hover:bg-teal-300/10 disabled:cursor-not-allowed disabled:opacity-50" disabled={!collection || Boolean(downloading) || formatOptions.length === 0} type="button" onClick={() => void exportSelected()}>
+            {downloading ? <Spinner label={`Downloading ${formatLabelFor(formatOptions, downloading)}`} /> : 'Export'}
           </button>
         </div>
       </div>

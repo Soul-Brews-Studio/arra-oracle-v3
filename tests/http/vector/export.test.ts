@@ -83,3 +83,18 @@ test('GET /api/v1/vector/export returns JSON rows for the selected collection', 
   ]);
   expect(store.getAllEmbeddings).toHaveBeenCalledWith(2);
 });
+
+test('GET /api/v1/vector/export/formats lists registered export formats', async () => {
+  const fetcher = createFetch(createStore(), []);
+
+  const res = await fetcher(new Request('http://local/api/v1/vector/export/formats'));
+  const body = await res.json() as { formats: Array<Record<string, string>> };
+
+  expect(res.status).toBe(200);
+  expect(body.formats).toEqual([
+    { format: 'csv', label: 'CSV', mimeType: 'text/csv; charset=utf-8', extension: 'csv' },
+    { format: 'json', label: 'JSON', mimeType: 'application/json; charset=utf-8', extension: 'json' },
+    { format: 'jsonl', label: 'JSONL', mimeType: 'application/x-ndjson; charset=utf-8', extension: 'jsonl' },
+    { format: 'markdown', label: 'Markdown', mimeType: 'text/markdown; charset=utf-8', extension: 'md' },
+  ]);
+});

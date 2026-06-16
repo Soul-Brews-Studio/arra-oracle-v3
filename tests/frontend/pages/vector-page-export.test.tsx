@@ -2,9 +2,12 @@ import { describe, expect, test } from 'bun:test';
 import { MemoryRouter } from 'react-router-dom';
 import {
   downloadVectorCollection,
+  fetchVectorExportFormats,
   saveBlobAsDownload,
   vectorExportFilename,
   vectorExportPath,
+} from '../../../frontend/src/vectorExport';
+import {
   VectorCollectionCards,
   VectorPage,
   type VectorCollectionCard,
@@ -22,14 +25,26 @@ const card: VectorCollectionCard = {
 };
 
 describe('VectorPage export buttons', () => {
-  test('renders JSON and CSV export buttons for collection cards', () => {
+  test('renders available export formats dropdown for collection cards', () => {
     const modelsResponse = { models: { bge: { collection: card.collection, model: card.model, adapter: card.adapter, count: card.count } } };
     const healthResponse = { status: 'ok' as const, engines: [{ key: 'bge', ok: true }], checked_at: 'now' };
     const html = htmlFor(<MemoryRouter><VectorPage modelsResponse={modelsResponse} healthResponse={healthResponse} loading={false} /></MemoryRouter>);
     expect(html).toContain('Vector collections');
     expect(html).toContain('oracle_knowledge_bge_m3');
-    expect(html).toContain('Export JSON');
-    expect(html).toContain('Export CSV');
+    expect(html).toContain('Export format for oracle_knowledge_bge_m3');
+    expect(html).toContain('JSON');
+    expect(html).toContain('CSV');
+    expect(html).toContain('Export');
+  });
+
+  test('collection cards render supplied registry formats', () => {
+    const html = htmlFor(<VectorCollectionCards
+      cards={[card]}
+      formats={[{ format: 'jsonl', label: 'JSONL', mimeType: 'application/x-ndjson', extension: 'jsonl' }]}
+      onExport={() => {}}
+    />);
+    expect(html).toContain('JSONL');
+    expect(html).not.toContain('CSV');
   });
 
   test('renders a spinner label while a collection is downloading', () => {
@@ -39,8 +54,17 @@ describe('VectorPage export buttons', () => {
   });
 
   test('builds encoded export URLs and safe filenames', () => {
-    expect(vectorExportPath('oracle knowledge', 'csv')).toBe('/api/vector/export?collection=oracle+knowledge&format=csv');
+    expect(vectorExportPath('oracle knowledge', 'csv')).toBe('/api/v1/vector/export?collection=oracle+knowledge&format=csv');
     expect(vectorExportFilename('oracle knowledge/bge m3', 'json')).toBe('oracle-knowledge-bge-m3.json');
+  });
+
+  test('fetches available export formats', async () => {
+    const formats = await fetchVectorExportFormats({
+      fetch: () => new Response(JSON.stringify({
+        formats: [{ format: 'csv', label: 'CSV', mimeType: 'text/csv', extension: 'csv' }],
+      })),
+    });
+    expect(formats).toEqual([{ format: 'csv', label: 'CSV', mimeType: 'text/csv', extension: 'csv' }]);
   });
 
   test('fetches export blobs and passes them to the download sink', async () => {
@@ -54,7 +78,7 @@ describe('VectorPage export buttons', () => {
       saveBlob: (blob, filename) => saved.push({ blob, filename }),
     });
 
-    expect(calls).toEqual(['/api/vector/export?collection=oracle_knowledge_bge_m3&format=csv']);
+    expect(calls).toEqual(['/api/v1/vector/export?collection=oracle_knowledge_bge_m3&format=csv']);
     expect(saved[0]?.filename).toBe('oracle_knowledge_bge_m3.csv');
     await expect(saved[0]?.blob.text()).resolves.toContain('oracle');
   });

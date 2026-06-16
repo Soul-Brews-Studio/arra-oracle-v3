@@ -55,7 +55,7 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
   }
 
   if (pathname === '/vector/export') {
-    return base('Vector export', 'Vector', 'Download vector collections as JSON or CSV.', [
+    return base('Vector export', 'Vector', 'Download vector collections in available formats.', [
       { label: 'Vector dashboard', to: '/vector' },
       { label: 'Export' },
     ]);

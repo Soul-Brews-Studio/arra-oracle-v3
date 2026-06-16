@@ -1,10 +1,10 @@
 /**
- * GET /api/vector/export — stream a vector collection as JSON, JSONL, CSV, or Markdown.
+ * GET /api/vector/export — stream a vector collection in a registered format.
  */
 
 import { Elysia, t } from 'elysia';
 import { getVectorStoreByModel } from '../../vector/factory.ts';
-import { getExportFormat, listExportFormats } from '../../vector/export-formats.ts';
+import { availableExportFormats, exportFormatInfo, getExportFormat } from '../../vector/export-formats.ts';
 import type { VectorStoreAdapter } from '../../vector/types.ts';
 
 interface VectorExportDeps {
@@ -18,7 +18,7 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
   const getStore = deps.getStore ?? getVectorStoreByModel;
 
   return new Elysia()
-    .get('/vector/export/formats', () => Object.keys(exportFormatters), {
+    .get('/vector/export/formats', () => ({ formats: availableExportFormats() }), {
       detail: {
         tags: ['vector'],
         summary: 'List available vector export formats',
@@ -27,9 +27,10 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
     .get('/vector/export', async ({ query, set }) => {
       const format = query.format || 'json';
       const formatter = getExportFormat(format);
-      if (!formatter) {
+      const info = exportFormatInfo(format);
+      if (!formatter || !info) {
         set.status = 400;
-        return { error: `Invalid format: expected ${listExportFormats().join(' or ')}` };
+        return { error: 'Invalid format', formats: availableExportFormats() };
       }
 
       const collection = query.collection || DEFAULT_COLLECTION;
@@ -49,8 +50,8 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
 
         return new Response(stream, {
           headers: {
-            'Content-Type': formatter.contentType ?? 'application/octet-stream',
-            'Content-Disposition': `attachment; filename="${collection}.${formatter.extension ?? format}"`,
+            'Content-Type': info.mimeType,
+            'Content-Disposition': `attachment; filename="${collection}.${info.extension}"`,
           },
         });
       } catch (error) {
@@ -66,10 +67,9 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
       detail: {
         tags: ['vector'],
         menu: { group: 'tools', order: 57 },
-        summary: 'Export a vector collection as JSON, JSONL, CSV, or Markdown',
+        summary: 'Export a vector collection in a registered format',
       },
-    },
-  );
+    });
 }
 
 export const vectorExportEndpoint = createVectorExportEndpoint();

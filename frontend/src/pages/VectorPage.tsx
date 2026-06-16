@@ -1,18 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiClient, type ApiClient, type VectorHealthResponse, type VectorIndexModelEntry, type VectorIndexModelsResponse } from '../api/client';
-import { apiUrl } from '../api/oracle';
 import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
 import { VectorIndexPanel } from '../components/VectorIndexPanel';
 import { VectorSearchWidget } from '../components/VectorSearchWidget';
 import { vectorDocumentsPath, vectorSearchPath } from '../routePaths';
+import {
+  downloadVectorCollection,
+  fallbackVectorExportFormats,
+  fetchVectorExportFormats,
+  formatLabelFor,
+  type VectorExportFormat,
+  type VectorExportFormatOption,
+} from '../vectorExport';
 
 type PageState = 'loading' | 'ready' | 'error';
 type VectorStatusClient = Pick<ApiClient, 'vectorIndexModels' | 'vectorHealth'>;
-export type VectorExportFormat = 'json' | 'csv';
 type DownloadByCollection = Record<string, VectorExportFormat | undefined>;
-type ExportFetch = (input: RequestInfo | URL, init?: RequestInit) => Response | Promise<Response>;
-type SaveBlob = (blob: Blob, filename: string) => void | Promise<void>;
 export interface VectorCollectionCard {
   key: string;
   collection: string;
@@ -74,40 +78,6 @@ export function vectorDashboardSummary(cards: VectorCollectionCard[], state: Pag
   return `${healthy}/${cards.length} vector collections healthy.`;
 }
 
-export function vectorExportPath(collection: string, format: VectorExportFormat): string { return `/api/vector/export?${new URLSearchParams({ collection, format }).toString()}`; }
-
-export function vectorExportFilename(collection: string, format: VectorExportFormat): string {
-  const safeName = collection.trim().replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'collection';
-  return `${safeName}.${format}`;
-}
-
-export function saveBlobAsDownload(blob: Blob, filename: string): void {
-  if (!globalThis.document?.createElement || !globalThis.URL?.createObjectURL) throw new Error('Browser downloads are unavailable');
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.style.display = 'none';
-  document.body?.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-export async function downloadVectorCollection(
-  collection: string,
-  format: VectorExportFormat,
-  deps: { fetch?: ExportFetch; saveBlob?: SaveBlob } = {},
-): Promise<void> {
-  const fetcher = deps.fetch ?? globalThis.fetch?.bind(globalThis);
-  if (!fetcher) throw new Error('fetch is unavailable');
-  const response = await fetcher(apiUrl(vectorExportPath(collection, format)), {
-    headers: { accept: format === 'json' ? 'application/json' : 'text/csv' },
-  });
-  if (!response.ok) throw new Error(`/api/vector/export returned ${response.status}`);
-  await (deps.saveBlob ?? saveBlobAsDownload)(await response.blob(), vectorExportFilename(collection, format));
-}
-
 function docCountLabel(count?: number): string {
   if (typeof count !== 'number') return 'unknown docs';
   return `${count.toLocaleString()} doc${count === 1 ? '' : 's'}`;
@@ -121,18 +91,23 @@ function statusClasses(healthy: boolean): string {
 
 export function VectorCollectionCards({
   cards,
+  formats = fallbackVectorExportFormats,
   downloads = {},
   onExport,
 }: {
   cards: VectorCollectionCard[];
+  formats?: VectorExportFormatOption[];
   downloads?: DownloadByCollection;
   onExport?: (collection: string, format: VectorExportFormat) => void;
 }) {
+  const [selectedFormats, setSelectedFormats] = useState<Record<string, VectorExportFormat>>({});
   return (
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" aria-label="Vector collections">
       {cards.map((card) => {
         const downloading = downloads[card.collection];
         const disabled = Boolean(downloading);
+        const selected = selectedFormats[card.collection] ?? formats[0]?.format ?? 'json';
+        const label = formatLabelFor(formats, selected);
         return (
           <article key={card.key} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <div className="flex items-start justify-between gap-3">
@@ -151,11 +126,17 @@ export function VectorCollectionCards({
             </dl>
             {card.healthDetail ? <p className="mt-3 text-xs text-red-200">{card.healthDetail}</p> : null}
             <div className="mt-4 flex flex-wrap gap-2">
-              <button className="focus-ring rounded-xl border border-teal-300/30 px-3 py-2 text-sm font-semibold text-teal-100 hover:bg-teal-300/10 disabled:cursor-not-allowed disabled:opacity-50" disabled={disabled} type="button" onClick={() => onExport?.(card.collection, 'json')}>
-                {downloading === 'json' ? <Spinner label="Downloading JSON" /> : 'Export JSON'}
-              </button>
-              <button className="focus-ring rounded-xl border border-purple-300/30 px-3 py-2 text-sm font-semibold text-purple-100 hover:bg-purple-300/10 disabled:cursor-not-allowed disabled:opacity-50" disabled={disabled} type="button" onClick={() => onExport?.(card.collection, 'csv')}>
-                {downloading === 'csv' ? <Spinner label="Downloading CSV" /> : 'Export CSV'}
+              <select
+                aria-label={`Export format for ${card.collection}`}
+                className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                disabled={disabled || formats.length === 0}
+                value={selected}
+                onChange={(event) => setSelectedFormats((current) => ({ ...current, [card.collection]: event.target.value }))}
+              >
+                {formats.map((format) => <option key={format.format} value={format.format}>{format.label}</option>)}
+              </select>
+              <button className="focus-ring rounded-xl border border-teal-300/30 px-3 py-2 text-sm font-semibold text-teal-100 hover:bg-teal-300/10 disabled:cursor-not-allowed disabled:opacity-50" disabled={disabled || formats.length === 0} type="button" onClick={() => onExport?.(card.collection, selected)}>
+                {downloading ? <Spinner label={`Downloading ${label}`} /> : 'Export'}
               </button>
             </div>
           </article>
@@ -185,17 +166,19 @@ export function VectorPage({ modelsResponse = null, healthResponse = null, loadi
   const [state, setState] = useState<PageState>(loading ? 'loading' : 'ready');
   const [error, setError] = useState('');
   const [downloads, setDownloads] = useState<DownloadByCollection>({});
+  const [formats, setFormats] = useState(fallbackVectorExportFormats);
   const [downloadError, setDownloadError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
     setState('loading');
     setError('');
-    Promise.all([client.vectorIndexModels(), client.vectorHealth()])
-      .then(([nextModels, nextHealth]) => {
+    Promise.all([client.vectorIndexModels(), client.vectorHealth(), fetchVectorExportFormats()])
+      .then(([nextModels, nextHealth, nextFormats]) => {
         if (cancelled) return;
         setModels(nextModels);
         setHealth(nextHealth);
+        setFormats(nextFormats.length ? nextFormats : fallbackVectorExportFormats);
         setState('ready');
       })
       .catch((err) => {
@@ -238,7 +221,7 @@ export function VectorPage({ modelsResponse = null, healthResponse = null, loadi
         {state === 'error' ? <ErrorMessage title="Could not load vector status." message={error} /> : null}
         {downloadError ? <div className="mb-4"><ErrorMessage title="Vector export failed." message={downloadError} /></div> : null}
         {!isLoading && state !== 'error' && cards.length === 0 ? <p className="text-sm text-slate-400">No vector collections are registered.</p> : null}
-        {cards.length ? <VectorCollectionCards cards={cards} downloads={downloads} onExport={onExport} /> : null}
+        {cards.length ? <VectorCollectionCards cards={cards} formats={formats} downloads={downloads} onExport={onExport} /> : null}
       </section>
 
       <VectorDocumentsCard />
