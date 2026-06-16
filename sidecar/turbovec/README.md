@@ -12,11 +12,21 @@ It exposes the standard HTTP contract used by `ProxyVectorAdapter`:
 `GET /health` includes `protocol: "vector-proxy-v1"` so Arra can verify the
 service speaks the #1438 proxy contract.
 
-Run locally:
+Run locally with the dependency-free fallback backend:
 
 ```bash
-python3 sidecar/turbovec/server.py --port 8082
+python3 sidecar/turbovec/server.py --port 8082 --backend fallback
 ```
+
+Run with TurboVec when the optional Python package is installed:
+
+```bash
+python3 sidecar/turbovec/server.py --port 8082 --backend turbovec
+```
+
+The default `--backend auto` uses TurboVec when importable, otherwise it falls
+back to the in-memory cosine index. `--dimensions` and `--bit-width` configure
+the wrapped `IdMapIndex`.
 
 Register it with Arra:
 
@@ -26,6 +36,6 @@ curl -X POST http://localhost:47778/api/vector/services/register \
   -d '{"name":"turbovec","type":"proxy","endpoint":"http://127.0.0.1:8082"}'
 ```
 
-The reference server has a dependency-free cosine index fallback so the protocol
-can be tested anywhere. It is intentionally small; production TurboVec wiring can
-swap the internal `VectorIndex` implementation while preserving the protocol.
+The sidecar uses a lock around index mutation/query to preserve the proxy
+contract under concurrent HTTP requests. Health and stats responses include a
+`backend` field (`turbovec` or `fallback`) for registry diagnostics.

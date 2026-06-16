@@ -16,79 +16,11 @@ the in-memory cosine index is the safe fallback reference path.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
-import math
-from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-VERSION = "0.1.0"
-PROTOCOL = "vector-proxy-v1"
-DIMENSIONS = 64
-
-
-def embed_text(text: str) -> list[float]:
-    vector = [0.0] * DIMENSIONS
-    tokens = text.lower().split() or [text.lower()]
-    for token in tokens:
-        digest = hashlib.sha256(token.encode("utf-8")).digest()
-        index = int.from_bytes(digest[:2], "big") % DIMENSIONS
-        vector[index] += 1.0
-    norm = math.sqrt(sum(value * value for value in vector)) or 1.0
-    return [value / norm for value in vector]
-
-
-def cosine_distance(left: list[float], right: list[float]) -> float:
-    dot = sum(a * b for a, b in zip(left, right))
-    return max(0.0, 1.0 - dot) * 100.0
-
-
-def metadata_matches(metadata: dict[str, Any], where: dict[str, Any] | None) -> bool:
-    if not where:
-        return True
-    return all(metadata.get(key) == value for key, value in where.items())
-
-
-@dataclass
-class StoredDoc:
-    id: str
-    document: str
-    metadata: dict[str, Any]
-    vector: list[float]
-
-
-@dataclass
-class VectorIndex:
-    name: str
-    docs: dict[str, StoredDoc] = field(default_factory=dict)
-
-    def add(self, documents: list[dict[str, Any]]) -> None:
-        for item in documents:
-            doc_id = str(item["id"])
-            text = str(item.get("document", ""))
-            metadata = dict(item.get("metadata") or {})
-            metadata.setdefault("id", doc_id)
-            vector = item.get("vector")
-            if not isinstance(vector, list) or not all(isinstance(n, (int, float)) for n in vector):
-                vector = embed_text(text)
-            self.docs[doc_id] = StoredDoc(doc_id, text, metadata, [float(n) for n in vector])
-
-    def query(self, text: str, limit: int, where: dict[str, Any] | None = None) -> dict[str, Any]:
-        query_vector = embed_text(text)
-        rows = [
-            (cosine_distance(query_vector, doc.vector), doc)
-            for doc in self.docs.values()
-            if metadata_matches(doc.metadata, where)
-        ]
-        rows.sort(key=lambda item: item[0])
-        selected = rows[: max(1, min(limit, 100))]
-        return {
-            "ids": [doc.id for _, doc in selected],
-            "documents": [doc.document for _, doc in selected],
-            "distances": [distance for distance, _ in selected],
-            "metadatas": [doc.metadata for _, doc in selected],
-        }
+from vector_index import DIMENSIONS, PROTOCOL, VERSION, VectorIndex
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -113,9 +45,19 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path == "/health":
-            return self.send_json({"status": "ok", "name": self.index.name, "version": VERSION, "protocol": PROTOCOL})
+            return self.send_json({
+                "status": "ok",
+                "name": self.index.name,
+                "version": VERSION,
+                "protocol": PROTOCOL,
+                "backend": self.index.backend,
+            })
         if self.path == "/vectors/stats":
-            return self.send_json({"count": len(self.index.docs), "name": self.index.name})
+            return self.send_json({
+                "count": self.index.count(),
+                "name": self.index.name,
+                "backend": self.index.backend,
+            })
         self.send_json({"error": "not found"}, 404)
 
     def do_POST(self) -> None:
@@ -138,7 +80,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:
         if self.path == "/vectors/collection":
-            self.index.docs.clear()
+            self.index.clear()
             return self.send_json({"success": True})
         self.send_json({"error": "not found"}, 404)
 
@@ -148,11 +90,21 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8082)
     parser.add_argument("--name", default="turbovec")
+    parser.add_argument("--dimensions", type=int, default=DIMENSIONS)
+    parser.add_argument("--bit-width", type=int, default=4)
+    parser.add_argument("--backend", choices=["auto", "turbovec", "fallback"], default="auto")
     args = parser.parse_args()
 
-    Handler.index = VectorIndex(args.name)
+    Handler.index = VectorIndex(
+        args.name,
+        dimensions=args.dimensions,
+        bit_width=args.bit_width,
+        prefer_turbovec=args.backend != "fallback",
+    )
+    if args.backend == "turbovec" and Handler.index.backend != "turbovec":
+        raise SystemExit("turbovec backend requested but package is not installed")
     server = ThreadingHTTPServer((args.host, args.port), Handler)
-    print(f"[turbovec-sidecar] listening on http://{args.host}:{args.port}")
+    print(f"[turbovec-sidecar] listening on http://{args.host}:{args.port} ({Handler.index.backend})")
     server.serve_forever()
 
 
