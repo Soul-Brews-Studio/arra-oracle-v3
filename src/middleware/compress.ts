@@ -9,6 +9,7 @@ const encoder = new TextEncoder();
 type CompressionEncoding = 'gzip' | 'deflate';
 type HeaderValue = string | number | string[];
 type HeaderMap = Record<string, HeaderValue>;
+const ENCODING_PREFERENCE: CompressionEncoding[] = ['gzip', 'deflate'];
 
 function qValue(entry: string): number {
   const q = entry.split(';').slice(1).find((part) => part.trim().toLowerCase().startsWith('q='));
@@ -28,9 +29,12 @@ function tokens(header: string | null): Map<string, number> {
 
 export function acceptedEncoding(header: string | null): CompressionEncoding | null {
   const accepted = tokens(header);
-  if ((accepted.get('gzip') ?? accepted.get('*') ?? 0) > 0) return 'gzip';
-  if ((accepted.get('deflate') ?? accepted.get('*') ?? 0) > 0) return 'deflate';
-  return null;
+  let best: { encoding: CompressionEncoding; q: number } | null = null;
+  for (const encoding of ENCODING_PREFERENCE) {
+    const q = accepted.get(encoding) ?? accepted.get('*') ?? 0;
+    if (q > 0 && (!best || q > best.q)) best = { encoding, q };
+  }
+  return best?.encoding ?? null;
 }
 
 function responseStatus(response: unknown, setStatus: unknown): number {
