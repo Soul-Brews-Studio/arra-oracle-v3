@@ -6,7 +6,7 @@ import type { ServerPlugin } from './types.ts';
 import { authRoutes } from '../../routes/auth/index.ts';
 import { settingsRoutes } from '../../routes/settings/index.ts';
 import { feedRoutes } from '../../routes/feed/index.ts';
-import { healthRoutes } from '../../routes/health/index.ts';
+import { createHealthRoutes } from '../../routes/health/index.ts';
 import { dashboardRoutes } from '../../routes/dashboard/index.ts';
 import { searchRoutes } from '../../routes/search/index.ts';
 import { conceptsRoutes } from '../../routes/concepts/index.ts';
@@ -71,7 +71,7 @@ export async function createBuiltinServerPlugins(options: BuiltinOptions): Promi
   const plugins: Array<ServerPlugin | null> = [
     routePlugin('gateway', 'standard', () => gatewayRoutes, false),
     createApiManifestExamplePlugin(),
-    routePlugin('health', 'core', () => healthRoutes),
+    routePlugin('health', 'core', () => createHealthRoutes()),
     routePlugin('search', 'core', () => searchRoutes),
     routePlugin('knowledge', 'core', () => knowledgeRoutes),
     routePlugin('concepts', 'core', () => conceptsRoutes),

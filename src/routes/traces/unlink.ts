@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { unlinkTraces } from '../../trace/handler.ts';
+import { unlinkTenantTraces } from './tenant-scope.ts';
 import { traceIdParam, unlinkQuery } from './model.ts';
 
 export const traceUnlinkRoute = new Elysia().delete('/api/traces/:id/link', async ({ params, query, set }) => {
@@ -9,7 +9,7 @@ export const traceUnlinkRoute = new Elysia().delete('/api/traces/:id/link', asyn
       set.status = 400;
       return { error: 'Missing or invalid direction (prev|next)' };
     }
-    const result = unlinkTraces(params.id, direction);
+    const result = unlinkTenantTraces(params.id, direction);
     if (!result.success) {
       set.status = 400;
       return { error: result.message };

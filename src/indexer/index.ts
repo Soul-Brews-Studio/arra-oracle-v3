@@ -14,10 +14,11 @@ import fs from 'fs';
 import path from 'path';
 import { Database } from 'bun:sqlite';
 import { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
-import { eq, or, isNull, inArray } from 'drizzle-orm';
+import { and, eq, or, isNull, inArray, type SQL } from 'drizzle-orm';
 import * as schema from '../db/schema.ts';
 import { oracleDocuments } from '../db/schema.ts';
 import { createDatabase } from '../db/index.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 import { detectProject } from '../server/project-detect.ts';
 import type { OracleDocument, IndexerConfig } from '../types.ts';
 
@@ -52,6 +53,11 @@ export class OracleIndexer {
    */
   async index(options: IndexOptions = {}): Promise<void> {
     const append = options.append === true;
+    const tenantId = currentTenantId();
+    const indexerOwnedWhere = tenantScopedWhere(
+      or(eq(oracleDocuments.createdBy, 'indexer'), isNull(oracleDocuments.createdBy))!,
+      tenantId,
+    );
     console.log(append ? 'Starting Oracle indexing in append mode...' : 'Starting Oracle indexing...');
     this.seenContentHashes.clear();
 
@@ -64,7 +70,7 @@ export class OracleIndexer {
     const psiMemoryDir = path.join(this.config.repoRoot, '\u03c8', 'memory');
     const existingIndexerDocCount = this.db.select({ id: oracleDocuments.id })
       .from(oracleDocuments)
-      .where(or(eq(oracleDocuments.createdBy, 'indexer'), isNull(oracleDocuments.createdBy)))
+      .where(indexerOwnedWhere)
       .all().length;
 
     if (!append && !fs.existsSync(psiMemoryDir) && existingIndexerDocCount > 0) {
@@ -100,7 +106,7 @@ export class OracleIndexer {
       // Smart deletion: remove indexer-created docs whose source file no longer exists
       const allIndexerDocs = this.db.select({ id: oracleDocuments.id, sourceFile: oracleDocuments.sourceFile })
         .from(oracleDocuments)
-        .where(or(eq(oracleDocuments.createdBy, 'indexer'), isNull(oracleDocuments.createdBy)))
+        .where(indexerOwnedWhere)
         .all();
 
       const idsToDelete = allIndexerDocs
@@ -139,7 +145,7 @@ export class OracleIndexer {
 
     // Store in SQLite + FTS5 only. Vector indexing is a separate step
     // (src/scripts/index-model.ts) that uses the canonical LanceDB path.
-    await storeDocuments(this.sqlite, this.db, null, this.project, documents);
+    await storeDocuments(this.sqlite, this.db, null, this.project, documents, { tenantId });
 
     setIndexingStatus(this.sqlite, this.config, false, documents.length, documents.length);
     console.log(`Indexed ${documents.length} documents (SQLite + FTS5)`);
@@ -151,4 +157,8 @@ export class OracleIndexer {
   async close(): Promise<void> {
     this.sqlite.close();
   }
+}
+
+function tenantScopedWhere(base: SQL, tenantId: string | undefined): SQL {
+  return tenantId ? and(base, eq(oracleDocuments.tenantId, tenantId))! : base;
 }

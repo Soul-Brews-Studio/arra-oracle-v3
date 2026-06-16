@@ -6,10 +6,24 @@
  */
 
 import { Elysia } from 'elysia';
-import { db, supersedeLog } from '../../db/index.ts';
+import { and, eq } from 'drizzle-orm';
+import { db, oracleDocuments, supersedeLog } from '../../db/index.ts';
+import { activeTenantId } from '../../middleware/tenant.ts';
 import { runSupersede } from '../../tools/supersede.ts';
 import type { OracleSupersededInput } from '../../tools/types.ts';
 import { SupersedeBody, SupersedeDocumentBody } from './model.ts';
+
+function documentInActiveTenant(id: string): boolean {
+  return Boolean(db.select({ id: oracleDocuments.id }).from(oracleDocuments)
+    .where(and(eq(oracleDocuments.id, id), eq(oracleDocuments.tenantId, activeTenantId()))).get());
+}
+
+function tenantDocumentError(input: OracleSupersededInput): string | null {
+  const { oldId, newId } = input as { oldId?: unknown; newId?: unknown };
+  if (typeof oldId === 'string' && oldId && !documentInActiveTenant(oldId)) return `Old document not found: ${oldId}`;
+  if (typeof newId === 'string' && newId && !documentInActiveTenant(newId)) return `New document not found: ${newId}`;
+  return null;
+}
 
 export const supersedeCreateEndpoint = new Elysia().post(
   '/supersede',
@@ -36,10 +50,7 @@ export const supersedeCreateEndpoint = new Elysia().post(
       }).returning({ id: supersedeLog.id }).get();
 
       set.status = 201;
-      return {
-        id: result.id,
-        message: 'Supersession logged',
-      };
+      return { id: result.id, message: 'Supersession logged' };
     } catch (error) {
       set.status = 500;
       return { error: error instanceof Error ? error.message : 'Unknown error' };
@@ -47,11 +58,7 @@ export const supersedeCreateEndpoint = new Elysia().post(
   },
   {
     body: SupersedeBody,
-    detail: {
-      tags: ['supersede'],
-      menu: { group: 'hidden' },
-      summary: 'Append to legacy supersede_log',
-    },
+    detail: { tags: ['supersede'], menu: { group: 'hidden' }, summary: 'Append to legacy supersede_log' },
   },
 );
 
@@ -59,6 +66,11 @@ export const supersedeDocumentEndpoint = new Elysia().post(
   '/supersede/document',
   ({ body, set }) => {
     try {
+      const tenantError = tenantDocumentError(body as OracleSupersededInput);
+      if (tenantError) {
+        set.status = 404;
+        return { success: false, error: tenantError };
+      }
       const result = runSupersede(db, body as OracleSupersededInput);
       if (result.isError) set.status = 400;
       return result.payload;
@@ -70,9 +82,6 @@ export const supersedeDocumentEndpoint = new Elysia().post(
   },
   {
     body: SupersedeDocumentBody,
-    detail: {
-      tags: ['supersede'],
-      summary: 'Mark an indexed document as superseded by another document',
-    },
+    detail: { tags: ['supersede'], summary: 'Mark an indexed document as superseded by another document' },
   },
 );

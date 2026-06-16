@@ -1,10 +1,11 @@
 import { Elysia } from 'elysia';
-import { MorningTapeQuery, RecallMemoryQuery, SaveMemoryBody, SemanticMemoryQuery } from './model.ts';
+import { MemoryCloseoutBody, MorningTapeQuery, RecallMemoryQuery, SaveMemoryBody, SemanticMemoryQuery } from './model.ts';
 import { createMemoryFanoutEndpoint } from './fanout.ts';
 import { memoryStore, type MemoryInput, type MemoryRecord, type MemoryStore } from './store.ts';
 import { memoryVectorIndex, type MemoryVectorHit, type MemoryVectorIndex } from './vector.ts';
 import { buildMorningTape } from './morning-tape.ts';
 import { MEMORY_CONFIDENCE_STRATEGY, memoryConfidence } from './confidence.ts';
+import { formatCloseoutMemory, type MemoryCloseoutInput } from './closeout.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
 
 export function createMemoryRoutes(
@@ -24,6 +25,19 @@ export function createMemoryRoutes(
     }, {
       body: SaveMemoryBody,
       detail: { tags: ['memory'], menu: { group: 'hidden' }, summary: 'Save a persisted memory' },
+    })
+    .post('/memory/closeout', async ({ body, set }) => {
+      try {
+        const memory = store.save(formatCloseoutMemory(body as MemoryCloseoutInput));
+        const vector = await vectorIndex.index(memory);
+        return { success: true, memory, vector };
+      } catch (error) {
+        set.status = 400;
+        return { success: false, error: error instanceof Error ? error.message : 'failed to close out memory' };
+      }
+    }, {
+      body: MemoryCloseoutBody,
+      detail: { tags: ['memory'], menu: { group: 'hidden' }, summary: 'Persist a Challenge 2 session close-out memory' },
     })
     .use(createMemoryFanoutEndpoint())
     .get('/memory/morning-tape', ({ query }) => {

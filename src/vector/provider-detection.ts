@@ -1,5 +1,11 @@
 import type { EmbeddingProviderType } from './types.ts';
 
+export const DETECTED_PROVIDER_MODELS = {
+  openai: ['text-embedding-3-small', 'text-embedding-3-large'],
+  gemini: ['text-embedding-004'],
+  'cloudflare-ai': ['@cf/baai/bge-m3'],
+} as const;
+
 export interface DetectedEmbeddingProvider {
   type: EmbeddingProviderType;
   available: boolean;
@@ -42,6 +48,7 @@ function provider(
 async function detectOllama(options: ProviderDetectionOptions): Promise<DetectedEmbeddingProvider> {
   const fetcher = options.fetcher ?? fetch;
   const base = options.ollamaUrl || options.env?.OLLAMA_BASE_URL || 'http://localhost:11434';
+  const configured = Boolean(options.ollamaUrl || options.env?.OLLAMA_BASE_URL);
   try {
     const res = await fetcher(`${base}/api/tags`, { signal: AbortSignal.timeout(options.timeoutMs ?? 1500) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -54,7 +61,7 @@ async function detectOllama(options: ProviderDetectionOptions): Promise<Detected
       capabilities: ['embed', 'local', 'models:list'],
     });
   } catch (error) {
-    return provider('ollama', false, {
+    return provider('ollama', configured, {
       source: 'probe',
       available: false,
       capabilities: ['embed', 'local', 'models:list'],
@@ -73,15 +80,15 @@ export async function detectEmbeddingProviders(
   const providers = [
     await detectOllama({ ...options, env }),
     provider('openai', has(env, 'OPENAI_API_KEY'), {
-      models: has(env, 'OPENAI_API_KEY') ? ['text-embedding-3-small', 'text-embedding-3-large'] : [],
+      models: has(env, 'OPENAI_API_KEY') ? [...DETECTED_PROVIDER_MODELS.openai] : [],
       capabilities: ['embed', 'remote'],
     }),
     provider('gemini', geminiConfigured, {
-      models: geminiConfigured ? ['text-embedding-004'] : [],
+      models: geminiConfigured ? [...DETECTED_PROVIDER_MODELS.gemini] : [],
       capabilities: ['embed', 'remote', 'free-tier'],
     }),
     provider('cloudflare-ai', cfConfigured, {
-      models: cfConfigured ? ['@cf/baai/bge-base-en-v1.5'] : [],
+      models: cfConfigured ? [...DETECTED_PROVIDER_MODELS['cloudflare-ai']] : [],
       capabilities: ['embed', 'remote', 'edge'],
     }),
   ];
