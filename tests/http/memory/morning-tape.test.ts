@@ -61,3 +61,25 @@ test('GET /api/v1/memory/morning-tape includes recent persisted memories', async
   expect(body.markdown).toContain(unique);
   expect(body.sections.map((section: { title: string }) => section.title)).toContain('Fresh memory');
 });
+
+test('GET /api/v1/memory/morning-tape can return direct Markdown for boot reading', async () => {
+  const app = createMemoryRoutes(undefined, new NoopMemoryVectorIndex());
+  const fetcher = createApiVersionedFetch((request) => app.handle(request));
+  const unique = `markdown-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const save = await fetcher(new Request('http://local/api/v1/memory/save', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'Markdown boot', content: `Read ${unique} in raw markdown.`, tags: ['boot'] }),
+  }));
+  const saved = await json(save);
+  savedIds.push(saved.memory.id);
+
+  const response = await fetcher(new Request('http://local/api/v1/memory/morning-tape?format=markdown&limit=3'));
+  const markdown = await response.text();
+
+  expect(response.status).toBe(200);
+  expect(response.headers.get('content-type')).toContain('text/markdown');
+  expect(markdown).toStartWith('# MORNING-TAPE');
+  expect(markdown).toContain(unique);
+});
+

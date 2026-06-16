@@ -19,6 +19,7 @@ export const SemanticMemoryQuery = t.Object({
 
 export const MorningTapeQuery = t.Object({
   limit: t.Optional(t.String()),
+  format: t.Optional(t.String()),
 });
 
 export const MemoryFanoutQuery = t.Object({

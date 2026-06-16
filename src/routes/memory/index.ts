@@ -26,7 +26,11 @@ export function createMemoryRoutes(
     .use(createMemoryFanoutEndpoint())
     .get('/memory/morning-tape', ({ query }) => {
       const limit = Math.min(25, Math.max(1, parseInt(query.limit ?? '8')));
-      return buildMorningTape(store.recall('', limit));
+      const tape = buildMorningTape(store.recall('', limit));
+      if (query.format === 'markdown' || query.format === 'md') {
+        return new Response(tape.markdown, { headers: { 'content-type': 'text/markdown; charset=utf-8' } });
+      }
+      return tape;
     }, {
       query: MorningTapeQuery,
       detail: { tags: ['memory'], menu: { group: 'hidden' }, summary: 'Render a two-minute morning recovery tape from persisted memories' },
