@@ -5,6 +5,7 @@ import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
 import { pluginStatusLabel, isPluginEnabled, type PluginEnabledState } from '../components/PluginList';
 import { surfacesFor } from '../plugin-surfaces';
 import type { PluginEntry } from '../types';
+import { UnifiedPluginSurfaceOverview } from './UnifiedPluginSurfaceOverview';
 
 type PageState = 'loading' | 'ready' | 'error';
 type PluginsClient = Pick<ApiClient, 'plugins'>;
@@ -220,6 +221,8 @@ export function PluginsPage({ plugins: initialPlugins = [], loading = true, clie
         {state !== 'error' && error ? <ErrorMessage title="Plugin action failed." message={error} /> : null}
         {actionMessage ? <p className="mt-3 text-sm text-amber-200">{actionMessage}</p> : null}
       </section>
+
+      {isLoading || state === 'error' ? null : <UnifiedPluginSurfaceOverview plugins={plugins} />}
 
       {isLoading || state === 'error' ? null : (
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.8fr)]">
