@@ -3,8 +3,9 @@ import { apiUrl } from "../api";
 import { Spinner } from "./AsyncState";
 import { StepBody, setupSteps } from "./SetupWizardContent";
 import { shouldShowSetupWizard } from "./setupWizardDetection";
+import { buildIndexStartBody, requestVectorIndexStart } from "./setupWizardIndex";
 import { buildProviderConfigPatch, recommendedProvider } from "./setupWizardProvider";
-import type { Provider, Stats, Step, VectorConfig } from "./setupWizardTypes";
+import type { Provider, Stats, Step, VectorConfig, VectorIndexSource } from "./setupWizardTypes";
 
 export { shouldShowSetupWizard } from "./setupWizardDetection";
 
@@ -24,6 +25,8 @@ export function SetupWizard({ children }: { children: ReactNode }) {
   const [step, setStep] = useState<Step>(0);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState("");
+  const [indexSource, setIndexSource] = useState<VectorIndexSource>("auto");
+  const [repoRoot, setRepoRoot] = useState("");
   const [config, setConfig] = useState<VectorConfig | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -105,28 +108,13 @@ export function SetupWizard({ children }: { children: ReactNode }) {
   }
 
   async function startIndex() {
-    const collections = Object.entries(config?.config?.collections ?? {});
-    const key =
-      collections.find(([, item]) => item.enabled !== false)?.[0] ??
-      collections[0]?.[0];
-    if (!key)
-      return setMessage(
-        "No vector collection is configured yet. Open Vector Settings to add one.",
-      );
+    const body = buildIndexStartBody(config, indexSource, repoRoot);
+    if ('error' in body) return setMessage(body.error);
     setBusy(true);
     try {
-      await fetch(apiUrl("/api/v1/vector/index/start"), {
-        method: "POST",
-        headers: {
-          accept: "application/json",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ model: key }),
-      });
+      await requestVectorIndexStart(body);
       setStep(3);
-      setMessage(
-        `Started indexing ${key}. Continue to the dashboard or watch /vector/settings.`,
-      );
+      setMessage(`Started indexing ${body.model} from ${body.source}. Continue to the dashboard or watch /vector/settings.`);
     } finally {
       setBusy(false);
     }
@@ -170,6 +158,10 @@ export function SetupWizard({ children }: { children: ReactNode }) {
             config={config}
             selectedProvider={selectedProvider}
             onProviderSelect={setSelectedProvider}
+            indexSource={indexSource}
+            repoRoot={repoRoot}
+            onIndexSource={setIndexSource}
+            onRepoRoot={setRepoRoot}
           />
         </div>
         {message ? (

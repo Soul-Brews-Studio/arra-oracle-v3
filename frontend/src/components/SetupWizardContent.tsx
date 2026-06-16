@@ -1,4 +1,4 @@
-import type { Provider, Step, VectorConfig } from "./setupWizardTypes";
+import type { Provider, Step, VectorConfig, VectorIndexSource } from "./setupWizardTypes";
 
 export const setupSteps = [
   "Welcome",
@@ -14,6 +14,10 @@ export function StepBody({
   selectedProvider = '',
   onProviderSelect,
   config,
+  indexSource = 'auto',
+  repoRoot = '',
+  onIndexSource,
+  onRepoRoot,
 }: {
   step: Step;
   providers: Provider[];
@@ -21,6 +25,10 @@ export function StepBody({
   selectedProvider?: string;
   onProviderSelect?: (provider: string) => void;
   config: VectorConfig | null;
+  indexSource?: VectorIndexSource;
+  repoRoot?: string;
+  onIndexSource?: (source: VectorIndexSource) => void;
+  onRepoRoot?: (path: string) => void;
 }) {
   if (step === 0)
     return (
@@ -31,7 +39,7 @@ export function StepBody({
     );
   if (step === 1)
     return <ProviderList providers={providers} recommended={recommended} selectedProvider={selectedProvider} onProviderSelect={onProviderSelect} />;
-  if (step === 2) return <VaultPlan config={config} />;
+  if (step === 2) return <VaultPlan config={config} source={indexSource} repoRoot={repoRoot} onSource={onIndexSource} onRepoRoot={onRepoRoot} />;
   return (
     <p className="mt-2 text-sm text-slate-300">
       Done. Continue to the Vector dashboard or watch live progress in Vector Settings.
@@ -93,20 +101,30 @@ function ProviderList({
   );
 }
 
-function VaultPlan({ config }: { config: VectorConfig | null }) {
+function VaultPlan({ config, source, repoRoot, onSource, onRepoRoot }: {
+  config: VectorConfig | null;
+  source: VectorIndexSource;
+  repoRoot: string;
+  onSource?: (source: VectorIndexSource) => void;
+  onRepoRoot?: (path: string) => void;
+}) {
   const collections = Object.entries(config?.config?.collections ?? {});
   return (
-    <div className="mt-2 text-sm text-slate-300">
-      <p>
-        Select the vault path you want to index, then seed the primary vector
-        collection.
-      </p>
-      <p className="mt-2 text-slate-400">
-        Configured collections:{" "}
-        {collections.length
-          ? collections.map(([key]) => key).join(", ")
-          : "none yet"}
-      </p>
+    <div className="mt-2 grid gap-3 text-sm text-slate-300">
+      <p>Select the vault path you want to index, then seed the primary vector collection.</p>
+      <label className="grid gap-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+        Index source
+        <select className="rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm normal-case text-slate-100" value={source} onChange={(event) => onSource?.(event.target.value as VectorIndexSource)}>
+          <option value="auto">Auto (vault, then SQLite fallback)</option>
+          <option value="vault">Vault path</option>
+          <option value="sqlite">SQLite documents</option>
+        </select>
+      </label>
+      <label className="grid gap-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+        Vault path
+        <input className="rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm normal-case text-slate-100" disabled={source === 'sqlite'} placeholder="Optional repo/vault path" value={repoRoot} onChange={(event) => onRepoRoot?.(event.target.value)} />
+      </label>
+      <p className="text-slate-400">Configured collections: {collections.length ? collections.map(([key]) => key).join(", ") : "none yet"}</p>
     </div>
   );
 }

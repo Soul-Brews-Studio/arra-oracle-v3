@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { shouldShowSetupWizard } from "../../../frontend/src/components/SetupWizard";
 import { StepBody, setupSteps } from "../../../frontend/src/components/SetupWizardContent";
+import { buildIndexStartBody, primaryCollectionKey } from "../../../frontend/src/components/setupWizardIndex";
 import { buildProviderConfigPatch, recommendedProvider } from "../../../frontend/src/components/setupWizardProvider";
 import { htmlFor } from "../_render";
 
@@ -52,6 +53,34 @@ describe("SetupWizard first-run detection", () => {
     expect(html).toContain('name="setup-provider"');
     expect(html).toContain('gemini · recommended');
     expect(html).toContain('Free tier available!');
+  });
+
+
+  test("builds vector index start body from selected source and vault path", () => {
+    const config = { config: { collections: { bge: { enabled: false }, qwen: { enabled: true } } } };
+    expect(primaryCollectionKey(config)).toBe("qwen");
+    expect(buildIndexStartBody(config, "vault", "/repo/oracle")).toEqual({
+      model: "qwen",
+      source: "vault",
+      repoRoot: "/repo/oracle",
+    });
+    expect(buildIndexStartBody(config, "sqlite", "/ignored")).toEqual({ model: "qwen", source: "sqlite" });
+  });
+
+  test("renders vault source controls for first-run indexing", () => {
+    const html = htmlFor(<StepBody
+      step={2}
+      providers={[]}
+      config={{ config: { collections: { bge: { model: "bge-m3" } } } }}
+      indexSource="vault"
+      repoRoot="/repo/oracle"
+      onIndexSource={() => {}}
+      onRepoRoot={() => {}}
+    />);
+    expect(html).toContain("Index source");
+    expect(html).toContain("Vault path");
+    expect(html).toContain("/repo/oracle");
+    expect(html).toContain("Configured collections: bge");
   });
 
   test("labels the final wizard step as done with dashboard guidance", () => {
