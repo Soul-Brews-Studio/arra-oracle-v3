@@ -25,7 +25,8 @@ describe('VectorIndexPanel', () => {
       />,
     );
 
-    expect(html).toContain('Index management');
+    expect(html).toContain('Index Manager');
+    expect(html).toContain('Index jobs and collections');
     expect(html).toContain('bge-m3');
     expect(html).toContain('oracle_bge_m3');
     expect(html).toContain('qwen3');

@@ -95,9 +95,9 @@ export function VectorIndexPanel({ client = apiClient, initialModels, initialSta
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-index-title">
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-purple-300">Index management</p>
-          <h2 id="vector-index-title" className="mt-2 text-2xl font-semibold text-white">Vector collections</h2>
-          <p className="mt-2 text-sm text-slate-400">Rebuild each embedding collection through /api/vector/index/start.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-purple-300">Index Manager</p>
+          <h2 id="vector-index-title" className="mt-2 text-2xl font-semibold text-white">Index jobs and collections</h2>
+          <p className="mt-2 text-sm text-slate-400">Start, poll, and audit embedding rebuilds through /api/vector/index/start.</p>
         </div>
         <button
           className="focus-ring rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-200 hover:border-purple-300/40"

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { VectorFirstRunWizard } from '../components/VectorFirstRunWizard';
 import { VectorIndexPanel } from '../components/VectorIndexPanel';
 import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
 import {
@@ -168,6 +169,8 @@ export function VectorSettingsPage() {
       {state === 'loading' ? <LoadingPanel title="Loading vector config" detail="Reading /api/v1/vector/config." /> : null}
       {state === 'error' ? <ErrorMessage title="Could not load vector config." message={error} /> : null}
       {error && state !== 'error' ? <ErrorMessage title="Vector settings warning" message={error} /> : null}
+
+      {state === 'ready' ? <VectorFirstRunWizard rows={rows} onRefresh={loadConfig} /> : null}
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
