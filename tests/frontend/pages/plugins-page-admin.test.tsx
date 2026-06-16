@@ -4,6 +4,7 @@ import {
   enabledStateForPlugins,
   filteredPluginsFor,
   pluginAdminSummary,
+  pluginSurfaceFilterOptions,
 } from '../../../frontend/src/pages/PluginsPage';
 import type { PluginEntry } from '../../../frontend/src/types';
 import { htmlFor } from '../_render';
@@ -33,12 +34,15 @@ describe('PluginsPage admin view', () => {
     expect(filteredPluginsFor(plugins, enabled, 'echo.say', 'all').map((plugin) => plugin.name)).toEqual(['echo']);
     expect(filteredPluginsFor(plugins, enabled, '', 'disabled').map((plugin) => plugin.name)).toEqual(['archive']);
     expect(filteredPluginsFor(plugins, enabled, '', 'unhealthy').map((plugin) => plugin.name)).toEqual(['broken']);
+    expect(filteredPluginsFor(plugins, enabled, '', 'all', 'mcp').map((plugin) => plugin.name)).toEqual(['echo']);
+    expect(pluginSurfaceFilterOptions(plugins)).toEqual(['mcp', 'metadata', 'wasm']);
 
     const html = htmlFor(<PluginsPage plugins={plugins} loading={false} initialQuery="echo.say" />);
     expect(html).toContain('Find plugin surfaces');
     expect(html).toContain('Showing 1 of 4 plugins');
     expect(html).toContain('echo');
     expect(html).toContain('Clear filters');
+    expect(html).toContain('All surfaces');
   });
 
   test('renders a no-match state for filtered plugin inventory', () => {

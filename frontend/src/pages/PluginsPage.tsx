@@ -3,14 +3,29 @@ import { setPluginEnabled } from '../api/plugin-admin';
 import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
 import { isPluginEnabled, PluginList, type PluginEnabledState } from '../components/PluginList';
 import { PLUGINS_ENDPOINT, usePlugins, type PluginFetch } from '../hooks/usePlugins';
-import { countPluginSurfaces, surfacesFor } from '../plugin-surfaces';
+import { countPluginSurfaces } from '../plugin-surfaces';
+import {
+  enabledStateForPlugins,
+  filteredPluginsFor,
+  healthForPlugin,
+  pluginAdminSummary,
+  pluginSurfaceFilterOptions,
+  type PluginSurfaceFilter,
+  type PluginVisibilityFilter,
+  type Tone,
+} from './pluginInventory';
 import { UnifiedPluginSurfaceOverview } from './UnifiedPluginSurfaceOverview';
 import type { PluginEntry } from '../types';
 
 const EMPTY_PLUGINS: PluginEntry[] = [];
 
-type Tone = 'ok' | 'warn' | 'bad' | 'idle';
-export type PluginVisibilityFilter = 'all' | 'enabled' | 'disabled' | 'unhealthy';
+export {
+  enabledStateForPlugins,
+  filteredPluginsFor,
+  pluginAdminSummary,
+  pluginSurfaceFilterOptions,
+} from './pluginInventory';
+export type { PluginSurfaceFilter, PluginVisibilityFilter } from './pluginInventory';
 
 export interface PluginsPageProps {
   plugins?: PluginEntry[];
@@ -19,62 +34,7 @@ export interface PluginsPageProps {
   fetcher?: PluginFetch;
   initialQuery?: string;
   initialVisibility?: PluginVisibilityFilter;
-}
-
-export function enabledStateForPlugins(plugins: PluginEntry[]): PluginEnabledState {
-  return Object.fromEntries(plugins.map((plugin) => [
-    plugin.name,
-    plugin.enabled ?? plugin.status !== 'disabled',
-  ]));
-}
-
-export function pluginAdminSummary(plugins: PluginEntry[], enabledState: PluginEnabledState): string {
-  const enabled = plugins.filter((plugin) => isPluginEnabled(plugin, enabledState)).length;
-  const disabled = plugins.length - enabled;
-  return `${enabled} enabled · ${disabled} disabled · ${plugins.length} registered`;
-}
-
-
-function queryText(plugin: PluginEntry): string {
-  return [
-    plugin.name,
-    plugin.description,
-    plugin.status,
-    plugin.error,
-    plugin.version,
-    plugin.file,
-    plugin.server?.command,
-    plugin.server?.healthPath,
-    plugin.menu?.label,
-    ...surfacesFor(plugin),
-    ...(plugin.mcpTools ?? []).map((tool) => tool.name),
-    ...(plugin.apiRoutes ?? []).map((route) => route.path),
-    ...(plugin.proxy ?? []).map((proxy) => proxy.path),
-    ...(plugin.cliSubcommands ?? []).map((command) => command.command),
-    ...(plugin.exportFormats ?? []).map((format) => format.extension),
-  ].filter(Boolean).join(' ').toLowerCase();
-}
-
-function pluginMatchesVisibility(plugin: PluginEntry, enabledState: PluginEnabledState, filter: PluginVisibilityFilter): boolean {
-  const enabled = isPluginEnabled(plugin, enabledState);
-  const health = healthForPlugin(plugin, enabled).tone;
-  if (filter === 'enabled') return enabled;
-  if (filter === 'disabled') return !enabled;
-  if (filter === 'unhealthy') return health === 'bad' || health === 'warn';
-  return true;
-}
-
-export function filteredPluginsFor(
-  plugins: PluginEntry[],
-  enabledState: PluginEnabledState,
-  query: string,
-  visibility: PluginVisibilityFilter,
-): PluginEntry[] {
-  const needle = query.trim().toLowerCase();
-  return plugins.filter((plugin) => {
-    const queryMatch = !needle || queryText(plugin).includes(needle);
-    return queryMatch && pluginMatchesVisibility(plugin, enabledState, visibility);
-  });
+  initialSurface?: PluginSurfaceFilter;
 }
 
 function toneClass(tone: Tone): string {
@@ -85,16 +45,6 @@ function toneClass(tone: Tone): string {
     idle: 'border-slate-500/40 bg-slate-800 text-slate-200',
   };
   return tones[tone];
-}
-
-function healthForPlugin(plugin: PluginEntry, enabled: boolean): { label: string; detail: string; tone: Tone } {
-  if (!enabled) return { label: 'inactive', detail: 'disabled in plugin state', tone: 'idle' };
-  if (plugin.error) return { label: 'unhealthy', detail: plugin.error, tone: 'bad' };
-  if (plugin.status === 'degraded') return { label: 'degraded', detail: 'reported by plugin manifest', tone: 'warn' };
-  if (plugin.status && plugin.status !== 'ok') {
-    return { label: plugin.status, detail: plugin.server?.healthPath ?? 'reported by plugin manifest', tone: 'warn' };
-  }
-  return { label: 'healthy', detail: plugin.server?.healthPath ?? 'manifest ok', tone: 'ok' };
 }
 
 function MetricCard({ label, value, detail, tone = 'idle' }: { label: string; value: string | number; detail: string; tone?: Tone }) {
@@ -114,18 +64,21 @@ export function PluginsPage({
   fetcher,
   initialQuery = '',
   initialVisibility = 'all',
+  initialSurface = 'all',
 }: PluginsPageProps) {
   const initialLoading = loading || initialPlugins.length === 0;
   const { plugins, loading: fetching, error, reload } = usePlugins({ initialPlugins, initialLoading, endpoint, fetcher });
   const [overrides, setOverrides] = useState<PluginEnabledState>({});
   const [query, setQuery] = useState(initialQuery);
   const [visibility, setVisibility] = useState<PluginVisibilityFilter>(initialVisibility);
+  const [surface, setSurface] = useState<PluginSurfaceFilter>(initialSurface);
   const [adminError, setAdminError] = useState('');
   const [adminMessage, setAdminMessage] = useState('');
   const enabledState = useMemo(() => ({ ...enabledStateForPlugins(plugins), ...overrides }), [plugins, overrides]);
   const summary = useMemo(() => pluginAdminSummary(plugins, enabledState), [plugins, enabledState]);
-  const visiblePlugins = useMemo(() => filteredPluginsFor(plugins, enabledState, query, visibility), [plugins, enabledState, query, visibility]);
-  const hasFilters = query.trim().length > 0 || visibility !== 'all';
+  const surfaceOptions = useMemo(() => pluginSurfaceFilterOptions(plugins), [plugins]);
+  const visiblePlugins = useMemo(() => filteredPluginsFor(plugins, enabledState, query, visibility, surface), [plugins, enabledState, query, visibility, surface]);
+  const hasFilters = query.trim().length > 0 || visibility !== 'all' || surface !== 'all';
   const metrics = useMemo(() => {
     const active = plugins.filter((plugin) => isPluginEnabled(plugin, enabledState)).length;
     const unhealthy = plugins.filter((plugin) => healthForPlugin(plugin, isPluginEnabled(plugin, enabledState)).tone === 'bad').length;
@@ -190,7 +143,7 @@ export function PluginsPage({
               <h2 id="plugin-filters-title" className="mt-1 text-lg font-semibold text-white">Find plugin surfaces</h2>
               <p className="mt-1 text-sm text-slate-400">Showing {visiblePlugins.length} of {plugins.length} plugins · {summary}</p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-[minmax(12rem,1fr)_12rem_auto]">
+            <div className="grid gap-2 sm:grid-cols-[minmax(12rem,1fr)_10rem_10rem_auto]">
               <label className="grid gap-1 text-sm font-medium text-slate-300">
                 Search plugins
                 <input
@@ -214,11 +167,22 @@ export function PluginsPage({
                   <option value="unhealthy">Needs attention</option>
                 </select>
               </label>
+              <label className="grid gap-1 text-sm font-medium text-slate-300">
+                Surface
+                <select
+                  className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-100"
+                  value={surface}
+                  onChange={(event) => setSurface(event.currentTarget.value as PluginSurfaceFilter)}
+                >
+                  <option value="all">All surfaces</option>
+                  {surfaceOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </label>
               <button
                 className="focus-ring self-end rounded-xl border border-white/10 px-3 py-2 text-sm font-semibold text-slate-200 hover:border-teal-300/40 disabled:opacity-40"
                 disabled={!hasFilters}
                 type="button"
-                onClick={() => { setQuery(''); setVisibility('all'); }}
+                onClick={() => { setQuery(''); setVisibility('all'); setSurface('all'); }}
               >
                 Clear filters
               </button>
