@@ -112,6 +112,18 @@ test('GET and PUT /api/v1/vector/config expose and update vector-server.json', a
     adapter: 'qdrant',
   });
 
+  const disabledRes = await call('/api/v1/vector/config/phase1', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ enabled: false, provider: 'none' }),
+  });
+  expect(disabledRes.status).toBe(200);
+  expect(disabledRes.body.config.collections.phase1).toMatchObject({ enabled: false, provider: 'none' });
+
+  const disabledTest = await call('/api/v1/vector/config/phase1/test', { method: 'POST' });
+  expect(disabledTest.status).toBe(400);
+  expect(disabledTest.body).toMatchObject({ success: false, status: 'disabled', enabled: false });
+
   const addRes = await call('/api/v1/vector/config/phase2', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
