@@ -160,25 +160,23 @@ function validateProviderRequirements(env: RuntimeEnv, issues: string[]): void {
     issues.push('Cloudflare vector/AI config requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.');
   }
 }
-
 function validateRuntimePaths(env: RuntimeEnv, issues: string[]): void {
-  const dataDir = env.ORACLE_DATA_DIR || resolve(homeDir(env) || '.', '.arra-oracle-v2');
-  const dbPath = env.ORACLE_DB_PATH || pathFromDatabaseUrl(env.DATABASE_URL) || resolve(dataDir, 'oracle.db');
+  const dataDir = firstFilled(env.ORACLE_DATA_DIR, resolve(homeDir(env) || '.', '.arra-oracle-v2'));
+  const dbPath = firstFilled(env.ORACLE_DB_PATH, pathFromDatabaseUrl(env.DATABASE_URL), resolve(dataDir, 'oracle.db'));
   validateWritablePath('ORACLE_DATA_DIR', dataDir, issues, true);
   validateWritablePath('ORACLE_DB_PATH/DATABASE_URL', dbPath, issues, false);
-  if (filled(env.ORACLE_REPO_ROOT)) validateWritablePath('ORACLE_REPO_ROOT', env.ORACLE_REPO_ROOT, issues, true);
+  if (filled(env.ORACLE_REPO_ROOT)) validateWritablePath('ORACLE_REPO_ROOT', env.ORACLE_REPO_ROOT.trim(), issues, true);
 }
-
 function validateVectorConnectionConfig(env: RuntimeEnv, issues: string[]): void {
   const type = (env.ORACLE_VECTOR_DB?.trim() || 'lancedb').toLowerCase();
   if (type === 'qdrant' && !filled(env.QDRANT_URL)) issues.push('Qdrant vector DB requires QDRANT_URL.');
   if (type === 'proxy' && !filled(env.ORACLE_PROXY_VECTOR_URL)) issues.push('Proxy vector DB requires ORACLE_PROXY_VECTOR_URL.');
   if (type === 'lancedb' || type === 'sqlite-vec') {
-    const base = env.ORACLE_VECTOR_DB_PATH || resolve(env.ORACLE_DATA_DIR || resolve(homeDir(env) || '.', '.arra-oracle-v2'), type === 'lancedb' ? 'lancedb' : 'vectors.db');
+    const dataDir = firstFilled(env.ORACLE_DATA_DIR, resolve(homeDir(env) || '.', '.arra-oracle-v2'));
+    const base = firstFilled(env.ORACLE_VECTOR_DB_PATH, resolve(dataDir, type === 'lancedb' ? 'lancedb' : 'vectors.db'));
     validateWritablePath('ORACLE_VECTOR_DB_PATH', base, issues, type === 'lancedb');
   }
 }
-
 function validateWritablePath(label: string, target: string, issues: string[], directory: boolean): void {
   if (!filled(target)) return;
   try {
@@ -216,7 +214,8 @@ function pathFromDatabaseUrl(value?: string): string {
   return value;
 }
 
-const homeDir = (env: RuntimeEnv): string => env.HOME || env.USERPROFILE || '';
+const homeDir = (env: RuntimeEnv): string => firstFilled(env.HOME, env.USERPROFILE);
+const firstFilled = (...values: Array<string | undefined>): string => values.map((value) => value?.trim() || '').find(Boolean) || '';
 function optionalWarnings(env: RuntimeEnv): string[] {
   return OPTIONAL_DEFAULTS
     .filter((item) => !item.keys.some((key) => filled(env[key])))
