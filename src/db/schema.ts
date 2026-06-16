@@ -33,6 +33,22 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   index('idx_project').on(table.project),
 ]);
 
+
+// Challenge 2 memory system persistence (#1457)
+export const oracleMemories = sqliteTable('oracle_memories', {
+  id: text('id').primaryKey(),
+  content: text('content').notNull(),
+  title: text('title'),
+  tags: text('tags').default('[]').notNull(),
+  source: text('source'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, (table) => [
+  index('idx_memory_created').on(table.createdAt),
+  index('idx_memory_title').on(table.title),
+  index('idx_memory_source').on(table.source),
+]);
+
 // Indexing status tracking
 export const indexingStatus = sqliteTable('indexing_status', {
   id: integer('id').primaryKey(),

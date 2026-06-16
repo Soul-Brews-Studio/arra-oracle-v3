@@ -1,3 +1,8 @@
+import { desc, like, or } from 'drizzle-orm';
+import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+import { db as defaultDb, oracleMemories } from '../../db/index.ts';
+import type * as schema from '../../db/schema.ts';
+
 export type MemoryInput = {
   content: string;
   title?: string;
@@ -8,46 +13,69 @@ export type MemoryInput = {
 export type MemoryRecord = MemoryInput & {
   id: string;
   createdAt: string;
+  updatedAt: string;
 };
 
-export class InMemoryStore {
-  private readonly records = new Map<string, MemoryRecord>();
-  private counter = 0;
+type OracleDb = BunSQLiteDatabase<typeof schema>;
+type MemoryRow = typeof oracleMemories.$inferSelect;
+
+export class MemoryStore {
+  constructor(private readonly database: OracleDb = defaultDb) {}
 
   save(input: MemoryInput): MemoryRecord {
     const content = input.content.trim();
     if (!content) throw new Error('memory content is required');
-    const id = `mem_${Date.now().toString(36)}_${(++this.counter).toString(36)}`;
-    const record: MemoryRecord = {
-      id,
+    const now = Date.now();
+    const row = this.database.insert(oracleMemories).values({
+      id: `mem_${now.toString(36)}_${crypto.randomUUID().slice(0, 8)}`,
       content,
-      title: input.title?.trim() || undefined,
-      tags: input.tags?.map((tag) => tag.trim()).filter(Boolean) ?? [],
-      source: input.source?.trim() || undefined,
-      createdAt: new Date().toISOString(),
-    };
-    this.records.set(id, record);
-    return record;
+      title: input.title?.trim() || null,
+      tags: JSON.stringify(cleanTags(input.tags)),
+      source: input.source?.trim() || null,
+      createdAt: now,
+      updatedAt: now,
+    }).returning().get();
+    return memoryFromRow(row);
   }
 
   recall(query = '', limit = 10): MemoryRecord[] {
-    const normalized = query.trim().toLowerCase();
-    const records = [...this.records.values()].reverse();
-    const matches = normalized ? records.filter((record) => searchable(record).includes(normalized)) : records;
-    return matches.slice(0, limit);
-  }
-
-  clear(): void {
-    this.records.clear();
-    this.counter = 0;
+    const normalized = query.trim();
+    const safeLimit = Math.min(50, Math.max(1, limit));
+    const base = this.database.select().from(oracleMemories);
+    const rows = normalized
+      ? base.where(or(
+        like(oracleMemories.content, `%${normalized}%`),
+        like(oracleMemories.title, `%${normalized}%`),
+        like(oracleMemories.tags, `%${normalized}%`),
+        like(oracleMemories.source, `%${normalized}%`),
+      )).orderBy(desc(oracleMemories.createdAt)).limit(safeLimit).all()
+      : base.orderBy(desc(oracleMemories.createdAt)).limit(safeLimit).all();
+    return rows.map(memoryFromRow);
   }
 }
 
-function searchable(record: MemoryRecord): string {
-  return [record.content, record.title, record.source, ...(record.tags ?? [])]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
+function cleanTags(tags: string[] = []): string[] {
+  return tags.map((tag) => tag.trim()).filter(Boolean);
 }
 
-export const memoryStore = new InMemoryStore();
+function tagsFrom(value: string): string[] {
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+  } catch {}
+  return [];
+}
+
+function memoryFromRow(row: MemoryRow): MemoryRecord {
+  return {
+    id: row.id,
+    content: row.content,
+    title: row.title ?? undefined,
+    tags: tagsFrom(row.tags),
+    source: row.source ?? undefined,
+    createdAt: new Date(row.createdAt).toISOString(),
+    updatedAt: new Date(row.updatedAt).toISOString(),
+  };
+}
+
+export const memoryStore = new MemoryStore();

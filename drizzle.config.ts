@@ -16,6 +16,7 @@ export default defineConfig({
   // Tables managed by Drizzle (excludes FTS5 internal tables)
   tablesFilter: [
     'oracle_documents',
+    'oracle_memories',
     'indexing_status',
     'search_log',
     'consult_log',

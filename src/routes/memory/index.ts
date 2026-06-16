@@ -1,8 +1,8 @@
 import { Elysia } from 'elysia';
 import { RecallMemoryQuery, SaveMemoryBody } from './model.ts';
-import { memoryStore, type InMemoryStore, type MemoryInput } from './store.ts';
+import { memoryStore, type MemoryInput, type MemoryStore } from './store.ts';
 
-export function createMemoryRoutes(store: InMemoryStore = memoryStore) {
+export function createMemoryRoutes(store: MemoryStore = memoryStore) {
   return new Elysia({ prefix: '/api' })
     .post('/memory/save', ({ body, set }) => {
       try {
