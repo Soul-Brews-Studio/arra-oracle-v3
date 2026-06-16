@@ -41,6 +41,7 @@ export interface VectorCollectionConfig {
   service?: string;
   /** Explicit endpoint for proxy adapter (optional, defaults to registered service). */
   endpoint?: string;
+  enabled?: boolean;
   primary?: boolean;
 }
 
@@ -173,6 +174,7 @@ export function configToModels(
     endpoint?: string;
   }> = {};
   for (const [key, col] of Object.entries(config.collections)) {
+    if (col.enabled === false) continue;
     const adapter = col.adapter || 'lancedb';
     const serviceEndpoint = col.endpoint
       || resolveServiceEndpoint(config, col.service)

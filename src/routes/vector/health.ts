@@ -10,13 +10,13 @@
  */
 
 import { Elysia } from 'elysia';
-import { handleVectorHealth } from '../../server/vector-handlers.ts';
 import { createVectorProxy } from '../../server/vector-proxy.ts';
 import { VECTOR_URL } from '../../config.ts';
+import { readVectorBackendHealth } from '../../vector/health.ts';
 
 const defaultProxy = createVectorProxy(VECTOR_URL);
 
-type VectorHealthResult = Awaited<ReturnType<typeof handleVectorHealth>>;
+type VectorHealthResult = Awaited<ReturnType<typeof readVectorBackendHealth>>;
 
 export interface VectorHealthEndpointOptions {
   vectorHealth?: () => Promise<VectorHealthResult>;
@@ -25,7 +25,7 @@ export interface VectorHealthEndpointOptions {
 
 export function createVectorHealthEndpoint(options: VectorHealthEndpointOptions = {}) {
   const proxy = options.proxy === undefined ? defaultProxy : options.proxy;
-  const vectorHealth = options.vectorHealth ?? handleVectorHealth;
+  const vectorHealth = options.vectorHealth ?? readVectorBackendHealth;
 
   async function readHealth({ set }: { set: { status?: number | string } }) {
     if (proxy) {

@@ -1,10 +1,3 @@
-/**
- * Vector config API — external path `/api/v1/vector/config`.
- *
- * The app mounts vector routes at `/api`; api-version middleware rewrites
- * `/api/v1/*` to those internal routes.
- */
-
 import fs from 'fs';
 import path from 'path';
 import { Elysia, t } from 'elysia';
@@ -29,7 +22,7 @@ const adapterSchema = t.Union([
   t.Literal('proxy'),
 ]);
 
-type CollectionUpdate = Partial<Pick<VectorCollectionConfig, 'adapter' | 'model' | 'provider' | 'service' | 'endpoint'>>;
+type CollectionUpdate = Partial<Pick<VectorCollectionConfig, 'adapter' | 'model' | 'provider' | 'service' | 'endpoint' | 'enabled'>>;
 type CollectionHealth = {
   key: string;
   collection: string;
@@ -38,9 +31,10 @@ type CollectionHealth = {
   adapter: VectorDBType;
   service?: string;
   endpoint?: string;
+  enabled: boolean;
   count: number;
   ok: boolean;
-  status: 'ok' | 'down';
+  status: 'ok' | 'down' | 'disabled';
   error?: string;
 };
 
@@ -72,10 +66,7 @@ function atomicWriteVectorConfig(config: VectorServerConfig): string {
     writeVectorConfig(config, tmp);
     fs.renameSync(tmp, target);
     return target;
-  } catch (e) {
-    try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch {}
-    throw e;
-  }
+  } catch (e) { try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch {} throw e; }
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -83,9 +74,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error('timeout')), ms);
   });
-  return Promise.race([promise, timeout]).finally(() => {
-    if (timer) clearTimeout(timer);
-  });
+  return Promise.race([promise, timeout]).finally(() => { if (timer) clearTimeout(timer); });
 }
 
 async function inspectCollection(
@@ -93,9 +82,25 @@ async function inspectCollection(
   col: VectorCollectionConfig,
   config: VectorServerConfig,
 ): Promise<CollectionHealth> {
+  const adapter = col.adapter || 'lancedb';
+  if (col.enabled === false) {
+    return {
+      key,
+      collection: col.collection,
+      model: col.model,
+      provider: col.provider,
+      adapter,
+      service: col.service,
+      endpoint: col.endpoint,
+      enabled: false,
+      count: 0,
+      ok: false,
+      status: 'disabled',
+    };
+  }
   const timeout = parseInt(process.env.ORACLE_VECTOR_HEALTH_TIMEOUT || '2000', 10);
   const preset = configToModels(config)[key];
-  const adapter = preset.adapter || 'lancedb';
+  if (!preset) throw new Error(`Collection ${key} is not enabled`);
   const store = createVectorStoreForModel(preset);
   try {
     await withTimeout(store.connect(), timeout);
@@ -106,6 +111,9 @@ async function inspectCollection(
       model: col.model,
       provider: col.provider,
       adapter,
+      service: col.service,
+      endpoint: col.endpoint,
+      enabled: true,
       count: stats.count,
       ok: true,
       status: 'ok',
@@ -117,6 +125,9 @@ async function inspectCollection(
       model: col.model,
       provider: col.provider,
       adapter,
+      service: col.service,
+      endpoint: col.endpoint,
+      enabled: true,
       count: 0,
       ok: false,
       status: 'down',
@@ -135,14 +146,15 @@ function normalizedUpdate(body: CollectionUpdate): CollectionUpdate | { error: s
     if (!model) return { error: 'model must be a non-empty string' };
     update.model = model;
   }
-    if (body.provider !== undefined) {
-      const provider = body.provider.trim();
-      if (!provider) return { error: 'provider must be a non-empty string' };
-      update.provider = provider;
-    }
-    if (body.service !== undefined) update.service = body.service;
-    if (body.endpoint !== undefined) update.endpoint = body.endpoint;
-  if (Object.keys(update).length === 0) return { error: 'body must include adapter, model, provider, service, or endpoint' };
+  if (body.provider !== undefined) {
+    const provider = body.provider.trim();
+    if (!provider) return { error: 'provider must be a non-empty string' };
+    update.provider = provider;
+  }
+  if (body.service !== undefined) update.service = body.service;
+  if (body.endpoint !== undefined) update.endpoint = body.endpoint;
+  if (body.enabled !== undefined) update.enabled = body.enabled;
+  if (Object.keys(update).length === 0) return { error: 'body must include adapter, model, provider, service, endpoint, or enabled' };
   return update;
 }
 
@@ -163,6 +175,7 @@ export const vectorConfigApiEndpoint = new Elysia()
         collection: col.collection,
         adapter: col.adapter,
         model: col.model,
+        enabled: col.enabled,
         ...(col.error && { error: col.error }),
       }])),
       checked_at: new Date().toISOString(),
@@ -225,6 +238,7 @@ export const vectorConfigApiEndpoint = new Elysia()
       provider: t.Optional(t.String()),
       service: t.Optional(t.String()),
       endpoint: t.Optional(t.String()),
+      enabled: t.Optional(t.Boolean()),
     }),
     detail: { tags: ['vector'], summary: 'Update one vector collection config' },
   });

@@ -1,5 +1,5 @@
 import { apiUrl } from './api/oracle';
-import type { McpToolsResponse, MenuResponse, PluginsResponse, SearchResponse, SettingsSystemResponse } from './types';
+import type { McpToolsResponse, MenuResponse, PluginsResponse, SearchResponse, SettingsSystemResponse, VectorConfigResponse, VectorConfigUpdateResponse } from './types';
 
 export { API_BASE, apiUrl, isTauri } from './api/oracle';
 
@@ -71,4 +71,19 @@ export async function fetchMcpTools(): Promise<McpToolsResponse> {
 
 export async function fetchSettingsSystem(): Promise<SettingsSystemResponse> {
   return getJson<SettingsSystemResponse>('/api/settings/system');
+}
+
+export async function fetchVectorConfig(): Promise<VectorConfigResponse> {
+  return getJson<VectorConfigResponse>('/api/v1/vector/config');
+}
+
+export async function updateVectorCollection(collection: string, patch: { adapter?: string; enabled?: boolean }): Promise<VectorConfigUpdateResponse> {
+  return getJson<VectorConfigUpdateResponse>(`/api/v1/vector/config/${encodeURIComponent(collection)}`, {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function reloadVectorConfig(): Promise<VectorConfigUpdateResponse> {
+  return getJson<VectorConfigUpdateResponse>('/api/v1/vector/config/reload', { method: 'POST' });
 }

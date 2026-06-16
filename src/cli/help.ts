@@ -95,7 +95,7 @@ export const BUILTIN_HELP: CliHelpEntry[] = [
     usage: "arra-cli vector-config <subcommand>",
     subcommands: ["list", "get <collection>", "stats [<collection>]", "set <collection> <field> <value>", "reload", "test <collection>"],
     flags: ["--json", "--yml", "--help", "-h", "--model <name>", "--provider <name>", "--adapter <name>"],
-    examples: ["arra-cli vector-config list", "arra-cli vector-config get bge-m3", "arra-cli vector-config stats bge-m3", "arra-cli vector-config set bge-m3 model qwen3-embedding", "arra-cli vector-config reload"],
+    examples: ["arra-cli vector-config list", "arra-cli vector-config get bge-m3", "arra-cli vector-config stats bge-m3", "arra-cli vector-config set bge-m3 enabled false", "arra-cli vector-config reload"],
   },
   {
     command: "migrate",
@@ -152,7 +152,7 @@ const SUBCOMMAND_HELP: CliHelpEntry[] = [
   { command: "vector-config list", help: "list available vector collections", usage: "arra-cli vector-config list", examples: ["arra-cli vector-config list"] },
   { command: "vector-config get", help: "show a collection config", usage: "arra-cli vector-config get <collection>", examples: ["arra-cli vector-config get bge-m3"] },
   { command: "vector-config stats", help: "show vector document counts", usage: "arra-cli vector-config stats [<collection>]", examples: ["arra-cli vector-config stats", "arra-cli vector-config stats bge-m3"] },
-  { command: "vector-config set", help: "set collection model/provider/adapter", usage: "arra-cli vector-config set <collection> <field> <value>", examples: ["arra-cli vector-config set bge-m3 model qwen3-embedding", "arra-cli vector-config set bge-m3 --adapter qdrant --provider remote"] },
+  { command: "vector-config set", help: "set collection model/provider/adapter/enabled", usage: "arra-cli vector-config set <collection> <field> <value>", examples: ["arra-cli vector-config set bge-m3 enabled false", "arra-cli vector-config set bge-m3 --adapter qdrant --provider remote"] },
   { command: "vector-config reload", help: "clear cached vector collection stores", usage: "arra-cli vector-config reload", examples: ["arra-cli vector-config reload"] },
   { command: "vector-config test", help: "probe one collection adapter", usage: "arra-cli vector-config test <collection>", examples: ["arra-cli vector-config test bge-m3"] },
   { command: "plugins list", help: "list MCP tool plugins", usage: "arra-cli plugins list [--json]", examples: ["arra-cli plugins list --json"] },

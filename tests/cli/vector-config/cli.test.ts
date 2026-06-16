@@ -9,6 +9,7 @@ type CollectionKey = {
   model: string;
   provider: string;
   adapter?: string;
+  enabled?: boolean;
   primary?: boolean;
 };
 
@@ -148,7 +149,7 @@ describe("arra-cli vector-config", () => {
     expect(onePayload?.docs).toBe(8);
   });
 
-  test("shows one collection config and updates model", async () => {
+  test("shows one collection config and updates model/enabled state", async () => {
     const getBefore = await runCli(["vector-config", "get", "phase2"], env);
     const before = tryParseJson(getBefore.stdout);
     expect(before?.config?.model).toBe("nomic-embed-text");
@@ -161,6 +162,11 @@ describe("arra-cli vector-config", () => {
     const getAfter = await runCli(["vector-config", "get", "phase2"], env);
     const after = tryParseJson(getAfter.stdout);
     expect(after?.config?.model).toBe("embed-v2");
+
+    const disable = await runCli(["vector-config", "set", "phase2", "enabled", "false"], env);
+    expect(disable.code).toBe(0);
+    const disabled = await runCli(["vector-config", "get", "phase2"], env);
+    expect(tryParseJson(disabled.stdout)?.config?.enabled).toBe(false);
   });
 
   test("supports collection ops", async () => {

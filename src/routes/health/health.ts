@@ -3,12 +3,12 @@ import { DB_PATH, PORT } from '../../config.ts';
 import { MCP_SERVER_NAME } from '../../const.ts';
 import { sqlite } from '../../db/index.ts';
 import { scanPlugins } from '../plugins/model.ts';
-import { handleVectorHealth } from '../../server/vector-handlers.ts';
+import { readVectorBackendHealth } from '../../vector/health.ts';
 import { mcpTools } from '../../tools/mcp-manifest.ts';
 import type { UnifiedPluginStatus } from '../../plugins/unified-loader.ts';
 import pkg from '../../../package.json' with { type: 'json' };
 
-type VectorHealth = Awaited<ReturnType<typeof handleVectorHealth>>;
+type VectorHealth = Awaited<ReturnType<typeof readVectorBackendHealth>>;
 type DbStatus = { status: 'connected' } | { status: 'error'; error: string };
 type DbPing = () => DbStatus | Promise<DbStatus>;
 
@@ -43,7 +43,7 @@ async function defaultDbPing(): Promise<DbStatus> {
   }
 }
 
-async function readVectorStatus(check = handleVectorHealth): Promise<VectorHealth> {
+async function readVectorStatus(check = readVectorBackendHealth): Promise<VectorHealth> {
   try {
     return await check();
   } catch (error) {

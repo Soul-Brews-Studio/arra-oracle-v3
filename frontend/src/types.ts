@@ -184,6 +184,7 @@ export interface SettingsEmbedderCollection {
   model: string;
   provider: string;
   adapter?: string;
+  enabled?: boolean;
   primary?: boolean;
 }
 
@@ -211,6 +212,32 @@ export interface SettingsSystemResponse {
   storage: SettingsStorageConfig;
   embedder: SettingsEmbedderConfig;
   migrations: SettingsMigrationStatus;
+}
+
+export interface VectorConfigHealth {
+  ok: boolean;
+  status: 'ok' | 'down' | 'disabled' | string;
+  collection: string;
+  adapter?: string;
+  model?: string;
+  enabled?: boolean;
+  error?: string;
+}
+
+export interface VectorConfigResponse {
+  source: 'file' | 'defaults';
+  config: { collections: Record<string, SettingsEmbedderCollection> };
+  doc_counts: Record<string, number>;
+  health: Record<string, VectorConfigHealth>;
+  checked_at?: string;
+}
+
+export interface VectorConfigUpdateResponse {
+  success: boolean;
+  source: 'file' | 'defaults';
+  path?: string;
+  collection?: string;
+  config: { collections: Record<string, SettingsEmbedderCollection> };
 }
 
 export type LoadState = 'idle' | 'loading' | 'ready' | 'error';

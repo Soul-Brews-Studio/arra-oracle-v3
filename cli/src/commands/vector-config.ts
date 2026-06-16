@@ -8,6 +8,7 @@ type CollectionEntry = {
   model: string;
   provider: string;
   adapter?: string;
+  enabled?: boolean;
   primary?: boolean;
 };
 
@@ -22,10 +23,11 @@ type UpdatePayload = {
   adapter?: string;
   model?: string;
   provider?: string;
+  enabled?: boolean;
 };
 
 const HELP = `arra-cli vector-config <subcommand>\n
-Subcommands:\n  list                                      list known vector collections\n  get <collection-key-or-name>              show embedding config for one collection\n  stats [<collection-key-or-name>]          show doc count for all or one collection\n  set <collection-key-or-name> <field> <value> set collection config (model|provider|adapter)\n  set <collection-key-or-name> [--model <name>] [--provider <name>] [--adapter <name>] set with flags\n  reload                                    reload server vector config cache\n  test <collection-key-or-name>             probe adapter for one collection\n\nExamples:\n  arra-cli vector-config list\n  arra-cli vector-config get bge-m3\n  arra-cli vector-config stats bge-m3\n  arra-cli vector-config set bge-m3 model qwen3-embedding\n  arra-cli vector-config set bge-m3 --adapter qdrant --provider remote\n  arra-cli vector-config reload\n\nOutput format: default JSON; pass --json or --yml for explicit format.`;
+Subcommands:\n  list                                      list known vector collections\n  get <collection-key-or-name>              show embedding config for one collection\n  stats [<collection-key-or-name>]          show doc count for all or one collection\n  set <collection-key-or-name> <field> <value> set collection config (model|provider|adapter|enabled)\n  set <collection-key-or-name> [--model <name>] [--provider <name>] [--adapter <name>] [--enabled <true|false>]\n  reload                                    reload server vector config cache\n  test <collection-key-or-name>             probe adapter for one collection\n\nExamples:\n  arra-cli vector-config list\n  arra-cli vector-config get bge-m3\n  arra-cli vector-config stats bge-m3\n  arra-cli vector-config set bge-m3 model qwen3-embedding\n  arra-cli vector-config set bge-m3 enabled false\n  arra-cli vector-config set bge-m3 --adapter qdrant --provider remote\n  arra-cli vector-config reload\n\nOutput format: default JSON; pass --json or --yml for explicit format.`;
 
 function usage(message: string): never {
   throw new Error(message);
@@ -39,6 +41,12 @@ function requireCollection(args: string[], command: string): string {
   const collection = args[0];
   if (!collection || collection.startsWith("-")) usage(`usage: arra-cli vector-config ${command} <collection-key-or-name>`);
   return collection as string;
+}
+
+function parseBoolean(value: string | undefined): boolean {
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  usage('enabled must be true or false');
 }
 
 function parseSetPayload(args: string[]): UpdatePayload {
@@ -64,6 +72,10 @@ function parseSetPayload(args: string[]): UpdatePayload {
       payload.adapter = value;
       continue;
     }
+    if (arg === "--enabled") {
+      payload.enabled = parseBoolean(args[++i]);
+      continue;
+    }
     if (arg.startsWith("--")) usage(`unknown option: ${arg}`);
 
     const key = arg.toLowerCase();
@@ -72,10 +84,11 @@ function parseSetPayload(args: string[]): UpdatePayload {
     if (key === "model") payload.model = value;
     else if (key === "provider") payload.provider = value;
     else if (key === "adapter") payload.adapter = value;
+    else if (key === "enabled") payload.enabled = parseBoolean(value);
     else usage(`unknown field: ${arg}`);
     i++;
   }
-  if (!payload.model && !payload.provider && !payload.adapter) usage("usage: arra-cli vector-config set ... (model|provider|adapter)");
+  if (!payload.model && !payload.provider && !payload.adapter && payload.enabled === undefined) usage("usage: arra-cli vector-config set ... (model|provider|adapter|enabled)");
   return payload;
 }
 
@@ -97,6 +110,7 @@ function emitList(payload: VectorPayload, args: string[]) {
     model: item.model,
     provider: item.provider,
     adapter: item.adapter,
+    enabled: item.enabled !== false,
     primary: item.primary,
     source: payload.source,
   }));
@@ -112,6 +126,7 @@ function emitStats(payload: VectorPayload, requested: string | undefined, args: 
       collection: item.collection,
       model: item.model,
       adapter: item.adapter,
+      enabled: item.enabled !== false,
       docs,
       status: health?.status ?? (health?.ok === false ? "down" : "unknown"),
       provider: item.provider,
