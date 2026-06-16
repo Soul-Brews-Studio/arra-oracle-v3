@@ -1,0 +1,42 @@
+import { afterEach, expect, test } from 'bun:test';
+import { Database } from 'bun:sqlite';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { createStorageBackend } from '../../src/storage/registry.ts';
+import type { StorageBackend } from '../../src/storage/types.ts';
+
+const FIRST_TENANT_MEMORY_MIGRATION = 1781628166154;
+let tempDir = '';
+let backend: StorageBackend | undefined;
+
+afterEach(() => {
+  backend?.close();
+  backend = undefined;
+  if (tempDir && fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true });
+  tempDir = '';
+});
+
+test('sqlite backend repairs additive migrations already present in schema', () => {
+  tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-storage-migration-repair-'));
+  const dbPath = path.join(tempDir, 'oracle.db');
+  backend = createStorageBackend({ dbPath });
+  backend.close();
+  backend = undefined;
+
+  const raw = new Database(dbPath);
+  raw.query('delete from __drizzle_migrations where created_at >= ?')
+    .run(FIRST_TENANT_MEMORY_MIGRATION);
+  raw.close();
+
+  backend = createStorageBackend({ dbPath });
+  const repaired = backend.sqlite.query<{ count: number }, [number]>(
+    'select count(*) as count from __drizzle_migrations where created_at >= ?',
+  ).get(FIRST_TENANT_MEMORY_MIGRATION);
+  const memoryColumns = backend.sqlite.query<{ name: string }, []>(
+    'pragma table_info("oracle_memories")',
+  ).all().map((column) => column.name);
+
+  expect(repaired?.count).toBe(4);
+  expect(memoryColumns).toContain('tenant_id');
+});

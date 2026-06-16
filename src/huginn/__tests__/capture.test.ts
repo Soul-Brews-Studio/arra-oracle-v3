@@ -48,6 +48,18 @@ describe('Huginn session capture', () => {
     expect(mined.hash).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it('falls back to the default capture limit for invalid maxItems', () => {
+    const dir = tmpdir();
+    const transcript = path.join(dir, 'limits.jsonl');
+    writeJsonl(transcript, [
+      { message: { role: 'assistant', content: 'Decision: keep capture limits defensive when hook config is invalid.' } },
+      { message: { role: 'assistant', content: 'Learned: invalid maxItems should not suppress all Huginn session memories.' } },
+    ]);
+
+    const mined = mineSessionJsonl(transcript, 0);
+    expect(mined.moments).toHaveLength(2);
+  });
+
   it('learns once per session+content hash and skips duplicate reruns', async () => {
     const dir = tmpdir();
     const transcript = path.join(dir, 'session-abc.jsonl');
@@ -73,6 +85,28 @@ describe('Huginn session capture', () => {
     const second = await captureSession({ transcriptPath: transcript, sessionId: 'abc', statePath, learn });
     expect(second.skipped).toBe('duplicate');
     expect(learned).toHaveLength(1);
+  });
+
+  it('recovers when the capture state has malformed records', async () => {
+    const dir = tmpdir();
+    const transcript = path.join(dir, 'state-edge.jsonl');
+    const statePath = path.join(dir, 'state.json');
+    fs.writeFileSync(statePath, JSON.stringify({ captures: [] }));
+    writeJsonl(transcript, [
+      { message: { role: 'assistant', content: 'Learned: malformed Huginn state should be ignored instead of blocking capture.' } },
+    ]);
+
+    const result = await captureSession({
+      transcriptPath: transcript,
+      sessionId: 'state-edge',
+      statePath,
+      learn: () => ({ id: 'learn_state_edge' }),
+    });
+
+    expect(result.learned).toBe(true);
+    const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+    expect(Array.isArray(state.captures)).toBe(false);
+    expect(Object.keys(state.captures)).toHaveLength(1);
   });
 
   it('does not learn empty/non-salient transcripts', async () => {

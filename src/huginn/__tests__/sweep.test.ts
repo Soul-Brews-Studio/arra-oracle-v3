@@ -53,6 +53,31 @@ describe('Huginn periodic sweep', () => {
     expect(Object.keys(state.captures)).toHaveLength(1);
   });
 
+  it('recovers when persisted sweep state has malformed records', async () => {
+    const dir = tmpdir();
+    const sessions = path.join(dir, 'sessions');
+    const transcript = path.join(sessions, 'malformed-state.jsonl');
+    const statePath = path.join(dir, 'state.json');
+    fs.writeFileSync(statePath, JSON.stringify({ captures: [], sweeps: [] }));
+    writeJsonl(transcript, [
+      { message: { role: 'assistant', content: 'Decision: Huginn sweep should tolerate malformed persisted state records.' } },
+    ], 2_000);
+
+    const result = await sweepHuginn({
+      sessionDirs: [sessions],
+      statePath,
+      now: 3_000,
+      learn: () => ({ id: 'learn_malformed_state' }),
+      indexMarkdown: () => {},
+    });
+
+    expect(result.learned).toBe(1);
+    const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+    expect(Array.isArray(state.captures)).toBe(false);
+    expect(Array.isArray(state.sweeps)).toBe(false);
+    expect(state.sweeps.lastSweepAtMs).toBe(3_000);
+  });
+
   it('uses #49 dedup state when the fast-path hook already captured the transcript', async () => {
     const dir = tmpdir();
     const sessions = path.join(dir, 'sessions');

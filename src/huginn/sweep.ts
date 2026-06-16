@@ -38,12 +38,16 @@ export interface HuginnSweepSummary {
   files: Array<{ path: string; action: string; sessionId?: string; hash?: string; sourceFile?: string }>;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
 function readSweepState(statePath: string): HuginnSweepState {
   try {
-    const parsed = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+    const parsed: unknown = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
     return {
-      captures: parsed && typeof parsed.captures === 'object' ? parsed.captures : {},
-      sweeps: parsed && typeof parsed.sweeps === 'object' ? parsed.sweeps : {},
+      captures: isRecord(parsed) && isRecord(parsed.captures) ? parsed.captures as HuginnSweepState['captures'] : {},
+      sweeps: isRecord(parsed) && isRecord(parsed.sweeps) ? parsed.sweeps as HuginnSweepState['sweeps'] : {},
     };
   } catch {
     return { captures: {}, sweeps: {} };

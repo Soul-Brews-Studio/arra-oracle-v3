@@ -17,11 +17,20 @@ const defaultFactories = new Map<string, StorageBackendFactory>([
 ]);
 const factories = new Map(defaultFactories);
 
+export function normalizeStorageBackendName(name: string): string {
+  const normalized = name.trim();
+  if (!normalized) throw new Error('Storage backend name must not be blank.');
+  return normalized;
+}
+
 export function registerStorageBackend(
   name: string,
   factory: StorageBackendFactory,
 ): void {
-  factories.set(name, factory);
+  if (typeof factory !== 'function') {
+    throw new TypeError('Storage backend factory must be a function.');
+  }
+  factories.set(normalizeStorageBackendName(name), factory);
 }
 
 export function resetStorageBackendsForTests(): void {
@@ -32,8 +41,10 @@ export function resetStorageBackendsForTests(): void {
 export function createStorageBackend(
   options: CreateStorageBackendOptions = {},
 ): StorageBackend {
-  const backend = options.backend
-    || loadStorageConfig({ repoRoot: options.repoRoot, dataDir: options.dataDir }).backend;
+  const backend = normalizeStorageBackendName(
+    options.backend
+      ?? loadStorageConfig({ repoRoot: options.repoRoot, dataDir: options.dataDir }).backend,
+  );
   const factory = factories.get(backend);
 
   if (!factory) {

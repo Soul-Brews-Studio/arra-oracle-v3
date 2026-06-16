@@ -214,7 +214,7 @@ export function GraphPreview({
             if (!from || !to) return null;
             return (
               <line key={`${edge.from}-${edge.to}-${edge.type}-${index}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#5eead4" strokeOpacity="0.38" strokeWidth="1.5" markerEnd={`url(#${markerId})`}>
-                <title>{edge.type}: {edge.from} to {edge.to}</title>
+                <title>{`${edge.type}: ${edge.from} to ${edge.to}`}</title>
               </line>
             );
           })}
@@ -226,7 +226,7 @@ export function GraphPreview({
                 <text x={radius + 5} y="4" fill="#e2e8f0" fontSize="12" fontFamily="Inter, ui-sans-serif, system-ui">
                   {shortLabel(node.label ?? node.id)}
                 </text>
-                <title>{node.label ?? node.id}{node.type ? ` (${node.type})` : ''}</title>
+                <title>{`${node.label ?? node.id}${node.type ? ` (${node.type})` : ''}`}</title>
               </g>
             );
           })}
