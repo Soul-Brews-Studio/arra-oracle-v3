@@ -10,6 +10,7 @@ import { createExportStatsRoutes } from './stats.ts';
 import { createExportTestConnectionRoutes } from './test-connection.ts';
 import { rememberExportProgress } from './progress.ts';
 import { canReadTenantResource, currentExportTenantId, tenantScopedOutputDir, tenantWhereFor } from './tenant.ts';
+import { recordExportHistory } from './history-store.ts';
 
 type ExportRecord = Record<string, unknown>;
 type BaseExportFormat = 'json' | 'csv' | 'markdown';
@@ -223,6 +224,7 @@ export function createExportAppRoutes(deps: ExportAppDeps = {}) {
         createdAt: (deps.now?.() ?? new Date()).toISOString(),
       };
       jobs.set(jobId, job);
+      recordExportHistory({ id: jobId, tenantId, collection: job.collection, format: job.format, timestamp: Date.parse(job.createdAt), status: 'completed' });
       rememberExportProgress({ id: jobId, jobId, tenantId, status: 'completed', progress: 100, updatedAt: job.createdAt, downloadUrl, filename, fileSizeEstimate: sizeBytes, sizeBytes });
       return { ...job, filePath: undefined, status: 'completed', progress: 100, downloadUrl };
     }, {

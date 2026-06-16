@@ -81,14 +81,20 @@ export function pluginCapabilityLinks(plugins: PluginEntry[]): Array<{ label: st
 }
 
 export function pluginServerRows(plugins: PluginEntry[]): Array<{ name: string; status: string; health: string; surface: 'server' | 'proxy' }> {
-  return plugins
-    .filter((plugin) => plugin.server || plugin.proxy?.length)
-    .map((plugin) => ({
+  return plugins.flatMap((plugin) => [
+    ...(plugin.server ? [{
       name: plugin.name,
       status: plugin.status ?? 'ok',
-      health: plugin.server?.healthPath ?? plugin.proxy?.[0]?.path ?? 'proxy route',
-      surface: plugin.server ? 'server' : 'proxy',
-    }));
+      health: plugin.server.healthPath ?? '/health',
+      surface: 'server' as const,
+    }] : []),
+    ...(plugin.proxy ?? []).map((proxy) => ({
+      name: plugin.name,
+      status: plugin.status ?? 'ok',
+      health: proxy.path,
+      surface: 'proxy' as const,
+    })),
+  ]);
 }
 
 export function pluginServerLinks(plugins: PluginEntry[]): Array<{ label: string; href: string }> {

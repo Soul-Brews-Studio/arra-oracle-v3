@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { DB_PATH } from '../../src/config.ts';
 import { exportOracleData, type ExportProgressEvent } from './exporter.ts';
 import { previewOracleExport } from './summary.ts';
@@ -16,6 +16,7 @@ interface CliOptions {
   dryRun: boolean;
   verifyDir?: string;
   collections: string[];
+  allowNonemptyOutput: boolean;
 }
 
 function flagValue(args: string[], index: number, flag: string): string {
@@ -40,6 +41,7 @@ export function parseArgs(args: string[]): CliOptions {
   let dryRun = false;
   let verifyDir: string | undefined;
   let collections: string[] = [];
+  let allowNonemptyOutput = false;
 
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
@@ -65,13 +67,14 @@ export function parseArgs(args: string[]): CliOptions {
     if (arg === '--quiet' || arg === '--no-progress') { quiet = true; continue; }
     if (arg === '--progress-json') { progressMode = 'json'; continue; }
     if (arg === '--dry-run') { dryRun = true; continue; }
+    if (arg === '--allow-nonempty-output') { allowNonemptyOutput = true; continue; }
     if (arg === '--help' || arg === '-h') continue;
     throw new Error(arg.startsWith('-') ? `unknown flag: ${arg}` : `unexpected argument: ${arg}`);
   }
 
   if (verifyDir && outputDir) throw new Error('--verify cannot be combined with --output');
   if (!outputDir && !verifyDir) throw new Error('missing required --output <dir>');
-  return { outputDir: outputDir ?? verifyDir!, dbPath, quiet, progressMode, dryRun, verifyDir, collections };
+  return { outputDir: outputDir ?? verifyDir!, dbPath, quiet, progressMode, dryRun, verifyDir, collections, allowNonemptyOutput };
 }
 
 function readProgressMode(value: string): ProgressMode {
@@ -86,15 +89,19 @@ function requireFile(path: string): void {
   if (!statSync(path).isFile()) throw new Error(`database path is not a file: ${path}`);
 }
 
-function requireOutputTarget(path: string): void {
+function requireOutputTarget(path: string, requireEmpty: boolean): void {
   if (existsSync(path) && !statSync(path).isDirectory()) {
     throw new Error(`output path exists but is not a directory: ${path}`);
   }
+  if (requireEmpty && existsSync(path) && readdirSync(path).length > 0) {
+    throw new Error(`output directory is not empty: ${path}. Choose a new backup directory or pass --allow-nonempty-output.`);
+  }
 }
 
-export function validateCliOptions(options: CliOptions): void {
+export function validateCliOptions(options: CliOptions, validation: { willWrite?: boolean } = {}): void {
   requireFile(options.dbPath ?? DB_PATH);
-  requireOutputTarget(options.outputDir);
+  const willWrite = validation.willWrite ?? true;
+  requireOutputTarget(options.outputDir, willWrite && !options.allowNonemptyOutput);
 }
 
 function printHelp(write: Writer): void {
@@ -110,6 +117,8 @@ function printHelp(write: Writer): void {
     '  --progress <mode>    progress output: text, json, or silent',
     '  --dry-run            print collection counts without writing files',
     '  --verify <dir>       verify manifest file sizes and SHA-256 checksums',
+    '  --allow-nonempty-output',
+    '                       permit writing into a non-empty backup directory',
     '  --quiet              suppress progress output',
     '  --no-progress        alias for --quiet',
     '  --progress-json      emit progress as JSON lines on stderr',
@@ -143,7 +152,7 @@ export async function runExportApp(args: string[], stdout: Writer = process.stdo
       stdout(`${JSON.stringify({ success: result.ok, verified: result.ok, ...result }, null, 2)}\n`);
       return result.ok ? 0 : 1;
     }
-    validateCliOptions(options);
+    validateCliOptions(options, { willWrite: !options.dryRun });
     if (options.dryRun) {
       stdout(`${JSON.stringify({ success: true, dryRun: true, ...previewOracleExport({ dbPath: options.dbPath, collections: options.collections }) }, null, 2)}\n`);
       return 0;

@@ -73,12 +73,17 @@ bun run tools/export-app/index.ts --output ./backup/docs --collection oracle_doc
 bun run tools/export-app/index.ts --output ./backup/export-app --dry-run
 bun run tools/export-app/index.ts --output ./backup/export-app --progress json
 bun run tools/export-app/index.ts --verify ./backup/export-app
+bun run tools/export-app/index.ts --output ./backup/export-app --allow-nonempty-output
 ```
 
 Use `--dry-run` to print collection, row, relationship, and document counts
 without creating files. It is a safe preflight before long-running exports.
 Use `--collection <name>` repeatedly or `--collections a,b` to write only
 selected Drizzle collections when testing a narrow migration path.
+By default, batch export refuses to write into a non-empty output directory so
+old artifacts cannot be mistaken for a fresh backup. Use
+`--allow-nonempty-output` only when a wrapper has already cleaned or isolated
+the bundle path.
 
 The batch output includes:
 

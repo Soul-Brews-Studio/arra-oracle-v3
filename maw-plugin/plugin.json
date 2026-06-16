@@ -10,7 +10,7 @@
     "aliases": [
       "or"
     ],
-    "help": "maw arra <commands|backup|canvas-plugins|canvas-serve|changelog|completions|config|doctor|export|export-obsidian|huginn|import|import-obsidian|migrate|peers|plugin|release|seed|session|use|vault|frontend|ui|open|serve|server|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|vector-config|vector_index|vector_status|vector_stop|vector_models|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|supersede_list|supersede_chain|thread|thread_read|thread_update|threads|schedule|schedule_add|vault_sync|mcp_tools|verify>"
+    "help": "maw arra <commands|backup|canvas-plugins|canvas-serve|changelog|completions|config|doctor|export|export-obsidian|huginn|import|import-obsidian|migrate|peers|plugin|release|seed|session|use|vault|frontend|ui|open|serve|server|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|vector-config|vector_index|vector_status|vector_stop|vector_models|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|supersede_list|supersede_chain|thread|thread_read|thread_update|threads|schedule|schedule_add|vault_sync|mcp_tools|mcp-call|verify>"
   },
   "capabilities": [
     "net:http",
@@ -19,7 +19,7 @@
   ],
   "weight": 50,
   "schemaVersion": 1,
-  "help": "maw arra <commands|backup|canvas-plugins|canvas-serve|changelog|completions|config|doctor|export|export-obsidian|huginn|import|import-obsidian|migrate|peers|plugin|release|seed|session|use|vault|frontend|ui|open|serve|server|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|vector-config|vector_index|vector_status|vector_stop|vector_models|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|supersede_list|supersede_chain|thread|thread_read|thread_update|threads|schedule|schedule_add|vault_sync|mcp_tools|verify>",
+  "help": "maw arra <commands|backup|canvas-plugins|canvas-serve|changelog|completions|config|doctor|export|export-obsidian|huginn|import|import-obsidian|migrate|peers|plugin|release|seed|session|use|vault|frontend|ui|open|serve|server|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|vector-config|vector_index|vector_status|vector_stop|vector_models|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|supersede_list|supersede_chain|thread|thread_read|thread_update|threads|schedule|schedule_add|vault_sync|mcp_tools|mcp-call|verify>",
   "api": {
     "path": "/api/arra",
     "methods": [
@@ -30,7 +30,8 @@
   "config": {
     "dbBackend": "http",
     "embedderBackend": "none",
-    "apiBase": "http://localhost:47778"
+    "apiBase": "http://localhost:47778",
+    "mcpServerUrl": ""
   },
   "configSchema": {
     "type": "object",
@@ -51,6 +52,9 @@
         "type": "string"
       },
       "remoteEmbedderUrl": {
+        "type": "string"
+      },
+      "mcpServerUrl": {
         "type": "string"
       }
     },
@@ -74,7 +78,7 @@
   ],
   "artifact": {
     "path": "./index.ts",
-    "sha256": "ff8251c42ce5854f6d19deeb7d9fa2a54ca2caf5bc128182aba50c0dbdcbf9b5"
+    "sha256": "615c401bd7c31aabc710d3fab246b0dfc0260db72727dbff07e20187b94a0703"
   },
   "mcpTools": [
     {
