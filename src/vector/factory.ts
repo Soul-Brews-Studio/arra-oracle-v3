@@ -14,7 +14,7 @@ import { CloudflareVectorizeAdapter, CloudflareAIEmbeddings } from './adapters/c
 import { ProxyVectorAdapter } from './adapters/proxy.ts';
 import { createEmbeddingProvider } from './embeddings.ts';
 import { resolveEmbeddingFallbackChain, resolveEmbeddingModel, resolveEmbeddingProviderType } from './embedder-config.ts';
-import { loadVectorConfig, resolveServiceEndpoint, configToModels, fallbackCollectionsFor } from './config.ts';
+import { configPath, loadVectorConfig, resolveServiceEndpoint, configToModels, fallbackCollectionsFor } from './config.ts';
 
 export interface VectorStoreConfig {
   type?: VectorDBType;
@@ -113,8 +113,13 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
   }
 }
 
+function loadActiveVectorConfig(): ReturnType<typeof loadVectorConfig> {
+  const dataDir = process.env.ORACLE_DATA_DIR;
+  return loadVectorConfig(dataDir ? configPath(dataDir) : configPath());
+}
+
 export function getEmbeddingModels(
-  cfg: ReturnType<typeof loadVectorConfig> = loadVectorConfig(),
+  cfg: ReturnType<typeof loadVectorConfig> = loadActiveVectorConfig(),
 ): Record<string, EmbeddingModelConfig> {
   const fallbackFromFallbackCollections = cfg ? fallbackCollectionsFor(cfg) : [];
 
