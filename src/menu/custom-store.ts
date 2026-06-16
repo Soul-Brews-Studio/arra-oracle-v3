@@ -10,6 +10,7 @@ import path from 'path';
 import type { MenuItem } from '../routes/menu/model.ts';
 import { ORACLE_DATA_DIR } from '../config.ts';
 import { tenantDataPath } from '../middleware/tenant.ts';
+import { normalizeMenuPath } from './path.ts';
 
 export const CUSTOM_MENU_FILE = path.join(ORACLE_DATA_DIR, 'custom-menu.json');
 
@@ -33,10 +34,8 @@ function writeRaw(items: CustomMenuInput[], file = customMenuFile()): void {
   fs.writeFileSync(file, JSON.stringify({ items }, null, 2) + '\n');
 }
 
-function normalizePath(p: string): string {
-  const trimmed = p.trim();
-  if (!trimmed) return trimmed;
-  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+function normalizePath(value: string): string {
+  return normalizeMenuPath(value);
 }
 
 function normalizeGroup(value: unknown): MenuItem['group'] {
