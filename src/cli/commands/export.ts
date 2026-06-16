@@ -1,9 +1,15 @@
 import { writeFile } from "fs/promises";
 import { createDatabase, oracleDocuments, type DatabaseConnection } from "../../db/index.ts";
+import { getExportFormat } from "../../vector/export-formats.ts";
+import { getVectorStoreByModel } from "../../vector/factory.ts";
+
+const DEFAULT_COLLECTION = "bge-m3";
 
 export interface DataExportOptions {
-  format: "json";
+  format: string;
   outFile?: string;
+  source: "vault" | "vector";
+  collection: string;
 }
 
 type OracleDocumentRow = typeof oracleDocuments.$inferSelect;
@@ -18,12 +24,14 @@ export interface VaultJsonExport {
 }
 
 function printHelp(): void {
-  console.log("arra-cli export --format json [--out file]\n");
-  console.log("Exports vault data as JSON to stdout, or to --out when provided.");
+  console.log("arra-cli export --format <format> [--out file] [--source vault|vector] [--collection <name>]\\n");
+  console.log("Exports vault data as JSON (default) or vector embeddings via shared export formatters.");
   console.log("\nFlags:");
-  console.log("  --format json       output format (required value: json)");
-  console.log("  --out <file>        write export JSON to a file instead of stdout");
-  console.log("  --help, -h          show this help");
+  console.log("  --format <format>     output format (default: json)");
+  console.log("  --source <source>     export source: vault or vector (default: vault)");
+  console.log("  --collection <name>   vector collection/model key (default: bge-m3)");
+  console.log("  --out <file>         write export JSON to a file instead of stdout");
+  console.log("  --help, -h           show this help");
 }
 
 function readValue(args: string[], flag: string): string | undefined {
@@ -35,9 +43,28 @@ function readValue(args: string[], flag: string): string | undefined {
 
 export function parseExportOptions(args: string[]): DataExportOptions {
   const format = readValue(args, "--format") ?? "json";
-  if (format !== "json") throw new Error(`unsupported format: ${format}`);
+  const source = readValue(args, "--source") as DataExportOptions["source"] | undefined;
   const outFile = readValue(args, "--out");
-  return outFile ? { format, outFile } : { format };
+  const collection = readValue(args, "--collection") || DEFAULT_COLLECTION;
+
+  if (source && source !== "vault" && source !== "vector") {
+    throw new Error(`unsupported source: ${source}`);
+  }
+
+  if (source === "vault" && format !== "json") {
+    throw new Error(`vault export does not support format: ${format}`);
+  }
+
+  if ((source ?? format) !== "json" && !getExportFormat(format)) {
+    throw new Error(`unsupported format: ${format}`);
+  }
+
+  return {
+    format,
+    outFile,
+    source: source ?? (format === "json" ? "vault" : "vector"),
+    collection,
+  };
 }
 
 export function buildVaultJsonExport(connection: DatabaseConnection): VaultJsonExport {
@@ -51,6 +78,25 @@ export function buildVaultJsonExport(connection: DatabaseConnection): VaultJsonE
   };
 }
 
+async function buildVectorExportPayload(collection: string, format: string): Promise<string> {
+  const store = getVectorStoreByModel(collection);
+  try {
+    await store.connect();
+    await store.ensureCollection();
+    if (!store.getAllEmbeddings) {
+      throw new Error("Vector collection export is not supported by this adapter");
+    }
+    const stats = await store.getStats().catch(() => ({ count: 0 }));
+    const limit = stats.count > 0 ? stats.count : 50_000;
+    const dump = await store.getAllEmbeddings(limit);
+    const formatter = getExportFormat(format);
+    if (!formatter) throw new Error(`unsupported format: ${format}`);
+    return await new Response(formatter(dump)).text();
+  } finally {
+    await store.close().catch(() => {});
+  }
+}
+
 export async function exportCommand(args: string[]): Promise<number> {
   if (args.includes("--help") || args.includes("-h")) {
     printHelp();
@@ -60,8 +106,15 @@ export async function exportCommand(args: string[]): Promise<number> {
   let connection: DatabaseConnection | undefined;
   try {
     const options = parseExportOptions(args);
-    connection = createDatabase();
-    const payload = JSON.stringify(buildVaultJsonExport(connection), null, 2) + "\n";
+    let payload: string;
+
+    if (options.source === "vector") {
+      payload = await buildVectorExportPayload(options.collection, options.format);
+    } else {
+      connection = createDatabase();
+      payload = JSON.stringify(buildVaultJsonExport(connection), null, 2) + "\n";
+    }
+
     if (options.outFile) await writeFile(options.outFile, payload, "utf8");
     else process.stdout.write(payload);
     return 0;
