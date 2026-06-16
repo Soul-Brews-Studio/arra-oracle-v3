@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -19,26 +19,14 @@ const { runExportApp, parseArgs } = appModule;
 const { exportOracleData } = exporterModule;
 const { verifyExportBundle } = verifyModule;
 
-function restoreDbPath(): string {
-  return savedDbPath
-    ?? join(savedDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
-}
-
 async function writeBundle(outputDir: string): Promise<void> {
   const connection = createDatabase(join(root, `${outputDir.split('/').pop()}.db`));
   connection.db.insert(oracleDocuments).values({
-    id: 'doc-verify',
-    type: 'learning',
-    sourceFile: 'ψ/learn/verify.md',
-    concepts: '["backup"]',
-    createdAt: 1,
-    updatedAt: 2,
-    indexedAt: 3,
+    id: 'doc-verify', type: 'learning', sourceFile: 'ψ/learn/verify.md',
+    concepts: '["backup"]', createdAt: 1, updatedAt: 2, indexedAt: 3,
   }).run();
   connection.sqlite.prepare('INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)').run(
-    'doc-verify',
-    'Verifier body',
-    'backup',
+    'doc-verify', 'Verifier body', 'backup',
   );
   try {
     await exportOracleData({ connection, outputDir, progress: () => {} });
@@ -52,8 +40,8 @@ afterAll(() => {
   else process.env.ORACLE_DATA_DIR = savedDataDir;
   if (savedDbPath === undefined) delete process.env.ORACLE_DB_PATH;
   else process.env.ORACLE_DB_PATH = savedDbPath;
-  resetDefaultDatabaseForTests(restoreDbPath());
-  if (existsSync(root)) rmSync(root, { recursive: true });
+  resetDefaultDatabaseForTests(':memory:');
+  if (existsSync(root)) rmSync(root, { recursive: true, force: true });
 });
 
 describe('export bundle verifier', () => {
@@ -61,19 +49,16 @@ describe('export bundle verifier', () => {
     const outputDir = join(root, 'ok-bundle');
     await writeBundle(outputDir);
 
-    await expect(verifyExportBundle(outputDir)).resolves.toMatchObject({
-      ok: true,
-      checkedFiles: expect.any(Number),
-      fileCount: expect.any(Number),
-      errors: [],
-      documentCount: 1,
-    });
+    const verified = await verifyExportBundle(outputDir);
+    expect(verified).toMatchObject({ ok: true, errors: [], documentCount: 1, relationshipFileCount: 3 });
+    expect(verified.collectionCount).toBeGreaterThan(5);
+    expect(verified.checkedFiles).toBeGreaterThan(verified.collectionCount ?? 0);
+    expect(verified.bytes).toBeGreaterThan(0);
 
     const stdout: string[] = [];
     const code = await runExportApp(['--verify', outputDir], (message) => stdout.push(message), () => {});
-    const payload = JSON.parse(stdout.join(''));
     expect(code).toBe(0);
-    expect(payload).toMatchObject({ success: true, verified: true, ok: true, documentCount: 1 });
+    expect(JSON.parse(stdout.join(''))).toMatchObject({ success: true, verified: true, ok: true, documentCount: 1 });
   });
 
   test('fails when a listed file no longer matches manifest checksums', async () => {
@@ -87,9 +72,18 @@ describe('export bundle verifier', () => {
     expect(result.errors.join('\n')).toContain('sha256 mismatch');
 
     const stdout: string[] = [];
-    const code = await runExportApp(['--verify', outputDir], (message) => stdout.push(message), () => {});
-    expect(code).toBe(1);
+    expect(await runExportApp(['--verify', outputDir], (message) => stdout.push(message), () => {})).toBe(1);
     expect(JSON.parse(stdout.join(''))).toMatchObject({ success: false, verified: false });
+  });
+
+  test('fails when a required artifact disappears', async () => {
+    const outputDir = join(root, 'missing-bundle');
+    await writeBundle(outputDir);
+    unlinkSync(join(outputDir, 'relationships.json'));
+
+    const result = await verifyExportBundle(outputDir);
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((line) => line.includes('relationships.json'))).toBe(true);
   });
 
   test('parses verify mode without requiring output', () => {

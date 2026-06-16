@@ -5,9 +5,7 @@ import path from 'node:path';
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-search-vector-proxy-'));
 const dataDir = path.join(tmpRoot, 'data');
-const originalDataDir = process.env.ORACLE_DATA_DIR;
-const originalDbPath = process.env.ORACLE_DB_PATH;
-const originalVectorUrl = process.env.VECTOR_URL;
+const dbPath = path.join(dataDir, 'oracle.db');
 
 const fakeVector = Bun.serve({
   port: 0,
@@ -33,22 +31,41 @@ const fakeVector = Bun.serve({
   },
 });
 
-process.env.ORACLE_DATA_DIR = dataDir;
-process.env.ORACLE_DB_PATH = path.join(dataDir, 'oracle.db');
-process.env.VECTOR_URL = `http://127.0.0.1:${fakeVector.port}`;
-
-const warnMessages: string[] = [];
-const originalWarn = console.warn;
-console.warn = (...args: unknown[]) => {
-  warnMessages.push(args.map(String).join(' '));
-};
-
-// Dynamic import after env is set because config/db/handlers freeze env at module load.
-const { handleSearch } = await import('../handlers.ts');
+function runSearchInFreshProcess() {
+  const script = `
+    const warnMessages = [];
+    console.warn = (...args) => warnMessages.push(args.map(String).join(' '));
+    const { handleSearch } = await import('./src/server/handlers.ts');
+    const result = await handleSearch('oracle', 'all', 1, 0, 'vector');
+    console.log('RESULT_JSON:' + JSON.stringify({ result, warnMessages }));
+  `;
+  const proc = Bun.spawnSync({
+    cmd: [process.execPath, '--eval', script],
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      ORACLE_DATA_DIR: dataDir,
+      ORACLE_DB_PATH: dbPath,
+      ORACLE_REPO_ROOT: tmpRoot,
+      VECTOR_URL: `http://127.0.0.1:${fakeVector.port}`,
+    },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const stdout = new TextDecoder().decode(proc.stdout);
+  const stderr = new TextDecoder().decode(proc.stderr);
+  if (proc.exitCode !== 0) throw new Error(stderr || stdout);
+  const line = stdout.split('\n').reverse().find((item) => item.startsWith('RESULT_JSON:'));
+  if (!line) throw new Error(`Missing RESULT_JSON marker.\nstdout:\n${stdout}\nstderr:\n${stderr}`);
+  return JSON.parse(line.slice('RESULT_JSON:'.length)) as {
+    result: { total: number; results: Array<{ id: string }>; vectorAvailable?: boolean };
+    warnMessages: string[];
+  };
+}
 
 describe('handleSearch VECTOR_URL proxy totals', () => {
   test('uses remote vector total without opening local vector stats in core proxy mode', async () => {
-    const result = await handleSearch('oracle', 'all', 1, 0, 'vector');
+    const { result, warnMessages } = runSearchInFreshProcess();
 
     expect(result.total).toBe(42);
     expect(result.results).toHaveLength(1);
@@ -60,12 +77,5 @@ describe('handleSearch VECTOR_URL proxy totals', () => {
 
 afterAll(() => {
   fakeVector.stop(true);
-  console.warn = originalWarn;
   fs.rmSync(tmpRoot, { recursive: true, force: true });
-  if (originalDataDir !== undefined) process.env.ORACLE_DATA_DIR = originalDataDir;
-  else delete process.env.ORACLE_DATA_DIR;
-  if (originalDbPath !== undefined) process.env.ORACLE_DB_PATH = originalDbPath;
-  else delete process.env.ORACLE_DB_PATH;
-  if (originalVectorUrl !== undefined) process.env.VECTOR_URL = originalVectorUrl;
-  else delete process.env.VECTOR_URL;
 });

@@ -89,6 +89,28 @@ function cleanupHarness(h: Harness): void {
 // import below — main's REPO_ROOT is module-frozen at first import.
 const SHARED_REPO_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-learn-m5-root-'));
 process.env.ORACLE_REPO_ROOT = SHARED_REPO_ROOT;
+const createdMarkdownFiles = new Set<string>();
+
+function markdownPathCandidates(relativePath: string): string[] {
+  return [SHARED_REPO_ROOT, process.cwd()]
+    .map((root) => path.join(root, relativePath));
+}
+
+function rememberMarkdown(relativePath: string): void {
+  for (const candidate of markdownPathCandidates(relativePath)) {
+    if (fs.existsSync(candidate)) createdMarkdownFiles.add(candidate);
+  }
+}
+
+function readMarkdown(relativePath: string): string {
+  for (const candidate of markdownPathCandidates(relativePath)) {
+    if (fs.existsSync(candidate)) {
+      createdMarkdownFiles.add(candidate);
+      return fs.readFileSync(candidate, 'utf-8');
+    }
+  }
+  throw new Error(`Missing learning markdown file: ${relativePath}`);
+}
 
 // Dynamic import after env is set. Top-level await is supported in Bun.
 const { handleLearn } = await import('../learn.ts');
@@ -103,6 +125,10 @@ describe('handleLearn — M5 enqueue branch', () => {
 
   afterEach(() => {
     cleanupHarness(h);
+    for (const file of createdMarkdownFiles) {
+      try { fs.rmSync(file, { force: true }); } catch {}
+    }
+    createdMarkdownFiles.clear();
     if (ORIGINAL_ENQUEUE) process.env.ORACLE_INDEXER_ENQUEUE = ORIGINAL_ENQUEUE;
     else delete process.env.ORACLE_INDEXER_ENQUEUE;
   });
@@ -111,6 +137,7 @@ describe('handleLearn — M5 enqueue branch', () => {
     const res = await handleLearn(h.ctx, { pattern: `test pattern A ${Date.now()}-${Math.random()}` });
     const parsed = JSON.parse(res.content[0].text);
     expect(parsed.success).toBe(true);
+    rememberMarkdown(parsed.file);
 
     const count = h.sqlite.query('SELECT COUNT(*) as c FROM indexing_jobs').get() as { c: number };
     expect(count.c).toBe(0);
@@ -132,7 +159,7 @@ describe('handleLearn — M5 enqueue branch', () => {
     const parsed = JSON.parse(res.content[0].text);
     expect(parsed.success).toBe(true);
 
-    const markdown = fs.readFileSync(path.join(SHARED_REPO_ROOT, parsed.file), 'utf-8');
+    const markdown = readMarkdown(parsed.file);
     expect(markdown).toContain(`id: ${parsed.id}`);
     expect(markdown).toContain('type: learning');
     expect(markdown).toContain('concepts: [frontmatter, vector]');
@@ -150,6 +177,7 @@ describe('handleLearn — M5 enqueue branch', () => {
     const res = await handleLearn(h.ctx, { pattern: `test pattern B ${Date.now()}-${Math.random()}` });
     const parsed = JSON.parse(res.content[0].text);
     expect(parsed.success).toBe(true);
+    rememberMarkdown(parsed.file);
 
     const rows = h.sqlite
       .query<{ doc_id: string; model_key: string; status: string }, []>(
@@ -171,6 +199,7 @@ describe('handleLearn — M5 enqueue branch', () => {
     const res = await handleLearn(h.ctx, { pattern: `test pattern C ${Date.now()}-${Math.random()}` });
     const parsed = JSON.parse(res.content[0].text);
     expect(parsed.success).toBe(true);
+    rememberMarkdown(parsed.file);
 
     const fts = h.sqlite.query('SELECT COUNT(*) as c FROM oracle_fts').get() as { c: number };
     expect(fts.c).toBe(1);
@@ -178,7 +207,8 @@ describe('handleLearn — M5 enqueue branch', () => {
 
   it('value other than "1" does NOT enqueue (strict equality, not truthiness)', async () => {
     process.env.ORACLE_INDEXER_ENQUEUE = 'true';
-    await handleLearn(h.ctx, { pattern: `test pattern D ${Date.now()}-${Math.random()}` });
+    const res = await handleLearn(h.ctx, { pattern: `test pattern D ${Date.now()}-${Math.random()}` });
+    rememberMarkdown(JSON.parse(res.content[0].text).file);
     const count = h.sqlite.query('SELECT COUNT(*) as c FROM indexing_jobs').get() as { c: number };
     expect(count.c).toBe(0);
   });

@@ -15,17 +15,13 @@ const exporterModule = await import('../../../tools/export-app/exporter.ts');
 const { createDatabase, resetDefaultDatabaseForTests } = dbModule;
 const { exportOracleData, EXPORT_MANIFEST_SCHEMA } = exporterModule;
 
-function restoreDbPath(): string {
-  return savedDbPath
-    ?? join(savedDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
-}
 
 afterAll(() => {
   if (savedDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
   else process.env.ORACLE_DATA_DIR = savedDataDir;
   if (savedDbPath === undefined) delete process.env.ORACLE_DB_PATH;
   else process.env.ORACLE_DB_PATH = savedDbPath;
-  resetDefaultDatabaseForTests(restoreDbPath());
+  resetDefaultDatabaseForTests(':memory:');
   rmSync(root, { recursive: true, force: true });
 });
 

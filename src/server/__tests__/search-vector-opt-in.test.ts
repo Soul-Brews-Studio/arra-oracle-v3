@@ -14,7 +14,9 @@ process.env.ORACLE_DB_PATH = path.join(tmpRoot, 'data', 'oracle.db');
 process.env.ORACLE_REPO_ROOT = tmpRoot;
 delete process.env.ORACLE_VECTOR_ENABLED;
 
-const { sqlite, closeDb } = await import('../../db/index.ts');
+const dbModule = await import('../../db/index.ts');
+dbModule.resetDefaultDatabaseForTests(process.env.ORACLE_DB_PATH);
+const { sqlite, closeDb, resetDefaultDatabaseForTests } = dbModule;
 const { generateDefaultConfig, writeVectorConfig } = await import('../../vector/config.ts');
 const { handleSearch } = await import('../handlers.ts');
 
@@ -48,7 +50,6 @@ describe('handleSearch vector opt-in gate', () => {
 
 afterAll(() => {
   try { closeDb(); } catch {}
-  fs.rmSync(tmpRoot, { recursive: true, force: true });
   if (originalDataDir !== undefined) process.env.ORACLE_DATA_DIR = originalDataDir;
   else delete process.env.ORACLE_DATA_DIR;
   if (originalDbPath !== undefined) process.env.ORACLE_DB_PATH = originalDbPath;
@@ -57,4 +58,6 @@ afterAll(() => {
   else delete process.env.ORACLE_REPO_ROOT;
   if (originalVectorEnabled !== undefined) process.env.ORACLE_VECTOR_ENABLED = originalVectorEnabled;
   else delete process.env.ORACLE_VECTOR_ENABLED;
+  resetDefaultDatabaseForTests(':memory:');
+  fs.rmSync(tmpRoot, { recursive: true, force: true });
 });

@@ -57,6 +57,7 @@ afterAll(() => {
   else process.env.ORACLE_DATA_DIR = savedDataDir;
   if (savedDbPath === undefined) delete process.env.ORACLE_DB_PATH;
   else process.env.ORACLE_DB_PATH = savedDbPath;
+  dbMod.resetDefaultDatabaseForTests(':memory:');
   rmSync(root, { recursive: true, force: true });
 });
 

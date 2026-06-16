@@ -13,7 +13,9 @@ const originalDbPath = process.env.ORACLE_DB_PATH;
 process.env.ORACLE_DATA_DIR = dataDir;
 process.env.ORACLE_DB_PATH = path.join(dataDir, 'oracle.db');
 
-const { db, oracleDocuments } = await import('../../db/index.ts');
+const dbModule = await import('../../db/index.ts');
+dbModule.resetDefaultDatabaseForTests(process.env.ORACLE_DB_PATH);
+const { db, oracleDocuments } = dbModule;
 const { supersedeRoutes } = await import('../../routes/supersede/index.ts');
 
 describe('POST /api/supersede/document', () => {
@@ -65,9 +67,10 @@ describe('POST /api/supersede/document', () => {
 });
 
 afterAll(() => {
-  fs.rmSync(dataDir, { recursive: true, force: true });
   if (originalDataDir) process.env.ORACLE_DATA_DIR = originalDataDir;
   else delete process.env.ORACLE_DATA_DIR;
   if (originalDbPath) process.env.ORACLE_DB_PATH = originalDbPath;
   else delete process.env.ORACLE_DB_PATH;
+  dbModule.resetDefaultDatabaseForTests(':memory:');
+  fs.rmSync(dataDir, { recursive: true, force: true });
 });
