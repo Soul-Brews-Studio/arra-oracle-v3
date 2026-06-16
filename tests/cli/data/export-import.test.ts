@@ -8,6 +8,11 @@ import { runCli, tryParseJson } from "../_run.ts";
 const savedDataDir = process.env.ORACLE_DATA_DIR;
 const savedDbPath = process.env.ORACLE_DB_PATH;
 
+function restoreDbPath() {
+  return savedDbPath
+    ?? join(savedDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
+}
+
 async function openDataDb(dbPath: string) {
   const mod = await import("../../../src/db/index.ts");
   const connection = mod.createDatabase(dbPath);
@@ -64,11 +69,11 @@ describe("data export/import CLI", () => {
 
   afterEach(async () => {
     const mod = await import("../../../src/db/index.ts");
-    mod.closeDb();
     if (savedDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
     else process.env.ORACLE_DATA_DIR = savedDataDir;
     if (savedDbPath === undefined) delete process.env.ORACLE_DB_PATH;
     else process.env.ORACLE_DB_PATH = savedDbPath;
+    mod.resetDefaultDatabaseForTests(restoreDbPath());
     rmSync(root, { recursive: true, force: true });
   });
 

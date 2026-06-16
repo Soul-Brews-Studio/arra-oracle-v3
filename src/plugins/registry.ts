@@ -15,6 +15,7 @@ export interface LoadedPluginRegistryEntry {
   status: UnifiedPluginStatus['status'];
   surfaces: UnifiedPluginSurface[];
   error?: string;
+  enabled?: boolean;
   description?: string;
   menu?: UnifiedMenuManifest;
   server?: ReturnType<typeof publicUnifiedServerManifest>;
@@ -39,6 +40,7 @@ export function pluginRegistryFromLoadedPlugins(
       version: plugin.manifest.version,
       status: status?.status ?? 'ok',
       error: status?.error,
+      enabled: plugin.manifest.enabled !== false,
       surfaces: manifestSurfaces(plugin.manifest),
       description: plugin.manifest.description,
       menu: plugin.manifest.menu[0],

@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { apiUrl } from '../api/oracle';
 
 export type ErrorReportStatus = 'idle' | 'reporting' | 'reported' | 'failed';
 export type ErrorReporter = (error: Error, info: ErrorInfo, retryCount: number) => Promise<boolean> | boolean;
@@ -64,7 +65,7 @@ export async function reportErrorToMetrics(
   };
 
   try {
-    const response = await fetcher('/api/metrics', {
+    const response = await fetcher(apiUrl('/api/metrics'), {
       method: 'POST',
       keepalive: true,
       headers: {

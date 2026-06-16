@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { apiClient, type ApiClient } from './api/client';
 import { AppShell } from './components/AppShell';
 import { countPluginSurfaces } from './plugin-surfaces';
-import { DashboardRoutes, isRouteLoading } from './router';
+import { AppRouter, DashboardRoutes, isRouteLoading } from './router';
 import type { LoadState, MenuItem, PluginEntry } from './types';
 import type { MetricsSnapshot } from '../../src/server/types';
 
@@ -98,26 +98,28 @@ export default function App() {
   const refresh = () => void load();
 
   return (
-    <AppShell
-      error={error}
-      loading={loading}
-      menuCount={menu.length}
-      pluginCount={plugins.length}
-      surfaceCount={surfaceCount}
-      metrics={metrics}
-      metricsLoading={metricsLoading}
-      updatedAt={updatedAt}
-      onRefresh={refresh}
-    >
-      <DashboardRoutes
-        menu={menu}
-        plugins={plugins}
-        states={states}
-        metrics={metrics}
+    <AppRouter>
+      <AppShell
+        error={error}
+        loading={loading}
+        menuCount={menu.length}
+        pluginCount={plugins.length}
         surfaceCount={surfaceCount}
+        metrics={metrics}
+        metricsLoading={metricsLoading}
         updatedAt={updatedAt}
         onRefresh={refresh}
-      />
-    </AppShell>
+      >
+        <DashboardRoutes
+          menu={menu}
+          plugins={plugins}
+          states={states}
+          metrics={metrics}
+          surfaceCount={surfaceCount}
+          updatedAt={updatedAt}
+          onRefresh={refresh}
+        />
+      </AppShell>
+    </AppRouter>
   );
 }

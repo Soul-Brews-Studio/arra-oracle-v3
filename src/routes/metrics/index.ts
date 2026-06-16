@@ -5,4 +5,4 @@ export {
   metricsRoutes,
   serverMetrics,
 } from './metrics.ts';
-export type { MetricsSnapshot, MetricsTracker, MetricsTrackerOptions } from './metrics.ts';
+export type { MemoryUsageSnapshot, MetricsSnapshot, MetricsTracker, MetricsTrackerOptions } from './metrics.ts';

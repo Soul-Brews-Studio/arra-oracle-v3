@@ -7,7 +7,7 @@ import { createServer } from 'node:net';
 const REPO_ROOT = new URL('../../../', import.meta.url).pathname.replace(/\/$/, '');
 
 describe('GET /api/docs', () => {
-  test('serves interactive Swagger UI HTML', async () => {
+  test('redirects legacy docs path to canonical API version', async () => {
     const scratch = mkdtempSync(join(tmpdir(), 'arra-docs-test-'));
     const port = String(await freePort());
     const proc = Bun.spawn(['bun', 'src/server.ts'], {
@@ -28,12 +28,10 @@ describe('GET /api/docs', () => {
     });
 
     try {
-      const response = await waitForOk(`http://127.0.0.1:${port}/api/docs`);
-      const html = await response.text();
+      const response = await waitForOk(`http://127.0.0.1:${port}/api/docs`, 'manual');
 
-      expect(response.headers.get('content-type')).toContain('text/html');
-      expect(html).toContain('SwaggerUIBundle');
-      expect(html).toContain('/api/docs/json');
+      expect(response.status).toBe(308);
+      expect(response.headers.get('location')).toBe(`http://127.0.0.1:${port}/api/v1/docs`);
     } finally {
       proc.kill('SIGTERM');
       await Promise.race([proc.exited, Bun.sleep(3000)]);
@@ -42,12 +40,12 @@ describe('GET /api/docs', () => {
   }, 30_000);
 });
 
-async function waitForOk(url: string): Promise<Response> {
+async function waitForOk(url: string, redirect: RequestRedirect = 'follow'): Promise<Response> {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(url);
-      if (response.ok) return response;
+      const response = await fetch(url, { redirect });
+      if (response.ok || response.status === 308) return response;
     } catch {}
     await Bun.sleep(200);
   }

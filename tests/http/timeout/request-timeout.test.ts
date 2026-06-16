@@ -52,6 +52,7 @@ describe('request timeout fetch middleware', () => {
     expect(res.headers.get('X-Request-Id')).toBe('timeout-test');
     expect(res.headers.get('x-correlation-id')).toBe('timeout-test');
     expect(await body(res)).toEqual({
+      success: false,
       error: 'Request Timeout',
       message: 'Request exceeded 5ms timeout',
       statusCode: 408,
@@ -76,6 +77,7 @@ describe('request timeout fetch middleware', () => {
 
     expect(res.status).toBe(408);
     expect(await body(res)).toMatchObject({
+      success: false,
       error: 'Request Timeout',
       message: 'Request exceeded 5ms timeout',
       statusCode: 408,

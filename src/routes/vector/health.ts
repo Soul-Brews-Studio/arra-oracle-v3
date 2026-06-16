@@ -10,37 +10,65 @@
  */
 
 import { Elysia } from 'elysia';
-import { handleVectorHealth } from '../../server/vector-handlers.ts';
 import { createVectorProxy } from '../../server/vector-proxy.ts';
 import { VECTOR_URL } from '../../config.ts';
+import { getDetectedEmbeddingProviders } from '../../vector/provider-detection.ts';
+import { attachVectorDashboardHealth, readVectorBackendHealth } from '../../vector/health.ts';
 
-const proxy = createVectorProxy(VECTOR_URL);
+const defaultProxy = createVectorProxy(VECTOR_URL);
 
-export const vectorHealthEndpoint = new Elysia().get(
-  '/vector/health',
-  async ({ set }) => {
+type VectorHealthResult = Awaited<ReturnType<typeof readVectorBackendHealth>>;
+
+export interface VectorHealthEndpointOptions {
+  vectorHealth?: () => Promise<VectorHealthResult>;
+  detectProviders?: () => Promise<{ providers: Array<{ type: string; available: boolean; error?: string; detail?: string }> }>;
+  proxy?: typeof defaultProxy;
+}
+
+export function createVectorHealthEndpoint(options: VectorHealthEndpointOptions = {}) {
+  const proxy = options.proxy === undefined ? defaultProxy : options.proxy;
+  const vectorHealth = options.vectorHealth ?? readVectorBackendHealth;
+  const detectProviders = options.detectProviders ?? (() => getDetectedEmbeddingProviders(false));
+
+  async function readHealth({ set }: { set: { status?: number | string } }) {
     if (proxy) {
       const ok = await proxy.available();
       if (ok) {
-        return { status: 'ok' as const, engines: [], checked_at: new Date().toISOString(), proxy: VECTOR_URL };
+        const detected = await detectProviders().catch(() => ({ providers: [] }));
+        return { ...attachVectorDashboardHealth({ status: 'ok' as const, engines: [], checked_at: new Date().toISOString() }, detected.providers), proxy: VECTOR_URL };
       }
       set.status = 503;
-      return { status: 'down' as const, engines: [], checked_at: new Date().toISOString(), proxy: VECTOR_URL };
+      const detected = await detectProviders().catch(() => ({ providers: [] }));
+      return { ...attachVectorDashboardHealth({ status: 'down' as const, engines: [], checked_at: new Date().toISOString() }, detected.providers), proxy: VECTOR_URL };
     }
     try {
-      const result = await handleVectorHealth();
+      const [result, detected] = await Promise.all([
+        vectorHealth(),
+        detectProviders().catch(() => ({ providers: [] })),
+      ]);
       if (result.status === 'down') set.status = 503;
-      return result;
+      return attachVectorDashboardHealth(result, detected.providers);
     } catch (e: any) {
       set.status = 500;
       return { error: e.message, status: 'down', engines: [], checked_at: new Date().toISOString() };
     }
-  },
-  {
-    detail: {
-      tags: ['vector'],
-      menu: { group: 'hidden' },
-      summary: 'Vector adapter liveness check',
-    },
-  },
-);
+  }
+
+  return new Elysia()
+    .get('/vector/health', readHealth, {
+      detail: {
+        tags: ['vector'],
+        menu: { group: 'hidden' },
+        summary: 'Vector adapter liveness check',
+      },
+    })
+    .get('/vector/status', readHealth, {
+      detail: {
+        tags: ['vector'],
+        menu: { group: 'hidden' },
+        summary: 'Versioned vector adapter status alias',
+      },
+    });
+}
+
+export const vectorHealthEndpoint = createVectorHealthEndpoint();

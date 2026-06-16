@@ -5,6 +5,7 @@
 import { Elysia } from 'elysia';
 import { handleSearch } from '../../server/handlers.ts';
 import { SearchQuery } from './model.ts';
+import { handleTenantSearch } from './tenant-search.ts';
 
 export const searchEndpoint = new Elysia().get(
   '/search',
@@ -33,7 +34,8 @@ export const searchEndpoint = new Elysia().get(
     const model = query.model;
 
     try {
-      const result = await handleSearch(sanitizedQ, type, limit, offset, mode, project, cwd, model);
+      const result = handleTenantSearch(sanitizedQ, type, limit, offset)
+        ?? await handleSearch(sanitizedQ, type, limit, offset, mode, project, cwd, model);
       return { ...result, query: sanitizedQ };
     } catch {
       set.status = 400;

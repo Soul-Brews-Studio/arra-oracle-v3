@@ -4,7 +4,8 @@ import { defaultVectorProxyManifest, generateDefaultConfig } from '../../src/vec
 test('vector config defaults stay FTS-first with a sidecar proxy manifest', () => {
   const defaults = generateDefaultConfig();
 
-  expect(defaults.embedder).toEqual({ backend: 'none' });
+  expect(defaults.embedder).toBeUndefined();
   expect(defaults.proxy).toEqual(defaultVectorProxyManifest());
-  expect(defaults.collections['bge-m3'].provider).toBe('none');
+  expect(defaults.collections['bge-m3'].provider).toBe('ollama');
+  expect(defaults.collections['bge-m3'].embedder).toMatchObject({ backend: 'ollama', model: 'bge-m3' });
 });

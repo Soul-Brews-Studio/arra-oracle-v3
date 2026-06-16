@@ -12,9 +12,9 @@
  */
 
 import { Elysia } from 'elysia';
-import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
 
+import { createCorsMiddleware } from './middleware/cors.ts';
 import { loadVectorConfig, generateDefaultConfig } from './vector/config.ts';
 import { vectorRoutes } from './routes/vector/index.ts';
 
@@ -26,7 +26,7 @@ const PORT = Number(process.env.VECTOR_PORT ?? config.port);
 
 // ── App ─────────────────────────────────────────────────────────────
 const app = new Elysia()
-  .use(cors())                           // permissive — internal sidecar
+  .use(createCorsMiddleware())
   .use(
     swagger({
       path: '/swagger',

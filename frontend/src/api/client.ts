@@ -3,8 +3,11 @@ import type {
   HealthResponse,
   MetricsSnapshot,
   PluginsResponse,
+  RuntimeStatus,
   VectorSearchResponse,
 } from '../../../src/server/types';
+import type { LearnCreateResponse, LearnDeleteResponse, LearnListResponse, LearnMutationPayload, LearnUpdateResponse } from '../types';
+import { API_BASE } from './oracle';
 
 export interface MenuSearchResponse {
   data: MenuItem[];
@@ -12,13 +15,68 @@ export interface MenuSearchResponse {
   total: number;
 }
 
+export interface VectorIndexModelEntry {
+  collection: string;
+  model: string;
+  adapter: string;
+  count?: number;
+}
+
+export type VectorIndexCollection = VectorIndexModelEntry;
+
+export interface VectorIndexModelsResponse {
+  models: Record<string, VectorIndexModelEntry>;
+}
+
+export interface VectorHealthEngine {
+  key?: string;
+  model?: string;
+  collection?: string;
+  ok?: boolean;
+  error?: string;
+}
+
+export interface VectorHealthResponse {
+  status: RuntimeStatus;
+  engines: VectorHealthEngine[];
+  checked_at: string;
+  proxy?: string;
+  error?: string;
+}
+
+export type VectorIndexJobStatus = 'idle' | 'indexing' | 'completed' | 'error';
+
+export interface VectorIndexStatusResponse {
+  jobId: string;
+  model: string;
+  status: VectorIndexJobStatus;
+  current: number;
+  total: number;
+  startedAt: number;
+  completedAt?: number;
+  error?: string;
+  docsPerSec: number;
+  eta: number;
+}
+
+export interface VectorIndexStartResponse {
+  jobId: string;
+  status: 'started';
+  model: string;
+  batchSize: number;
+}
+
 export interface ApiRouteResponses {
-  '/api/health': HealthResponse;
-  '/api/metrics': MetricsSnapshot;
+  '/api/v1/health': HealthResponse;
+  '/api/v1/metrics': MetricsSnapshot;
   '/api/menu': MenuResponse;
   '/api/menu/search': MenuSearchResponse;
-  '/api/vector/search': VectorSearchResponse;
-  '/api/v1/plugins': PluginsResponse;
+  '/api/v1/vector/search': VectorSearchResponse;
+  '/api/v1/vector/index/models': VectorIndexModelsResponse;
+  '/api/v1/vector/index/status': VectorIndexStatusResponse;
+  '/api/v1/vector/health': VectorHealthResponse;
+  '/api/plugins': PluginsResponse;
+  '/api/v1/learn': LearnListResponse;
 }
 
 export type ApiRoute = keyof ApiRouteResponses;
@@ -67,7 +125,7 @@ function backendMessage(payload: unknown, fallback: string): string {
   return fallback;
 }
 
-function urlFor(path: string, baseUrl?: string): string {
+function urlFor(path: string, baseUrl = API_BASE): string {
   if (!baseUrl) return path;
   return new URL(path, baseUrl).toString();
 }
@@ -93,11 +151,11 @@ export class ApiClient {
   }
 
   health(): Promise<HealthResponse> {
-    return this.request('/api/health');
+    return this.request('/api/v1/health');
   }
 
   metrics(): Promise<MetricsSnapshot> {
-    return this.request('/api/metrics');
+    return this.request('/api/v1/metrics');
   }
 
   menu(): Promise<MenuResponse> {
@@ -110,7 +168,31 @@ export class ApiClient {
   }
 
   plugins(): Promise<PluginsResponse> {
-    return this.request('/api/v1/plugins');
+    return this.request('/api/plugins');
+  }
+
+  learn(): Promise<LearnListResponse> {
+    return this.request('/api/v1/learn');
+  }
+
+  createLearn(payload: LearnMutationPayload): Promise<LearnCreateResponse> {
+    return this.fetchJson('/api/v1/learn', { method: 'POST', body: JSON.stringify(payload) });
+  }
+
+  updateLearn(id: string, payload: LearnMutationPayload): Promise<LearnUpdateResponse> {
+    return this.fetchJson(`/api/v1/learn/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) });
+  }
+
+  deleteLearn(id: string): Promise<LearnDeleteResponse> {
+    return this.fetchJson(`/api/v1/learn/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+
+  vectorIndexModels(): Promise<VectorIndexModelsResponse> {
+    return this.request('/api/v1/vector/index/models');
+  }
+
+  vectorHealth(): Promise<VectorHealthResponse> {
+    return this.request('/api/v1/vector/health');
   }
 
   vectorSearch(query: string, limit?: number): Promise<VectorSearchResponse>;
@@ -125,7 +207,15 @@ export class ApiClient {
     addParam(query, 'project', params.project);
     addParam(query, 'cwd', params.cwd);
     addParam(query, 'model', params.model);
-    return this.fetchJson(`/api/vector/search?${query.toString()}`);
+    return this.fetchJson(`/api/v1/vector/search?${query.toString()}`);
+  }
+
+  vectorIndexStatus(): Promise<VectorIndexStatusResponse> {
+    return this.request('/api/v1/vector/index/status');
+  }
+
+  startVectorIndex(model: string): Promise<VectorIndexStartResponse> {
+    return this.fetchJson('/api/v1/vector/index/start', { method: 'POST', body: JSON.stringify({ model }) });
   }
 
   private async fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -156,8 +246,5 @@ export class ApiClient {
   }
 }
 
-export function createApiClient(options?: ApiClientOptions): ApiClient {
-  return new ApiClient(options);
-}
-
+export const createApiClient = (options?: ApiClientOptions): ApiClient => new ApiClient(options);
 export const apiClient = createApiClient();

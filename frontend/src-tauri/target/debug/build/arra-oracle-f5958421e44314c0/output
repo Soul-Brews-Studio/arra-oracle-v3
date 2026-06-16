@@ -1,0 +1,13 @@
+cargo:rerun-if-env-changed=TAURI_CONFIG
+cargo:rustc-check-cfg=cfg(desktop)
+cargo:rustc-cfg=desktop
+cargo:rustc-check-cfg=cfg(mobile)
+cargo:rerun-if-changed=/opt/Code/github.com/Soul-Brews-Studio/arra-oracle-v3/frontend/src-tauri/tauri.conf.json
+cargo:rustc-env=TAURI_ANDROID_PACKAGE_NAME_APP_NAME=arra_oracle
+cargo:rustc-env=TAURI_ANDROID_PACKAGE_NAME_PREFIX=com_soul_1brews
+cargo:rustc-check-cfg=cfg(dev)
+cargo:rustc-cfg=dev
+cargo:PERMISSION_FILES_PATH=/opt/Code/github.com/Soul-Brews-Studio/arra-oracle-v3/frontend/src-tauri/target/debug/build/arra-oracle-f5958421e44314c0/out/app-manifest/__app__-permission-files
+cargo:rerun-if-changed=capabilities
+cargo:rerun-if-env-changed=REMOVE_UNUSED_COMMANDS
+cargo:rustc-env=TAURI_ENV_TARGET_TRIPLE=aarch64-apple-darwin

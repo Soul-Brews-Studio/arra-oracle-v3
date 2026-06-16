@@ -1,0 +1,33 @@
+import { describe, expect, test } from 'bun:test';
+import { ExportProgress } from '../../../frontend/src/components/export/ExportProgress';
+import type { ExportProgressState } from '../../../frontend/src/hooks/useExport';
+import { htmlFor } from '../_render';
+
+const running: ExportProgressState = {
+  status: 'running',
+  jobId: 'exp-1',
+  progress: 42,
+  fileSizeEstimate: 1536,
+};
+
+describe('ExportProgress', () => {
+  test('renders active export progress with a spinner and size estimate', () => {
+    const html = htmlFor(<ExportProgress state={running} />);
+
+    expect(html).toContain('Exporting 42%');
+    expect(html).toContain('role="status"');
+    expect(html).toContain('1.5 KB');
+    expect(html).toContain('exp-1');
+  });
+
+  test('renders download and retry states', () => {
+    const done = htmlFor(<ExportProgress state={{ ...running, status: 'done', progress: 100, downloadUrl: '/download/exp-1', filename: 'export.zip' }} />);
+    const failed = htmlFor(<ExportProgress state={{ ...running, status: 'error', error: 'disk full' }} onRetry={() => {}} />);
+
+    expect(done).toContain('Download export');
+    expect(done).toContain('href="/download/exp-1"');
+    expect(failed).toContain('Export failed.');
+    expect(failed).toContain('disk full');
+    expect(failed).toContain('Retry');
+  });
+});

@@ -5,6 +5,8 @@ import { NavSidebar, type NavItem } from './NavSidebar';
 import { routeMeta } from '../routeMeta';
 import { PageChrome } from './PageChrome';
 import { StatCard } from './StatCard';
+import { CommandPalette } from './CommandPalette';
+import { TauriBadge } from './TauriBadge';
 import { ThemeToggle } from './ThemeToggle';
 import { GlobalSearch } from './GlobalSearch';
 import type { MetricsSnapshot } from '../../../src/server/types';
@@ -49,8 +51,17 @@ export function AppShell({
   const navItems: NavItem[] = [
     { to: '/', label: 'Menu', description: 'Navigation rows from /api/menu', badge: loading ? '…' : menuCount },
     { to: '/plugins', label: 'Plugins', description: 'Registered plugins and surfaces', badge: loading ? '…' : pluginCount },
+    { to: '/status', label: 'Status', description: 'Server health from /api/v1/health' },
+    { to: '/canvas/plugins', label: 'Canvas Plugins', description: 'Canvas registry from /api/canvas/plugins' },
     { to: '/search', label: 'Search', description: 'Full-text menu search' },
-    { to: '/metrics', label: 'Metrics', description: 'Runtime counters from /api/metrics' },
+    { to: '/export', label: 'Export App', description: 'Download app collections' },
+    { to: '/vector', label: 'Vector Dashboard', description: 'Collection health and indexing', end: true },
+    { to: '/vector/documents', label: 'Document Browser', description: 'Browse indexed vector documents' },
+    { to: '/vector/search', label: 'Vector Search', description: 'Semantic preview by collection' },
+    { to: '/vector/settings', label: 'Vector settings', description: 'Collection config and index controls' },
+    { to: '/vector/export', label: 'Export', description: 'Download vector collections' },
+    { to: '/learn', label: 'Learn', description: 'Create and edit learnings' },
+    { to: '/metrics', label: 'Metrics', description: 'Runtime counters from /api/v1/metrics' },
     { to: '/mcp', label: 'MCP', description: 'Tool schemas and groups' },
     { to: '/settings', label: 'Settings', description: 'Storage, embedder, and DB status' },
   ];
@@ -58,7 +69,7 @@ export function AppShell({
   const responseValue = metricsLoading ? <Spinner label="Loading metrics" /> : `${metrics?.avgResponseMs ?? 0} ms`;
   const metricsDetail = metrics
     ? `${metrics.activeConnections} active · uptime ${Math.round(metrics.uptime)}s`
-    : 'from /api/metrics';
+    : 'from /api/v1/metrics';
   const retry = (
     <button
       aria-label="Retry loading backend dashboard data"
@@ -84,11 +95,12 @@ export function AppShell({
           <header className="flex flex-col gap-5 rounded-3xl border border-slate-200 bg-white/85 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur sm:p-6 lg:flex-row lg:items-end lg:justify-between dark:border-white/10 dark:bg-slate-950/70 dark:shadow-black/30">
             <PageChrome meta={meta} />
             <div className="grid w-full gap-3 lg:max-w-md">
+              <CommandPalette onRefresh={onRefresh} />
               <GlobalSearch />
               <div className="grid gap-3 sm:flex sm:items-center sm:justify-end">
+                <TauriBadge connected={!error} />
                 <ThemeToggle />
                 <button
-                  aria-label="Refresh menu and plugin dashboard data"
                   className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={loading}
                   type="button"
@@ -102,7 +114,7 @@ export function AppShell({
 
           <section className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-5" aria-label="Summary">
             <StatCard label="Menu items" value={loading ? <Spinner label="Loading" /> : menuCount} detail="from /api/menu" />
-            <StatCard label="Plugins" value={loading ? <Spinner label="Loading" /> : pluginCount} detail="from /api/v1/plugins" />
+            <StatCard label="Plugins" value={loading ? <Spinner label="Loading" /> : pluginCount} detail="from /api/plugins" />
             <StatCard label="Surfaces" value={loading ? <Spinner label="Loading" /> : surfaceCount} detail={`updated ${updatedAt}`} />
             <StatCard label="Requests" value={requestValue} detail={metricsDetail} />
             <StatCard label="Avg response" value={responseValue} detail="real-time backend latency" />

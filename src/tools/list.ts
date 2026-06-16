@@ -4,9 +4,10 @@
  * List documents without search query, with pagination and type filtering.
  */
 
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { oracleDocuments } from '../db/schema.ts';
 import type { ToolContext, ToolResponse, OracleListInput } from './types.ts';
+import { currentTenantId, tenantSql } from '../middleware/tenant.ts';
 
 export const listToolDef = {
   name: 'oracle_list',
@@ -50,16 +51,21 @@ export async function handleList(ctx: ToolContext, input: OracleListInput): Prom
     throw new Error(`Invalid type: ${type}. Must be one of: ${validTypes.join(', ')}`);
   }
 
-  const countResult = type === 'all'
-    ? ctx.db.select({ total: sql<number>`count(*)` }).from(oracleDocuments).get()
-    : ctx.db.select({ total: sql<number>`count(*)` }).from(oracleDocuments).where(eq(oracleDocuments.type, type)).get();
+  const tenantId = currentTenantId();
+  const countWhere = type === 'all'
+    ? tenantId ? eq(oracleDocuments.tenantId, tenantId) : undefined
+    : tenantId ? and(eq(oracleDocuments.type, type), eq(oracleDocuments.tenantId, tenantId)) : eq(oracleDocuments.type, type);
+  const countQuery = ctx.db.select({ total: sql<number>`count(*)` }).from(oracleDocuments);
+  const countResult = countWhere ? countQuery.where(countWhere).get() : countQuery.get();
   const total = countResult?.total ?? 0;
 
+  const tenantFilter = tenantSql('d');
   const listStmt = type === 'all'
     ? ctx.sqlite.prepare(`
         SELECT d.id, d.type, d.source_file, d.concepts, d.indexed_at, f.content
         FROM oracle_documents d
         JOIN oracle_fts f ON d.id = f.id
+        WHERE 1=1 ${tenantFilter.clause}
         ORDER BY d.indexed_at DESC
         LIMIT ? OFFSET ?
       `)
@@ -67,14 +73,14 @@ export async function handleList(ctx: ToolContext, input: OracleListInput): Prom
         SELECT d.id, d.type, d.source_file, d.concepts, d.indexed_at, f.content
         FROM oracle_documents d
         JOIN oracle_fts f ON d.id = f.id
-        WHERE d.type = ?
+        WHERE d.type = ? ${tenantFilter.clause}
         ORDER BY d.indexed_at DESC
         LIMIT ? OFFSET ?
       `);
 
   const rows = type === 'all'
-    ? listStmt.all(limit, offset)
-    : listStmt.all(type, limit, offset);
+    ? listStmt.all(...tenantFilter.params, limit, offset)
+    : listStmt.all(type, ...tenantFilter.params, limit, offset);
 
   const documents = (rows as any[]).map((row) => ({
     id: row.id,

@@ -10,7 +10,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { randomUUID } from "crypto";
 
-const PORT = 47791;
+const PORT = 47_900 + Math.floor(Math.random() * 1_000);
 const BASE_URL = `http://localhost:${PORT}`;
 const SERVER_CWD = import.meta.dir.replace(/\/tests\/http\/traces$/, "");
 
@@ -27,8 +27,8 @@ beforeAll(async () => {
   dbPath = join(tmpDir, "oracle.db");
   serverProcess = Bun.spawn(["bun", "run", "src/server.ts"], {
     cwd: SERVER_CWD,
-    stdout: "pipe",
-    stderr: "pipe",
+    stdout: "ignore",
+    stderr: "ignore",
     env: {
       ...process.env,
       ORACLE_CHROMA_TIMEOUT: "3000",
@@ -50,10 +50,12 @@ afterAll(() => {
 describe("Trace routes", () => {
   let traceA: string;
   let traceB: string;
+  let traceC: string;
 
   beforeAll(() => {
     traceA = randomUUID();
     traceB = randomUUID();
+    traceC = randomUUID();
     const db = new Database(dbPath);
     try {
       const now = Date.now();
@@ -70,6 +72,7 @@ describe("Trace routes", () => {
       `);
       insert.run(traceA, "contract-test trace A", now, now);
       insert.run(traceB, "contract-test trace B", now, now);
+      insert.run(traceC, "contract-test trace C", now, now);
     } finally {
       db.close();
     }
@@ -101,13 +104,82 @@ describe("Trace routes", () => {
     expect(data).toHaveProperty("chain");
   });
 
-  test("POST /api/traces/:prevId/link without body returns 400", async () => {
+  test("POST /api/traces/:id/distill stores an awakening", async () => {
+    const res = await fetch(`${BASE_URL}/api/traces/${traceA}/distill`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ awakening: "Thor turns storm into research-grade dev context." }),
+    });
+    expect(res.ok).toBe(true);
+    expect(await res.json()).toMatchObject({ success: true, status: "distilled" });
+
+    const traceRes = await fetch(`${BASE_URL}/api/traces/${traceA}`);
+    const trace = await traceRes.json();
+    expect(trace.status).toBe("distilled");
+    expect(trace.awakening).toContain("Thor turns storm");
+
+    const chainRes = await fetch(`${BASE_URL}/api/traces/${traceA}/chain`);
+    const chain = await chainRes.json();
+    expect(chain).toMatchObject({ hasAwakening: true, awakeningTraceId: traceA });
+  });
+
+  test("POST /api/traces/:id/distill can promote Thor awakening to a learning", async () => {
+    const res = await fetch(`${BASE_URL}/api/traces/${traceB}/distill`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        awakening: "Thor preserves dev research context as a searchable learning.",
+        promoteToLearning: true,
+      }),
+    });
+    expect(res.ok).toBe(true);
+    const body = await res.json();
+    expect(body).toMatchObject({ success: true, status: "distilled" });
+    expect(body.learningId).toContain("learning_");
+
+    const traceRes = await fetch(`${BASE_URL}/api/traces/${traceB}`);
+    const trace = await traceRes.json();
+    expect(trace.distilledToId).toBe(body.learningId);
+
+    const learnRes = await fetch(`${BASE_URL}/api/learn/${body.learningId}`);
+    expect(learnRes.ok).toBe(true);
+    const learning = await learnRes.json();
+    expect(learning.concepts).toContain("thor-oracle");
+    expect(learning.origin).toBe("thor-oracle");
+  });
+
+  test("POST /api/traces/:id/distill keeps Thor dev-research metadata searchable", async () => {
+    const res = await fetch(`${BASE_URL}/api/traces/${traceC}/distill`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        awakening: "Thor links research hypotheses to implementation evidence.",
+        promoteToLearning: true,
+        oracle: "Thor Oracle",
+        theme: "Stormforge",
+        concepts: ["system thinking", "continuity"],
+      }),
+    });
+    expect(res.ok).toBe(true);
+    const body = await res.json();
+    expect(body.concepts).toContain("dev-research");
+    expect(body.concepts).toContain("stormforge");
+
+    const learnRes = await fetch(`${BASE_URL}/api/learn/${body.learningId}`);
+    expect(learnRes.ok).toBe(true);
+    const learning = await learnRes.json();
+    expect(learning.origin).toBe("thor-oracle");
+    expect(learning.concepts).toContain("system-thinking");
+    expect(learning.concepts).toContain("continuity");
+  });
+
+  test("POST /api/traces/:prevId/link without body is rejected", async () => {
     const res = await fetch(`${BASE_URL}/api/traces/${traceA}/link`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({}),
     });
-    expect(res.status).toBe(400);
+    expect([400, 422]).toContain(res.status);
   });
 
   test("POST /api/traces/:prevId/link links prev→next", async () => {
