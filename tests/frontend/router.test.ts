@@ -39,6 +39,7 @@ describe('frontend router', () => {
       '/canvas/plugins',
       '/metrics',
       '/search',
+      '/export',
       '/learn',
       '/vector',
       '/vector/search',
@@ -58,6 +59,7 @@ describe('frontend router', () => {
     expect(htmlAt('/metrics')).toContain('42');
     expect(htmlAt('/metrics')).toContain('Memory usage');
     expect(htmlAt('/search')).toContain('Full-text menu search');
+    expect(htmlAt('/export')).toContain('Export collections');
     expect(htmlAt('/learn')).toContain('Learn entries');
     expect(htmlAt('/vector')).toContain('Vector dashboard');
     expect(htmlAt('/vector/search')).toContain('Vector search preview');

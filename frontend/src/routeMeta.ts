@@ -73,6 +73,7 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
   if (pathname === '/canvas/plugins') return base('Canvas plugins', 'Canvas', 'Canvas plugin registry and standalone status.', [{ label: 'Canvas plugins' }]);
   if (pathname === '/metrics') return base('Runtime metrics', 'Metrics', 'Runtime counters from /api/v1/metrics.', [{ label: 'Metrics' }]);
   if (pathname === '/search') return base('Search', 'Search', 'Search menu, plugin, and MCP tool surfaces.', [{ label: 'Search' }]);
+  if (pathname === '/export') return base('Export app', 'Export', 'Download app collections in JSON, CSV, Markdown, or JSONL.', [{ label: 'Export app' }]);
   if (pathname === '/learn') return base('Learn entries', 'Learn', 'Capture and edit Oracle learnings.', [{ label: 'Learn' }]);
   if (pathname === '/vector') return base('Vector dashboard', 'Vector', 'Collection health, search, and export status.', [{ label: 'Vector dashboard' }]);
   if (pathname === '/mcp') return base('MCP tools', 'MCP', 'Browse available MCP tool schemas and groups.', [{ label: 'MCP tools' }]);

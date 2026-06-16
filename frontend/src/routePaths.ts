@@ -24,6 +24,10 @@ export function vectorResultsPath(query: string): string {
   return qs.toString() ? `/vector/results?${qs}` : '/vector/results';
 }
 
+export function exportPagePath(): string {
+  return '/export';
+}
+
 export function vectorDocumentsPath(): string {
   return '/vector/documents';
 }

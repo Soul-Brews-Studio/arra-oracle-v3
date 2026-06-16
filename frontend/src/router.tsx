@@ -4,6 +4,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { McpPage } from './pages/McpPage';
 import { MetricsPage } from './pages/MetricsPage';
 import { McpToolDetailPage } from './pages/McpToolDetailPage';
+import { ExportPage } from './pages/ExportPage';
 import { LearnPage } from './pages/LearnPage';
 import { MenuPage } from './pages/MenuPage';
 import { PluginsPage } from './pages/PluginsPage';
@@ -28,6 +29,7 @@ export const frontendRoutes = [
   '/canvas/plugins',
   '/metrics',
   '/search',
+  '/export',
   '/learn',
   '/vector',
   '/vector/search',
@@ -81,6 +83,7 @@ export function DashboardRoutes({
       <Route path="/canvas/plugins" element={<CanvasPluginsPage />} />
       <Route path="/metrics" element={<MetricsPage metrics={metrics} loading={isRouteLoading(states.metrics)} />} />
       <Route path="/search" element={<SearchPage />} />
+      <Route path="/export" element={<ExportPage />} />
       <Route path="/learn" element={<LearnPage />} />
       <Route path="/menu" element={menuPage} />
       <Route path="/vector" element={<VectorPage />} />
