@@ -109,6 +109,25 @@ describe('Huginn session capture', () => {
     expect(Object.keys(state.captures)).toHaveLength(1);
   });
 
+  it('falls back when an explicit session id sanitizes to empty', async () => {
+    const dir = tmpdir();
+    const transcript = path.join(dir, 'session fallback.jsonl');
+    writeJsonl(transcript, [
+      { message: { role: 'assistant', content: 'Learned: sanitized Huginn session ids need a deterministic fallback.' } },
+    ]);
+
+    const result = await captureSession({
+      transcriptPath: transcript,
+      sessionId: '💥💥',
+      statePath: path.join(dir, 'state.json'),
+      learn: () => ({ id: 'learn_safe_session' }),
+    });
+
+    expect(result.learned).toBe(true);
+    expect(result.sessionId).toBe('session-fallback');
+    expect(result.moments[0].text).toContain('deterministic fallback');
+  });
+
   it('does not learn empty/non-salient transcripts', async () => {
     const dir = tmpdir();
     const transcript = path.join(dir, 'quiet.jsonl');

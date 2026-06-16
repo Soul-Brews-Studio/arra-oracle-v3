@@ -23,13 +23,26 @@ export interface MatchedRoute {
   pattern: string;
 }
 
+const FALLBACKS = new Set(['fts5', 'empty', 'error']);
+
 /** Escape regex special chars (except our glob tokens). */
 function escapeRegex(s: string): string {
   return s.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function normalizeRoute(route: RouteConfig): RouteConfig | null {
+  const raw = route as unknown as Record<string, unknown> | null;
+  const match = typeof raw?.match === 'string' ? raw.match.trim() : '';
+  const service = typeof raw?.service === 'string' ? raw.service.trim() : '';
+  if (!match.startsWith('/') || !service) return null;
+  const fallback = typeof raw?.fallback === 'string' && FALLBACKS.has(raw.fallback) ? raw.fallback as RouteConfig['fallback'] : undefined;
+  return { match, service, fallback };
+}
+
 export function compileRoutes(routes: RouteConfig[]): CompiledRoute[] {
-  return routes.map((r) => {
+  return routes.flatMap((candidate) => {
+    const r = normalizeRoute(candidate);
+    if (!r) return [];
     let regexStr: string;
     if (r.match.endsWith('/**')) {
       // Prefix match: /api/vector/** -> /api/vector and /api/vector/anything

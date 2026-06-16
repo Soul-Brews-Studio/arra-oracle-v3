@@ -1,6 +1,7 @@
 import { VECTORS_DB_PATH, LANCEDB_DIR, CHROMADB_DIR } from '../config.ts';
 import { COLLECTION_NAME } from '../const.ts';
-import type { EmbedderConfig, VectorStoreAdapter, VectorDBType, EmbeddingProviderType } from './types.ts';
+import type { VectorStoreAdapter } from './adapter.ts';
+import type { EmbedderConfig, VectorDBType, EmbeddingProviderType } from './types.ts';
 import { ChromaMcpAdapter } from './adapters/chroma-mcp.ts';
 import { SqliteVecAdapter } from './adapters/sqlite-vec.ts';
 import { LanceDBAdapter } from './adapters/lancedb.ts';
@@ -13,6 +14,8 @@ import { GeminiEmbeddings } from './providers/gemini.ts';
 import { resolveEmbeddingFallbackChain, resolveEmbeddingModel, resolveEmbeddingProviderType } from './embedder-config.ts';
 import { configPath, loadVectorConfig, resolveServiceEndpoint, configToModels, fallbackCollectionsFor } from './config.ts';
 import { tenantDataPath } from '../middleware/tenant.ts';
+
+export type { VectorStoreAdapter } from './adapter.ts';
 export interface VectorStoreConfig {
   type?: VectorDBType;
   collectionName?: string;
