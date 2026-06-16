@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { PluginList } from '../../../frontend/src/components/PluginList';
+import { PluginList, pluginSurfaceBadgePath } from '../../../frontend/src/components/PluginList';
 import { surfacesFor } from '../../../frontend/src/plugin-surfaces';
 import { htmlFor } from '../_render';
 
@@ -31,6 +31,8 @@ describe('PluginList surfaces', () => {
     expect(html).toContain('mcp');
     expect(html).toContain('apiRoutes');
     expect(html).toContain('proxy');
+    expect(html).toContain('href="/plugins?q=echo&amp;surface=apiRoutes"');
+    expect(html).toContain('href="/plugins?q=echo&amp;surface=mcp"');
     expect(html).toContain('bun echo.ts · /ready');
     expect(html).toContain('Surface details');
     expect(html).toContain('echo.say');
@@ -42,5 +44,10 @@ describe('PluginList surfaces', () => {
 
   test('normalizes backend mcpTools surface names for badges', () => {
     expect(surfacesFor({ name: 'echo', file: '', size: 0, modified: 'now', surfaces: ['mcpTools'] })).toEqual(['mcp']);
+  });
+
+  test('builds shareable inventory links for plugin surface badges', () => {
+    expect(pluginSurfaceBadgePath('echo tools', 'mcp')).toBe('/plugins?q=echo+tools&surface=mcp');
+    expect(pluginSurfaceBadgePath('metadata-only', 'metadata')).toBe('/plugins?q=metadata-only&surface=metadata');
   });
 });

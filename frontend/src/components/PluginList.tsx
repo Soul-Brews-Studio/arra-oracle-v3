@@ -1,4 +1,5 @@
 import { surfacesFor } from '../plugin-surfaces';
+import { pluginInventoryPath } from '../routePaths';
 import type { PluginEntry } from '../types';
 import { Badge } from './Badge';
 import { EmptyState } from './EmptyState';
@@ -26,6 +27,10 @@ export function pluginHealthLabel(plugin: PluginEntry, enabled: boolean): string
 
 export function togglePluginEnabled(state: PluginEnabledState, name: string): PluginEnabledState {
   return { ...state, [name]: !(state[name] ?? true) };
+}
+
+export function pluginSurfaceBadgePath(pluginName: string, surface: string): string {
+  return pluginInventoryPath({ q: pluginName, surface });
 }
 
 type SurfaceRow = { label: string; value: string };
@@ -94,8 +99,16 @@ export function PluginList({
                 <Badge>{status}</Badge>
                 <Badge>{health}</Badge>
                 {surfaces.length
-                  ? surfaces.map((surface) => <Badge key={surface}>{surface}</Badge>)
-                  : <Badge>metadata</Badge>}
+                  ? surfaces.map((surface) => (
+                    <a key={surface} className="focus-ring rounded-full" href={pluginSurfaceBadgePath(plugin.name, surface)}>
+                      <Badge>{surface}</Badge>
+                    </a>
+                  ))
+                  : (
+                    <a className="focus-ring rounded-full" href={pluginSurfaceBadgePath(plugin.name, 'metadata')}>
+                      <Badge>metadata</Badge>
+                    </a>
+                  )}
               </div>
             </div>
             <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
