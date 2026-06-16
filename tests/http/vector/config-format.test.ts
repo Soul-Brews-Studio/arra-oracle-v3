@@ -50,7 +50,7 @@ test('loadVectorConfig preserves v1 collection configs', () => {
     model: 'nomic-embed-text',
     adapter: 'lancedb',
     dataPath: '/tmp/vector-v1',
-    embedder: { backend: 'local', model: 'nomic-embed-text' },
+    embedder: { backend: 'ollama', model: 'nomic-embed-text' },
   });
 });
 

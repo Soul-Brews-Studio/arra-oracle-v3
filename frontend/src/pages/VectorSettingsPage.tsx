@@ -1,5 +1,6 @@
 import { VectorConfigPanel } from '../components/VectorConfigPanel';
 import { VectorIndexPanel } from '../components/VectorIndexPanel';
+import { VectorModelRecommendationCard } from '../components/VectorModelRecommendationCard';
 import { VectorProviderServicePanel } from '../components/VectorProviderServicePanel';
 import { VectorSearchToggle } from '../components/VectorSearchToggle';
 
@@ -16,6 +17,7 @@ export function VectorSettingsPage() {
 
       <VectorSearchToggle />
       <VectorProviderServicePanel />
+      <VectorModelRecommendationCard />
       <VectorConfigPanel />
       <VectorIndexPanel />
     </section>

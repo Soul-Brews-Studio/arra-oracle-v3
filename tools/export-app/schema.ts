@@ -4,12 +4,12 @@ const manifestRequired = [
   'exportedAt',
   'dbPath',
   'formats',
+  'files',
   'collectionCount',
   'collections',
   'rowCount',
   'relationshipCount',
   'documentCount',
-  'files',
 ] as const;
 
 const nonNegativeInteger = { type: 'integer', minimum: 0 } as const;
@@ -30,19 +30,6 @@ export const EXPORT_MANIFEST_SCHEMA = {
       minItems: 1,
       items: { enum: EXPORT_FORMATS },
     },
-    collectionCount: nonNegativeInteger,
-    collections: {
-      type: 'object',
-      additionalProperties: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['rowCount'],
-        properties: { rowCount: nonNegativeInteger },
-      },
-    },
-    rowCount: nonNegativeInteger,
-    relationshipCount: nonNegativeInteger,
-    documentCount: nonNegativeInteger,
     files: {
       type: 'array',
       items: {
@@ -56,5 +43,18 @@ export const EXPORT_MANIFEST_SCHEMA = {
         },
       },
     },
+    collectionCount: nonNegativeInteger,
+    collections: {
+      type: 'object',
+      additionalProperties: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['rowCount'],
+        properties: { rowCount: nonNegativeInteger },
+      },
+    },
+    rowCount: nonNegativeInteger,
+    relationshipCount: nonNegativeInteger,
+    documentCount: nonNegativeInteger,
   },
 } as const;

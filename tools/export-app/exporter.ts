@@ -86,12 +86,12 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
       exportedAt,
       dbPath: options.dbPath ?? DB_PATH,
       formats: EXPORT_FORMATS,
+      files,
       collectionCount: tables.length,
       collections: collectionManifest(allCollections),
       rowCount,
       relationshipCount: relationships.length,
       documentCount: documentExport.documentCount,
-      files,
     });
     return {
       outputDir,

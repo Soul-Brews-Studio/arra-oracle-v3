@@ -1,5 +1,4 @@
 import { Elysia } from 'elysia';
-import { apiRequestPath } from './api-version.ts';
 import { REQUEST_ID_HEADER, RESPONSE_TIME_HEADER, requestIdFor, responseTimeFor } from './correlation.ts';
 
 export type ApiErrorResponse = {
@@ -75,21 +74,12 @@ function errorName(error: unknown): string {
   return error instanceof Error ? error.name : '';
 }
 
-function normalizedPath(pathname: string): string {
-  return pathname.replace(/^\/api\/v[^/]+(?=\/)/, '/api');
-}
-
-function isLearnPath(pathname: string): boolean {
-  const path = normalizedPath(pathname);
-  return path === '/api/learn' || path.startsWith('/api/learn/');
-}
 
 function isParseError(code: string, error: unknown): boolean {
   return code === 'PARSE' || errorName(error) === 'BadRequestError' || error instanceof SyntaxError;
 }
 
-function knownStatus(code: string, error: unknown, pathname: string): number {
-  if (isLearnPath(pathname) && (code === 'PARSE' || error instanceof SyntaxError)) return 500;
+function knownStatus(code: string, error: unknown): number {
   if (error instanceof HttpError) return error.statusCode;
   const explicit = numericStatus((error as { status?: unknown })?.status) ?? numericStatus((error as { statusCode?: unknown })?.statusCode);
   if (explicit) return explicit;
@@ -110,7 +100,7 @@ function defaultErrorLogger(entry: { requestId: string; statusCode: number; code
 
 export function createErrorMiddleware(logger: ErrorLogger = defaultErrorLogger) {
   return new Elysia({ name: 'structured-errors' }).onError({ as: 'global' }, ({ code, error, request, set }) => {
-    const statusCode = knownStatus(String(code), error, apiRequestPath(request));
+    const statusCode = knownStatus(String(code), error);
     const id = requestIdFor(request);
     const message = statusCode === 404 && code === 'NOT_FOUND' ? 'Route not found' : errorMessage(error);
     set.status = statusCode;
