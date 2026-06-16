@@ -92,12 +92,12 @@ function pickCollection(data: any, collection: string): any | undefined {
 }
 
 function formatList(data: any): string {
-  const lines = ['Collection | Adapter | Model | Enabled | Docs | Status'];
+  const lines = ['Collection | Adapter | Model | Docs | Status'];
   for (const row of rows(data)) {
     const label = `${row.collection ?? row.key}${row.primary ? ' ★' : ''}`;
-    lines.push(`${label} | ${row.adapter ?? 'lancedb'} | ${row.model ?? row.key} | ${row.enabled !== false} | ${row.count ?? 0} | ${row.status ?? (row.ok === false ? 'down' : 'ok')}`);
+    lines.push(`${label} | ${row.adapter ?? 'lancedb'} | ${row.model ?? row.key} | ${row.count ?? 0} | ${row.status ?? (row.ok === false ? 'down' : 'ok')}`);
   }
-  if (lines.length === 1) lines.push('(none) | - | - | true | 0 | unknown');
+  if (lines.length === 1) lines.push('(none) | - | - | 0 | unknown');
   return [lines.join('\n'), '★ = primary'].join('\n');
 }
 
