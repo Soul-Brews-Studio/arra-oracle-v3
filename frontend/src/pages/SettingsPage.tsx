@@ -11,7 +11,16 @@ type SettingsPageProps = {
   onRefresh: () => void;
 };
 
-function SettingCard({ label, value, detail }: { label: string; value: string | number; detail: string }) {
+function SectionCard({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-label={title}>
+      <h3 className="text-lg font-semibold text-white">{title}</h3>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+function SettingPair({ label, value, detail }: { label: string; value: string | number; detail: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
       <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{label}</dt>
@@ -21,19 +30,14 @@ function SettingCard({ label, value, detail }: { label: string; value: string | 
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4" aria-label={title}>
-      <h3 className="mb-3 text-lg font-semibold text-white">{title}</h3>
-      {children}
-    </section>
-  );
-}
-
-function statusLabel(settings: SettingsSystemResponse) {
+function statusLabel(settings: SettingsSystemResponse): string {
   const { migrations } = settings;
   if (!migrations.tablePresent) return 'migration table missing';
   return migrations.status === 'current' ? 'current' : `${migrations.pendingCount} pending`;
+}
+
+function formatRoutesText(surfaceCount: number): string {
+  return `/menu /plugins /vector /mcp /settings`;
 }
 
 export function SettingsPage({ menuCount, pluginCount, surfaceCount, updatedAt, onRefresh }: SettingsPageProps) {
@@ -46,8 +50,8 @@ export function SettingsPage({ menuCount, pluginCount, surfaceCount, updatedAt, 
     setError('');
     try {
       setSettings(await fetchSettingsSystem());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setLoading(false);
     }
@@ -68,67 +72,126 @@ export function SettingsPage({ menuCount, pluginCount, surfaceCount, updatedAt, 
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-purple-300">Settings</p>
             <h2 id="settings-page-title" className="mt-2 text-2xl font-semibold text-white">Runtime configuration</h2>
             <p className="mt-2 text-sm text-slate-400">Storage backend, embedder configuration, and Drizzle migration status.</p>
+            <p className="mt-2 text-sm text-slate-400">Route map: {formatRoutesText(surfaceCount)}</p>
           </div>
           <button aria-label="Refresh runtime settings" className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" type="button" onClick={refreshAll}>
             {loading ? <Spinner label="Refreshing" /> : 'Refresh settings'}
           </button>
         </div>
 
-        <dl className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <SettingCard label="API proxy" value="/api/* → :47778" detail="Vite forwards same-origin calls to the Elysia backend in development." />
-          <SettingCard label="Frontend rows" value={`${menuCount} menu · ${pluginCount} plugins`} detail={`Last refreshed ${updatedAt}; use refresh after backend changes.`} />
-          <SettingCard label="Plugin surfaces" value={surfaceCount} detail="Counts wasm, menu, server, and MCP surfaces exposed by plugin metadata." />
-          <SettingCard label="Client routes" value="/ /plugins /metrics /search" detail="React Router owns client navigation while backend endpoints stay canonical." />
+        <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <SettingPair
+            label="Frontend routes"
+            value={formatRoutesText(surfaceCount)}
+            detail="React routes and API surfaces available in this build."
+          />
+          <SettingPair
+            label="Frontend inventory"
+            value={`${menuCount} menu · ${pluginCount} plugins`}
+            detail={`Last refreshed ${updatedAt}; use refresh after backend changes.`}
+          />
+          <SettingPair
+            label="Plugin surfaces"
+            value={surfaceCount}
+            detail="Counts wasm, menu, server, and MCP surfaces exposed by plugin metadata."
+          />
+          <SettingPair
+            label="Updated at"
+            value={updatedAt}
+            detail="Backend health and runtime counters sampled from /api/settings/system."
+          />
         </dl>
       </section>
 
       {loading && !settings ? <LoadingPanel title="Loading settings…" detail="Fetching /api/settings/system." /> : null}
       {error ? <ErrorMessage title="Could not load runtime settings." message={error} /> : null}
-      {settings ? <RuntimeSettings settings={settings} /> : null}
-    </div>
-  );
-}
 
-function RuntimeSettings({ settings }: { settings: SettingsSystemResponse }) {
-  const { storage, embedder, migrations } = settings;
-  return (
-    <div className="grid gap-5 xl:grid-cols-3">
-      <Section title="Storage backend">
-        <dl className="grid gap-3 text-sm">
-          <SettingCard label="Active" value={storage.activeBackend} detail={`Configured ${storage.configuredBackend}; default ${storage.defaultBackend}.`} />
-          <SettingCard label="Database" value={storage.dbPath} detail={`Data directory: ${storage.dataDir}`} />
-          <SettingCard label="Repo root" value={storage.repoRoot} detail="Resolved runtime project root used by storage config." />
-        </dl>
-      </Section>
-
-      <Section title="Embedder">
-        <dl className="grid gap-3 text-sm">
-          <SettingCard label="Backend" value={embedder.backend} detail={`Model ${embedder.model ?? 'none'}; dimensions ${embedder.dimensions ?? 'unknown'}.`} />
-          <SettingCard label="Source" value={embedder.source} detail={`URL ${embedder.url ?? 'not configured'}; endpoint ${embedder.embeddingEndpoint || 'disabled'}.`} />
-          <SettingCard label="Collections" value={embedder.collections.length} detail="Vector collection entries derived from vector-server config or defaults." />
-        </dl>
-      </Section>
-
-      <Section title="DB migrations">
-        <dl className="grid gap-3 text-sm">
-          <SettingCard label="Status" value={statusLabel(settings)} detail={`${migrations.appliedCount}/${migrations.availableCount} migrations applied.`} />
-          <SettingCard label="Latest known" value={migrations.latestKnown ?? 'none'} detail={`Latest applied at ${migrations.latestAppliedAt ?? 'not recorded'}.`} />
-        </dl>
-      </Section>
-
-      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 xl:col-span-3" aria-label="Vector collections">
-        <h3 className="mb-3 text-lg font-semibold text-white">Vector collections</h3>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {embedder.collections.map((collection) => (
-            <div key={collection.key} className="rounded-xl border border-white/10 bg-slate-950/60 p-4 text-sm">
-              <p className="font-mono text-teal-200">{collection.key}</p>
-              <p className="mt-2 text-slate-300">{collection.collection}</p>
-              <p className="mt-1 text-slate-500">{collection.provider} · {collection.model} · {collection.adapter ?? 'adapter default'}</p>
-              {collection.primary ? <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-purple-300">Primary</p> : null}
+      {settings ? (
+        <section className="grid gap-5 xl:grid-cols-2">
+          <SectionCard title="Storage backend">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SettingPair
+                label="Active backend"
+                value={settings.storage.activeBackend}
+                detail={`Configured ${settings.storage.configuredBackend}; default ${settings.storage.defaultBackend}.`}
+              />
+              <SettingPair
+                label="Database"
+                value={settings.storage.dbPath}
+                detail={`Data directory: ${settings.storage.dataDir}`}
+              />
+              <SettingPair
+                label="Repository"
+                value={settings.storage.repoRoot}
+                detail="Resolved runtime project root used by storage config."
+              />
             </div>
-          ))}
-        </div>
-      </section>
+          </SectionCard>
+
+          <SectionCard title="Embedder">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SettingPair
+                label="Backend"
+                value={settings.embedder.backend}
+                detail={`Model ${settings.embedder.model ?? 'none'} · dimensions ${settings.embedder.dimensions ?? 'unknown'}.`}
+              />
+              <SettingPair
+                label="Source URL"
+                value={settings.embedder.source}
+                detail={`Embedding endpoint: ${settings.embedder.embeddingEndpoint || 'disabled'}.`}
+              />
+              <SettingPair
+                label="Endpoint"
+                value={settings.embedder.url ?? 'not configured'}
+                detail={`Remote URL used for vector embeddings.`}
+              />
+              <SettingPair
+                label="Collections"
+                value={settings.embedder.collections.length}
+                detail="Vector collection entries derived from vector-server config or defaults."
+              />
+            </div>
+          </SectionCard>
+
+          <SectionCard title="DB migrations">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SettingPair
+                label="Status"
+                value={statusLabel(settings)}
+                detail={`${settings.migrations.appliedCount}/${settings.migrations.availableCount} migrations applied.`}
+              />
+              <SettingPair
+                label="Latest known"
+                value={settings.migrations.latestKnown ?? 'none'}
+                detail={`Latest applied at ${settings.migrations.latestAppliedAt ?? 'not recorded'}.`}
+              />
+              <SettingPair
+                label="Table present"
+                value={settings.migrations.tablePresent ? 'yes' : 'no'}
+                detail={settings.migrations.tablePresent ? 'Migration metadata table exists.' : 'Migration table missing from database.'}
+              />
+              <SettingPair
+                label="Pending"
+                value={settings.migrations.pendingCount}
+                detail={`${settings.migrations.status === 'pending' ? 'Pending migrations are waiting to run.' : 'No migrations pending.'}`}
+              />
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Vector collections">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {settings.embedder.collections.map((collection) => (
+                <article key={collection.key} className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+                  <p className="font-mono text-sm text-teal-200">{collection.key}</p>
+                  <p className="mt-2 text-sm text-slate-100">{collection.collection}</p>
+                  <p className="mt-1 text-sm text-slate-500">{collection.provider} · {collection.model} · {collection.adapter ?? 'adapter default'}</p>
+                  {collection.primary ? <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-purple-300">Primary</p> : null}
+                </article>
+              ))}
+            </div>
+          </SectionCard>
+        </section>
+      ) : null}
     </div>
   );
 }
