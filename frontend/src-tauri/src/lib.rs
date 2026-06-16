@@ -86,6 +86,14 @@ fn stop_backend(state: State<BackendState>) -> Result<String, String> {
     }
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AboutInfo {
+    version: &'static str,
+    build_date: &'static str,
+    platform: String,
+}
+
 #[tauri::command]
 fn health_check() -> Result<String, String> {
     let resp = std::process::Command::new("curl")
@@ -104,6 +112,15 @@ fn health_check() -> Result<String, String> {
 }
 
 #[tauri::command]
+fn get_about_info() -> AboutInfo {
+    AboutInfo {
+        version: env!("CARGO_PKG_VERSION"),
+        build_date: option_env!("BUILD_DATE").unwrap_or("unknown"),
+        platform: format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH),
+    }
+}
+
+#[tauri::command]
 fn get_backend_url() -> String {
     BACKEND_URL.to_string()
 }
@@ -116,6 +133,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             health_check,
             get_backend_url,
+            get_about_info,
             start_backend,
             stop_backend,
         ])
