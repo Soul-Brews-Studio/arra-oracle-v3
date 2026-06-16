@@ -18,12 +18,23 @@ describe('canvas plugin registry', () => {
     const app = new Elysia().use(createPluginsRouter());
     const response = await app.handle(new Request('http://local/api/plugins/canvas?kind=react'));
     expect(response.status).toBe(200);
-    const body = await response.json() as { count: number; plugins: Array<{ id: string; kind: string }> };
+    const body = await response.json() as { count: number; standalone: { host: string }; plugins: Array<{ id: string; kind: string; standalonePath: string }> };
     expect(body.count).toBe(2);
+    expect(body.standalone.host).toBe('canvas.buildwithoracle.com');
     expect(body.plugins).toEqual([
-      expect.objectContaining({ id: 'map', kind: 'react' }),
-      expect.objectContaining({ id: 'planets', kind: 'react' }),
+      expect.objectContaining({ id: 'map', kind: 'react', standalonePath: '/map' }),
+      expect.objectContaining({ id: 'planets', kind: 'react', standalonePath: '/planets' }),
     ]);
+  });
+
+
+  test('exposes standalone metadata through plugin detail route', async () => {
+    const app = new Elysia().use(createPluginsRouter());
+    const response = await app.handle(new Request('http://local/api/plugins/canvas/wave'));
+    const body = await response.json() as { plugin: { id: string; standalonePath: string } };
+
+    expect(response.status).toBe(200);
+    expect(body.plugin).toMatchObject({ id: 'wave', standalonePath: '/?plugin=wave' });
   });
 
   test('lists canvas plugins through CLI command', async () => {

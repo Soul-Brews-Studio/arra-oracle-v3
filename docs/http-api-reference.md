@@ -126,8 +126,8 @@ Protected routes may require API token/session auth; tenant-aware routes honor `
 | GET | `/api/plugins` | `kind=canvas?` | Plugin registry entries or CanvasPlugin metadata. |
 | GET | `/api/plugins/:name` | `name` path. | Plugin details or file plugin details. |
 | PATCH | `/api/plugins/:name/state` | `{ enabled }` | Enable/disable state. |
-| GET | `/api/plugins/canvas` | `kind?` | Canvas plugin entries. |
-| GET | `/api/plugins/canvas/:id` | `id` path. | Canvas plugin detail. |
+| GET | `/api/plugins/canvas` | `kind?` | Canvas registry entries with standalone metadata. |
+| GET | `/api/plugins/canvas/:id` | `id` path. | Canvas registry detail with standalone metadata. |
 | GET | `/api/canvas/plugins` | `kind?` | Canvas registry entries. |
 | GET | `/api/canvas/plugins/:id` | `id` path. | Canvas registry detail. |
 | GET | `/api/canvas/registry` | `kind?` | Standalone canvas registry manifest. |
