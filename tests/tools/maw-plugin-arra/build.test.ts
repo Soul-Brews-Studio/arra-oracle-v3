@@ -18,9 +18,10 @@ test('build emits an installable tgz, pinned lock, and runnable bundled handler'
     artifact: { path: string; sha256: string };
   };
   const lock = JSON.parse(readFileSync(result.lockPath, 'utf8')) as {
-    plugins: { arra: { version: string; package: string; pinned: boolean; artifact: { sha256: string } } };
+    plugins: { arra: { version: string; package: string; packageSha256: string; pinned: boolean; artifact: { sha256: string } } };
   };
   const sha256 = createHash('sha256').update(readFileSync(entryPath)).digest('hex');
+  const packageSha256 = createHash('sha256').update(readFileSync(result.tgzPath)).digest('hex');
   const tar = spawnSync('tar', ['-tzf', result.tgzPath], { encoding: 'utf8' });
   const built = await import(`${pathToFileURL(entryPath).href}?${Date.now()}`) as {
     default: (ctx: { source?: string; args?: string[] }) => Promise<{ ok: boolean; output?: string }>;
@@ -30,11 +31,13 @@ test('build emits an installable tgz, pinned lock, and runnable bundled handler'
   expect(manifest.entry).toBe('./index.js');
   expect(manifest.artifact).toEqual({ path: './index.js', sha256 });
   expect(result.sha256).toBe(sha256);
+  expect(result.packageSha256).toBe(packageSha256);
   expect(existsSync(result.tgzPath)).toBe(true);
   expect(tar.status).toBe(0);
   expect(tar.stdout.trim().split('\n').sort()).toEqual(['index.js', 'plugin.json']);
   expect(lock.plugins.arra).toMatchObject({ version: '0.1.0', package: 'arra-0.1.0.tgz', pinned: true });
   expect(lock.plugins.arra.artifact.sha256).toBe(sha256);
+  expect(lock.plugins.arra.packageSha256).toBe(packageSha256);
   expect(help.ok).toBe(true);
   expect(help.output).toContain('maw arra');
 });

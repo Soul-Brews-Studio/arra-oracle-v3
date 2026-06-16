@@ -6,7 +6,14 @@ import { join, resolve } from 'node:path';
 type Artifact = { path: string; sha256: string };
 type Manifest = { name: string; version: string; entry: string; [key: string]: unknown };
 type BuildOptions = { root?: string; outDir?: string };
-type BuildResult = { outDir: string; manifestPath: string; lockPath: string; tgzPath: string; sha256: string };
+type BuildResult = {
+  outDir: string;
+  manifestPath: string;
+  lockPath: string;
+  tgzPath: string;
+  sha256: string;
+  packageSha256: string;
+};
 
 function option(name: string): string | undefined {
   const index = process.argv.indexOf(name);
@@ -26,12 +33,12 @@ function sha256(path: string): string {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
 }
 
-function writeLock(outDir: string, manifest: Manifest, tgzName: string, artifact: Artifact): string {
+function writeLock(outDir: string, manifest: Manifest, tgzName: string, artifact: Artifact, packageSha256: string): string {
   const lockPath = join(outDir, 'plugins.lock');
   const lock = {
     version: 1,
     plugins: {
-      [manifest.name]: { version: manifest.version, package: tgzName, artifact, pinned: true },
+      [manifest.name]: { version: manifest.version, package: tgzName, packageSha256, artifact, pinned: true },
     },
   };
   writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
@@ -68,8 +75,9 @@ export async function buildPlugin(options: BuildOptions = {}): Promise<BuildResu
   const manifestPath = join(outDir, 'plugin.json');
   writeFileSync(manifestPath, `${JSON.stringify({ ...manifest, entry: './index.js', artifact }, null, 2)}\n`);
   const tgzPath = pack(outDir, manifest);
-  const lockPath = writeLock(outDir, manifest, tgzPath.split('/').at(-1)!, artifact);
-  return { outDir, manifestPath, lockPath, tgzPath, sha256: artifact.sha256 };
+  const packageSha256 = sha256(tgzPath);
+  const lockPath = writeLock(outDir, manifest, tgzPath.split('/').at(-1)!, artifact, packageSha256);
+  return { outDir, manifestPath, lockPath, tgzPath, sha256: artifact.sha256, packageSha256 };
 }
 
 if (import.meta.main) {
