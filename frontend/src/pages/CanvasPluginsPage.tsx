@@ -89,11 +89,11 @@ export function CanvasPluginsPage({ plugins: initialPlugins = [], loading = true
       <header className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Canvas plugins</p>
         <h1 id="canvas-plugins-title" className="mt-2 text-3xl font-semibold text-white">Canvas plugin registry</h1>
-        <p className="mt-2 text-sm text-slate-400">Fetched from /api/canvas/plugins for canvas.buildwithoracle.com standalone rendering.</p>
+        <p className="mt-2 text-sm text-slate-400">Fetched from /api/plugins?kind=canvas for canvas.buildwithoracle.com standalone rendering.</p>
         <p className="mt-3 inline-flex rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300">{summary}</p>
       </header>
 
-      {state === 'loading' ? <LoadingPanel title="Loading canvas plugins" detail="Reading /api/canvas/plugins." /> : null}
+      {state === 'loading' ? <LoadingPanel title="Loading canvas plugins" detail="Reading /api/plugins?kind=canvas." /> : null}
       {state === 'error' ? <ErrorMessage title="Could not load canvas plugins." message={error} /> : null}
       {state !== 'error' && error ? <ErrorMessage title="Canvas plugin warning" message={error} /> : null}
       {state !== 'error' ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{plugins.map((plugin) => <PluginCard key={plugin.id} plugin={plugin} host={host} />)}</div> : null}
