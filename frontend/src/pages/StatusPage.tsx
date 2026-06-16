@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient, type ApiClient } from '../api/client';
 import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
+import { pluginInventoryPath } from '../routePaths';
 import type { HealthResponse } from '../../../src/server/types';
 
 type PageState = 'loading' | 'ready' | 'error';
@@ -8,6 +9,7 @@ type StatusClient = Pick<ApiClient, 'health'>;
 
 export interface StatusPageProps {
   client?: StatusClient;
+  initialHealth?: HealthResponse | null;
 }
 
 function statusClass(status?: string): string {
@@ -42,6 +44,11 @@ function StatusBadge({ label, status }: { label: string; status?: string }) {
   );
 }
 
+export function pluginHealthPath(plugin: { name: string; status?: string; error?: string }): string {
+  const unhealthy = Boolean((plugin.status && plugin.status !== 'ok') || plugin.error);
+  return pluginInventoryPath({ q: plugin.name, visibility: unhealthy ? 'unhealthy' : 'all' });
+}
+
 function PluginRows({ health }: { health: HealthResponse }) {
   const items = health.plugins?.items ?? [];
   if (!items.length) return <p className="text-sm text-slate-400">No plugin health rows returned.</p>;
@@ -49,7 +56,7 @@ function PluginRows({ health }: { health: HealthResponse }) {
     <ul className="grid gap-2">
       {items.map((plugin) => (
         <li key={plugin.name} className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center sm:justify-between">
-          <span className="font-mono text-sm text-slate-100">{plugin.name}</span>
+          <a className="focus-ring font-mono text-sm text-teal-100 hover:text-teal-200" href={pluginHealthPath(plugin)}>{plugin.name}</a>
           <span className={`rounded-full border px-2 py-1 text-xs ${statusClass(plugin.status)}`}>{plugin.status}</span>
           {plugin.error ? <span className="text-sm text-amber-200">{plugin.error}</span> : null}
         </li>
@@ -58,12 +65,13 @@ function PluginRows({ health }: { health: HealthResponse }) {
   );
 }
 
-export function StatusPage({ client = apiClient }: StatusPageProps) {
-  const [state, setState] = useState<PageState>('loading');
-  const [health, setHealth] = useState<HealthResponse | null>(null);
+export function StatusPage({ client = apiClient, initialHealth = null }: StatusPageProps) {
+  const [state, setState] = useState<PageState>(initialHealth ? 'ready' : 'loading');
+  const [health, setHealth] = useState<HealthResponse | null>(initialHealth);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (initialHealth) return;
     let cancelled = false;
     setState('loading');
     setError('');
@@ -79,7 +87,7 @@ export function StatusPage({ client = apiClient }: StatusPageProps) {
         setState('error');
       });
     return () => { cancelled = true; };
-  }, [client]);
+  }, [client, initialHealth]);
 
   const uptime = useMemo(() => formatSeconds(health?.uptimeSeconds ?? health?.uptime?.seconds), [health]);
   const isLoading = state === 'loading';
