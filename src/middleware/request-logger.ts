@@ -1,14 +1,25 @@
+import { randomUUID } from 'node:crypto';
 import { Elysia } from 'elysia';
+import { SANDBOX_LABEL_HEADER, sandboxLabel } from '../runtime/sandbox-label.ts';
 
 export type StructuredRequestLogEntry = {
+  event: 'http_request';
   method: string;
   path: string;
   status: number;
   durationMs: number;
   timestamp: string;
+  correlationId: string;
+  headers: Record<string, string>;
+  sandbox: string;
 };
 
-type RequestMeta = { startedAt: number };
+type RequestMeta = {
+  startedAt: number;
+  correlationId: string;
+  headers: Record<string, string>;
+  sandbox: string;
+};
 type LogSink = (entry: StructuredRequestLogEntry) => void;
 
 type RequestLoggingOptions = {
@@ -33,6 +44,22 @@ function requestPath(request: Request): string {
   }
 }
 
+const REDACTED = '[REDACTED]';
+const sensitiveHeaders = new Set(['authorization', 'proxy-authorization']);
+
+function redactHeaders(headers: Headers): Record<string, string> {
+  const redacted: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    const normalized = key.toLowerCase();
+    redacted[normalized] = sensitiveHeaders.has(normalized) ? REDACTED : value;
+  });
+  return redacted;
+}
+
+function requestCorrelationId(request: Request): string {
+  return request.headers.get('x-correlation-id') || request.headers.get('x-request-id') || randomUUID();
+}
+
 function responseStatus(response: unknown, setStatus: unknown): number {
   if (response instanceof Response) return response.status;
   if (typeof setStatus === 'number') return setStatus;
@@ -50,18 +77,28 @@ export function createRequestLoggingMiddleware(options: RequestLoggingOptions = 
   const log = options.log ?? ((entry: StructuredRequestLogEntry) => console.log(JSON.stringify(entry)));
 
   return new Elysia({ name: 'structured-request-logger' })
-    .onRequest(({ request }) => {
-      meta.set(request, { startedAt: now() });
+    .onRequest(({ request, set }) => {
+      const correlationId = requestCorrelationId(request);
+      const sandbox = sandboxLabel();
+      meta.set(request, { startedAt: now(), correlationId, headers: redactHeaders(request.headers), sandbox });
+      set.headers['X-Correlation-Id'] = correlationId;
+      set.headers[SANDBOX_LABEL_HEADER] = sandbox;
     })
     .onAfterResponse({ as: 'global' }, ({ request, responseValue, set }) => {
       const endedAt = now();
-      const startedAt = meta.get(request)?.startedAt ?? endedAt;
+      const requestMeta = meta.get(request);
+      const startedAt = requestMeta?.startedAt ?? endedAt;
+      set.headers[SANDBOX_LABEL_HEADER] = requestMeta?.sandbox ?? sandboxLabel();
       log({
+        event: 'http_request',
         method: request.method,
         path: requestPath(request),
         status: responseStatus(responseValue, set.status),
         durationMs: roundedDurationMs(startedAt, endedAt),
         timestamp: timestamp(),
+        correlationId: requestMeta?.correlationId ?? requestCorrelationId(request),
+        headers: requestMeta?.headers ?? redactHeaders(request.headers),
+        sandbox: requestMeta?.sandbox ?? sandboxLabel(),
       });
       meta.delete(request);
     });
