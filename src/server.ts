@@ -15,6 +15,7 @@ import { createCorrelationMiddleware } from './middleware/correlation.ts';
 import { defaultUnifiedPluginDirs, loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
 import { startUnifiedPluginServers } from './plugins/unified-server.ts';
 import { closeCachedVectorStores } from './vector/factory.ts';
+import { warmEmbeddingProviderDetection } from './vector/provider-detection.ts';
 import { drainingResponseFor, isDraining, registerGracefulShutdown, runShutdownSteps, trackRequest } from './lifecycle/shutdown.ts';
 import { createErrorMiddleware } from './middleware/errors.ts';
 import { validateStartupEnv } from './config/validate.ts';
@@ -80,6 +81,8 @@ try {
 }
 
 console.log('[Vector] mode:', VECTOR_URL ? 'proxy → ' + VECTOR_URL : 'local');
+void warmEmbeddingProviderDetection().catch((error) =>
+  console.warn('[Vector] embedding provider auto-detect failed:', error instanceof Error ? error.message : String(error)));
 
 try {
   console.log(`[DB] busy_timeout = ${JSON.stringify(sqlite.prepare('PRAGMA busy_timeout').get())}`);
