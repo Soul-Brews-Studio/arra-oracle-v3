@@ -1,4 +1,5 @@
 import { vectorConfigCli } from "./vector-config-cli.ts";
+import { vectorHealthCli } from "./vector-health-cli.ts";
 
 type ArraPluginContext = {
   source: "api" | "mcp" | "cli" | "server" | "init" | "destroy";
@@ -56,6 +57,14 @@ const VERBS: ArraVerb[] = [
     storage: "swappable",
   },
   {
+    name: "health",
+    help: "Show server and vector engine health",
+    menuPath: MENU_PATH,
+    httpPath: "/api/health",
+    requiresEmbedder: false,
+    storage: "swappable",
+  },
+  {
     name: "vector-config",
     help: "Inspect and manage vector backend config",
     menuPath: MENU_PATH,
@@ -96,6 +105,8 @@ async function renderCli(ctx: ArraPluginContext): Promise<CliResult> {
       ok: true,
       output: "arra status: ok (embedder optional, storage swappable)",
     };
+  if (command === "health")
+    return vectorHealthCli((ctx.args ?? []).slice(1).map(String));
   if (command === "vector-config")
     return vectorConfigCli((ctx.args ?? []).slice(1).map(String));
   if (command !== "help")
