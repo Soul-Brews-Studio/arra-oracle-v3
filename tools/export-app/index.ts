@@ -1,4 +1,6 @@
 import { exportOracleData } from './exporter.ts';
+import { existsSync, statSync } from 'node:fs';
+import { DB_PATH } from '../../src/config.ts';
 
 type Writer = (message: string) => void;
 
@@ -44,6 +46,24 @@ export function parseArgs(args: string[]): CliOptions {
   return { outputDir, dbPath, quiet };
 }
 
+function requireFile(path: string): void {
+  if (!existsSync(path)) {
+    throw new Error(`database file not found: ${path}. Pass --db <path> for an existing Oracle database.`);
+  }
+  if (!statSync(path).isFile()) throw new Error(`database path is not a file: ${path}`);
+}
+
+function requireOutputTarget(path: string): void {
+  if (existsSync(path) && !statSync(path).isDirectory()) {
+    throw new Error(`output path exists but is not a directory: ${path}`);
+  }
+}
+
+export function validateCliOptions(options: CliOptions): void {
+  requireFile(options.dbPath ?? DB_PATH);
+  requireOutputTarget(options.outputDir);
+}
+
 function printHelp(write: Writer): void {
   write([
     'bun run tools/export-app/index.ts --output ./backup/ [--db ./oracle.db]',
@@ -67,6 +87,7 @@ export async function runExportApp(args: string[], stdout: Writer = process.stdo
       return 0;
     }
     const options = parseArgs(args);
+    validateCliOptions(options);
     const progress = options.quiet ? () => {} : (message: string) => stderr(`${message}\n`);
     const result = await exportOracleData({
       outputDir: options.outputDir,
