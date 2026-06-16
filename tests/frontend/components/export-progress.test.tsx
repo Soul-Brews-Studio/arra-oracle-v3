@@ -33,4 +33,13 @@ describe('ExportProgress', () => {
     expect(failed).toContain('disk full');
     expect(failed).toContain('Retry');
   });
+
+  test('does not render a dead download link before the URL is ready', () => {
+    const html = htmlFor(<ExportProgress state={{ ...running, status: 'done', progress: 100, filename: 'export.zip' }} />);
+
+    expect(html).toContain('Preparing download');
+    expect(html).toContain('disabled=""');
+    expect(html).not.toContain('href=');
+    expect(html).toContain('aria-valuetext="Export ready"');
+  });
 });

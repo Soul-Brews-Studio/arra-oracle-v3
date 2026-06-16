@@ -88,6 +88,40 @@ knowledge corpus.
 - Verify tenant-scoped vector search end to end before advertising semantic
   multi-tenant memory beyond FTS-safe paths.
 
+## 2026-06-17 research pass
+
+This PR keeps the coder-authored deliverable in docs only. The `ψ/` tree is
+the Oracle vault and should not be modified by coders unless explicitly
+authorized.
+
+Source-backed points checked for this pass:
+
+- MCP memory server source and package docs: official memory is a local JSONL
+  graph with simple node search; ARRA should use MCP as a facade over its
+  stronger retrieval store.
+- Agent memory survey, arXiv 2603.07670: useful memory systems need a full
+  write-manage-read loop, not just a search endpoint.
+- LangMem API/background docs: background extraction is useful for candidate
+  generation, but candidate memories still need review or validation before
+  becoming trusted.
+- GitHub Copilot and VS Code memory docs/blog: scopes, verification before use,
+  expiry, and review/delete controls are product requirements for coding-agent
+  memory.
+- A-Mem paper page: dynamic graph links are promising for relation traversal,
+  but should follow validated chunk retrieval rather than replace it first.
+
+Implementation rules to preserve:
+
+1. Filter by tenant/project before ranking or graph expansion.
+2. Return source path or URL, excerpt, timestamp, tenant scope, and confidence
+   rationale with memory search results.
+3. Compute confidence at read time from match quality, validation status,
+   recency, tenant scope, and contradiction/supersede state.
+4. Treat `memory_propose` as untrusted capture; `memory_validate` and
+   `memory_promote` are the trust boundary.
+5. Keep destructive or durable memory operations in CLI/UI/admin workflows, not
+   broad MCP write tools.
+
 ## Source filings
 
 - `ψ/memory/ai-memory-systems-research.md`

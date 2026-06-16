@@ -1,14 +1,6 @@
 import { mkdir, writeFile as nodeWriteFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import {
-  buildMarkdownExportPayload,
-  buildVaultJsonExport,
-  buildVectorExportPayload,
-  exportCommand as legacyExportCommand,
-} from "./export-legacy.ts";
 import { CLI_VERSION } from "../help.ts";
-
-export { buildMarkdownExportPayload, buildVaultJsonExport, buildVectorExportPayload };
 
 const RUN_PATH = "/api/v1/export/app/run";
 const FORMATS = new Set(["markdown", "json", "jsonl", "csv"]);
@@ -46,7 +38,8 @@ export function renderRemoteExportHelp(): string {
     "  --url <url>          Oracle v2 base URL, e.g. http://localhost:47778",
     "  --collection <name>  export collection name, e.g. oracle_documents",
     "  --format <format>    markdown, json, jsonl, or csv",
-    "  --output <path>      destination file path",
+    "  --output, --out, -o <path>",
+    "                        destination file path",
     "  --include-graph      include relationship graph rows when supported",
     "  --graph              alias for --include-graph",
     "  --retries <count>    retry transient HTTP/network failures",
@@ -87,7 +80,8 @@ function readNonNegativeInt(args: string[], flag: string, fallback: number): num
 
 function hasNewExportFlag(args: string[]): boolean {
   return args.some((arg) => arg === "--url" || arg.startsWith("--url=")
-    || arg === "--output" || arg.startsWith("--output="));
+    || arg === "--output" || arg.startsWith("--output=")
+    || arg === "--out" || arg.startsWith("--out=") || arg === "-o" || arg.startsWith("-o="));
 }
 
 export function parseRemoteExportOptions(args: string[]): RemoteExportOptions {
@@ -95,7 +89,7 @@ export function parseRemoteExportOptions(args: string[]): RemoteExportOptions {
     url: readValue(args, "--url"),
     collection: readValue(args, "--collection"),
     format: readValue(args, "--format"),
-    output: readValue(args, "--output"),
+    output: readValue(args, "--output") ?? readValue(args, "--out") ?? readValue(args, "-o"),
     includeGraph: args.includes("--include-graph") || args.includes("--graph"),
     retries: readNonNegativeInt(args, "--retries", 0),
     retryDelayMs: readNonNegativeInt(args, "--retry-delay-ms", DEFAULT_RETRY_DELAY_MS),
@@ -222,7 +216,7 @@ export async function exportCommand(args: string[]): Promise<number> {
     printHelp();
     return 0;
   }
-  if (!hasNewExportFlag(args)) return legacyExportCommand(args);
+  if (!hasNewExportFlag(args)) return (await import("./export-legacy.ts")).exportCommand(args);
 
   try {
     process.stdout.write(`${await runRemoteExportCommand(args)}\n`);
