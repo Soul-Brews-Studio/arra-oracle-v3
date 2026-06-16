@@ -40,7 +40,9 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
   }
 
   if (pathname === '/plugins') return base('Plugin list', 'Plugins', 'Registered plugins and exposed runtime surfaces.', [{ label: 'Plugins' }]);
+  if (pathname === '/search') return base('Search', 'Search', 'Search menu, plugin, and MCP tool surfaces.', [{ label: 'Search' }]);
   if (pathname === '/vector') return base('Vector search', 'Vector', 'Semantic search against Oracle memory.', [{ label: 'Vector search' }]);
+  if (pathname === '/metrics') return base('Runtime metrics', 'Metrics', 'Menu, plugin, and surface counts.', [{ label: 'Metrics' }]);
   if (pathname === '/mcp') return base('MCP tools', 'MCP', 'Browse available MCP tool schemas and groups.', [{ label: 'MCP tools' }]);
   if (pathname === '/settings') return base('Runtime settings', 'Settings', 'Storage, embedder, and migration status.', [{ label: 'Settings' }]);
   return base('Menu viewer', 'Menu', 'Navigation rows from /api/menu.', [{ label: 'Menu' }]);

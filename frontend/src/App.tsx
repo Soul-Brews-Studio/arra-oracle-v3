@@ -3,6 +3,8 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { fetchMenu, fetchPlugins } from './api';
 import { AppShell } from './components/AppShell';
 import { countPluginSurfaces } from './plugin-surfaces';
+import { SearchPage } from './pages/SearchPage';
+import { MetricsPage } from './pages/MetricsPage';
 import { McpPage } from './pages/McpPage';
 import { McpToolDetailPage } from './pages/McpToolDetailPage';
 import { MenuPage } from './pages/MenuPage';
@@ -55,9 +57,11 @@ export default function App() {
       >
         <Routes>
           <Route index element={<Navigate to="/menu" replace />} />
+          <Route path="/search" element={<SearchPage />} />
           <Route path="/menu" element={<MenuPage items={menu} loading={loading} />} />
           <Route path="/plugins" element={<PluginsPage plugins={plugins} loading={loading} />} />
           <Route path="/vector" element={<VectorPage />} />
+          <Route path="/metrics" element={<MetricsPage menuCount={menu.length} pluginCount={plugins.length} surfaceCount={surfaceCount} updatedAt={updatedAt} />} />
           <Route path="/vector/results" element={<VectorSearchResultsPage />} />
           <Route path="/mcp" element={<McpPage />} />
           <Route path="/mcp/tools/:name" element={<McpToolDetailPage />} />
