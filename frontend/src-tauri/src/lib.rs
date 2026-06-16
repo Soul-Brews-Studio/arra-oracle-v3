@@ -5,6 +5,8 @@ use tauri_plugin_shell::{
     ShellExt,
 };
 
+mod app_menu;
+
 const BACKEND_URL: &str = "http://localhost:47778";
 const BACKEND_HEALTH_URL: &str = "http://localhost:47778/api/health";
 const BACKEND_HOST: &str = "localhost:47778";
@@ -221,6 +223,7 @@ pub fn run() {
         .manage(BackendState::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
+        .on_menu_event(app_menu::handle_menu_event)
         .invoke_handler(tauri::generate_handler![
             health_check,
             get_backend_url,
@@ -232,6 +235,7 @@ pub fn run() {
             let window = app.get_webview_window("main").unwrap();
             window.set_title("ARRA Oracle").unwrap();
             setup_tray(app)?;
+            app.set_menu(app_menu::build_app_menu(app.handle())?)?;
             autostart_backend(app);
             Ok(())
         })
