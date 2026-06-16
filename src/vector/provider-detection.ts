@@ -96,6 +96,12 @@ export async function getDetectedEmbeddingProviders(
   return cached;
 }
 
+export async function warmEmbeddingProviderDetection(
+  options: ProviderDetectionOptions = {},
+): Promise<{ checkedAt: string; providers: DetectedEmbeddingProvider[] }> {
+  return getDetectedEmbeddingProviders(false, options);
+}
+
 export function clearProviderDetectionCache(): void {
   cached = null;
 }

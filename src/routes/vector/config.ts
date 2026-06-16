@@ -87,7 +87,7 @@ function configResponse(
     state: vectorConfigState(config, collections),
     options: {
       localEngines: LOCAL_VECTOR_ENGINES,
-      embeddingProviders: ['ollama', 'openai', 'cloudflare-ai', 'chromadb-internal'],
+      embeddingProviders: ['ollama', 'openai', 'gemini', 'cloudflare-ai', 'chromadb-internal'],
     },
     config,
     collections,

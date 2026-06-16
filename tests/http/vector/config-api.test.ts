@@ -64,6 +64,7 @@ test('GET and PUT /api/v1/vector/config expose and update vector-server.json', a
     adapter: 'lancedb',
   });
   expect(getRes.body.collections[0].count).toEqual(expect.any(Number));
+  expect(getRes.body.options.embeddingProviders).toContain('gemini');
 
   const testRes = await call('/api/v1/vector/config/phase1/test', { method: 'POST' });
   expect(testRes.status).toBe(200);

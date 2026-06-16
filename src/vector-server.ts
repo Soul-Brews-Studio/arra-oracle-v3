@@ -16,6 +16,7 @@ import { swagger } from '@elysiajs/swagger';
 
 import { createCorsMiddleware } from './middleware/cors.ts';
 import { loadVectorConfig, generateDefaultConfig } from './vector/config.ts';
+import { warmEmbeddingProviderDetection } from './vector/provider-detection.ts';
 import { vectorRoutes } from './routes/vector/index.ts';
 import { searchEndpoint } from './routes/search/search.ts';
 
@@ -24,6 +25,8 @@ import pkg from '../package.json' with { type: 'json' };
 // ── Config ──────────────────────────────────────────────────────────
 const config = loadVectorConfig() ?? generateDefaultConfig();
 const PORT = Number(process.env.VECTOR_PORT ?? config.port);
+void warmEmbeddingProviderDetection().catch((error) =>
+  console.warn('[Vector] embedding provider auto-detect failed:', error instanceof Error ? error.message : String(error)));
 
 // ── App ─────────────────────────────────────────────────────────────
 export function createVectorServerApp() {
