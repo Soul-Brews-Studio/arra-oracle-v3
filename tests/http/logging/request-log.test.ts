@@ -14,6 +14,8 @@ async function waitForLog(logs: string[]): Promise<string> {
 test('request logger emits structured JSON and redacts Authorization headers', async () => {
   const lines: string[] = [];
   const original = console.log;
+  const originalFormat = process.env.LOG_FORMAT;
+  process.env.LOG_FORMAT = 'json';
   console.log = (message?: unknown) => {
     lines.push(String(message));
   };
@@ -44,10 +46,13 @@ test('request logger emits structured JSON and redacts Authorization headers', a
       status: 201,
       correlationId: 'test-correlation-id',
       headers: { authorization: '[REDACTED]', 'x-correlation-id': 'test-correlation-id' },
+      sandbox: 'dev',
     });
     expect(typeof entry.durationMs).toBe('number');
     expect(entry.durationMs).toBeGreaterThanOrEqual(0);
   } finally {
     console.log = original;
+    if (originalFormat === undefined) delete process.env.LOG_FORMAT;
+    else process.env.LOG_FORMAT = originalFormat;
   }
 });

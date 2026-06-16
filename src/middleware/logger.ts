@@ -4,6 +4,7 @@ type RequestMeta = {
   startedAt: number;
   correlationId: string;
   headers: Record<string, string>;
+  sandbox: string;
 };
 
 type RequestContext = {
@@ -24,6 +25,7 @@ export type RequestLogEntry = {
   durationMs: number;
   correlationId: string;
   headers: Record<string, string>;
+  sandbox: string;
 };
 
 export type RequestLogFormat = 'json' | 'nginx' | 'short';
@@ -70,7 +72,14 @@ function responseStatus(responseValue: unknown, setStatus?: number | string): nu
 
 function requestLogFormat(): RequestLogFormat {
   const requested = process.env.LOG_FORMAT as RequestLogFormat | undefined;
-  return requested && logFormats.has(requested) ? requested : 'json';
+  return requested && logFormats.has(requested) ? requested : 'nginx';
+}
+
+function sandboxLabel(env = process.env.ARRA_ENV): string {
+  const value = env?.trim().toLowerCase();
+  if (value === 'production') return 'prod';
+  if (value === 'staging') return 'staging';
+  return 'dev';
 }
 
 function formatDurationMs(durationMs: number): string {
@@ -89,6 +98,7 @@ export function formatRequestLog(entry: RequestLogEntry, format: RequestLogForma
       entry.status,
       formatDurationMs(entry.durationMs),
       `[${shortCorrelationId(entry.correlationId)}]`,
+      `[${entry.sandbox}]`,
     ].join(' ');
   }
 
@@ -113,7 +123,7 @@ export function createRequestLogger(options: RequestLoggerOptions = {}) {
   return {
     onRequest({ request, set }: RequestContext) {
       const correlationId = requestCorrelationId(request);
-      metaByRequest.set(request, { startedAt: now(), correlationId, headers: redactHeaders(request.headers) });
+      metaByRequest.set(request, { startedAt: now(), correlationId, headers: redactHeaders(request.headers), sandbox: sandboxLabel() });
       set.headers['X-Correlation-Id'] = correlationId;
     },
     onAfterResponse({ request, responseValue, set }: AfterResponseContext) {
@@ -129,6 +139,7 @@ export function createRequestLogger(options: RequestLoggerOptions = {}) {
         durationMs,
         correlationId: meta?.correlationId ?? requestCorrelationId(request),
         headers: meta?.headers ?? redactHeaders(request.headers),
+        sandbox: meta?.sandbox ?? sandboxLabel(),
       });
       metaByRequest.delete(request);
     },

@@ -4,6 +4,7 @@ export const KNOWN_ENV_KEYS = [
   'HOME',
   'USERPROFILE',
   'ARRA_ENV',
+  'LOG_FORMAT',
   'PORT',
   'DATABASE_URL',
   'VECTOR_URL',
