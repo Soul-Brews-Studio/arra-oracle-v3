@@ -12,6 +12,7 @@ import { formatOracleV2DocumentsCsv } from './oracle-v2-csv.ts';
 import { formatOracleV2DocumentsMarkdown } from './oracle-v2-markdown.ts';
 import { rememberExportProgress } from './progress.ts';
 import { canReadTenantResource } from './tenant.ts';
+import { recordExportHistory } from './history-store.ts';
 
 function clean(value: string): string {
   return value.trim();
@@ -23,10 +24,6 @@ function safeName(value: string): string {
 
 function oracleV2Url(body: { oracleV2Url?: string; baseUrl?: string }): string | undefined {
   return (body.oracleV2Url ?? body.baseUrl)?.trim() || undefined;
-}
-
-function insertJob(job: ExportHistoryJob): void {
-  db.insert(exportJobs).values(job).run();
 }
 
 function oracleV2Extension(format: string): string {
@@ -149,7 +146,7 @@ export function createExportHistoryRoutes() {
         timestamp: Date.now(),
         status,
       };
-      insertJob(job);
+      recordExportHistory(job);
 
       if (baseUrl) {
         try {

@@ -20,10 +20,6 @@ const { createExportProgressResponse, readRememberedExportProgress } = await imp
 const { createDatabase, oracleDocuments, supersedeLog, traceLog, resetDefaultDatabaseForTests } = dbModule;
 const connection = createDatabase(dbPath);
 
-function restoreDbPath() {
-  return savedDbPath ?? join(savedDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
-}
-
 function seed() {
   const now = 1_766_000_000_000;
   connection.db.insert(oracleDocuments).values([
@@ -80,7 +76,7 @@ afterAll(() => {
   else process.env.ORACLE_DATA_DIR = savedDataDir;
   if (savedDbPath === undefined) delete process.env.ORACLE_DB_PATH;
   else process.env.ORACLE_DB_PATH = savedDbPath;
-  resetDefaultDatabaseForTests(restoreDbPath());
+  resetDefaultDatabaseForTests(':memory:');
   rmSync(root, { recursive: true, force: true });
 });
 

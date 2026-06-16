@@ -21,9 +21,6 @@ const { createLearnCrudRoutes } = await import('../../../src/routes/learn/index.
 const { createExportAppRoutes } = await import('../../../src/routes/export/app.ts');
 const { exportRoutes } = await import('../../../src/routes/export/index.ts');
 
-const restoreDbPath = savedDbPath
-  ?? join(savedDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
-
 const app = new Elysia({ prefix: '/api' })
   .use(createLearnCrudRoutes())
   .use(createExportAppRoutes());
@@ -54,6 +51,7 @@ async function seedLearnings(): Promise<void> {
 }
 
 interface ExportJobResponse {
+  jobId: string;
   downloadUrl: string;
   filename: string;
   rowCount: number;
@@ -90,7 +88,7 @@ afterAll(() => {
   else process.env.ORACLE_DB_PATH = savedDbPath;
   if (savedRepoRoot === undefined) delete process.env.ORACLE_REPO_ROOT;
   else process.env.ORACLE_REPO_ROOT = savedRepoRoot;
-  dbMod.resetDefaultDatabaseForTests(restoreDbPath);
+  dbMod.resetDefaultDatabaseForTests(':memory:');
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -109,6 +107,10 @@ describe('POST /api/v1/export/app/run', () => {
       'Alpha export integration body',
       'Bravo export integration body',
     ]));
+
+    const historyRes = await createApiVersionedFetch((next) => exportRoutes.handle(next))(new Request('http://local/api/v1/export/history'));
+    const history = await historyRes.json() as { jobs: Array<Record<string, unknown>> };
+    expect(history.jobs[0]).toMatchObject({ id: jsonExport.job.jobId, collection: 'learn_log', format: 'json', status: 'completed' });
 
     const csvExport = await exportCollection('csv');
     const csv = await csvExport.download.text();
