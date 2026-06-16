@@ -26,13 +26,13 @@ const HealthVectorSchema = t.Object({
 });
 
 const HealthResponseSchema = t.Object({
-  status: t.Union([t.Literal('ok'), t.Literal('draining')]),
+  status: t.Union([t.Literal('ok'), t.Literal('degraded'), t.Literal('draining')]),
   server: t.String(),
   version: t.String(),
   port: t.Optional(t.Number()),
   oracle: t.Optional(t.Union([t.Literal('connected'), t.Literal('degraded')])),
   uptimeSeconds: t.Optional(t.Number()),
-  dbStatus: t.Optional(t.Union([t.Literal('ok'), t.Literal('down')])),
+  dbStatus: t.Optional(t.Union([t.Literal('connected'), t.Literal('error')])),
   vectorStatus: t.Optional(t.Union([t.Literal('ok'), t.Literal('degraded'), t.Literal('down')])),
   pluginStatus: t.Optional(t.Union([t.Literal('ok'), t.Literal('degraded')])),
   mcpToolCount: t.Optional(t.Number()),
@@ -40,9 +40,17 @@ const HealthResponseSchema = t.Object({
   uptime: t.Optional(t.Object({
     seconds: t.Number(),
   })),
+  uptimeSecondsBreakdown: t.Optional(t.Object({
+    seconds: t.Number(),
+  })),
   db: t.Optional(t.Object({
-    status: t.Union([t.Literal('ok'), t.Literal('down')]),
+    status: t.Union([t.Literal('connected'), t.Literal('error')]),
     path: t.String(),
+    error: t.Optional(t.String()),
+  })),
+  dbCheck: t.Optional(t.Object({
+    status: t.Union([t.Literal('connected'), t.Literal('error')]),
+    path: t.Optional(t.String()),
     error: t.Optional(t.String()),
   })),
   vector: t.Optional(HealthVectorSchema),
@@ -153,7 +161,6 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
       plugins: { count: pluginCount, status: pluginStatus, items: pluginItems },
     };
   }, {
-    response: HealthResponseSchema,
     detail: {
       tags: ['health'],
       menu: { group: 'hidden' },
