@@ -1,5 +1,6 @@
 import { runExportCommand } from './commands/export.ts';
 import { runStatusCommand } from './commands/status.ts';
+import { runVectorConfigCommand, VECTOR_CONFIG_HELP } from './commands/vector-config.ts';
 
 type InvokeContext = {
   source?: string;
@@ -13,11 +14,13 @@ type CommandHandler = (args: string[]) => Promise<string>;
 const commandHandlers: Record<string, CommandHandler> = {
   export: runExportCommand,
   status: () => runStatusCommand(),
+  'vector-config': runVectorConfigCommand,
+  vector_config: runVectorConfigCommand,
 };
 
 export const command = {
   name: 'arra',
-  description: 'ARRA Oracle CLI bridge — export vector collections and inspect status.',
+  description: 'ARRA Oracle CLI bridge — export vectors, inspect status, and manage vector config.',
 };
 
 function argsFromContext(args: InvokeContext['args']): string[] {
@@ -39,6 +42,8 @@ function help(): string {
     '      show vector collections, doc counts, and health from localhost:47778',
     '  export --collection X --format json|csv|md',
     '      stream a vector collection export from localhost:47778',
+    `  ${VECTOR_CONFIG_HELP}`,
+    '      read and write vector backend config as JSON',
   ].join('\n');
 }
 
