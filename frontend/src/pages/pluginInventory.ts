@@ -78,12 +78,16 @@ function queryText(plugin: PluginEntry): string {
     plugin.server?.healthPath,
     plugin.menu?.label,
     ...surfacesFor(plugin),
-    ...(plugin.mcpTools ?? []).map((tool) => tool.name),
-    ...(plugin.apiRoutes ?? []).map((route) => route.path),
-    ...(plugin.proxy ?? []).map((proxy) => proxy.path),
-    ...(plugin.cliSubcommands ?? []).map((command) => command.command),
-    ...(plugin.exportFormats ?? []).map((format) => format.extension),
+    ...arrayOf(plugin.mcpTools).map((tool) => tool.name),
+    ...arrayOf(plugin.apiRoutes).map((route) => route.path),
+    ...arrayOf(plugin.proxy).map((proxy) => proxy.path),
+    ...arrayOf(plugin.cliSubcommands).map((command) => command.command),
+    ...arrayOf(plugin.exportFormats).map((format) => format.extension),
   ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function arrayOf<T>(value: T[] | undefined): T[] {
+  return Array.isArray(value) ? value : [];
 }
 
 function pluginMatchesVisibility(plugin: PluginEntry, enabledState: PluginEnabledState, filter: PluginVisibilityFilter): boolean {
