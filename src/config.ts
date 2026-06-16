@@ -100,9 +100,19 @@ export function resolveVectorUrl(
     const fromConfig = typeof config.vectorProxyUrl === 'string'
       ? config.vectorProxyUrl
       : typeof config.vectorUrl === 'string' ? config.vectorUrl : '';
-    return fromConfig.trim();
+    const trimmed = fromConfig.trim();
+    return isHttpUrl(trimmed) ? trimmed : '';
   } catch {
     return '';
+  }
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
   }
 }
 
