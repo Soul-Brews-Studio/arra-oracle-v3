@@ -96,7 +96,7 @@ describe('standalone export app', () => {
     }
   });
 
-  test('CLI writes a success summary and progress output', async () => {
+  test('CLI writes per-row markdown files and progress output', async () => {
     const outputDir = join(root, 'backup-cli');
     const stdout: string[] = [];
     const stderr: string[] = [];
@@ -106,7 +106,7 @@ describe('standalone export app', () => {
     expect(code).toBe(0);
     expect(JSON.parse(stdout.join('')).success).toBe(true);
     expect(stderr.join('')).toContain('oracle_documents');
-    expect(existsSync(join(outputDir, 'manifest.json'))).toBe(true);
+    expect(existsSync(join(outputDir, 'oracle_documents', 'doc-new.md'))).toBe(true);
   });
 
   test('graph relationship extraction is deterministic for rows', () => {
