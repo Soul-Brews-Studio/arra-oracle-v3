@@ -4,6 +4,7 @@ import { createMemoryFanoutEndpoint } from './fanout.ts';
 import { memoryStore, type MemoryInput, type MemoryRecord, type MemoryStore } from './store.ts';
 import { memoryVectorIndex, type MemoryVectorHit, type MemoryVectorIndex } from './vector.ts';
 import { buildMorningTape } from './morning-tape.ts';
+import { currentTenantId } from '../../middleware/tenant.ts';
 
 export function createMemoryRoutes(
   store: MemoryStore = memoryStore,
@@ -52,7 +53,8 @@ export function createMemoryRoutes(
       try {
         const hits = await vectorIndex.search(query.q, limit);
         const records = store.getByIds(hits.map((hit) => hit.memoryId));
-        return { success: true, query: query.q, total: hits.length, results: mergeHits(hits, records) };
+        const results = mergeHits(hits, records, Boolean(currentTenantId()));
+        return { success: true, query: query.q, total: results.length, results };
       } catch (error) {
         set.status = 503;
         return { success: false, error: error instanceof Error ? error.message : 'memory vector search failed', results: [] };
@@ -63,14 +65,18 @@ export function createMemoryRoutes(
     });
 }
 
-function mergeHits(hits: MemoryVectorHit[], records: MemoryRecord[]) {
+function mergeHits(hits: MemoryVectorHit[], records: MemoryRecord[], requireRecord = false) {
   const byId = new Map(records.map((record) => [record.id, record]));
-  return hits.map((hit) => ({
-    ...(byId.get(hit.memoryId) ?? { id: hit.memoryId, content: hit.document }),
-    score: hit.score,
-    distance: hit.distance,
-    vectorId: hit.vectorId,
-  }));
+  return hits.flatMap((hit) => {
+    const record = byId.get(hit.memoryId);
+    if (requireRecord && !record) return [];
+    return [{
+      ...(record ?? { id: hit.memoryId, content: hit.document }),
+      score: hit.score,
+      distance: hit.distance,
+      vectorId: hit.vectorId,
+    }];
+  });
 }
 
 export const memoryRoutes = createMemoryRoutes();

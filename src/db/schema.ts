@@ -1,10 +1,3 @@
-/**
- * Arra Oracle v3 Database Schema (Drizzle ORM)
- *
- * Generated from existing database via drizzle-kit pull,
- * then cleaned up to exclude FTS5 internal tables.
- */
-
 import { sql } from 'drizzle-orm';
 import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 
@@ -44,6 +37,7 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
 // Challenge 2 memory system persistence (#1457)
 export const oracleMemories = sqliteTable('oracle_memories', {
   id: text('id').primaryKey(),
+  tenantId: text('tenant_id').default('default').notNull(),
   content: text('content').notNull(),
   title: text('title'),
   tags: text('tags').default('[]').notNull(),
@@ -51,6 +45,7 @@ export const oracleMemories = sqliteTable('oracle_memories', {
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 }, (table) => [
+  index('idx_memory_tenant').on(table.tenantId),
   index('idx_memory_created').on(table.createdAt),
   index('idx_memory_title').on(table.title),
   index('idx_memory_source').on(table.source),
