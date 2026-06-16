@@ -60,6 +60,8 @@ import { createMetricsLifecycle, metricsRoutes } from './routes/metrics/index.ts
 import { memoryRoutes } from './routes/memory/index.ts';
 import { canvasRoutes } from './routes/canvas/index.ts';
 import { tenantsRoutes } from './routes/tenants/index.ts';
+import { watcherRoutes } from './routes/watcher/index.ts';
+import { fileWatcherService } from './services/file-watcher.ts';
 
 let indexerRoutes: any = null;
 try {
@@ -86,14 +88,10 @@ try {
 } catch {}
 
 configure({ dataDir: ORACLE_DATA_DIR, pidFileName: 'oracle-http.pid' });
-writePidFile({
-  pid: process.pid,
-  port: Number(PORT),
-  startedAt: new Date().toISOString(),
-  name: 'oracle-http',
-});
+writePidFile({ pid: process.pid, port: Number(PORT), startedAt: new Date().toISOString(), name: 'oracle-http' });
 const scoutAnnouncer = shouldStartScoutAnnouncer() ? new ScoutAnnouncer() : null;
 scoutAnnouncer?.start();
+if (process.env.ORACLE_FILE_WATCHER !== '0') fileWatcherService.start();
 
 const unifiedPlugins = await loadUnifiedPlugins({
   dirs: defaultUnifiedPluginDirs([join(import.meta.dir, 'plugins')]),
@@ -106,6 +104,7 @@ registerGracefulShutdown({
     console.log('\n🔮 Shutting down gracefully...');
     await runShutdownSteps([
       { name: 'scout-announcer', run: () => scoutAnnouncer?.stop() },
+      { name: 'file-watcher', run: () => { fileWatcherService.stop(); } },
       { name: 'unified-plugins', run: () => unifiedPlugins.stop() },
       { name: 'unified-plugin-servers', run: () => unifiedServers.stop() },
       { name: 'vector-stores', run: () => closeCachedVectorStores() },
@@ -199,6 +198,7 @@ const apiModules = [
   memoryRoutes,
   canvasRoutes,
   tenantsRoutes,
+  watcherRoutes,
   ...(indexerRoutes ? [indexerRoutes] : []),
   ...unifiedPlugins.routes,
 ];
