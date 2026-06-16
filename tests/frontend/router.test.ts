@@ -34,6 +34,7 @@ describe('frontend router', () => {
     expect([...frontendRoutes]).toEqual([
       '/',
       '/plugins',
+      '/canvas/plugins',
       '/metrics',
       '/search',
       '/learn',
@@ -42,12 +43,14 @@ describe('frontend router', () => {
       '/vector/documents',
       '/vector/results',
       '/vector/export',
+      '/vector/settings',
     ]);
   });
 
   test('routes root, plugins, metrics, search, and learn surfaces', () => {
     expect(htmlAt('/')).toContain('Menu viewer');
     expect(htmlAt('/plugins')).toContain('Registered plugins');
+    expect(htmlAt('/canvas/plugins')).toContain('Canvas plugin registry');
     expect(htmlAt('/metrics')).toContain('Metrics dashboard');
     expect(htmlAt('/metrics')).toContain('42');
     expect(htmlAt('/metrics')).toContain('Memory usage');
@@ -58,6 +61,7 @@ describe('frontend router', () => {
     expect(htmlAt('/vector/documents')).toContain('Vector documents');
     expect(htmlAt('/vector/results')).toContain('Vector search results');
     expect(htmlAt('/vector/export')).toContain('Vector export');
+    expect(htmlAt('/vector/settings')).toContain('Vector config and indexing');
   });
 
   test('wraps routed children in the browser router and error boundary shell', () => {

@@ -35,3 +35,7 @@ export function vectorExportPagePath(): string {
 export function vectorSettingsPath(): string {
   return '/vector/settings';
 }
+
+export function canvasPluginsPath(): string {
+  return '/canvas/plugins';
+}

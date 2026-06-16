@@ -50,6 +50,7 @@ export function AppShell({
   const navItems: NavItem[] = [
     { to: '/', label: 'Menu', description: 'Navigation rows from /api/menu', badge: loading ? '…' : menuCount },
     { to: '/plugins', label: 'Plugins', description: 'Registered plugins and surfaces', badge: loading ? '…' : pluginCount },
+    { to: '/canvas/plugins', label: 'Canvas Plugins', description: 'Canvas registry from /api/canvas/plugins' },
     { to: '/search', label: 'Search', description: 'Full-text menu search' },
     { to: '/vector', label: 'Vector Dashboard', description: 'Collection health and indexing', end: true },
     { to: '/vector/documents', label: 'Document Browser', description: 'Browse indexed vector documents' },

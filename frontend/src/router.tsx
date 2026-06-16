@@ -7,6 +7,7 @@ import { McpToolDetailPage } from './pages/McpToolDetailPage';
 import { LearnPage } from './pages/LearnPage';
 import { MenuPage } from './pages/MenuPage';
 import { PluginsPage } from './pages/PluginsPage';
+import { CanvasPluginsPage } from './pages/CanvasPluginsPage';
 import { SearchPage } from './pages/SearchPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { VectorPage } from './pages/VectorPage';
@@ -21,6 +22,7 @@ import type { MetricsSnapshot } from '../../src/server/types';
 export const frontendRoutes = [
   '/',
   '/plugins',
+  '/canvas/plugins',
   '/metrics',
   '/search',
   '/learn',
@@ -72,6 +74,7 @@ export function DashboardRoutes({
     <Routes>
       <Route index element={menuPage} />
       <Route path="/plugins" element={pluginPage} />
+      <Route path="/canvas/plugins" element={<CanvasPluginsPage />} />
       <Route path="/metrics" element={<MetricsPage metrics={metrics} loading={isRouteLoading(states.metrics)} />} />
       <Route path="/search" element={<SearchPage />} />
       <Route path="/learn" element={<LearnPage />} />
