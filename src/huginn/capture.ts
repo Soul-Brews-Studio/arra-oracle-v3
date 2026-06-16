@@ -86,10 +86,17 @@ function writeState(statePath: string, state: CaptureState): void {
   fs.renameSync(tmp, statePath);
 }
 
+function safeSessionId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9._-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 120);
+}
+
 function stableSessionId(transcriptPath: string, explicit?: string): string {
-  if (explicit) return explicit.replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 120);
-  const base = path.basename(transcriptPath).replace(/\.jsonl$/i, '');
-  return (base || sha256(transcriptPath).slice(0, 16)).replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 120);
+  const fallback = safeSessionId(path.basename(transcriptPath).replace(/\.jsonl$/i, ''))
+    || sha256(transcriptPath).slice(0, 16);
+  return explicit ? safeSessionId(explicit) || fallback : fallback;
 }
 
 function textFromContent(content: unknown): string {

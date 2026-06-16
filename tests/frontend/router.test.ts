@@ -79,8 +79,13 @@ describe('frontend router', () => {
     expect(htmlAt('/vector/export')).toContain('Vector export');
     expect(htmlAt('/vector/settings')).toContain('Configure adapters, embedding models');
     expect(htmlAt('/mcp')).toContain('Tool browser');
+    expect(htmlAt('/mcp/tools/plugin%3Aecho')).toContain('MCP tool detail');
     expect(htmlAt('/storage')).toContain('Storage backend');
     expect(htmlAt('/settings')).toContain('Runtime configuration');
+  });
+
+  test('renders no stale route content before wildcard redirects in the browser', () => {
+    expect(htmlAt('/missing-route')).toBe('');
   });
 
   test('wraps routed children in the browser router and error boundary shell', () => {

@@ -1,5 +1,5 @@
 import type { SearchResult } from '../server/types.ts';
-import type { VectorQueryResult, VectorStoreAdapter } from './types.ts';
+import type { VectorQueryResult, VectorStoreAdapter } from './adapter.ts';
 
 export type FanoutStrategy = 'merge';
 

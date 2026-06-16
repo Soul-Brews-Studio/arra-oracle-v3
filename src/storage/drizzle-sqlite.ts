@@ -114,6 +114,10 @@ function createdTable(statement: string): { table: string; columns: string[] } |
   return { table: match[1], columns };
 }
 
+function createdVirtualTable(statement: string): string | null {
+  return statement.match(/^create\s+virtual\s+table\s+(?:if\s+not\s+exists\s+)?[`"]?([a-z_][\w]*)[`"]?\s+using\b/i)?.[1] ?? null;
+}
+
 function insertedLiteralRow(statement: string): { table: string; column: string; value: string } | null {
   const match = statement.match(
     /^insert\s+into\s+[`"]?([a-z_][\w]*)[`"]?\s*\(\s*[`"]?([a-z_][\w]*)[`"]?[\s\S]*?\)\s*values\s*\(\s*'((?:''|[^'])*)'/i,
@@ -137,6 +141,9 @@ function statementAlreadyApplied(sqlite: Database, statement: string): boolean |
       && table.columns.every((column) => tableColumnExists(sqlite, table.table, column));
   }
 
+  const virtualTable = createdVirtualTable(cleanStatement);
+  if (virtualTable) return sqliteObjectExists(sqlite, 'table', virtualTable);
+
   const inserted = insertedLiteralRow(cleanStatement);
   if (inserted) {
     if (!tableColumnExists(sqlite, inserted.table, inserted.column)) return false;
@@ -159,6 +166,7 @@ function recordMigration(sqlite: Database, migration: MigrationMeta): void {
 function repairMigrationIfAlreadyApplied(
   sqlite: Database,
   migration: MigrationMeta,
+  applyMissing = true,
 ): boolean {
   const statements = migration.sql.map((sql) => sql.trim()).filter(Boolean);
   sqlite.exec('begin');
@@ -166,6 +174,7 @@ function repairMigrationIfAlreadyApplied(
     for (const statement of statements) {
       const alreadyApplied = statementAlreadyApplied(sqlite, statement);
       if (alreadyApplied === null) throw new Error('unsupported migration repair');
+      if (!alreadyApplied && !applyMissing) throw new Error('migration not fully applied');
       if (!alreadyApplied) sqlite.exec(statement);
     }
     recordMigration(sqlite, migration);
@@ -175,6 +184,14 @@ function repairMigrationIfAlreadyApplied(
     sqlite.exec('rollback');
     return false;
   }
+}
+
+function migrationRecorded(sqlite: Database, migration: MigrationMeta): boolean {
+  const row = sqlite.query(
+    `select 1 as present from ${quoteIdentifier(MIGRATIONS_TABLE)}
+     where "hash" = ? or "created_at" = ? limit 1`,
+  ).get(migration.hash, migration.folderMillis);
+  return Boolean(row);
 }
 
 function repairAdditiveMigrationDrift(sqlite: Database): void {
@@ -187,8 +204,9 @@ function repairAdditiveMigrationDrift(sqlite: Database): void {
   if (!Number.isFinite(lastApplied) || lastApplied <= 0) return;
 
   for (const migration of readMigrationFiles({ migrationsFolder: MIGRATIONS_FOLDER })) {
-    if (migration.folderMillis <= lastApplied) continue;
-    if (!repairMigrationIfAlreadyApplied(sqlite, migration)) break;
+    if (migrationRecorded(sqlite, migration)) continue;
+    const applyMissing = migration.folderMillis > lastApplied;
+    if (!repairMigrationIfAlreadyApplied(sqlite, migration, applyMissing) && applyMissing) break;
   }
 }
 

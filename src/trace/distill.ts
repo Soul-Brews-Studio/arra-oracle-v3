@@ -24,8 +24,15 @@ function conceptSlug(value: string): string {
     .replace(/-+/g, '-').replace(/^-|-$/g, '');
 }
 
-function uniqueConcepts(values: string[]): string[] {
-  return [...new Set(values.map(conceptSlug).filter(Boolean))];
+function uniqueConcepts(values: unknown[]): string[] {
+  return [...new Set(values
+    .filter((value): value is string => typeof value === 'string')
+    .map(conceptSlug)
+    .filter(Boolean))];
+}
+
+function normalizedAwakening(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 function oracleOrigin(input: DistillTraceInput): string {
@@ -84,7 +91,7 @@ function findingSections(finding: StormforgeFinding): string[] {
 }
 
 export function renderDistilledAwakening(input: DistillTraceInput): string {
-  const parts = [input.awakening.trim()];
+  const parts = [normalizedAwakening(input.awakening)];
   if (input.finding) parts.push(findingSections(input.finding).join('\n').trim());
   if (input.metadata && Object.keys(input.metadata).length) {
     parts.push(['## Metadata', '', '```json', JSON.stringify(input.metadata, null, 2), '```'].join('\n'));
@@ -96,15 +103,18 @@ export function distillTraceAwakening(input: DistillTraceInput): DistillTraceRes
   const trace = getTrace(input.traceId);
   if (!trace) return { success: false, status: 'not_found', error: 'Trace not found' };
 
+  const awakening = normalizedAwakening(input.awakening);
+  if (!awakening) return { success: false, status: 'invalid', error: 'awakening is required' };
+
   const origin = oracleOrigin(input);
   const concepts = learningConcepts(input);
-  const awakening = renderDistilledAwakening(input);
+  const renderedAwakening = renderDistilledAwakening({ ...input, awakening });
   const learning = input.promoteToLearning
-    ? handleLearn(awakening, input.source?.trim() || `Trace awakening ${input.traceId}`, concepts, origin, trace.project ?? undefined)
+    ? handleLearn(renderedAwakening, input.source?.trim() || `Trace awakening ${input.traceId}`, concepts, origin, trace.project ?? undefined)
     : undefined;
   const now = Date.now();
   const update: Partial<typeof traceLog.$inferInsert> = {
-    status: 'distilled', awakening, distilledAt: now, updatedAt: now,
+    status: 'distilled', awakening: renderedAwakening, distilledAt: now, updatedAt: now,
   };
   if (learning?.id) update.distilledToId = learning.id;
 

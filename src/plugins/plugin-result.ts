@@ -12,7 +12,8 @@ function failureStatus(status: unknown): number {
 }
 
 export function pluginFailureMessage(error: unknown): string {
-  return typeof error === 'string' && error.length > 0 ? error : 'plugin failed';
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return typeof error === 'string' && error.trim().length > 0 ? error.trim() : 'plugin failed';
 }
 
 function responseHeaders(headers: unknown): Headers | undefined {

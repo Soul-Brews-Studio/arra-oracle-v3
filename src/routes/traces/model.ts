@@ -59,8 +59,9 @@ export function parsePagination(query: { limit?: string; offset?: string }) {
 
 function parseBoundedInt(value: string | undefined, fallback: number, min: number, max: number, label: string): number | string {
   if (value === undefined || value === '') return fallback;
-  if (!/^\d+$/.test(value)) return `${label} must be an integer between ${min} and ${max}`;
-  const parsed = Number(value);
+  const trimmed = value.trim();
+  if (!trimmed || !/^\d+$/.test(trimmed)) return `${label} must be an integer between ${min} and ${max}`;
+  const parsed = Number(trimmed);
   if (!Number.isSafeInteger(parsed) || parsed < min) return `${label} must be an integer between ${min} and ${max}`;
   return Math.min(parsed, max);
 }
