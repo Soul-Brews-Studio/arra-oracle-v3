@@ -2,6 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { fetchSettingsSystem } from '../api';
 import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
 import { VectorConfigPanel } from '../components/VectorConfigPanel';
+import { VectorProviderServicePanel } from '../components/VectorProviderServicePanel';
+import { VectorSearchToggle } from '../components/VectorSearchToggle';
 import type { SettingsSystemResponse } from '../types';
 
 type SettingsPageProps = {
@@ -109,6 +111,14 @@ export function SettingsPage({ menuCount, pluginCount, surfaceCount, updatedAt, 
 
       {settings ? (
         <section className="grid gap-5 xl:grid-cols-2">
+          <div className="xl:col-span-2">
+            <VectorSearchToggle />
+          </div>
+
+          <div className="xl:col-span-2">
+            <VectorProviderServicePanel />
+          </div>
+
           <div className="xl:col-span-2">
             <VectorConfigPanel />
           </div>

@@ -28,6 +28,12 @@ const examples = [
   'bun run tools/export-app/index.ts --output ./backup/export-app --db ./oracle.db',
 ];
 
+const recoverySteps = [
+  'Run Test connection first; it verifies the backend URL and collection counts before any export starts.',
+  'If an export fails, keep the same backend URL and payload, then use Retry before changing settings.',
+  'Keep the generated manifest.json with each backup so migrations can confirm collection and graph coverage.',
+];
+
 function CodeLine({ children }: { children: string }) {
   return (
     <code className="block overflow-x-auto rounded-xl border border-white/10 bg-black/30 px-3 py-2 font-mono text-xs text-slate-100">
@@ -98,6 +104,12 @@ export function ExportHelp({
           <ul className="grid gap-2 text-sm text-slate-300">
             {batchFiles.map((file) => <li key={file} className="font-mono text-xs">{file}</li>)}
           </ul>
+        </HelpBlock>
+
+        <HelpBlock title="Recovery & retry">
+          <ol className="grid gap-2 text-sm text-slate-300">
+            {recoverySteps.map((step) => <li key={step}>{step}</li>)}
+          </ol>
         </HelpBlock>
       </div>
 
