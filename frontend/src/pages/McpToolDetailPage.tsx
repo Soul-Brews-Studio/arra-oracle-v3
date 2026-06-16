@@ -6,6 +6,12 @@ import { groupLabel, schemaText, toolMode } from '../components/toolView';
 import type { McpTool } from '../types';
 
 type PageState = 'loading' | 'ready' | 'error';
+type ToolFetcher = () => Promise<{ tools: McpTool[] }>;
+
+export function toolDetailSource(tool: McpTool): string {
+  if (tool.source === 'plugin' || tool.plugin) return tool.plugin ? `plugin:${tool.plugin}` : 'plugin';
+  return tool.source ?? 'core';
+}
 
 function DetailCard({ label, value }: { label: string; value?: string }) {
   return (
@@ -25,7 +31,7 @@ function ToolSummaryCard({ tool }: { tool: McpTool }) {
       <dl className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
         <DetailCard label="Group" value={groupLabel(tool)} />
         <DetailCard label="Mode" value={toolMode(tool)} />
-        <DetailCard label="Source" value={tool.source ?? 'core'} />
+        <DetailCard label="Source" value={toolDetailSource(tool)} />
         <DetailCard label="Plugin" value={tool.plugin} />
       </dl>
     </section>
@@ -76,17 +82,24 @@ function routeName(value?: string): string {
   }
 }
 
-export function McpToolDetailPage() {
+export function McpToolDetailPage({
+  initialTools,
+  fetcher = fetchMcpTools,
+}: {
+  initialTools?: McpTool[];
+  fetcher?: ToolFetcher;
+} = {}) {
   const toolName = routeName(useParams().name);
-  const [tools, setTools] = useState<McpTool[]>([]);
-  const [state, setState] = useState<PageState>('loading');
+  const [tools, setTools] = useState<McpTool[]>(initialTools ?? []);
+  const [state, setState] = useState<PageState>(initialTools ? 'ready' : 'loading');
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (initialTools) return;
     let active = true;
     setState('loading');
     setError('');
-    fetchMcpTools()
+    fetcher()
       .then((response) => {
         if (!active) return;
         setTools(response.tools);
@@ -100,11 +113,11 @@ export function McpToolDetailPage() {
     return () => {
       active = false;
     };
-  }, [toolName]);
+  }, [fetcher, initialTools, toolName]);
 
   const tool = useMemo(() => tools.find((entry) => entry.name === toolName), [toolName, tools]);
   const refresh = () => {
-    fetchMcpTools()
+    fetcher()
       .then((response) => setTools(response.tools))
       .catch(() => undefined);
   };
