@@ -42,11 +42,14 @@ function retryButton(onRetry?: () => void) {
 function downloadControl(state: ExportProgressState, onDownload?: () => void) {
   if (state.status !== 'done') return null;
   const classes = 'focus-ring rounded-xl bg-teal-300 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-50';
+  if (!onDownload && !state.downloadUrl) {
+    return <button className={classes} type="button" disabled>Preparing download</button>;
+  }
   if (onDownload) {
     return <button className={classes} type="button" onClick={onDownload}>Download export</button>;
   }
   return (
-    <a className={classes} href={state.downloadUrl} download={state.filename ?? 'arra-oracle-export.zip'} aria-disabled={!state.downloadUrl}>
+    <a className={classes} href={state.downloadUrl} download={state.filename ?? 'arra-oracle-export.zip'}>
       Download export
     </a>
   );
@@ -72,7 +75,7 @@ export function ExportProgress({ state, title = 'Export app', onRetry, onDownloa
           <span className="text-slate-600 dark:text-slate-400">Progress</span>
           <span className="font-medium text-slate-900 dark:text-slate-100">{active || state.status === 'done' ? `${Math.round(progress)}%` : 'idle'}</span>
         </div>
-        <div className="h-2 rounded-full border border-slate-200 bg-slate-200 dark:border-white/10 dark:bg-white/[0.06]" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}>
+        <div className="h-2 rounded-full border border-slate-200 bg-slate-200 dark:border-white/10 dark:bg-white/[0.06]" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)} aria-valuetext={statusText(state)}>
           <div className="h-full rounded-full bg-teal-600 transition-all dark:bg-teal-300/70" style={{ width: `${active || state.status === 'done' ? progress : 0}%` }} />
         </div>
         <dl className="grid gap-3 text-sm sm:grid-cols-3">
