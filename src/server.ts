@@ -17,7 +17,7 @@ import { createCorrelationMiddleware } from './middleware/correlation.ts';
 import { defaultUnifiedPluginDirs, loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
 import { startUnifiedPluginServers } from './plugins/unified-server.ts';
 import { closeCachedVectorStores } from './vector/factory.ts';
-import { isDraining, registerGracefulShutdown, trackRequest } from './lifecycle/shutdown.ts';
+import { drainingResponseFor, isDraining, registerGracefulShutdown, runShutdownSteps, trackRequest } from './lifecycle/shutdown.ts';
 import { createErrorMiddleware } from './middleware/errors.ts';
 import { validateStartupEnv } from './config/validate.ts';
 import { printStartupBanner } from './lifecycle/banner.ts';
@@ -100,16 +100,17 @@ const unifiedPlugins = await loadUnifiedPlugins({
 });
 await unifiedPlugins.init();
 const unifiedServers = await startUnifiedPluginServers(unifiedPlugins.servers);
-
 registerGracefulShutdown({
   close: async () => {
     console.log('\n🔮 Shutting down gracefully...');
-    scoutAnnouncer?.stop();
-    await unifiedPlugins.stop();
-    await unifiedServers.stop();
-    await closeCachedVectorStores();
-    closeDb();
-    removePidFile();
+    await runShutdownSteps([
+      { name: 'scout-announcer', run: () => scoutAnnouncer?.stop() },
+      { name: 'unified-plugins', run: () => unifiedPlugins.stop() },
+      { name: 'unified-plugin-servers', run: () => unifiedServers.stop() },
+      { name: 'vector-stores', run: () => closeCachedVectorStores() },
+      { name: 'database', run: () => closeDb() },
+      { name: 'pid-file', run: () => removePidFile() },
+    ], console.warn);
     console.log('👋 Arra Oracle HTTP Server stopped.');
   },
 });
@@ -245,5 +246,5 @@ const serverFetch = createRequestTimeoutFetch(
 
 export default {
   port: Number(PORT),
-  fetch: (request: Request) => trackRequest(() => serverFetch(request)),
+  fetch: (request: Request) => drainingResponseFor(request) ?? trackRequest(() => serverFetch(request)),
 };
