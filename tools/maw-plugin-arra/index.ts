@@ -20,6 +20,7 @@ type RegistryCommand = {
 const surfaces = ['cli', 'api', 'menu'] as const;
 
 const commandHandlers: Record<string, CommandHandler> = {
+  commands: runCommandsCommand,
   export: runExportCommand,
   status: () => runStatusCommand(),
   'vector-config': runVectorConfigCommand,
@@ -27,6 +28,7 @@ const commandHandlers: Record<string, CommandHandler> = {
 };
 
 export const commandRegistry: RegistryCommand[] = [
+  { name: 'commands', help: 'list the shared CLI/API/menu command registry', surfaces: [...surfaces] },
   { name: 'status', help: 'show vector collections, doc counts, and health', surfaces: [...surfaces] },
   { name: 'export', help: 'export app collections as json, csv, md, or jsonl', surfaces: [...surfaces] },
   { name: 'vector-config', help: VECTOR_CONFIG_HELP, surfaces: [...surfaces] },
@@ -73,6 +75,17 @@ function help(): string {
   ].join('\n');
 }
 
+function wantsJson(args: string[]): boolean {
+  return args.includes('--json');
+}
+
+function registryText(): string {
+  return [
+    'arra command registry (shared by CLI/API/menu):',
+    ...commandRegistry.map((item) => `  ${item.name.padEnd(14)} ${item.help}`),
+  ].join('\n');
+}
+
 function registryPayload(source: string) {
   return {
     plugin: 'arra',
@@ -90,6 +103,12 @@ function isApiLike(source?: string): boolean {
 
 function apiOutput(command: string, output: string): string {
   return JSON.stringify({ ok: true, command, output }, null, 2);
+}
+
+async function runCommandsCommand(args: string[]): Promise<string> {
+  return wantsJson(args)
+    ? JSON.stringify(registryPayload('cli'), null, 2)
+    : registryText();
 }
 
 export default async function handler(ctx: InvokeContext): Promise<InvokeResult> {

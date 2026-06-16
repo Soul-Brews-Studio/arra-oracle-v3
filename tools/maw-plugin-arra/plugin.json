@@ -1,7 +1,12 @@
 {
   "name": "arra",
   "version": "0.1.0",
+  "target": "js",
   "entry": "./index.ts",
+  "artifact": {
+    "path": "dist/index.js",
+    "sha256": null
+  },
   "sdk": "^1.0.0",
   "description": "ARRA Oracle CLI bridge for vector export, status, and vector config commands.",
   "author": "Soul-Brews-Studio",
@@ -19,7 +24,7 @@
   ],
   "cli": {
     "command": "arra",
-    "help": "maw arra <status|export --collection X --format json|csv|md|vector-config list|get|set|add|remove|set-primary|reload|test>"
+    "help": "maw arra <commands|status|export --collection X --format json|csv|md|vector-config list|get|set|add|remove|set-primary|reload|test>"
   },
   "weight": 10,
   "license": "BUSL-1.1",
