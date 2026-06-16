@@ -15,6 +15,7 @@ export type VectorConfig = {
         provider?: string;
       }
     >;
+    embedder?: Record<string, unknown>;
   };
   doc_counts?: Record<string, number>;
 };

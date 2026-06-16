@@ -11,11 +11,15 @@ export function StepBody({
   step,
   providers,
   recommended,
+  selectedProvider = '',
+  onProviderSelect,
   config,
 }: {
   step: Step;
   providers: Provider[];
   recommended?: Provider;
+  selectedProvider?: string;
+  onProviderSelect?: (provider: string) => void;
   config: VectorConfig | null;
 }) {
   if (step === 0)
@@ -26,7 +30,7 @@ export function StepBody({
       </p>
     );
   if (step === 1)
-    return <ProviderList providers={providers} recommended={recommended} />;
+    return <ProviderList providers={providers} recommended={recommended} selectedProvider={selectedProvider} onProviderSelect={onProviderSelect} />;
   if (step === 2) return <VaultPlan config={config} />;
   return (
     <p className="mt-2 text-sm text-slate-300">
@@ -38,9 +42,13 @@ export function StepBody({
 function ProviderList({
   providers,
   recommended,
+  selectedProvider,
+  onProviderSelect,
 }: {
   providers: Provider[];
   recommended?: Provider;
+  selectedProvider: string;
+  onProviderSelect?: (provider: string) => void;
 }) {
   if (!providers.length)
     return (
@@ -52,15 +60,22 @@ function ProviderList({
   return (
     <div className="mt-3 grid gap-3 sm:grid-cols-2">
       {providers.map((provider) => (
-        <article
+        <label
           key={provider.type}
           className="rounded-xl border border-white/10 bg-white/[0.03] p-3"
         >
-          <p className="font-semibold text-purple-100">
+          <span className="flex items-center gap-2 font-semibold text-purple-100">
+            <input
+              checked={selectedProvider === provider.type}
+              name="setup-provider"
+              type="radio"
+              value={provider.type}
+              onChange={() => onProviderSelect?.(provider.type)}
+            />
             {provider.type}
             {recommended?.type === provider.type ? " · recommended" : ""}
-          </p>
-          <p className="text-sm text-slate-400">
+          </span>
+          <p className="mt-2 text-sm text-slate-400">
             {provider.available ? "available" : "unavailable"} ·{" "}
             {(provider.models ?? []).slice(0, 3).join(", ") ||
               provider.status ||
@@ -72,7 +87,7 @@ function ProviderList({
               Free tier available!
             </p>
           ) : null}
-        </article>
+        </label>
       ))}
     </div>
   );

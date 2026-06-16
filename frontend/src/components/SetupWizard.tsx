@@ -3,6 +3,7 @@ import { apiUrl } from "../api";
 import { Spinner } from "./AsyncState";
 import { StepBody, setupSteps } from "./SetupWizardContent";
 import { shouldShowSetupWizard } from "./setupWizardDetection";
+import { buildProviderConfigPatch, recommendedProvider } from "./setupWizardProvider";
 import type { Provider, Stats, Step, VectorConfig } from "./setupWizardTypes";
 
 export { shouldShowSetupWizard } from "./setupWizardDetection";
@@ -22,6 +23,7 @@ export function SetupWizard({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SetupState>("checking");
   const [step, setStep] = useState<Step>(0);
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState("");
   const [config, setConfig] = useState<VectorConfig | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -46,8 +48,11 @@ export function SetupWizard({ children }: { children: ReactNode }) {
           statsResult.status === "fulfilled" ? statsResult.value : null;
         const vectorConfig =
           configResult.status === "fulfilled" ? configResult.value : null;
-        if (providersResult.status === "fulfilled")
-          setProviders(providersResult.value.providers ?? []);
+        if (providersResult.status === "fulfilled") {
+          const nextProviders = providersResult.value.providers ?? [];
+          setProviders(nextProviders);
+          setSelectedProvider((current) => current || recommendedProvider(nextProviders)?.type || "");
+        }
         if (vectorConfig) setConfig(vectorConfig);
         setState(
           shouldShowSetupWizard(stats, vectorConfig) ? "visible" : "hidden",
@@ -61,12 +66,7 @@ export function SetupWizard({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const recommended = useMemo(
-    () =>
-      providers.find((provider) => provider.available || provider.configured) ??
-      providers[0],
-    [providers],
-  );
+  const recommended = useMemo(() => recommendedProvider(providers), [providers]);
 
   async function refreshDetection() {
     setBusy(true);
@@ -75,9 +75,30 @@ export function SetupWizard({ children }: { children: ReactNode }) {
         getJson<{ providers?: Provider[] }>("/api/v1/vector/providers"),
         getJson<VectorConfig>("/api/v1/vector/config"),
       ]);
-      setProviders(providerBody.providers ?? []);
+      const nextProviders = providerBody.providers ?? [];
+      setProviders(nextProviders);
+      setSelectedProvider((current) => current || recommendedProvider(nextProviders)?.type || "");
       setConfig(vectorConfig);
       setMessage("Auto-detect refreshed. Choose a provider and continue.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function applyProvider() {
+    if (!selectedProvider) return setMessage("Choose an embedding provider first.");
+    setBusy(true);
+    try {
+      const response = await fetch(apiUrl("/api/v1/vector/config"), {
+        method: "PATCH",
+        headers: { accept: "application/json", "content-type": "application/json" },
+        body: JSON.stringify(buildProviderConfigPatch(config, selectedProvider)),
+      });
+      if (!response.ok) throw new Error(`/api/v1/vector/config returned ${response.status}`);
+      await fetch(apiUrl("/api/v1/vector/config/reload"), { method: "POST", headers: { accept: "application/json" } });
+      setConfig(await getJson<VectorConfig>("/api/v1/vector/config"));
+      setStep(2);
+      setMessage(`Applied ${selectedProvider} as the first-run embedding provider.`);
     } finally {
       setBusy(false);
     }
@@ -147,6 +168,8 @@ export function SetupWizard({ children }: { children: ReactNode }) {
             providers={providers}
             recommended={recommended}
             config={config}
+            selectedProvider={selectedProvider}
+            onProviderSelect={setSelectedProvider}
           />
         </div>
         {message ? (
@@ -170,6 +193,15 @@ export function SetupWizard({ children }: { children: ReactNode }) {
               onClick={() => void refreshDetection()}
             >
               {busy ? <Spinner label="Detecting" /> : "Auto-detect providers"}
+            </button>
+          ) : null}
+          {step === 1 ? (
+            <button
+              className="focus-ring rounded-xl bg-teal-200 px-4 py-2 text-sm font-semibold text-slate-950"
+              type="button"
+              onClick={() => void applyProvider()}
+            >
+              {busy ? <Spinner label="Applying" /> : "Use selected provider"}
             </button>
           ) : null}
           {step === 2 ? (
