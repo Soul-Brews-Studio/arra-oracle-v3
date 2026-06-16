@@ -23,6 +23,7 @@ CREATE TABLE oracle_documents (
   superseded_reason TEXT,
   origin TEXT,
   project TEXT,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
   created_by TEXT
 );
 CREATE VIRTUAL TABLE oracle_fts USING fts5(id UNINDEXED, content, concepts, tokenize='porter unicode61');
