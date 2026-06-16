@@ -77,6 +77,31 @@ describe('maw arra serve command', () => {
   });
 
 
+  test('starts from ghq locate when ORACLE_ROOT is unset', async () => {
+    const calls: unknown[] = [];
+    const rootless = { HOME: mkdtempSync('/tmp/arra-serve-test-') };
+    const ghqRunner: Runner = async (cmd, args) => {
+      calls.push([cmd, args]);
+      return { code: 0, stdout: '/ghq/github.com/Soul-Brews-Studio/arra-oracle-v3\n', stderr: '' };
+    };
+
+    const result = await runServe({ pos: ['start'], flags: {} }, ghqRunner, rootless, {
+      start: (cwd) => {
+        calls.push(['start', cwd]);
+        return 77777;
+      },
+      isAlive: () => false,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain('started pid=77777');
+    expect(calls).toEqual([
+      ['ghq', ['locate', 'Soul-Brews-Studio/arra-oracle-v3']],
+      ['start', '/ghq/github.com/Soul-Brews-Studio/arra-oracle-v3'],
+    ]);
+  });
+
+
   test('rejects invalid serve actions and ports', async () => {
     const badAction = await runServe({ pos: ['restart'], flags: {} }, runner, env());
     expect(badAction.ok).toBe(false);
