@@ -19,17 +19,11 @@ export { createDatabase, type DatabaseConnection } from './create.ts';
 export {
   atomicOp,
   atomicOps,
-  tenantAtomicOp,
-  tenantAtomicOps,
   type AtomicBatchDb,
   type AtomicOperation,
   type AtomicTransactionDb,
   type PairedAtomicOperation,
-  type PairedTenantAtomicOperation,
   type RunnableAtomicStatement,
-  type TenantAtomicOperation,
-  type TenantAtomicScope,
-  type TenantBatchScope,
 } from './atomic-ops.ts';
 export {
   createDb,
