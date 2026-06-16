@@ -24,6 +24,25 @@ describe('canvas subdomain worker app', () => {
     expect(preflight.headers.get('cache-control')).toBe('no-store');
   });
 
+  test('serves canvas registry locally on the subdomain worker', async () => {
+    const res = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/api/canvas/plugins?kind=react'));
+    const body = await res.json() as Record<string, any>;
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toContain('stale-while-revalidate');
+    expect(body.kind).toBe('react');
+    expect(body.plugins.map((plugin: { id: string }) => plugin.id)).toEqual(['map', 'planets']);
+    expect(body.plugins[0].standalonePath).toBe('/map');
+  });
+
+  test('serves one local canvas plugin and leaves other api routes proxied', async () => {
+    const plugin = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/api/canvas/plugins/wave'));
+    expect(await plugin.json()).toMatchObject({ plugin: { id: 'wave', standalonePath: '/?plugin=wave' } });
+
+    const missing = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/api/canvas/plugins/missing'));
+    expect(missing.status).toBe(404);
+  });
+
   test('wrangler custom domain runs worker first', () => {
     const config = readFileSync('workers/canvas/wrangler.toml', 'utf8');
     expect(config).toContain('canvas.buildwithoracle.com');

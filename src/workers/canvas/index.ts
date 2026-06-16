@@ -1,3 +1,4 @@
+import { canvasPluginEntry, canvasRegistry, parseCanvasKind } from '../../canvas/registry.ts';
 import { normalizePlugin, renderCanvasApp } from './render.ts';
 
 export interface CanvasWorkerEnv {
@@ -14,6 +15,12 @@ const API_CACHE_HEADERS = {
 const HTML_HEADERS = {
   'Content-Type': 'text/html; charset=utf-8',
   'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
+};
+
+const REGISTRY_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
+  'Content-Type': 'application/json; charset=utf-8',
 };
 
 function apiBase(env: CanvasWorkerEnv): string {
@@ -36,6 +43,18 @@ async function proxyApi(request: Request, env: CanvasWorkerEnv): Promise<Respons
   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: responseHeaders });
 }
 
+
+function registryResponse(url: URL): Response | null {
+  if (url.pathname === '/api/canvas/plugins' || url.pathname === '/api/canvas/registry') {
+    return Response.json(canvasRegistry(parseCanvasKind(url.searchParams.get('kind'))), { headers: REGISTRY_HEADERS });
+  }
+  const match = url.pathname.match(/^\/api\/canvas\/plugins\/([^/]+)$/);
+  if (!match) return null;
+  const entry = canvasPluginEntry(decodeURIComponent(match[1]));
+  if (!entry) return Response.json({ error: 'canvas plugin not found', id: match[1] }, { status: 404, headers: REGISTRY_HEADERS });
+  return Response.json(entry, { headers: REGISTRY_HEADERS });
+}
+
 function pluginFrom(url: URL) {
   const pathPlugin = url.pathname.length > 1 ? url.pathname.slice(1).split('/')[0] : null;
   return normalizePlugin(url.searchParams.get('plugin') ?? pathPlugin);
@@ -43,6 +62,10 @@ function pluginFrom(url: URL) {
 
 export async function handleCanvasRequest(request: Request, env: CanvasWorkerEnv = {}): Promise<Response> {
   const url = new URL(request.url);
+  if (url.pathname.startsWith('/api/canvas/') && request.method === 'GET') {
+    const registry = registryResponse(url);
+    if (registry) return registry;
+  }
   if (url.pathname.startsWith('/api/') && request.method === 'OPTIONS') return new Response(null, { status: 204, headers: API_CACHE_HEADERS });
   if (url.pathname.startsWith('/api/')) return proxyApi(request, env);
   if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method not allowed', { status: 405 });

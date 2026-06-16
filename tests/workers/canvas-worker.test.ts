@@ -42,6 +42,19 @@ describe('canvas Cloudflare Worker', () => {
     expect(response.headers.get('access-control-allow-origin')).toBe('*');
   });
 
+  test('serves local canvas registry without upstream fetch', async () => {
+    globalThis.fetch = (async () => {
+      throw new Error('registry should not proxy');
+    }) as typeof fetch;
+
+    const response = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/api/canvas/registry'));
+    const body = await response.json() as { count: number; standalone: { host: string } };
+
+    expect(response.status).toBe(200);
+    expect(body.count).toBeGreaterThanOrEqual(3);
+    expect(body.standalone.host).toBe('canvas.buildwithoracle.com');
+  });
+
   test('proxies api requests to configured oracle backend without caching', async () => {
     const seen: string[] = [];
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
