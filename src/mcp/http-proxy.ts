@@ -1,4 +1,5 @@
 import type { ToolResponse } from '../tools/types.ts';
+import { mcpTenantHeaders, stripMcpTenantArgs, tenantIdFromMcpArgs } from './tenant.ts';
 
 const EMBEDDED_API_VALUES = new Set(['embedded', 'embed', 'off', 'none', 'false', '0']);
 
@@ -136,22 +137,23 @@ function toToolResponse(payload: unknown, isError = false): ToolResponse {
   };
 }
 
-function proxyHeaders(hasBody: boolean): Record<string, string> | undefined {
-  const headers: Record<string, string> = {};
+function proxyHeaders(hasBody: boolean, tenantId?: string): Record<string, string> | undefined {
+  const headers: Record<string, string> = { ...mcpTenantHeaders(tenantId) };
   if (hasBody) headers['content-type'] = 'application/json';
   const token = process.env.ARRA_API_TOKEN?.trim() || process.env.ARRA_API_KEY?.trim();
   if (token) headers.authorization = `Bearer ${token}`;
   return Object.keys(headers).length ? headers : undefined;
 }
 
-export async function proxyToolCall(baseUrl: string | null, toolName: string, args: Record<string, unknown>): Promise<ToolResponse | null> {
+export async function proxyToolCall(baseUrl: string | null, toolName: string, args: Record<string, unknown>, tenantId = tenantIdFromMcpArgs(args)): Promise<ToolResponse | null> {
   if (!baseUrl) return null;
-  const proxyRequest = proxyRequestForTool(toolName, args);
+  const cleanArgs = stripMcpTenantArgs(args);
+  const proxyRequest = proxyRequestForTool(toolName, cleanArgs);
   if (!proxyRequest) return null;
   try {
     const response = await oracleApiFetch(baseUrl, appendQuery(proxyRequest.path, proxyRequest.query), {
       method: proxyRequest.method,
-      headers: proxyHeaders(proxyRequest.body !== undefined),
+      headers: proxyHeaders(proxyRequest.body !== undefined, tenantId),
       body: proxyRequest.body === undefined ? undefined : JSON.stringify(proxyRequest.body),
     });
     return toToolResponse(await readHttpPayload(response), !response.ok);

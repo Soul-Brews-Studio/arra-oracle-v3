@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { createMcpRoutes } from '../../../src/routes/mcp/index.ts';
+import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant.ts';
 
 test('GET /api/mcp/tools returns core and plugin tool metadata', async () => {
   const app = createMcpRoutes([{
@@ -23,4 +24,12 @@ test('GET /api/mcp/tools returns core and plugin tool metadata', async () => {
     readOnly: true,
   }));
   expect(body.tools.some((tool) => 'handler' in tool)).toBe(false);
+});
+
+test('GET /api/mcp/tools reports active tenant scope', async () => {
+  const handler = createTenantFetch((request) => createMcpRoutes().handle(request));
+  const res = await handler(new Request('http://local/api/mcp/tools', { headers: { [TENANT_HEADER]: 'tenant-a' } }));
+  expect(res.status).toBe(200);
+  const body = await res.json() as { tenant?: Record<string, unknown> };
+  expect(body.tenant).toEqual({ id: 'tenant-a', scope: 'tenant_id' });
 });
