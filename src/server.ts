@@ -55,6 +55,7 @@ import { createMenuRoutes, menuItemsFromUnifiedPlugins } from './routes/menu/ind
 import { peerRoutes } from './routes/peer/index.ts';
 import { createMcpRoutes } from './routes/mcp/index.ts';
 import { createMetricsLifecycle, metricsRoutes } from './routes/metrics/index.ts';
+import { memoryRoutes } from './routes/memory/index.ts';
 
 let indexerRoutes: any = null;
 try {
@@ -192,6 +193,7 @@ const apiModules = [
   sessionsRoutes,
   vaultRoutes,
   metricsRoutes,
+  memoryRoutes,
   ...(indexerRoutes ? [indexerRoutes] : []),
   ...unifiedPlugins.routes,
 ];
