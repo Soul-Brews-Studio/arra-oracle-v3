@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Elysia } from "elysia";
 import { loadUnifiedPlugins } from "../unified-loader.ts";
 
 const pluginRoot = join(process.cwd(), "src/plugins");
-const ARRA_VERBS = ["help", "version", "menu", "status", "health", "vector-config"];
+const ARRA_VERBS = ["help", "version", "menu", "status", "health", "vector-config", "serve"];
 
 describe("built-in arra plugin", () => {
   test("declares modern maw-js CLI, menu, and HTTP surfaces", () => {
@@ -132,6 +133,41 @@ describe("built-in arra plugin", () => {
       if (saved === undefined) delete process.env.ORACLE_API;
       else process.env.ORACLE_API = saved;
       server.stop();
+    }
+  });
+
+  test("handles maw arra serve status without a running server", async () => {
+    const { arraCli } = await import("../arra/index.ts");
+    const savedDataDir = process.env.ORACLE_DATA_DIR;
+    process.env.ORACLE_DATA_DIR = mkdtempSync(join(tmpdir(), "arra-serve-status-"));
+    try {
+      const result = await arraCli({ source: "cli", plugin: "arra", args: ["serve", "--status", "--port", "59999"] });
+      expect(result.ok).toBe(true);
+      expect(result.output).toContain("Oracle server not running on http://127.0.0.1:59999");
+    } finally {
+      if (savedDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
+      else process.env.ORACLE_DATA_DIR = savedDataDir;
+    }
+  });
+
+  test("maw arra serve starts server in background with requested port", async () => {
+    const { serveCli } = await import("../arra/serve-cli.ts");
+    const savedDataDir = process.env.ORACLE_DATA_DIR;
+    process.env.ORACLE_DATA_DIR = mkdtempSync(join(tmpdir(), "arra-serve-start-"));
+    const calls: unknown[] = [];
+    const spawn = ((cmd: string[], options: object) => {
+      calls.push({ cmd, options });
+      return { pid: 4242, unref() {} };
+    }) as typeof Bun.spawn;
+    try {
+      const result = await serveCli(["--port", "59998"], { spawn, fetch: async () => new Response("no", { status: 503 }) });
+      expect(result.ok).toBe(true);
+      expect(result.output).toContain("pid=4242");
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toMatchObject({ cmd: ["bun", "run", "server"] });
+    } finally {
+      if (savedDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
+      else process.env.ORACLE_DATA_DIR = savedDataDir;
     }
   });
 });

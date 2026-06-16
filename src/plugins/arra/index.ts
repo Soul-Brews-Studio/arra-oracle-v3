@@ -1,5 +1,6 @@
 import { vectorConfigCli } from "./vector-config-cli.ts";
 import { vectorHealthCli } from "./vector-health-cli.ts";
+import { serveCli } from "./serve-cli.ts";
 
 type ArraPluginConfig = {
   dbBackend?: "sqlite" | "http" | "memory" | "custom";
@@ -44,6 +45,7 @@ const VERBS: ArraVerb[] = [
   { name: "status", help: "Describe optional backend capabilities", menuPath: MENU_PATH, httpPath: HTTP_PATH, requiresEmbedder: false, storage: "swappable" },
   { name: "health", help: "Show server and vector engine health", menuPath: MENU_PATH, httpPath: "/api/health", requiresEmbedder: false, storage: "swappable" },
   { name: "vector-config", help: "Inspect and manage vector backend config", menuPath: MENU_PATH, httpPath: "/api/v1/vector/config", requiresEmbedder: false, storage: "swappable" },
+  { name: "serve", help: "Start, stop, or inspect the Oracle HTTP server", menuPath: MENU_PATH, httpPath: "/api/health", requiresEmbedder: false, storage: "swappable" },
 ];
 
 function commandName(ctx: ArraPluginContext): string {
@@ -86,6 +88,7 @@ async function renderCli(ctx: ArraPluginContext): Promise<CliResult> {
   }
   if (command === "health") return vectorHealthCli((ctx.args ?? []).slice(1).map(String));
   if (command === "vector-config") return vectorConfigCli((ctx.args ?? []).slice(1).map(String));
+  if (command === "serve") return serveCli((ctx.args ?? []).slice(1).map(String));
   if (command !== "help") return { ok: false, error: `unknown arra command: ${command}` };
   return { ok: true, output: ["maw arra <command>", ...VERBS.map((verb) => `  ${verb.name.padEnd(14)} ${verb.help}`)].join("\n") };
 }

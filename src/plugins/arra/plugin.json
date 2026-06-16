@@ -5,7 +5,7 @@
   "sdk": "^0.1.0",
   "enabled": true,
   "description": "ARRA Oracle V3 maw-js plugin surface for CLI, menu, and HTTP discovery.",
-  "verbs": ["help", "version", "menu", "status", "health", "vector-config"],
+  "verbs": ["help", "version", "menu", "status", "health", "vector-config", "serve"],
   "httpRoutes": [
     {
       "path": "/api/plugins/arra",
@@ -34,7 +34,7 @@
   ],
   "cli": {
     "command": "arra",
-    "help": "maw arra <help|version|menu|status|health|vector-config>",
+    "help": "maw arra <help|version|menu|status|health|vector-config|serve>",
     "handler": "arraCli"
   },
   "config": {
