@@ -42,6 +42,7 @@ import { createHealthRoutes } from './routes/health/index.ts';
 import { dashboardRoutes } from './routes/dashboard/index.ts';
 import { searchRoutes } from './routes/search/index.ts';
 import { vectorRoutes } from './routes/vector/index.ts';
+import { vectorConfigApiRoutes } from './routes/vector/config-api.ts';
 import { knowledgeRoutes } from './routes/knowledge/index.ts';
 import { supersedeRoutes } from './routes/supersede/index.ts';
 import { forumApi } from './routes/forum/index.ts';
@@ -169,14 +170,12 @@ const app = new Elysia()
     docs: '/api/docs',
     api: '/api/v1',
   }));
-
 const healthRoutes = createHealthRoutes({
   pluginCount: unifiedPlugins.pluginCount,
   pluginMcpToolCount: unifiedPlugins.mcpTools.length,
   pluginStatuses: unifiedPlugins.pluginStatuses,
   isDraining,
 });
-
 const apiModules = [
   authRoutes,
   settingsRoutes,
@@ -185,6 +184,7 @@ const apiModules = [
   dashboardRoutes,
   searchRoutes,
   vectorRoutes,
+  vectorConfigApiRoutes,
   knowledgeRoutes,
   supersedeRoutes,
   forumApi,

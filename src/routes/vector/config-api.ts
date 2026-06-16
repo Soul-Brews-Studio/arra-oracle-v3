@@ -218,3 +218,5 @@ export const vectorConfigApiEndpoint = new Elysia()
     body: updateSchema,
     detail: { tags: ['vector'], summary: 'Update one vector collection config' },
   });
+
+export const vectorConfigApiRoutes = new Elysia({ prefix: '/api' }).use(vectorConfigApiEndpoint);
