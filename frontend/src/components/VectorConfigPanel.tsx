@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiUrl, fetchVectorConfig, reloadVectorConfig, updateVectorCollection } from '../api';
 import { ErrorMessage, Spinner } from './AsyncState';
+import { VectorConfigHealthSummary } from './VectorConfigHealthSummary';
 import type { SettingsEmbedderCollection, VectorConfigResponse } from '../types';
 
 const ADAPTERS = ['lancedb', 'qdrant', 'chroma', 'sqlite-vec', 'cloudflare-vectorize', 'proxy', 'turbovec'] as const;
@@ -162,6 +163,7 @@ export function VectorConfigPanel() {
 
       {error ? <div className="mt-4"><ErrorMessage title="Vector config update failed." message={error} /></div> : null}
       {message ? <p className="mt-4 rounded-2xl border border-white/10 bg-slate-900/70 p-3 text-sm text-teal-100">{message}</p> : null}
+      {state ? <VectorConfigHealthSummary collections={state.config.collections} health={state.health} /> : null}
 
       <div className="mt-5 grid gap-3">
         {rows.map(([key, item]) => {
