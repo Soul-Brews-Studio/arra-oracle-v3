@@ -7,6 +7,7 @@
 import { Elysia, t } from 'elysia';
 import { eq } from 'drizzle-orm';
 import { db, menuItems } from '../../db/index.ts';
+import { menuOwnedWhere } from '../../menu/tenant.ts';
 
 export function createMenuOrderRoutes() {
   return new Elysia()
@@ -26,7 +27,7 @@ export function createMenuOrderRoutes() {
                   touchedAt: now,
                   updatedAt: now,
                 })
-                .where(eq(menuItems.id, item.id))
+                .where(menuOwnedWhere(eq(menuItems.id, item.id)))
                 .returning({ id: menuItems.id })
                 .get();
               if (!row) {
@@ -67,7 +68,7 @@ export function createMenuOrderRoutes() {
           set.status = 400;
           return { error: 'invalid id' };
         }
-        const row = db.select().from(menuItems).where(eq(menuItems.id, id)).get();
+        const row = db.select().from(menuItems).where(menuOwnedWhere(eq(menuItems.id, id))).get();
         if (!row) {
           set.status = 404;
           return { error: 'not found' };
@@ -80,7 +81,7 @@ export function createMenuOrderRoutes() {
         const updated = db
           .update(menuItems)
           .set({ touchedAt: null, updatedAt: now })
-          .where(eq(menuItems.id, id))
+          .where(menuOwnedWhere(eq(menuItems.id, id)))
           .returning()
           .get();
         return {
