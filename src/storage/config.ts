@@ -32,19 +32,33 @@ function readJson(filePath: string): ConfigShape | null {
 }
 
 function backendFrom(raw: ConfigShape | null): string | null {
-  const value = raw?.storage?.backend
-    ?? raw?.database?.backend
-    ?? raw?.storageBackend
-    ?? raw?.databaseBackend;
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
+  const values = [
+    raw?.storage?.backend,
+    raw?.database?.backend,
+    raw?.storageBackend,
+    raw?.databaseBackend,
+  ];
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function firstNonBlank(...values: (string | undefined)[]): string | null {
+  for (const value of values) {
+    if (value?.trim()) return value.trim();
+  }
+  return null;
 }
 
 export function loadStorageConfig(
   options: LoadStorageConfigOptions = {},
 ): StorageConfig {
-  const envBackend = process.env.ORACLE_STORAGE_BACKEND
-    || process.env.ORACLE_DB_BACKEND;
-  if (envBackend?.trim()) return { backend: envBackend.trim() };
+  const envBackend = firstNonBlank(
+    process.env.ORACLE_STORAGE_BACKEND,
+    process.env.ORACLE_DB_BACKEND,
+  );
+  if (envBackend) return { backend: envBackend };
 
   const repoRoot = options.repoRoot || process.env.ORACLE_REPO_ROOT || process.cwd();
   const dataDir = options.dataDir || ORACLE_DATA_DIR;

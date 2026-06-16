@@ -26,20 +26,7 @@ export interface CustomMenuInput {
 }
 
 type RawFile = { items?: CustomMenuInput[] };
-
-function readRaw(file = customMenuFile()): CustomMenuInput[] {
-  if (!fs.existsSync(file)) return [];
-  try {
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf-8')) as RawFile | CustomMenuInput[];
-    const arr = Array.isArray(parsed) ? parsed : parsed.items ?? [];
-    return arr.filter(
-      (i): i is CustomMenuInput =>
-        !!i && typeof i.path === 'string' && typeof i.label === 'string',
-    );
-  } catch {
-    return [];
-  }
-}
+const MENU_GROUPS = ['main', 'tools', 'hidden', 'admin'] as const;
 
 function writeRaw(items: CustomMenuInput[], file = customMenuFile()): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -52,12 +39,63 @@ function normalizePath(p: string): string {
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 }
 
+function normalizeGroup(value: unknown): MenuItem['group'] {
+  return MENU_GROUPS.includes(value as MenuItem['group'])
+    ? value as MenuItem['group']
+    : 'tools';
+}
+
+function normalizeOrder(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 90;
+}
+
+function normalizeText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeIcon(value: unknown): string | undefined {
+  const icon = normalizeText(value);
+  return icon || undefined;
+}
+
+function normalizeRawItem(value: unknown): CustomMenuInput | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const path = normalizePath(normalizeText(raw.path));
+  const label = normalizeText(raw.label);
+  if (!path || !label) return null;
+  return {
+    path,
+    label,
+    group: normalizeGroup(raw.group),
+    order: normalizeOrder(raw.order),
+    icon: normalizeIcon(raw.icon),
+  };
+}
+
+function readRaw(file = customMenuFile()): CustomMenuInput[] {
+  if (!fs.existsSync(file)) return [];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf-8')) as RawFile | CustomMenuInput[];
+    const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed.items) ? parsed.items : [];
+    return arr.map(normalizeRawItem).filter((item): item is CustomMenuInput => item !== null);
+  } catch {
+    return [];
+  }
+}
+
+function cleanInput(input: CustomMenuInput): CustomMenuInput {
+  const cleaned = normalizeRawItem(input);
+  if (!cleaned) throw new Error('path and label are required');
+  return cleaned;
+}
+
 export function listCustomMenuItems(file = customMenuFile()): MenuItem[] {
   return readRaw(file).map((i) => ({
-    path: normalizePath(i.path),
+    path: i.path,
     label: i.label,
     group: i.group ?? 'tools',
-    order: typeof i.order === 'number' ? i.order : 90,
+    order: i.order ?? 90,
     icon: i.icon,
     source: 'page' as const,
   }));
@@ -67,13 +105,7 @@ export function addCustomMenuItem(
   input: CustomMenuInput,
   file = customMenuFile(),
 ): { added: boolean; replaced: boolean; item: MenuItem } {
-  const cleaned: CustomMenuInput = {
-    path: normalizePath(input.path),
-    label: input.label,
-    group: input.group ?? 'tools',
-    order: typeof input.order === 'number' ? input.order : 90,
-    icon: input.icon,
-  };
+  const cleaned = cleanInput(input);
   const existing = readRaw(file);
   const idx = existing.findIndex((i) => normalizePath(i.path) === cleaned.path);
   let replaced = false;

@@ -23,6 +23,22 @@ describe('config env validation', () => {
       .toThrow(/PORT must be <= 65535/);
   });
 
+  test('trims scalar values before validating edge-case env', () => {
+    const result = validateEnv({
+      env: {
+        HOME: '/tmp/arra-home',
+        LOG_FORMAT: ' JSON ',
+        PORT: ' 0 ',
+        ORACLE_GATEWAY_HOT_RELOAD: ' on ',
+        VECTOR_URL: ' https://vectors.example.test ',
+        DATABASE_URL: ' file:///tmp/arra-edge.db ',
+      },
+      emitOptionalWarnings: false,
+    });
+
+    expect(result.env.PORT).toBe(' 0 ');
+  });
+
   test('rejects unknown LOG_FORMAT values before logger startup', () => {
     expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', LOG_FORMAT: 'verbose' }, emitOptionalWarnings: false }))
       .toThrow(/LOG_FORMAT must be one of nginx, json, short/);
@@ -49,6 +65,17 @@ describe('config env validation', () => {
       .toThrow(/Qdrant vector DB requires QDRANT_URL/);
     expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', ORACLE_VECTOR_DB: 'proxy' }, emitOptionalWarnings: false }))
       .toThrow(/Proxy vector DB requires ORACLE_PROXY_VECTOR_URL/);
+  });
+
+  test('rejects non-http remote service URLs clearly', () => {
+    expect(() => validateEnv({
+      env: { HOME: '/tmp/arra-home', ORACLE_VECTOR_DB: 'proxy', ORACLE_PROXY_VECTOR_URL: 'ftp://vectors' },
+      emitOptionalWarnings: false,
+    })).toThrow(/ORACLE_PROXY_VECTOR_URL must be a valid http\(s\) URL/);
+    expect(() => validateEnv({
+      env: { HOME: '/tmp/arra-home', ORACLE_HTTP_URL: 'file:///tmp/oracle.sock' },
+      emitOptionalWarnings: false,
+    })).toThrow(/ORACLE_HTTP_URL must be a valid http\(s\) URL or "embedded"/);
   });
 
   test('accepts provider env aliases during startup validation', () => {
