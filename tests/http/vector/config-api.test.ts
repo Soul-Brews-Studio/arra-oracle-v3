@@ -67,6 +67,15 @@ test('GET and PUT /api/v1/vector/config expose and update vector-server.json', a
   });
   expect(getRes.body.collections[0].count).toEqual(expect.any(Number));
 
+  const testRes = await call('/api/v1/vector/config/phase1/test', { method: 'POST' });
+  expect(testRes.status).toBe(200);
+  expect(testRes.body).toMatchObject({
+    success: true,
+    key: 'phase1',
+    collection: 'phase1_collection',
+    adapter: 'lancedb',
+  });
+
   const emptyUpdate = await call('/api/v1/vector/config/phase1', {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
@@ -102,5 +111,10 @@ test('GET and PUT /api/v1/vector/config expose and update vector-server.json', a
     provider: 'remote',
     adapter: 'qdrant',
   });
+
+  const reloadRes = await call('/api/v1/vector/config/reload', { method: 'POST' });
+  expect(reloadRes.status).toBe(200);
+  expect(reloadRes.body).toMatchObject({ success: true, reloaded: true, source: 'file' });
+  expect(reloadRes.body.config.collections.phase1.adapter).toBe('qdrant');
   expect(readdirSync(root).some((name) => name.includes('.tmp'))).toBe(false);
 });

@@ -17,7 +17,7 @@ import {
   type VectorCollectionConfig,
   type VectorServerConfig,
 } from '../../vector/config.ts';
-import { createVectorStoreForModel } from '../../vector/factory.ts';
+import { closeCachedVectorStores, createVectorStoreForModel } from '../../vector/factory.ts';
 import type { VectorDBType } from '../../vector/types.ts';
 
 const adapterSchema = t.Union([
@@ -48,6 +48,16 @@ function activeConfig(): { source: 'file' | 'defaults'; config: VectorServerConf
 
 function currentConfigPath(): string {
   return process.env.ORACLE_DATA_DIR ? configPath(process.env.ORACLE_DATA_DIR) : configPath();
+}
+
+function resolveCollection(
+  config: VectorServerConfig,
+  collection: string,
+): [string, VectorCollectionConfig] | null {
+  const direct = config.collections[collection];
+  if (direct) return [collection, direct];
+  return Object.entries(config.collections)
+    .find(([, value]) => value.collection === collection) ?? null;
 }
 
 function atomicWriteVectorConfig(config: VectorServerConfig): string {
@@ -155,6 +165,29 @@ export const vectorConfigApiEndpoint = new Elysia()
   }, {
     detail: { tags: ['vector'], summary: 'Vector server config with collection health' },
   })
+  .post('/vector/config/reload', async () => {
+    await closeCachedVectorStores();
+    const { source, config } = activeConfig();
+    return { success: true, reloaded: true, source, config };
+  }, {
+    detail: { tags: ['vector'], summary: 'Reload vector config and clear cached vector stores' },
+  })
+  .post('/vector/config/:collection/test', async ({ params, set }) => {
+    const { config } = activeConfig();
+    const resolved = resolveCollection(config, params.collection);
+    if (!resolved) {
+      set.status = 404;
+      return { error: `Unknown vector collection: ${params.collection}` };
+    }
+
+    const [key, col] = resolved;
+    const health = await inspectCollection(key, col, config);
+    if (!health.ok) set.status = 503;
+    return { success: health.ok, ...health };
+  }, {
+    params: t.Object({ collection: t.String({ minLength: 1 }) }),
+    detail: { tags: ['vector'], summary: 'Test one vector collection adapter' },
+  })
   .put('/vector/config/:collection', ({ params, body, set }) => {
     const update = normalizedUpdate(body);
     if ('error' in update) {
@@ -163,21 +196,22 @@ export const vectorConfigApiEndpoint = new Elysia()
     }
 
     const { source, config } = activeConfig();
-    const current = config.collections[params.collection];
-    if (!current) {
+    const resolved = resolveCollection(config, params.collection);
+    if (!resolved) {
       set.status = 404;
       return { error: `Unknown vector collection: ${params.collection}` };
     }
+    const [key, current] = resolved;
 
     const next: VectorServerConfig = {
       ...config,
       collections: {
         ...config.collections,
-        [params.collection]: { ...current, ...update },
+        [key]: { ...current, ...update },
       },
     };
     const path = atomicWriteVectorConfig(next);
-    return { success: true, source, path, collection: params.collection, config: next };
+    return { success: true, source, path, collection: key, config: next };
   }, {
     params: t.Object({ collection: t.String({ minLength: 1 }) }),
     body: t.Object({

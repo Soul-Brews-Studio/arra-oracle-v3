@@ -12,6 +12,8 @@
  *   GET /api/vector/documents — browse indexed vector documents
  *   GET /api/v1/vector/config — config + per-collection health/counts
  *   PUT /api/v1/vector/config/:collection — update collection adapter/model/provider
+ *   POST /api/v1/vector/config/reload — clear cached vector stores
+ *   POST /api/v1/vector/config/:collection/test — probe one collection
  *
  * Mounted with the `/api` prefix from server.ts. Phase 1 of #1071: separating
  * the vector layer from FTS/hybrid so it can later move behind VECTOR_URL.
