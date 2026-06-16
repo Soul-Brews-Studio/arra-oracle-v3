@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { buildProxyUrl, oracleProxyTool, resolveOracleUrl } from '../../workers/mcp/src/proxy.ts';
+import { buildProxyUrl, oracleProxyTool, resolveMcpTenantId, resolveOracleUrl } from '../../workers/mcp/src/proxy.ts';
 
 describe('Cloudflare MCP proxy tools', () => {
   test('registers search, stats, and learn tools in the Worker entry', () => {
@@ -42,8 +42,15 @@ describe('Cloudflare MCP proxy tools', () => {
     expect(result.isError).toBeUndefined();
     expect(captured[0].url).toBe('https://oracle.example.test/api/stats');
     expect(headers.get('authorization')).toBe('Bearer secret');
-    expect(headers.get('x-oracle-tenant-id')).toBe('tenant-a');
+    expect(headers.get('X-Tenant-ID')).toBe('tenant-a');
+    expect(headers.get('X-Oracle-Tenant')).toBe('tenant-a');
     expect(result.content[0].text).toContain('"total_docs": 12');
+  });
+
+  test('resolves tenant ids from OAuth props before tool args', () => {
+    expect(resolveMcpTenantId({ claims: { tenant_id: 'school-a' } }, 'spoofed')).toBe('school-a');
+    expect(resolveMcpTenantId(undefined, 'tenant-b')).toBe('tenant-b');
+    expect(() => resolveMcpTenantId(undefined, 'bad tenant')).toThrow('invalid tenant id');
   });
 
   test('proxies oracle_learn as JSON and marks backend errors', async () => {
