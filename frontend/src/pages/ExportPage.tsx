@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
 import { ConnectionTest } from '../components/export/ConnectionTest';
+import { ExportHelp } from '../components/export/ExportHelp';
 import { apiUrl } from '../api/oracle';
 
 type LoadState = 'loading' | 'ready' | 'error';
@@ -114,6 +115,8 @@ export function ExportPage() {
         <h1 id="export-page-title" className="mt-2 text-3xl font-semibold text-white">Export collections</h1>
         <p className="mt-2 text-sm text-slate-400">Prepare database collection downloads from /api/v1/export/app.</p>
       </section>
+
+      <ExportHelp />
 
       {state === 'loading' ? <LoadingPanel title="Loading collections" detail="Fetching /api/v1/export/app/collections." /> : null}
       {state === 'error' ? <ErrorMessage title="Could not load export collections." message={error} /> : null}
