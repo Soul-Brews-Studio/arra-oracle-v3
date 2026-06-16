@@ -43,7 +43,7 @@ describe('maw arra vector-config ops commands', () => {
 
   test('removes a vector collection config', async () => {
     const blocked = await run(['vector-config', 'remove', 'nomic'], { success: true, removed: 'nomic' });
-    expect(blocked.result).toEqual({ ok: false, error: 'remove requires --yes' });
+    expect(blocked.result).toEqual({ ok: false, error: 'remove requires --yes', exitCode: 1 });
     expect(blocked.calls).toEqual([]);
 
     const { result, calls } = await run(['vector-config', 'remove', 'nomic', '--yes'], { success: true, removed: 'nomic' });
@@ -71,6 +71,7 @@ describe('maw arra vector-config ops commands', () => {
 
     expect(result.ok).toBe(false);
     expect(result.error).toBe('add requires --model <model>');
+    expect(result.exitCode).toBe(1);
     expect(calls).toEqual([]);
   });
 });

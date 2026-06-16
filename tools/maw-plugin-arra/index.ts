@@ -9,7 +9,7 @@ type InvokeContext = {
   writer?: (line?: string) => void;
 };
 
-type InvokeResult = { ok: boolean; output?: string; error?: string };
+type InvokeResult = { ok: boolean; output?: string; error?: string; exitCode?: number };
 type CommandHandler = (args: string[]) => Promise<string>;
 type RegistryCommand = {
   name: string;
@@ -123,13 +123,13 @@ export default async function handler(ctx: InvokeContext): Promise<InvokeResult>
   }
 
   const run = commandHandlers[subcommand];
-  if (!run) return { ok: false, error: help() };
+  if (!run) return { ok: false, error: help(), exitCode: 2 };
 
   try {
     const output = await run(args.slice(1));
     if (ctx.writer) ctx.writer(output);
     return { ok: true, output: isApiLike(ctx.source) ? apiOutput(subcommand, output) : output };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    return { ok: false, error: error instanceof Error ? error.message : String(error), exitCode: 1 };
   }
 }

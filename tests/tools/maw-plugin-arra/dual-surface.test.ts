@@ -52,4 +52,14 @@ describe('maw-plugin-arra dual surface contract', () => {
     expect(body.commands.map((item: { name: string }) => item.name))
       .toEqual(commandRegistry.map((item) => item.name));
   });
+
+  test('returns modern InvokeResult exit codes for dispatch failures', async () => {
+    const missing = await handler({ args: ['missing'] });
+    const failed = await handler({ args: ['vector-config', 'add', 'missing-model'] });
+
+    expect(missing).toMatchObject({ ok: false, exitCode: 2 });
+    expect(missing.error).toContain('maw arra');
+    expect(failed).toEqual({ ok: false, error: 'add requires --model <model>', exitCode: 1 });
+  });
+
 });
