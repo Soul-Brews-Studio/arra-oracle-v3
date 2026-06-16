@@ -44,6 +44,39 @@ describe('maw arra serve command', () => {
     expect(stop.output).toContain('stopped pid=54321');
   });
 
+  test('supports --status and --stop flag actions directly', async () => {
+    const home = env();
+    let alive = true;
+    await runServe({ pos: [], flags: {} }, runner, home, {
+      start: () => 65432,
+      isAlive: () => false,
+    });
+
+    const status = await runServe({ pos: [], flags: { status: true, port: '47779' } }, runner, home, {
+      isAlive: () => alive,
+      fetch: async (input) => new Response(String(input), { status: 200 }),
+    });
+    expect(status.ok).toBe(true);
+    expect(status.output).toContain('alive pid=65432');
+    expect(status.output).toContain('health: ok 200');
+    expect(status.output).toContain('47779');
+
+    const stopped = await runServe({ pos: [], flags: { stop: true } }, runner, home, {
+      isAlive: () => alive,
+      kill: () => { alive = false; },
+      sleep: async () => {},
+    });
+    expect(stopped.ok).toBe(true);
+    expect(stopped.output).toContain('stopped pid=65432');
+
+    const after = await runServe({ pos: [], flags: { status: true } }, runner, home, {
+      isAlive: () => alive,
+      fetch: async () => new Response('', { status: 503 }),
+    });
+    expect(after.output).toContain('missing pid');
+  });
+
+
   test('rejects invalid serve actions and ports', async () => {
     const badAction = await runServe({ pos: ['restart'], flags: {} }, runner, env());
     expect(badAction.ok).toBe(false);
