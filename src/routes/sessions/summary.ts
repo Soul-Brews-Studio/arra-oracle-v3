@@ -2,6 +2,15 @@ import { Elysia } from 'elysia';
 import { SummaryParams, SummaryBody, MAX_SUMMARY_CHARS } from './model.ts';
 import { persistSessionSummary } from './store.ts';
 
+function persistenceError(error: unknown): { status: 400 | 409 | 500; body: { error: string } } {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message === 'Invalid session id') return { status: 400, body: { error: 'Invalid session id' } };
+  if (message.startsWith('File already exists:')) {
+    return { status: 409, body: { error: 'Session summary already exists' } };
+  }
+  return { status: 500, body: { error: 'Could not persist session summary' } };
+}
+
 export const summaryRoute = new Elysia().post(
   '/api/session/:id/summary',
   ({ params, body, set }) => {
@@ -14,8 +23,14 @@ export const summaryRoute = new Elysia().post(
       set.status = 400;
       return { error: `summary exceeds max length (${MAX_SUMMARY_CHARS} chars)` };
     }
-    set.status = 201;
-    return persistSessionSummary(params.id, summary, body.oracle);
+    try {
+      set.status = 201;
+      return persistSessionSummary(params.id, summary, body.oracle);
+    } catch (error) {
+      const response = persistenceError(error);
+      set.status = response.status;
+      return response.body;
+    }
   },
   {
     params: SummaryParams,

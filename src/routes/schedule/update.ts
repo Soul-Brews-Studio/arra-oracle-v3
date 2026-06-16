@@ -2,15 +2,35 @@ import { Elysia } from 'elysia';
 import { and, eq } from 'drizzle-orm';
 import { db, schedule } from '../../db/index.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
+import { parseDate } from '../../tools/schedule.ts';
 import { scheduleIdParam, updateBody } from './model.ts';
 
+function readScheduleId(value: string): number | null {
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+function updateValues(body: unknown, updatedAt: number): Record<string, unknown> {
+  const data = body as Record<string, unknown>;
+  const values: Record<string, unknown> = { ...data, updatedAt };
+  if (typeof data.date === 'string') {
+    values.date = parseDate(data.date);
+    values.dateRaw = data.date;
+  }
+  return values;
+}
+
 export const scheduleUpdateRoute = new Elysia().patch('/api/schedule/:id', async ({ params, body, set }) => {
-  const id = parseInt(params.id);
+  const id = readScheduleId(params.id);
+  if (!id) {
+    set.status = 400;
+    return { success: false, error: 'Invalid schedule id' };
+  }
   const now = Date.now();
   const tenantId = currentTenantId();
   const where = tenantId ? and(eq(schedule.id, id), eq(schedule.tenantId, tenantId)) : eq(schedule.id, id);
   const row = db.update(schedule)
-    .set({ ...(body as any), updatedAt: now })
+    .set(updateValues(body, now))
     .where(where)
     .returning({ id: schedule.id })
     .get();
