@@ -1,8 +1,15 @@
 import { flag, parseArgs, requestJson, requestText, type ParsedArgs } from './http.ts';
 
-const usage = 'usage: maw arra vector-config list|get [collection]|set <collection> <field> <value>';
+const usage = [
+  'usage: maw arra vector-config list|get [collection]',
+  '       maw arra vector-config set <collection> <field> <value>',
+  '       maw arra vector-config add <collection> --model <model> [--adapter <adapter>]',
+  '       maw arra vector-config remove|set-primary|test <collection>',
+  '       maw arra vector-config reload',
+].join('\n');
 const adapters = new Set(['chroma', 'sqlite-vec', 'lancedb', 'qdrant', 'cloudflare-vectorize', 'proxy', 'turbovec']);
-const updateFields = new Set(['adapter', 'model', 'provider', 'service', 'endpoint', 'enabled', 'primary', 'embedder', 'collection']);
+const updateFields = new Set(['adapter', 'model', 'provider', 'service', 'endpoint', 'enabled', 'primary', 'embedder']);
+const createFields = new Set([...updateFields, 'collection']);
 
 type JsonObject = Record<string, unknown>;
 
@@ -52,9 +59,9 @@ function listPayload(payload: JsonObject): JsonObject {
   return { source: payload.source, collections };
 }
 
-function flagUpdates(parsed: ParsedArgs): JsonObject {
+function flagUpdates(parsed: ParsedArgs, fields = updateFields): JsonObject {
   const updates: JsonObject = {};
-  for (const field of updateFields) {
+  for (const field of fields) {
     const raw = flag(parsed, field === 'endpoint' ? 'url' : field) ?? flag(parsed, field);
     if (raw !== undefined) updates[field] = parseValue(field, raw);
   }
@@ -86,6 +93,34 @@ async function writeCollection(collection: string, body: JsonObject): Promise<Js
   return text ? JSON.parse(text) as JsonObject : {};
 }
 
+async function createCollection(collection: string, body: JsonObject): Promise<JsonObject> {
+  const text = await requestText(`/api/v1/vector/config/${encodeURIComponent(collection)}`, {
+    method: 'POST',
+    headers: { accept: 'application/json', 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return text ? JSON.parse(text) as JsonObject : {};
+}
+
+async function postAction(path: string): Promise<JsonObject> {
+  const text = await requestText(path, { method: 'POST', headers: { accept: 'application/json' } });
+  return text ? JSON.parse(text) as JsonObject : {};
+}
+
+async function removeCollection(collection: string): Promise<JsonObject> {
+  const text = await requestText(`/api/v1/vector/config/${encodeURIComponent(collection)}`, {
+    method: 'DELETE',
+    headers: { accept: 'application/json' },
+  });
+  return text ? JSON.parse(text) as JsonObject : {};
+}
+
+function requiredCollection(parsed: ParsedArgs): string {
+  const collection = parsed.positionals[1];
+  if (!collection) throw new Error(usage);
+  return collection;
+}
+
 export async function runVectorConfigCommand(args: string[]): Promise<string> {
   const parsed = parseArgs(args);
   const action = (parsed.positionals[0] ?? 'list').toLowerCase().replace(/-/g, '_');
@@ -96,11 +131,25 @@ export async function runVectorConfigCommand(args: string[]): Promise<string> {
     return json(collection ? collectionPayload(payload, collection) : payload);
   }
   if (action === 'set') {
-    const collection = parsed.positionals[1];
-    if (!collection) throw new Error(usage);
-    return json(await writeCollection(collection, updateBody(parsed)));
+    return json(await writeCollection(requiredCollection(parsed), updateBody(parsed)));
   }
+  if (action === 'add') {
+    const collection = requiredCollection(parsed);
+    const body = flagUpdates(parsed, createFields);
+    if (!body.model) throw new Error('add requires --model <model>');
+    return json(await createCollection(collection, body));
+  }
+  if (action === 'remove') return json(await removeCollection(requiredCollection(parsed)));
+  if (action === 'set_primary' || action === 'primary') {
+    const collection = requiredCollection(parsed);
+    return json(await postAction(`/api/v1/vector/config/${encodeURIComponent(collection)}/primary`));
+  }
+  if (action === 'test') {
+    const collection = requiredCollection(parsed);
+    return json(await postAction(`/api/v1/vector/config/${encodeURIComponent(collection)}/test`));
+  }
+  if (action === 'reload') return json(await postAction('/api/v1/vector/config/reload'));
   throw new Error(usage);
 }
 
-export const VECTOR_CONFIG_HELP = 'vector-config list|get [collection]|set <collection> <field> <value>';
+export const VECTOR_CONFIG_HELP = 'vector-config list|get|set|add|remove|set-primary|reload|test';
