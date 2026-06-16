@@ -72,3 +72,33 @@ test('/api/feed bounds unsafe limits and preserves delimiter-heavy messages', as
   expect(delimiterBody.events).toHaveLength(1);
   expect(delimiterBody.events[0]?.message).toBe('message with | pipe and » marker');
 });
+
+test('/api/feed rejects blank required fields and compacts line-injection input', async () => {
+  const oracle = `newline-${stamp}`;
+  const bad = await feedRequest('/api/feed', {
+    method: 'POST',
+    body: JSON.stringify({ oracle: '   ', event: 'notice' }),
+  });
+  expect(bad.status).toBe(400);
+
+  const created = await feedRequest('/api/feed', {
+    method: 'POST',
+    body: JSON.stringify({
+      oracle,
+      event: 'notice | bad',
+      project: 'project » marker',
+      session_id: 's\n1',
+      message: 'hello\nthere with | pipe and » marker',
+    }),
+  });
+  expect(created.status).toBe(200);
+
+  const listed = await feedRequest(`/api/feed?oracle=${encodeURIComponent(oracle)}`);
+  const body = await listed.json() as { events: Array<{ event: string; project: string; session_id: string; message: string }> };
+  expect(body.events[0]).toMatchObject({
+    event: 'notice bad',
+    project: 'project marker',
+    session_id: 's 1',
+    message: 'hello there with | pipe and » marker',
+  });
+});
