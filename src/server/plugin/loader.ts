@@ -19,7 +19,6 @@ export function disabledPluginsFromEnv(): string[] {
     ...config.disabledPlugins,
     ...parseDisabledPlugins(process.env.ORACLE_DISABLED_PLUGINS ?? process.env.ARRA_DISABLED_PLUGINS),
   ];
-  if (process.env.FED_ENABLED?.toLowerCase() === 'false') disabled.push('federation');
   return [...new Set(disabled)];
 }
 
@@ -29,7 +28,6 @@ export function enabledPluginsFromEnv(): string[] {
     ...config.enabledPlugins,
     ...parseEnabledPlugins(process.env.ORACLE_ENABLED_PLUGINS ?? process.env.ARRA_ENABLED_PLUGINS),
   ];
-  if (process.env.FED_ENABLED?.toLowerCase() === 'true') enabled.push('federation');
   return [...new Set(enabled)];
 }
 

@@ -21,7 +21,6 @@ import { metricsRoutes } from '../../../src/routes/metrics/index.ts';
 import { createMemoryRoutes } from '../../../src/routes/memory/index.ts';
 import { canvasRoutes } from '../../../src/routes/canvas/index.ts';
 import { tenantsRoutes } from '../../../src/routes/tenants/index.ts';
-import { peerRoutes } from '../../../src/routes/peer/index.ts';
 import { createMcpRoutes } from '../../../src/routes/mcp/index.ts';
 import { indexerRoutes } from '../../../src/routes/indexer/index.ts';
 import { daemonApiPlugin } from '../../../src/routes/indexer-daemon/index.ts';
@@ -29,12 +28,9 @@ import { createErrorMiddleware } from '../../../src/middleware/errors.ts';
 import { createNotFoundMiddleware } from '../../../src/middleware/not-found.ts';
 
 const originalFetch = globalThis.fetch;
-const originalPeerToken = process.env.ARRA_PEER_TOKEN;
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
-  if (originalPeerToken === undefined) delete process.env.ARRA_PEER_TOKEN;
-  else process.env.ARRA_PEER_TOKEN = originalPeerToken;
 });
 
 type AnyApp = Elysia<any, any, any, any, any, any, any>;
@@ -108,19 +104,6 @@ describe('route-cluster error contracts', () => {
     const { res, body } = await hit({ cluster: 'oraclenet', app: () => withErrors(oraclenetRoutes), path: '/api/oraclenet/feed', status: 502 });
     expect(res.status).toBe(502);
     expectErrorBody(body, 'OracleNet unreachable');
-  });
-
-  test('peer routes require auth when a peer token is configured', async () => {
-    const { res, body } = await hit({
-      cluster: 'peer',
-      app: () => withErrors(peerRoutes),
-      path: '/api/peer/search',
-      init: jsonPost({ q: 'oracle' }),
-      status: 401,
-      before: () => { process.env.ARRA_PEER_TOKEN = 'secret'; },
-    });
-    expect(res.status).toBe(401);
-    expect(body).toMatchObject({ error: 'peer_auth_required', message: 'ARRA peer token required' });
   });
 
   test('vault route failures preserve route-provided 500 message', async () => {

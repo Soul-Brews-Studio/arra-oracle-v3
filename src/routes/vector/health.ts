@@ -10,36 +10,35 @@
  */
 
 import { Elysia } from 'elysia';
-import { createVectorProxy } from '../../server/vector-proxy.ts';
-import { VECTOR_URL } from '../../config.ts';
+import { createVectorProxy, type VectorProxy } from '../../server/vector-proxy.ts';
+import { resolveVectorUrl } from '../../config.ts';
 import { getDetectedEmbeddingProviders } from '../../vector/provider-detection.ts';
 import { attachVectorDashboardHealth, readVectorBackendHealth } from '../../vector/health.ts';
-
-const defaultProxy = createVectorProxy(VECTOR_URL);
 
 type VectorHealthResult = Awaited<ReturnType<typeof readVectorBackendHealth>>;
 
 export interface VectorHealthEndpointOptions {
   vectorHealth?: () => Promise<VectorHealthResult>;
   detectProviders?: () => Promise<{ providers: Array<{ type: string; available: boolean; error?: string; detail?: string }> }>;
-  proxy?: typeof defaultProxy;
+  proxy?: VectorProxy | null;
 }
 
 export function createVectorHealthEndpoint(options: VectorHealthEndpointOptions = {}) {
-  const proxy = options.proxy === undefined ? defaultProxy : options.proxy;
   const vectorHealth = options.vectorHealth ?? readVectorBackendHealth;
   const detectProviders = options.detectProviders ?? (() => getDetectedEmbeddingProviders(false));
 
   async function readHealth({ set }: { set: { status?: number | string } }) {
+    const vectorUrl = resolveVectorUrl();
+    const proxy = options.proxy === undefined ? createVectorProxy(vectorUrl) : options.proxy;
     if (proxy) {
       const ok = await proxy.available();
       if (ok) {
         const detected = await detectProviders().catch(() => ({ providers: [] }));
-        return { ...attachVectorDashboardHealth({ status: 'ok' as const, engines: [], checked_at: new Date().toISOString() }, detected.providers), proxy: VECTOR_URL };
+        return { ...attachVectorDashboardHealth({ status: 'ok' as const, engines: [], checked_at: new Date().toISOString() }, detected.providers), proxy: vectorUrl };
       }
       set.status = 503;
       const detected = await detectProviders().catch(() => ({ providers: [] }));
-      return { ...attachVectorDashboardHealth({ status: 'down' as const, engines: [], checked_at: new Date().toISOString() }, detected.providers), proxy: VECTOR_URL };
+      return { ...attachVectorDashboardHealth({ status: 'down' as const, engines: [], checked_at: new Date().toISOString() }, detected.providers), proxy: vectorUrl };
     }
     try {
       const [result, detected] = await Promise.all([

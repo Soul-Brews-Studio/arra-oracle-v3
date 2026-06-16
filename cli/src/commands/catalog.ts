@@ -16,7 +16,6 @@ export const BUILTIN_COMMANDS: CommandSpec[] = [
   { command: "doctor", help: "run operator diagnostics against the resolved target", flags: ["--json", "--help", "-h"] },
   { command: "use", help: "set the global default API target" },
   { command: "completions", help: "print shell completion scripts", subcommands: ["bash", "zsh", "fish"], flags: ["--help", "-h"] },
-  { command: "peers", help: "probe configured federation peers", flags: ["--token", "--json", "--help", "-h"] },
   { command: "huginn", help: "run Huginn capture utilities", subcommands: ["sweep"], flags: ["--sessions-dir", "--repo-root", "--lookback-hours", "--max-files", "--json", "--help", "-h"] },
   { command: "vector-config", help: "inspect and manage vector embedding collection config", subcommands: ["list", "get", "stats", "set", "reload", "test"], flags: ["--json", "--yml", "--help", "-h", "--model", "--provider", "--adapter", "--enabled"] },
   { command: "migrate", help: "run Drizzle migration generate and push", flags: ["--help", "-h"] },

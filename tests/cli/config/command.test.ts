@@ -67,9 +67,9 @@ test("config target writes preserve server plugin toggles", async () => {
   const xdg = tmp("arra-plugin-preserve-");
   const path = join(xdg, "arra", "config.json");
   mkdirSync(join(path, ".."), { recursive: true });
-  writeFileSync(path, JSON.stringify({ disabledPlugins: ["federation"] }, null, 2));
+  writeFileSync(path, JSON.stringify({ disabledPlugins: ["gateway"] }, null, 2));
   expect((await runCli(["config", "add", "m5", "http://m5.local:47778"], env(xdg))).code).toBe(0);
   const data = JSON.parse(readFileSync(path, "utf8"));
   expect(data.targets.m5).toBe("http://m5.local:47778");
-  expect(data.disabledPlugins).toEqual(["federation"]);
+  expect(data.disabledPlugins).toEqual(["gateway"]);
 });

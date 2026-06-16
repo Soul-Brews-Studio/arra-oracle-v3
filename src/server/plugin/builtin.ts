@@ -1,6 +1,5 @@
 import { Elysia } from 'elysia';
 
-import { createFederationPlugin } from './federation.ts';
 import { createUnifiedManifestServerPlugins } from './unified.ts';
 import type { ServerPlugin } from './types.ts';
 
@@ -73,7 +72,6 @@ export async function createBuiltinServerPlugins(options: BuiltinOptions): Promi
   const plugins: Array<ServerPlugin | null> = [
     routePlugin('gateway', 'standard', () => gatewayRoutes, false),
     createApiManifestExamplePlugin(),
-    createFederationPlugin(),
     routePlugin('health', 'core', () => healthRoutes),
     routePlugin('search', 'core', () => searchRoutes),
     routePlugin('knowledge', 'core', () => knowledgeRoutes),

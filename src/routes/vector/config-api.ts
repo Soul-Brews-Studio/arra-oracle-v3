@@ -5,6 +5,7 @@ import {
   activeConfig,
   atomicWriteVectorConfig,
   inspectCollection,
+  vectorConfigState,
   normalizedCreate,
   normalizedUpdate,
   resolveCollection,
@@ -53,6 +54,7 @@ const configPatchKeys = new Set([
   'dataPath',
   'embedder',
   'embeddingEndpoint',
+  'enabled',
   'storage',
   'proxy',
 ]);
@@ -71,32 +73,35 @@ const configPatchSchema = t.Object({
   dataPath: t.Optional(t.String()),
   embedder: t.Optional(t.Any()),
   embeddingEndpoint: t.Optional(t.String()),
+  enabled: t.Optional(t.Boolean()),
   storage: t.Optional(t.Record(t.String(), t.Unknown())),
   proxy: t.Optional(t.Array(t.Unknown())),
 }, { additionalProperties: true });
 
+async function readCollectionHealth(config: VectorServerConfig) {
+  return Promise.all(Object.entries(config.collections).map(([key, col]) => inspectCollection(key, col, config)));
+}
+
+function configResponse(source: 'file' | 'defaults', config: VectorServerConfig, collections: Awaited<ReturnType<typeof readCollectionHealth>>) {
+  return {
+    source,
+    enabled: config.enabled === true,
+    state: vectorConfigState(config, collections),
+    config,
+    collections,
+    doc_counts: Object.fromEntries(collections.map((col) => [col.key, col.count])),
+    health: Object.fromEntries(collections.map((col) => [col.key, {
+      ok: col.ok, status: col.status, collection: col.collection, adapter: col.adapter,
+      model: col.model, enabled: col.enabled, ...(col.error && { error: col.error }),
+    }])),
+    checked_at: new Date().toISOString(),
+  };
+}
+
 export const vectorConfigApiEndpoint = new Elysia()
   .get('/vector/config', async () => {
     const { source, config } = activeConfig();
-    const collections = await Promise.all(
-      Object.entries(config.collections).map(([key, col]) => inspectCollection(key, col, config)),
-    );
-    return {
-      source,
-      config,
-      collections,
-      doc_counts: Object.fromEntries(collections.map((col) => [col.key, col.count])),
-      health: Object.fromEntries(collections.map((col) => [col.key, {
-        ok: col.ok,
-        status: col.status,
-        collection: col.collection,
-        adapter: col.adapter,
-        model: col.model,
-        enabled: col.enabled,
-        ...(col.error && { error: col.error }),
-      }])),
-      checked_at: new Date().toISOString(),
-    };
+    return configResponse(source, config, await readCollectionHealth(config));
   }, { detail: { tags: ['vector'], summary: 'Vector server config with collection health' } })
   .post('/vector/config/reload', async () => {
     const { source, config } = activeConfig();
@@ -117,7 +122,8 @@ export const vectorConfigApiEndpoint = new Elysia()
     const next = { ...config, ...(body as Partial<VectorServerConfig>) };
     const path = atomicWriteVectorConfig(next);
     await reloadCachedVectorStores(configToModels(next));
-    return { success: true, reloaded: true, source, path, config: next };
+    const collections = await readCollectionHealth(next);
+    return { success: true, reloaded: true, path, ...configResponse(source, next, collections) };
   }, {
     body: configPatchSchema,
     detail: { tags: ['vector'], summary: 'Patch vector config and hot-reload adapters' },

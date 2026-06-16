@@ -75,13 +75,6 @@ export const BUILTIN_HELP: CliHelpEntry[] = [
     examples: ["arra-cli completions zsh >> ~/.zshrc", "arra-cli completions fish"],
   },
   {
-    command: "peers",
-    help: "probe configured federation peers",
-    usage: "arra-cli peers [--token <token>] [--json]",
-    flags: ["--token <token>", "--json", "--help", "-h"],
-    examples: ["arra-cli peers", "arra-cli peers --token $ORACLE_TOKEN --json"],
-  },
-  {
     command: "huginn",
     help: "run Huginn capture utilities",
     usage: "arra-cli huginn <subcommand>",

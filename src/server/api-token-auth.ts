@@ -1,8 +1,8 @@
 import { timingSafeEqual } from 'crypto';
 import { apiErrorResponse } from '../middleware/errors.ts';
 
-const OPEN_PATHS = new Set(['/info', '/api/identity']);
-const OPEN_PREFIXES = ['/api/health', '/api/docs/', '/api/peer/'];
+const OPEN_PATHS = new Set<string>();
+const OPEN_PREFIXES = ['/api/health', '/api/docs/'];
 
 export function apiToken() { return process.env.ARRA_API_TOKEN?.trim() || ''; }
 export function isApiTokenEnabled() { return apiToken().length > 0; }
