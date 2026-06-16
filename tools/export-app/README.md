@@ -37,6 +37,9 @@ content while JSON keeps the full database metadata.
 The vector HTTP exporter advertises formats from
 `GET /api/v1/vector/export/formats`. The local batch exporter writes collection
 files under `collections/` and a top-level relationship export.
+When `/api/export/run` is pointed at a legacy Oracle v2 backend with
+`oracleV2Url`, `format: "json"` writes the metadata dump and
+`format: "markdown"` writes a readable document vault file.
 
 ## Graph Export
 
