@@ -1,6 +1,8 @@
 import type { EmbeddingProvider, EmbeddingProviderType, EmbedType } from './types.ts';
 import { NoneEmbeddings, RemoteHttpEmbeddings } from './embedding-backends.ts';
 import { EmbeddingFallbackChain } from './fallback-chain.ts';
+import { GeminiEmbeddings } from './providers/gemini.ts';
+export { GeminiEmbeddings } from './providers/gemini.ts';
 export type FallbackEvent = { from: string; to?: string; error: string };
 export type EmbeddingProviderOptions = { url?: string; dimensions?: number; fallbackChain?: EmbeddingProviderType[]; fallback?: EmbeddingProviderType };
 export class ChromaDBInternalEmbeddings implements EmbeddingProvider {
@@ -147,31 +149,6 @@ export class OpenAIEmbeddings implements EmbeddingProvider {
     return data.data
       .sort((a, b) => a.index - b.index)
       .map(d => d.embedding);
-  }
-}
-export class GeminiEmbeddings implements EmbeddingProvider {
-  readonly name = 'gemini';
-  readonly dimensions = 768;
-  private apiKey: string;
-  private model: string;
-  constructor(config: { apiKey?: string; model?: string } = {}) {
-    this.apiKey = config.apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
-    this.model = config.model || 'text-embedding-004';
-    if (!this.apiKey) throw new Error('Gemini API key required. Set GEMINI_API_KEY.');
-  }
-  async embed(texts: string[], _type?: EmbedType): Promise<number[][]> {
-    return Promise.all(texts.map(async (text) => {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:embedContent?key=${this.apiKey}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: { parts: [{ text }] } }),
-      });
-      if (!response.ok) throw new Error(`Gemini API error: ${await response.text()}`);
-      const data = await response.json() as { embedding?: { values?: number[] } };
-      if (!Array.isArray(data.embedding?.values)) throw new Error('Gemini API error: invalid embedding payload');
-      return data.embedding.values;
-    }));
   }
 }
 export class FallbackEmbeddings implements EmbeddingProvider {
