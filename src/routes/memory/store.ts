@@ -3,6 +3,7 @@ import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import { db as defaultDb, oracleMemories } from '../../db/index.ts';
 import { currentTenantId, tenantIdForWrite } from '../../middleware/tenant.ts';
 import type * as schema from '../../db/schema.ts';
+import { parseMemoryLimit } from './model.ts';
 
 export type MemoryInput = {
   content: string;
@@ -47,7 +48,7 @@ export class MemoryStore {
 
   recall(query = '', limit = 10): MemoryRecord[] {
     const normalized = query.trim();
-    const safeLimit = Math.min(50, Math.max(1, limit));
+    const safeLimit = parseMemoryLimit(limit);
     const where = combineWhere(tenantWhere(), searchWhere(normalized));
     const selected = this.db.select().from(oracleMemories);
     const rows = where

@@ -4,7 +4,7 @@
  *   1. TypeBox pattern on `path` (see model.ts) rejects "..", null-byte
  *   2. Handler re-checks explicitly so we return the canonical 400 JSON
  *      shape on traversal attempts instead of Elysia's 422 validator body
- *   3. `realpathSync` + `.startsWith(realRoot)` confines resolution
+ *   3. `realpathSync` + relative-path containment confines resolution
  */
 import { Elysia } from 'elysia';
 import fs from 'fs';
@@ -12,6 +12,7 @@ import path from 'path';
 import { REPO_ROOT } from '../../config.ts';
 import { getVaultPsiRoot } from '../../vault/handler.ts';
 import { fileQuery } from './model.ts';
+import { pathWithinRoot } from './path-security.ts';
 import { projectAllowedForTenant } from './tenant.ts';
 
 const currentRepoRoot = () => process.env.ORACLE_REPO_ROOT || REPO_ROOT;
@@ -74,8 +75,8 @@ export const fileRoute = new Elysia().get(
       const realGhqRoot = fs.realpathSync(GHQ_ROOT);
       const realRepoRoot = fs.realpathSync(root);
       if (
-        !realPath.startsWith(realGhqRoot) &&
-        !realPath.startsWith(realRepoRoot)
+        !pathWithinRoot(realGhqRoot, realPath) &&
+        !pathWithinRoot(realRepoRoot, realPath)
       ) {
         set.status = 400;
         return { error: 'Invalid path: outside allowed bounds' };
@@ -92,7 +93,7 @@ export const fileRoute = new Elysia().get(
         const repoFullPath = path.join(root, filePath);
         const realRepoFullPath = path.resolve(repoFullPath);
         if (
-          realRepoFullPath.startsWith(realRepoRoot) &&
+          pathWithinRoot(realRepoRoot, realRepoFullPath) &&
           fs.existsSync(repoFullPath)
         ) {
           return new Response(fs.readFileSync(repoFullPath, 'utf-8'));
@@ -105,7 +106,7 @@ export const fileRoute = new Elysia().get(
         const realVaultPath = path.resolve(vaultFullPath);
         const realVaultRoot = fs.realpathSync(vault.path);
         if (
-          realVaultPath.startsWith(realVaultRoot) &&
+          pathWithinRoot(realVaultRoot, realVaultPath) &&
           fs.existsSync(vaultFullPath)
         ) {
           return new Response(fs.readFileSync(vaultFullPath, 'utf-8'));

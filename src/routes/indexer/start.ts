@@ -23,14 +23,30 @@ export interface StartRouteDeps {
   runInBackground?: (task: Promise<void>) => void;
 }
 
+function chooseModel(models: Models, requested?: string): string | undefined {
+  if (requested && models[requested]) return requested;
+  if (models.nomic) return 'nomic';
+  return Object.keys(models)[0];
+}
+
+function normalizeBatchSize(value: number | undefined, key: string): number {
+  const fallback = key === 'nomic' ? 100 : 50;
+  if (value === undefined || !Number.isFinite(value) || value <= 0) return fallback;
+  return Math.min(1000, Math.floor(value));
+}
+
 export function createStartRoute(deps: StartRouteDeps = {}) {
-  return new Elysia().post('/indexer/start', async ({ body }) => {
+  return new Elysia().post('/indexer/start', async ({ body, set }) => {
     const { model, sourcePath, batchSize } = body;
 
     const models = (deps.getModels ?? getEmbeddingModels)();
-    const key = model && models[model] ? model : 'nomic';
+    const key = chooseModel(models, model);
+    if (!key) {
+      set.status = 503;
+      return { status: 'error', error: 'No embedding models configured' };
+    }
     const preset = models[key];
-    const batch = batchSize || (key === 'nomic' ? 100 : 50);
+    const batch = normalizeBatchSize(batchSize, key);
 
     const dbPath = deps.dbPath ?? DB_PATH;
     const repoRoot = sourcePath || deps.repoRoot || REPO_ROOT;
@@ -105,10 +121,11 @@ export function createStartRoute(deps: StartRouteDeps = {}) {
         if (!abortFlag) {
           setIndexingStatus(sqlite, config, false, rows.length, rows.length);
         }
-        await store.close();
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setIndexingStatus(sqlite, config, false, 0, 0, msg);
+      } finally {
+        await store.close().catch(() => undefined);
       }
     });
     (deps.runInBackground ?? ((backgroundTask) => { void backgroundTask; }))(task);

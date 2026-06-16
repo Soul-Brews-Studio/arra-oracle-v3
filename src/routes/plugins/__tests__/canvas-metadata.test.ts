@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
 
+import { canvasPluginMetadataRegistry } from '../../../canvas/metadata.ts';
 import { listCanvasPlugins } from '../../../canvas/plugins.ts';
 import { createPluginsRouter } from '../index.ts';
 
@@ -8,6 +9,7 @@ describe('/api/plugins?kind=canvas', () => {
   test('returns CanvasPlugin metadata without scanning installed wasm plugins', async () => {
     const app = new Elysia().use(createPluginsRouter({
       registry: () => { throw new Error('installed plugin registry should not load for canvas metadata'); },
+      canvasMetadataRegistry: canvasPluginMetadataRegistry,
     }));
     const response = await app.handle(new Request('http://localhost/api/plugins?kind=canvas'));
     const body = await response.json() as {

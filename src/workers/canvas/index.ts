@@ -1,7 +1,12 @@
-import { canvasPluginMetadataRegistry } from '../../canvas/metadata.ts';
-import { canvasPluginEntry, canvasRegistry, parseCanvasKind } from '../../canvas/registry.ts';
-import { CANVAS_HOST, DEFAULT_CANVAS_PLUGIN } from '../../canvas/urls.ts';
-import { listCanvasPlugins } from '../../canvas/plugins.ts';
+import {
+  CANVAS_HOST,
+  DEFAULT_CANVAS_PLUGIN,
+  canvasPluginEntry,
+  canvasPluginMetadataRegistry,
+  canvasRegistry,
+  listCanvasPlugins,
+  parseCanvasKind,
+} from '@soul-brews/canvas-plugins';
 import { normalizePlugin, renderCanvasApp } from './render.ts';
 
 export interface CanvasWorkerEnv {

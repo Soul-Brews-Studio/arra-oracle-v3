@@ -1,4 +1,5 @@
 import { t } from 'elysia';
+import type { ListTracesInput } from '../../trace/types.ts';
 
 export const traceIdParam = t.Object({ id: t.String() });
 
@@ -23,3 +24,43 @@ export const linkBody = t.Object({
 });
 
 export const traceCreateBody = t.Unknown();
+
+export const traceStatuses = ['raw', 'reviewed', 'distilling', 'distilled'] as const;
+export const chainDirections = ['up', 'down', 'both'] as const;
+
+export function trimmedString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function parseTraceStatus(value: unknown): ListTracesInput['status'] | null | undefined {
+  const normalized = trimmedString(value);
+  if (!normalized) return undefined;
+  return (traceStatuses as readonly string[]).includes(normalized)
+    ? normalized as ListTracesInput['status']
+    : null;
+}
+
+export function parseChainDirection(value: unknown): 'up' | 'down' | 'both' | null {
+  const normalized = trimmedString(value) ?? 'both';
+  return (chainDirections as readonly string[]).includes(normalized)
+    ? normalized as 'up' | 'down' | 'both'
+    : null;
+}
+
+export function parsePagination(query: { limit?: string; offset?: string }) {
+  const limit = parseBoundedInt(query.limit, 50, 1, 100, 'limit');
+  if (typeof limit === 'string') return { error: limit };
+  const offset = parseBoundedInt(query.offset, 0, 0, 10_000, 'offset');
+  if (typeof offset === 'string') return { error: offset };
+  return { limit, offset };
+}
+
+function parseBoundedInt(value: string | undefined, fallback: number, min: number, max: number, label: string): number | string {
+  if (value === undefined || value === '') return fallback;
+  if (!/^\d+$/.test(value)) return `${label} must be an integer between ${min} and ${max}`;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < min) return `${label} must be an integer between ${min} and ${max}`;
+  return Math.min(parsed, max);
+}

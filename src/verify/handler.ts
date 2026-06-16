@@ -34,20 +34,29 @@ interface FileInfo {
   mtimeMs: number;
 }
 
-/**
- * Recursively collect all .md files with mtimes
- */
 function walkMarkdownFiles(dir: string, baseDir: string): FileInfo[] {
   const files: FileInfo[] = [];
   if (!fs.existsSync(dir)) return files;
 
-  const items = fs.readdirSync(dir);
+  let items: string[] = [];
+  try {
+    items = fs.readdirSync(dir);
+  } catch {
+    return files;
+  }
+
   for (const item of items) {
     const fullPath = path.join(dir, item);
-    const stat = fs.statSync(fullPath);
+    let stat: fs.Stats;
+    try {
+      stat = fs.lstatSync(fullPath);
+    } catch {
+      continue;
+    }
+    if (stat.isSymbolicLink()) continue;
     if (stat.isDirectory()) {
       files.push(...walkMarkdownFiles(fullPath, baseDir));
-    } else if (item.endsWith('.md')) {
+    } else if (stat.isFile() && item.endsWith('.md')) {
       files.push({
         relativePath: path.relative(baseDir, fullPath),
         mtimeMs: stat.mtimeMs,
@@ -57,9 +66,6 @@ function walkMarkdownFiles(dir: string, baseDir: string): FileInfo[] {
   return files;
 }
 
-/**
- * Verify knowledge base integrity: disk files vs DB index
- */
 export function verifyKnowledgeBase(opts: {
   check?: boolean;
   type?: string;

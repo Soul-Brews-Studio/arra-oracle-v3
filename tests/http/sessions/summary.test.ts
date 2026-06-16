@@ -18,6 +18,7 @@ process.env.ORACLE_REPO_ROOT = root;
 const dbMod = await import('../../../src/db/index.ts');
 dbMod.resetDefaultDatabaseForTests(dbPath);
 const { sessionsRoutes } = await import('../../../src/routes/sessions/index.ts');
+const { MAX_SUMMARY_CHARS } = await import('../../../src/routes/sessions/model.ts');
 const { createTenantFetch, DEFAULT_TENANT_ID, TENANT_HEADER } = await import('../../../src/middleware/tenant.ts');
 
 function restore(name: string, value: string | undefined) {
@@ -50,6 +51,29 @@ describe('session summary HTTP route', () => {
     const res = await post('empty-session', { summary: '   ' });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: 'Missing required field: summary' });
+  });
+
+  test('rejects summaries over the configured maximum before writing a document', async () => {
+    const sessionId = `too-long-${Date.now()}`;
+    const res = await post(sessionId, { summary: 'x'.repeat(MAX_SUMMARY_CHARS + 1) });
+    const body = await res.json() as Record<string, string>;
+
+    expect(res.status).toBe(400);
+    expect(body.error).toBe(`summary exceeds max length (${MAX_SUMMARY_CHARS} chars)`);
+    const row = dbMod.db.select().from(dbMod.oracleDocuments)
+      .where(eq(dbMod.oracleDocuments.id, `session-summary_${sessionId}`))
+      .get();
+    expect(row).toBeUndefined();
+  });
+
+  test('returns a conflict instead of throwing when a summary file already exists', async () => {
+    const sessionId = `duplicate-${Date.now()}`;
+    const first = await post(sessionId, { summary: 'First duplicate summary.' });
+    const second = await post(sessionId, { summary: 'Second duplicate summary.' });
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(409);
+    expect(await second.json()).toEqual({ error: 'Session summary already exists' });
   });
 
   test('separates identical session summary ids by active tenant', async () => {

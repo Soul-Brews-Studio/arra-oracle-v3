@@ -50,18 +50,32 @@ const MetricsResponseSchema = t.Object({
   tenant: t.Optional(t.Object({ id: t.String(), scope: t.Literal('tenant_id') })),
 });
 
+function safeNumber(value: number): number {
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
 function round(value: number): number {
-  return Math.round(value * 1000) / 1000;
+  return Math.round(safeNumber(value) * 1000) / 1000;
 }
 
 function processMemoryUsage(): MemoryUsageSnapshot {
   const usage = process.memoryUsage();
-  return {
+  return sanitizeMemoryUsage({
     rss: usage.rss,
     heapTotal: usage.heapTotal,
     heapUsed: usage.heapUsed,
     external: usage.external,
     arrayBuffers: usage.arrayBuffers ?? 0,
+  });
+}
+
+function sanitizeMemoryUsage(snapshot: MemoryUsageSnapshot): MemoryUsageSnapshot {
+  return {
+    rss: safeNumber(snapshot.rss),
+    heapTotal: safeNumber(snapshot.heapTotal),
+    heapUsed: safeNumber(snapshot.heapUsed),
+    external: safeNumber(snapshot.external),
+    arrayBuffers: safeNumber(snapshot.arrayBuffers),
   };
 }
 
@@ -70,6 +84,14 @@ type RequestStart = { startedAt: number; tenantId?: string };
 
 function counter(): MetricsCounter {
   return { requestCount: 0, totalResponseMs: 0, activeConnections: 0 };
+}
+
+function safeMemoryUsage(readMemoryUsage: () => MemoryUsageSnapshot): MemoryUsageSnapshot {
+  try {
+    return sanitizeMemoryUsage(readMemoryUsage());
+  } catch {
+    return { rss: 0, heapTotal: 0, heapUsed: 0, external: 0, arrayBuffers: 0 };
+  }
 }
 
 function tenantCounter(counters: Map<string, MetricsCounter>, tenantId: string): MetricsCounter {
@@ -105,12 +127,13 @@ export function createMetricsTracker(options: MetricsTrackerOptions = {}): Metri
     avgResponseMs: metrics.requestCount === 0 ? 0 : round(metrics.totalResponseMs / metrics.requestCount),
     activeConnections: metrics.activeConnections,
     lastRestart,
-    memoryUsage: memoryUsage(),
+    memoryUsage: safeMemoryUsage(memoryUsage),
     tenant: tenantId ? { id: tenantId, scope: 'tenant_id' } : undefined,
   });
 
   return {
     begin(request) {
+      if (starts.has(request)) return;
       const tenantId = currentTenantId();
       starts.set(request, { startedAt: nowMs(), tenantId });
       beginCounter(globalCounter);

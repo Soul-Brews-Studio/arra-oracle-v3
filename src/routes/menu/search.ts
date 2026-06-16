@@ -1,5 +1,5 @@
 import { Elysia, t } from 'elysia';
-import { and, asc, eq, isNull, like, or } from 'drizzle-orm';
+import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
 import { db, menuItems } from '../../db/index.ts';
 import { menuRowToItem } from './list-paginated.ts';
 import { menuVisibleWhere } from '../../menu/tenant.ts';
@@ -8,9 +8,13 @@ function searchTerm(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function escapeLikeTerm(value: string): string {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
 function searchMenuRows(q: string) {
   if (!q) return [];
-  const pattern = `%${q}%`;
+  const pattern = `%${escapeLikeTerm(q)}%`;
   return db
     .select()
     .from(menuItems)
@@ -18,7 +22,10 @@ function searchMenuRows(q: string) {
       menuVisibleWhere(and(
         eq(menuItems.enabled, true),
         isNull(menuItems.deletedAt),
-        or(like(menuItems.label, pattern), like(menuItems.path, pattern)),
+        or(
+          sql`${menuItems.label} LIKE ${pattern} ESCAPE '\\'`,
+          sql`${menuItems.path} LIKE ${pattern} ESCAPE '\\'`,
+        ),
       )),
     )
     .orderBy(asc(menuItems.position), asc(menuItems.id))

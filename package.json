@@ -17,6 +17,7 @@
     "bin",
     "src",
     "cli",
+    "packages",
     "README.md"
   ],
   "engines": {

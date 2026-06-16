@@ -204,6 +204,13 @@
       "when": 1781664000000,
       "tag": "0028_menu_tenant",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1781670000000,
+      "tag": "0029_plugin_metadata",
+      "breakpoints": true
     }
   ]
 }

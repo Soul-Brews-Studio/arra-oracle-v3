@@ -95,6 +95,31 @@ describe('files routes tenant isolation', () => {
     expect(await allowed.text()).toBe('tenant-b secret');
   });
 
+  test('GET /api/file rejects tenant-shaped project traversal outside ghq root', async () => {
+    const evilDir = path.join(tempRoot, 'ghq-evil', tenantB);
+    fs.mkdirSync(evilDir, { recursive: true });
+    fs.writeFileSync(path.join(evilDir, 'leak.md'), 'tenant-b leaked sibling', 'utf-8');
+
+    const project = encodeURIComponent(`../ghq-evil/${tenantB}`);
+    const res = await request(tenantB, `/api/file?project=${project}&path=leak.md`);
+
+    expect(res.status).toBe(404);
+    expect(await res.text()).not.toBe('tenant-b leaked sibling');
+  });
+
+  test('GET /api/plugins/:name blocks tenant plugin symlink escapes', async () => {
+    const pluginDir = path.join(tempRoot, 'tenants', tenantB, 'plugins');
+    fs.mkdirSync(pluginDir, { recursive: true });
+    const outside = path.join(tempRoot, 'outside.wasm');
+    fs.writeFileSync(outside, 'not really wasm', 'utf-8');
+    fs.symlinkSync(outside, path.join(pluginDir, 'escape.wasm'));
+
+    const denied = await request(tenantB, '/api/plugins/escape');
+
+    expect(denied.status).toBe(404);
+    expect(await denied.json()).toEqual({ error: 'Plugin not found' });
+  });
+
   test('GET /api/context blocks cross-tenant project context', async () => {
     const cwd = encodeURIComponent(repoB);
     const denied = await request(tenantA, `/api/context?cwd=${cwd}`);

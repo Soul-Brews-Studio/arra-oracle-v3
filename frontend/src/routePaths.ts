@@ -1,3 +1,5 @@
+import { CANVAS_ORIGIN, DEFAULT_CANVAS_PLUGIN, canvasPluginPath } from '@soul-brews/canvas-plugins';
+
 export function mcpToolPath(name: string): string {
   return `/mcp/tools/${encodeURIComponent(name)}`;
 }
@@ -73,21 +75,16 @@ export function vectorSettingsPath(): string {
   return '/vector/settings';
 }
 
-const CANVAS_STANDALONE_ORIGIN = 'https://canvas.buildwithoracle.com';
-const CLEAN_CANVAS_PLUGINS = new Set(['map', 'planets']);
-
 export function canvasAppPath(plugin = 'wave'): string {
   const id = plugin.trim();
   return id ? `/canvas?${new URLSearchParams({ plugin: id })}` : '/canvas';
 }
 
-export function canvasStandalonePath(plugin = 'wave'): string {
-  const id = plugin.trim() || 'wave';
-  if (CLEAN_CANVAS_PLUGINS.has(id)) return `/${id}`;
-  return `/?${new URLSearchParams({ plugin: id })}`;
+export function canvasStandalonePath(plugin = DEFAULT_CANVAS_PLUGIN): string {
+  return canvasPluginPath(plugin);
 }
 
-export function canvasStandaloneUrl(plugin = 'wave', origin = CANVAS_STANDALONE_ORIGIN): string {
+export function canvasStandaloneUrl(plugin = DEFAULT_CANVAS_PLUGIN, origin = CANVAS_ORIGIN): string {
   return new URL(canvasStandalonePath(plugin), origin).toString();
 }
 

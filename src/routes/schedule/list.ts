@@ -5,8 +5,22 @@ import { currentTenantId } from '../../middleware/tenant.ts';
 import { parseDate } from '../../tools/schedule.ts';
 import { listQuery } from './model.ts';
 
-export const scheduleListRoute = new Elysia().get('/api/schedule', async ({ query }) => {
-  const limit = query.limit ? parseInt(query.limit) : 50;
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 200;
+
+function readLimit(value?: string): number | string {
+  if (value === undefined) return DEFAULT_LIMIT;
+  const limit = Number(value);
+  if (!Number.isInteger(limit) || limit < 1) return `limit must be an integer between 1 and ${MAX_LIMIT}`;
+  return Math.min(limit, MAX_LIMIT);
+}
+
+export const scheduleListRoute = new Elysia().get('/api/schedule', async ({ query, set }) => {
+  const limit = readLimit(query.limit);
+  if (typeof limit === 'string') {
+    set.status = 400;
+    return { total: 0, events: [], byDate: {}, error: limit };
+  }
   const conditions: SQL[] = [];
   const tenantId = currentTenantId();
   if (tenantId) conditions.push(eq(schedule.tenantId, tenantId));

@@ -86,8 +86,9 @@ export function closeDb() {
  * fallbacks instead of relying on the 503 catch-all.
  */
 export function isDbLockError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return msg.includes('disk I/O') || msg.includes('SQLITE_BUSY') || msg.includes('database is locked');
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return msg.includes('disk i/o') || msg.includes('sqlite_busy')
+    || msg.includes('sqlite_locked') || msg.includes('database is locked');
 }
 
 // ============================================================================

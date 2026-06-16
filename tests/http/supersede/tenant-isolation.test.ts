@@ -98,6 +98,23 @@ test('/api/supersede list and chain stay tenant scoped after document updates', 
   expect(await deniedChain.json()).toEqual({ superseded_by: [], supersedes: [] });
 });
 
+test('/api/supersede clamps malformed pagination instead of throwing', async () => {
+  const res = await requestSupersede(tenantA, '/api/supersede?limit=not-a-number&offset=-10');
+  const body = await res.json() as { limit: number; offset: number; supersessions: unknown[] };
+
+  expect(res.status).toBe(200);
+  expect(body.limit).toBe(50);
+  expect(body.offset).toBe(0);
+  expect(Array.isArray(body.supersessions)).toBe(true);
+});
+
+test('/api/supersede/chain rejects malformed encoded paths', async () => {
+  const res = await requestSupersede(tenantA, '/api/supersede/chain/%E0%A4%A');
+
+  expect(res.status).toBe(400);
+  expect(await res.json()).toEqual({ error: 'Invalid path parameter' });
+});
+
 function supersededBy(id: string): string | null {
   return dbModule.db.select({ supersededBy: oracleDocuments.supersededBy })
     .from(oracleDocuments)

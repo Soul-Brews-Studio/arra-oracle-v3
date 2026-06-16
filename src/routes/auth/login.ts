@@ -5,11 +5,13 @@ import {
   SESSION_DURATION_MS,
   generateSessionToken,
   isLocalNetwork,
+  passwordMatches,
+  usablePassword,
 } from './index.ts';
 import { LoginBody } from './model.ts';
 
 export const loginRoute = new Elysia().post('/login', async ({ body, server, request, cookie, set }) => {
-  const { password } = body;
+  const password = usablePassword(body.password);
   if (!password) {
     set.status = 400;
     return { success: false, error: 'Password required' };
@@ -21,7 +23,7 @@ export const loginRoute = new Elysia().post('/login', async ({ body, server, req
     return { success: false, error: 'No password configured' };
   }
 
-  const valid = await Bun.password.verify(password, storedHash);
+  const valid = await passwordMatches(password, storedHash);
   if (!valid) {
     set.status = 401;
     return { success: false, error: 'Invalid password' };

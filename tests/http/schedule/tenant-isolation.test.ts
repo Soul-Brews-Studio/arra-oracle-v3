@@ -36,10 +36,10 @@ async function json(res: Response): Promise<Json> {
   return await res.json() as Json;
 }
 
-async function createEvent(tenantId: string, event: string): Promise<number> {
+async function createEvent(tenantId: string, event: string, eventDate = date): Promise<number> {
   const res = await scheduleRequest(tenantId, '/api/schedule', {
     method: 'POST',
-    body: JSON.stringify({ date, event, time: '10:00', notes: tenantId }),
+    body: JSON.stringify({ date: eventDate, event, time: '10:00', notes: tenantId }),
   });
   expect(res.status).toBe(200);
   return (await json(res)).id as number;
@@ -47,6 +47,7 @@ async function createEvent(tenantId: string, event: string): Promise<number> {
 
 afterAll(() => {
   try { dbMod.closeDb(); } catch {}
+  dbMod.resetDefaultDatabaseForTests(':memory:');
   if (previousDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
   else process.env.ORACLE_DATA_DIR = previousDataDir;
   if (previousDbPath === undefined) delete process.env.ORACLE_DB_PATH;
@@ -54,9 +55,6 @@ afterAll(() => {
   if (previousRepoRoot === undefined) delete process.env.ORACLE_REPO_ROOT;
   else process.env.ORACLE_REPO_ROOT = previousRepoRoot;
   rmSync(root, { recursive: true, force: true });
-  const restoreDbPath = previousDbPath
-    ?? join(previousDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
-  dbMod.resetDefaultDatabaseForTests(restoreDbPath);
 });
 
 test('schedule HTTP routes isolate create/list/update/markdown by tenant', async () => {
@@ -86,4 +84,41 @@ test('schedule HTTP routes isolate create/list/update/markdown by tenant', async
   const mdA = await (await scheduleRequest(tenantA, '/api/schedule/md')).text();
   expect(mdA).toContain(eventA);
   expect(mdA).not.toContain(eventB);
+});
+
+test('schedule list rejects invalid limits and clamps large limits', async () => {
+  const tenant = `tenant-limit-${stamp}`;
+  await createEvent(tenant, `limit one ${stamp}`, '2036-04-06');
+  await createEvent(tenant, `limit two ${stamp}`, '2036-04-07');
+
+  const invalid = await scheduleRequest(tenant, '/api/schedule?status=all&limit=zero');
+  expect(invalid.status).toBe(400);
+  expect(await json(invalid)).toMatchObject({ error: 'limit must be an integer between 1 and 200' });
+
+  const range = 'from=2036-04-01&to=2036-04-30';
+  const limited = await json(await scheduleRequest(tenant, `/api/schedule?status=all&${range}&limit=1`));
+  expect(limited.total).toBe(1);
+
+  const clamped = await json(await scheduleRequest(tenant, `/api/schedule?status=all&${range}&limit=999`));
+  expect(clamped.events.length).toBeGreaterThanOrEqual(2);
+});
+
+test('schedule update rejects bad ids and normalizes patched dates', async () => {
+  const tenant = `tenant-update-${stamp}`;
+  const id = await createEvent(tenant, `normalize date ${stamp}`, '2036-04-08');
+
+  const invalid = await scheduleRequest(tenant, '/api/schedule/not-a-number', {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'done' }),
+  });
+  expect(invalid.status).toBe(400);
+  expect(await json(invalid)).toEqual({ success: false, error: 'Invalid schedule id' });
+
+  const patch = await scheduleRequest(tenant, `/api/schedule/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ date: '5 Mar 2036' }),
+  });
+  expect(patch.status).toBe(200);
+  const row = dbMod.sqlite.prepare('SELECT date, date_raw FROM schedule WHERE id = ?').get(id) as { date: string; date_raw: string };
+  expect(row).toEqual({ date: '2036-03-05', date_raw: '5 Mar 2036' });
 });

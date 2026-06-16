@@ -21,8 +21,8 @@ export function createTenantTrace(input: CreateTraceInput): CreateTraceResult {
 }
 
 export function listTenantTraces(input: ListTracesInput): ListTracesResult {
-  const limit = input.limit || 20;
-  const offset = input.offset || 0;
+  const limit = Math.min(100, Math.max(1, Number.isFinite(input.limit) ? input.limit! : 20));
+  const offset = Math.max(0, Number.isFinite(input.offset) ? input.offset! : 0);
   const conditions = [eq(traceLog.tenantId, activeTenantId())];
   if (input.query) conditions.push(like(traceLog.query, `%${input.query}%`));
   if (input.project) conditions.push(eq(traceLog.project, input.project));
@@ -63,40 +63,42 @@ export function listTenantTraces(input: ListTracesInput): ListTracesResult {
 
 export function getTenantTraceChain(traceId: string, direction: 'up' | 'down' | 'both' = 'both'): TraceChainResult {
   const chain: TraceSummary[] = [];
+  const added = new Set<string>();
   let hasAwakening = false;
   let awakeningTraceId: string | undefined;
+  const addTrace = (trace: TraceRecord, prepend = false) => {
+    if (added.has(trace.traceId)) return;
+    added.add(trace.traceId);
+    if (prepend) chain.unshift(toSummary(trace));
+    else chain.push(toSummary(trace));
+    if (trace.awakening) {
+      hasAwakening = true;
+      awakeningTraceId = trace.traceId;
+    }
+  };
   if (direction === 'up' || direction === 'both') {
     let current = getTenantTrace(traceId);
+    const visited = new Set<string>();
     while (current?.parentTraceId) {
+      if (visited.has(current.parentTraceId)) break;
+      visited.add(current.parentTraceId);
       const parent = getTenantTrace(current.parentTraceId);
-      if (parent) {
-        chain.unshift(toSummary(parent));
-        if (parent.awakening) {
-          hasAwakening = true;
-          awakeningTraceId = parent.traceId;
-        }
-      }
+      if (parent) addTrace(parent, true);
       current = parent;
     }
   }
   const self = getTenantTrace(traceId);
-  if (self) {
-    chain.push(toSummary(self));
-    if (self.awakening) {
-      hasAwakening = true;
-      awakeningTraceId = self.traceId;
-    }
-  }
+  if (self) addTrace(self);
   if (direction === 'down' || direction === 'both') {
     const queue = self?.childTraceIds || [];
+    const visited = new Set<string>(self ? [self.traceId] : []);
     while (queue.length > 0) {
-      const child = getTenantTrace(queue.shift()!);
+      const childId = queue.shift()!;
+      if (visited.has(childId)) continue;
+      visited.add(childId);
+      const child = getTenantTrace(childId);
       if (child) {
-        chain.push(toSummary(child));
-        if (child.awakening) {
-          hasAwakening = true;
-          awakeningTraceId = child.traceId;
-        }
+        addTrace(child);
         queue.push(...child.childTraceIds);
       }
     }

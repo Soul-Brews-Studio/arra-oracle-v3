@@ -35,3 +35,10 @@ export const MemoryFanoutQuery = t.Object({
   q: t.Optional(t.String()),
   limit: t.Optional(t.String()),
 });
+
+
+export function parseMemoryLimit(raw: unknown, fallback = 10, max = 50): number {
+  const parsed = typeof raw === 'number' ? raw : Number.parseInt(String(raw ?? fallback), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(1, Math.trunc(parsed)));
+}

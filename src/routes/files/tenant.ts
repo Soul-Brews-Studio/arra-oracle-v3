@@ -1,3 +1,4 @@
+import path from 'path';
 import { sqlite } from '../../db/index.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
 
@@ -12,10 +13,15 @@ type DocRow = {
 };
 
 export function projectMatchesTenant(project: string, tenantId: string): boolean {
-  const normalizedProject = project.trim().toLowerCase();
+  const trimmed = project.trim();
+  const normalizedProject = trimmed.toLowerCase();
   const tenant = tenantId.trim().toLowerCase();
-  if (!tenant || normalizedProject === tenant) return true;
-  return normalizedProject.split(/[\\/]+/).filter(Boolean).includes(tenant);
+  if (!tenant) return true;
+  if (!trimmed || trimmed.includes('\0') || path.isAbsolute(trimmed)) return false;
+  const segments = normalizedProject.split(/[\\/]+/).filter(Boolean);
+  if (segments.includes('..')) return false;
+  if (normalizedProject === tenant) return true;
+  return segments.includes(tenant);
 }
 
 export function projectAllowedForTenant(project?: string | null): boolean {

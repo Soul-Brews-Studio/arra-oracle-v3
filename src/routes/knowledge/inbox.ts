@@ -13,11 +13,17 @@ const repoRoot = () => process.env.ORACLE_REPO_ROOT || REPO_ROOT;
 const relativePath = (filePath: string) => path.relative(repoRoot(), filePath).split(path.sep).join('/');
 const inboxDir = () => tenantDataPath(path.join(repoRoot(), 'ψ/inbox'));
 
+function parsePageInt(value: string | undefined, fallback: number, min: number, max: number): number {
+  const parsed = Number.parseInt(value ?? '', 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
 export const inboxEndpoint = new Elysia().get(
   '/inbox',
   ({ query }) => {
-    const limit = parseInt(query.limit ?? '10');
-    const offset = parseInt(query.offset ?? '0');
+    const limit = parsePageInt(query.limit, 10, 1, 100);
+    const offset = parsePageInt(query.offset, 0, 0, Number.MAX_SAFE_INTEGER);
     const type = query.type ?? 'all';
 
     const results: Array<{ filename: string; path: string; created: string; preview: string; type: string }> = [];
@@ -32,7 +38,9 @@ export const inboxEndpoint = new Elysia().get(
 
         for (const file of files) {
           const filePath = path.join(handoffDir, file);
-          const content = fs.readFileSync(filePath, 'utf-8');
+          if (!fs.statSync(filePath).isFile()) continue;
+          let content = '';
+          try { content = fs.readFileSync(filePath, 'utf-8'); } catch { continue; }
           const dateMatch = file.match(/^(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2})/);
           const created = dateMatch
             ? `${dateMatch[1]}T${dateMatch[2].replace('-', ':')}:00`

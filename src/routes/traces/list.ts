@@ -1,17 +1,25 @@
 import { Elysia } from 'elysia';
 import { listTenantTraces } from './tenant-scope.ts';
-import { listQuery } from './model.ts';
+import { listQuery, parsePagination, parseTraceStatus, trimmedString } from './model.ts';
 
-export const tracesListRoute = new Elysia().get('/api/traces', ({ query }) => {
-  const limit = parseInt(query.limit || '50');
-  const offset = parseInt(query.offset || '0');
+export const tracesListRoute = new Elysia().get('/api/traces', ({ query, set }) => {
+  const status = parseTraceStatus(query.status);
+  if (status === null) {
+    set.status = 400;
+    return { error: 'Invalid status (raw|reviewed|distilling|distilled)' };
+  }
+  const page = parsePagination(query);
+  if ('error' in page) {
+    set.status = 400;
+    return { error: page.error };
+  }
 
   return listTenantTraces({
-    query: query.query || undefined,
-    status: (query.status as 'raw' | 'reviewed' | 'distilled' | undefined) || undefined,
-    project: query.project || undefined,
-    limit,
-    offset,
+    query: trimmedString(query.query) || undefined,
+    status,
+    project: trimmedString(query.project) || undefined,
+    limit: page.limit,
+    offset: page.offset,
   });
 }, {
   query: listQuery,
