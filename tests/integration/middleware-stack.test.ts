@@ -5,7 +5,7 @@ import { createContentTypeMiddleware } from '../../src/middleware/content-type.t
 import { createCorrelationMiddleware } from '../../src/middleware/correlation.ts';
 import { createCorsMiddleware, parseCorsOrigins } from '../../src/middleware/cors.ts';
 import { BadRequestError, createErrorMiddleware } from '../../src/middleware/errors.ts';
-import { createRateLimitMiddleware } from '../../src/middleware/rate-limit.ts';
+import { createRateLimiterMiddleware } from '../../src/middleware/rate-limiter.ts';
 
 const previousApiKey = process.env.ARRA_API_KEY;
 
@@ -15,12 +15,14 @@ afterEach(() => {
 });
 
 function createStackedApp(now = (() => 1_000)) {
-  const hits = new Map<string, number[]>();
   process.env.ARRA_API_KEY = 'secret';
   return new Elysia()
     .use(createCorsMiddleware(parseCorsOrigins('https://studio.example')))
     .use(createApiKeyAuthMiddleware())
-    .use(createRateLimitMiddleware({ rpm: 2, windowMs: 60_000, now, store: hits }))
+    .use(createRateLimiterMiddleware({
+      now,
+      rules: [{ path: '/api/fail', limit: 2, windowMs: 60_000 }],
+    }))
     .use(createCorrelationMiddleware())
     .use(createContentTypeMiddleware())
     .use(createErrorMiddleware(() => undefined))
@@ -105,6 +107,6 @@ describe('middleware stack integration', () => {
     expect(secondLimited.status).toBe(400);
     expect(thirdLimited.status).toBe(429);
     expect(thirdLimited.headers.get('Retry-After')).toBe('60');
-    expect(await thirdLimited.json()).toMatchObject({ error: 'Too Many Requests' });
+    expect(await thirdLimited.json()).toMatchObject({ error: 'rate_limit_exceeded' });
   });
 });

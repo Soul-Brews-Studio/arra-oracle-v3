@@ -144,7 +144,11 @@ export function createTenantMiddleware() {
       if (tenantError) return { error: tenantError };
     })
     .onRequest(({ request }) => {
-      tenantIdFor(request);
+      try {
+        tenantIdFor(request);
+      } catch {
+        // derive returns the structured 400 tenant error response.
+      }
     });
 }
 
