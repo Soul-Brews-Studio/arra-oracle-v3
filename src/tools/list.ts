@@ -46,8 +46,23 @@ function parseConcepts(raw: unknown): string[] {
   }
 }
 
+function inputObject(input: OracleListInput): Record<string, unknown> {
+  return input && typeof input === 'object' ? input as Record<string, unknown> : {};
+}
+
+function integerInput(raw: unknown, fallback: number, name: 'limit' | 'offset'): number {
+  if (raw === undefined) return fallback;
+  if (typeof raw !== 'number' || Number.isNaN(raw)) throw new Error(`${name} must be a number`);
+  if (!Number.isSafeInteger(raw)) throw new Error(`${name} must be an integer`);
+  return raw;
+}
+
 export async function handleList(ctx: ToolContext, input: OracleListInput): Promise<ToolResponse> {
-  const { type = 'all', limit = 10, offset = 0 } = input;
+  const raw = inputObject(input);
+  const type = raw.type ?? 'all';
+  if (typeof type !== 'string') throw new Error('type must be a string');
+  const limit = integerInput(raw.limit, 10, 'limit');
+  const offset = integerInput(raw.offset, 0, 'offset');
 
   if (limit < 1 || limit > 100) {
     throw new Error('limit must be between 1 and 100');
