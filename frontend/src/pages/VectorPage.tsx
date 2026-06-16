@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiClient, type ApiClient, type VectorHealthResponse, type VectorIndexModelEntry, type VectorIndexModelsResponse } from '../api/client';
+import { apiUrl } from '../api/oracle';
 import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
 import { VectorIndexPanel } from '../components/VectorIndexPanel';
 import { VectorSearchWidget } from '../components/VectorSearchWidget';
@@ -73,9 +74,7 @@ export function vectorDashboardSummary(cards: VectorCollectionCard[], state: Pag
   return `${healthy}/${cards.length} vector collections healthy.`;
 }
 
-export function vectorExportPath(collection: string, format: VectorExportFormat): string {
-  return `/api/vector/export?${new URLSearchParams({ collection, format }).toString()}`;
-}
+export function vectorExportPath(collection: string, format: VectorExportFormat): string { return `/api/vector/export?${new URLSearchParams({ collection, format }).toString()}`; }
 
 export function vectorExportFilename(collection: string, format: VectorExportFormat): string {
   const safeName = collection.trim().replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'collection';
@@ -102,7 +101,7 @@ export async function downloadVectorCollection(
 ): Promise<void> {
   const fetcher = deps.fetch ?? globalThis.fetch?.bind(globalThis);
   if (!fetcher) throw new Error('fetch is unavailable');
-  const response = await fetcher(vectorExportPath(collection, format), {
+  const response = await fetcher(apiUrl(vectorExportPath(collection, format)), {
     headers: { accept: format === 'json' ? 'application/json' : 'text/csv' },
   });
   if (!response.ok) throw new Error(`/api/vector/export returned ${response.status}`);

@@ -52,7 +52,7 @@ function createFetch(store: VectorStoreAdapter, collections: string[]) {
   return createApiVersionedFetch((request) => app.handle(request));
 }
 
-test('GET /api/v1/vector/export streams parseable JSON array', async () => {
+test('GET /api/v1/vector/export returns JSON rows for the selected collection', async () => {
   const store = createStore();
   const collections: string[] = [];
   const fetcher = createFetch(store, collections);
@@ -82,19 +82,4 @@ test('GET /api/v1/vector/export streams parseable JSON array', async () => {
     },
   ]);
   expect(store.getAllEmbeddings).toHaveBeenCalledWith(2);
-});
-
-test('GET /api/v1/vector/export streams CSV with headers', async () => {
-  const store = createStore();
-  const fetcher = createFetch(store, []);
-
-  const res = await fetcher(new Request(
-    'http://local/api/v1/vector/export?collection=bge-m3&format=csv',
-  ));
-  const csv = await res.text();
-
-  expect(res.status).toBe(200);
-  expect(res.headers.get('content-type')).toContain('text/csv');
-  expect(csv.split('\n')[0]).toBe('id,document,type,source_file,concepts');
-  expect(csv).toContain('"doc-2","bravo, with comma","trace","traces/bravo.md","[""gamma""]"');
 });

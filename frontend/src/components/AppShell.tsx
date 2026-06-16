@@ -6,6 +6,7 @@ import { routeMeta } from '../routeMeta';
 import { PageChrome } from './PageChrome';
 import { StatCard } from './StatCard';
 import { ThemeToggle } from './ThemeToggle';
+import { TauriBadge } from './TauriBadge';
 import { GlobalSearch } from './GlobalSearch';
 import type { MetricsSnapshot } from '../../../src/server/types';
 
@@ -88,6 +89,7 @@ export function AppShell({
             <div className="grid w-full gap-3 lg:max-w-md">
               <GlobalSearch />
               <div className="grid gap-3 sm:flex sm:items-center sm:justify-end">
+                <TauriBadge connected={!error} />
                 <ThemeToggle />
                 <button
                   aria-label="Refresh menu and plugin dashboard data"

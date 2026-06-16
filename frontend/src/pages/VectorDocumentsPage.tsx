@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { apiUrl } from '../api/oracle';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -49,7 +50,7 @@ function isAbort(error: unknown): boolean {
 }
 
 async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(path, { headers: { accept: 'application/json' }, signal });
+  const response = await fetch(apiUrl(path), { headers: { accept: 'application/json' }, signal });
   const text = await response.text();
   const data = text ? JSON.parse(text) : {};
   if (!response.ok) throw new Error(`${path} returned ${response.status}`);
