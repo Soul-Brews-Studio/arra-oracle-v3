@@ -7,7 +7,7 @@
   "author": "Soul-Brews-Studio",
   "cli": {
     "command": "arra",
-    "help": "maw arra <status|export --collection X --format json|csv|md|vector-config list|get|set>"
+    "help": "maw arra <status|export --collection X --format json|csv|md|vector-config list|get|set|add|remove|set-primary|reload|test>"
   },
   "weight": 10,
   "license": "BUSL-1.1",
