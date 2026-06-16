@@ -2,6 +2,14 @@
 
 Source: GitHub issue #1648, "Memory Systems for AI Agents — Deep Research Findings (2026)", plus issue comments with product-by-product memory architecture notes.
 
+## Filing map
+
+This research is split into three reviewable files:
+
+- `ψ/memory/ai-memory-systems-research.md` — ARRA architecture synthesis and roadmap.
+- `ψ/memory/ai-memory-systems-claims-ledger.md` — confirmed/refuted claim ledger from #1648.
+- `ψ/memory/ai-memory-product-patterns-2026.md` — product-by-product memory pattern filing.
+
 ## Executive summary
 
 ARRA Oracle V3 should treat memory as a layered system, not a single feature. The strongest pattern for coding assistants is:
