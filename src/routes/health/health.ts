@@ -22,16 +22,23 @@ type DiskHealth = {
   error?: string;
 };
 
+const HealthVectorEngineSchema = t.Object({
+  key: t.String(),
+  model: t.String(),
+  collection: t.String(),
+  adapter: t.Optional(t.String()),
+  embeddingProvider: t.Optional(t.String()),
+  connectionStatus: t.Optional(t.Union([t.Literal('connected'), t.Literal('error')])),
+  count: t.Optional(t.Number()),
+  ok: t.Boolean(),
+  error: t.Optional(t.String()),
+});
+
 const HealthVectorSchema = t.Object({
   status: t.Union([t.Literal('ok'), t.Literal('degraded'), t.Literal('down')]),
   checked_at: t.String(),
-  engines: t.Array(t.Object({
-    key: t.String(),
-    model: t.String(),
-    collection: t.String(),
-    ok: t.Boolean(),
-    error: t.Optional(t.String()),
-  })),
+  engines: t.Array(HealthVectorEngineSchema),
+  collections: t.Optional(t.Array(HealthVectorEngineSchema)),
   error: t.Optional(t.String()),
 });
 
@@ -113,11 +120,13 @@ async function defaultDbPing(): Promise<DbStatus> {
 
 async function readVectorStatus(check = readVectorBackendHealth): Promise<VectorHealth> {
   try {
-    return await check();
+    const vector = await check();
+    return { ...vector, collections: vector.collections ?? vector.engines };
   } catch (error) {
     return {
       status: 'down',
       engines: [],
+      collections: [],
       checked_at: new Date().toISOString(),
       error: errorMessage(error),
     } as VectorHealth & { error: string };
