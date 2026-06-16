@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import frontend from './frontend.ts';
+import { normalizeMenuPath } from './path.ts';
 import type { MenuItem } from '../routes/menu/model.ts';
 
 export type { MenuItem };
@@ -10,9 +11,7 @@ const MENU_SCOPES = ['main', 'sub', 'both'] as const;
 type MenuScope = typeof MENU_SCOPES[number];
 
 function normalizePath(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return normalizeMenuPath(value);
 }
 
 function normalizeGroup(value: unknown): MenuItem['group'] {
