@@ -84,6 +84,8 @@ The batch output includes:
 
 `manifest.json` includes a `files` inventory with each artifact path, byte
 count, and SHA-256 checksum so operators can verify the bundle before migration.
+It also includes `collections.<table>.rowCount` so restore/preflight tooling can
+compare source and destination collection sizes without loading every artifact.
 
 ## CLI Usage
 

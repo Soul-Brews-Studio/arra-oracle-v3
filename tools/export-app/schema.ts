@@ -5,6 +5,7 @@ const manifestRequired = [
   'dbPath',
   'formats',
   'collectionCount',
+  'collections',
   'rowCount',
   'relationshipCount',
   'documentCount',
@@ -30,6 +31,15 @@ export const EXPORT_MANIFEST_SCHEMA = {
       items: { enum: EXPORT_FORMATS },
     },
     collectionCount: nonNegativeInteger,
+    collections: {
+      type: 'object',
+      additionalProperties: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['rowCount'],
+        properties: { rowCount: nonNegativeInteger },
+      },
+    },
     rowCount: nonNegativeInteger,
     relationshipCount: nonNegativeInteger,
     documentCount: nonNegativeInteger,

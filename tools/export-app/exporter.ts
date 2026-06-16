@@ -87,6 +87,7 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
       dbPath: options.dbPath ?? DB_PATH,
       formats: EXPORT_FORMATS,
       collectionCount: tables.length,
+      collections: collectionManifest(allCollections),
       rowCount,
       relationshipCount: relationships.length,
       documentCount: documentExport.documentCount,
@@ -134,6 +135,10 @@ function openReadonlyConnection(dbPath = DB_PATH): { connection: DatabaseConnect
 
 function selectRows(connection: DatabaseConnection, table: ExportTable): ExportRecord[] {
   return (connection.db as any).select().from(table).all() as ExportRecord[];
+}
+
+function collectionManifest(collections: Record<string, ExportRecord[]>): Record<string, { rowCount: number }> {
+  return Object.fromEntries(Object.entries(collections).map(([name, rows]) => [name, { rowCount: rows.length }]));
 }
 
 async function writeCollectionFiles(baseDir: string, name: string, rows: ExportRecord[]): Promise<void> {
