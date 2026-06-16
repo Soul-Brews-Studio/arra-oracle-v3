@@ -24,6 +24,7 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
       { id: 'vector', label: 'Vector', description: 'Open vector search results.', href: '/vector' },
       { id: 'metrics', label: 'Metrics', description: 'Review dashboard metrics and counts.', href: '/metrics' },
       { id: 'plugins', label: 'Plugins', description: 'Review plugins and runtime surfaces.', href: '/plugins' },
+      { id: 'status', label: 'Status', description: 'Review server health from /api/v1/health.', href: '/status' },
       { id: 'settings', label: 'Settings', description: 'Inspect runtime settings and migration status.', href: '/settings' },
       { id: 'refresh', label: 'Refresh dashboard data', description: 'Reload menu and plugin data.', onAction: onRefresh },
     ],

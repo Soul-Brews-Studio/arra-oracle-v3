@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { createElement } from 'react';
 import App, { loadDashboardData } from '../../frontend/src/App';
-import { AppRouter } from '../../frontend/src/router';
 import { htmlFor, installBrowserLocation } from './_render';
 
 describe('dashboard data loading', () => {
@@ -34,7 +33,7 @@ describe('dashboard data loading', () => {
   test('renders dashboard metric cards with loading state before effects resolve', () => {
     const restore = installBrowserLocation('/menu');
     try {
-      const html = htmlFor(createElement(AppRouter, null, createElement(App)));
+      const html = htmlFor(createElement(App));
       expect(html).toContain('Requests');
       expect(html).toContain('Avg response');
       expect(html).toContain('Loading metrics');

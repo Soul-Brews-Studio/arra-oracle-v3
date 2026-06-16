@@ -6,6 +6,7 @@ import { routeMeta } from '../routeMeta';
 import { PageChrome } from './PageChrome';
 import { StatCard } from './StatCard';
 import { CommandPalette } from './CommandPalette';
+import { TauriBadge } from './TauriBadge';
 import { ThemeToggle } from './ThemeToggle';
 import { GlobalSearch } from './GlobalSearch';
 import type { MetricsSnapshot } from '../../../src/server/types';
@@ -50,6 +51,7 @@ export function AppShell({
   const navItems: NavItem[] = [
     { to: '/', label: 'Menu', description: 'Navigation rows from /api/menu', badge: loading ? '…' : menuCount },
     { to: '/plugins', label: 'Plugins', description: 'Registered plugins and surfaces', badge: loading ? '…' : pluginCount },
+    { to: '/status', label: 'Status', description: 'Server health from /api/v1/health' },
     { to: '/canvas/plugins', label: 'Canvas Plugins', description: 'Canvas registry from /api/canvas/plugins' },
     { to: '/search', label: 'Search', description: 'Full-text menu search' },
     { to: '/vector', label: 'Vector Dashboard', description: 'Collection health and indexing', end: true },
@@ -95,6 +97,7 @@ export function AppShell({
               <CommandPalette onRefresh={onRefresh} />
               <GlobalSearch />
               <div className="grid gap-3 sm:flex sm:items-center sm:justify-end">
+                <TauriBadge connected={!error} />
                 <ThemeToggle />
                 <button
                   className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-60"
