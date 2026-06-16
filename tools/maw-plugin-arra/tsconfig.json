@@ -10,5 +10,5 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["index.ts", "commands/**/*.ts"]
+  "include": ["index.ts", "commands/**/*.ts", "scripts/**/*.ts"]
 }
