@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Elysia } from 'elysia';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { ORACLE_DATA_DIR } from '../../config.ts';
 import { db, exportJobs } from '../../db/index.ts';
 import { createOracleV2Client, type OracleV2Document } from '../../lib/oracle-v2-client.ts';
+import { currentTenantId, tenantDataPath, tenantIdForWrite } from '../../middleware/tenant.ts';
 import { exportHistoryRunBody, type ExportHistoryJob } from './model.ts';
 import { formatOracleV2DocumentsCsv } from './oracle-v2-csv.ts';
 import { formatOracleV2DocumentsMarkdown } from './oracle-v2-markdown.ts';
@@ -50,7 +51,8 @@ async function writeOracleV2Export(
   const documents = await client.listDocuments(job.collection);
   const exportedAt = new Date(job.timestamp).toISOString();
   const filename = `${safeName(job.collection)}-${job.id}.${oracleV2Extension(job.format)}`;
-  const filePath = path.join(ORACLE_DATA_DIR, 'exports', 'oracle-v2', filename);
+  const outputDir = tenantDataPath(path.join(ORACLE_DATA_DIR, 'exports', 'oracle-v2'));
+  const filePath = path.join(outputDir, filename);
   const input = { baseUrl, collection: job.collection, exportedAt, documents, collections };
   const payload = job.format === 'markdown'
     ? formatOracleV2DocumentsMarkdown(input)
@@ -91,6 +93,7 @@ export function createExportHistoryRoutes() {
 
       const job: ExportHistoryJob = {
         id: randomUUID(),
+        tenantId: tenantIdForWrite(),
         collection,
         format,
         timestamp: Date.now(),
@@ -129,13 +132,17 @@ export function createExportHistoryRoutes() {
       },
     })
     .get('/export/history', () => {
-      const jobs = db.select({
+      const selected = db.select({
         id: exportJobs.id,
+        tenantId: exportJobs.tenantId,
         collection: exportJobs.collection,
         format: exportJobs.format,
         timestamp: exportJobs.timestamp,
         status: exportJobs.status,
-      }).from(exportJobs).orderBy(desc(exportJobs.timestamp)).limit(50).all();
+      }).from(exportJobs);
+      const tenantId = currentTenantId();
+      const query = tenantId ? selected.where(eq(exportJobs.tenantId, tenantId)) : selected;
+      const jobs = query.orderBy(desc(exportJobs.timestamp)).limit(50).all();
       return { jobs, total: jobs.length, limit: 50 };
     }, {
       detail: {

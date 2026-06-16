@@ -8,9 +8,11 @@ const manifestRequired = [
   'rowCount',
   'relationshipCount',
   'documentCount',
+  'files',
 ] as const;
 
 const nonNegativeInteger = { type: 'integer', minimum: 0 } as const;
+const sha256Pattern = '^[a-f0-9]{64}$';
 
 export const EXPORT_MANIFEST_SCHEMA = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
@@ -31,5 +33,18 @@ export const EXPORT_MANIFEST_SCHEMA = {
     rowCount: nonNegativeInteger,
     relationshipCount: nonNegativeInteger,
     documentCount: nonNegativeInteger,
+    files: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['path', 'bytes', 'sha256'],
+        properties: {
+          path: { type: 'string', minLength: 1 },
+          bytes: nonNegativeInteger,
+          sha256: { type: 'string', pattern: sha256Pattern },
+        },
+      },
+    },
   },
 } as const;

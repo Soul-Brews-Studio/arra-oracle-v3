@@ -49,4 +49,11 @@ test('writes a manifest JSON schema with required export fields', async () => {
   expect(schema).toEqual(EXPORT_MANIFEST_SCHEMA);
   expect(schema.required).toEqual(Object.keys(manifest));
   expect(schema.properties.formats.items.enum).toEqual(['json', 'csv', 'markdown']);
+  expect(manifest.files).toContainEqual(expect.objectContaining({
+    path: 'manifest.schema.json',
+    bytes: expect.any(Number),
+    sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+  }));
+  expect(manifest.files.some((file: { path: string }) => file.path === 'manifest.json')).toBe(false);
+  expect(schema.properties.files.items.properties.sha256.pattern).toBe('^[a-f0-9]{64}$');
 });

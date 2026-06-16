@@ -81,6 +81,10 @@ The batch output includes:
 - `relationships.<ext>`
 - `all-collections.json`
 - `manifest.json`
+- `manifest.schema.json`
+
+`manifest.json` includes a `files` inventory with each artifact path, byte
+count, and SHA-256 checksum so operators can verify the bundle before migration.
 
 ## CLI Usage
 

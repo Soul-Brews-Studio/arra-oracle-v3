@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -144,4 +144,39 @@ test('CLI quiet flag suppresses progress output', async () => {
 test('CLI rejects unknown flags before exporting', () => {
   expect(() => parseArgs(['--output', './backup', '--bogus'])).toThrow('unknown flag: --bogus');
   expect(() => parseArgs(['--output'])).toThrow('missing value for --output');
+});
+
+test('CLI reports missing database path before exporting', async () => {
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const outputDir = join(root, 'missing-db-export');
+  const code = await runExportApp(
+    ['--output', outputDir, '--db', join(root, 'missing.db')],
+    (message) => stdout.push(message),
+    (message) => stderr.push(message),
+  );
+
+  expect(code).toBe(1);
+  expect(stdout.join('')).toBe('');
+  expect(stderr.join('')).toContain('database file not found:');
+  expect(existsSync(outputDir)).toBe(false);
+});
+
+test('CLI rejects output paths that are files', async () => {
+  const dbPath = join(root, 'output-conflict.db');
+  const outputFile = join(root, 'already-a-file');
+  const connection = createDatabase(dbPath);
+  seed(connection);
+  connection.storage.close();
+  writeFileSync(outputFile, 'not a directory');
+
+  const stderr: string[] = [];
+  const code = await runExportApp(
+    ['--output', outputFile, '--db', dbPath],
+    () => {},
+    (message) => stderr.push(message),
+  );
+
+  expect(code).toBe(1);
+  expect(stderr.join('')).toContain('output path exists but is not a directory:');
 });
