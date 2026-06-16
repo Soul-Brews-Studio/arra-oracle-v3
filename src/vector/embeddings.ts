@@ -2,6 +2,7 @@ import type { EmbeddingProvider, EmbeddingProviderType, EmbedType } from './type
 import { NoneEmbeddings, RemoteHttpEmbeddings } from './embedding-backends.ts';
 
 export type FallbackEvent = { from: string; to?: string; error: string };
+export type EmbeddingProviderOptions = { url?: string; dimensions?: number; fallbackChain?: EmbeddingProviderType[]; fallback?: EmbeddingProviderType };
 
 export class ChromaDBInternalEmbeddings implements EmbeddingProvider {
   readonly name = 'chromadb-internal';
@@ -194,9 +195,10 @@ function errorMessage(error: unknown): string {
 export function createEmbeddingProvider(
   type: EmbeddingProviderType = 'none',
   model?: string,
-  options: { url?: string; dimensions?: number; fallbackChain?: EmbeddingProviderType[] } = {},
+  options: EmbeddingProviderOptions = {},
 ): EmbeddingProvider {
-  const chain = [type, ...(options.fallbackChain ?? [])].filter((item, index, all) =>
+  const fallbacks = options.fallbackChain ?? (options.fallback ? [options.fallback] : []);
+  const chain = [type, ...fallbacks].filter((item, index, all) =>
     item !== 'none' && all.indexOf(item) === index
   );
   if (chain.length > 1) return new FallbackEmbeddings(chain.map((item) => createSingleEmbeddingProvider(item, model, options)));

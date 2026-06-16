@@ -149,9 +149,12 @@ function embedderFor(config: VectorServerConfig, col: VectorCollectionConfig): E
   const generated = col.embedder?.backend === 'ollama' && col.embedder.model === col.model && col.provider === 'ollama';
   const merged = config.embedder && generated ? { ...col.embedder, ...config.embedder }
     : config.embedder || col.embedder ? { ...config.embedder, ...col.embedder } : undefined;
+  const primary = col.embedder && !generated
+    ? col.embedder.backend ?? col.embedder.default ?? config.embedder?.backend ?? config.embedder?.default
+    : config.embedder?.backend ?? config.embedder?.default ?? col.embedder?.backend ?? col.embedder?.default;
   if (merged) return {
     ...merged,
-    backend: merged.backend ?? merged.default ?? 'none',
+    backend: primary ?? 'none',
     model: merged.model ?? col.model,
   };
   const provider = col.provider.toLowerCase();

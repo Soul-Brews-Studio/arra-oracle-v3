@@ -11,6 +11,7 @@
  *   GET /api/vector/stats    — per-engine collection counts
  *   GET /api/vector/health   — adapter liveness probe
  *   GET /api/vector/cost-estimate — estimate remote embedding cost
+ *   GET /api/vector/costs    — embedding provider usage costs
  *   GET /api/vector/documents — browse indexed vector documents
  *   GET /api/vector/providers — detected embedding providers and capabilities
  *   POST /api/vector/providers/test — probe one embedding provider config
@@ -36,6 +37,7 @@ import { vectorExportEndpoint } from './export.ts';
 import { vectorServicesApiEndpoint } from './services.ts';
 import { vectorProvidersEndpoint } from './providers.ts';
 import { vectorCostEndpoint } from './cost.ts';
+import { vectorCostsEndpoint } from './costs.ts';
 import { vectorConfigApiEndpoint } from './config-api.ts';
 
 export const vectorRoutes = new Elysia({ prefix: '/api' })
@@ -52,6 +54,7 @@ export const vectorRoutes = new Elysia({ prefix: '/api' })
   .use(vectorExportEndpoint)
   .use(vectorProvidersEndpoint)
   .use(vectorCostEndpoint)
+  .use(vectorCostsEndpoint)
   .use(vectorConfigApiEndpoint)
   .use(vectorServicesApiEndpoint)
   .use(vectorIndexerEndpoints);
