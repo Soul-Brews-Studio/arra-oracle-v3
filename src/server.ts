@@ -226,7 +226,6 @@ const middleware = runtimeMiddleware({
   rateLimitTokensPerWindow: startupConfig.profile.rateLimit.tokensPerWindow,
   gatewayEnabled: Boolean(VECTOR_URL) || process.env.ORACLE_GATEWAY_HOT_RELOAD !== '0',
 });
-
 printStartupBanner({
   version: pkg.version,
   port: Number(PORT),

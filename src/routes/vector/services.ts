@@ -4,12 +4,12 @@ import {
   vectorServiceRegistry,
   type HealthStatus,
   type RegisteredVectorService,
-  type VectorServiceRegistry,
+  type VectorServiceRegistryClient,
 } from '../../vector/registry.ts';
 
 const capabilitySchema = t.Record(t.String(), t.Unknown());
 
-export function createVectorServicesApiEndpoint(registry: VectorServiceRegistry = vectorServiceRegistry) {
+export function createVectorServicesApiEndpoint(registry: VectorServiceRegistryClient = vectorServiceRegistry) {
   return new Elysia()
     .get('/vector/services', async () => {
       const services = await registry.discover();
