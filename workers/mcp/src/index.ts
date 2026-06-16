@@ -1,7 +1,7 @@
 import { McpAgent } from 'agents/mcp';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { oracleProxyTool, type OracleProxyEnv } from './proxy.ts';
+import { oracleProxyTool, type OracleMcpAuthContext, type OracleProxyEnv } from './proxy.ts';
 
 type Env = OracleProxyEnv;
 
@@ -11,7 +11,7 @@ const modelArg = z.enum(['nomic', 'qwen3', 'bge-m3']).optional();
 const tenantArg = z.string().optional();
 const conceptsArg = z.union([z.array(z.string()), z.string()]).optional();
 
-export class OracleMCP extends McpAgent<Env> {
+export class OracleMCP extends McpAgent<Env, unknown, OracleMcpAuthContext> {
   server = new McpServer({ name: 'arra-oracle', version: '1.0.0' });
 
   async init() {
@@ -33,6 +33,7 @@ export class OracleMCP extends McpAgent<Env> {
         path: '/api/search',
         query: { q: query, ...args },
         tenantId,
+        authContext: this.props,
       }),
     );
 
@@ -43,6 +44,7 @@ export class OracleMCP extends McpAgent<Env> {
       async ({ tenantId }) => oracleProxyTool(this.env, {
         path: '/api/stats',
         tenantId,
+        authContext: this.props,
       }),
     );
 
@@ -63,6 +65,7 @@ export class OracleMCP extends McpAgent<Env> {
         path: '/api/learn',
         body,
         tenantId,
+        authContext: this.props,
       }),
     );
   }

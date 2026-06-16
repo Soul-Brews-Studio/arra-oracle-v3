@@ -76,24 +76,22 @@ Use the #2167 Wrangler config as source of truth. The likely minimum is:
 If auth is enabled, wrap `/mcp` with Cloudflare's OAuth provider or Access and
 keep tool authorization tenant-aware.
 
-## OAuth setup for shared tenants
+## OAuth setup for team and school tenants
 
-For #2193 team/school deployments, do not publish one shared `/mcp` endpoint
-with caller-supplied tenant IDs as the only boundary. Put OAuth in front of the
-Worker, resolve the authenticated user to a tenant, and forward that tenant to
-the Arra Oracle backend as `x-oracle-tenant-id`.
+For #2193 shared deployments, do not rely on caller-supplied `tenantId` as the
+security boundary. Put OAuth in front of `/mcp`, resolve the authenticated user
+to a trusted tenant, and forward that tenant to the Arra Oracle backend.
 
 Recommended rollout:
 
 1. Keep the Phase 1 proxy private or token-protected until OAuth is wired.
 2. Add Cloudflare's OAuth Provider Library around `OracleMCP.serve('/mcp')`.
-   Cloudflare supports Access, a third-party provider such as GitHub/Google, or
-   a bring-your-own provider such as Auth0/WorkOS.
-3. Define the auth context shape on `McpAgent`, then read `this.props` inside
-   tool handlers. Map claims such as email domain, group, or org/team ID to an
-   internal `tenantId`.
-4. Ignore any user-supplied `tenantId` once OAuth is enabled. Forward only the
-   trusted tenant from auth context:
+   Cloudflare supports Access, GitHub/Google, or providers such as Auth0/WorkOS.
+3. Store a tenant claim in `McpAgent` props. Supported claim names are
+   `tenantId`, `tenant_id`, `tenant`, `orgId`, `org_id`, `organizationId`, and
+   `organization_id` either at the top level or under `claims`.
+4. Ignore user-supplied tenant IDs once OAuth is enabled. Forward only the
+   trusted auth-context tenant to the backend:
 
 ```ts
 type AuthContext = { claims: { sub: string; email?: string }; tenantId: string };
@@ -110,9 +108,14 @@ export class OracleMCP extends McpAgent<Env, unknown, AuthContext> {
 }
 ```
 
-5. In the backend, keep using the existing multi-tenant HTTP isolation: every
-   proxied tool request must include `x-oracle-tenant-id`, and backend routes
-   must scope reads/writes by that tenant.
+5. Forward backend-compatible tenant headers to `ORACLE_URL` and keep backend
+   routes scoped by that tenant:
+
+```text
+X-Tenant-ID: <tenant>
+X-Oracle-Tenant: <tenant>
+```
+
 6. Store secrets with `wrangler secret put`, not in `wrangler.jsonc`:
 
 ```bash
@@ -120,9 +123,9 @@ cd workers/mcp
 npx wrangler secret put ARRA_API_TOKEN
 ```
 
-For local previews, use a test tenant and a non-production backend URL. Do not
-let demo OAuth clients reach production data until tenant mapping and audit logs
-are verified.
+Use tool-level `tenantId` only for local smoke tests without OAuth props. For
+previews, use a test tenant and non-production backend URL until tenant mapping
+and audit logs are verified.
 
 ## Manual Wrangler deploy fallback
 
