@@ -43,9 +43,14 @@ function stripLeadingSqlComments(query: string): string {
   return remaining;
 }
 
-function firstQueryToken(query: string): string {
+function writeStatementHead(query: string): string {
   return normalizeAuditQuery(stripLeadingSqlComments(query))
-    .split(' ', 1)[0]?.toLowerCase() ?? '';
+    .toLowerCase()
+    .replace(/^with\b[\s\S]*\)\s+(?=(insert|update|delete|replace)\b)/, '');
+}
+
+function firstQueryToken(query: string): string {
+  return writeStatementHead(query).split(' ', 1)[0] ?? '';
 }
 
 export function isWriteQuery(query: string): boolean {
@@ -53,9 +58,7 @@ export function isWriteQuery(query: string): boolean {
 }
 
 export function isAuditLogQuery(query: string): boolean {
-  const normalized = normalizeAuditQuery(stripLeadingSqlComments(query))
-    .toLowerCase()
-    .replace(/["`\[\]]/g, '');
+  const normalized = writeStatementHead(query).replace(/["`\[\]]/g, '');
   const auditTable = '(?:[a-z_][\\w]*\\.)?audit_log\\b';
   return new RegExp(`^(insert(?:\\s+or\\s+\\w+)?\\s+into|replace\\s+into)\\s+${auditTable}`)
     .test(normalized)

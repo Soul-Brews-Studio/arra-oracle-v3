@@ -18,7 +18,7 @@ const defaultFactories = new Map<string, StorageBackendFactory>([
 const factories = new Map(defaultFactories);
 
 export function normalizeStorageBackendName(name: string): string {
-  const normalized = name.trim();
+  const normalized = name.trim().toLowerCase();
   if (!normalized) throw new Error('Storage backend name must not be blank.');
   return normalized;
 }
