@@ -13,7 +13,7 @@ type SurfaceState = {
   health: HealthResponse | null;
 };
 
-type Card = { label: string; value: string | number; detail: string; tone?: 'ok' | 'warn' };
+type Card = { label: string; value: string | number; detail: string; href: string; tone?: 'ok' | 'warn' };
 
 function countBySurface(plugins: PluginEntry[]): Record<string, number> {
   const counts: Record<string, number> = {};
@@ -33,12 +33,12 @@ function buildCards(plugins: PluginEntry[], state: SurfaceState): Card[] {
   const vectorCollections = Object.keys(state.vector?.config.collections ?? {}).length;
   const enabledPlugins = plugins.filter((plugin) => plugin.enabled !== false && plugin.status !== 'disabled').length;
   return [
-    { label: 'Menu', value: state.menu.length, detail: 'Items from /api/menu across DB, custom, gist, frontend, and plugin sources.' },
-    { label: 'Plugins', value: plugins.length, detail: `${enabledPlugins} enabled · ${countBySurface(plugins).server ?? 0} server surfaces.` },
-    { label: 'MCP tools', value: state.tools.length, detail: `${state.tools.filter((tool) => tool.source === 'plugin').length} plugin tools exposed through MCP-out.` },
-    { label: 'Vector search', value: vectorCollections, detail: `${state.vector?.source ?? 'unknown'} config · ${Object.keys(state.vector?.health ?? {}).length} health entries.` },
-    { label: 'Server status', value: state.health?.status ?? 'unknown', detail: `plugins ${state.health?.pluginStatus ?? 'unknown'} · vector ${state.health?.vectorStatus ?? 'unknown'}.`, tone: state.health?.status === 'ok' ? 'ok' : 'warn' },
-    { label: 'Storage', value: state.settings?.storage.activeBackend ?? 'unknown', detail: `DB ${formatPath(state.settings?.storage.dbPath)}.` },
+    { label: 'Menu', value: state.menu.length, detail: 'Items from /api/menu across DB, custom, gist, frontend, and plugin sources.', href: '/menu' },
+    { label: 'Plugins', value: plugins.length, detail: `${enabledPlugins} enabled · ${countBySurface(plugins).server ?? 0} server surfaces.`, href: '/plugins' },
+    { label: 'MCP tools', value: state.tools.length, detail: `${state.tools.filter((tool) => tool.source === 'plugin').length} plugin tools exposed through MCP-out.`, href: '/mcp' },
+    { label: 'Vector search', value: vectorCollections, detail: `${state.vector?.source ?? 'unknown'} config · ${Object.keys(state.vector?.health ?? {}).length} health entries.`, href: '/vector' },
+    { label: 'Server status', value: state.health?.status ?? 'unknown', detail: `plugins ${state.health?.pluginStatus ?? 'unknown'} · vector ${state.health?.vectorStatus ?? 'unknown'}.`, href: '/status', tone: state.health?.status === 'ok' ? 'ok' : 'warn' },
+    { label: 'Storage', value: state.settings?.storage.activeBackend ?? 'unknown', detail: `DB ${formatPath(state.settings?.storage.dbPath)}.`, href: '/storage' },
   ];
 }
 
@@ -115,7 +115,16 @@ export function UnifiedPluginSurfaceOverview({ plugins }: { plugins: PluginEntry
 
 function SurfaceCard({ card }: { card: Card }) {
   const tone = card.tone === 'warn' ? 'text-amber-100' : 'text-teal-100';
-  return <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{card.label}</p><p className={`mt-2 text-2xl font-semibold ${tone}`}>{card.value}</p><p className="mt-2 text-sm leading-6 text-slate-400">{card.detail}</p></article>;
+  return (
+    <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{card.label}</p>
+      <p className={`mt-2 text-2xl font-semibold ${tone}`}>{card.value}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-400">{card.detail}</p>
+      <a className="focus-ring mt-3 inline-flex text-sm font-semibold text-teal-200 hover:text-teal-100" href={card.href}>
+        Open {card.label}
+      </a>
+    </article>
+  );
 }
 
 function SurfaceList({ title, items, empty }: { title: string; items: string[]; empty: string }) {

@@ -29,5 +29,11 @@ describe('UnifiedPluginSurfaceOverview', () => {
     expect(html).toContain('Capabilities');
     expect(html).toContain('echo cli echo');
     expect(html).toContain('echo export echo');
+    expect(html).toContain('href="/menu"');
+    expect(html).toContain('href="/plugins"');
+    expect(html).toContain('href="/mcp"');
+    expect(html).toContain('href="/vector"');
+    expect(html).toContain('href="/status"');
+    expect(html).toContain('href="/storage"');
   });
 });
