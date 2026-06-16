@@ -5,11 +5,19 @@ import { runVectorConfigCommand, VECTOR_CONFIG_HELP } from './commands/vector-co
 type InvokeContext = {
   source?: string;
   args?: string[] | Record<string, unknown>;
+  body?: unknown;
   writer?: (line?: string) => void;
 };
 
 type InvokeResult = { ok: boolean; output?: string; error?: string };
 type CommandHandler = (args: string[]) => Promise<string>;
+type RegistryCommand = {
+  name: string;
+  help: string;
+  surfaces: string[];
+};
+
+const surfaces = ['cli', 'api', 'menu'] as const;
 
 const commandHandlers: Record<string, CommandHandler> = {
   export: runExportCommand,
@@ -18,40 +26,81 @@ const commandHandlers: Record<string, CommandHandler> = {
   vector_config: runVectorConfigCommand,
 };
 
+export const commandRegistry: RegistryCommand[] = [
+  { name: 'status', help: 'show vector collections, doc counts, and health', surfaces: [...surfaces] },
+  { name: 'export', help: 'export app collections as json, csv, md, or jsonl', surfaces: [...surfaces] },
+  { name: 'vector-config', help: VECTOR_CONFIG_HELP, surfaces: [...surfaces] },
+];
+
 export const command = {
   name: 'arra',
   description: 'ARRA Oracle CLI bridge — export vectors, inspect status, and manage vector config.',
 };
 
-function argsFromContext(args: InvokeContext['args']): string[] {
-  if (Array.isArray(args)) return args;
-  if (!args || typeof args !== 'object') return [];
-  const sub = typeof args.sub === 'string' ? [args.sub] : [];
-  const rest = Object.entries(args).flatMap(([key, value]) => {
-    if (key === 'sub' || value === undefined || value === null || value === false) return [];
+function argsFromRecord(record: Record<string, unknown>): string[] {
+  const first = typeof record.sub === 'string'
+    ? record.sub
+    : typeof record.command === 'string'
+      ? record.command
+      : typeof record.cmd === 'string'
+        ? record.cmd
+        : '';
+  const prefix = first ? [first] : [];
+  const explicit = Array.isArray(record.args)
+    ? record.args.map(String)
+    : Array.isArray(record.argv)
+      ? record.argv.map(String)
+      : [];
+  const flags = Object.entries(record).flatMap(([key, value]) => {
+    if (['sub', 'command', 'cmd', 'args', 'argv'].includes(key) || value === undefined || value === null || value === false) return [];
     if (value === true) return [`--${key.replace(/_/g, '-')}`];
     return [`--${key.replace(/_/g, '-')}`, String(value)];
   });
-  return [...sub, ...rest];
+  return [...prefix, ...explicit, ...flags];
+}
+
+function argsFromContext(args: InvokeContext['args'], body?: unknown): string[] {
+  if (Array.isArray(args)) return args;
+  if (args && typeof args === 'object') return argsFromRecord(args);
+  if (body && typeof body === 'object' && !Array.isArray(body)) return argsFromRecord(body as Record<string, unknown>);
+  return [];
 }
 
 function help(): string {
   return [
     'maw arra — ARRA Oracle CLI bridge',
-    '  status',
-    '      show vector collections, doc counts, and health from localhost:47778',
-    '  export --collection X --format json|csv|md',
-    '      stream a vector collection export from localhost:47778',
-    `  ${VECTOR_CONFIG_HELP}`,
-    '      read and write vector backend config as JSON',
+    ...commandRegistry.flatMap((item) => [`  ${item.name}`, `      ${item.help}`]),
   ].join('\n');
 }
 
+function registryPayload(source: string) {
+  return {
+    plugin: 'arra',
+    source,
+    menu: { label: 'ARRA Oracle', path: '/plugins/arra', group: 'tools' },
+    api: { path: '/api/plugins/arra', methods: ['GET', 'POST'] },
+    cli: { command: 'arra' },
+    commands: commandRegistry,
+  };
+}
+
+function isApiLike(source?: string): boolean {
+  return source === 'api' || source === 'menu';
+}
+
+function apiOutput(command: string, output: string): string {
+  return JSON.stringify({ ok: true, command, output }, null, 2);
+}
+
 export default async function handler(ctx: InvokeContext): Promise<InvokeResult> {
-  const args = argsFromContext(ctx.args);
+  const args = argsFromContext(ctx.args, ctx.body);
+  if (!args.length && isApiLike(ctx.source)) {
+    return { ok: true, output: JSON.stringify(registryPayload(ctx.source ?? 'api'), null, 2) };
+  }
   const subcommand = (args[0] || '').toLowerCase();
   if (!subcommand || subcommand === 'help' || subcommand === '--help' || subcommand === '-h') {
-    return { ok: true, output: help() };
+    const output = help();
+    return { ok: true, output: isApiLike(ctx.source) ? apiOutput('help', output) : output };
   }
 
   const run = commandHandlers[subcommand];
@@ -60,7 +109,7 @@ export default async function handler(ctx: InvokeContext): Promise<InvokeResult>
   try {
     const output = await run(args.slice(1));
     if (ctx.writer) ctx.writer(output);
-    return { ok: true, output };
+    return { ok: true, output: isApiLike(ctx.source) ? apiOutput(subcommand, output) : output };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }

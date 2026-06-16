@@ -5,6 +5,18 @@
   "sdk": "^1.0.0",
   "description": "ARRA Oracle CLI bridge for vector export, status, and vector config commands.",
   "author": "Soul-Brews-Studio",
+  "api": {
+    "path": "/api/plugins/arra",
+    "methods": ["GET", "POST"]
+  },
+  "menu": [
+    {
+      "label": "ARRA Oracle",
+      "path": "/plugins/arra",
+      "group": "tools",
+      "order": 30
+    }
+  ],
   "cli": {
     "command": "arra",
     "help": "maw arra <status|export --collection X --format json|csv|md|vector-config list|get|set|add|remove|set-primary|reload|test>"
