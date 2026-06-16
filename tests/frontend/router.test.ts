@@ -33,6 +33,7 @@ describe('frontend router', () => {
   test('declares the public dashboard route set', () => {
     expect([...frontendRoutes]).toEqual([
       '/',
+      '/menu',
       '/plugins',
       '/status',
       '/canvas/plugins',
@@ -49,7 +50,7 @@ describe('frontend router', () => {
   });
 
   test('routes root, plugins, metrics, search, and learn surfaces', () => {
-    expect(htmlAt('/')).toContain('Menu viewer');
+    expect(htmlAt('/')).toContain('Menu catalog');
     expect(htmlAt('/plugins')).toContain('Registered plugins');
     expect(htmlAt('/status')).toContain('GET /api/v1/health');
     expect(htmlAt('/canvas/plugins')).toContain('Canvas plugin registry');
