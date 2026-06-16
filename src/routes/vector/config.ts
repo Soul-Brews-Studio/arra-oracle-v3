@@ -53,6 +53,7 @@ const configPatchKeys = new Set([
   'dataPath',
   'embedder',
   'embeddingEndpoint',
+  'fanout',
   'storage',
   'proxy',
 ]);
@@ -71,6 +72,7 @@ const configPatchSchema = t.Object({
   dataPath: t.Optional(t.String()),
   embedder: t.Optional(t.Any()),
   embeddingEndpoint: t.Optional(t.String()),
+  fanout: t.Optional(t.Any()),
   storage: t.Optional(t.Record(t.String(), t.Unknown())),
   proxy: t.Optional(t.Array(t.Unknown())),
 }, { additionalProperties: true });
