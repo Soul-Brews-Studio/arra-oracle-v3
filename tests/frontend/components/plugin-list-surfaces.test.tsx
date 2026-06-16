@@ -17,6 +17,10 @@ describe('PluginList surfaces', () => {
           menu: { label: 'Echo', group: 'tools' },
           server: { command: 'bun', args: ['echo.ts'], healthPath: '/ready' },
           mcpTools: [{ name: 'echo.say', description: 'Say echo' }],
+          apiRoutes: [{ path: '/api/echo', methods: ['POST'] }],
+          proxy: [{ path: '/proxy/echo', targetEnv: 'ECHO_URL', methods: ['GET'] }],
+          cliSubcommands: [{ command: 'echo', help: 'Echo input' }],
+          exportFormats: [{ extension: 'echo', name: 'Echo format' }],
         }]} 
       />,
     );
@@ -27,6 +31,11 @@ describe('PluginList surfaces', () => {
     expect(html).toContain('apiRoutes');
     expect(html).toContain('proxy');
     expect(html).toContain('bun echo.ts · /ready');
-    expect(html).toContain('MCP tools');
+    expect(html).toContain('Surface details');
+    expect(html).toContain('echo.say');
+    expect(html).toContain('POST /api/echo');
+    expect(html).toContain('GET /proxy/echo → $ECHO_URL');
+    expect(html).toContain('CLI subcommands');
+    expect(html).toContain('.echo');
   });
 });
