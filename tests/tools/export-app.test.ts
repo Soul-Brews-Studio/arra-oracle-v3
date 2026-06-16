@@ -204,3 +204,11 @@ test('CLI rejects output paths that are files', async () => {
   expect(code).toBe(1);
   expect(stderr.join('')).toContain('output path exists but is not a directory:');
 });
+
+test('README documents standalone remote export CLI flags', () => {
+  const readme = readFileSync(join(process.cwd(), 'tools/export-app/README.md'), 'utf8');
+  expect(readme).toContain('bun run export -- --url http://localhost:47778');
+  expect(readme).toContain('--include-graph');
+  expect(readme).toContain('--retries <count>');
+  expect(readme).toContain('--version');
+});
