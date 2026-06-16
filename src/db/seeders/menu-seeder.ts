@@ -41,6 +41,22 @@ function routeMenuKey(path: string, studio: string | null | undefined): string {
   return `${studio ?? ''}\0${path}`;
 }
 
+const MENU_GROUP_PRIORITY: Record<string, number> = {
+  main: 0,
+  tools: 1,
+  admin: 2,
+};
+
+const MAX_ROUTE_MENU_ITEMS = 10;
+
+function menuGroupPriority(group: string): number {
+  return MENU_GROUP_PRIORITY[group] ?? 99;
+}
+
+function isVisibleMenuGroup(group: string): boolean {
+  return group !== 'hidden';
+}
+
 function debugDuplicateRouteMenu(first: SeenRouteMenuRow, next: SeenRouteMenuRow): void {
   console.debug(
     `[menu-seeder] duplicate route menu path "${next.path}"` +
@@ -58,7 +74,7 @@ export function collectRouteMenuRows(sources: HasRoutes[]): RouteMenuRow[] {
     for (const route of src.routes) {
       const detail = (route.hooks?.detail ?? {}) as { menu?: MenuMeta };
       const menu = detail.menu;
-      if (!menu || !menu.group) continue;
+      if (!menu || !menu.group || !isVisibleMenuGroup(menu.group)) continue;
 
       const studio = studioPathFor(route.path);
       if (!studio) continue;
@@ -89,7 +105,15 @@ export function collectRouteMenuRows(sources: HasRoutes[]): RouteMenuRow[] {
     }
   }
 
-  return rows;
+  rows.sort((a, b) => {
+    const priorityDiff = menuGroupPriority(a.groupKey) - menuGroupPriority(b.groupKey);
+    if (priorityDiff !== 0) return priorityDiff;
+
+    if (a.position !== b.position) return a.position - b.position;
+    return a.path.localeCompare(b.path);
+  });
+
+  return rows.slice(0, MAX_ROUTE_MENU_ITEMS);
 }
 
 /**

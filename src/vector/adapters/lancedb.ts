@@ -26,7 +26,7 @@ export class LanceDBAdapter implements VectorStoreAdapter {
 
     const lancedb = await import('@lancedb/lancedb');
     this.db = await lancedb.connect(this.dbPath);
-    console.log(`[LanceDB] Connected ${this.collectionName} at ${this.dbPath}`);
+    console.log('[LanceDB] Connected to local DB');
   }
 
   async close(): Promise<void> {
@@ -53,7 +53,12 @@ export class LanceDBAdapter implements VectorStoreAdapter {
       await this.table.delete('id = "__init__"');
     }
 
-    console.error(`[LanceDB] Collection '${this.collectionName}' ready`);
+    try {
+      const count = await this.table.countRows();
+      console.error(`[LanceDB] Vector collection ready (${count} items)`);
+    } catch {
+      console.error('[LanceDB] Vector collection ready');
+    }
   }
 
   async deleteCollection(): Promise<void> {
@@ -62,7 +67,7 @@ export class LanceDBAdapter implements VectorStoreAdapter {
     try {
       await this.db.dropTable(this.collectionName);
       this.table = null;
-      console.error(`[LanceDB] Collection '${this.collectionName}' deleted`);
+      console.error('[LanceDB] Vector collection deleted');
     } catch (e) {
       console.warn('[LanceDB] deleteCollection failed:', e instanceof Error ? e.message : String(e));
     }
