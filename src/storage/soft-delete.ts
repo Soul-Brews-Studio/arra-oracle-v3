@@ -1,4 +1,4 @@
-import { and, eq, isNull, type SQL } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, type SQL } from 'drizzle-orm';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import { menuItems } from '../db/schema.ts';
 
@@ -60,7 +60,7 @@ export function softDeleteById<Row = unknown>(
     const deletedAt = options.deletedAt ?? new Date();
     return { rows: [], count: 0, deletedAt };
   }
-  return softDeleteWhere(db, table, eq(table.id, id), options);
+  return softDeleteWhere(db, table, notDeleted(table, eq(table.id, id))!, options);
 }
 
 export function restoreById<Row = unknown>(
@@ -73,7 +73,7 @@ export function restoreById<Row = unknown>(
   if (!validRowId(id)) return undefined;
   return (db.update(table as never)
     .set(restorePatch(restoredAt, extra) as never)
-    .where(eq(table.id, id))
+    .where(and(eq(table.id, id), isNotNull(table.deletedAt)))
     .returning()
     .get() as unknown) as Row | undefined;
 }
