@@ -15,6 +15,7 @@ describe('canvas Cloudflare Worker', () => {
 
     expect(wave.status).toBe(200);
     expect(wave.headers.get('content-type')).toContain('text/html');
+    expect(wave.headers.get('x-oracle-canvas-worker')).toBe('canvas.buildwithoracle.com');
     expect(await wave.text()).toContain('plugin=wave');
     expect(await planets.text()).toContain('plugin=planets');
     expect(await cube.text()).toContain('plugin=cube');
@@ -84,6 +85,7 @@ describe('canvas Cloudflare Worker', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('x-oracle-canvas-worker')).toBe('canvas.buildwithoracle.com');
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
     expect(body).toMatchObject({ ok: true, app: 'ui-canvas-oracle-studio', apiBase: 'https://oracle.example.test' });
     expect(Number(body.pluginCount)).toBeGreaterThanOrEqual(9);
@@ -93,6 +95,8 @@ describe('canvas Cloudflare Worker', () => {
     const response = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/api/health', { method: 'OPTIONS' }));
     expect(response.status).toBe(204);
     expect(response.headers.get('access-control-allow-origin')).toBe('*');
+    expect(response.headers.get('access-control-expose-headers')).toBe('x-oracle-canvas-worker');
+    expect(response.headers.get('x-oracle-canvas-worker')).toBe('canvas.buildwithoracle.com');
   });
 
   test('serves local canvas registry without upstream fetch', async () => {
@@ -106,6 +110,7 @@ describe('canvas Cloudflare Worker', () => {
     const metadataBody = await metadata.json() as { kind: string; plugins: Array<{ id: string; renderer: string }> };
 
     expect(response.status).toBe(200);
+    expect(response.headers.get('x-oracle-canvas-worker')).toBe('canvas.buildwithoracle.com');
     expect(body.count).toBeGreaterThanOrEqual(3);
     expect(body.standalone.host).toBe('canvas.buildwithoracle.com');
     expect(metadata.status).toBe(200);
@@ -128,6 +133,7 @@ describe('canvas Cloudflare Worker', () => {
 
     expect(seen).toEqual(['https://oracle.example.test/api/health?probe=1']);
     expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('x-oracle-canvas-worker')).toBe('canvas.buildwithoracle.com');
     expect(await response.json()).toEqual({ ok: true });
   });
 

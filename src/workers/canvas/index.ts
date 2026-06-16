@@ -9,14 +9,20 @@ export interface CanvasWorkerEnv {
 }
 
 const DEFAULT_API_BASE = 'https://studio.buildwithoracle.com';
+const WORKER_MARKER_HEADERS = {
+  'X-Oracle-Canvas-Worker': CANVAS_HOST,
+};
 const API_CACHE_HEADERS = {
   'Access-Control-Allow-Headers': 'authorization, content-type, x-api-key, x-correlation-id',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
   'Access-Control-Allow-Origin': '*',
+  'Access-Control-Expose-Headers': 'x-oracle-canvas-worker',
   'Cache-Control': 'no-store',
+  ...WORKER_MARKER_HEADERS,
 };
 const SECURITY_HEADERS = {
   'Referrer-Policy': 'strict-origin-when-cross-origin',
+  ...WORKER_MARKER_HEADERS,
   'X-Content-Type-Options': 'nosniff',
 };
 const HTML_HEADERS = {
