@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { StatusPage, pluginHealthPath } from '../../../frontend/src/pages/StatusPage';
+import { StatusPage, pluginHealthPath, vectorProxyRows } from '../../../frontend/src/pages/StatusPage';
 import type { HealthResponse } from '../../../src/server/types';
 import { htmlFor } from '../_render';
 
@@ -29,5 +29,30 @@ describe('StatusPage plugin health links', () => {
     expect(html).toContain('Plugin health');
     expect(html).toContain('href="/plugins?q=echo"');
     expect(html).toContain('href="/plugins?q=broken&amp;visibility=unhealthy"');
+  });
+
+  test('renders vector proxy service status rows', () => {
+    const vector = {
+      status: 'degraded' as const,
+      checked_at: '2026-06-17T00:00:00.000Z',
+      engines: [],
+      services: [
+        { name: 'turbovec', type: 'proxy', endpoint: 'http://127.0.0.1:8787', health: { status: 'down', error: 'timeout' } },
+      ],
+    };
+
+    expect(vectorProxyRows(vector)).toEqual([{
+      name: 'turbovec',
+      status: 'down',
+      endpoint: 'http://127.0.0.1:8787',
+      detail: 'timeout',
+    }]);
+
+    const html = htmlFor(<StatusPage initialHealth={health} initialVectorHealth={vector} />);
+    expect(html).toContain('Proxy status');
+    expect(html).toContain('Vector proxy and registered proxy services');
+    expect(html).toContain('turbovec');
+    expect(html).toContain('http://127.0.0.1:8787');
+    expect(html).toContain('timeout');
   });
 });
