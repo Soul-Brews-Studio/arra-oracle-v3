@@ -9,8 +9,6 @@ const savedDataDir = process.env.ORACLE_DATA_DIR;
 const savedDbPath = process.env.ORACLE_DB_PATH;
 const savedMawUrl = process.env.MAW_JS_URL;
 const root = mkdtempSync(join(tmpdir(), 'feed-tenant-'));
-const restoreDbPath = savedDbPath
-  ?? join(savedDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
 process.env.ORACLE_DATA_DIR = root;
 process.env.ORACLE_DB_PATH = join(root, 'oracle.db');
 
@@ -82,14 +80,14 @@ afterAll(() => {
   dbMod.db.delete(oracleDocuments).where(like(oracleDocuments.id, `%${stamp}%`)).run();
   dbMod.db.delete(searchLog).where(like(searchLog.query, `%${stamp}%`)).run();
   dbMod.db.delete(learnLog).where(inArray(learnLog.documentId, [`feed-dashboard-a-${stamp}`, `feed-dashboard-b-${stamp}`])).run();
-  rmSync(root, { recursive: true, force: true });
+  dbMod.closeDb();
+  rmSync(root, { recursive: true });
   if (savedDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
   else process.env.ORACLE_DATA_DIR = savedDataDir;
   if (savedDbPath === undefined) delete process.env.ORACLE_DB_PATH;
   else process.env.ORACLE_DB_PATH = savedDbPath;
   if (savedMawUrl === undefined) delete process.env.MAW_JS_URL;
   else process.env.MAW_JS_URL = savedMawUrl;
-  dbMod.resetDefaultDatabaseForTests(restoreDbPath);
 });
 
 test('/api/feed stores and lists only selected tenant feed events', async () => {
