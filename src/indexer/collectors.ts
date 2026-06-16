@@ -115,9 +115,9 @@ function getSecurityCorpusFiles(dir: string): string[] {
 }
 
 /**
- * Collect security-corpus documents from ψ/learn/security-corpus/.
- * OPT-IN: only runs when config.sourcePaths.security_corpus is set.
- * Reference: ψ/memory/learnings/2026-04-26_arra-v3-indexer-extension.md
+ * Collect repo exploration documents from ψ/learn/.
+ * Defaults on so /learn output is part of the standard indexer scan.
+ * ψ/learn/security-corpus remains excluded unless collectSecurityCorpus runs.
  */
 export function collectPsiLearn(opts: {
   config: IndexerConfig;
@@ -125,8 +125,7 @@ export function collectPsiLearn(opts: {
 }): OracleDocument[] {
   const { config, seenContentHashes } = opts;
   const documents: OracleDocument[] = [];
-  const subPath = config.sourcePaths.learn;
-  if (!subPath) return documents;
+  const subPath = config.sourcePaths.learn ?? 'ψ/learn';
 
   const sourcePath = path.join(config.repoRoot, subPath);
   if (!fs.existsSync(sourcePath)) return documents;
