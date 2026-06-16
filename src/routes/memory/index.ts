@@ -54,7 +54,7 @@ export function createMemoryRoutes(
       try {
         const hits = await vectorIndex.search(query.q, limit);
         const records = store.getByIds(hits.map((hit) => hit.memoryId));
-        const results = mergeHits(hits, records, Boolean(currentTenantId()));
+        const results = mergeHits(hits, records);
         return { success: true, query: query.q, total: results.length, confidence: MEMORY_CONFIDENCE_STRATEGY, results };
       } catch (error) {
         set.status = 503;
@@ -66,11 +66,14 @@ export function createMemoryRoutes(
     });
 }
 
-function mergeHits(hits: MemoryVectorHit[], records: MemoryRecord[], requireRecord = false) {
+function mergeHits(hits: MemoryVectorHit[], records: MemoryRecord[]) {
   const byId = new Map(records.map((record) => [record.id, record]));
+  const tenantId = currentTenantId();
   return hits.flatMap((hit) => {
     const record = byId.get(hit.memoryId);
-    if (requireRecord && !record) return [];
+    if (tenantId && !record) return [];
+    const hitTenantId = hitTenant(hit);
+    if (tenantId && hitTenantId && hitTenantId !== tenantId) return [];
     const memory = memoryForHit(hit, record);
     return [{
       ...memory,
@@ -80,6 +83,11 @@ function mergeHits(hits: MemoryVectorHit[], records: MemoryRecord[], requireReco
       confidence: memoryConfidence(memory, { mode: 'semantic', semanticScore: hit.score }),
     }];
   });
+}
+
+function hitTenant(hit: MemoryVectorHit): string | undefined {
+  const value = hit.metadata.tenant_id ?? hit.metadata.tenantId ?? hit.metadata.tenant;
+  return typeof value === 'string' ? value : undefined;
 }
 
 function withKeywordConfidence(memory: MemoryRecord) {

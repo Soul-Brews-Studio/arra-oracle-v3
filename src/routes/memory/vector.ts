@@ -1,6 +1,6 @@
 import { ensureVectorStoreConnected } from '../../vector/factory.ts';
-import type { VectorDocument, VectorQueryResult, VectorStoreAdapter } from '../../vector/types.ts';
 import { activeTenantId, currentTenantId } from '../../middleware/tenant.ts';
+import type { VectorDocument, VectorQueryResult, VectorStoreAdapter } from '../../vector/types.ts';
 import type { MemoryRecord } from './store.ts';
 
 export type MemoryVectorHit = {
@@ -41,29 +41,24 @@ export class VectorMemoryIndex implements MemoryVectorIndex {
     const tenantId = currentTenantId();
     const where = tenantId ? { type: 'memory', tenant_id: tenantId } : { type: 'memory' };
     const result = await store.query(clean, limit, where);
-    return hitsFrom(result).filter((hit) => !tenantId || tenantFor(hit.metadata) === tenantId);
+    return hitsFrom(result).filter((hit) => matchesTenant(hit, tenantId));
   }
 }
 
 function memoryDocument(memory: MemoryRecord): VectorDocument {
-  const tenantId = memory.tenantId ?? activeTenantId();
   return {
     id: vectorId(memory.id),
     document: [memory.title, memory.content, ...(memory.tags ?? [])].filter(Boolean).join('\n'),
     metadata: {
       type: 'memory',
-      tenant_id: tenantId,
       memoryId: memory.id,
+      tenant_id: memory.tenantId ?? activeTenantId(),
       title: memory.title ?? '',
       source: memory.source ?? '',
       tags: (memory.tags ?? []).join(','),
       createdAt: memory.createdAt,
     },
   };
-}
-
-function tenantFor(metadata: Record<string, unknown>): string | undefined {
-  return String(metadata.tenant_id ?? metadata.tenantId ?? metadata.tenant ?? '') || undefined;
 }
 
 function hitsFrom(result: VectorQueryResult): MemoryVectorHit[] {
@@ -79,6 +74,12 @@ function hitsFrom(result: VectorQueryResult): MemoryVectorHit[] {
       score: Math.max(0, 1 - distance),
     };
   });
+}
+
+function matchesTenant(hit: MemoryVectorHit, tenantId: string | undefined): boolean {
+  if (!tenantId) return true;
+  const value = hit.metadata.tenant_id ?? hit.metadata.tenantId ?? hit.metadata.tenant;
+  return value === tenantId;
 }
 
 function vectorId(memoryId: string): string {

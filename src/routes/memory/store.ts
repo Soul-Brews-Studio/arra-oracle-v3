@@ -48,25 +48,18 @@ export class MemoryStore {
   recall(query = '', limit = 10): MemoryRecord[] {
     const normalized = query.trim();
     const safeLimit = Math.min(50, Math.max(1, limit));
-    const base = this.db.select().from(oracleMemories);
-    const contentWhere = normalized ? or(
-        like(oracleMemories.content, `%${normalized}%`),
-        like(oracleMemories.title, `%${normalized}%`),
-        like(oracleMemories.tags, `%${normalized}%`),
-        like(oracleMemories.source, `%${normalized}%`),
-      ) : undefined;
-    const where = combineWhere(contentWhere, tenantWhere());
-    const rows = (where ? base.where(where) : base).orderBy(desc(oracleMemories.createdAt)).limit(safeLimit).all();
+    const where = combineWhere(tenantWhere(), searchWhere(normalized));
+    const selected = this.db.select().from(oracleMemories);
+    const rows = where
+      ? selected.where(where).orderBy(desc(oracleMemories.createdAt)).limit(safeLimit).all()
+      : selected.orderBy(desc(oracleMemories.createdAt)).limit(safeLimit).all();
     return rows.map(memoryFromRow);
   }
 
   getByIds(ids: string[]): MemoryRecord[] {
     if (!ids.length) return [];
-    const idsWhere = inArray(oracleMemories.id, ids);
-    const where = combineWhere(idsWhere, tenantWhere());
-    const rows = this.db.select().from(oracleMemories)
-      .where(where)
-      .all();
+    const where = combineWhere(inArray(oracleMemories.id, ids), tenantWhere());
+    const rows = this.db.select().from(oracleMemories).where(where).all();
     const byId = new Map(rows.map((row) => [row.id, memoryFromRow(row)]));
     return ids.map((id) => byId.get(id)).filter((row): row is MemoryRecord => Boolean(row));
   }
@@ -76,6 +69,16 @@ export class MemoryStore {
 function tenantWhere(): SQL | undefined {
   const tenantId = currentTenantId();
   return tenantId ? eq(oracleMemories.tenantId, tenantId) : undefined;
+}
+
+function searchWhere(query: string): SQL | undefined {
+  if (!query) return undefined;
+  return or(
+    like(oracleMemories.content, `%${query}%`),
+    like(oracleMemories.title, `%${query}%`),
+    like(oracleMemories.tags, `%${query}%`),
+    like(oracleMemories.source, `%${query}%`),
+  );
 }
 
 function combineWhere(...clauses: Array<SQL | undefined>): SQL | undefined {
