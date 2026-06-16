@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { SANDBOX_LABEL_HEADER, sandboxLabel } from '../runtime/sandbox-label.ts';
+
+export { SANDBOX_LABEL_HEADER, sandboxLabel } from '../runtime/sandbox-label.ts';
 
 type RequestMeta = {
   startedAt: number;
@@ -34,8 +37,6 @@ export type RequestLoggerOptions = {
   log?: (entry: RequestLogEntry) => void;
   now?: () => number;
 };
-
-export const SANDBOX_LABEL_HEADER = 'X-Sandbox-Label';
 
 const REDACTED = '[REDACTED]';
 const sensitiveHeaders = new Set(['authorization', 'proxy-authorization']);
@@ -75,13 +76,6 @@ function responseStatus(responseValue: unknown, setStatus?: number | string): nu
 function requestLogFormat(): RequestLogFormat {
   const requested = process.env.LOG_FORMAT as RequestLogFormat | undefined;
   return requested && logFormats.has(requested) ? requested : 'nginx';
-}
-
-function sandboxLabel(env = process.env.ARRA_ENV): string {
-  const value = env?.trim().toLowerCase();
-  if (value === 'production') return 'prod';
-  if (value === 'staging') return 'staging';
-  return 'dev';
 }
 
 function formatDurationMs(durationMs: number): string {
