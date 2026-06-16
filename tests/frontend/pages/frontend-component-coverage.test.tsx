@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { CanvasPluginsPage } from '../../../frontend/src/pages/CanvasPluginsPage';
 import { PluginsPage } from '../../../frontend/src/pages/PluginsPage';
-import { VectorHealthDashboardCard } from '../../../frontend/src/pages/vector-dashboard-cards';
+import { VectorHealthDashboardCard } from '../../../frontend/src/pages/vector-health-dashboard-card';
 import { htmlFor } from '../_render';
 
 describe('frontend component coverage', () => {
@@ -36,6 +36,10 @@ describe('frontend component coverage', () => {
         { type: 'ollama', status: 'green', available: true, detail: 'local' },
         { type: 'openai', status: 'red', available: false, detail: 'missing key' },
       ]}
+      services={[
+        { name: 'lancedb', type: 'builtin', status: 'green', available: true, health: { status: 'up' } },
+        { name: 'turbovec', type: 'proxy', endpoint: 'http://127.0.0.1:8787', status: 'red', available: false, health: { status: 'down', error: 'timeout' } },
+      ]}
       storage={[
         { adapter: 'lancedb', status: 'green', healthy: 2, total: 2 },
         { adapter: 'qdrant', status: 'red', healthy: 0, total: 1, detail: 'down' },
@@ -45,7 +49,10 @@ describe('frontend component coverage', () => {
 
     expect(html).toContain('Vector health dashboard');
     expect(html).toContain('1/2 providers available');
+    expect(html).toContain('1/2 services up');
     expect(html).toContain('1/2 storage backends healthy');
+    expect(html).toContain('lancedb: up');
+    expect(html).toContain('turbovec: down · timeout');
     expect(html).toContain('lancedb: 2/2');
     expect(html).toContain('qdrant: 0/1');
     expect(html).toContain('stale · 1,532 indexed');
