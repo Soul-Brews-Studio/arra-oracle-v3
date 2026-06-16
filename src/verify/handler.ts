@@ -9,8 +9,9 @@
 
 import fs from 'fs';
 import path from 'path';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db, oracleDocuments } from '../db/index.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 
 export interface VerifyResult {
   counts: {
@@ -65,6 +66,7 @@ export function verifyKnowledgeBase(opts: {
   repoRoot: string;
 }): VerifyResult {
   const { check = true, type, repoRoot } = opts;
+  const tenantId = currentTenantId();
 
   // 1. Walk indexed directories on disk
   const indexedDirs = [
@@ -85,22 +87,30 @@ export function verifyKnowledgeBase(opts: {
 
   // 2. Query DB for all indexed documents
   const typeFilter = type && type !== 'all' ? type : undefined;
-  const dbRows = typeFilter
+  const fields = {
+    id: oracleDocuments.id,
+    sourceFile: oracleDocuments.sourceFile,
+    indexedAt: oracleDocuments.indexedAt,
+    type: oracleDocuments.type,
+  };
+  const dbRows = typeFilter && tenantId
+    ? db.select(fields)
+        .from(oracleDocuments)
+        .where(and(eq(oracleDocuments.type, typeFilter), eq(oracleDocuments.tenantId, tenantId)))
+        .all()
+    : typeFilter
     ? db.select({
-        id: oracleDocuments.id,
-        sourceFile: oracleDocuments.sourceFile,
-        indexedAt: oracleDocuments.indexedAt,
-        type: oracleDocuments.type,
+        ...fields,
       })
         .from(oracleDocuments)
         .where(eq(oracleDocuments.type, typeFilter))
         .all()
-    : db.select({
-        id: oracleDocuments.id,
-        sourceFile: oracleDocuments.sourceFile,
-        indexedAt: oracleDocuments.indexedAt,
-        type: oracleDocuments.type,
-      })
+    : tenantId
+      ? db.select(fields)
+        .from(oracleDocuments)
+        .where(eq(oracleDocuments.tenantId, tenantId))
+        .all()
+      : db.select(fields)
         .from(oracleDocuments)
         .all();
 
@@ -126,12 +136,17 @@ export function verifyKnowledgeBase(opts: {
   const drifted: string[] = [];
   const orphaned: string[] = [];
 
-  // Check each file on disk
-  for (const [relPath, mtimeMs] of diskFiles) {
+  // Tenant-scoped requests can only prove ownership for DB-backed files.
+  // Keep global disk-only "missing"/"untracked" reporting for unscoped runs.
+  const pathsToCheck = tenantId ? dbFileMap.keys() : diskFiles.keys();
+  for (const relPath of pathsToCheck) {
+    const mtimeMs = diskFiles.get(relPath);
     const dbEntry = dbFileMap.get(relPath);
     if (!dbEntry) {
       // File on disk, not in DB
       missing.push(relPath);
+    } else if (mtimeMs === undefined) {
+      continue;
     } else {
       // File exists in both — check drift
       if (mtimeMs > dbEntry.indexedAt) {
@@ -156,11 +171,13 @@ export function verifyKnowledgeBase(opts: {
   // 4. Count untracked files outside indexed dirs.
   const untrackedDirs = ['ψ/inbox'];
   const untracked: string[] = [];
-  for (const dir of untrackedDirs) {
-    const fullDir = path.join(repoRoot, dir);
-    const files = walkMarkdownFiles(fullDir, repoRoot);
-    for (const f of files) {
-      untracked.push(f.relativePath);
+  if (!tenantId) {
+    for (const dir of untrackedDirs) {
+      const fullDir = path.join(repoRoot, dir);
+      const files = walkMarkdownFiles(fullDir, repoRoot);
+      for (const f of files) {
+        untracked.push(f.relativePath);
+      }
     }
   }
 
@@ -172,13 +189,16 @@ export function verifyKnowledgeBase(opts: {
       const entry = dbFileMap.get(sourceFile);
       if (entry) {
         for (const id of entry.ids) {
+          const where = tenantId
+            ? and(eq(oracleDocuments.id, id), eq(oracleDocuments.tenantId, tenantId))
+            : eq(oracleDocuments.id, id);
           db.update(oracleDocuments)
             .set({
               supersededBy: '_verified_orphan',
               supersededAt: now,
               supersededReason: 'File missing from disk (oracle_verify)',
             })
-            .where(eq(oracleDocuments.id, id))
+            .where(where)
             .run();
           fixedOrphans++;
         }
