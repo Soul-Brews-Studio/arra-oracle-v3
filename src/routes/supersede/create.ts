@@ -18,10 +18,17 @@ function documentInActiveTenant(id: string): boolean {
     .where(and(eq(oracleDocuments.id, id), eq(oracleDocuments.tenantId, activeTenantId()))).get());
 }
 
+function cleanString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  return value.trim() || null;
+}
+
 function tenantDocumentError(input: OracleSupersededInput): string | null {
   const { oldId, newId } = input as { oldId?: unknown; newId?: unknown };
-  if (typeof oldId === 'string' && oldId && !documentInActiveTenant(oldId)) return `Old document not found: ${oldId}`;
-  if (typeof newId === 'string' && newId && !documentInActiveTenant(newId)) return `New document not found: ${newId}`;
+  const cleanOldId = cleanString(oldId);
+  const cleanNewId = cleanString(newId);
+  if (cleanOldId && !documentInActiveTenant(cleanOldId)) return `Old document not found: ${cleanOldId}`;
+  if (cleanNewId && !documentInActiveTenant(cleanNewId)) return `New document not found: ${cleanNewId}`;
   return null;
 }
 
@@ -30,23 +37,24 @@ export const supersedeCreateEndpoint = new Elysia().post(
   ({ body, set }) => {
     try {
       const data = (body ?? {}) as Record<string, any>;
-      if (!data.old_path) {
+      const oldPath = cleanString(data.old_path);
+      if (!oldPath) {
         set.status = 400;
         return { error: 'Missing required field: old_path' };
       }
 
       const result = db.insert(supersedeLog).values({
-        oldPath: data.old_path,
-        oldId: data.old_id || null,
-        oldTitle: data.old_title || null,
-        oldType: data.old_type || null,
-        newPath: data.new_path || null,
-        newId: data.new_id || null,
-        newTitle: data.new_title || null,
-        reason: data.reason || null,
+        oldPath,
+        oldId: cleanString(data.old_id),
+        oldTitle: cleanString(data.old_title),
+        oldType: cleanString(data.old_type),
+        newPath: cleanString(data.new_path),
+        newId: cleanString(data.new_id),
+        newTitle: cleanString(data.new_title),
+        reason: cleanString(data.reason),
         supersededAt: Date.now(),
-        supersededBy: data.superseded_by || 'user',
-        project: data.project || null,
+        supersededBy: cleanString(data.superseded_by) ?? 'user',
+        project: cleanString(data.project),
       }).returning({ id: supersedeLog.id }).get();
 
       set.status = 201;

@@ -13,7 +13,15 @@ const labels: Record<string, SandboxLabel> = {
   prod: 'prod',
 };
 
+function envValue(env: unknown): string | undefined {
+  if (typeof env === 'string') return env;
+  if (!env || typeof env !== 'object') return undefined;
+  const value = (env as Record<string, unknown>).ARRA_ENV;
+  return typeof value === 'string' ? value : undefined;
+}
+
 export function sandboxLabel(env: unknown = process.env.ARRA_ENV): SandboxLabel {
-  if (typeof env !== 'string') return 'dev';
-  return labels[env.trim().toLowerCase()] ?? 'dev';
+  const value = envValue(env);
+  if (!value) return 'dev';
+  return labels[value.trim().toLowerCase()] ?? 'dev';
 }

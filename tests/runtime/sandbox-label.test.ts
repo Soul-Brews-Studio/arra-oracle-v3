@@ -24,4 +24,10 @@ describe('runtime sandbox label', () => {
       expect(sandboxLabel(value)).toBe('dev');
     }
   });
+
+  test('accepts process-env-shaped objects without trusting unrelated keys', () => {
+    expect(sandboxLabel({ ARRA_ENV: ' production ' })).toBe('prod');
+    expect(sandboxLabel({ ARRA_ENV: 'stage' })).toBe('staging');
+    expect(sandboxLabel({ NODE_ENV: 'production' })).toBe('dev');
+  });
 });

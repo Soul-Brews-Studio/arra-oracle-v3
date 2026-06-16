@@ -14,6 +14,7 @@ import * as schema from './schema.ts';
 import { DB_PATH, ORACLE_DATA_DIR } from '../config.ts';
 import { createStorageBackend } from '../storage/registry.ts';
 import type { StorageBackend } from '../storage/types.ts';
+import { resolveDatabasePath } from './create.ts';
 export { createDatabase, type DatabaseConnection } from './create.ts';
 
 export { initializeDrizzleSqlite } from '../storage/drizzle-sqlite.ts';
@@ -34,7 +35,8 @@ function openDefaultStorage(): StorageBackend {
 }
 
 function defaultDbPath(): string {
-  if (process.env.ORACLE_DB_PATH) return process.env.ORACLE_DB_PATH;
+  const envPath = process.env.ORACLE_DB_PATH?.trim();
+  if (envPath) return envPath;
   if (process.env.NODE_ENV === 'test') return ':memory:';
   return DB_PATH;
 }
@@ -68,14 +70,15 @@ export const db = lazyProxy<BunSQLiteDatabase<typeof schema>>(() => openDefaultS
  */
 export function resetDefaultDatabaseForTests(dbPath?: string): void {
   try { defaultStorage?.close(); } catch {}
-  const resolvedPath = dbPath || defaultDbPathForReset();
-  defaultStorage = createStorageBackend({ dbPath: resolvedPath });
+  defaultStorage = null;
+  defaultStorage = createStorageBackend({ dbPath: resolveDatabasePath(dbPath, defaultDbPathForReset()) });
 }
 
 function defaultDbPathForReset(): string {
-  if (process.env.ORACLE_DB_PATH) return process.env.ORACLE_DB_PATH;
+  const envPath = process.env.ORACLE_DB_PATH?.trim();
+  if (envPath) return envPath;
   if (process.env.NODE_ENV === 'test') return ':memory:';
-  return path.join(process.env.ORACLE_DATA_DIR || ORACLE_DATA_DIR, 'oracle.db');
+  return path.join(process.env.ORACLE_DATA_DIR?.trim() || ORACLE_DATA_DIR, 'oracle.db');
 }
 
 // Export schema for use in queries
@@ -83,8 +86,7 @@ export * from './schema.ts';
 
 /** Close database connection. */
 export function closeDb() {
-  defaultStorage?.close();
-  defaultStorage = null;
+  try { defaultStorage?.close(); } finally { defaultStorage = null; }
 }
 
 // ============================================================================
