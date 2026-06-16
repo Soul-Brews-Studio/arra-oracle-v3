@@ -147,7 +147,7 @@ The MCP server (this repo, `src/`) now has two new consumer surfaces:
   - `neo-arra plugin {init|list|install|build|remove}` lifecycle commands. `remove` archives to `/tmp/neo-arra-removed-<name>-<ts>/` before unlinking — Principle 1: Nothing is Deleted. (#771)
   - Sample plugin `cli/src/plugins/hello/` proves the pattern end-to-end.
 
-- **`web/`** — Astro 5 + Tailwind 4 + Cloudflare Workers site for `neo.buildwithoracle.com` (Pigment pattern, _not_ CF Pages).
+- **`web/`** — legacy static site stack for `neo.buildwithoracle.com` (Pigment pattern, _not_ CF Pages).
   - `web/src/lib/backend.ts` — `BackendClient` interface with `MockBackend` + `RealBackend(baseUrl)` implementations. Selected by `PUBLIC_BACKEND_URL` env var or `?api=http://localhost:47778` query param (drizzle.studio style). (#773)
   - `wrangler.json` routes `neo.buildwithoracle.com` as custom domain with `assets.directory: "./dist"`. Preview via `wrangler.preview.json`.
   - `bun run build` produces static `dist/` with `index.html` + compiled Tailwind CSS.

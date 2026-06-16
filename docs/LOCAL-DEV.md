@@ -83,8 +83,8 @@ cd frontend
 FRONTEND_PROXY_TARGET=http://localhost:47778 bun run dev
 ```
 
-This is wired in `web/src/lib/backend.ts` and wins over `PUBLIC_BACKEND_URL`
-only when no env var is set.
+This is wired in the frontend client runtime layer and is configurable via
+`FRONTEND_PROXY_TARGET`.
 
 ## Troubleshooting
 
