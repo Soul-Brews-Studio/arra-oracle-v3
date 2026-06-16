@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { configPath, loadVectorConfig } from '../../src/vector/config.ts';
+import { VECTOR_PROXY_PROTOCOL_VERSION } from '../../src/vector/proxy-protocol.ts';
 import { VectorServiceRegistry } from '../../src/vector/service-registry.ts';
 
 const savedDataDir = process.env.ORACLE_DATA_DIR;
@@ -67,6 +68,44 @@ test('VectorServiceRegistry healthCheck follows proxy /health status contract', 
       name: 'proxy-a',
       version: 'test',
       error: 'health status degraded',
+    });
+  } finally {
+    server.stop(true);
+  }
+});
+
+test('VectorServiceRegistry verifies declared proxy protocol capability', async () => {
+  useTempDataDir();
+  let protocol = 'legacy-proxy';
+  const server = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch() {
+      return Response.json({ status: 'ok', name: 'proxy-a', version: 'test', protocol });
+    },
+  });
+
+  try {
+    const registry = new VectorServiceRegistry();
+    await registry.register({
+      name: 'proxy-a',
+      type: 'proxy',
+      endpoint: String(server.url).replace(/\/$/, ''),
+      capabilities: { protocol: VECTOR_PROXY_PROTOCOL_VERSION },
+    });
+
+    const mismatch = await registry.healthCheck();
+    expect(mismatch.get('proxy-a')).toMatchObject({
+      status: 'down',
+      protocol: 'legacy-proxy',
+      error: `protocol mismatch: expected ${VECTOR_PROXY_PROTOCOL_VERSION}, got legacy-proxy`,
+    });
+
+    protocol = VECTOR_PROXY_PROTOCOL_VERSION;
+    const healthy = await registry.healthCheck();
+    expect(healthy.get('proxy-a')).toMatchObject({
+      status: 'up',
+      protocol: VECTOR_PROXY_PROTOCOL_VERSION,
     });
   } finally {
     server.stop(true);
