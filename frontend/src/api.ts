@@ -77,7 +77,10 @@ export async function fetchVectorConfig(): Promise<VectorConfigResponse> {
   return getJson<VectorConfigResponse>('/api/v1/vector/config');
 }
 
-export async function updateVectorCollection(collection: string, patch: { adapter?: string; enabled?: boolean; provider?: string }): Promise<VectorConfigUpdateResponse> {
+export async function updateVectorCollection(
+  collection: string,
+  patch: { adapter?: string; enabled?: boolean; provider?: string; model?: string; primary?: boolean },
+): Promise<VectorConfigUpdateResponse> {
   return getJson<VectorConfigUpdateResponse>(`/api/v1/vector/config/${encodeURIComponent(collection)}`, {
     method: 'PUT',
     body: JSON.stringify(patch),

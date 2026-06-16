@@ -68,7 +68,10 @@ const configPatchSchema = t.Object({
 }, { additionalProperties: true });
 
 async function readCollectionHealth(config: VectorServerConfig) {
-  return Promise.all(Object.entries(config.collections).map(([key, col]) => inspectCollection(key, col, config)));
+  const inspectOptions = { ignoreGlobalDisabled: config.version.startsWith('2') };
+  return Promise.all(Object.entries(config.collections).map(([key, col]) => (
+    inspectCollection(key, col, config, inspectOptions)
+  )));
 }
 
 function configResponse(

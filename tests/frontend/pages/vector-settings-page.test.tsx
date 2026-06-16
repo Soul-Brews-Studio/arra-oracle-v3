@@ -3,7 +3,7 @@ import { VectorSettingsPage } from '../../../frontend/src/pages/VectorSettingsPa
 import { htmlFor } from '../_render';
 
 describe('VectorSettingsPage', () => {
-  test('composes vector search, provider, storage, adapter, and index panels', () => {
+  test('composes vector search, provider, storage, adapter, model guidance, and index panels', () => {
     const html = htmlFor(<VectorSettingsPage />);
     expect(html).toContain('Vector settings');
     expect(html).toContain('Enable vector search');
@@ -11,6 +11,8 @@ describe('VectorSettingsPage', () => {
     expect(html).toContain('Embedding providers and storage services');
     expect(html).toContain('Model recommendation');
     expect(html).toContain('Active vector adapters');
+    expect(html).toContain('edit model/provider');
+    expect(html).toContain('set primary');
     expect(html).toContain('Index jobs and collections');
   });
 });

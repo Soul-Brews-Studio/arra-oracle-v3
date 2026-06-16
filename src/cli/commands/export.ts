@@ -6,6 +6,7 @@ import {
   buildVectorExportPayload,
   exportCommand as legacyExportCommand,
 } from "./export-legacy.ts";
+import { CLI_VERSION } from "../help.ts";
 
 export { buildMarkdownExportPayload, buildVaultJsonExport, buildVectorExportPayload };
 
@@ -35,8 +36,8 @@ export interface RemoteExportDeps {
   env?: Record<string, string | undefined>;
 }
 
-function printHelp(): void {
-  console.log([
+export function renderRemoteExportHelp(): string {
+  return [
     "bun run export -- --url <oracle-v2-url> --collection <name> --format markdown|json|jsonl|csv --output <path>",
     "",
     "Exports one collection through the Oracle v2 export-app engine.",
@@ -50,9 +51,18 @@ function printHelp(): void {
     "  --graph              alias for --include-graph",
     "  --retries <count>    retry transient HTTP/network failures",
     "  --retry-delay-ms <n> delay between retry attempts (default 250)",
+    "  --version, -v, -V    show export CLI version",
     "  --help, -h           show this help",
     "",
-  ].join("\n"));
+  ].join("\n");
+}
+
+export function renderRemoteExportVersion(): string {
+  return `arra export v${CLI_VERSION}`;
+}
+
+function printHelp(): void {
+  console.log(renderRemoteExportHelp());
 }
 
 function readValue(args: string[], flag: string): string | undefined {
@@ -204,6 +214,10 @@ export async function runRemoteExportCommand(args: string[], deps: RemoteExportD
 }
 
 export async function exportCommand(args: string[]): Promise<number> {
+  if (args.includes("--version") || args.includes("-v") || args.includes("-V")) {
+    process.stdout.write(`${renderRemoteExportVersion()}\n`);
+    return 0;
+  }
   if (args.includes("--help") || args.includes("-h")) {
     printHelp();
     return 0;
