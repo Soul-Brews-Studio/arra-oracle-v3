@@ -31,4 +31,22 @@ test('GET /api/health reports uptime, DB, vector, MCP, and plugin status', async
   expect(body.mcp.toolCount).toBe(mcpTools.length + 2);
   expect(body.pluginCount).toBe(5);
   expect(body.plugins.count).toBe(5);
+  expect(body.db).toBe('connected');
+  expect(body.version).toBeTypeOf('string');
+  expect(typeof body.uptime).toBe('number');
+});
+
+test('GET /api/health reflects database ping result in status and db field', async () => {
+  const app = createHealthRoutes({
+    uptimeSeconds: () => 12.25,
+    dbPing: () => ({ status: 'error', error: 'db offline' }),
+    vectorHealth: async () => ({ status: 'ok', engines: [], checked_at: '2026-06-16T00:00:00.000Z' }),
+  });
+  const res = await app.handle(new Request('http://local/api/health'));
+  const body = await res.json() as Record<string, any>;
+
+  expect(res.status).toBe(200);
+  expect(body.status).toBe('degraded');
+  expect(body.db).toBe('error');
+  expect(body.dbCheck).toMatchObject({ status: 'error', error: 'db offline' });
 });
