@@ -18,6 +18,15 @@ describe('config env validation', () => {
     expect(warnings).toContain('[Config] ORACLE_PORT/PORT is unset; using 47778.');
   });
 
+  test('treats blank path env as unset during validation', () => {
+    const result = validateEnv({
+      env: { HOME: '/tmp/arra-home', ORACLE_DATA_DIR: '   ', ORACLE_VECTOR_DB_PATH: '   ' },
+      emitOptionalWarnings: false,
+    });
+
+    expect(result.warnings).toContain('ORACLE_DATA_DIR is unset; using ~/.arra-oracle-v2.');
+  });
+
   test('rejects invalid port range before server startup', () => {
     expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', PORT: '70000' }, emitOptionalWarnings: false }))
       .toThrow(/PORT must be <= 65535/);

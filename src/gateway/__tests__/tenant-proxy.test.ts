@@ -64,4 +64,22 @@ describe('gateway tenant proxying', () => {
       stopServers();
     }
   });
+
+  it('trims service URLs and treats non-positive timeouts as the default', async () => {
+    const captured: CapturedRequest[] = [];
+    const target = startCaptureServer(captured);
+
+    try {
+      const response = await proxyToService(
+        new Request('http://local/api/search?q=trimmed'),
+        { url: ` ${target}/ `, timeout: 0 },
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('X-Gateway-Service')).toBe(target);
+      expect(captured).toEqual([{ path: '/api/search?q=trimmed', tenant: null }]);
+    } finally {
+      stopServers();
+    }
+  });
 });

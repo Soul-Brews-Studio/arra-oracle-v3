@@ -28,8 +28,8 @@ describe('menu directory loader edge handling', () => {
     writeFileSync(join(dir, '01.json'), JSON.stringify([
       {
         path: ' alpha ', label: ' Alpha ', group: 'bogus', order: 'late', source: 'weird',
-        access: 'auth', studio: 'menu.example.test', scope: 'sub',
-        query: { keep: 'yes', drop: 1 },
+        access: 'auth', parentId: ' root ', studio: ' menu.example.test ', sourceName: ' env ',
+        scope: 'sub', query: { ' keep ': ' yes ', blank: '   ', '': 'no', drop: 1 },
       },
       { path: '/dup', label: 'First', group: 'tools', order: 5, source: 'page' },
       { path: '', label: 'No path', group: 'tools', order: 1 },
@@ -43,7 +43,8 @@ describe('menu directory loader edge handling', () => {
     expect(await loadMenuItemsFromDir(dir)).toEqual([
       {
         path: '/alpha', label: 'Alpha', group: 'tools', order: 999, source: 'page',
-        access: 'auth', studio: 'menu.example.test', scope: 'sub', query: { keep: 'yes' },
+        access: 'auth', parentId: 'root', studio: 'menu.example.test', sourceName: 'env',
+        scope: 'sub', query: { keep: 'yes' },
       },
       { path: '/dup', label: 'Second', group: 'main', order: 2, source: 'api', icon: 'bolt' },
     ]);

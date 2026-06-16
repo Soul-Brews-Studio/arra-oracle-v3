@@ -17,23 +17,9 @@ import { isWithinRoot, listDirs, listFiles, safeClearTimeout, safeClose, watchDi
 type ModelRegistry = Record<string, { collection: string }>;
 type WatcherEventType = 'started' | 'stopped' | 'scheduled' | 'indexed' | 'skipped' | 'error';
 
-export interface WatcherEvent {
-  type: WatcherEventType;
-  at: string;
-  path?: string;
-  message: string;
-  docs?: number;
-  jobs?: number;
-}
+export interface WatcherEvent { type: WatcherEventType; at: string; path?: string; message: string; docs?: number; jobs?: number; }
 
-export interface FileWatcherStatus {
-  running: boolean;
-  watchRoot: string;
-  debounceMs: number;
-  watchedDirs: number;
-  pending: number;
-  events: WatcherEvent[];
-}
+export interface FileWatcherStatus { running: boolean; watchRoot: string; debounceMs: number; watchedDirs: number; pending: number; events: WatcherEvent[]; }
 
 export interface FileWatcherControl {
   start(): FileWatcherStatus; stop(): FileWatcherStatus; status(): FileWatcherStatus;
@@ -201,11 +187,23 @@ export class FileWatcherService implements FileWatcherControl {
   }
 
   private enqueue(ids: string[]): number {
-    const models = this.models();
+    let models: ModelRegistry;
+    try {
+      models = this.models();
+    } catch (error) {
+      this.record('error', `failed to resolve vector models: ${errorText(error)}`);
+      this.logger.warn('[file-watcher] failed to resolve vector models:', error);
+      return 0;
+    }
     let count = 0;
     for (const id of ids) {
-      if (this.hasActiveJob(id)) continue;
-      count += enqueueIndexJob(this.db, { docId: id, models }).length;
+      try {
+        if (this.hasActiveJob(id)) continue;
+        count += enqueueIndexJob(this.db, { docId: id, models }).length;
+      } catch (error) {
+        this.record('error', `failed to enqueue vector jobs for ${id}: ${errorText(error)}`);
+        this.logger.warn(`[file-watcher] failed to enqueue vector jobs for ${id}:`, error);
+      }
     }
     return count;
   }

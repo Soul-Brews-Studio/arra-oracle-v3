@@ -15,3 +15,7 @@ test('process search treats shell metacharacters as literal text', async () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('process search ignores blank patterns', async () => {
+  expect(await findProcesses('   ')).toEqual([]);
+});

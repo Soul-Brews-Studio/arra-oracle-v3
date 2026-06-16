@@ -10,14 +10,18 @@ import { cloneRetryableBody, retryableRequestBody, retryUpstreamRequest } from '
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 
+function safeTimeoutMs(value: number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_TIMEOUT_MS;
+}
+
 export async function proxyToService(
   request: Request,
   service: ServiceConfig,
 ): Promise<Response> {
   const incomingUrl = new URL(request.url);
-  const targetBase = service.url.replace(/\/+$/, '');
+  const targetBase = service.url.trim().replace(/\/+$/, '');
   const targetUrl = `${targetBase}${incomingUrl.pathname}${incomingUrl.search}`;
-  const timeoutMs = service.timeout ?? DEFAULT_TIMEOUT_MS;
+  const timeoutMs = safeTimeoutMs(service.timeout);
 
   try {
     const headers = new Headers(request.headers);
@@ -37,7 +41,7 @@ export async function proxyToService(
 
     // Stream the response back, preserving status and headers
     const responseHeaders = new Headers(res.headers);
-    responseHeaders.set('X-Gateway-Service', service.url);
+    responseHeaders.set('X-Gateway-Service', targetBase);
 
     return new Response(res.body, {
       status: res.status,

@@ -103,7 +103,7 @@ export function watchGatewayConfig(
     // state until the user saves a valid file.
     const fileMissing = !fs.existsSync(configPath);
     const next = loadGatewayConfig(dataDir, vectorUrl);
-    if (next === null && !fileMissing && !vectorUrl) {
+    if (next === null && !fileMissing) {
       // file exists but failed to parse — hold last good
       return;
     }

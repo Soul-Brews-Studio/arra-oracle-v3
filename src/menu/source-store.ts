@@ -18,6 +18,7 @@ import { fetchGistMenu, invalidateGistCache, parseGistUrl } from './gist.ts';
 import { _resetMenuSource } from './config.ts';
 import { customMenuFile } from './custom-store.ts';
 import { menuOwnedWhere, menuSettingKey } from './tenant.ts';
+import { normalizeMenuPathList } from './path.ts';
 
 export const MENU_GIST_SETTING_KEY = 'menu_gist_url';
 
@@ -30,9 +31,7 @@ export async function applyMenuGistUrl(url: string, mode: ApplyMode = 'merge'): 
   if (mode !== 'override') return;
 
   const result = await fetchGistMenu(url);
-  const paths = (result?.data.items ?? [])
-    .map((i) => (typeof i?.path === 'string' ? i.path : ''))
-    .filter((p) => p.length > 0);
+  const paths = normalizeMenuPathList((result?.data.items ?? []).map((i) => i?.path));
   if (!paths.length) return;
 
   const now = new Date();

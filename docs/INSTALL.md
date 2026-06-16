@@ -1,279 +1,218 @@
-# Arra Oracle Installation Guide
+# Arra Oracle easy install
 
-Fresh-install guide for the current `arra-oracle-v3` alpha distribution
-channels: Bun remote, Docker GHCR, and Docker MCP Toolkit.
+Goal: install Arra Oracle like a plugin, start the HTTP/MCP surfaces, then add
+Oracle plugins without cloning the repo unless you are developing core code.
 
-For the full alpha operator surface (MCP modes, CLI targets, plugins, vector
-adapters, Docker/GHCR, and federation notes), see
-[TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md).
+Use this guide for tagged alpha releases. Use `#alpha` only when you explicitly
+want the moving branch head.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh/) for the Bun remote/source paths.
-- Docker Desktop or Docker Engine for Docker/GHCR paths.
-- Docker Desktop with Docker MCP Toolkit / `docker mcp` CLI for the Toolkit path.
+- Bun `>=1.2` in `PATH`.
+- Optional: Docker Desktop/Engine for container installs.
+- Optional: `ghq` if you use `arra plugin install github.com/owner/repo`.
 
-## Channel 1: Bun remote HTTP server
+## Fast path: global Bun install
 
-Start a fresh HTTP server directly from GitHub:
-
-```bash
-bunx --bun arra-oracle-v3@github:Soul-Brews-Studio/arra-oracle-v3
-```
-
-The command runs the `arra-oracle-v3` bin, which starts the HTTP API. By
-default it listens on `http://localhost:47778` and stores data under the normal
-Oracle data directory. To avoid an existing local server while testing, set a
-custom port and data directory:
+Pick a released tag from GitHub Releases, then install the package globally:
 
 ```bash
-ORACLE_DATA_DIR=$(mktemp -d) ORACLE_PORT=47881 PORT=47881 \
-  bunx --bun arra-oracle-v3@github:Soul-Brews-Studio/arra-oracle-v3
+bun add -g github:Soul-Brews-Studio/arra-oracle-v3#vX.Y.Z
+# alpha prerelease example: #vX.Y.Z-alpha.N
 ```
 
-Verify health from another shell:
+Development/head install:
 
 ```bash
-curl -sf http://localhost:47778/api/health
-# or, if you set PORT=47881:
-curl -sf http://localhost:47881/api/health
+bun add -g github:Soul-Brews-Studio/arra-oracle-v3#alpha
 ```
 
-Expected response includes:
+Verify the installed bins:
+
+```bash
+arra-oracle-v3 --help     # HTTP/MCP server runner
+arra --version            # operator CLI
+arra --help
+```
+
+The current package also keeps legacy aliases (`arra-cli`, `arra-oracle-v2`). Use
+`arra-oracle-v3` for new server docs and `arra` for operator commands.
+
+## First server
+
+Choose a data directory and start the HTTP API:
+
+```bash
+export ORACLE_DATA_DIR="$HOME/.oracle"
+export ORACLE_PORT=47778
+arra-oracle-v3 serve --port "$ORACLE_PORT"
+```
+
+From another shell:
+
+```bash
+curl -sf "http://localhost:$ORACLE_PORT/api/health"
+arra config add local "http://localhost:$ORACLE_PORT"
+arra config use local
+arra health
+```
+
+Expected health includes `status: ok` / `server: arra-oracle-v3`.
+
+## First memory
+
+Store and search a small learning:
+
+```bash
+arra learn "Arra Oracle is installed from a pinned GitHub tag." \
+  --source "quickstart"
+
+arra search "pinned GitHub tag" --limit 5
+arra list --limit 5
+```
+
+If vectors are unavailable, FTS5 still works; vector backfill can happen later.
+
+## MCP stdio client setup
+
+Use the same installed package as an MCP server. Keep logs on stderr so stdout
+stays valid JSON-RPC:
 
 ```json
-{"status":"ok","server":"arra-oracle-v3","oracle":"connected"}
-```
-
-## Channel 2: Docker GHCR images
-
-The `alpha` branch publishes multi-arch GHCR images for both runtime modes:
-
-| Image | Purpose |
-| --- | --- |
-| `ghcr.io/soul-brews-studio/arra-oracle-v3:http` | HTTP API on container port `47778` |
-| `ghcr.io/soul-brews-studio/arra-oracle-v3:stdio` | MCP stdio server for Docker MCP Toolkit / Gateway |
-
-Verify the published tags include both common desktop/server architectures:
-
-```bash
-docker buildx imagetools inspect ghcr.io/soul-brews-studio/arra-oracle-v3:http
-docker buildx imagetools inspect ghcr.io/soul-brews-studio/arra-oracle-v3:stdio
-```
-
-Expected platforms include `linux/amd64` and `linux/arm64`.
-
-Run the HTTP image:
-
-```bash
-docker run --rm -p 47778:47778 -v arra-oracle-data:/data \
-  ghcr.io/soul-brews-studio/arra-oracle-v3:http
-```
-
-Verify health from another shell:
-
-```bash
-curl -sf http://localhost:47778/api/health
-```
-
-Smoke-test the MCP stdio image with newline-delimited JSON-RPC:
-
-```bash
-docker run --rm -i -e ORACLE_LOG_TARGET=stderr -v arra-oracle-data:/data \
-  ghcr.io/soul-brews-studio/arra-oracle-v3:stdio <<'EOF'
-{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"arra-smoke","version":"1.0.0"}}}
-{"jsonrpc":"2.0","method":"notifications/initialized"}
-{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
-EOF
-```
-
-Expected output includes `oracle_search` in the `tools/list` result.
-
-### Build locally instead of pulling GHCR
-
-```bash
-docker build -t arra-oracle-v3:http --target http-server .
-docker build -t arra-oracle-v3:stdio --target mcp-stdio .
-```
-
-## Channel 3: Docker MCP Toolkit install
-
-Use this when you want Docker Desktop MCP Toolkit / Docker MCP Gateway to run
-Arra Oracle from the published GHCR stdio image instead of local source. The
-repository catalog points at:
-
-```text
-ghcr.io/soul-brews-studio/arra-oracle-v3:stdio
-```
-
-Run from a clone of `Soul-Brews-Studio/arra-oracle-v3`:
-
-```bash
-git clone https://github.com/Soul-Brews-Studio/arra-oracle-v3.git
-cd arra-oracle-v3
-
-docker mcp profile create --name arra-oracle \
-  --server file://$(pwd)/catalog/arra-oracle.yaml
-```
-
-Docker MCP slugifies the profile name, so the profile id printed by the command
-is usually `arra_oracle`. Add the server to an existing profile instead with:
-
-```bash
-docker mcp profile server add <profile-id> \
-  --server file://$(pwd)/catalog/arra-oracle.yaml
-```
-
-Verify the profile registered the catalog server:
-
-```bash
-docker mcp profile server ls | grep arra-oracle
-```
-
-Run a gateway smoke test for that profile:
-
-```bash
 {
-  printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"arra-gateway-smoke","version":"1.0.0"}}}'
-  printf '%s\n' '{"jsonrpc":"2.0","method":"notifications/initialized"}'
-  printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
-  sleep 8
-} | docker mcp gateway run --profile arra_oracle
+  "mcpServers": {
+    "arra-oracle": {
+      "command": "arra-oracle-v3",
+      "args": ["mcp"],
+      "env": {
+        "ORACLE_LOG_TARGET": "stderr",
+        "ORACLE_DATA_DIR": "~/.oracle"
+      }
+    }
+  }
+}
 ```
 
-Expected output includes `oracle_search` in the gateway `tools/list` result.
-Connect a client to the profile with, for example:
+For HTTP-proxy MCP mode, point stdio clients at an already running HTTP server:
+
+```json
+{
+  "mcpServers": {
+    "arra-oracle": {
+      "command": "arra-oracle-v3",
+      "args": ["mcp"],
+      "env": {
+        "ORACLE_LOG_TARGET": "stderr",
+        "ORACLE_HTTP_URL": "http://localhost:47778"
+      }
+    }
+  }
+}
+```
+
+## Plugin-style install
+
+Arra plugins live under `~/.arra/plugins` and `~/.oracle/plugins`. Install from a
+repo, local path, or prebuilt artifact:
 
 ```bash
-docker mcp client connect claude-desktop --profile arra_oracle
+arra plugin install github.com/owner/oracle-plugin
+arra plugin install ./local-plugin --dry-run
+arra plugin install --artifact https://example.com/plugin.wasm \
+  --manifest https://example.com/plugin.json
+arra plugin list
 ```
 
-Docker Desktop users can also open **MCP Toolkit → Catalog → Import catalog**
-and select `catalog/arra-oracle.yaml`; then add the `arra-oracle` server to a
-profile. The server stores Oracle data in the Docker volume `arra-oracle-data`
-and logs to stderr so stdio remains valid MCP JSON-RPC.
+A source plugin needs `plugin.json`; a WASM artifact install can either provide a
+manifest URL or let the CLI synthesize one from the artifact name. Re-run with
+`--force` to overwrite an existing plugin install.
 
-## From source
+## Source development install
+
+Use source only when editing core code:
 
 ```bash
 git clone https://github.com/Soul-Brews-Studio/arra-oracle-v3.git
 cd arra-oracle-v3
 bun install
-bun run dev      # MCP stdio server
-bun run server   # HTTP API on :47778
+bunx tsc --noEmit
+bun run server
 ```
 
-## Index your own knowledge
-
-To index your own `ψ/memory` files:
+Useful checks:
 
 ```bash
-ORACLE_REPO_ROOT=/path/to/your/repo bun run index
+bun test tests/http/health/
+bun test src/tools/__tests__/
 ```
 
-Common scanned paths include:
+## Docker install
 
-- `ψ/memory/resonance/*.md`
-- `ψ/memory/learnings/*.md`
-- `ψ/memory/retrospectives/**/*.md`
-
-## Optional: Vector adapters
-
-Arra Oracle runs with local LanceDB vector storage by default. See
-[TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md#vector-store-adapters-and-per-collection-config) for Qdrant,
-remote vector service, fallback, and read-only mode environment variables.
-
-### Docker vector sidecar
-
-For process separation, build/run the `vector-server` Docker target or use the compose `vector` profile:
+HTTP API image:
 
 ```bash
-docker build -t arra-oracle-v3:vector --target vector-server .
-VECTOR_URL=http://vector:47779 docker compose --profile vector up -d
+docker run --rm -p 47778:47778 -v arra-oracle-data:/data \
+  ghcr.io/soul-brews-studio/arra-oracle-v3:http
+curl -sf http://localhost:47778/api/health
 ```
 
-With `VECTOR_URL=http://vector:47779`, the core service proxies vector work to the vector container, which runs `src/vector-server.ts` with `ORACLE_VECTOR_SERVER=1` and `ORACLE_VECTOR_READONLY=1`. FTS5 stays available in the core process if the vector sidecar is down.
+MCP stdio image:
+
+```bash
+docker run --rm -i -e ORACLE_LOG_TARGET=stderr -v arra-oracle-data:/data \
+  ghcr.io/soul-brews-studio/arra-oracle-v3:stdio
+```
+
+Docker MCP Toolkit catalog:
+
+```bash
+git clone https://github.com/Soul-Brews-Studio/arra-oracle-v3.git
+cd arra-oracle-v3
+docker mcp profile create --name arra-oracle \
+  --server file://$(pwd)/catalog/arra-oracle.yaml
+docker mcp client connect claude-desktop --profile arra_oracle
+```
+
+## Common setup knobs
+
+| Need | Knob |
+| --- | --- |
+| Data directory | `ORACLE_DATA_DIR=$HOME/.oracle` |
+| HTTP port | `ORACLE_PORT=47778` or `--port 47778` |
+| Protected HTTP writes | `ARRA_API_TOKEN=<token>` |
+| Tenant-scoped HTTP | `ARRA_TENANT_TOKENS='team=<token>'` + `x-arra-tenant` |
+| MCP proxy mode | `ORACLE_HTTP_URL=http://localhost:47778` |
+| Stdio-safe logs | `ORACLE_LOG_TARGET=stderr` |
+| Disable embeddings | `ORACLE_EMBEDDER=none` |
 
 ## Troubleshooting
 
-### Port 47778 is already in use
+### `command not found: arra-oracle-v3`
 
-Use a different host port for Docker:
-
-```bash
-docker run --rm -p 47881:47778 -v arra-oracle-data:/data \
-  ghcr.io/soul-brews-studio/arra-oracle-v3:http
-curl -sf http://localhost:47881/api/health
-```
-
-Or set both `ORACLE_PORT` and `PORT` for the Bun remote command:
+Check Bun's global bin directory is on `PATH`:
 
 ```bash
-ORACLE_PORT=47881 PORT=47881 bunx --bun arra-oracle-v3@github:Soul-Brews-Studio/arra-oracle-v3
+bun pm bin -g
 ```
 
-### MCP stdio output contains logs
+Add that directory to your shell profile, then restart the shell.
 
-Set `ORACLE_LOG_TARGET=stderr` for stdio runs. The GHCR stdio image and catalog
-already do this; keep it set for manual `docker run` smoke tests.
-
-### Docker MCP profile id does not match the display name
-
-Use the id printed by `docker mcp profile create`, or list profiles:
+### Port already in use
 
 ```bash
-docker mcp profile list
+ORACLE_PORT=47881 arra-oracle-v3 serve --port 47881
+arra config add local-47881 http://localhost:47881
+arra config use local-47881
 ```
 
-## Uninstall
+### MCP client shows JSON parse errors
 
-```bash
-# Bun/source local data, if you used the default data dir
-rm -rf ~/.oracle
+Set `ORACLE_LOG_TARGET=stderr`. Do not print logs to stdout in stdio mode.
 
-# Docker data volume
-docker volume rm arra-oracle-data
+## Next
 
-# Docker MCP profile, if created with --name arra-oracle
-docker mcp profile remove arra_oracle
-```
-
----
-
-See also:
-
-- [README.md](./README.md) - Docs index and feature-knob map
-- [README.md](../README.md) - Overview
-- [TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md) - Current alpha operator reference
-- [FEDERATION.md](./FEDERATION.md) - Federation pairing, peer search/feed, and security guide
-- [API.md](./API.md) - API documentation
-- [architecture.md](./architecture.md) - System architecture
-
-## DigitalOcean one-droplet alpha deploy
-
-For a small operator-hosted alpha, `scripts/deploy-do.sh` provisions a locked-down
-DigitalOcean Docker droplet and runs the published GHCR HTTP image. The lead
-should run the real command; contributors can inspect the plan safely first:
-
-```bash
-bash scripts/deploy-do.sh --dry-run --allow-ip 1.2.3.4 --token "$ARRA_API_TOKEN"
-```
-
-Real deploys require a DigitalOcean SSH key fingerprint (via `--ssh-key` or
-`DO_SSH_KEY_FINGERPRINT`) and doctl authentication. Inbound firewall rules are
-default-deny except SSH `22` and HTTP `80` from each repeated `--allow-ip`.
-
-```bash
-bash scripts/deploy-do.sh \
-  --allow-ip "$(curl -fsS https://ifconfig.me)/32" \
-  --ssh-key "$DO_SSH_KEY_FINGERPRINT" \
-  --token "$ARRA_API_TOKEN"
-```
-
-The script prints the public IP and `ORACLE_API=http://<ip>` when complete.
-Teardown is separate and also supports dry-run:
-
-```bash
-bash scripts/destroy-do.sh --dry-run
-bash scripts/destroy-do.sh --yes
-```
+- [QUICKSTART.md](./QUICKSTART.md) — five-minute first run.
+- [PLUGIN-GUIDE.md](./PLUGIN-GUIDE.md) — author unified plugins.
+- [BINS.md](./BINS.md) — command roles and aliases.
+- [FEDERATION.md](./FEDERATION.md) — peer pairing and security.
+- [vector-runtime.md](./vector-runtime.md) — vector backend configuration.

@@ -82,6 +82,30 @@ describe('auth-guard hook', () => {
     expect(res).toBeUndefined();
   });
 
+  it('ignores blank allowlist entries instead of bypassing every path', async () => {
+    const ctx = makeCtx('http://localhost/api/search', {}, {
+      'auth-guard': { header: 'x-oracle-token', allowlist: ['', '   ', '/api/health/'] },
+    });
+    const res = await runRequest(ctx);
+    expect((res as Response).status).toBe(401);
+  });
+
+  it('trims configured header names and falls back from malformed names', async () => {
+    const trimmed = makeCtx(
+      'http://localhost/api/search',
+      { headers: { 'x-oracle-token': 'secret' } },
+      { 'auth-guard': { header: ' x-oracle-token ', expected: 'secret' } },
+    );
+    expect(await runRequest(trimmed)).toBeUndefined();
+
+    const malformed = makeCtx(
+      'http://localhost/api/search',
+      { headers: { 'x-oracle-token': 'secret' } },
+      { 'auth-guard': { header: 'bad header', expected: 'secret' } },
+    );
+    expect(await runRequest(malformed)).toBeUndefined();
+  });
+
   it('defaults to header x-oracle-token when none specified', async () => {
     const ctx = makeCtx('http://localhost/api/search', {}, { 'auth-guard': {} });
     const res = await runRequest(ctx);

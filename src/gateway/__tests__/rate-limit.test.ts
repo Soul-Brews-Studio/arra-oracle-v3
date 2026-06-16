@@ -150,4 +150,15 @@ describe('rate-limit hook', () => {
     expect(await run(a)).toBeUndefined();
     expect((await run(b) as Response).status).toBe(429);
   });
+
+  it('falls back to x-forwarded-for when configured header is blank or malformed', async () => {
+    const opts = { header: 'bad header', tokens_per_window: 60, window_ms: 60_000, burst: 1 };
+    expect(await run(ctxFor('11.11.11.11', opts))).toBeUndefined();
+    expect((await run(ctxFor('11.11.11.11', opts)) as Response).status).toBe(429);
+
+    _resetRateLimitState();
+    const blank = { ...opts, header: ' ' };
+    expect(await run(ctxFor('12.12.12.12', blank))).toBeUndefined();
+    expect((await run(ctxFor('12.12.12.12', blank)) as Response).status).toBe(429);
+  });
 });
