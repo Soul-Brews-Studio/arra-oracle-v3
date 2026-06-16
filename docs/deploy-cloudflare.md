@@ -22,8 +22,8 @@ memory/search surface once D1 and Vectorize bindings are wired.
 
 ## Deploy button target
 
-Add this to `README.md` once the Worker entrypoint is present and a smoke deploy
-has produced a healthy `/mcp` or `/health` response:
+The root `README.md` includes this button so users can start the Cloudflare
+fork-and-deploy flow from the project front page:
 
 ```md
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Soul-Brews-Studio/arra-oracle-v3)

@@ -26,16 +26,31 @@ export async function proxyRequestForManifest(
     return json({ ok: false, error: 'method not allowed' }, 405, { allow: allowed.join(', ') });
   }
 
-  const targetBase = normalizeTargetBase(env[manifest.targetEnv]);
+  const targetBase = targetBaseFrom(env[manifest.targetEnv]);
   if (targetBase === null) {
     return json({ ok: false, error: `${manifest.targetEnv} is unset`, targetEnv: manifest.targetEnv }, 502);
   }
-  if (!targetBase) return json({ ok: false, error: `${manifest.targetEnv} must be an http(s) URL`, targetEnv: manifest.targetEnv }, 502);
+  if (targetBase === undefined) return json({ ok: false, error: `${manifest.targetEnv} must be an http(s) URL`, targetEnv: manifest.targetEnv }, 502);
 
   const targetPath = manifest.stripPrefix
     ? (url.pathname.slice(normalize(manifest.path).length) || '/')
     : url.pathname;
   return forward(request, `${targetBase}${targetPath.startsWith('/') ? targetPath : `/${targetPath}`}${url.search}`);
+}
+
+function targetBaseFrom(raw: string | undefined): string | null | undefined {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined;
+    url.search = '';
+    url.hash = '';
+    url.pathname = url.pathname.replace(/\/+$/, '');
+    return url.toString().replace(/\/+$/, '');
+  } catch {
+    return undefined;
+  }
 }
 
 function pathMatches(pathname: string, manifestPath: string): boolean {
@@ -46,17 +61,6 @@ function pathMatches(pathname: string, manifestPath: string): boolean {
 function normalize(pathname: string): string {
   const rooted = pathname.startsWith('/') ? pathname : `/${pathname}`;
   return rooted.length > 1 ? rooted.replace(/\/+$/, '') : rooted;
-}
-
-function normalizeTargetBase(value: unknown): string | null {
-  const targetBase = typeof value === 'string' ? value.trim().replace(/\/+$/, '') : '';
-  if (!targetBase) return null;
-  try {
-    const url = new URL(targetBase);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? targetBase : '';
-  } catch {
-    return '';
-  }
 }
 
 async function forward(request: Request, target: string): Promise<Response> {
