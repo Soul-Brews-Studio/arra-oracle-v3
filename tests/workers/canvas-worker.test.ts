@@ -124,4 +124,36 @@ describe('canvas Cloudflare Worker', () => {
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(await response.json()).toEqual({ ok: true });
   });
+
+  test('preserves proxied api method, body, and content headers', async () => {
+    const seen: Array<{ url: string; method: string; contentType: string | null; body: string }> = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const upstream = new Request(input, init);
+      seen.push({
+        url: String(input),
+        method: upstream.method,
+        contentType: upstream.headers.get('content-type'),
+        body: await upstream.text(),
+      });
+      return Response.json({ ok: true });
+    }) as typeof fetch;
+
+    const response = await handleCanvasRequest(
+      new Request('https://canvas.buildwithoracle.com/api/canvas-state?plugin=map', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ selected: 'map' }),
+      }),
+      { ORACLE_API_BASE: 'https://oracle.example.test' },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(seen).toEqual([{
+      url: 'https://oracle.example.test/api/canvas-state?plugin=map',
+      method: 'POST',
+      contentType: 'application/json',
+      body: '{"selected":"map"}',
+    }]);
+  });
 });

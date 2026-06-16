@@ -45,7 +45,11 @@ async function proxyApi(request: Request, env: CanvasWorkerEnv): Promise<Respons
   const headers = new Headers(request.headers);
   headers.set('x-oracle-canvas-worker', 'canvas.buildwithoracle.com');
   headers.delete('host');
-  const upstream = await fetch(proxyTarget(request, env), { ...request, headers });
+  const upstream = await fetch(proxyTarget(request, env), {
+    method: request.method,
+    headers,
+    body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request.body,
+  });
   const responseHeaders = new Headers(upstream.headers);
   for (const [key, value] of Object.entries(API_CACHE_HEADERS)) responseHeaders.set(key, value);
   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: responseHeaders });
