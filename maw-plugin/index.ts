@@ -183,6 +183,14 @@ function usage(): InvokeResult {
 }
 export function listSubcommands(): string[] { return [...Object.keys(COMMANDS), ...Object.keys(LOCAL_COMMANDS)].sort(); }
 
+function registryPayload(source?: string): InvokeResult {
+  const commands = listSubcommands().map(name => {
+    const localHelp = LOCAL_COMMANDS[name as keyof typeof LOCAL_COMMANDS];
+    return { name, help: COMMANDS[name]?.help ?? localHelp };
+  });
+  return { ok: true, output: JSON.stringify({ plugin: 'arra', surface: source ?? 'api', cli: 'arra', menu: '/plugins/arra', api: '/api/arra', commands }, null, 2) };
+}
+
 function runFrontend(parsed: Parsed, opener: Opener, env: Record<string, string | undefined>): InvokeResult {
   const url = buildFrontendUrl(env);
   const shouldOpen = b(parsed, 'no_open') !== true;
@@ -225,7 +233,9 @@ export async function runArra(args: string[], request: Requester = requestJson, 
 }
 
 export default async function handler(ctx: InvokeContext): Promise<InvokeResult> {
-  const result = await runArra(apiArgsToCliArgs(ctx.args));
+  const args = apiArgsToCliArgs(ctx.args);
+  if (ctx.source !== 'cli' && args.length === 0) return registryPayload(ctx.source);
+  const result = await runArra(args);
   if (ctx.source === 'cli' && ctx.writer && result.ok && result.output) {
     ctx.writer(result.output);
     return { ok: true };
