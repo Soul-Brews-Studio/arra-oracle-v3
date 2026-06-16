@@ -33,10 +33,12 @@ describe('UnifiedPluginSurfaceOverview', () => {
 
     expect(pluginServerRows(plugins)).toEqual([
       { name: 'echo', status: 'ok', health: '/health', surface: 'server' },
+      { name: 'echo', status: 'ok', health: '/api/plugins/echo/server', surface: 'proxy' },
       { name: 'proxy-only', status: 'ok', health: '/api/plugins/proxy-only/server', surface: 'proxy' },
     ]);
     expect(pluginServerLinks(plugins)).toEqual([
       { label: 'echo · ok · /health', href: '/plugins?q=echo&surface=server' },
+      { label: 'echo · ok · /api/plugins/echo/server', href: '/plugins?q=echo&surface=proxy' },
       { label: 'proxy-only · ok · /api/plugins/proxy-only/server', href: '/plugins?q=proxy-only&surface=proxy' },
     ]);
     expect(pluginCapabilityRows(plugins)).toContain('echo api GET /api/plugins/echo/ping');
@@ -62,6 +64,7 @@ describe('UnifiedPluginSurfaceOverview', () => {
     expect(html).toContain('href="/plugins?surface=mcp"');
     expect(html).toContain('href="/plugins?surface=server"');
     expect(html).toContain('href="/plugins?q=echo&amp;surface=server"');
+    expect(html).toContain('href="/plugins?q=echo&amp;surface=proxy"');
     expect(html).toContain('href="/plugins?q=proxy-only&amp;surface=proxy"');
     expect(html).toContain('href="/mcp/tools/echo_tool"');
     expect(html).toContain('href="/plugins?q=%2Fapi%2Fplugins%2Fecho%2Fping&amp;surface=apiRoutes"');
