@@ -2,7 +2,6 @@ import { Elysia } from 'elysia';
 import { join } from 'node:path';
 import { swagger } from '@elysiajs/swagger';
 import { eq } from 'drizzle-orm';
-
 import { configure, writePidFile, removePidFile } from './process-manager/index.ts';
 import { PORT, ORACLE_DATA_DIR, VECTOR_URL } from './config.ts';
 import { ScoutAnnouncer, shouldStartScoutAnnouncer } from './peer/scout-announcer.ts';
@@ -28,6 +27,7 @@ import { createApiVersionHeaderMiddleware, createApiVersionedFetch } from './mid
 import { createSecurityHeadersMiddleware } from './middleware/security-headers.ts';
 import { createRequestTimeoutFetch } from './middleware/timeout.ts';
 import { createBodyLimitMiddleware } from './middleware/body-limit.ts';
+import { createRateLimiterMiddleware } from './middleware/rate-limiter.ts';
 import { createResponseFormatMiddleware } from './middleware/response-format.ts';
 import { createNotFoundMiddleware } from './middleware/not-found.ts';
 import { createEtagMiddleware } from './middleware/etag.ts';
@@ -114,7 +114,6 @@ registerGracefulShutdown({
     console.log('👋 Arra Oracle HTTP Server stopped.');
   },
 });
-
 const app = new Elysia()
   .use(createRequestLoggingMiddleware())
   .use(createCorrelationMiddleware())
@@ -126,6 +125,7 @@ const app = new Elysia()
   .use(createContentTypeMiddleware())
   .use(createBodyLimitMiddleware())
   .use(createApiKeyAuthMiddleware())
+  .use(createRateLimiterMiddleware())
   .use(createMetricsLifecycle())
   .use(createResponseFormatMiddleware())
   .use(createCompressMiddleware())

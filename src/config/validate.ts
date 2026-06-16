@@ -1,3 +1,6 @@
+import { accessSync, constants, existsSync, statSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Value } from '@sinclair/typebox/value';
 import {
   ARRA_ENV_VALUES,
@@ -46,6 +49,8 @@ export function validateEnv(options: ValidateEnvOptions = {}): ConfigValidationR
   validateUrls(env, issues);
   validateEnums(env, issues);
   validateDatabaseUrl(env, issues);
+  validateRuntimePaths(env, issues);
+  validateVectorConnectionConfig(env, issues);
   validateProviderRequirements(env, issues);
 
   if (issues.length) throw new ConfigValidationError(issues);
@@ -57,9 +62,7 @@ export function validateEnv(options: ValidateEnvOptions = {}): ConfigValidationR
   return { env, profile: resolveConfigProfile(env), warnings };
 }
 
-export function validateStartupEnv(): ConfigValidationResult {
-  return validateEnv();
-}
+export function validateStartupEnv(): ConfigValidationResult { return validateEnv(); }
 
 function cleanEnv(env: NodeJS.ProcessEnv): RuntimeEnv {
   const out: Record<string, string> = {};
@@ -161,6 +164,62 @@ function validateProviderRequirements(env: RuntimeEnv, issues: string[]): void {
     issues.push('Cloudflare vector/AI config requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.');
   }
 }
+
+function validateRuntimePaths(env: RuntimeEnv, issues: string[]): void {
+  const dataDir = env.ORACLE_DATA_DIR || resolve(homeDir(env) || '.', '.arra-oracle-v2');
+  const dbPath = env.ORACLE_DB_PATH || pathFromDatabaseUrl(env.DATABASE_URL) || resolve(dataDir, 'oracle.db');
+  validateWritablePath('ORACLE_DATA_DIR', dataDir, issues, true);
+  validateWritablePath('ORACLE_DB_PATH/DATABASE_URL', dbPath, issues, false);
+  if (filled(env.ORACLE_REPO_ROOT)) validateWritablePath('ORACLE_REPO_ROOT', env.ORACLE_REPO_ROOT, issues, true);
+}
+
+function validateVectorConnectionConfig(env: RuntimeEnv, issues: string[]): void {
+  const type = (env.ORACLE_VECTOR_DB || 'lancedb').toLowerCase();
+  if (type === 'qdrant' && !filled(env.QDRANT_URL)) issues.push('Qdrant vector DB requires QDRANT_URL.');
+  if (type === 'proxy' && !filled(env.ORACLE_PROXY_VECTOR_URL)) issues.push('Proxy vector DB requires ORACLE_PROXY_VECTOR_URL.');
+  if (type === 'lancedb' || type === 'sqlite-vec') {
+    const base = env.ORACLE_VECTOR_DB_PATH || resolve(env.ORACLE_DATA_DIR || resolve(homeDir(env) || '.', '.arra-oracle-v2'), type === 'lancedb' ? 'lancedb' : 'vectors.db');
+    validateWritablePath('ORACLE_VECTOR_DB_PATH', base, issues, type === 'lancedb');
+  }
+}
+
+function validateWritablePath(label: string, target: string, issues: string[], directory: boolean): void {
+  if (!filled(target)) return;
+  try {
+    if (existsSync(target)) {
+      const stat = statSync(target);
+      if (directory && !stat.isDirectory()) issues.push(`${label} must be a directory; received file path "${target}".`);
+      if (!directory && stat.isDirectory()) issues.push(`${label} must be a file path; received directory "${target}".`);
+      accessSync(directory ? target : dirname(target), constants.W_OK);
+      return;
+    }
+    accessSync(nearestExistingDir(directory ? target : dirname(target)), constants.W_OK);
+  } catch (error) {
+    issues.push(`${label} must be writable and resolvable; received "${target}" (${error instanceof Error ? error.message : String(error)}).`);
+  }
+}
+
+function nearestExistingDir(start: string): string {
+  let dir = resolve(start);
+  while (!existsSync(dir)) {
+    const next = dirname(dir);
+    if (next === dir) break;
+    dir = next;
+  }
+  return dir;
+}
+
+function pathFromDatabaseUrl(value?: string): string {
+  if (!filled(value)) return '';
+  try {
+    const url = new URL(value);
+    if (url.protocol === 'file:') return fileURLToPath(url);
+    if (url.protocol === 'sqlite:' || url.protocol === 'sqlite3:') return decodeURIComponent(url.pathname || url.host);
+  } catch { return value; }
+  return value;
+}
+
+const homeDir = (env: RuntimeEnv): string => env.HOME || env.USERPROFILE || '';
 
 function optionalWarnings(env: RuntimeEnv): string[] {
   return OPTIONAL_DEFAULTS
