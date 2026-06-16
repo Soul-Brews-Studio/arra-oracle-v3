@@ -15,6 +15,7 @@ import { COLLECTION_NAME } from '../const.ts';
 import type { UnifiedProxyManifest } from '../plugins/unified-manifest.ts';
 import type { EmbedderConfig, VectorDBType } from './types.ts';
 import { zeroConfigEmbedder } from './default-embedder.ts';
+import { normalizeVectorConfig } from './config-normalize.ts';
 
 export const VECTOR_CONFIG_FILE = 'vector-server.json';
 
@@ -128,7 +129,7 @@ export function loadVectorConfig(fp = configPath()): VectorServerConfig | null {
   if (!fs.existsSync(fp)) return null;
   try {
     const raw = fs.readFileSync(fp, 'utf-8');
-    return JSON.parse(raw) as VectorServerConfig;
+    return normalizeVectorConfig(JSON.parse(raw), generateDefaultConfig());
   } catch (e) {
     console.warn('[VectorConfig] Failed to parse ' + fp + ':', e instanceof Error ? e.message : e);
     return null;
