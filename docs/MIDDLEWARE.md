@@ -25,10 +25,12 @@ Keep this order stable unless a middleware explicitly needs to run earlier for s
    - Config: none. Accepts inbound `X-Request-Id` / `x-correlation-id` only when needed by helpers.
 3. `createPrivateNetworkPreflightMiddleware` (`src/middleware/cors.ts`)
    - Handles Private Network Access preflight before route/auth work.
-   - Config: `ARRA_CORS_ORIGINS` (default `*`).
+   - Config: `ARRA_CORS_ORIGINS` (or legacy `ORACLE_CORS_ORIGIN` / `CORS_ORIGIN`);
+     defaults to explicit local development origins, not `*`.
 4. `createCorsMiddleware` (`src/middleware/cors.ts`)
    - Handles normal CORS preflight and response CORS headers.
-   - Config: `ARRA_CORS_ORIGINS` (default `*`).
+   - Config: `ARRA_CORS_ORIGINS` (or legacy `ORACLE_CORS_ORIGIN` / `CORS_ORIGIN`);
+     defaults to explicit local development origins, not `*`.
 5. `createApiVersionHeaderMiddleware` (`src/middleware/api-version.ts`)
    - Adds `X-API-Version: v1` to responses and errors.
    - Config: none.

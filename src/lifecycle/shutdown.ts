@@ -1,11 +1,19 @@
 type SignalName = 'SIGTERM' | 'SIGINT';
 
+type ShutdownStep = { name: string; run: () => void | Promise<void> };
+
 export interface ShutdownOptions {
   timeoutMs?: number;
   minDrainMs?: number;
   close: () => Promise<void>;
   log?: (message: string) => void;
   exit?: (code: number) => never;
+}
+
+export interface DrainingResponseOptions {
+  draining?: boolean;
+  healthPaths?: readonly string[];
+  retryAfterSeconds?: number;
 }
 
 let draining = false;
@@ -36,10 +44,7 @@ export async function trackRequest<T>(handler: () => T | Promise<T>): Promise<T>
   }
 }
 
-export async function waitForActiveRequests(
-  timeoutMs = 10_000,
-  minDrainMs = 250,
-): Promise<boolean> {
+export async function waitForActiveRequests(timeoutMs = 10_000, minDrainMs = 250): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   if (minDrainMs > 0) await sleep(minDrainMs);
   while (activeRequests > 0) {
@@ -47,6 +52,37 @@ export async function waitForActiveRequests(
     await sleep(25);
   }
   return true;
+}
+
+export function drainingResponseFor(
+  request: Request,
+  options: DrainingResponseOptions = {},
+): Response | null {
+  if (!(options.draining ?? draining)) return null;
+  const healthPaths = options.healthPaths ?? ['/api/health', '/api/v1/health'];
+  const pathname = new URL(request.url).pathname;
+  if (healthPaths.includes(pathname)) return null;
+  return Response.json(
+    { error: 'server is draining', status: 'draining', draining: true },
+    { status: 503, headers: { 'Retry-After': String(options.retryAfterSeconds ?? 5) } },
+  );
+}
+
+export async function runShutdownSteps(
+  steps: readonly ShutdownStep[],
+  log: (message: string) => void = console.warn,
+): Promise<void> {
+  const errors: string[] = [];
+  for (const step of steps) {
+    try {
+      await step.run();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`${step.name}: ${message}`);
+      log(`[Shutdown] ${step.name} cleanup failed: ${message}`);
+    }
+  }
+  if (errors.length) throw new Error(`shutdown cleanup failed (${errors.join('; ')})`);
 }
 
 export function registerGracefulShutdown(options: ShutdownOptions): void {

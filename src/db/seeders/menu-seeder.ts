@@ -8,7 +8,7 @@
  *   - touchedAt != null        → PRESERVE (user edit wins); log drift
  */
 
-import { and, eq, isNull } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../schema.ts';
 import { db as defaultDb } from '../index.ts';
@@ -29,6 +29,7 @@ export interface RouteMenuRow {
 }
 
 type SeenRouteMenuRow = RouteMenuRow & { apiPath: string };
+type MenuItemRow = typeof schema.menuItems.$inferSelect;
 
 function studioPathFor(apiPath: string): string | null {
   for (const [prefix, studio] of API_TO_STUDIO) {
@@ -146,22 +147,18 @@ export function seedMenuItems(
   let preserved = 0;
 
   db.transaction((tx) => {
+    const paths = [...new Set([...rows.map((row) => row.path), ...Object.entries(CHILD_PARENTS).flat()])];
+    const existingRows = paths.length
+      ? tx.select().from(schema.menuItems).where(inArray(schema.menuItems.path, paths)).all()
+      : [];
+    const byKey = new Map<string, MenuItemRow>();
+    for (const item of existingRows) byKey.set(routeMenuKey(item.path, item.studio), item);
+
     for (const row of rows) {
-      const existing = tx
-        .select()
-        .from(schema.menuItems)
-        .where(
-          and(
-            eq(schema.menuItems.path, row.path),
-            row.studio == null
-              ? isNull(schema.menuItems.studio)
-              : eq(schema.menuItems.studio, row.studio),
-          ),
-        )
-        .get();
+      const existing = byKey.get(routeMenuKey(row.path, row.studio));
 
       if (!existing) {
-        tx.insert(schema.menuItems)
+        const created = tx.insert(schema.menuItems)
           .values({
             path: row.path,
             label: row.label,
@@ -176,7 +173,9 @@ export function seedMenuItems(
             createdAt: now,
             updatedAt: now,
           })
-          .run();
+          .returning()
+          .get();
+        byKey.set(routeMenuKey(created.path, created.studio), created);
         inserted += 1;
         continue;
       }
@@ -209,22 +208,14 @@ export function seedMenuItems(
     }
 
     for (const [childPath, parentPath] of Object.entries(CHILD_PARENTS)) {
-      const parent = tx
-        .select()
-        .from(schema.menuItems)
-        .where(and(eq(schema.menuItems.path, parentPath), isNull(schema.menuItems.studio)))
-        .get();
-      if (!parent) continue;
-      const child = tx
-        .select()
-        .from(schema.menuItems)
-        .where(and(eq(schema.menuItems.path, childPath), isNull(schema.menuItems.studio)))
-        .get();
-      if (!child || child.parentId === parent.id) continue;
+      const parent = byKey.get(routeMenuKey(parentPath, null));
+      const child = byKey.get(routeMenuKey(childPath, null));
+      if (!parent || !child || child.parentId === parent.id) continue;
       tx.update(schema.menuItems)
         .set({ parentId: parent.id, updatedAt: now })
         .where(eq(schema.menuItems.id, child.id))
         .run();
+      byKey.set(routeMenuKey(child.path, child.studio), { ...child, parentId: parent.id, updatedAt: now });
     }
   });
 

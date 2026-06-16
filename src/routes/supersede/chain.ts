@@ -3,18 +3,23 @@
  */
 
 import { Elysia } from 'elysia';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { db, oracleDocuments } from '../../db/index.ts';
+import { currentTenantId } from '../../middleware/tenant.ts';
 
 export const supersedeChainEndpoint = new Elysia().get(
   '/supersede/chain/:path',
   ({ params }) => {
     const docPath = decodeURIComponent(params.path);
+    const tenantId = currentTenantId();
+    const targetWhere = tenantId
+      ? and(eq(oracleDocuments.sourceFile, docPath), eq(oracleDocuments.tenantId, tenantId))
+      : eq(oracleDocuments.sourceFile, docPath);
 
     const target = db.select({ id: oracleDocuments.id })
       .from(oracleDocuments)
-      .where(eq(oracleDocuments.sourceFile, docPath))
+      .where(targetWhere)
       .get();
 
     if (!target) {
@@ -23,14 +28,24 @@ export const supersedeChainEndpoint = new Elysia().get(
 
     const newDoc = alias(oracleDocuments, 'new_doc');
 
+    const newDocJoin = tenantId
+      ? and(eq(oracleDocuments.supersededBy, newDoc.id), eq(newDoc.tenantId, tenantId))
+      : eq(oracleDocuments.supersededBy, newDoc.id);
+    const oldWhere = tenantId
+      ? and(eq(oracleDocuments.id, target.id), eq(oracleDocuments.tenantId, tenantId))
+      : eq(oracleDocuments.id, target.id);
+    const newWhere = tenantId
+      ? and(eq(oracleDocuments.supersededBy, target.id), eq(oracleDocuments.tenantId, tenantId))
+      : eq(oracleDocuments.supersededBy, target.id);
+
     const asOld = db.select({
       newPath: newDoc.sourceFile,
       reason: oracleDocuments.supersededReason,
       supersededAt: oracleDocuments.supersededAt,
     })
       .from(oracleDocuments)
-      .leftJoin(newDoc, eq(oracleDocuments.supersededBy, newDoc.id))
-      .where(eq(oracleDocuments.id, target.id))
+      .leftJoin(newDoc, newDocJoin)
+      .where(oldWhere)
       .orderBy(oracleDocuments.supersededAt)
       .all()
       .filter(r => r.newPath !== null);
@@ -41,7 +56,7 @@ export const supersedeChainEndpoint = new Elysia().get(
       supersededAt: oracleDocuments.supersededAt,
     })
       .from(oracleDocuments)
-      .where(eq(oracleDocuments.supersededBy, target.id))
+      .where(newWhere)
       .orderBy(oracleDocuments.supersededAt)
       .all();
 

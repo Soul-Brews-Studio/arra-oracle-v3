@@ -27,57 +27,42 @@ describe('maw arra plugin', () => {
   });
 
   test('help lists the full compact MCP surface', async () => {
-    expect(listSubcommands()).toEqual([
-      'concepts',
-      'feed',
-      'frontend',
-      'handoff',
-      'health',
-      'inbox',
-      'index',
-      'learn',
-      'list',
-      'menu',
-      'open',
-      'plugins',
-      'read',
-      'reflect',
-      'scan',
-      'search',
-      'serve',
-      'settings',
-      'stats',
-      'studio',
-      'supersede',
-      'thread',
-      'thread_read',
-      'thread_update',
-      'threads',
-      'trace',
-      'trace_chain',
-      'trace_get',
-      'trace_link',
-      'trace_list',
-      'trace_unlink',
-      'ui',
-      'vector',
+    const subcommands = listSubcommands();
+    expect(subcommands).toEqual([...subcommands].sort());
+    expect(subcommands).toEqual(expect.arrayContaining([
+      'backup',
+      'canvas-plugins',
+      'canvas-serve',
+      'changelog',
+      'config',
+      'export',
+      'export-obsidian',
+      'import',
+      'import-obsidian',
+      'mcp_tools',
+      'migrate',
+      'schedule',
+      'schedule_add',
+      'supersede_chain',
+      'supersede_list',
+      'vault',
+      'vault_sync',
       'vector_config',
-      'vector_index',
-      'vector_models',
-      'vector_status',
-      'vector_stop',
-      'verify',
-    ]);
+    ]));
 
     const help = await runArra(['help']);
     expect(help.output).toContain('frontend');
+    expect(help.output).toContain('export --format json|markdown');
     expect(help.output).toContain('index');
     expect(help.output).toContain('vector');
     expect(help.output).toContain('vector-config [--json]');
     expect(help.output).toContain('vector-config reload');
+    expect(help.output).toContain('enabled <true|false>');
     expect(help.output).toContain('trace_chain');
     expect(help.output).toContain('thread_update');
     expect(help.output).toContain('serve [--stop|--status] [--port N]');
+    expect(help.output).toContain('schedule-add');
+    expect(help.output).toContain('vault-sync');
     expect(help.output).toContain('verify');
   });
 
@@ -120,11 +105,15 @@ describe('maw arra plugin', () => {
     expect(calls).toContainEqual(expect.objectContaining({ cmd: 'ghq', args: ['locate', 'Soul-Brews-Studio/arra-oracle-v3'] }));
     expect(calls).toContainEqual(expect.objectContaining({ cmd: 'start', cwd: '/repo/arra-oracle-v3' }));
 
-    const status = await runArra(['serve', '--status', '--port', '49999'], async () => ({}), () => {}, env, runner, {
+    expect(resolveBaseUrl(env)).toBe('http://localhost:49999');
+    expect(resolveBaseUrl({ ...env, ORACLE_API: 'http://localhost:47778' })).toBe('http://localhost:47778');
+
+    const status = await runArra(['serve', '--status'], async () => ({}), () => {}, env, runner, {
       isAlive: () => true,
       fetch: async () => new Response('{"status":"ok"}', { status: 200 }),
     });
     expect(status.output).toContain('alive pid=12345');
+    expect(status.output).toContain('port: 49999');
     expect(status.output).toContain('health: ok 200');
 
     const stop = await runArra(['serve', '--stop'], async () => ({}), () => {}, env, runner, {
@@ -145,6 +134,7 @@ describe('maw arra plugin', () => {
       [['feed'], 'GET', '/api/feed'],
       [['menu'], 'GET', '/api/menu'],
       [['vector'], 'GET', '/api/vector/config'],
+      [['vector-config'], 'GET', '/api/v1/vector/config'],
       [['vector_status'], 'GET', '/api/vector/index/status'],
       [['vector_models'], 'GET', '/api/vector/index/models'],
       [['health'], 'GET', '/api/health'],
@@ -157,6 +147,10 @@ describe('maw arra plugin', () => {
       [['list', '--type', 'learning', '--limit', '7'], 'GET', '/api/list?type=learning&limit=7&group=false'],
       [['read', '--id', 'doc1'], 'GET', '/api/read?id=doc1'],
       [['reflect'], 'GET', '/api/reflect'],
+      [['schedule', '--status', 'pending', '--limit', '2'], 'GET', '/api/schedule?status=pending&limit=2'],
+      [['supersede-list', '--limit', '2'], 'GET', '/api/supersede?limit=2'],
+      [['supersede-chain', 'ψ/demo.md'], 'GET', '/api/supersede/chain/%CF%88%2Fdemo.md'],
+      [['mcp-tools'], 'GET', '/api/mcp/tools'],
       [['threads', '--status', 'active', '--limit', '5'], 'GET', '/api/threads?status=active&limit=5'],
       [['thread_read', '42'], 'GET', '/api/thread/42'],
     ];
@@ -183,8 +177,11 @@ describe('maw arra plugin', () => {
       [['vector_index', '--model', 'nomic'], 'POST', '/api/vector/index/start', { model: 'nomic' }],
       [['vector_stop'], 'POST', '/api/vector/index/stop', undefined],
       [['vector-config', 'set', 'bge-m3', 'adapter', 'qdrant'], 'PUT', '/api/v1/vector/config/bge-m3', { adapter: 'qdrant' }],
+      [['vector-config', 'set', 'bge-m3', 'enabled', 'false'], 'PUT', '/api/v1/vector/config/bge-m3', { enabled: false }],
       [['vector-config', 'reload'], 'POST', '/api/v1/vector/config/reload', undefined],
       [['vector-config', 'test', 'bge-m3'], 'POST', '/api/v1/vector/config/bge-m3/test', undefined],
+      [['schedule-add', 'standup', '--date', '2026-06-16'], 'POST', '/api/schedule', { event: 'standup', date: '2026-06-16' }],
+      [['vault-sync', '--dry-run', '--reindex'], 'POST', '/api/vault/sync', { dryRun: true, reindex: true }],
       [['verify', '--check', 'false', '--type', 'learning'], 'POST', '/api/verify', { check: false, type: 'learning' }],
     ];
 
@@ -210,8 +207,9 @@ describe('maw arra plugin', () => {
   });
 
   test('formats compact health and search output', async () => {
-    const health = await runArra(['health'], async () => ({ status: 'ok', vectorMode: 'proxied' }));
+    const health = await runArra(['health'], async () => ({ status: 'ok', vectorMode: 'proxied', vectorStatus: 'ok', vector: { engines: [{ key: 'bge-m3', adapter: 'lancedb', model: 'bge-m3', ok: true, count: 12 }] } }));
     expect(health.output).toContain('vectorMode: proxied');
+    expect(health.output).toContain('vector bge-m3: ok lancedb bge-m3 docs=12');
 
     const search = await runArra(['search', 'hello'], async () => ({ total: 1, results: [{ id: 'doc1', type: 'learning', content: 'hello memory', score: 0.9 }] }));
     expect(search.output).toContain('arra search: 1 result');

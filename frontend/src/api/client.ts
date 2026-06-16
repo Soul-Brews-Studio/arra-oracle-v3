@@ -67,15 +67,15 @@ export interface VectorIndexStartResponse {
 }
 
 export interface ApiRouteResponses {
-  '/api/health': HealthResponse;
+  '/api/v1/health': HealthResponse;
   '/api/v1/metrics': MetricsSnapshot;
   '/api/menu': MenuResponse;
   '/api/menu/search': MenuSearchResponse;
   '/api/v1/vector/search': VectorSearchResponse;
-  '/api/vector/index/models': VectorIndexModelsResponse;
-  '/api/vector/index/status': VectorIndexStatusResponse;
-  '/api/vector/health': VectorHealthResponse;
-  '/api/v1/plugins': PluginsResponse;
+  '/api/v1/vector/index/models': VectorIndexModelsResponse;
+  '/api/v1/vector/index/status': VectorIndexStatusResponse;
+  '/api/v1/vector/health': VectorHealthResponse;
+  '/api/plugins': PluginsResponse;
   '/api/v1/learn': LearnListResponse;
 }
 
@@ -151,7 +151,7 @@ export class ApiClient {
   }
 
   health(): Promise<HealthResponse> {
-    return this.request('/api/health');
+    return this.request('/api/v1/health');
   }
 
   metrics(): Promise<MetricsSnapshot> {
@@ -168,7 +168,7 @@ export class ApiClient {
   }
 
   plugins(): Promise<PluginsResponse> {
-    return this.request('/api/v1/plugins');
+    return this.request('/api/plugins');
   }
 
   learn(): Promise<LearnListResponse> {
@@ -188,11 +188,11 @@ export class ApiClient {
   }
 
   vectorIndexModels(): Promise<VectorIndexModelsResponse> {
-    return this.request('/api/vector/index/models');
+    return this.request('/api/v1/vector/index/models');
   }
 
   vectorHealth(): Promise<VectorHealthResponse> {
-    return this.request('/api/vector/health');
+    return this.request('/api/v1/vector/health');
   }
 
   vectorSearch(query: string, limit?: number): Promise<VectorSearchResponse>;
@@ -211,11 +211,11 @@ export class ApiClient {
   }
 
   vectorIndexStatus(): Promise<VectorIndexStatusResponse> {
-    return this.request('/api/vector/index/status');
+    return this.request('/api/v1/vector/index/status');
   }
 
   startVectorIndex(model: string): Promise<VectorIndexStartResponse> {
-    return this.fetchJson('/api/vector/index/start', { method: 'POST', body: JSON.stringify({ model }) });
+    return this.fetchJson('/api/v1/vector/index/start', { method: 'POST', body: JSON.stringify({ model }) });
   }
 
   private async fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {

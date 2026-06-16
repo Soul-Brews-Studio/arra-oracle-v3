@@ -148,6 +148,27 @@
       "when": 1781553300000,
       "tag": "0020_soft_delete_menu_items",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1781591042651,
+      "tag": "0021_add_oracle_memories",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1781595000000,
+      "tag": "0022_tenant_isolation",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1781597100000,
+      "tag": "0023_query_optimization_indexes",
+      "breakpoints": true
     }
   ]
 }

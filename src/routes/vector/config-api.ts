@@ -1,17 +1,16 @@
-import fs from 'fs';
-import path from 'path';
 import { Elysia, t } from 'elysia';
+import { reloadCachedVectorStores } from '../../vector/factory.ts';
+import { configToModels, type VectorServerConfig } from '../../vector/config.ts';
 import {
-  configPath,
-  configToModels,
-  generateDefaultConfig,
-  loadVectorConfig,
-  writeVectorConfig,
-  type VectorCollectionConfig,
-  type VectorServerConfig,
-} from '../../vector/config.ts';
-import { closeCachedVectorStores, createVectorStoreForModel } from '../../vector/factory.ts';
-import type { VectorDBType } from '../../vector/types.ts';
+  activeConfig,
+  atomicWriteVectorConfig,
+  inspectCollection,
+  normalizedCreate,
+  normalizedUpdate,
+  resolveCollection,
+  withPrimary,
+  withoutCollection,
+} from './config-api-utils.ts';
 
 const adapterSchema = t.Union([
   t.Literal('chroma'),
@@ -20,143 +19,61 @@ const adapterSchema = t.Union([
   t.Literal('qdrant'),
   t.Literal('cloudflare-vectorize'),
   t.Literal('proxy'),
+  t.Literal('turbovec'),
 ]);
 
-type CollectionUpdate = Partial<Pick<VectorCollectionConfig, 'adapter' | 'model' | 'provider' | 'service' | 'endpoint' | 'enabled'>>;
-type CollectionHealth = {
-  key: string;
-  collection: string;
-  model: string;
-  provider: string;
-  adapter: VectorDBType;
-  service?: string;
-  endpoint?: string;
-  enabled: boolean;
-  count: number;
-  ok: boolean;
-  status: 'ok' | 'down' | 'disabled';
-  error?: string;
-};
+const updateSchema = t.Object({
+  adapter: t.Optional(adapterSchema),
+  model: t.Optional(t.String()),
+  provider: t.Optional(t.String()),
+  service: t.Optional(t.String()),
+  endpoint: t.Optional(t.String()),
+  enabled: t.Optional(t.Boolean()),
+  primary: t.Optional(t.Boolean()),
+  embedder: t.Optional(t.Any()),
+});
 
-function activeConfig(): { source: 'file' | 'defaults'; config: VectorServerConfig } {
-  const fromDisk = loadVectorConfig(currentConfigPath());
-  return { source: fromDisk ? 'file' : 'defaults', config: fromDisk ?? generateDefaultConfig() };
-}
+const createSchema = t.Object({
+  collection: t.Optional(t.String()),
+  adapter: t.Optional(adapterSchema),
+  model: t.String({ minLength: 1 }),
+  provider: t.Optional(t.String()),
+  service: t.Optional(t.String()),
+  endpoint: t.Optional(t.String()),
+  enabled: t.Optional(t.Boolean()),
+  primary: t.Optional(t.Boolean()),
+  embedder: t.Optional(t.Any()),
+});
 
-function currentConfigPath(): string {
-  return process.env.ORACLE_DATA_DIR ? configPath(process.env.ORACLE_DATA_DIR) : configPath();
-}
+const configPatchKeys = new Set([
+  'version',
+  'host',
+  'port',
+  'collections',
+  'dataPath',
+  'embedder',
+  'embeddingEndpoint',
+  'storage',
+  'proxy',
+]);
 
-function resolveCollection(
-  config: VectorServerConfig,
-  collection: string,
-): [string, VectorCollectionConfig] | null {
-  const direct = config.collections[collection];
-  if (direct) return [collection, direct];
-  return Object.entries(config.collections)
-    .find(([, value]) => value.collection === collection) ?? null;
-}
-
-function atomicWriteVectorConfig(config: VectorServerConfig): string {
-  const target = currentConfigPath();
-  const dir = path.dirname(target);
-  fs.mkdirSync(dir, { recursive: true });
-  const tmp = path.join(dir, `.${path.basename(target)}.${process.pid}.${Date.now()}.tmp`);
-  try {
-    writeVectorConfig(config, tmp);
-    fs.renameSync(tmp, target);
-    return target;
-  } catch (e) { try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch {} throw e; }
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('timeout')), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => { if (timer) clearTimeout(timer); });
-}
-
-async function inspectCollection(
-  key: string,
-  col: VectorCollectionConfig,
-  config: VectorServerConfig,
-): Promise<CollectionHealth> {
-  const adapter = col.adapter || 'lancedb';
-  if (col.enabled === false) {
-    return {
-      key,
-      collection: col.collection,
-      model: col.model,
-      provider: col.provider,
-      adapter,
-      service: col.service,
-      endpoint: col.endpoint,
-      enabled: false,
-      count: 0,
-      ok: false,
-      status: 'disabled',
-    };
-  }
-  const timeout = parseInt(process.env.ORACLE_VECTOR_HEALTH_TIMEOUT || '2000', 10);
-  const preset = configToModels(config)[key];
-  if (!preset) throw new Error(`Collection ${key} is not enabled`);
-  const store = createVectorStoreForModel(preset);
-  try {
-    await withTimeout(store.connect(), timeout);
-    const stats = await withTimeout(store.getStats(), timeout);
-    return {
-      key,
-      collection: col.collection,
-      model: col.model,
-      provider: col.provider,
-      adapter,
-      service: col.service,
-      endpoint: col.endpoint,
-      enabled: true,
-      count: stats.count,
-      ok: true,
-      status: 'ok',
-    };
-  } catch (e) {
-    return {
-      key,
-      collection: col.collection,
-      model: col.model,
-      provider: col.provider,
-      adapter,
-      service: col.service,
-      endpoint: col.endpoint,
-      enabled: true,
-      count: 0,
-      ok: false,
-      status: 'down',
-      error: e instanceof Error ? e.message : String(e),
-    };
-  } finally {
-    await store.close().catch(() => undefined);
-  }
-}
-
-function normalizedUpdate(body: CollectionUpdate): CollectionUpdate | { error: string } {
-  const update: CollectionUpdate = {};
-  if (body.adapter !== undefined) update.adapter = body.adapter;
-  if (body.model !== undefined) {
-    const model = body.model.trim();
-    if (!model) return { error: 'model must be a non-empty string' };
-    update.model = model;
-  }
-  if (body.provider !== undefined) {
-    const provider = body.provider.trim();
-    if (!provider) return { error: 'provider must be a non-empty string' };
-    update.provider = provider;
-  }
-  if (body.service !== undefined) update.service = body.service;
-  if (body.endpoint !== undefined) update.endpoint = body.endpoint;
-  if (body.enabled !== undefined) update.enabled = body.enabled;
-  if (Object.keys(update).length === 0) return { error: 'body must include adapter, model, provider, service, endpoint, or enabled' };
-  return update;
-}
+const configPatchSchema = t.Object({
+  version: t.Optional(t.Union([
+    t.Literal('1'),
+    t.Literal('1.0'),
+    t.Literal('2'),
+    t.Literal('2.0'),
+    t.Literal('legacy'),
+  ])),
+  host: t.Optional(t.String()),
+  port: t.Optional(t.Number()),
+  collections: t.Optional(t.Record(t.String(), t.Unknown())),
+  dataPath: t.Optional(t.String()),
+  embedder: t.Optional(t.Any()),
+  embeddingEndpoint: t.Optional(t.String()),
+  storage: t.Optional(t.Record(t.String(), t.Unknown())),
+  proxy: t.Optional(t.Array(t.Unknown())),
+}, { additionalProperties: true });
 
 export const vectorConfigApiEndpoint = new Elysia()
   .get('/vector/config', async () => {
@@ -180,15 +97,30 @@ export const vectorConfigApiEndpoint = new Elysia()
       }])),
       checked_at: new Date().toISOString(),
     };
-  }, {
-    detail: { tags: ['vector'], summary: 'Vector server config with collection health' },
-  })
+  }, { detail: { tags: ['vector'], summary: 'Vector server config with collection health' } })
   .post('/vector/config/reload', async () => {
-    await closeCachedVectorStores();
     const { source, config } = activeConfig();
+    await reloadCachedVectorStores(configToModels(config));
     return { success: true, reloaded: true, source, config };
+  }, { detail: { tags: ['vector'], summary: 'Reload vector config and reconnect cached vector stores' } })
+  .patch('/vector/config', async ({ body, set }) => {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      set.status = 422;
+      return { error: 'Vector config patch body must be an object' };
+    }
+    const unknownKeys = Object.keys(body).filter((key) => !configPatchKeys.has(key));
+    if (unknownKeys.length) {
+      set.status = 422;
+      return { error: `Unknown vector config patch field: ${unknownKeys[0]}` };
+    }
+    const { source, config } = activeConfig();
+    const next = { ...config, ...(body as Partial<VectorServerConfig>) };
+    const path = atomicWriteVectorConfig(next);
+    await reloadCachedVectorStores(configToModels(next));
+    return { success: true, reloaded: true, source, path, config: next };
   }, {
-    detail: { tags: ['vector'], summary: 'Reload vector config and clear cached vector stores' },
+    body: configPatchSchema,
+    detail: { tags: ['vector'], summary: 'Patch vector config and hot-reload adapters' },
   })
   .post('/vector/config/:collection/test', async ({ params, set }) => {
     const { config } = activeConfig();
@@ -197,22 +129,76 @@ export const vectorConfigApiEndpoint = new Elysia()
       set.status = 404;
       return { error: `Unknown vector collection: ${params.collection}` };
     }
-
     const [key, col] = resolved;
     const health = await inspectCollection(key, col, config);
-    if (!health.ok) set.status = 503;
+    if (!health.ok) set.status = health.status === 'disabled' ? 400 : 503;
     return { success: health.ok, ...health };
   }, {
     params: t.Object({ collection: t.String({ minLength: 1 }) }),
     detail: { tags: ['vector'], summary: 'Test one vector collection adapter' },
   })
-  .put('/vector/config/:collection', ({ params, body, set }) => {
+  .post('/vector/config/:collection', async ({ params, body, set }) => {
+    const { source, config } = activeConfig();
+    if (config.collections[params.collection]) {
+      set.status = 409;
+      return { error: `Vector collection already exists: ${params.collection}` };
+    }
+    const created = normalizedCreate(params.collection, body);
+    if ('error' in created) {
+      set.status = 400;
+      return { error: created.error };
+    }
+    const nextBase: VectorServerConfig = {
+      ...config,
+      collections: { ...config.collections, [params.collection]: created },
+    };
+    const next = created.primary ? withPrimary(nextBase, params.collection) : nextBase;
+    const path = atomicWriteVectorConfig(next);
+    await reloadCachedVectorStores(configToModels(next));
+    return { success: true, reloaded: true, source, path, collection: params.collection, config: next };
+  }, {
+    params: t.Object({ collection: t.String({ minLength: 1 }) }),
+    body: createSchema,
+    detail: { tags: ['vector'], summary: 'Add a vector collection config' },
+  })
+  .post('/vector/config/:collection/primary', async ({ params, set }) => {
+    const { source, config } = activeConfig();
+    const resolved = resolveCollection(config, params.collection);
+    if (!resolved) {
+      set.status = 404;
+      return { error: `Unknown vector collection: ${params.collection}` };
+    }
+    const [key] = resolved;
+    const next = withPrimary(config, key);
+    const path = atomicWriteVectorConfig(next);
+    await reloadCachedVectorStores(configToModels(next));
+    return { success: true, reloaded: true, source, path, collection: key, config: next };
+  }, {
+    params: t.Object({ collection: t.String({ minLength: 1 }) }),
+    detail: { tags: ['vector'], summary: 'Set primary vector collection' },
+  })
+  .delete('/vector/config/:collection', async ({ params, set }) => {
+    const { source, config } = activeConfig();
+    const resolved = resolveCollection(config, params.collection);
+    if (!resolved) {
+      set.status = 404;
+      return { error: `Unknown vector collection: ${params.collection}` };
+    }
+    const [key] = resolved;
+    const next = withoutCollection(config, key);
+    const path = atomicWriteVectorConfig(next);
+    await reloadCachedVectorStores(configToModels(next));
+    return { success: true, reloaded: true, source, path, removed: key, config: next };
+  }, {
+    params: t.Object({ collection: t.String({ minLength: 1 }) }),
+    detail: { tags: ['vector'], summary: 'Remove a vector collection config' },
+  })
+  .put('/vector/config/:collection', async ({ params, body, set }) => {
     const update = normalizedUpdate(body);
     if ('error' in update) {
       set.status = 400;
       return { error: update.error };
     }
-
     const { source, config } = activeConfig();
     const resolved = resolveCollection(config, params.collection);
     if (!resolved) {
@@ -220,25 +206,18 @@ export const vectorConfigApiEndpoint = new Elysia()
       return { error: `Unknown vector collection: ${params.collection}` };
     }
     const [key, current] = resolved;
-
-    const next: VectorServerConfig = {
+    const nextBase: VectorServerConfig = {
       ...config,
-      collections: {
-        ...config.collections,
-        [key]: { ...current, ...update },
-      },
+      collections: { ...config.collections, [key]: { ...current, ...update } },
     };
+    const next = update.primary ? withPrimary(nextBase, key) : nextBase;
     const path = atomicWriteVectorConfig(next);
-    return { success: true, source, path, collection: key, config: next };
+    await reloadCachedVectorStores(configToModels(next));
+    return { success: true, reloaded: true, source, path, collection: key, config: next };
   }, {
     params: t.Object({ collection: t.String({ minLength: 1 }) }),
-    body: t.Object({
-      adapter: t.Optional(adapterSchema),
-      model: t.Optional(t.String()),
-      provider: t.Optional(t.String()),
-      service: t.Optional(t.String()),
-      endpoint: t.Optional(t.String()),
-      enabled: t.Optional(t.Boolean()),
-    }),
+    body: updateSchema,
     detail: { tags: ['vector'], summary: 'Update one vector collection config' },
   });
+
+export const vectorConfigApiRoutes = new Elysia({ prefix: '/api' }).use(vectorConfigApiEndpoint);

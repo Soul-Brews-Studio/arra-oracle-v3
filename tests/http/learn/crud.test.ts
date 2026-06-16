@@ -1,5 +1,7 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
+import { createApiVersionedFetch } from '../../../src/middleware/api-version.ts';
+import { createErrorMiddleware } from '../../../src/middleware/errors.ts';
 import { eq } from 'drizzle-orm';
 import { mkdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
@@ -20,7 +22,13 @@ dbMod.resetDefaultDatabaseForTests(dbPath);
 const { createLearnCrudRoutes } = await import('../../../src/routes/learn/index.ts');
 
 function app() {
-  return new Elysia({ prefix: '/api' }).use(createLearnCrudRoutes());
+  return new Elysia({ prefix: '/api' })
+    .use(createErrorMiddleware(() => undefined))
+    .use(createLearnCrudRoutes());
+}
+
+function versionedHandle(request: Request) {
+  return createApiVersionedFetch((next) => app().handle(next))(request);
 }
 
 async function call(method: string, path: string, body?: unknown) {
@@ -51,6 +59,34 @@ afterAll(() => {
 });
 
 describe('POST/GET/PUT/DELETE /api/learn', () => {
+  test('rejects malformed JSON body as 400', async () => {
+    const res = await app().handle(new Request('http://local/api/learn', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{not json',
+    }));
+    expect(res.status).toBe(400);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    const body = await res.json();
+    expect(body).toMatchObject({ success: false, error: 'Bad Request', code: 400 });
+    expect(body.details.message).toBe('Bad Request');
+    expect(typeof body.details.correlationId).toBe('string');
+  });
+
+  test('rejects malformed JSON on versioned route with 400 contract', async () => {
+    const res = await versionedHandle(new Request('http://local/api/v1/learn', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{not json',
+    }));
+    expect(res.status).toBe(400);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    const body = await res.json();
+    expect(body).toMatchObject({ success: false, error: 'Bad Request', code: 400 });
+    expect(body.details.message).toBe('Bad Request');
+    expect(typeof body.details.correlationId).toBe('string');
+  });
+
   test('creates, reads, updates, and soft-deletes a learning through Drizzle rows', async () => {
     const created = await call('POST', '/api/learn', {
       pattern: 'Learn CRUD captures route behavior',

@@ -18,11 +18,15 @@ function restoreLogFormat(value: string | undefined) {
   else process.env.LOG_FORMAT = value;
 }
 
-async function captureLogLine(format: string): Promise<string> {
+async function captureLogLine(format: string | undefined, env?: string): Promise<string> {
   const lines: string[] = [];
   const originalLog = console.log;
   const originalFormat = process.env.LOG_FORMAT;
-  process.env.LOG_FORMAT = format;
+  const originalEnv = process.env.ARRA_ENV;
+  if (format === undefined) delete process.env.LOG_FORMAT;
+  else process.env.LOG_FORMAT = format;
+  if (env === undefined) delete process.env.ARRA_ENV;
+  else process.env.ARRA_ENV = env;
   console.log = (message?: unknown) => {
     lines.push(String(message));
   };
@@ -40,11 +44,14 @@ async function captureLogLine(format: string): Promise<string> {
     }));
     expect(response.status).toBe(200);
     expect(response.headers.get('x-correlation-id')).toBe(CORRELATION_ID);
+    expect(response.headers.get('x-sandbox-label')).toBe(env === 'production' ? 'prod' : 'dev');
 
     return await waitForLog(lines);
   } finally {
     console.log = originalLog;
     restoreLogFormat(originalFormat);
+    if (originalEnv === undefined) delete process.env.ARRA_ENV;
+    else process.env.ARRA_ENV = originalEnv;
   }
 }
 
@@ -57,8 +64,13 @@ test('LOG_FORMAT selects json, nginx, and short request log output', async () =>
     status: 200,
     durationMs: 1.37,
     correlationId: CORRELATION_ID,
+    sandbox: 'dev',
   });
 
-  expect(await captureLogLine('nginx')).toBe('GET /api/health 200 1.37ms [abcdef12]');
+  expect(await captureLogLine('nginx')).toBe('GET /api/health 200 1.37ms [abcdef12] [dev]');
   expect(await captureLogLine('short')).toBe('200 GET /api/health 1ms');
+});
+
+test('LOG_FORMAT defaults to nginx and labels production sandbox', async () => {
+  expect(await captureLogLine(undefined, 'production')).toBe('GET /api/health 200 1.37ms [abcdef12] [prod]');
 });

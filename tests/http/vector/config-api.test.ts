@@ -1,5 +1,4 @@
 import { afterAll, expect, test } from 'bun:test';
-import { Elysia } from 'elysia';
 import { mkdtempSync, readdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -12,10 +11,9 @@ process.env.ORACLE_DATA_DIR = root;
 process.env.ORACLE_VECTOR_HEALTH_TIMEOUT = '1500';
 
 const vectorConfig = await import('../../../src/vector/config.ts');
-const { vectorConfigApiEndpoint } = await import('../../../src/routes/vector/config-api.ts');
+const { vectorConfigApiRoutes } = await import('../../../src/routes/vector/config-api.ts');
 
-const app = new Elysia({ prefix: '/api' }).use(vectorConfigApiEndpoint);
-const versionedFetch = createApiVersionedFetch((request) => app.handle(request));
+const versionedFetch = createApiVersionedFetch((request) => vectorConfigApiRoutes.handle(request));
 
 function seedConfig() {
   const config = vectorConfig.generateDefaultConfig();
@@ -111,6 +109,58 @@ test('GET and PUT /api/v1/vector/config expose and update vector-server.json', a
     provider: 'remote',
     adapter: 'qdrant',
   });
+
+  const disabledRes = await call('/api/v1/vector/config/phase1', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ enabled: false, provider: 'none' }),
+  });
+  expect(disabledRes.status).toBe(200);
+  expect(disabledRes.body.config.collections.phase1).toMatchObject({ enabled: false, provider: 'none' });
+
+  const disabledTest = await call('/api/v1/vector/config/phase1/test', { method: 'POST' });
+  expect(disabledTest.status).toBe(400);
+  expect(disabledTest.body).toMatchObject({ success: false, status: 'disabled', enabled: false });
+
+  const addRes = await call('/api/v1/vector/config/phase2', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      collection: 'phase2_collection',
+      model: 'phase2-model',
+      primary: true,
+      embedder: { backend: 'gemini', fallback: 'openai' },
+    }),
+  });
+  expect(addRes.status).toBe(200);
+  expect(addRes.body.config.collections.phase2).toMatchObject({
+    collection: 'phase2_collection',
+    model: 'phase2-model',
+    provider: 'none',
+    adapter: 'lancedb',
+    primary: true,
+    embedder: { backend: 'gemini', fallback: 'openai' },
+  });
+  expect(addRes.body.config.collections.phase1.primary).toBe(false);
+
+  const primaryRes = await call('/api/v1/vector/config/phase1/primary', { method: 'POST' });
+  expect(primaryRes.status).toBe(200);
+  expect(primaryRes.body.config.collections.phase1.primary).toBe(true);
+  expect(primaryRes.body.config.collections.phase2.primary).toBe(false);
+
+  const removeRes = await call('/api/v1/vector/config/phase2', { method: 'DELETE' });
+  expect(removeRes.status).toBe(200);
+  expect(removeRes.body.removed).toBe('phase2');
+  expect(removeRes.body.config.collections.phase2).toBeUndefined();
+
+  const patchRes = await call('/api/v1/vector/config', {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ embedder: { default: 'ollama', fallback: 'openai' } }),
+  });
+  expect(patchRes.status).toBe(200);
+  expect(patchRes.body).toMatchObject({ success: true, reloaded: true, source: 'file' });
+  expect(patchRes.body.config.embedder).toMatchObject({ default: 'ollama', fallback: 'openai' });
 
   const reloadRes = await call('/api/v1/vector/config/reload', { method: 'POST' });
   expect(reloadRes.status).toBe(200);

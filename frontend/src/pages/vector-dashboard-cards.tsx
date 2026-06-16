@@ -13,6 +13,9 @@ export interface VectorCollectionCard {
   healthDetail?: string;
 }
 
+export type VectorProviderHealthCard = { type: string; status: 'green' | 'red'; available: boolean; detail?: string };
+export type VectorFreshnessCard = { status: 'fresh' | 'empty'; totalIndexed: number; docsPending?: number; lastIndexed?: string };
+
 type DownloadByCollection = Record<string, VectorExportFormat | undefined>;
 
 type VectorTotals = {
@@ -116,6 +119,30 @@ export function VectorStatsCard({ cards }: { cards: VectorCollectionCard[] }) {
         <div><dt className="text-slate-500">Total docs</dt><dd className="text-lg font-semibold text-white">{docsLabel(cards)}</dd></div>
         <div><dt className="text-slate-500">Models</dt><dd className="text-lg font-semibold text-white">{vectorTotals(cards).collections}</dd></div>
       </dl>
+    </section>
+  );
+}
+
+
+export function VectorHealthDashboardCard({
+  providers = [],
+  freshness,
+}: {
+  providers?: VectorProviderHealthCard[];
+  freshness?: VectorFreshnessCard;
+}) {
+  const providerSummary = providers.length
+    ? `${providers.filter((item) => item.available).length}/${providers.length} providers available`
+    : 'Provider detection unavailable';
+  return (
+    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-health-dashboard-title">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Health</p>
+      <h2 id="vector-health-dashboard-title" className="mt-2 text-2xl font-semibold text-white">Vector health dashboard</h2>
+      <dl className="mt-4 grid gap-3 text-sm text-slate-300">
+        <div><dt className="text-slate-500">Embedding providers</dt><dd className="text-lg font-semibold text-white">{providerSummary}</dd></div>
+        <div><dt className="text-slate-500">Index freshness</dt><dd className="text-lg font-semibold text-white">{freshness ? `${freshness.status} · ${freshness.totalIndexed.toLocaleString()} indexed` : 'Unknown'}</dd></div>
+      </dl>
+      {providers.length ? <div className="mt-4 flex flex-wrap gap-2">{providers.map((provider) => <span key={provider.type} className={`rounded-full border px-2 py-1 text-xs font-semibold ${statusClasses(provider.available)}`}>{provider.type}: {provider.status}</span>)}</div> : null}
     </section>
   );
 }

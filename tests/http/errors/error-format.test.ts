@@ -31,7 +31,8 @@ function expectErrorShape(body: Record<string, unknown>, code: number) {
   expect(body.error).toEqual(expect.any(String));
   expect(body.code).toBe(code);
   if ('details' in body) expect(typeof body.details).toBe('object');
-  expect(Object.keys(body).sort()).toEqual(['code', 'details', 'error']);
+  expect(body.success).toBe(false);
+  expect(Object.keys(body).sort()).toEqual(['code', 'details', 'error', 'success']);
 }
 
 describe('standard API error format', () => {

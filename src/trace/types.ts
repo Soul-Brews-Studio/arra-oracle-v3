@@ -64,6 +64,10 @@ export interface DistillTraceInput {
   traceId: string;
   awakening: string;
   promoteToLearning?: boolean;
+  oracle?: string;
+  theme?: string;
+  concepts?: string[];
+  source?: string;
 }
 
 // Output Types

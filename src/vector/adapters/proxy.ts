@@ -13,6 +13,7 @@ import type {
   VectorDocument,
   VectorQueryResult,
 } from '../types.ts';
+import { currentTenantId, TENANT_HEADER } from '../../middleware/tenant.ts';
 
 interface ProxyQueryRequest {
   text: string;
@@ -38,6 +39,13 @@ interface ProxyQueryResponse {
   metadatas: any[];
 }
 
+function tenantHeaders(json = false): Record<string, string> {
+  const headers: Record<string, string> = json ? { 'Content-Type': 'application/json' } : {};
+  const tenantId = currentTenantId();
+  if (tenantId) headers[TENANT_HEADER] = tenantId;
+  return headers;
+}
+
 function toQueryUrl(base: string, path: string): string {
   const safeBase = base.replace(/\/+$/, '');
   if (!path.startsWith('/')) return `${safeBase}/${path}`;
@@ -45,7 +53,7 @@ function toQueryUrl(base: string, path: string): string {
 }
 
 export class ProxyVectorAdapter implements VectorStoreAdapter {
-  readonly name = 'proxy';
+  readonly name: string = 'proxy';
 
   constructor(
     private readonly collectionName: string,
@@ -86,13 +94,13 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
   }
 
   async getStats(): Promise<{ count: number }> {
-    const stats = await this.fetchJson<ProxyStatsResponse>('/vectors/stats');
-    return { count: stats?.count ?? 0 };
+    const stats = await this.proxyStats();
+    return { count: stats.count };
   }
 
   async getCollectionInfo(): Promise<{ count: number; name: string }> {
-    const all = await this.getStats();
-    return { name: this.collectionName, count: all.count };
+    const stats = await this.proxyStats();
+    return { name: stats.name || this.collectionName, count: stats.count };
   }
 
   async getAllEmbeddings(limit?: number): Promise<{
@@ -103,13 +111,17 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
   }> {
     // Not part of proxy protocol. Return empty to preserve compatibility
     // when callers can proceed without full embedding matrices.
-    const count = await this.getStats();
     return {
       ids: [],
       embeddings: [],
       metadatas: [],
       documents: [],
     };
+  }
+
+  private async proxyStats(): Promise<ProxyStatsResponse> {
+    const stats = await this.fetchJson<ProxyStatsResponse>('/vectors/stats');
+    return { count: stats?.count ?? 0, name: stats?.name || this.collectionName };
   }
 
   private async health(): Promise<ProxyHealthResponse> {
@@ -123,7 +135,7 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
   private async post(path: string, body: Record<string, any>): Promise<void> {
     const res = await fetch(toQueryUrl(this.endpoint, path), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: tenantHeaders(true),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
@@ -133,7 +145,7 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
   private async postJson<T>(path: string, body: Record<string, any>): Promise<T> {
     const res = await fetch(toQueryUrl(this.endpoint, path), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: tenantHeaders(true),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
@@ -144,6 +156,7 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
   private async del(path: string): Promise<void> {
     const res = await fetch(toQueryUrl(this.endpoint, path), {
       method: 'DELETE',
+      headers: tenantHeaders(),
       signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
     await this.assertResponse(res);
@@ -152,6 +165,7 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
   private async fetchJson<T>(path: string, timeoutMs = this.requestTimeoutMs): Promise<T> {
     const res = await fetch(toQueryUrl(this.endpoint, path), {
       method: 'GET',
+      headers: tenantHeaders(),
       signal: AbortSignal.timeout(timeoutMs),
     });
     await this.assertResponse(res);

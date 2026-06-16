@@ -83,16 +83,29 @@ describe("arra-cli vector-config", () => {
 
         const match = url.pathname.match(/^\/api\/v1\/vector\/config\/([^/]+)$/);
         if (match) {
-          if (req.method !== "PUT") return payload({ error: "method not allowed" }, 405);
           const key = decodeURIComponent(match[1]);
-          if (!state.config.collections[key]) return payload({ error: `Unknown collection: ${key}` }, 404);
+          if (req.method === "DELETE") {
+            delete state.config.collections[key];
+            return payload({ success: true, removed: key, config: state.config });
+          }
+          if (req.method !== "PUT" && req.method !== "POST") return payload({ error: "method not allowed" }, 405);
+          if (req.method === "PUT" && !state.config.collections[key]) return payload({ error: `Unknown collection: ${key}` }, 404);
           try {
             const patch = (await req.json()) as Partial<CollectionKey>;
-            state.config.collections[key] = { ...state.config.collections[key], ...patch };
+            state.config.collections[key] = req.method === "POST"
+              ? { collection: patch.collection ?? key, model: patch.model ?? "model", provider: patch.provider ?? "none", adapter: patch.adapter }
+              : { ...state.config.collections[key], ...patch };
             return payload({ success: true, source: state.source, path: "/tmp/vector-server.json", collection: key, config: state.config });
           } catch {
             return payload({ error: "invalid body" }, 400);
           }
+        }
+
+        const primaryMatch = url.pathname.match(/^\/api\/v1\/vector\/config\/([^/]+)\/primary$/);
+        if (primaryMatch) {
+          const key = decodeURIComponent(primaryMatch[1]);
+          for (const [name, col] of Object.entries(state.config.collections)) col.primary = name === key;
+          return payload({ success: true, collection: key, config: state.config });
         }
 
         const testMatch = url.pathname.match(/^\/api\/v1\/vector\/config\/([^/]+)\/test$/);
@@ -179,5 +192,17 @@ describe("arra-cli vector-config", () => {
     const testPayload = tryParseJson(test.stdout);
     expect(test.code).toBe(0);
     expect(testPayload?.success).toBe(true);
+
+    const add = await runCli(["vector-config", "add", "phase3", "--model", "embed-v3", "--adapter", "lancedb"], env);
+    expect(add.code).toBe(0);
+    expect(tryParseJson(add.stdout)?.config?.collections?.phase3?.model).toBe("embed-v3");
+
+    const primary = await runCli(["vector-config", "set-primary", "phase3"], env);
+    expect(primary.code).toBe(0);
+    expect(tryParseJson(primary.stdout)?.config?.collections?.phase3?.primary).toBe(true);
+
+    const remove = await runCli(["vector-config", "remove", "phase3", "--yes"], env);
+    expect(remove.code).toBe(0);
+    expect(tryParseJson(remove.stdout)?.removed).toBe("phase3");
   });
 });
