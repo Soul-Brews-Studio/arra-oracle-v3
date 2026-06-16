@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { distillTraceAwakening } from '../../trace/distill.ts';
-import { getTrace } from '../../trace/handler.ts';
+import { getTenantTrace } from './tenant-scope.ts';
 import { traceIdParam } from './model.ts';
 
 const evidenceBody = t.Object({
@@ -41,7 +41,7 @@ export const traceDistillRoute = new Elysia().post('/api/traces/:id/distill', ({
     set.status = 400;
     return { error: 'awakening is required' };
   }
-  if (!getTrace(params.id)) {
+  if (!getTenantTrace(params.id)) {
     set.status = 404;
     return { error: 'Trace not found' };
   }
