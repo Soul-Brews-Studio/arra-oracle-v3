@@ -7,7 +7,7 @@ import { peerRoutes } from '../../src/routes/peer/index.ts';
 import { scheduleApi } from '../../src/routes/schedule/index.ts';
 import { supersedeRoutes } from '../../src/routes/supersede/index.ts';
 import { tracesApi } from '../../src/routes/traces/index.ts';
-import { vectorConfigApiEndpoint } from '../../src/routes/vector/config-api.ts';
+import { vectorConfigApiEndpoint } from '../../src/routes/vector/config.ts';
 
 const jsonHeaders = { 'content-type': 'application/json' };
 

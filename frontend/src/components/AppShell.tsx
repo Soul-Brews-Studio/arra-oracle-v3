@@ -54,7 +54,7 @@ export function AppShell({
     { to: '/status', label: 'Status', description: 'Server health from /api/v1/health' },
     { to: '/canvas/plugins', label: 'Canvas Plugins', description: 'Canvas registry from /api/canvas/plugins' },
     { to: '/search', label: 'Search', description: 'Full-text menu search' },
-    { to: '/export', label: 'Export App', description: 'Download app collections' },
+    { to: '/export', label: 'Export App', description: 'Legacy v2 JSON/Markdown backups' },
     { to: '/vector', label: 'Vector Dashboard', description: 'Collection health and indexing', end: true },
     { to: '/vector/documents', label: 'Document Browser', description: 'Browse indexed vector documents' },
     { to: '/vector/search', label: 'Vector Search', description: 'Semantic preview by collection' },
