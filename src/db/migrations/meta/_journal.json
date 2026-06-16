@@ -176,6 +176,13 @@
       "when": 1781620651217,
       "tag": "0024_export_job_history",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1781624768517,
+      "tag": "0025_export_jobs_tenant",
+      "breakpoints": true
     }
   ]
 }

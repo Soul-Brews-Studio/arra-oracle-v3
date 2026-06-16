@@ -59,30 +59,30 @@ afterAll(() => {
 });
 
 describe('POST/GET/PUT/DELETE /api/learn', () => {
-  test('rejects malformed JSON body as 500', async () => {
+  test('rejects malformed JSON body as 400', async () => {
     const res = await app().handle(new Request('http://local/api/learn', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: '{not json',
     }));
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
     expect(res.headers.get('content-type')).toContain('application/json');
     const body = await res.json();
-    expect(body).toMatchObject({ success: false, error: 'Internal Server Error', code: 500 });
+    expect(body).toMatchObject({ success: false, error: 'Bad Request', code: 400 });
     expect(body.details.message).toBe('Bad Request');
     expect(typeof body.details.correlationId).toBe('string');
   });
 
-  test('rejects malformed JSON on versioned route with 500 contract', async () => {
+  test('rejects malformed JSON on versioned route with 400 contract', async () => {
     const res = await versionedHandle(new Request('http://local/api/v1/learn', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: '{not json',
     }));
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
     expect(res.headers.get('content-type')).toContain('application/json');
     const body = await res.json();
-    expect(body).toMatchObject({ success: false, error: 'Internal Server Error', code: 500 });
+    expect(body).toMatchObject({ success: false, error: 'Bad Request', code: 400 });
     expect(body.details.message).toBe('Bad Request');
     expect(typeof body.details.correlationId).toBe('string');
   });

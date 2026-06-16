@@ -9,6 +9,7 @@ describe('VectorSettingsPage', () => {
     expect(html).toContain('Enable vector search');
     expect(html).toContain('PATCH /api/v1/vector/config');
     expect(html).toContain('Embedding providers and storage services');
+    expect(html).toContain('Model recommendation');
     expect(html).toContain('Active vector adapters');
     expect(html).toContain('Index jobs and collections');
   });
