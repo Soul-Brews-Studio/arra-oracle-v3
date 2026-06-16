@@ -161,6 +161,7 @@ const app = new Elysia()
   .use(peerRoutes)
   .get('/swagger', () => Response.redirect('/api/docs', 308), { detail: { hide: true } })
   .get('/swagger/json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
+  .get('/api/openapi.json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
   .get('/', () => ({
     server: MCP_SERVER_NAME,
     version: pkg.version,
