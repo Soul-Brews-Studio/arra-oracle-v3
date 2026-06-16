@@ -44,12 +44,14 @@ beforeAll(() => {
       superseded_reason TEXT,
       origin TEXT,
       project TEXT,
+      tenant_id TEXT NOT NULL DEFAULT 'default',
       created_by TEXT
     );
 
     CREATE INDEX idx_type ON oracle_documents(type);
     CREATE INDEX idx_source ON oracle_documents(source_file);
     CREATE INDEX idx_project ON oracle_documents(project);
+    CREATE INDEX idx_tenant ON oracle_documents(tenant_id);
 
     -- FTS5 virtual table
     CREATE VIRTUAL TABLE oracle_fts USING fts5(

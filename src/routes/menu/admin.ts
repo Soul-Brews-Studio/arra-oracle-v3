@@ -8,69 +8,8 @@ import { Elysia, t } from 'elysia';
 import { eq, asc } from 'drizzle-orm';
 import { db, menuItems } from '../../db/index.ts';
 import { ScopeSchema } from './model.ts';
-
-type MenuRow = typeof menuItems.$inferSelect;
-
-function parseQuery(raw: string | null): Record<string, string> | null {
-  if (raw == null) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const out: Record<string, string> = {};
-      for (const [k, v] of Object.entries(parsed)) {
-        if (typeof v === 'string') out[k] = v;
-      }
-      return out;
-    }
-  } catch {}
-  return null;
-}
-
-const GroupSchema = t.Union([
-  t.Literal('main'),
-  t.Literal('tools'),
-  t.Literal('admin'),
-  t.Literal('hidden'),
-]);
-const AccessSchema = t.Union([t.Literal('public'), t.Literal('auth')]);
-
-export function toResponse(row: MenuRow) {
-  return {
-    id: row.id,
-    path: row.path,
-    label: row.label,
-    groupKey: row.groupKey,
-    parentId: row.parentId,
-    position: row.position,
-    enabled: row.enabled,
-    access: row.access,
-    source: row.source,
-    icon: row.icon,
-    host: row.host,
-    hidden: row.hidden,
-    scope: row.scope,
-    query: parseQuery(row.query),
-    touchedAt: row.touchedAt ? row.touchedAt.getTime() : null,
-    createdAt: row.createdAt.getTime(),
-    updatedAt: row.updatedAt.getTime(),
-  };
-}
-
-type ResponseRow = ReturnType<typeof toResponse>;
-type TreeNode = ResponseRow & { children: TreeNode[] };
-
-export function buildTree(rows: MenuRow[]): TreeNode[] {
-  const nodes = new Map<number, TreeNode>();
-  for (const row of rows) nodes.set(row.id, { ...toResponse(row), children: [] });
-  const roots: TreeNode[] = [];
-  for (const row of rows) {
-    const node = nodes.get(row.id)!;
-    const parent = row.parentId == null ? null : nodes.get(row.parentId);
-    if (parent) parent.children.push(node);
-    else roots.push(node);
-  }
-  return roots;
-}
+import { softDeleteMenuItemById } from '../../storage/soft-delete.ts';
+import { AccessSchema, GroupSchema, buildTree, toResponse, type MenuRow } from './admin-model.ts';
 
 export function createMenuAdminRoutes() {
   return new Elysia()
@@ -235,11 +174,7 @@ export function createMenuAdminRoutes() {
           db.delete(menuItems).where(eq(menuItems.id, id)).run();
           return { id, deleted: 'hard' as const };
         }
-        const now = new Date();
-        db.update(menuItems)
-          .set({ enabled: false, touchedAt: now, updatedAt: now })
-          .where(eq(menuItems.id, id))
-          .run();
+        softDeleteMenuItemById(db, id, new Date());
         return { id, deleted: 'soft' as const };
       },
       {
@@ -247,8 +182,10 @@ export function createMenuAdminRoutes() {
         detail: {
           tags: ['menu'],
           menu: { group: 'admin', order: 904 },
-          summary: 'Hard-delete custom items; soft-delete (enabled=false) others',
+          summary: 'Hard-delete custom items; timestamp soft-delete route rows',
         },
       },
     );
 }
+
+export { buildTree, toResponse };

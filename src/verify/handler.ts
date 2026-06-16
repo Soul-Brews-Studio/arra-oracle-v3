@@ -67,7 +67,12 @@ export function verifyKnowledgeBase(opts: {
   const { check = true, type, repoRoot } = opts;
 
   // 1. Walk indexed directories on disk
-  const indexedDirs = ['ψ/memory/resonance', 'ψ/memory/learnings', 'ψ/memory/retrospectives'];
+  const indexedDirs = [
+    'ψ/memory/resonance',
+    'ψ/memory/learnings',
+    'ψ/memory/retrospectives',
+    'ψ/learn',
+  ];
   const diskFiles = new Map<string, number>(); // relativePath -> mtimeMs
 
   for (const dir of indexedDirs) {
@@ -148,7 +153,7 @@ export function verifyKnowledgeBase(opts: {
     }
   }
 
-  // 4. Count untracked files (ψ/inbox/, ψ/learn/, etc. — outside indexed dirs)
+  // 4. Count untracked files outside indexed dirs.
   const untrackedDirs = ['ψ/inbox'];
   const untracked: string[] = [];
   for (const dir of untrackedDirs) {
