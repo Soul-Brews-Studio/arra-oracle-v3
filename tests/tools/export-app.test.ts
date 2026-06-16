@@ -42,6 +42,16 @@ function seed(connection: ReturnType<typeof createDatabase>): void {
     createdAt: now,
     updatedAt: now,
   }).run();
+  connection.sqlite.prepare('INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)').run(
+    'doc-old',
+    'Old export body',
+    'backup',
+  );
+  connection.sqlite.prepare('INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)').run(
+    'doc-new',
+    'New export body',
+    'safe',
+  );
 }
 
 afterAll(() => {
@@ -86,7 +96,7 @@ test('exports every schema collection as per-row markdown with frontmatter', asy
   }
 });
 
-test('CLI exports markdown files from --db without starting the server', async () => {
+test('CLI exports document markdown and JSON from --db without starting the server', async () => {
   const dbPath = join(root, 'cli.db');
   const outputDir = join(root, 'cli-export');
   const connection = createDatabase(dbPath);
@@ -104,5 +114,8 @@ test('CLI exports markdown files from --db without starting the server', async (
   expect(code).toBe(0);
   expect(JSON.parse(stdout.join('')).success).toBe(true);
   expect(stderr.join('')).toContain('oracle_documents');
-  expect(existsSync(join(outputDir, 'oracle_documents', 'doc-new.md'))).toBe(true);
+  expect(existsSync(join(outputDir, 'documents', 'markdown', 'psi_learn_new.md'))).toBe(true);
+  expect(existsSync(join(outputDir, 'documents', 'json', 'psi_learn_new.json'))).toBe(true);
+  expect(readFileSync(join(outputDir, 'documents', 'markdown', 'psi_learn_new.md'), 'utf8'))
+    .toContain('New export body');
 });

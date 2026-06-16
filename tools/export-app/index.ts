@@ -1,4 +1,4 @@
-import { exportMarkdownData } from './exporter.ts';
+import { exportOracleData } from './exporter.ts';
 
 type Writer = (message: string) => void;
 
@@ -30,7 +30,7 @@ function printHelp(write: Writer): void {
   write([
     'bun run tools/export-app/index.ts --output ./backup/ [--db ./oracle.db]',
     '',
-    'Exports all Drizzle schema collections as per-row Markdown files.',
+    'Exports Oracle docs plus all Drizzle collections without starting the server.',
     '',
     'Flags:',
     '  --output, -o <dir>   destination backup directory',
@@ -47,7 +47,7 @@ export async function runExportApp(args: string[], stdout: Writer = process.stdo
       return 0;
     }
     const options = parseArgs(args);
-    const result = await exportMarkdownData({ ...options, progress: (message) => stderr(`${message}\n`) });
+    const result = await exportOracleData({ ...options, progress: (message) => stderr(`${message}\n`) });
     stdout(`${JSON.stringify({ success: true, ...result }, null, 2)}\n`);
     return 0;
   } catch (error) {
