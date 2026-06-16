@@ -13,6 +13,7 @@ import type {
   VectorDocument,
   VectorQueryResult,
 } from '../types.ts';
+import { currentTenantId, TENANT_HEADER } from '../../middleware/tenant.ts';
 
 interface ProxyQueryRequest {
   text: string;
@@ -36,6 +37,13 @@ interface ProxyQueryResponse {
   documents: string[];
   distances: number[];
   metadatas: any[];
+}
+
+function tenantHeaders(json = false): Record<string, string> {
+  const headers: Record<string, string> = json ? { 'Content-Type': 'application/json' } : {};
+  const tenantId = currentTenantId();
+  if (tenantId) headers[TENANT_HEADER] = tenantId;
+  return headers;
 }
 
 function toQueryUrl(base: string, path: string): string {
@@ -123,7 +131,7 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
   private async post(path: string, body: Record<string, any>): Promise<void> {
     const res = await fetch(toQueryUrl(this.endpoint, path), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: tenantHeaders(true),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
@@ -133,7 +141,7 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
   private async postJson<T>(path: string, body: Record<string, any>): Promise<T> {
     const res = await fetch(toQueryUrl(this.endpoint, path), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: tenantHeaders(true),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
@@ -144,6 +152,7 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
   private async del(path: string): Promise<void> {
     const res = await fetch(toQueryUrl(this.endpoint, path), {
       method: 'DELETE',
+      headers: tenantHeaders(),
       signal: AbortSignal.timeout(this.requestTimeoutMs),
     });
     await this.assertResponse(res);
@@ -152,6 +161,7 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
   private async fetchJson<T>(path: string, timeoutMs = this.requestTimeoutMs): Promise<T> {
     const res = await fetch(toQueryUrl(this.endpoint, path), {
       method: 'GET',
+      headers: tenantHeaders(),
       signal: AbortSignal.timeout(timeoutMs),
     });
     await this.assertResponse(res);

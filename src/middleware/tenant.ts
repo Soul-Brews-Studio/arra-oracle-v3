@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import path from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import { Elysia } from 'elysia';
 import { eq, type SQL } from 'drizzle-orm';
@@ -9,6 +10,7 @@ export const LEGACY_TENANT_HEADER = 'X-Tenant-Id';
 export const ORG_HEADER = 'X-Org-Id';
 const TENANT_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
 
+export const DEFAULT_TENANT_ID = 'default';
 type TenantContext = { tenantId?: string };
 type ProjectColumn = { project: unknown };
 type FetchHandler = (request: Request) => Response | Promise<Response>;
@@ -64,6 +66,35 @@ export function tenantIdFor(request: Request): string | undefined {
 
 export function currentTenantId(): string | undefined {
   return tenantStore.getStore()?.tenantId;
+}
+
+export function activeTenantId(): string {
+  return currentTenantId() ?? DEFAULT_TENANT_ID;
+}
+
+export function tenantIdForWrite(): string {
+  return activeTenantId();
+}
+
+export function tenantSql(alias = 'd'): { clause: string; params: string[] } {
+  const tenantId = currentTenantId();
+  return tenantId ? { clause: `AND ${alias}.tenant_id = ?`, params: [tenantId] } : { clause: '', params: [] };
+}
+
+export function withTenantWhere(where?: Record<string, any>): Record<string, any> | undefined {
+  const tenantId = currentTenantId();
+  return tenantId ? { ...(where ?? {}), tenant_id: tenantId } : where;
+}
+
+function safeTenantSegment(tenantId: string): string {
+  return tenantId.replace(/[^a-zA-Z0-9._:-]/g, '_');
+}
+
+export function tenantDataPath(basePath: string): string {
+  const tenantId = currentTenantId();
+  if (!tenantId) return basePath;
+  const root = path.dirname(basePath);
+  return path.join(root, 'tenants', safeTenantSegment(tenantId), path.basename(basePath));
 }
 
 export function runWithTenant<T>(tenantId: string | undefined, callback: () => T): T {

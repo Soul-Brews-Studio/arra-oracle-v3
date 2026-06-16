@@ -15,6 +15,7 @@ import { ProxyVectorAdapter } from './adapters/proxy.ts';
 import { createEmbeddingProvider } from './embeddings.ts';
 import { resolveEmbeddingFallbackChain, resolveEmbeddingModel, resolveEmbeddingProviderType } from './embedder-config.ts';
 import { configPath, loadVectorConfig, resolveServiceEndpoint, configToModels, fallbackCollectionsFor } from './config.ts';
+import { tenantDataPath } from '../middleware/tenant.ts';
 
 export interface VectorStoreConfig {
   type?: VectorDBType;
@@ -62,16 +63,16 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
   const collectionName = config.collectionName || COLLECTION_NAME;
   switch (type) {
     case 'sqlite-vec': {
-      const dbPath = config.dataPath
+      const dbPath = tenantDataPath(config.dataPath
         || process.env.ORACLE_VECTOR_DB_PATH
-        || VECTORS_DB_PATH;
+        || VECTORS_DB_PATH);
 
       return new SqliteVecAdapter(collectionName, dbPath, createConfiguredEmbedder(config));
     }
     case 'lancedb': {
-      const dbPath = config.dataPath
+      const dbPath = tenantDataPath(config.dataPath
         || process.env.ORACLE_VECTOR_DB_PATH
-        || LANCEDB_DIR;
+        || LANCEDB_DIR);
 
       return new LanceDBAdapter(collectionName, dbPath, createConfiguredEmbedder(config));
     }
@@ -106,7 +107,7 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
     }
     case 'chroma':
     default: {
-      const dataPath = config.dataPath || CHROMADB_DIR;
+      const dataPath = tenantDataPath(config.dataPath || CHROMADB_DIR);
       const pythonVersion = config.pythonVersion || '3.12';
       return new ChromaMcpAdapter(collectionName, dataPath, pythonVersion);
     }
@@ -125,7 +126,7 @@ export function getEmbeddingModels(
 
   if (cfg && Object.keys(cfg.collections).length > 0) return configToModels(cfg);
 
-    if (cfg && fallbackFromFallbackCollections.length > 0) {
+  if (cfg && fallbackFromFallbackCollections.length > 0) {
     const modelMap: Record<string, EmbeddingModelConfig> = {};
     for (const col of fallbackFromFallbackCollections) {
       const serviceName = col.service;

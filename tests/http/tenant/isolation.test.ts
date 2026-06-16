@@ -20,7 +20,7 @@ function createTenantAwareHealthApp() {
     .get('/stats', () => {
       const scoped = tenantDocs();
       return {
-        tenant: { id: currentTenantId(), scope: 'project' },
+        tenant: { id: currentTenantId(), scope: 'tenant_id' },
         total_docs: scoped.length,
         by_type: scoped.reduce<Record<string, number>>((counts, doc) => {
           counts[doc.type] = (counts[doc.type] ?? 0) + 1;
@@ -35,7 +35,7 @@ function createTenantAwareHealthApp() {
         types: 1,
         last_indexed: doc.createdAt,
       }));
-      return { tenant: { id: currentTenantId(), scope: 'project' }, projects };
+      return { tenant: { id: currentTenantId(), scope: 'tenant_id' }, projects };
     });
 }
 
@@ -51,7 +51,7 @@ test('tenant A stats do not include tenant B documents', async () => {
   const body = await res.json() as Record<string, any>;
 
   expect(res.status).toBe(200);
-  expect(body.tenant).toEqual({ id: tenantA, scope: 'project' });
+  expect(body.tenant).toEqual({ id: tenantA, scope: 'tenant_id' });
   expect(body.total_docs).toBe(1);
   expect(body.by_type.learning).toBe(1);
 });
@@ -62,7 +62,7 @@ test('tenant B oracle project list does not include tenant A project', async () 
   const projects = body.projects.map((item: { project: string }) => item.project);
 
   expect(res.status).toBe(200);
-  expect(body.tenant).toEqual({ id: tenantB, scope: 'project' });
+  expect(body.tenant).toEqual({ id: tenantB, scope: 'tenant_id' });
   expect(projects).toContain(tenantB);
   expect(projects).not.toContain(tenantA);
 });

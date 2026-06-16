@@ -61,10 +61,10 @@ export const oraclesEndpoint = new Elysia().get('/oracles', ({ query }) => {
   if (oracleCache && oracleCache.key === cacheKey && (now - oracleCache.ts) < 60_000) return oracleCache.data;
 
   const cutoff = now - hours * 3600_000;
-  const docProjectWhere = tenantId ? 'AND project = ?' : '';
-  const learnProjectWhere = tenantId ? 'AND project = ?' : '';
-  const traceProjectWhere = tenantId ? 'AND project = ?' : '';
-  const forumProjectWhere = tenantId ? 'AND forum_threads.project = ?' : '';
+  const docProjectWhere = tenantId ? 'AND tenant_id = ?' : '';
+  const learnProjectWhere = tenantId ? 'AND tenant_id = ?' : '';
+  const traceProjectWhere = tenantId ? 'AND tenant_id = ?' : '';
+  const forumProjectWhere = tenantId ? 'AND forum_threads.tenant_id = ?' : '';
   const tenantArg = tenantId ? [tenantId] : [];
   const identities = sqlite.prepare(`
     SELECT oracle_name, source, max(last_seen) as last_seen, sum(actions) as actions
@@ -104,7 +104,7 @@ export const oraclesEndpoint = new Elysia().get('/oracles', ({ query }) => {
     total_projects: projects.length,
     total_identities: identities.length,
     window_hours: hours,
-    tenant: tenantId ? { id: tenantId, scope: 'project' } : undefined,
+    tenant: tenantId ? { id: tenantId, scope: 'tenant_id' } : undefined,
     cached_at: new Date().toISOString(),
   };
   oracleCache = { data: result, ts: now, key: cacheKey };

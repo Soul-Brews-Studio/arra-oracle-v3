@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { REPO_ROOT } from '../../config.ts';
 import { db, learnLog, oracleDocuments } from '../../db/index.ts';
+import { currentTenantId, tenantIdForWrite } from '../../middleware/tenant.ts';
 type LearnDoc = typeof oracleDocuments.$inferSelect;
 const oracleFts = sqliteTable('oracle_fts', {
   id: text('id'),
@@ -131,8 +132,10 @@ function nextIdentity(pattern: string, requestedId?: string, requestedSourceFile
   }
 }
 function rowById(id: string): LearnDoc | undefined {
+  const tenantId = currentTenantId();
+  const base = and(eq(oracleDocuments.id, id), eq(oracleDocuments.type, 'learning'));
   return db.select().from(oracleDocuments)
-    .where(and(eq(oracleDocuments.id, id), eq(oracleDocuments.type, 'learning')))
+    .where(tenantId ? and(base, eq(oracleDocuments.tenantId, tenantId)) : base)
     .get();
 }
 function responseRow(row: LearnDoc) {
@@ -147,8 +150,10 @@ function createLearning(body: LearnCreateBody) {
   if (rowById(identity.id)) return { status: 409, body: { error: 'Learning already exists' } };
   const content = learningContent(pattern, concepts, body.source);
   writeLearningFile(identity.sourceFile, content);
+  const tenantId = tenantIdForWrite();
   db.insert(oracleDocuments).values({
     id: identity.id,
+    tenantId,
     type: 'learning',
     sourceFile: identity.sourceFile,
     concepts: JSON.stringify(concepts),
@@ -162,6 +167,7 @@ function createLearning(body: LearnCreateBody) {
   upsertFts(identity.id, content, concepts);
   db.insert(learnLog).values({
     documentId: identity.id,
+    tenantId,
     patternPreview: pattern.slice(0, 200),
     source: body.source ?? 'Oracle Learn',
     concepts: JSON.stringify(concepts),
@@ -188,7 +194,8 @@ function updateLearning(id: string, body: LearnUpdateBody) {
   upsertFts(id, content, nextConcepts);
   const row = db.update(oracleDocuments)
     .set(set)
-    .where(and(eq(oracleDocuments.id, id), eq(oracleDocuments.type, 'learning')))
+    .where(and(eq(oracleDocuments.id, id), eq(oracleDocuments.type, 'learning'),
+      ...(currentTenantId() ? [eq(oracleDocuments.tenantId, currentTenantId()!)] : [])))
     .returning()
     .get();
   return { status: 200, body: responseRow(row) };
@@ -204,7 +211,8 @@ function softDeleteLearning(id: string) {
       supersededAt: now,
       supersededReason: existing.supersededReason ?? 'soft-deleted via DELETE /api/learn/:id',
     })
-    .where(and(eq(oracleDocuments.id, id), eq(oracleDocuments.type, 'learning')))
+    .where(and(eq(oracleDocuments.id, id), eq(oracleDocuments.type, 'learning'),
+      ...(currentTenantId() ? [eq(oracleDocuments.tenantId, currentTenantId()!)] : [])))
     .returning()
     .get();
   db.delete(oracleFts).where(eq(oracleFts.id, id)).run();

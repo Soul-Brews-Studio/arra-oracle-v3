@@ -8,9 +8,16 @@
 import { sql } from 'drizzle-orm';
 import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 
-// Main document index table
+export const tenants = sqliteTable('tenants', {
+  id: text('id').primaryKey(),
+  name: text('name'),
+  status: text('status').default('active').notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, (table) => [index('idx_tenants_status').on(table.status)]);
 export const oracleDocuments = sqliteTable('oracle_documents', {
   id: text('id').primaryKey(),
+  tenantId: text('tenant_id').default('default').notNull(),
   type: text('type').notNull(),
   sourceFile: text('source_file').notNull(),
   concepts: text('concepts').notNull(), // JSON array
@@ -31,6 +38,7 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   index('idx_superseded').on(table.supersededBy),
   index('idx_origin').on(table.origin),
   index('idx_project').on(table.project),
+  index('idx_documents_tenant').on(table.tenantId),
 ]);
 
 
@@ -86,6 +94,7 @@ export const indexingJobs = sqliteTable('indexing_jobs', {
 export const searchLog = sqliteTable('search_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   query: text('query').notNull(),
+  tenantId: text('tenant_id').default('default').notNull(),
   type: text('type'),
   mode: text('mode'),
   resultsCount: integer('results_count'),
@@ -95,6 +104,7 @@ export const searchLog = sqliteTable('search_log', {
   results: text('results'), // JSON array of top 5 results (id, type, score, snippet)
 }, (table) => [
   index('idx_search_project').on(table.project),
+  index('idx_search_tenant').on(table.tenantId),
   index('idx_search_created').on(table.createdAt),
 ]);
 
@@ -118,6 +128,7 @@ export const consultLog = sqliteTable('consult_log', {
 export const learnLog = sqliteTable('learn_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   documentId: text('document_id').notNull(),
+  tenantId: text('tenant_id').default('default').notNull(),
   patternPreview: text('pattern_preview'),
   source: text('source'),
   concepts: text('concepts'), // JSON array
@@ -125,6 +136,7 @@ export const learnLog = sqliteTable('learn_log', {
   project: text('project'),
 }, (table) => [
   index('idx_learn_project').on(table.project),
+  index('idx_learn_tenant').on(table.tenantId),
   index('idx_learn_created').on(table.createdAt),
 ]);
 
@@ -132,23 +144,22 @@ export const learnLog = sqliteTable('learn_log', {
 export const documentAccess = sqliteTable('document_access', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   documentId: text('document_id').notNull(),
+  tenantId: text('tenant_id').default('default').notNull(),
   accessType: text('access_type'),
   createdAt: integer('created_at').notNull(),
   project: text('project'),
 }, (table) => [
   index('idx_access_project').on(table.project),
+  index('idx_access_tenant').on(table.tenantId),
   index('idx_access_created').on(table.createdAt),
   index('idx_access_doc').on(table.documentId),
 ]);
 
-// ============================================================================
-// Forum Tables (threaded discussions with Oracle)
-// ============================================================================
 
-// Forum threads - conversation topics
 export const forumThreads = sqliteTable('forum_threads', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   title: text('title').notNull(),
+  tenantId: text('tenant_id').default('default').notNull(),
   createdBy: text('created_by').default('human'),
   status: text('status').default('active'), // active, answered, pending, closed
   issueUrl: text('issue_url'),              // GitHub mirror URL
@@ -160,10 +171,10 @@ export const forumThreads = sqliteTable('forum_threads', {
 }, (table) => [
   index('idx_thread_status').on(table.status),
   index('idx_thread_project').on(table.project),
+  index('idx_thread_tenant').on(table.tenantId),
   index('idx_thread_created').on(table.createdAt),
 ]);
 
-// Forum messages - individual Q&A in threads
 export const forumMessages = sqliteTable('forum_messages', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   threadId: integer('thread_id').notNull().references(() => forumThreads.id),
@@ -184,18 +195,15 @@ export const forumMessages = sqliteTable('forum_messages', {
 // Note: FTS5 virtual table (oracle_fts) is managed via raw SQL
 // since Drizzle doesn't natively support FTS5
 
-// ============================================================================
 // Trace Log Tables (discovery tracing with dig points)
-// ============================================================================
 
-// Trace log - captures /trace sessions with actionable dig points
 export const traceLog = sqliteTable('trace_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   traceId: text('trace_id').unique().notNull(),
+  tenantId: text('tenant_id').default('default').notNull(),
   query: text('query').notNull(),
   queryType: text('query_type').default('general'),  // general, project, pattern, evolution
 
-  // Dig Points (JSON arrays)
   foundFiles: text('found_files'),            // [{path, type, matchReason, confidence}]
   foundCommits: text('found_commits'),        // [{hash, shortHash, date, message}]
   foundIssues: text('found_issues'),          // [{number, title, state, url}]
@@ -203,39 +211,34 @@ export const traceLog = sqliteTable('trace_log', {
   foundLearnings: text('found_learnings'),    // [paths]
   foundResonance: text('found_resonance'),    // [paths]
 
-  // Counts (for quick stats)
   fileCount: integer('file_count').default(0),
   commitCount: integer('commit_count').default(0),
   issueCount: integer('issue_count').default(0),
 
-  // Recursion (hierarchical)
   depth: integer('depth').default(0),         // 0 = initial, 1+ = dig from parent
   parentTraceId: text('parent_trace_id'),     // Links to parent trace
   childTraceIds: text('child_trace_ids').default('[]'),  // Links to child traces
 
-  // Linked list (horizontal chain)
   prevTraceId: text('prev_trace_id'),         // ← Previous trace in chain
   nextTraceId: text('next_trace_id'),         // → Next trace in chain
 
-  // Context
   project: text('project'),                   // ghq format project path
   scope: text('scope').default('project'),    // 'project' | 'cross-project' | 'human'
   sessionId: text('session_id'),              // Claude session if available
   agentCount: integer('agent_count').default(1),
   durationMs: integer('duration_ms'),
 
-  // Distillation
   status: text('status').default('raw'),      // raw, reviewed, distilling, distilled
   awakening: text('awakening'),               // Extracted insight (markdown)
   distilledToId: text('distilled_to_id'),     // Learning ID if promoted
   distilledAt: integer('distilled_at'),
 
-  // Timestamps
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 }, (table) => [
   index('idx_trace_query').on(table.query),
   index('idx_trace_project').on(table.project),
+  index('idx_trace_tenant').on(table.tenantId),
   index('idx_trace_status').on(table.status),
   index('idx_trace_parent').on(table.parentTraceId),
   index('idx_trace_prev').on(table.prevTraceId),

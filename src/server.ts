@@ -34,7 +34,6 @@ import { createCompressMiddleware } from './middleware/compress.ts';
 import { createRequestDedupFetch } from './middleware/dedup.ts';
 import { createDbContextFetch } from './middleware/db-context.ts';
 import { createTenantFetch, createTenantMiddleware } from './middleware/tenant.ts';
-
 import { authRoutes } from './routes/auth/index.ts';
 import { settingsRoutes } from './routes/settings/index.ts';
 import { feedRoutes } from './routes/feed/index.ts';
@@ -58,6 +57,7 @@ import { createMcpRoutes } from './routes/mcp/index.ts';
 import { createMetricsLifecycle, metricsRoutes } from './routes/metrics/index.ts';
 import { memoryRoutes } from './routes/memory/index.ts';
 import { canvasRoutes } from './routes/canvas/index.ts';
+import { tenantsRoutes } from './routes/tenants/index.ts';
 
 let indexerRoutes: any = null;
 try {
@@ -66,11 +66,9 @@ try {
   console.log('[Indexer] Routes not loaded — indexer is optional');
 }
 import { gatewayPlugin } from './gateway/index.ts';
-
 import pkg from '../package.json' with { type: 'json' };
 
 const startupConfig = validateStartupEnv();
-
 try {
   db.update(indexingStatus).set({ isIndexing: 0 }).where(eq(indexingStatus.id, 1)).run();
   console.log('🔮 Reset indexing status on startup');
@@ -117,7 +115,6 @@ registerGracefulShutdown({
 });
 
 const requestLogger = createRequestLogger();
-
 const app = new Elysia()
   .onRequest(requestLogger.onRequest)
   .use(createCorrelationMiddleware())
@@ -200,6 +197,7 @@ const apiModules = [
   metricsRoutes,
   memoryRoutes,
   canvasRoutes,
+  tenantsRoutes,
   ...(indexerRoutes ? [indexerRoutes] : []),
   ...unifiedPlugins.routes,
 ];
@@ -241,7 +239,6 @@ await runStartupSelfTest({
     healthFetch: () => app.fetch(new Request(`http://127.0.0.1:${PORT}/api/health`)),
   }),
 });
-
 const serverFetch = createRequestTimeoutFetch(
   createRequestDedupFetch(createApiVersionedFetch(createTenantFetch(createDbContextFetch((request: Request) => app.fetch(request))))),
 );
