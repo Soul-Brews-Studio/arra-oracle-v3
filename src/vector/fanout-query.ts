@@ -19,28 +19,51 @@ export interface FanoutQueryOptions {
 export interface FanoutQueryResponse {
   strategy: FanoutStrategy;
   backends: string[];
+  backendStats: Record<string, { ok: boolean; elapsedMs: number; error?: string }>;
   results: SearchResult[];
   errors: Record<string, string>;
 }
 
 export async function queryFanout(options: FanoutQueryOptions): Promise<FanoutQueryResponse> {
-  const settled = await Promise.allSettled(options.targets.map(async (target) => ({
-    key: target.key,
-    result: await target.store.query(options.text, options.limit, options.where),
-  })));
+  const settled = await Promise.allSettled(options.targets.map(async (target) => {
+    const startedAt = Date.now();
+    try {
+      const result = await target.store.query(options.text, options.limit, options.where);
+      return {
+        key: target.key,
+        elapsedMs: Math.max(0, Date.now() - startedAt),
+        result,
+      };
+    } catch (error) {
+      throw {
+        key: target.key,
+        elapsedMs: Math.max(0, Date.now() - startedAt),
+        error,
+      };
+    }
+  }));
   const errors: Record<string, string> = {};
+  const backendStats: FanoutQueryResponse['backendStats'] = {};
   const results: SearchResult[] = [];
   settled.forEach((item, index) => {
     const key = options.targets[index].key;
     if (item.status === 'rejected') {
-      errors[key] = item.reason instanceof Error ? item.reason.message : String(item.reason);
+      const reason = item.reason as { error?: unknown; elapsedMs?: number } | unknown;
+      const error = typeof reason === 'object' && reason && 'error' in reason ? reason.error : reason;
+      errors[key] = error instanceof Error ? error.message : String(error);
+      const elapsedMs = typeof reason === 'object' && reason && 'elapsedMs' in reason
+        ? Number(reason.elapsedMs)
+        : 0;
+      backendStats[key] = { ok: false, elapsedMs: Math.max(0, elapsedMs), error: errors[key] };
       return;
     }
+    backendStats[key] = { ok: true, elapsedMs: item.value.elapsedMs };
     results.push(...toSearchResults(key, item.value.result));
   });
   return {
     strategy: options.strategy ?? 'merge',
     backends: options.targets.map((target) => target.key),
+    backendStats,
     results: mergeFanoutResults(results).slice(0, options.limit),
     errors,
   };

@@ -1,6 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { Elysia } from 'elysia';
 import { createApiVersionedFetch } from '../../../src/middleware/api-version.ts';
+import { QueryCache } from '../../../src/vector/query-cache.ts';
 import type { EmbeddingProvider, VectorQueryResult } from '../../../src/vector/types.ts';
 
 const models = {
@@ -30,21 +31,57 @@ test('GET /api/v1/vector/fanout merges and deduplicates parallel backend results
   const res = await createApiVersionedFetch((request) => app.handle(request))(
     new Request('http://local/api/v1/vector/fanout?q=oracle&fanout=local,remote&limit=5&cache=false'),
   );
-  const body = await res.json() as { backends: string[]; results: Array<{ id: string; source: string }>; errors: Record<string, string> };
+  const body = await res.json() as {
+    backends: string[];
+    backendStats: Record<string, { ok: boolean }>;
+    results: Array<{ id: string; source: string }>;
+    errors: Record<string, string>;
+  };
 
   expect(res.status).toBe(200);
   expect(body.backends).toEqual(['local', 'remote']);
+  expect(body.backendStats.local.ok).toBe(true);
+  expect(body.backendStats.remote.ok).toBe(true);
   expect(body.results.map((item) => item.id)).toEqual(['same', 'local-only', 'remote-only']);
   expect(body.results[0].source).toBe('hybrid');
   expect(body.errors).toEqual({});
 });
 
+test('GET /api/v1/vector/fanout returns partial results and backend errors', async () => {
+  const { createFanoutEndpoint } = await import('../../../src/routes/vector/fanout.ts');
+  const app = new Elysia({ prefix: '/api' }).use(createFanoutEndpoint({
+    getModels: () => models,
+    getStore: async (key) => ({
+      query: mock(async () => {
+        if (key === 'remote') throw new Error('remote unavailable');
+        return queryResult(['local-only'], [3]);
+      }),
+    }),
+  }));
+  const res = await createApiVersionedFetch((request) => app.handle(request))(
+    new Request('http://local/api/v1/vector/fanout?q=oracle&fanout=local,remote&cache=false'),
+  );
+  const body = await res.json() as {
+    backendStats: Record<string, { ok: boolean; error?: string }>;
+    results: Array<{ id: string }>;
+    errors: Record<string, string>;
+  };
+
+  expect(res.status).toBe(200);
+  expect(body.results.map((item) => item.id)).toEqual(['local-only']);
+  expect(body.errors.remote).toBe('remote unavailable');
+  expect(body.backendStats.local.ok).toBe(true);
+  expect(body.backendStats.remote).toMatchObject({ ok: false, error: 'remote unavailable' });
+});
+
 test('GET /api/v1/vector/fanout caches and clears query results', async () => {
   const { createFanoutEndpoint } = await import('../../../src/routes/vector/fanout.ts');
+  const cache = new QueryCache<unknown>();
   const query = mock(async () => queryResult(['cached'], [1]));
   const app = new Elysia({ prefix: '/api' }).use(createFanoutEndpoint({
     getModels: () => ({ local: models.local }),
     getStore: async () => ({ query }),
+    cache,
   }));
   const fetch = createApiVersionedFetch((request) => app.handle(request));
 

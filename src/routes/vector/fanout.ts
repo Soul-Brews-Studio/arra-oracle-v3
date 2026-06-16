@@ -10,6 +10,7 @@ const cache = new QueryCache<unknown>();
 export interface FanoutEndpointOptions {
   getModels?: () => Record<string, EmbeddingModelConfig>;
   getStore?: (key: string, models: Record<string, EmbeddingModelConfig>) => Promise<Pick<VectorStoreAdapter, 'query'>>;
+  cache?: QueryCache<unknown>;
 }
 
 function sanitize(q: string): string {
@@ -22,9 +23,10 @@ function requestedBackends(raw: string | undefined, enabled: string[]): string[]
 }
 
 export function createFanoutEndpoint(options: FanoutEndpointOptions = {}) {
+  const endpointCache = options.cache ?? cache;
   return new Elysia()
-    .get('/vector/fanout/cache', () => ({ cache: cache.stats() }), { detail: { tags: ['vector'], summary: 'Fan-out query cache stats' } })
-    .delete('/vector/fanout/cache', () => { cache.clear(); return { success: true, cache: cache.stats() }; }, { detail: { tags: ['vector'], summary: 'Clear fan-out query cache' } })
+    .get('/vector/fanout/cache', () => ({ cache: endpointCache.stats() }), { detail: { tags: ['vector'], summary: 'Fan-out query cache stats' } })
+    .delete('/vector/fanout/cache', () => { endpointCache.clear(); return { success: true, cache: endpointCache.stats() }; }, { detail: { tags: ['vector'], summary: 'Clear fan-out query cache' } })
     .get(
       '/vector/fanout',
       async ({ query, set }) => {
@@ -45,7 +47,7 @@ export function createFanoutEndpoint(options: FanoutEndpointOptions = {}) {
 
     const cacheKey = stableCacheKey({ q, backends, limit, type: query.type ?? 'all' });
     if (query.cache !== 'false') {
-      const cached = cache.get(cacheKey);
+      const cached = endpointCache.get(cacheKey);
       if (cached) return { ...(cached as Record<string, unknown>), cached: true };
     }
 
@@ -55,7 +57,7 @@ export function createFanoutEndpoint(options: FanoutEndpointOptions = {}) {
       store: await (options.getStore?.(key, models) ?? ensureVectorStoreConnected(key, models)),
     })));
     const result = { query: q, ...(await queryFanout({ text: q, limit, where, targets })) };
-    if (query.cache !== 'false') cache.set(cacheKey, result);
+    if (query.cache !== 'false') endpointCache.set(cacheKey, result);
     return result;
       },
       {
