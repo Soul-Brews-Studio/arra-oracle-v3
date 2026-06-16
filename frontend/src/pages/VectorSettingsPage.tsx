@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { VectorAdapterSwitcher } from '../components/VectorAdapterSwitcher';
 import { VectorFirstRunWizard } from '../components/VectorFirstRunWizard';
 import { VectorIndexPanel } from '../components/VectorIndexPanel';
 import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
@@ -169,6 +170,7 @@ export function VectorSettingsPage() {
       {state === 'loading' ? <LoadingPanel title="Loading vector config" detail="Reading /api/v1/vector/config." /> : null}
       {state === 'error' ? <ErrorMessage title="Could not load vector config." message={error} /> : null}
       {error && state !== 'error' ? <ErrorMessage title="Vector settings warning" message={error} /> : null}
+      {state === 'ready' ? <VectorAdapterSwitcher rows={rows} onRefresh={loadConfig} /> : null}
 
       {state === 'ready' ? <VectorFirstRunWizard rows={rows} onRefresh={loadConfig} /> : null}
 
