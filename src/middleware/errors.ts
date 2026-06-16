@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia';
+import { apiRequestPath } from './api-version.ts';
 import { REQUEST_ID_HEADER, RESPONSE_TIME_HEADER, requestIdFor, responseTimeFor } from './correlation.ts';
 
 export type ApiErrorResponse = {
@@ -74,13 +75,27 @@ function errorName(error: unknown): string {
   return error instanceof Error ? error.name : '';
 }
 
-function knownStatus(code: string, error: unknown): number {
+function normalizedPath(pathname: string): string {
+  return pathname.replace(/^\/api\/v[^/]+(?=\/)/, '/api');
+}
+
+function isLearnPath(pathname: string): boolean {
+  const path = normalizedPath(pathname);
+  return path === '/api/learn' || path.startsWith('/api/learn/');
+}
+
+function isParseError(code: string, error: unknown): boolean {
+  return code === 'PARSE' || errorName(error) === 'BadRequestError' || error instanceof SyntaxError;
+}
+
+function knownStatus(code: string, error: unknown, pathname: string): number {
+  if (isLearnPath(pathname) && (code === 'PARSE' || error instanceof SyntaxError)) return 500;
   if (error instanceof HttpError) return error.statusCode;
   const explicit = numericStatus((error as { status?: unknown })?.status) ?? numericStatus((error as { statusCode?: unknown })?.statusCode);
   if (explicit) return explicit;
   if (code === 'NOT_FOUND' || errorName(error) === 'NotFoundError') return 404;
   if (code === 'VALIDATION' || errorName(error) === 'ValidationError') return 422;
-  if (code === 'PARSE' || errorName(error) === 'BadRequestError' || error instanceof SyntaxError) return 400;
+  if (isParseError(code, error)) return 400;
   const message = errorMessage(error);
   if (message.includes('disk I/O') || message.includes('database is locked') || message.includes('SQLITE_BUSY')) return 503;
   return 500;
@@ -95,7 +110,7 @@ function defaultErrorLogger(entry: { requestId: string; statusCode: number; code
 
 export function createErrorMiddleware(logger: ErrorLogger = defaultErrorLogger) {
   return new Elysia({ name: 'structured-errors' }).onError({ as: 'global' }, ({ code, error, request, set }) => {
-    const statusCode = knownStatus(String(code), error);
+    const statusCode = knownStatus(String(code), error, apiRequestPath(request));
     const id = requestIdFor(request);
     const message = statusCode === 404 && code === 'NOT_FOUND' ? 'Route not found' : errorMessage(error);
     set.status = statusCode;

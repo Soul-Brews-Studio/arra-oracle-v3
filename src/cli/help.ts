@@ -125,13 +125,8 @@ export const BUILTIN_HELP: CliHelpEntry[] = [
     flags: ["--since <tag>", "--out <file>", "--stdout", "--help", "-h"],
     examples: ["arra-cli changelog", "arra-cli changelog --since v1.2.3 --stdout"],
   },
-  {
-    command: "release",
-    help: "bump CalVer, write changelog, and create a tag",
-    usage: "arra-cli release [--beta|--stable] [--changelog CHANGELOG.md] [--dry-run]",
-    flags: ["--beta", "--stable", "--changelog <file>", "--dry-run", "--check", "--help", "-h"],
-    examples: ["arra-cli release", "arra-cli release --beta", "arra-cli release --dry-run"],
-  },
+  { command: "release", help: "bump CalVer, write changelog, and create a tag", usage: "arra-cli release [--beta|--stable] [--changelog CHANGELOG.md] [--dry-run]", flags: ["--beta", "--stable", "--changelog <file>", "--dry-run", "--check", "--help", "-h"], examples: ["arra-cli release", "arra-cli release --beta", "arra-cli release --dry-run"] },
+  { command: "export", help: "export a collection through Oracle v2", usage: "arra-cli export --url <url> --collection <name> --format markdown|json|jsonl --output <path>", flags: ["--url <url>", "--collection <name>", "--format <format>", "--output <path>", "--help", "-h"], examples: ["arra-cli export --url http://localhost:47778 --collection oracle_documents --format json --output oracle_documents.json"] },
 ];
 
 const SUBCOMMAND_HELP: CliHelpEntry[] = [

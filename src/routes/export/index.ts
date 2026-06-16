@@ -3,6 +3,7 @@
 import { Elysia } from 'elysia';
 import { exportCreateBody, normalizeExportRequest } from './model.ts';
 import { defaultExportJobManager, type ExportJobManager } from './jobs.ts';
+import { createExportHistoryRoutes } from './history.ts';
 
 export function createExportRoutes(manager: ExportJobManager = defaultExportJobManager) {
   return new Elysia({ prefix: '/api' })
@@ -17,6 +18,7 @@ export function createExportRoutes(manager: ExportJobManager = defaultExportJobM
         summary: 'Start an asynchronous Oracle data export job',
       },
     })
+    .use(createExportHistoryRoutes())
     .get('/export/:id', ({ params, set }) => {
       const job = manager.get(params.id);
       if (!job) {
