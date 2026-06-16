@@ -22,3 +22,9 @@ export const SupersedeBody = t.Object({
   superseded_by: t.Optional(t.String()),
   project: t.Optional(t.String()),
 });
+
+export const SupersedeDocumentBody = t.Object({
+  oldId: t.String({ minLength: 1 }),
+  newId: t.String({ minLength: 1 }),
+  reason: t.Optional(t.String()),
+});

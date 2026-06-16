@@ -29,17 +29,20 @@ describe('ExportApp legacy v2 UI', () => {
         url: 'https://oracle.example/api/v1/export/app/download/job%201',
         filename: 'oracle_documents.json',
       });
+    expect(resolveDownloadLink('https://oracle.example/root', { jobId: 'job 2' }, 'oracle_documents', 'csv')?.filename)
+      .toBe('oracle_documents.csv');
     expect(legacyDirectExportLink('localhost:47778', 'oracle_documents', 'markdown').url)
       .toContain('/api/v1/export/app?collection=oracle_documents&format=markdown');
   });
 
-  test('renders configurable backend and JSON/Markdown export controls', () => {
+  test('renders configurable backend and JSON/CSV/Markdown export controls', () => {
     const html = htmlFor(<ExportApp initialBackendUrl="localhost:47778" autoLoad={false} />);
 
     expect(html).toContain('Legacy Oracle v2');
     expect(html).toContain('Old Oracle backend');
     expect(html).toContain('http://localhost:47778');
     expect(html).toContain('JSON');
+    expect(html).toContain('CSV');
     expect(html).toContain('Markdown');
     expect(html).toContain('Trigger export');
   });

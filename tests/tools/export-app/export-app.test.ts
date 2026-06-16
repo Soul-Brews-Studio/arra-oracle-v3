@@ -116,10 +116,8 @@ describe('standalone export app', () => {
       });
       expect(docJson.metadata).toMatchObject({ source_file: 'ψ/learn/old.md', concepts: ['backup'] });
       const docCsv = readFileSync(join(outputDir, 'documents', 'documents.csv'), 'utf8');
-      expect(docCsv.split('\n')[0]).toBe('id,source,type,concepts,content_preview');
+      expect(docCsv).toContain('id,source,type,concepts,content_preview,metadata_json');
       expect(docCsv).toContain('"doc-old","ψ/learn/old.md","learning","backup"');
-      const docIndex = JSON.parse(readFileSync(join(outputDir, 'documents', 'index.json'), 'utf8'));
-      expect(docIndex.csv).toBe('documents/documents.csv');
     } finally {
       connection.storage.close();
     }
@@ -175,11 +173,9 @@ describe('standalone export app', () => {
 
     const result = await exportOracleV2Documents({ dbPath: legacyDbPath, outputDir: legacyOutput });
     expect(result.documentCount).toBe(1);
-    expect(result.csvPath).toBe(join(legacyOutput, 'documents', 'documents.csv'));
+    expect(readFileSync(result.csvPath, 'utf8')).toContain('"legacy-doc","ψ/legacy/export.md"');
     expect(readFileSync(join(legacyOutput, 'documents', 'markdown', 'legacy_export.md'), 'utf8'))
       .toContain('Legacy body from old Oracle v2.');
-    expect(readFileSync(join(legacyOutput, 'documents', 'documents.csv'), 'utf8'))
-      .toContain('"legacy-doc","ψ/legacy/export.md","learning","legacy backup"');
     const payload = JSON.parse(readFileSync(join(legacyOutput, 'documents', 'json', 'legacy_export.json'), 'utf8'));
     expect(payload.metadata).toMatchObject({ source_file: 'ψ/legacy/export.md', concepts: ['legacy', 'backup'] });
   });

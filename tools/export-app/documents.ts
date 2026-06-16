@@ -4,7 +4,7 @@ import { DB_PATH } from '../../src/config.ts';
 import type { DatabaseConnection } from '../../src/db/index.ts';
 import { createStorageBackend } from '../../src/storage/registry.ts';
 import { normalizeRecord, type ExportRecord } from './formats.ts';
-import { formatDocumentCsv } from './document-csv.ts';
+import { formatDocumentsCsv } from './document-csv.ts';
 
 type Progress = (message: string) => void;
 type FtsRow = { content?: unknown; concepts?: unknown };
@@ -29,9 +29,9 @@ export interface ExportDocumentsResult {
   outputDir: string;
   markdownDir: string;
   jsonDir: string;
+  csvPath: string;
   documentCount: number;
   indexPath: string;
-  csvPath: string;
 }
 
 export async function exportOracleV2Documents(
@@ -72,9 +72,15 @@ export async function exportOracleV2Documents(
     }
 
     const indexPath = path.join(documentsDir, 'index.json');
-    await writeFile(csvPath, formatDocumentCsv(docs), 'utf8');
-    await writeJson(indexPath, { version: 1, exportedAt, documentCount: docs.length, csv: slash(path.relative(outputDir, csvPath)), documents: index });
-    return { outputDir, markdownDir, jsonDir, documentCount: docs.length, indexPath, csvPath };
+    await writeFile(csvPath, formatDocumentsCsv(docs), 'utf8');
+    await writeJson(indexPath, {
+      version: 1,
+      exportedAt,
+      documentCount: docs.length,
+      csv: slash(path.relative(outputDir, csvPath)),
+      documents: index,
+    });
+    return { outputDir, markdownDir, jsonDir, csvPath, documentCount: docs.length, indexPath };
   } finally {
     close?.connection.storage.close();
   }

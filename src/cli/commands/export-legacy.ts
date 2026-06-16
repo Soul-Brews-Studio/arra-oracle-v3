@@ -123,7 +123,7 @@ export async function buildAllVectorMarkdownPayload(): Promise<MarkdownSection> 
       await store.ensureCollection();
       sections.push(sectionHeader(collectionName));
       emittedHeader = true;
-      
+
       if (!store.getAllEmbeddings) {
         sections.push(`Not supported for adapter ${store.name}\n\n`);
         continue;

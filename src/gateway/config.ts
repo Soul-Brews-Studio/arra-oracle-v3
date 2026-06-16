@@ -34,10 +34,10 @@ export interface GatewayConfig {
   hook_options?: Record<string, unknown>;
 }
 
-const CONFIG_FILE = 'oracle-gateway.json';
+function configFileName(): string { return 'oracle-gateway.json'; }
 
 export function loadGatewayConfig(dataDir: string, vectorUrl?: string): GatewayConfig | null {
-  const configPath = path.join(dataDir, CONFIG_FILE);
+  const configPath = path.join(dataDir, configFileName());
 
   if (fs.existsSync(configPath)) {
     try {
@@ -49,16 +49,26 @@ export function loadGatewayConfig(dataDir: string, vectorUrl?: string): GatewayC
     }
   }
 
-  // Backward compat: synthesize config from VECTOR_URL
+  // Backward compat: synthesize config from VECTOR_URL. Search can
+  // fall through to local FTS5 when the vector service is unreachable; pure
+  // vector routes must not fall back to local LanceDB inside the core process.
   if (vectorUrl) {
+    const vectorBase = vectorUrl.replace(/\/+$/, '');
     return {
       services: {
-        vector: { url: vectorUrl, timeout: 5000 },
+        vector: {
+          url: vectorUrl,
+          healthCheck: `${vectorBase}/api/vector/health`,
+          timeout: 5000,
+        },
       },
       routes: [
-        { match: '/api/vector/**', service: 'vector', fallback: 'fts5' },
-        { match: '/api/similar', service: 'vector', fallback: 'fts5' },
         { match: '/api/search', service: 'vector', fallback: 'fts5' },
+        { match: '/api/similar', service: 'vector', fallback: 'error' },
+        { match: '/api/compare', service: 'vector', fallback: 'error' },
+        { match: '/api/map', service: 'vector', fallback: 'empty' },
+        { match: '/api/map3d', service: 'vector', fallback: 'empty' },
+        { match: '/api/vector/**', service: 'vector', fallback: 'error' },
       ],
     };
   }
@@ -78,7 +88,7 @@ export function watchGatewayConfig(
   onChange: (next: GatewayConfig | null) => void,
   vectorUrl?: string,
 ): () => void {
-  const configPath = path.join(dataDir, CONFIG_FILE);
+  const configPath = path.join(dataDir, configFileName());
   const watchers: fs.FSWatcher[] = [];
   let timer: ReturnType<typeof setTimeout> | null = null;
   let poller: ReturnType<typeof setInterval> | null = null;
@@ -124,7 +134,7 @@ export function watchGatewayConfig(
       // events for a directly watched file on some platforms.
       watchers.push(
         fs.watch(dataDir, { persistent: false }, (_event, filename) => {
-          if (filename === CONFIG_FILE) tick();
+          if (filename === configFileName()) tick();
         }),
       );
     }

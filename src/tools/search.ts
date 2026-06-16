@@ -9,6 +9,7 @@
 import { detectProject } from '../server/project-detect.ts';
 import { rerankCandidates } from '../server/reranker.ts';
 import { ensureVectorStoreConnected } from '../vector/factory.ts';
+import { isVectorSectionEnabled } from '../vector/config.ts';
 import type { SearchResult } from '../server/types.ts';
 import type { ToolContext, ToolResponse, OracleSearchInput } from './types.ts';
 
@@ -79,21 +80,16 @@ export const searchToolDef = {
  * Removes FTS5 special characters that cause syntax errors.
  */
 export function sanitizeFtsQuery(query: string): string {
-  // Strip FTS5 special chars + SQL-comment / statement-terminator chars that
-  // can leak as raw FTS5 parser errors (e.g. ';' or '--' in user input).
-  let sanitized = query
-    .replace(/[?*+()^~"':.\/;,!=<>{}\[\]\\|&]/g, ' ')
-    .replace(/--+/g, ' ')   // collapse consecutive dashes (SQL comment)
-    .replace(/-+/g, ' ')    // and any remaining dashes (FTS5 prefix-NOT)
-    .replace(/\s+/g, ' ')
-    .trim();
+  const tokens = query
+    .replace(/<[^>]*>/g, ' ')
+    .normalize('NFKC')
+    .match(/[\p{L}\p{N}_]+/gu)
+    ?.map((token) => token.trim())
+    .filter((token) => token.length > 0)
+    .slice(0, 8) ?? [];
 
-  if (!sanitized) {
-    console.error('[FTS5] Query became empty after sanitization:', query);
-    return query;
-  }
-
-  return sanitized;
+  const uniqueTokens = Array.from(new Set(tokens));
+  return uniqueTokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(' OR ');
 }
 
 /**
@@ -342,40 +338,56 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
 
   let warning: string | undefined;
   let vectorSearchError = false;
+  const requestedMode = mode;
+  let effectiveMode = mode;
+  const vectorSectionEnabled = requestedMode !== 'fts' && isVectorSectionEnabled();
+  let vectorAvailable = requestedMode !== 'fts' ? vectorSectionEnabled : undefined;
 
-  // Run FTS5 search (skip if vector-only mode)
+  if (requestedMode !== 'fts' && !vectorSectionEnabled) {
+    effectiveMode = 'fts';
+  }
+
+  // Run FTS5 search (skip only when vector is both requested and available)
   let ftsRawResults: any[] = [];
-  if (mode !== 'vector') {
-    if (type === 'all') {
-      const stmt = ctx.sqlite.prepare(`
-        SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
-        FROM oracle_fts f
-        JOIN oracle_documents d ON f.id = d.id
-        WHERE oracle_fts MATCH ? ${projectFilter}
-        ORDER BY rank
-        LIMIT ?
-      `);
-      ftsRawResults = stmt.all(safeQuery, ...projectParams, limit * 2);
-    } else {
-      const stmt = ctx.sqlite.prepare(`
-        SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
-        FROM oracle_fts f
-        JOIN oracle_documents d ON f.id = d.id
-        WHERE oracle_fts MATCH ? AND d.type = ? ${projectFilter}
-        ORDER BY rank
-        LIMIT ?
-      `);
-      ftsRawResults = stmt.all(safeQuery, type, ...projectParams, limit * 2);
+  if (effectiveMode !== 'vector' && safeQuery) {
+    try {
+      if (type === 'all') {
+        const stmt = ctx.sqlite.prepare(`
+          SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
+          FROM oracle_fts f
+          JOIN oracle_documents d ON f.id = d.id
+          WHERE oracle_fts MATCH ? ${projectFilter}
+          ORDER BY rank
+          LIMIT ?
+        `);
+        ftsRawResults = stmt.all(safeQuery, ...projectParams, limit * 3);
+      } else {
+        const stmt = ctx.sqlite.prepare(`
+          SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
+          FROM oracle_fts f
+          JOIN oracle_documents d ON f.id = d.id
+          WHERE oracle_fts MATCH ? AND d.type = ? ${projectFilter}
+          ORDER BY rank
+          LIMIT ?
+        `);
+        ftsRawResults = stmt.all(safeQuery, type, ...projectParams, limit * 3);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      warning = `FTS5 keyword search unavailable: ${errorMessage}`;
+      console.error('[FTS5]', errorMessage);
+      ftsRawResults = [];
     }
   }
 
-  // Run vector search (skip if fts-only mode)
+  // Run vector search (skip if fts-only mode or vector section is disabled)
   let vecResults: Awaited<ReturnType<typeof vectorSearch>> = [];
-  if (mode !== 'fts') {
+  if (effectiveMode !== 'fts') {
     try {
       vecResults = await vectorSearch(ctx, query, type, limit * 2, model);
     } catch (error) {
       vectorSearchError = true;
+      vectorAvailable = false;
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('[ChromaDB]', errorMessage);
       warning = `Vector search unavailable: ${errorMessage}. Using FTS5 only.`;
@@ -465,6 +477,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
     vectorMatches: number;
     sources: { fts: number; vector: number; hybrid: number };
     searchTime: number;
+    vectorAvailable?: boolean;
     reranked?: boolean;
     rerankFallbackReason?: string;
     warning?: string;
@@ -477,6 +490,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
     vectorMatches: vecResults.length,
     sources: { fts: ftsCount, vector: vectorCount, hybrid: hybridCount },
     searchTime,
+    ...(requestedMode !== 'fts' ? { vectorAvailable: vectorAvailable === true } : {}),
     reranked: reranked.reranked,
     ...(reranked.fallbackReason ? { rerankFallbackReason: reranked.fallbackReason } : {}),
   };

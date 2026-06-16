@@ -7,7 +7,9 @@
 
 import { Elysia } from 'elysia';
 import { db, supersedeLog } from '../../db/index.ts';
-import { SupersedeBody } from './model.ts';
+import { runSupersede } from '../../tools/supersede.ts';
+import type { OracleSupersededInput } from '../../tools/types.ts';
+import { SupersedeBody, SupersedeDocumentBody } from './model.ts';
 
 export const supersedeCreateEndpoint = new Elysia().post(
   '/supersede',
@@ -49,6 +51,28 @@ export const supersedeCreateEndpoint = new Elysia().post(
       tags: ['supersede'],
       menu: { group: 'hidden' },
       summary: 'Append to legacy supersede_log',
+    },
+  },
+);
+
+export const supersedeDocumentEndpoint = new Elysia().post(
+  '/supersede/document',
+  ({ body, set }) => {
+    try {
+      const result = runSupersede(db, body as OracleSupersededInput);
+      if (result.isError) set.status = 400;
+      return result.payload;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      set.status = message.includes('not found') ? 404 : 500;
+      return { success: false, error: message };
+    }
+  },
+  {
+    body: SupersedeDocumentBody,
+    detail: {
+      tags: ['supersede'],
+      summary: 'Mark an indexed document as superseded by another document',
     },
   },
 );

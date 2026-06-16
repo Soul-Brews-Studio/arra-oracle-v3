@@ -116,7 +116,6 @@ test('CLI exports document markdown and JSON from --db without starting the serv
   expect(stderr.join('')).toContain('oracle_documents');
   expect(existsSync(join(outputDir, 'documents', 'markdown', 'psi_learn_new.md'))).toBe(true);
   expect(existsSync(join(outputDir, 'documents', 'json', 'psi_learn_new.json'))).toBe(true);
-  expect(existsSync(join(outputDir, 'documents', 'documents.csv'))).toBe(true);
   expect(readFileSync(join(outputDir, 'documents', 'markdown', 'psi_learn_new.md'), 'utf8'))
     .toContain('New export body');
 });

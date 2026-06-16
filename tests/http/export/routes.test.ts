@@ -80,6 +80,43 @@ test('POST/GET/download /api/v1/export manages an async export artifact', async 
   expect(await download.json()).toEqual({ ok: true, format: 'json' });
 });
 
+test('GET /api/v1/export/progress streams export job progress as SSE', async () => {
+  const gate = deferred();
+  const started = deferred();
+  const manager = createExportJobManager({
+    outputDir: tmp,
+    id: () => 'job-progress-1',
+    build: async (_request, progress) => {
+      progress(40);
+      started.resolve();
+      await gate.promise;
+      return { data: '{"ok":true}', contentType: 'application/json', extension: 'json' };
+    },
+  });
+  const app = new Elysia().use(createExportRoutes(manager));
+  const fetcher = createApiVersionedFetch((request) => app.handle(request));
+
+  await fetcher(new Request('http://local/api/v1/export', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ format: 'json' }),
+  }));
+  await started.promise;
+
+  const stream = await fetcher(new Request('http://local/api/v1/export/progress?jobId=job-progress-1', {
+    headers: { accept: 'text/event-stream' },
+  }));
+  gate.resolve();
+  const text = await stream.text();
+
+  expect(stream.status).toBe(200);
+  expect(stream.headers.get('content-type')).toContain('text/event-stream');
+  expect(text).toContain('event: progress');
+  expect(text).toContain('"jobId":"job-progress-1"');
+  expect(text).toContain('"progress":40');
+  expect(text).toContain('"status":"done"');
+});
+
 test('GET /api/v1/export/:id returns 404 for unknown jobs', async () => {
   const manager = createExportJobManager({ outputDir: tmp });
   const app = new Elysia().use(createExportRoutes(manager));

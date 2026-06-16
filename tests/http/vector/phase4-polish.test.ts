@@ -134,6 +134,20 @@ test('buildVectorFreshness reports pending source documents', async () => {
   });
 });
 
+test('buildVectorStorageHealth aggregates adapter health', async () => {
+  const { buildVectorStorageHealth } = await import('../../../src/vector/health.ts');
+  const storage = buildVectorStorageHealth([
+    { adapter: 'lancedb', ok: true },
+    { adapter: 'lancedb', ok: false, error: 'disk unavailable' },
+    { adapter: 'proxy', ok: true },
+  ]);
+
+  expect(storage).toEqual([
+    { adapter: 'lancedb', healthy: 1, total: 2, status: 'red', detail: 'disk unavailable' },
+    { adapter: 'proxy', healthy: 1, total: 1, status: 'green' },
+  ]);
+});
+
 test('FallbackEmbeddings switches to the next provider after primary failure', async () => {
   const { FallbackEmbeddings } = await import('../../../src/vector/embeddings.ts');
   const events: Array<{ from: string; to?: string }> = [];
