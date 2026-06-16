@@ -4,7 +4,7 @@ import { AppShell } from '../../../frontend/src/components/AppShell';
 import { htmlFor, installBrowserLocation } from '../_render';
 
 describe('AppShell Vector navigation', () => {
-  test('links to the vector search preview page from the sidebar', () => {
+  test('links to every vector page from the sidebar', () => {
     const restore = installBrowserLocation('/vector/search');
     try {
       const html = htmlFor(
@@ -14,7 +14,10 @@ describe('AppShell Vector navigation', () => {
           </AppShell>
         </MemoryRouter>,
       );
-      expect(html).toContain('aria-label="Vector: Semantic preview by collection"');
+      expect(html).toContain('aria-label="Vector Dashboard: Collection health and indexing"');
+      expect(html).toContain('aria-label="Document Browser: Browse indexed vector documents"');
+      expect(html).toContain('aria-label="Vector Search: Semantic preview by collection"');
+      expect(html).toContain('aria-label="Export: Download vector collections"');
     } finally {
       restore();
     }

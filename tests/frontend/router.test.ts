@@ -31,7 +31,18 @@ function htmlAt(path: string): string {
 
 describe('frontend router', () => {
   test('declares the public dashboard route set', () => {
-    expect([...frontendRoutes]).toEqual(['/', '/plugins', '/metrics', '/search', '/learn']);
+    expect([...frontendRoutes]).toEqual([
+      '/',
+      '/plugins',
+      '/metrics',
+      '/search',
+      '/learn',
+      '/vector',
+      '/vector/search',
+      '/vector/documents',
+      '/vector/results',
+      '/vector/export',
+    ]);
   });
 
   test('routes root, plugins, metrics, search, and learn surfaces', () => {
@@ -42,7 +53,11 @@ describe('frontend router', () => {
     expect(htmlAt('/metrics')).toContain('Memory usage');
     expect(htmlAt('/search')).toContain('Full-text menu search');
     expect(htmlAt('/learn')).toContain('Learn entries');
+    expect(htmlAt('/vector')).toContain('Vector dashboard');
+    expect(htmlAt('/vector/search')).toContain('Vector search preview');
     expect(htmlAt('/vector/documents')).toContain('Vector documents');
+    expect(htmlAt('/vector/results')).toContain('Vector search results');
+    expect(htmlAt('/vector/export')).toContain('Vector export');
   });
 
   test('wraps routed children in the browser router and error boundary shell', () => {

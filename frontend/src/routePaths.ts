@@ -8,6 +8,9 @@ export function menuSearchPath(query: string): string {
   return `/search?${new URLSearchParams({ q })}`;
 }
 
+export function vectorDashboardPath(): string {
+  return '/vector';
+}
 
 export function vectorSearchPath(query = ''): string {
   const qs = new URLSearchParams();
@@ -23,4 +26,8 @@ export function vectorResultsPath(query: string): string {
 
 export function vectorDocumentsPath(): string {
   return '/vector/documents';
+}
+
+export function vectorExportPagePath(): string {
+  return '/vector/export';
 }
