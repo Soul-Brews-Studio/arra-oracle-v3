@@ -40,6 +40,8 @@ files under `collections/` and a top-level relationship export.
 When `/api/export/run` is pointed at a legacy Oracle v2 backend with
 `oracleV2Url`, `format: "json"` writes the metadata dump and
 `format: "markdown"` writes a readable document vault file.
+The direct fallback download path is
+`/api/v1/export/app?collection=oracle_documents&format=markdown`.
 
 ## Graph Export
 
@@ -78,6 +80,10 @@ The batch output includes:
 - `relationships.<ext>`
 - `all-collections.json`
 - `manifest.json`
+- `manifest.schema.json`
+
+`manifest.json` includes a `files` inventory with each artifact path, byte
+count, and SHA-256 checksum so operators can verify the bundle before migration.
 
 ## CLI Usage
 
@@ -101,3 +107,21 @@ commands; set `ORACLE_ROOT` when the local CLI should run from a specific clone.
 3. Review collection counts and estimated size in the UI.
 4. Preview graph relationships when exporting a full bundle.
 5. Run `maw arra export` for one collection or batch mode for full snapshots.
+
+## UI Loading And Error States
+
+The React export app is intentionally safe to use before a migration:
+
+- **Loading collections** calls `GET /api/v1/export/app/collections` on the
+  selected backend and disables the reload button while the request is active.
+- **Backend errors** display the backend `error`, `message`, or nested
+  `data.message` value when one is returned; invalid JSON is reported as a
+  response-shape problem so operators do not mistake it for an empty export.
+- **Empty collection lists** show a no-data state instead of enabling an export
+  button against an unknown collection.
+- **Older Oracle v2 backends** that do not implement `POST
+  /api/v1/export/app/run` fall back to the direct download URL with the selected
+  collection, format, graph, and metadata query parameters.
+
+If the UI cannot reach the backend, verify the backend URL, check CORS/proxy
+configuration, then retry loading collections before starting migration work.

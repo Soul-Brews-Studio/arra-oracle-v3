@@ -15,7 +15,7 @@ const appModule = await import('../../tools/export-app/index.ts');
 const exporterModule = await import('../../tools/export-app/exporter.ts');
 
 const { createDatabase, oracleDocuments, oracleMemories, resetDefaultDatabaseForTests } = dbModule;
-const { runExportApp } = appModule;
+const { parseArgs, runExportApp } = appModule;
 const { exportMarkdownData, schemaTables } = exporterModule;
 
 function restoreDbPath(): string {
@@ -118,4 +118,30 @@ test('CLI exports document markdown and JSON from --db without starting the serv
   expect(existsSync(join(outputDir, 'documents', 'json', 'psi_learn_new.json'))).toBe(true);
   expect(readFileSync(join(outputDir, 'documents', 'markdown', 'psi_learn_new.md'), 'utf8'))
     .toContain('New export body');
+});
+
+test('CLI quiet flag suppresses progress output', async () => {
+  const dbPath = join(root, 'quiet.db');
+  const outputDir = join(root, 'quiet-export');
+  const connection = createDatabase(dbPath);
+  seed(connection);
+  connection.storage.close();
+
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const code = await runExportApp(
+    ['--output', outputDir, '--db', dbPath, '--quiet'],
+    (message) => stdout.push(message),
+    (message) => stderr.push(message),
+  );
+
+  expect(code).toBe(0);
+  expect(JSON.parse(stdout.join('')).success).toBe(true);
+  expect(stderr.join('')).toBe('');
+  expect(existsSync(join(outputDir, 'manifest.json'))).toBe(true);
+});
+
+test('CLI rejects unknown flags before exporting', () => {
+  expect(() => parseArgs(['--output', './backup', '--bogus'])).toThrow('unknown flag: --bogus');
+  expect(() => parseArgs(['--output'])).toThrow('missing value for --output');
 });

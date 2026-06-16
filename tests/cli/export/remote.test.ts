@@ -69,4 +69,34 @@ describe("export CLI remote engine", () => {
     expect(body).toEqual({ collection: "oracle_documents", format: "json", includeGraph: true });
     expect(readFileSync(output, "utf8")).toBe('{\n  "ok": true\n}\n');
   });
+
+  test("retries transient run and download failures", async () => {
+    const output = tempFile("oracle_documents.md");
+    let runAttempts = 0;
+    let downloadAttempts = 0;
+    const fetcher = async (input: string): Promise<Response> => {
+      if (input.endsWith("/api/v1/export/app/run")) {
+        runAttempts += 1;
+        if (runAttempts === 1) throw new TypeError("socket closed");
+        return Response.json({ downloadUrl: "/api/v1/export/app/download/job-2" });
+      }
+      downloadAttempts += 1;
+      if (downloadAttempts === 1) return new Response("not ready", { status: 503 });
+      return new Response("# Export\n");
+    };
+
+    const message = await runRemoteExportCommand([
+      "--url", "http://oracle.test",
+      "--collection", "oracle_documents",
+      "--format", "markdown",
+      "--output", output,
+      "--retries", "1",
+      "--retry-delay-ms", "0",
+    ], { fetch: fetcher });
+
+    expect(message).toContain("exported oracle_documents (markdown)");
+    expect(readFileSync(output, "utf8")).toBe("# Export\n");
+    expect(runAttempts).toBe(2);
+    expect(downloadAttempts).toBe(2);
+  });
 });

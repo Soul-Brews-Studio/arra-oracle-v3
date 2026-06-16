@@ -5,25 +5,43 @@ type Writer = (message: string) => void;
 interface CliOptions {
   outputDir: string;
   dbPath?: string;
+  quiet: boolean;
 }
 
-function readValue(args: string[], flag: string): string | undefined {
-  const index = args.indexOf(flag);
-  if (index >= 0) {
-    const value = args[index + 1];
-    if (!value || value.startsWith('-')) throw new Error(`missing value for ${flag}`);
-    return value;
-  }
+function flagValue(args: string[], index: number, flag: string): string {
+  const value = args[index + 1];
+  if (!value || value.startsWith('-')) throw new Error(`missing value for ${flag}`);
+  return value;
+}
+
+function assignedValue(arg: string, flag: string): string | undefined {
   const prefix = `${flag}=`;
-  const value = args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+  if (!arg.startsWith(prefix)) return undefined;
+  const value = arg.slice(prefix.length);
   if (value === '') throw new Error(`missing value for ${flag}`);
   return value;
 }
 
 export function parseArgs(args: string[]): CliOptions {
-  const outputDir = readValue(args, '--output') ?? readValue(args, '-o');
+  let outputDir: string | undefined;
+  let dbPath: string | undefined;
+  let quiet = false;
+
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i]!;
+    const outputAssigned = assignedValue(arg, '--output');
+    const dbAssigned = assignedValue(arg, '--db');
+    if (outputAssigned !== undefined) { outputDir = outputAssigned; continue; }
+    if (dbAssigned !== undefined) { dbPath = dbAssigned; continue; }
+    if (arg === '--output' || arg === '-o') { outputDir = flagValue(args, i, arg); i += 1; continue; }
+    if (arg === '--db') { dbPath = flagValue(args, i, arg); i += 1; continue; }
+    if (arg === '--quiet' || arg === '--no-progress') { quiet = true; continue; }
+    if (arg === '--help' || arg === '-h') continue;
+    throw new Error(arg.startsWith('-') ? `unknown flag: ${arg}` : `unexpected argument: ${arg}`);
+  }
+
   if (!outputDir) throw new Error('missing required --output <dir>');
-  return { outputDir, dbPath: readValue(args, '--db') };
+  return { outputDir, dbPath, quiet };
 }
 
 function printHelp(write: Writer): void {
@@ -35,6 +53,8 @@ function printHelp(write: Writer): void {
     'Flags:',
     '  --output, -o <dir>   destination backup directory',
     '  --db <path>          SQLite database path (defaults to ORACLE_DB_PATH)',
+    '  --quiet              suppress progress output',
+    '  --no-progress        alias for --quiet',
     '  --help, -h           show this help',
     '',
   ].join('\n'));
@@ -47,7 +67,12 @@ export async function runExportApp(args: string[], stdout: Writer = process.stdo
       return 0;
     }
     const options = parseArgs(args);
-    const result = await exportOracleData({ ...options, progress: (message) => stderr(`${message}\n`) });
+    const progress = options.quiet ? () => {} : (message: string) => stderr(`${message}\n`);
+    const result = await exportOracleData({
+      outputDir: options.outputDir,
+      dbPath: options.dbPath,
+      progress,
+    });
     stdout(`${JSON.stringify({ success: true, ...result }, null, 2)}\n`);
     return 0;
   } catch (error) {
