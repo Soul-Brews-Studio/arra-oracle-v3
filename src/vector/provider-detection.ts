@@ -69,14 +69,15 @@ export async function detectEmbeddingProviders(
   const env = options.env ?? process.env;
   const cfConfigured = has(env, 'CF_ACCOUNT_ID', 'CLOUDFLARE_ACCOUNT_ID')
     && has(env, 'CF_API_TOKEN', 'CLOUDFLARE_API_TOKEN');
+  const geminiConfigured = has(env, 'GEMINI_API_KEY', 'GOOGLE_API_KEY');
   const providers = [
     await detectOllama({ ...options, env }),
     provider('openai', has(env, 'OPENAI_API_KEY'), {
       models: has(env, 'OPENAI_API_KEY') ? ['text-embedding-3-small', 'text-embedding-3-large'] : [],
       capabilities: ['embed', 'remote'],
     }),
-    provider('gemini', has(env, 'GEMINI_API_KEY'), {
-      models: has(env, 'GEMINI_API_KEY') ? ['text-embedding-004'] : [],
+    provider('gemini', geminiConfigured, {
+      models: geminiConfigured ? ['text-embedding-004'] : [],
       capabilities: ['embed', 'remote', 'free-tier'],
     }),
     provider('cloudflare-ai', cfConfigured, {

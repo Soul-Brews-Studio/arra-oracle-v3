@@ -33,6 +33,22 @@ test('GET /api/v1/vector/providers returns detected providers and capabilities',
   expect(body.providers).toContainEqual(expect.objectContaining({ type: 'cloudflare-ai', available: true }));
 });
 
+test('GET /api/v1/vector/providers accepts GOOGLE_API_KEY for Gemini detection', async () => {
+  const app = new Elysia({ prefix: '/api' }).use(createVectorProvidersEndpoint({
+    env: { GOOGLE_API_KEY: 'google-gemini-key' },
+    fetcher: mock(async () => new Response('{\"models\":[]}')) as unknown as typeof fetch,
+  }));
+  const res = await createApiVersionedFetch((request) => app.handle(request))(
+    new Request('http://local/api/v1/vector/providers'),
+  );
+  const body = await res.json() as { providers: Array<Record<string, unknown>> };
+
+  expect(res.status).toBe(200);
+  expect(body.providers).toContainEqual(expect.objectContaining({
+    type: 'gemini', available: true, models: ['text-embedding-004'],
+  }));
+});
+
 test('POST /api/v1/vector/providers/test probes one provider config', async () => {
   const res = await fetcher()(new Request('http://local/api/v1/vector/providers/test', {
     method: 'POST',
