@@ -10,7 +10,7 @@ import { UnifiedPluginSurfaceOverview } from './UnifiedPluginSurfaceOverview';
 
 type PageState = 'loading' | 'ready' | 'error';
 type PluginsClient = Pick<ApiClient, 'plugins'>;
-type PluginAction = 'register' | 'unregister';
+type PluginAction = 'install' | 'uninstall';
 
 export interface PluginsPageProps {
   plugins?: PluginEntry[];
@@ -28,7 +28,7 @@ export function enabledStateForPlugins(plugins: PluginEntry[]): PluginEnabledSta
 export function pluginAdminSummary(plugins: PluginEntry[], enabledState: PluginEnabledState): string {
   const enabled = plugins.filter((plugin) => isPluginEnabled(plugin, enabledState)).length;
   const disabled = plugins.length - enabled;
-  return `${enabled} enabled · ${disabled} disabled · ${plugins.length} registered`;
+  return `${enabled} enabled · ${disabled} disabled · ${plugins.length} installed`;
 }
 
 function pluginStatusClass(status: string): string {
@@ -110,14 +110,14 @@ function PluginsCards({
                 Status panel
               </button>
               <button
-                aria-label={`${enabled ? 'Disable' : 'Enable'} ${plugin.name}`}
+                aria-label={`${enabled ? 'Uninstall' : 'Install'} ${plugin.name}`}
                 aria-pressed={enabled}
                 className="focus-ring rounded-lg border border-teal-300/30 px-3 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-300/10 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={pending === plugin.name}
                 type="button"
                 onClick={() => onToggle(plugin.name, !enabled)}
               >
-                {pending === plugin.name ? 'Saving…' : enabled ? 'Unregister' : 'Register'}
+                {pending === plugin.name ? 'Saving…' : enabled ? 'Uninstall' : 'Install'}
               </button>
             </div>
           </article>
@@ -128,9 +128,9 @@ function PluginsCards({
 }
 
 function pluginActionMessage(name: string, action: PluginAction): string {
-  return action === 'register'
-    ? `${name} registered; reload may be required for runtime surfaces.`
-    : `${name} unregistered from active UI surfaces; manifest remains installed.`;
+  return action === 'install'
+    ? `${name} installed/enabled; reload may be required for runtime surfaces.`
+    : `${name} uninstalled/disabled from active UI surfaces; manifest remains on disk.`;
 }
 
 function PluginStatusPanel({ plugin, enabled }: { plugin: PluginEntry | null; enabled: boolean }) {
@@ -197,7 +197,7 @@ export function PluginsPage({ plugins: initialPlugins = [], loading = true, clie
     try {
       const response = await setPluginEnabled(name, enabled);
       setEnabledState((current) => ({ ...current, [name]: response.enabled }));
-      setActionMessage(`${pluginActionMessage(name, enabled ? 'register' : 'unregister')} ${response.message}`);
+      setActionMessage(`${pluginActionMessage(name, enabled ? 'install' : 'uninstall')} ${response.message}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -212,8 +212,8 @@ export function PluginsPage({ plugins: initialPlugins = [], loading = true, clie
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Plugin admin</p>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Plugin list</p>
-            <h2 id="plugins-page-title" className="mt-2 text-2xl font-semibold text-white">Registered plugins</h2>
-            <p className="mt-2 text-sm text-slate-400">Canvas view for unified backend surfaces from GET /api/plugins, with register/unregister controls.</p>
+            <h2 id="plugins-page-title" className="mt-2 text-2xl font-semibold text-white">Installed plugins</h2>
+            <p className="mt-2 text-sm text-slate-400">Canvas view for unified backend surfaces from GET /api/plugins, with install/uninstall controls.</p>
           </div>
           <div className="flex flex-wrap gap-2"><p className="rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300">{summary}</p><p className="rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300">{surfaceCount} surfaces</p></div>
         </div>
