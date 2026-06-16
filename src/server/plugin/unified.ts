@@ -1,5 +1,5 @@
 import { existsSync, readdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { Elysia } from 'elysia';
@@ -15,6 +15,7 @@ import {
   type UnifiedInvokeResult,
   type UnifiedManifestPluginOptions,
 } from './unified-types.ts';
+import { resolveContainedPluginEntry } from '../../plugins/path-containment.ts';
 import type {
   ElysiaApp,
   ServerPlugin,
@@ -27,7 +28,7 @@ async function loadPluginDir(dir: string): Promise<LoadedUnifiedManifestPlugin |
     const manifest = parseManifest(await Bun.file(manifestPath).json());
     validateUnifiedManifest(manifest);
     if (!manifest.api && !manifest.lifecycle) return null;
-    return { manifest, dir, entryPath: resolve(dir, manifest.entry) };
+    return { manifest, dir, entryPath: resolveContainedPluginEntry(dir, manifest.entry) };
   } catch (error) {
     console.warn(`[server-plugin] skipped unified manifest plugin at ${dir}: ${error instanceof Error ? error.message : String(error)}`);
     return null;
