@@ -9,6 +9,7 @@
  *   GET /api/map3d           — 3D PCA projection from real embeddings
  *   GET /api/vector/stats    — per-engine collection counts
  *   GET /api/vector/health   — adapter liveness probe
+ *   GET /api/vector/export   — export collection docs as JSON or CSV
  *   GET /api/vector/documents — browse indexed vector documents
  *   GET /api/v1/vector/config — config + per-collection health/counts
  *   PUT /api/v1/vector/config/:collection — update collection adapter/model/provider
@@ -31,6 +32,7 @@ import { vectorConfigApiEndpoint } from './config-api.ts';
 import { vectorIndexerEndpoints } from './indexer.ts';
 import { vectorProxyEndpoint } from './proxy.ts';
 import { vectorDocumentsEndpoint } from './documents.ts';
+import { vectorExportEndpoint } from './export.ts';
 
 export const vectorRoutes = new Elysia({ prefix: '/api' })
   .use(vectorProxyEndpoint)
@@ -41,6 +43,7 @@ export const vectorRoutes = new Elysia({ prefix: '/api' })
   .use(map3dEndpoint)
   .use(vectorStatsEndpoint)
   .use(vectorHealthEndpoint)
+  .use(vectorExportEndpoint)
   .use(vectorDocumentsEndpoint)
   .use(vectorConfigApiEndpoint)
   .use(vectorIndexerEndpoints);
