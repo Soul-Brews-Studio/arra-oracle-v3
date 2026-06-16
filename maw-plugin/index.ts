@@ -4,6 +4,7 @@ import { apiArgsToCliArgs } from './api.ts';
 import { resolveServePort, runServe, type ServeDeps } from './serve.ts';
 import { LOCAL_CLI_HELP, resolveLocalCliName, runLocalCli } from './local-cli.ts';
 import { runVectorConfig, VECTOR_CONFIG_HELP } from './vector-config.ts';
+import { MCP_CLIENT_HELP, runMcpCall } from './mcp-client.ts';
 type InvokeContext = { source?: string; args?: string[] | Record<string, unknown>; writer?: (...args: unknown[]) => void };
 type InvokeResult = { ok: boolean; output?: string; error?: string };
 type Requester = (path: string, init?: RequestInit) => Promise<unknown>;
@@ -176,7 +177,7 @@ export const COMMANDS: Record<string, Spec> = {
   verify: { tool: 'oracle_verify', method: 'POST', write: true, help: 'verify [--check true|false] [--type all|learning|pattern]', build: p => route('/api/verify', undefined, { check: b(p, 'check'), type: f(p, 'type') }), format: d => `arra verify: ${preview(d, 500)}` },
 };
 
-const LOCAL_COMMANDS = { commands: 'commands', frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]', serve: 'serve [--stop|--status] [--port N]', server: 'server [start|stop|status]', studio: 'studio [--port N]', ...LOCAL_CLI_HELP } as const;
+const LOCAL_COMMANDS = { commands: 'commands', mcp_call: MCP_CLIENT_HELP, frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]', serve: 'serve [--stop|--status] [--port N]', server: 'server [start|stop|status]', studio: 'studio [--port N]', ...LOCAL_CLI_HELP } as const;
 const MCP_COMMANDS = new Set(['commands', ...Object.entries(COMMANDS).filter(([name, spec]) => name !== 'vector_config' && !spec.write && spec.method === 'GET').map(([name]) => name)]);
 function usage(): InvokeResult {
   const commandNames = [...Object.keys(COMMANDS), ...Object.keys(LOCAL_COMMANDS)].sort();
@@ -219,6 +220,7 @@ export async function runArra(args: string[], request: Requester = requestJson, 
   if (sub === 'commands') return registryPayload('cli');
   if (sub === 'frontend' || sub === 'ui' || sub === 'open') return runFrontend(parsed, opener, env);
   if (sub === 'studio') return runStudio(parsed, runner, env);
+  if (sub === 'mcp_call') return runMcpCall(args.slice(1), env);
   if (sub === 'serve' || sub === 'server') return runServe(parsed, runner, env, serveDeps);
   if (resolveLocalCliName(sub)) return runLocalCli(sub, args.slice(1), runner, env);
   if (sub === 'vector_config') return runVectorConfig(parsed, request, authHeaders);

@@ -16,6 +16,9 @@ The manifest exposes `oracle_arra_read` as an MCP-out tool. It reuses the same
 command core as CLI/menu/API and only advertises read-only commands; write verbs
 stay on the CLI/API surface where auth headers are explicit.
 
+For MCP-in, `maw arra mcp-call` posts a JSON-RPC `tools/call` request to `--url`
+or `ARRA_MCP_URL` without adding a hard dependency on a specific MCP server.
+
 ## Build artifact
 
 The repo-local manifest declares `target: "js"` and keeps `artifact.sha256` pinned to
@@ -102,6 +105,7 @@ maw arra schedule --status pending --limit 10
 maw arra schedule-add "daily standup" --date 2026-06-16
 maw arra vault-sync --dry-run --reindex
 maw arra mcp-tools
+maw arra mcp-call remote_search --url http://127.0.0.1:8080/mcp --arg q=oracle
 maw arra verify --check false --type learning
 ```
 
