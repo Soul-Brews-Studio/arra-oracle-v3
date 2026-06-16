@@ -145,7 +145,9 @@ export function writeVectorConfig(config: VectorServerConfig, fp = configPath())
 }
 
 function embedderFor(config: VectorServerConfig, col: VectorCollectionConfig): EmbedderConfig | undefined {
-  const merged = config.embedder || col.embedder ? { ...config.embedder, ...col.embedder } : undefined;
+  const generated = col.embedder?.backend === 'ollama' && col.embedder.model === col.model && col.provider === 'ollama';
+  const merged = config.embedder && generated ? { ...col.embedder, ...config.embedder }
+    : config.embedder || col.embedder ? { ...config.embedder, ...col.embedder } : undefined;
   if (merged) return {
     ...merged,
     backend: merged.backend ?? merged.default ?? 'none',

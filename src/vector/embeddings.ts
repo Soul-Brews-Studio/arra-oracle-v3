@@ -139,19 +139,18 @@ export class GeminiEmbeddings implements EmbeddingProvider {
   }
 
   async embed(texts: string[], _type?: EmbedType): Promise<number[][]> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:batchEmbedContents?key=${this.apiKey}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requests: texts.map((text) => ({ model: `models/${this.model}`, content: { parts: [{ text }] } })) }),
-    });
-    if (!response.ok) throw new Error(`Gemini API error: ${await response.text()}`);
-    const data = await response.json() as { embeddings?: Array<{ values?: number[] }> };
-    const vectors = data.embeddings?.map((item) => item.values);
-    if (!vectors || vectors.length !== texts.length || vectors.some((v) => !Array.isArray(v))) {
-      throw new Error('Gemini API error: invalid embedding payload');
-    }
-    return vectors as number[][];
+    return Promise.all(texts.map(async (text) => {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:embedContent?key=${this.apiKey}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: { parts: [{ text }] } }),
+      });
+      if (!response.ok) throw new Error(`Gemini API error: ${await response.text()}`);
+      const data = await response.json() as { embedding?: { values?: number[] } };
+      if (!Array.isArray(data.embedding?.values)) throw new Error('Gemini API error: invalid embedding payload');
+      return data.embedding.values;
+    }));
   }
 }
 
