@@ -12,7 +12,7 @@ function jsonResponse(data: unknown, init: ResponseInit = {}): Response {
 describe('frontend API client', () => {
   test('calls each typed backend route with JSON accept headers', async () => {
     const payloads: Record<string, unknown> = {
-      '/api/health': { status: 'ok', server: 'arra', version: '26.5.30', port: 47778 },
+      '/api/v1/health': { status: 'ok', server: 'arra', version: '26.5.30', port: 47778 },
       '/api/v1/metrics': {
         uptime: 4.2,
         requestCount: 7,
@@ -66,7 +66,7 @@ describe('frontend API client', () => {
     await expect(client.plugins()).resolves.toMatchObject({ plugins: [{ name: 'echo' }] });
 
     expect(calls.map((call) => String(call.input))).toEqual([
-      '/api/health',
+      '/api/v1/health',
       '/api/v1/metrics',
       '/api/menu',
       '/api/menu/search?q=vector',
@@ -107,8 +107,8 @@ describe('frontend API client', () => {
     const networkClient = createApiClient({ fetch: () => { throw new Error('ECONNREFUSED'); } });
     await expect(networkClient.health()).rejects.toMatchObject({
       status: 0,
-      path: '/api/health',
-      message: '/api/health is unreachable: ECONNREFUSED',
+      path: '/api/v1/health',
+      message: '/api/v1/health is unreachable: ECONNREFUSED',
     } as ApiClientError);
 
     const invalidClient = createApiClient({ fetch: () => new Response('{nope', { status: 200 }) });

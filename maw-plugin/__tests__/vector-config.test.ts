@@ -35,10 +35,10 @@ describe('maw arra vector-config', () => {
 
     expect(result.ok).toBe(true);
     expect(calls.map(call => [call.init?.method, call.path])).toEqual([['GET', '/api/v1/vector/config']]);
-    expect(result.output).toContain('Collection | Adapter | Model | Enabled | Docs | Status');
-    expect(result.output).toContain('oracle_knowledge_bge_m3 ★ | lancedb | bge-m3 | true | 42 | ok');
+    expect(result.output).toContain('Collection | Adapter | Model | Docs | Status');
+    expect(result.output).toContain('oracle_knowledge_bge_m3 ★ | lancedb | bge-m3 | 42 | ok');
     expect(result.output).toContain('★ = primary');
-    expect(result.output).toContain('oracle_knowledge_nomic | lancedb | nomic-embed-text | true | 7 | down');
+    expect(result.output).toContain('oracle_knowledge_nomic | lancedb | nomic-embed-text | 7 | down');
   });
 
   test('prints raw config payload with --json', async () => {
