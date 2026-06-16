@@ -7,16 +7,33 @@ function key(value: string): string {
   return value.trim().toLowerCase();
 }
 
-export function listOracleProfiles(): OracleProfile[] {
-  return [...profiles];
+function cloneProfile(profile: OracleProfile): OracleProfile {
+  return {
+    ...profile,
+    principles: [...profile.principles],
+    capabilities: profile.capabilities.map((capability) => ({ ...capability })),
+    workflows: [...profile.workflows],
+    defaultConcepts: [...profile.defaultConcepts],
+  };
 }
 
-export function getOracleProfile(slugOrId: string): OracleProfile | undefined {
-  const requested = key(slugOrId);
-  return profiles.find((profile) => [
+function aliases(profile: OracleProfile): string[] {
+  return [
     profile.id,
     profile.slug,
     profile.name,
     profile.name.replace(/\s+oracle$/i, ''),
-  ].map(key).includes(requested));
+  ];
+}
+
+export function listOracleProfiles(): OracleProfile[] {
+  return profiles.map(cloneProfile);
+}
+
+export function getOracleProfile(slugOrId: unknown): OracleProfile | undefined {
+  if (typeof slugOrId !== 'string') return undefined;
+  const requested = key(slugOrId);
+  if (!requested) return undefined;
+  const profile = profiles.find((item) => aliases(item).map(key).includes(requested));
+  return profile ? cloneProfile(profile) : undefined;
 }
