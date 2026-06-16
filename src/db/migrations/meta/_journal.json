@@ -169,6 +169,13 @@
       "when": 1781597100000,
       "tag": "0023_query_optimization_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1781620651217,
+      "tag": "0024_export_job_history",
+      "breakpoints": true
     }
   ]
 }

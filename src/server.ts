@@ -4,7 +4,6 @@ import { swagger } from '@elysiajs/swagger';
 import { eq } from 'drizzle-orm';
 import { configure, writePidFile, removePidFile } from './process-manager/index.ts';
 import { PORT, ORACLE_DATA_DIR, VECTOR_URL } from './config.ts';
-import { ScoutAnnouncer, shouldStartScoutAnnouncer } from './peer/scout-announcer.ts';
 import { MCP_SERVER_NAME } from './const.ts';
 import { db, sqlite, closeDb, indexingStatus, settings } from './db/index.ts';
 import { isApiAuthorized, isApiPathProtected, unauthorizedApiResponse } from './server/api-token-auth.ts';
@@ -50,11 +49,9 @@ import { tracesApi } from './routes/traces/index.ts';
 import { scheduleApi } from './routes/schedule/index.ts';
 import { filesRouter } from './routes/files/index.ts';
 import { createPluginsRouter } from './routes/plugins/index.ts';
-import { oraclenetRoutes } from './routes/oraclenet/index.ts';
 import { sessionsRoutes } from './routes/sessions/index.ts';
 import { vaultRoutes } from './routes/vault/index.ts';
 import { createMenuRoutes, menuItemsFromUnifiedPlugins } from './routes/menu/index.ts';
-import { peerRoutes } from './routes/peer/index.ts';
 import { createMcpRoutes } from './routes/mcp/index.ts';
 import { createMetricsLifecycle, metricsRoutes } from './routes/metrics/index.ts';
 import { exportRoutes } from './routes/export/index.ts';
@@ -63,9 +60,6 @@ import { canvasRoutes } from './routes/canvas/index.ts';
 import { tenantsRoutes } from './routes/tenants/index.ts';
 import { watcherRoutes } from './routes/watcher/index.ts';
 import { fileWatcherService } from './services/file-watcher.ts';
-import { exportAppRoutes } from './routes/export/app.ts';
-import { exportBatchRoutes } from './routes/export/batch.ts';
-import { exportImportRoutes } from './routes/export/import.ts';
 let indexerRoutes: any = null;
 try {
   indexerRoutes = (await import('./routes/indexer/index.ts')).indexerRoutes;
@@ -90,8 +84,6 @@ try {
 } catch {}
 configure({ dataDir: ORACLE_DATA_DIR, pidFileName: 'oracle-http.pid' });
 writePidFile({ pid: process.pid, port: Number(PORT), startedAt: new Date().toISOString(), name: 'oracle-http' });
-const scoutAnnouncer = shouldStartScoutAnnouncer() ? new ScoutAnnouncer() : null;
-scoutAnnouncer?.start();
 if (process.env.ORACLE_FILE_WATCHER !== '0') fileWatcherService.start();
 
 const unifiedPlugins = await loadUnifiedPlugins({
@@ -104,7 +96,6 @@ registerGracefulShutdown({
   close: async () => {
     console.log('\n🔮 Shutting down gracefully...');
     await runShutdownSteps([
-      { name: 'scout-announcer', run: () => scoutAnnouncer?.stop() },
       { name: 'file-watcher', run: () => { fileWatcherService.stop(); } },
       { name: 'unified-plugins', run: () => unifiedPlugins.stop() },
       { name: 'unified-plugin-servers', run: () => unifiedServers.stop() },
@@ -159,7 +150,6 @@ const app = new Elysia()
   })
   .use(createErrorMiddleware())
   .use(gatewayPlugin(ORACLE_DATA_DIR, VECTOR_URL || undefined))
-  .use(peerRoutes)
   .get('/swagger', () => Response.redirect('/api/docs', 308), { detail: { hide: true } })
   .get('/swagger/json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
   .get('/api/openapi.json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
@@ -192,7 +182,6 @@ const apiModules = [
   scheduleApi,
   filesRouter,
   createPluginsRouter({ registry: unifiedPlugins.pluginRegistry }),
-  oraclenetRoutes,
   sessionsRoutes,
   vaultRoutes,
   metricsRoutes,
@@ -201,9 +190,6 @@ const apiModules = [
   canvasRoutes,
   tenantsRoutes,
   watcherRoutes,
-  exportAppRoutes,
-  exportBatchRoutes,
-  exportImportRoutes,
   ...(indexerRoutes ? [indexerRoutes] : []),
   ...unifiedPlugins.routes,
 ];

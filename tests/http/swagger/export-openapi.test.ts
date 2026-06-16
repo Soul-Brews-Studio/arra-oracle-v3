@@ -17,7 +17,6 @@ describe('OpenAPI export', () => {
         ['bun', 'scripts/export-openapi.ts', '--port', port, '--out', out, '--spec-path', '/api/openapi.json'],
         {
           cwd: REPO_ROOT,
-          env: { ...process.env, ARRA_SCOUT_ANNOUNCE: '0', ORACLE_EMBEDDER: 'none' },
           stdout: 'pipe',
           stderr: 'pipe',
         },

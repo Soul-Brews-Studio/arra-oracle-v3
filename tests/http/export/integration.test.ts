@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
-import { mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApiVersionedFetch } from '../../../src/middleware/api-version.ts';
@@ -19,6 +19,7 @@ const dbMod = await import('../../../src/db/index.ts');
 dbMod.resetDefaultDatabaseForTests(dbPath);
 const { createLearnCrudRoutes } = await import('../../../src/routes/learn/index.ts');
 const { createExportAppRoutes } = await import('../../../src/routes/export/app.ts');
+const { exportRoutes } = await import('../../../src/routes/export/index.ts');
 
 const restoreDbPath = savedDbPath
   ?? join(savedDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
@@ -75,6 +76,7 @@ function exportCollection(format: string, extra: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  dbMod.db.delete(dbMod.exportJobs).run();
   dbMod.db.delete(dbMod.learnLog).run();
   dbMod.db.delete(dbMod.oracleDocuments).run();
   dbMod.db.delete(dbMod.oracleMemories).run();
@@ -163,5 +165,55 @@ describe('POST /api/v1/export/app/run', () => {
     });
     expect(invalid.status).toBe(400);
     expect(await invalid.json()).toMatchObject({ error: 'Invalid format' });
+  });
+});
+
+describe('POST /api/export/run Oracle v2 integration', () => {
+  test('spawns server, pulls a mock Oracle v2 collection, and writes an export file', async () => {
+    const seen: string[] = [];
+    const legacy = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: (req) => {
+        const url = new URL(req.url);
+        seen.push(`${url.pathname}${url.search}`);
+        if (url.pathname === '/api/collections') {
+          return Response.json({ collections: [{ name: 'oracle_documents', count: 2 }] });
+        }
+        if (url.pathname === '/api/documents' && url.searchParams.get('collection') === 'oracle_documents') {
+          return Response.json({ documents: [
+            { id: 'legacy-a', content: 'Alpha legacy body', metadata: { source_file: 'psi/a.md' } },
+            { id: 'legacy-b', content: 'Bravo legacy body', metadata: { source_file: 'psi/b.md' } },
+          ] });
+        }
+        return Response.json({ error: 'not found' }, { status: 404 });
+      },
+    });
+    const api = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: new Elysia().use(exportRoutes).fetch });
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${api.port}/api/export/run`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          collection: 'oracle_documents',
+          format: 'json',
+          oracleV2Url: `http://127.0.0.1:${legacy.port}`,
+        }),
+      });
+      const body = await res.json() as Record<string, any>;
+
+      expect(res.status).toBe(201);
+      expect(body.job).toMatchObject({ collection: 'oracle_documents', format: 'json', status: 'completed' });
+      expect(body.artifact).toMatchObject({ filename: expect.stringContaining('oracle_documents'), documentCount: 2 });
+      expect(existsSync(body.artifact.filePath)).toBe(true);
+      const file = JSON.parse(readFileSync(body.artifact.filePath, 'utf8'));
+      expect(file).toMatchObject({ source: 'oracle-v2', collection: 'oracle_documents', documentCount: 2 });
+      expect(file.documents.map((doc: { id: string }) => doc.id)).toEqual(['legacy-a', 'legacy-b']);
+      expect(seen).toEqual(['/api/collections', '/api/documents?collection=oracle_documents']);
+    } finally {
+      api.stop(true);
+      legacy.stop(true);
+    }
   });
 });

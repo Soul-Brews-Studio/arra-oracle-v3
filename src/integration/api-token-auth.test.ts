@@ -59,12 +59,9 @@ describe('ARRA_API_TOKEN HTTP auth', () => {
     expect(res.ok).toBe(true);
   });
 
-  test('set token gates /api/learn but leaves health and federation handshake open', async () => {
+  test('set token gates /api/learn but leaves health open', async () => {
     const base = await startServer('secret');
     expect((await fetch(`${base}/api/health`)).status).toBe(200);
-    expect((await fetch(`${base}/info`)).status).toBe(200);
-    expect((await fetch(`${base}/api/identity`)).status).toBe(200);
-    expect((await fetch(`${base}/api/peer/feed`)).status).not.toBe(401);
 
     expect((await fetch(`${base}/api/search?q=sentinel`)).status).toBe(401);
 

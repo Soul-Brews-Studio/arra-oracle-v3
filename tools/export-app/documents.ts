@@ -76,7 +76,7 @@ export async function exportOracleV2Documents(
   }
 }
 
-export function readOracleV2Documents(connection: DatabaseConnection): OracleV2DocumentExport[] {
+export function readOracleV2Documents(connection: Pick<DatabaseConnection, 'sqlite'>): OracleV2DocumentExport[] {
   if (!tableExists(connection, 'oracle_documents')) throw new Error('oracle_documents table not found');
   const columns = tableColumns(connection, 'oracle_documents');
   if (!columns.includes('id')) throw new Error('oracle_documents.id column not found');
@@ -106,7 +106,7 @@ function openReadonlyConnection(dbPath = DB_PATH): { connection: DatabaseConnect
   return { connection: { sqlite: storage.sqlite, db: storage.db, storage } };
 }
 
-function selectDocumentRows(connection: DatabaseConnection, columns: string[]): ExportRecord[] {
+function selectDocumentRows(connection: Pick<DatabaseConnection, 'sqlite'>, columns: string[]): ExportRecord[] {
   const selectList = columns.map((column) => `${quoteIdent(column)} AS ${quoteIdent(column)}`).join(', ');
   const order = columns.includes('source_file') ? 'source_file, id' : 'id';
   return connection.sqlite.query<ExportRecord, []>(
@@ -114,7 +114,7 @@ function selectDocumentRows(connection: DatabaseConnection, columns: string[]): 
   ).all();
 }
 
-function createFtsReader(connection: DatabaseConnection): ((id: string) => FtsRow[]) | undefined {
+function createFtsReader(connection: Pick<DatabaseConnection, 'sqlite'>): ((id: string) => FtsRow[]) | undefined {
   if (!tableExists(connection, 'oracle_fts')) return undefined;
   const columns = tableColumns(connection, 'oracle_fts');
   if (!columns.includes('id')) return undefined;
@@ -126,14 +126,14 @@ function createFtsReader(connection: DatabaseConnection): ((id: string) => FtsRo
   return (id: string) => query.all(id);
 }
 
-function tableExists(connection: DatabaseConnection, name: string): boolean {
+function tableExists(connection: Pick<DatabaseConnection, 'sqlite'>, name: string): boolean {
   const row = connection.sqlite.query<{ name: string }, [string]>(
     "SELECT name FROM sqlite_master WHERE name = ? AND type IN ('table', 'view')",
   ).get(name);
   return Boolean(row);
 }
 
-function tableColumns(connection: DatabaseConnection, table: string): string[] {
+function tableColumns(connection: Pick<DatabaseConnection, 'sqlite'>, table: string): string[] {
   return connection.sqlite.query<{ name: string }, []>(`PRAGMA table_info(${quoteIdent(table)})`)
     .all()
     .map((row) => row.name)
