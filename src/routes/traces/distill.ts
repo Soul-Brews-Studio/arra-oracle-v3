@@ -1,5 +1,6 @@
 import { Elysia, t } from 'elysia';
-import { distillTrace, getTrace } from '../../trace/handler.ts';
+import { distillTraceAwakening } from '../../trace/distill.ts';
+import { getTrace } from '../../trace/handler.ts';
 import { traceIdParam } from './model.ts';
 
 const distillBody = t.Object({
@@ -17,7 +18,7 @@ export const traceDistillRoute = new Elysia().post('/api/traces/:id/distill', ({
     set.status = 404;
     return { error: 'Trace not found' };
   }
-  return distillTrace({
+  return distillTraceAwakening({
     traceId: params.id,
     awakening,
     promoteToLearning: body.promoteToLearning,

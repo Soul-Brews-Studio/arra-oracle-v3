@@ -120,6 +120,31 @@ describe("Trace routes", () => {
     expect(chain).toMatchObject({ hasAwakening: true, awakeningTraceId: traceA });
   });
 
+  test("POST /api/traces/:id/distill can promote Thor awakening to a learning", async () => {
+    const res = await fetch(`${BASE_URL}/api/traces/${traceB}/distill`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        awakening: "Thor preserves dev research context as a searchable learning.",
+        promoteToLearning: true,
+      }),
+    });
+    expect(res.ok).toBe(true);
+    const body = await res.json();
+    expect(body).toMatchObject({ success: true, status: "distilled" });
+    expect(body.learningId).toContain("learning_");
+
+    const traceRes = await fetch(`${BASE_URL}/api/traces/${traceB}`);
+    const trace = await traceRes.json();
+    expect(trace.distilledToId).toBe(body.learningId);
+
+    const learnRes = await fetch(`${BASE_URL}/api/learn/${body.learningId}`);
+    expect(learnRes.ok).toBe(true);
+    const learning = await learnRes.json();
+    expect(learning.concepts).toContain("thor-oracle");
+    expect(learning.origin).toBe("thor-oracle");
+  });
+
   test("POST /api/traces/:prevId/link without body returns 400", async () => {
     const res = await fetch(`${BASE_URL}/api/traces/${traceA}/link`, {
       method: "POST",
