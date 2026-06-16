@@ -39,11 +39,15 @@ function pluginOptions(current: string): string {
   }).join('');
 }
 
-export function renderCanvasApp(plugin: CanvasPlugin, apiBase: string): string {
+export function renderCanvasApp(plugin: CanvasPlugin, apiBase: string, requested?: string | null): string {
   const id = plugin.id;
   const title = titleFor(plugin);
   const canonical = canonicalUrl(id);
   const description = `${plugin.description} Runs as a dedicated Oracle canvas subdomain app.`;
+  const fallback = requested && requested !== id;
+  const fallbackNotice = fallback
+    ? `<p class="notice" role="status">Unknown canvas plugin “${escapeHtml(requested)}”; loaded ${escapeHtml(plugin.label)} instead.</p>`
+    : '';
   const plugins = listCanvasPlugins().map((item) => ({
     id: item.id,
     label: item.label,
@@ -68,11 +72,11 @@ body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#164e63 
 header{position:fixed;inset:1rem 1rem auto;z-index:2;display:grid;gap:.8rem;padding:1rem 1.25rem;border:1px solid rgb(255 255 255/.12);border-radius:1.25rem;background:rgb(2 6 23/.72);backdrop-filter:blur(18px)}
 .top{display:flex;align-items:center;justify-content:space-between;gap:1rem}nav{display:flex;flex-wrap:wrap;gap:.4rem}a{color:#99f6e4;text-decoration:none;border:1px solid rgb(45 212 191/.25);border-radius:999px;padding:.3rem .55rem;font-size:.75rem}h1{margin:0;font-size:clamp(1.2rem,2.5vw,2rem)}
 p{margin:.25rem 0 0;color:#94a3b8}.pill{border:1px solid rgb(45 212 191/.4);border-radius:999px;padding:.45rem .75rem;color:#99f6e4;font-weight:700}
-.picker{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}.picker label{font-size:.75rem;color:#94a3b8}.picker select{border:1px solid rgb(45 212 191/.28);border-radius:.8rem;background:#020617;color:#e2e8f0;padding:.45rem .65rem}canvas{display:block;width:100vw;height:100vh}.error{position:fixed;left:1rem;right:1rem;bottom:1rem;color:#fecaca}
+.picker{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}.picker label{font-size:.75rem;color:#94a3b8}.picker select{border:1px solid rgb(45 212 191/.28);border-radius:.8rem;background:#020617;color:#e2e8f0;padding:.45rem .65rem}.notice{margin-top:.65rem;border:1px solid rgb(251 191 36/.35);border-radius:.85rem;background:rgb(251 191 36/.12);color:#fde68a;padding:.55rem .7rem;font-size:.8rem}canvas{display:block;width:100vw;height:100vh}.error{position:fixed;left:1rem;right:1rem;bottom:1rem;color:#fecaca}
 </style>
 </head>
-<body data-plugin="${escapeHtml(id)}" data-kind="${escapeHtml(plugin.kind)}" data-api-base="${escapeHtml(apiBase)}">
-<header><div class="top"><div><h1 id="canvas-title">${escapeHtml(title)}</h1><p id="canvas-subtitle">${escapeHtml(CANVAS_HOST)} · plugin=${escapeHtml(id)} · ${escapeHtml(plugin.kind)}</p></div><span class="pill" id="status">loading API</span></div><div class="picker"><label for="plugin-picker">Hot-swap plugin</label><select id="plugin-picker" aria-label="Hot-swap canvas plugin">${pluginOptions(id)}</select><a href="${STUDIO_HOME}" data-studio-home aria-label="Open Oracle Studio home">Studio home</a></div><nav aria-label="Canvas plugins">${pluginLinks(id)}</nav></header>
+<body data-plugin="${escapeHtml(id)}" data-kind="${escapeHtml(plugin.kind)}" data-api-base="${escapeHtml(apiBase)}" data-requested-plugin="${escapeHtml(requested ?? id)}">
+<header><div class="top"><div><h1 id="canvas-title">${escapeHtml(title)}</h1><p id="canvas-subtitle">${escapeHtml(CANVAS_HOST)} · plugin=${escapeHtml(id)} · ${escapeHtml(plugin.kind)}</p>${fallbackNotice}</div><span class="pill" id="status">loading API</span></div><div class="picker"><label for="plugin-picker">Hot-swap plugin</label><select id="plugin-picker" aria-label="Hot-swap canvas plugin">${pluginOptions(id)}</select><a href="${STUDIO_HOME}" data-studio-home aria-label="Open Oracle Studio home">Studio home</a></div><nav aria-label="Canvas plugins">${pluginLinks(id)}</nav></header>
 <canvas id="oracle-canvas" aria-label="${escapeHtml(id)} canvas visualization"></canvas><p class="error" id="error"></p>
 <script type="module">
 let plugins=${JSON.stringify(plugins)};let plugin=${JSON.stringify(id)};let pluginData={documents:[]};const apiBase=${JSON.stringify(apiBase)};const canvasHost=${JSON.stringify(CANVAS_HOST)};const canvas=document.querySelector('canvas');const ctx=canvas.getContext('2d');

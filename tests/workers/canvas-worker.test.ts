@@ -61,9 +61,15 @@ describe('canvas Cloudflare Worker', () => {
     expect(html).toContain('loadRegistry()');
   });
 
-  test('falls back to wave for unknown plugins', async () => {
+  test('falls back to wave for unknown plugins with a visible notice', async () => {
     const response = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/?plugin=unknown'));
-    expect(await response.text()).toContain('plugin=wave');
+    const html = await response.text();
+
+    expect(html).toContain('plugin=wave');
+    expect(html).toContain('data-requested-plugin="unknown"');
+    expect(html).toContain('role="status"');
+    expect(html).toContain('Unknown canvas plugin');
+    expect(html).toContain('loaded Wave instead');
   });
 
 

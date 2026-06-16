@@ -83,9 +83,14 @@ function registryResponse(url: URL): Response | null {
   return Response.json(entry, { headers: REGISTRY_HEADERS });
 }
 
-function pluginFrom(url: URL) {
+function requestedPluginFrom(url: URL): string | null {
   const pathPlugin = url.pathname.length > 1 ? url.pathname.slice(1).split('/')[0] : null;
-  return normalizePlugin(url.searchParams.get('plugin') ?? pathPlugin);
+  return url.searchParams.get('plugin') ?? pathPlugin;
+}
+
+function pluginFrom(url: URL) {
+  const requested = requestedPluginFrom(url);
+  return { plugin: normalizePlugin(requested), requested };
 }
 
 export async function handleCanvasRequest(request: Request, env: CanvasWorkerEnv = {}): Promise<Response> {
@@ -98,7 +103,8 @@ export async function handleCanvasRequest(request: Request, env: CanvasWorkerEnv
   if (url.pathname.startsWith('/api/') && request.method === 'OPTIONS') return new Response(null, { status: 204, headers: API_CACHE_HEADERS });
   if (url.pathname.startsWith('/api/')) return proxyApi(request, env);
   if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method not allowed', { status: 405 });
-  const html = renderCanvasApp(pluginFrom(url), apiBase(env));
+  const selection = pluginFrom(url);
+  const html = renderCanvasApp(selection.plugin, apiBase(env), selection.requested);
   return new Response(request.method === 'HEAD' ? null : html, { headers: HTML_HEADERS });
 }
 
