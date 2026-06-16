@@ -176,7 +176,7 @@ export const COMMANDS: Record<string, Spec> = {
   verify: { tool: 'oracle_verify', method: 'POST', write: true, help: 'verify [--check true|false] [--type all|learning|pattern]', build: p => route('/api/verify', undefined, { check: b(p, 'check'), type: f(p, 'type') }), format: d => `arra verify: ${preview(d, 500)}` },
 };
 
-const LOCAL_COMMANDS = { frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]', serve: 'serve [--stop|--status] [--port N]', server: 'server [start|stop|status]', studio: 'studio [--port N]', ...LOCAL_CLI_HELP } as const;
+const LOCAL_COMMANDS = { commands: 'commands', frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]', serve: 'serve [--stop|--status] [--port N]', server: 'server [start|stop|status]', studio: 'studio [--port N]', ...LOCAL_CLI_HELP } as const;
 function usage(): InvokeResult {
   const commandNames = [...Object.keys(COMMANDS), ...Object.keys(LOCAL_COMMANDS)].sort();
   return { ok: false, error: 'usage', output: ['usage: maw arra <subcommand> [args]', `subcommands: ${commandNames.join('|')}`, '', ...Object.entries(LOCAL_COMMANDS).sort().map(([name, help]) => `  ${name}  ${help}`), ...Object.entries(COMMANDS).sort().map(([name, spec]) => `  ${name}  ${spec.help}`)].join('\n') };
@@ -215,6 +215,7 @@ export async function runArra(args: string[], request: Requester = requestJson, 
   const sub = key(args[0] || '');
   if (!sub || sub === 'help' || sub === '--help' || sub === '-h') return usage();
   const parsed = parse(args.slice(1));
+  if (sub === 'commands') return registryPayload('cli');
   if (sub === 'frontend' || sub === 'ui' || sub === 'open') return runFrontend(parsed, opener, env);
   if (sub === 'studio') return runStudio(parsed, runner, env);
   if (sub === 'serve' || sub === 'server') return runServe(parsed, runner, env, serveDeps);

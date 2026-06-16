@@ -2,6 +2,7 @@ import { expect, mock, test } from 'bun:test';
 import { Elysia } from 'elysia';
 import { createApiVersionedFetch } from '../../../src/middleware/api-version.ts';
 import { createVectorProvidersEndpoint } from '../../../src/routes/vector/providers.ts';
+import { clearProviderDetectionCache } from '../../../src/vector/provider-detection.ts';
 import type { EmbeddingProvider } from '../../../src/vector/types.ts';
 
 function fetcher() {
@@ -66,6 +67,26 @@ test('GET /api/v1/vector/providers reports missing env and failed Ollama probe',
   expect(body.providers).toContainEqual(expect.objectContaining({ type: 'openai', available: false }));
   expect(body.providers).toContainEqual(expect.objectContaining({ type: 'gemini', available: false }));
   expect(body.providers).toContainEqual(expect.objectContaining({ type: 'cloudflare-ai', available: false }));
+});
+
+
+
+test('GET /api/v1/vector/providers can use warmed cache without re-probing', async () => {
+  clearProviderDetectionCache();
+  let n = 0;
+  const tags = mock(async () => Response.json({ models: [{ name: `cached-${++n}` }] })) as unknown as typeof fetch;
+  const app = new Elysia({ prefix: '/api' }).use(createVectorProvidersEndpoint({ env: {}, fetcher: tags }));
+  const fetch = createApiVersionedFetch((request) => app.handle(request));
+
+  const cachedOne = await (await fetch(new Request('http://local/api/v1/vector/providers?cached=true'))).json() as { providers: Array<{ models?: string[] }> };
+  const cachedTwo = await (await fetch(new Request('http://local/api/v1/vector/providers?force=false'))).json() as { providers: Array<{ models?: string[] }> };
+  const refreshed = await (await fetch(new Request('http://local/api/v1/vector/providers'))).json() as { providers: Array<{ models?: string[] }> };
+
+  expect(cachedOne.providers[0].models).toEqual(['cached-1']);
+  expect(cachedTwo.providers[0].models).toEqual(['cached-1']);
+  expect(refreshed.providers[0].models).toEqual(['cached-2']);
+  expect(tags).toHaveBeenCalledTimes(2);
+  clearProviderDetectionCache();
 });
 
 test('POST /api/v1/vector/providers/test probes one provider config', async () => {

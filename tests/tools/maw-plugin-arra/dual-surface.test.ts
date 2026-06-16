@@ -6,7 +6,9 @@ describe('maw-plugin-arra dual surface contract', () => {
   test('declares modern CLI, API, and menu surfaces in one manifest', () => {
     expect(manifest).toMatchObject({
       name: 'arra',
+      target: 'js',
       entry: './index.ts',
+      artifact: { path: 'dist/index.js', sha256: null },
       cli: { command: 'arra' },
       api: { path: '/api/plugins/arra', methods: ['GET', 'POST'] },
     });
@@ -22,6 +24,7 @@ describe('maw-plugin-arra dual surface contract', () => {
     expect(body.api.path).toBe('/api/plugins/arra');
     expect(body.commands.map((item: { name: string }) => item.name))
       .toEqual(commandRegistry.map((item) => item.name));
+    expect(body.commands.map((item: { name: string }) => item.name)).toContain('commands');
     expect(body.commands.every((item: { surfaces: string[] }) => item.surfaces.includes('cli') && item.surfaces.includes('menu'))).toBe(true);
   });
 
@@ -33,5 +36,20 @@ describe('maw-plugin-arra dual surface contract', () => {
     expect(body.command).toBe('help');
     expect(body.output).toContain('maw arra');
     expect(body.output).toContain('vector-config');
+  });
+  test('runs the explicit command registry from CLI text and JSON', async () => {
+    const text = await handler({ args: ['commands'] });
+
+    expect(text.ok).toBe(true);
+    expect(text.output).toContain('shared by CLI/API/menu');
+    expect(text.output).toContain('vector-config');
+
+    const raw = await handler({ args: ['commands', '--json'] });
+    const body = JSON.parse(raw.output ?? '{}');
+
+    expect(raw.ok).toBe(true);
+    expect(body.source).toBe('cli');
+    expect(body.commands.map((item: { name: string }) => item.name))
+      .toEqual(commandRegistry.map((item) => item.name));
   });
 });
