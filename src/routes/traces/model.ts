@@ -21,3 +21,5 @@ export const unlinkQuery = t.Object({
 export const linkBody = t.Object({
   nextId: t.String({ minLength: 1 }),
 });
+
+export const traceCreateBody = t.Unknown();

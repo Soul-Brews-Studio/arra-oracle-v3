@@ -10,6 +10,7 @@ export const logsRoute = new Elysia().get(
       const limit = parseInt(query.limit || '20');
       const logs = db
         .select({
+          id: searchLog.id,
           query: searchLog.query,
           type: searchLog.type,
           mode: searchLog.mode,
@@ -17,6 +18,7 @@ export const logsRoute = new Elysia().get(
           search_time_ms: searchLog.searchTimeMs,
           created_at: searchLog.createdAt,
           project: searchLog.project,
+          results: searchLog.results,
         })
         .from(searchLog)
         .orderBy(desc(searchLog.createdAt))

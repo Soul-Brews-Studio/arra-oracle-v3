@@ -33,7 +33,7 @@ function cleanupRows(): void {
 function routeSource() {
   return new Elysia({ prefix: '/api' }).get('/threads', () => ({}), {
     detail: {
-      menu: { group: 'main', order: 40, label: '__composite_route__' },
+      menu: { group: 'main', path: '/', order: 40, label: '__composite_route__' },
       summary: 'Threads',
     },
   });

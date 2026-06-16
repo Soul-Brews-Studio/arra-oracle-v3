@@ -1,5 +1,5 @@
 export function sessionApiBase(): string {
-  const raw = process.env.ORACLE_API ?? process.env.NEO_ARRA_API ?? "http://localhost:47778";
+  const raw = process.env.ORACLE_API ?? "http://localhost:47778";
   return raw.replace(/\/$/, "");
 }
 

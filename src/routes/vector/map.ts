@@ -17,7 +17,8 @@ export const mapEndpoint = new Elysia().get('/map', async ({ set }) => {
   if (proxy) {
     const remote = await proxy.map();
     if (remote) return remote;
-    // Proxy failed — fall through to local handler
+    set.status = 503;
+    return { error: 'Vector proxy unavailable', documents: [], total: 0 };
   }
 
   try {
@@ -29,7 +30,7 @@ export const mapEndpoint = new Elysia().get('/map', async ({ set }) => {
 }, {
   detail: {
     tags: ['vector'],
-    menu: { group: 'tools', order: 20 },
+    menu: { group: 'tools', path: '/map', order: 20 },
     summary: '2D projection of embeddings',
   },
 });

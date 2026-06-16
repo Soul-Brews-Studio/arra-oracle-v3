@@ -22,7 +22,8 @@ export const map3dEndpoint = new Elysia().get(
     if (proxy) {
       const remote = await proxy.map3d(model);
       if (remote) return remote;
-      // Proxy failed — fall through to local handler
+      set.status = 503;
+      return { error: 'Vector proxy unavailable', documents: [], total: 0 };
     }
 
     try {

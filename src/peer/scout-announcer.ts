@@ -12,3 +12,9 @@ export class ScoutAnnouncer {
   announce() { if (!this.socket) return; const buf = Buffer.from(JSON.stringify(this.payload())); this.socket.send(buf, SCOUT_PORT, SCOUT_GROUP); }
   stop() { if (this.timer) clearInterval(this.timer); this.timer = null; this.socket?.close(); this.socket = null; }
 }
+
+export function startScoutAnnouncer(): ScoutAnnouncer {
+  const announcer = new ScoutAnnouncer();
+  announcer.start();
+  return announcer;
+}
