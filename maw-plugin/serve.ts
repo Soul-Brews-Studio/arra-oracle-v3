@@ -69,6 +69,10 @@ function writeState(path: string, state: ServeState): void {
   writeFileSync(path, `${JSON.stringify(state)}\n`);
 }
 
+export function resolveServePort(env: Record<string, string | undefined>, fallback = DEFAULT_PORT): string {
+  return readState(pidFile(env))?.port ?? fallback;
+}
+
 function alive(pid: number): boolean {
   try { process.kill(pid, 0); return true; }
   catch (error: any) { return error?.code === 'EPERM'; }

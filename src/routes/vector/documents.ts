@@ -3,6 +3,7 @@
  */
 
 import { Elysia, t } from 'elysia';
+import { currentTenantId } from '../../middleware/tenant.ts';
 import { getVectorStoreByModel } from '../../vector/factory.ts';
 import type { VectorQueryResult, VectorStoreAdapter } from '../../vector/types.ts';
 
@@ -49,8 +50,8 @@ function pageItems(
   ids: string[],
   documents: unknown[],
   metadatas: unknown[],
-  offset: number,
-  limit: number,
+  offset = 0,
+  limit = ids.length,
 ): DocumentItem[] {
   return ids.slice(offset, offset + limit).map((id, index) => {
     const sourceIndex = offset + index;
@@ -62,15 +63,28 @@ function pageItems(
   });
 }
 
+function tenantFor(metadata: Record<string, unknown>): string | undefined {
+  const value = metadata.tenant_id ?? metadata.tenantId ?? metadata.tenant;
+  return typeof value === 'string' ? value : undefined;
+}
+
+function filterTenantItems(items: DocumentItem[]): DocumentItem[] {
+  const tenantId = currentTenantId();
+  if (!tenantId) return items;
+  return items.filter((item) => tenantFor(item.metadata) === tenantId);
+}
+
 async function listWithQuery(
   store: VectorStoreAdapter,
   offset: number,
   limit: number,
 ): Promise<{ items: DocumentItem[]; totalFallback: number }> {
-  const result: VectorQueryResult = await store.query('', offset + limit);
+  const tenantId = currentTenantId();
+  const result: VectorQueryResult = await store.query('', tenantId ? MAX_LIMIT : offset + limit);
+  const scoped = filterTenantItems(pageItems(result.ids, result.documents, result.metadatas));
   return {
-    items: pageItems(result.ids, result.documents, result.metadatas, offset, limit),
-    totalFallback: result.ids.length,
+    items: scoped.slice(offset, offset + limit),
+    totalFallback: scoped.length,
   };
 }
 
@@ -95,19 +109,20 @@ export function createVectorDocumentsEndpoint(deps: VectorDocumentsDeps = {}) {
         let listed: { items: DocumentItem[]; totalFallback: number };
 
         if (store.getAllEmbeddings) {
-          const all = await store.getAllEmbeddings(offset + limit);
+          const all = await store.getAllEmbeddings(currentTenantId() ? MAX_LIMIT : offset + limit);
           const docs = (all as { documents?: unknown[] }).documents;
           listed = Array.isArray(docs)
-            ? {
-                items: pageItems(all.ids, docs, all.metadatas, offset, limit),
-                totalFallback: all.ids.length,
-              }
+            ? (() => {
+                const scoped = filterTenantItems(pageItems(all.ids, docs, all.metadatas));
+                return { items: scoped.slice(offset, offset + limit), totalFallback: scoped.length };
+              })()
             : await listWithQuery(store, offset, limit);
         } else {
           listed = await listWithQuery(store, offset, limit);
         }
 
-        return { items: listed.items, total: stats.count || listed.totalFallback, page, limit, offset };
+        const total = currentTenantId() ? listed.totalFallback : stats.count || listed.totalFallback;
+        return { items: listed.items, total, page, limit, offset };
       } catch (error) {
         set.status = 500;
         const message = error instanceof Error ? error.message : String(error);

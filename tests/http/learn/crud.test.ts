@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
 import { createApiVersionedFetch } from '../../../src/middleware/api-version.ts';
+import { createErrorMiddleware } from '../../../src/middleware/errors.ts';
 import { eq } from 'drizzle-orm';
 import { mkdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
@@ -21,7 +22,9 @@ dbMod.resetDefaultDatabaseForTests(dbPath);
 const { createLearnCrudRoutes } = await import('../../../src/routes/learn/index.ts');
 
 function app() {
-  return new Elysia({ prefix: '/api' }).use(createLearnCrudRoutes());
+  return new Elysia({ prefix: '/api' })
+    .use(createErrorMiddleware(() => undefined))
+    .use(createLearnCrudRoutes());
 }
 
 function versionedHandle(request: Request) {
@@ -63,7 +66,8 @@ describe('POST/GET/PUT/DELETE /api/learn', () => {
       body: '{not json',
     }));
     expect(res.status).toBe(400);
-    expect(await res.text()).toMatch(/bad request/i);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    expect(await res.json()).toMatchObject({ error: 'Bad Request', code: 400 });
   });
 
   test('rejects malformed JSON on versioned route with 400 contract', async () => {
@@ -73,7 +77,8 @@ describe('POST/GET/PUT/DELETE /api/learn', () => {
       body: '{not json',
     }));
     expect(res.status).toBe(400);
-    expect(await res.text()).toMatch(/bad request/i);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    expect(await res.json()).toMatchObject({ error: 'Bad Request', code: 400 });
   });
 
   test('creates, reads, updates, and soft-deletes a learning through Drizzle rows', async () => {

@@ -3,7 +3,9 @@ import { eq } from 'drizzle-orm';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { db, oracleDocuments, sqlite } from '../../../src/db/index.ts';
+import { db, oracleDocuments, resetDefaultDatabaseForTests, sqlite } from '../../../src/db/index.ts';
+
+resetDefaultDatabaseForTests();
 import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant.ts';
 import { createLearnCrudRoutes } from '../../../src/routes/learn/crud.ts';
 

@@ -105,11 +105,15 @@ describe('maw arra plugin', () => {
     expect(calls).toContainEqual(expect.objectContaining({ cmd: 'ghq', args: ['locate', 'Soul-Brews-Studio/arra-oracle-v3'] }));
     expect(calls).toContainEqual(expect.objectContaining({ cmd: 'start', cwd: '/repo/arra-oracle-v3' }));
 
-    const status = await runArra(['serve', '--status', '--port', '49999'], async () => ({}), () => {}, env, runner, {
+    expect(resolveBaseUrl(env)).toBe('http://localhost:49999');
+    expect(resolveBaseUrl({ ...env, ORACLE_API: 'http://localhost:47778' })).toBe('http://localhost:47778');
+
+    const status = await runArra(['serve', '--status'], async () => ({}), () => {}, env, runner, {
       isAlive: () => true,
       fetch: async () => new Response('{"status":"ok"}', { status: 200 }),
     });
     expect(status.output).toContain('alive pid=12345');
+    expect(status.output).toContain('port: 49999');
     expect(status.output).toContain('health: ok 200');
 
     const stop = await runArra(['serve', '--stop'], async () => ({}), () => {}, env, runner, {

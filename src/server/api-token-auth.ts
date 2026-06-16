@@ -25,8 +25,7 @@ export function isApiAuthorized(request: Request) {
   if (!configured) return true;
   const auth = request.headers.get('authorization') ?? '';
   const bearer = auth.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
-  const urlToken = new URL(request.url).searchParams.get('token')?.trim();
-  return Boolean((bearer && safeEqual(bearer, configured)) || (urlToken && safeEqual(urlToken, configured)));
+  return Boolean(bearer && safeEqual(bearer, configured));
 }
 
 export function unauthorizedApiResponse() {

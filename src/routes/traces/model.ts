@@ -15,7 +15,9 @@ export const chainQuery = t.Object({
 });
 
 export const unlinkQuery = t.Object({
-  direction: t.Optional(t.String()),
+  direction: t.Optional(t.Union([t.Literal('prev'), t.Literal('next')])),
 });
 
-export const linkBody = t.Unknown();
+export const linkBody = t.Object({
+  nextId: t.String({ minLength: 1 }),
+});
