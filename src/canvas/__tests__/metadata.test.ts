@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { listCanvasPlugins } from '../plugins.ts';
-import { CANVAS_PLUGIN_METADATA, listCanvasPluginMetadata } from '../metadata.ts';
+import { CANVAS_PLUGIN_METADATA, canvasPluginMetadataRegistry, listCanvasPluginMetadata } from '../metadata.ts';
 
 describe('canvas plugin metadata', () => {
   test('derives plugin metadata from the canonical canvas registry', () => {
@@ -11,6 +11,14 @@ describe('canvas plugin metadata', () => {
 
     expect(metadataIds).toEqual(pluginIds);
     expect(apiIds).toEqual(pluginIds);
+  });
+
+  test('adds the standalone registry envelope for API responses', () => {
+    const registry = canvasPluginMetadataRegistry();
+
+    expect(registry.kind).toBe('canvas');
+    expect(registry.count).toBe(registry.plugins.length);
+    expect(registry.standalone.host).toBe('canvas.buildwithoracle.com');
   });
 
   test('keeps standalone URLs and data APIs on generated metadata', () => {
