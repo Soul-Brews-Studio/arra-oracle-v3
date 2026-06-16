@@ -9,7 +9,24 @@ import {
 
 const capabilitySchema = t.Record(t.String(), t.Unknown());
 
-export function createVectorServicesApiEndpoint(registry: VectorServiceRegistryClient = vectorServiceRegistry) {
+export interface VectorServicesApiOptions {
+  afterChange?: () => Promise<{ reloaded?: number } | void> | { reloaded?: number } | void;
+}
+
+async function defaultAfterChange(): Promise<{ reloaded: number }> {
+  const { reloadCachedVectorStores } = await import('../../vector/factory.ts');
+  return reloadCachedVectorStores();
+}
+
+function reloadResult(result: { reloaded?: number } | void): { reloaded?: number } {
+  return typeof result?.reloaded === 'number' ? { reloaded: result.reloaded } : {};
+}
+
+export function createVectorServicesApiEndpoint(
+  registry: VectorServiceRegistryClient = vectorServiceRegistry,
+  options: VectorServicesApiOptions = {},
+) {
+  const afterChange = options.afterChange ?? defaultAfterChange;
   return new Elysia()
     .get('/vector/services', async () => {
       const services = await registry.discover();
@@ -23,13 +40,14 @@ export function createVectorServicesApiEndpoint(registry: VectorServiceRegistryC
       detail: { tags: ['vector-registry'], summary: 'List registered vector services' },
     })
     .post('/vector/services/register', async ({ body, set }) => {
+      let service: RegisteredVectorService;
       try {
-        const service = await registry.register(body as RegisteredVectorService);
-        return { success: true, service };
+        service = await registry.register(body as RegisteredVectorService);
       } catch (error) {
         set.status = 400;
         return { success: false, error: error instanceof Error ? error.message : String(error) };
       }
+      return { success: true, service, ...reloadResult(await afterChange()) };
     }, {
       body: t.Object({
         name: t.String({ minLength: 1 }),
@@ -45,7 +63,7 @@ export function createVectorServicesApiEndpoint(registry: VectorServiceRegistryC
         set.status = 404;
         return { success: false, error: `Service not found: ${params.name}` };
       }
-      return { success: true, removed: params.name };
+      return { success: true, removed: params.name, ...reloadResult(await afterChange()) };
     }, {
       params: t.Object({ name: t.String({ minLength: 1 }) }),
       detail: { tags: ['vector-registry'], summary: 'Unregister one vector service' },

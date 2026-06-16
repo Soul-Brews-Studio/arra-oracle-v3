@@ -41,8 +41,8 @@ class FakeRegistry implements VectorServiceRegistryClient {
   }
 }
 
-function createFetch(registry = new FakeRegistry()) {
-  const app = new Elysia({ prefix: '/api' }).use(createVectorServicesApiEndpoint(registry));
+function createFetch(registry = new FakeRegistry(), afterChange = async () => undefined) {
+  const app = new Elysia({ prefix: '/api' }).use(createVectorServicesApiEndpoint(registry, { afterChange }));
   return createApiVersionedFetch((request) => app.handle(request));
 }
 
@@ -78,6 +78,25 @@ test('vector service registry API registers, tests, lists, and removes proxy ser
   const missingTest = await fetcher(new Request('http://local/api/v1/vector/services/turbovec/test', { method: 'POST' }));
   expect(missingTest.status).toBe(404);
   expect(await json(missingTest)).toEqual({ success: false, error: 'Service not found: turbovec' });
+});
+
+test('vector service registry API reloads cached vector stores after service changes', async () => {
+  const reloads: string[] = [];
+  const fetcher = createFetch(new FakeRegistry(), async () => {
+    reloads.push('reload');
+    return { reloaded: reloads.length };
+  });
+
+  const register = await fetcher(new Request('http://local/api/v1/vector/services/register', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'proxy-a', type: 'proxy', endpoint: 'http://127.0.0.1:8082' }),
+  }));
+  expect(await json(register)).toMatchObject({ success: true, reloaded: 1 });
+
+  const removed = await fetcher(new Request('http://local/api/v1/vector/services/proxy-a', { method: 'DELETE' }));
+  expect(await json(removed)).toMatchObject({ success: true, removed: 'proxy-a', reloaded: 2 });
+  expect(reloads).toEqual(['reload', 'reload']);
 });
 
 test('vector service registry API rejects proxy registration without endpoint', async () => {
