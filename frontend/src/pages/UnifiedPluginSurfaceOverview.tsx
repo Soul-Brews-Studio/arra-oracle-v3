@@ -57,27 +57,35 @@ export function pluginCapabilityRows(plugins: PluginEntry[]): string[] {
 
 export function pluginCapabilityLinks(plugins: PluginEntry[]): Array<{ label: string; href: string }> {
   return plugins.flatMap((plugin) => [
-    ...(plugin.apiRoutes ?? []).map((route) => ({
-      label: `${plugin.name} api ${route.methods?.join('|') ?? 'ALL'} ${route.path}`,
+    ...arrayOf(plugin.apiRoutes).map((route) => ({
+      label: `${plugin.name} api ${methodsLabel(route.methods)} ${route.path}`,
       href: pluginInventoryPath({ q: route.path, surface: 'apiRoutes' }),
     })),
-    ...(plugin.mcpTools ?? []).map((tool) => ({
+    ...arrayOf(plugin.mcpTools).map((tool) => ({
       label: `${plugin.name} mcp ${tool.name}${tool.readOnly ? ' read-only' : ''}`,
       href: mcpToolPath(tool.name),
     })),
-    ...(plugin.cliSubcommands ?? []).map((command) => ({
+    ...arrayOf(plugin.cliSubcommands).map((command) => ({
       label: `${plugin.name} cli ${command.command}`,
       href: pluginInventoryPath({ q: command.command, surface: 'cliSubcommands' }),
     })),
-    ...(plugin.exportFormats ?? []).map((format) => ({
+    ...arrayOf(plugin.exportFormats).map((format) => ({
       label: `${plugin.name} export ${format.extension}`,
       href: pluginInventoryPath({ q: format.extension, surface: 'exportFormats' }),
     })),
-    ...(plugin.proxy ?? []).map((proxy) => ({
+    ...arrayOf(plugin.proxy).map((proxy) => ({
       label: `${plugin.name} proxy ${proxy.path}`,
       href: pluginInventoryPath({ q: proxy.path, surface: 'proxy' }),
     })),
   ]);
+}
+
+function arrayOf<T>(value: T[] | undefined): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function methodsLabel(value: unknown): string {
+  return Array.isArray(value) ? value.join('|') : 'ALL';
 }
 
 export function pluginServerRows(plugins: PluginEntry[]): Array<{ name: string; status: string; health: string; surface: 'server' | 'proxy' }> {
@@ -88,7 +96,7 @@ export function pluginServerRows(plugins: PluginEntry[]): Array<{ name: string; 
       health: plugin.server.healthPath ?? '/health',
       surface: 'server' as const,
     }] : []),
-    ...(plugin.proxy ?? []).map((proxy) => ({
+    ...arrayOf(plugin.proxy).map((proxy) => ({
       name: plugin.name,
       status: plugin.status ?? 'ok',
       health: proxy.path,

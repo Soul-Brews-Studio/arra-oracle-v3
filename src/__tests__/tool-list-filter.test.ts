@@ -22,4 +22,13 @@ describe('filterAdvertisedTools', () => {
     const listed = filterAdvertisedTools(tools, new Set(['____IMPORTANT', 'oracle_learn', 'oracle_trace_get']));
     expect(listed.map((t) => t.name)).toEqual(['oracle_search']);
   });
+
+  test('normalizes legacy aliases before matching disabled tools', () => {
+    const listed = filterAdvertisedTools(
+      [{ name: 'muninn_search' }, { name: 'arra_learn' }, { name: 'custom_tool' }],
+      new Set(['oracle_search', 'oracle_learn']),
+    );
+
+    expect(listed.map((t) => t.name)).toEqual(['custom_tool']);
+  });
 });

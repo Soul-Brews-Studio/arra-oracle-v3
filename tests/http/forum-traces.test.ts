@@ -109,11 +109,11 @@ describe("Forum routes", () => {
     const res = await fetch(`${BASE_URL}/api/thread/${createdThreadId}/status`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "archived" }),
+      body: JSON.stringify({ status: "closed" }),
     });
     expect(res.ok).toBe(true);
     const data = await res.json();
-    expect(data.status).toBe("archived");
+    expect(data.status).toBe("closed");
   });
 
   test("GET /api/threads lists threads with count and pagination", async () => {
@@ -125,8 +125,8 @@ describe("Forum routes", () => {
     expect(data.threads.length).toBeLessThanOrEqual(5);
   });
 
-  test("GET /api/threads?status=archived filters", async () => {
-    const res = await fetch(`${BASE_URL}/api/threads?status=archived`);
+  test("GET /api/threads?status=closed filters", async () => {
+    const res = await fetch(`${BASE_URL}/api/threads?status=closed`);
     expect(res.ok).toBe(true);
     const data = await res.json();
     expect(data.threads.some((t: any) => t.id === createdThreadId)).toBe(true);

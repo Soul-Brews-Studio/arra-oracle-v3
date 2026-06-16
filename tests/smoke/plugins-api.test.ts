@@ -11,7 +11,7 @@ afterAll(async () => {
   await server.stop();
 });
 
-test('live /api/plugins lists a local server-only plugin manifest', async () => {
+test('live /api/plugins lists a local plugin manifest', async () => {
   const res = await fetch(`${server.baseUrl}/api/plugins`);
   expect(res.status).toBe(200);
   const body = await res.json() as { plugins: Array<{ name: string; file: string; server?: unknown }> };

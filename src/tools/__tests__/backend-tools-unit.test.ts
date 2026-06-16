@@ -104,6 +104,26 @@ describe('backend MCP tools unit coverage', () => {
     await expect(handleList(ctx, { type: 'bad' as never, limit: 10, offset: 0 })).rejects.toThrow('Invalid type');
   });
 
+  test('handleList tolerates malformed concept metadata', async () => {
+    const ctx = makeCtx();
+    const now = Date.now();
+    ctx.db.insert(oracleDocuments).values({
+      id: 'doc-bad-concepts',
+      type: 'learning',
+      sourceFile: 'ψ/memory/learnings/bad-concepts.md',
+      concepts: 'not-json, fallback',
+      createdAt: now,
+      updatedAt: now,
+      indexedAt: now,
+    }).run();
+    ctx.sqlite.prepare('INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)')
+      .run('doc-bad-concepts', 'Malformed concepts should not crash list.', 'not-json fallback');
+
+    const all = parse(await handleList(ctx, { type: 'all', limit: 10, offset: 0 }));
+    const doc = all.documents.find((item: any) => item.id === 'doc-bad-concepts');
+    expect(doc.concepts).toEqual(['not-json', 'fallback']);
+  });
+
   test('handleStats returns counts, FTS health, vector status, and version', async () => {
     const ctx = makeCtx();
 
@@ -183,6 +203,10 @@ describe('backend MCP tools unit coverage', () => {
 
     const second = parse(await handleInbox(ctx, { type: 'all', limit: 1, offset: 1 }));
     expect(second.files[0].filename).toContain('old');
+
+    await expect(handleInbox(ctx, null as never)).rejects.toThrow('inbox input must be an object');
+    await expect(handleInbox(ctx, { type: 'bad' as never, limit: 1, offset: 0 })).rejects.toThrow('Invalid inbox type');
+    await expect(handleInbox(ctx, { type: 'all', limit: 0, offset: 0 })).rejects.toThrow('limit must be between');
   });
 
   test('runSupersede validates inputs and handleSupersede marks the old document', async () => {

@@ -11,8 +11,9 @@
 import { createVectorStoreForModel, getEmbeddingModels } from '../vector/factory.ts';
 import { Database } from 'bun:sqlite';
 import { DB_PATH } from '../config.ts';
+import { formatIndexProgress, normalizeBatchSize } from './indexer-progress.ts';
 
-const BATCH_SIZE = 50; // Smaller batches — qwen3 is slower per embedding
+const BATCH_SIZE = normalizeBatchSize(process.env.ORACLE_QWEN3_BATCH_SIZE ?? process.env.ORACLE_EMBED_BATCH_SIZE, 50);
 
 async function main() {
   const preset = getEmbeddingModels().qwen3;
@@ -76,10 +77,8 @@ async function main() {
       await store.addDocuments(docs);
       indexed += docs.length;
 
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
-      const rate = (indexed / Number(elapsed)).toFixed(1);
-      const eta = ((rows.length - indexed) / Number(rate)).toFixed(0);
-      console.log(`  Batch ${batchNum}/${totalBatches} — ${indexed}/${rows.length} docs — ${rate}/s — ETA ${eta}s`);
+      const progress = formatIndexProgress({ indexed, total: rows.length, startTimeMs: startTime });
+      console.log(`  Batch ${batchNum}/${totalBatches} — ${indexed}/${rows.length} docs — ${progress.rate}/s — ETA ${progress.eta}s`);
     } catch (e) {
       errors++;
       console.error(`  Batch ${batchNum} FAILED:`, e instanceof Error ? e.message : String(e));

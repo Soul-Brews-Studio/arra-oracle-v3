@@ -27,6 +27,13 @@ describe('ExportApp legacy v2 UI', () => {
     ]);
   });
 
+  test('ignores malformed array collection rows', () => {
+    expect(normalizeExportAppCollections({
+      collections: [['bad'], { name: ' valid ', docs: '3' }, null],
+    })).toEqual([{ id: 'valid', label: 'valid', count: 3, description: undefined }]);
+    expect(messageFromPayload(['not', 'an', 'error'])).toBe('');
+  });
+
   test('builds backend API and download URLs from user-configured backend', () => {
     expect(backendApiUrl('localhost:47778', '/api/v1/export/app/collections'))
       .toBe('http://localhost:47778/api/v1/export/app/collections');
