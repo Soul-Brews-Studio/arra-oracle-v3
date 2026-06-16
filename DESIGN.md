@@ -4,7 +4,7 @@
 - Status: Draft
 - Last refreshed: 2026-06-15
 - Primary product surfaces: Routed frontend dashboard for menu, plugin, vector, MCP, and settings discovery.
-- Evidence reviewed: `web/src/pages/index.astro`, `web/src/styles/global.css`, `src/routes/menu/menu.ts`, `src/routes/plugins/model.ts`, `src/routes/plugins/list.ts`, `frontend/src/components/VectorSearchWidget.tsx`, `frontend/src/components/McpToolBrowser.tsx`, `frontend/index.html`.
+- Evidence reviewed: `src/routes/menu/menu.ts`, `src/routes/plugins/model.ts`, `src/routes/plugins/list.ts`, `frontend/src/components/VectorSearchWidget.tsx`, `frontend/src/components/McpToolBrowser.tsx`, `frontend/index.html`.
 
 ## Brand
 - Personality: technical, calm, observability-first Oracle tooling.
@@ -13,7 +13,7 @@
 
 ## Product goals
 - Goals: expose routed pages for `/api/menu`, `/api/plugins`, vector search, MCP tools, and frontend runtime settings.
-- Non-goals: editing menus/plugins/settings, auth flows, or embedding the Astro marketing site.
+- Non-goals: editing menus/plugins/settings, auth flows, or embedding the legacy web marketing site.
 - Success signals: frontend build passes; users can navigate routes and scan menu, plugin, vector, MCP, and settings surfaces on desktop/mobile; static frontend shell assets are installable/cacheable for offline revisit.
 
 ## Personas and jobs
@@ -40,7 +40,7 @@
 - Imagery/iconography: text badges over icon dependencies.
 
 ## Components
-- Existing components to reuse: `VectorSearchWidget`, `McpToolBrowser`, menu/plugin cards, and visual cues from `web/src/styles/global.css`.
+- Existing components to reuse: `VectorSearchWidget`, `McpToolBrowser`, menu/plugin cards, and existing frontend visual patterns in `frontend/src/styles.css`.
 - New/changed components: nav sidebar, breadcrumb/title chrome, routed pages, status banner, stat cards, menu cards, plugin cards, badges.
 - Variants and states: loading, error, empty, success.
 - Token/component ownership: local Tailwind utility classes in `frontend/src/styles.css` and React components.
