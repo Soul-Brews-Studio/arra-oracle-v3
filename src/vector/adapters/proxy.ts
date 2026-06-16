@@ -94,13 +94,13 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
   }
 
   async getStats(): Promise<{ count: number }> {
-    const stats = await this.fetchJson<ProxyStatsResponse>('/vectors/stats');
-    return { count: stats?.count ?? 0 };
+    const stats = await this.proxyStats();
+    return { count: stats.count };
   }
 
   async getCollectionInfo(): Promise<{ count: number; name: string }> {
-    const all = await this.getStats();
-    return { name: this.collectionName, count: all.count };
+    const stats = await this.proxyStats();
+    return { name: stats.name || this.collectionName, count: stats.count };
   }
 
   async getAllEmbeddings(limit?: number): Promise<{
@@ -111,13 +111,17 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
   }> {
     // Not part of proxy protocol. Return empty to preserve compatibility
     // when callers can proceed without full embedding matrices.
-    const count = await this.getStats();
     return {
       ids: [],
       embeddings: [],
       metadatas: [],
       documents: [],
     };
+  }
+
+  private async proxyStats(): Promise<ProxyStatsResponse> {
+    const stats = await this.fetchJson<ProxyStatsResponse>('/vectors/stats');
+    return { count: stats?.count ?? 0, name: stats?.name || this.collectionName };
   }
 
   private async health(): Promise<ProxyHealthResponse> {
