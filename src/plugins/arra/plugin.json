@@ -9,13 +9,17 @@
   "httpRoutes": [
     {
       "path": "/api/plugins/arra",
-      "methods": ["GET"]
+      "methods": [
+        "GET"
+      ]
     }
   ],
   "apiRoutes": [
     {
       "path": "/api/plugins/arra",
-      "methods": ["GET"],
+      "methods": [
+        "GET"
+      ],
       "handler": "arraHttpRoute"
     }
   ],
@@ -32,5 +36,36 @@
     "command": "arra",
     "help": "maw arra <help|version|menu|status|health|vector-config>",
     "handler": "arraCli"
+  },
+  "config": {
+    "dbBackend": "sqlite",
+    "embedderBackend": "none",
+    "remoteEmbedderUrl": ""
+  },
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "dbBackend": {
+        "type": "string",
+        "enum": [
+          "sqlite",
+          "http",
+          "memory",
+          "custom"
+        ]
+      },
+      "embedderBackend": {
+        "type": "string",
+        "enum": [
+          "none",
+          "local",
+          "remote"
+        ]
+      },
+      "remoteEmbedderUrl": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": true
   }
 }
