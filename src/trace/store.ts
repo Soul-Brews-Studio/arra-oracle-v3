@@ -11,18 +11,22 @@ function normalizedQuery(input: CreateTraceInput): string {
   return query;
 }
 
+function arrayCount(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0;
+}
+
 export function createTrace(input: CreateTraceInput): CreateTraceResult {
   const traceId = randomUUID();
   const now = Date.now();
   const query = normalizedQuery(input);
   const processedLearnings = processLearnings(input.foundLearnings, input.project || null, query);
   const fileCount =
-    (input.foundFiles?.length || 0) +
-    (input.foundRetrospectives?.length || 0) +
+    arrayCount(input.foundFiles) +
+    arrayCount(input.foundRetrospectives) +
     processedLearnings.length +
-    (input.foundResonance?.length || 0);
-  const commitCount = input.foundCommits?.length || 0;
-  const issueCount = input.foundIssues?.length || 0;
+    arrayCount(input.foundResonance);
+  const commitCount = arrayCount(input.foundCommits);
+  const issueCount = arrayCount(input.foundIssues);
 
   const parent = input.parentTraceId ? db
     .select({ depth: traceLog.depth })

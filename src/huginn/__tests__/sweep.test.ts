@@ -123,4 +123,32 @@ describe('Huginn periodic sweep', () => {
     expect(second.markdownIndexed).toBe(0);
     expect(indexed).toHaveLength(1);
   });
+
+  it('normalizes invalid limits and ignores future sweep watermarks', async () => {
+    const dir = tmpdir();
+    const sessions = path.join(dir, 'sessions');
+    const statePath = path.join(dir, 'state.json');
+    fs.writeFileSync(statePath, JSON.stringify({ captures: {}, sweeps: { lastSweepAtMs: 999_999 } }));
+    writeJsonl(path.join(sessions, 'one.jsonl'), [
+      { message: { role: 'assistant', content: 'Decision: invalid Huginn sweep limits should fall back safely.' } },
+    ], 2_000);
+    writeJsonl(path.join(sessions, 'two.jsonl'), [
+      { message: { role: 'assistant', content: 'Learned: future sweep watermarks should not suppress backfill.' } },
+    ], 2_100);
+
+    const result = await sweepHuginn({
+      sessionDirs: [sessions],
+      statePath,
+      now: 3_000,
+      lookbackHours: Number.NaN,
+      maxFiles: 0,
+      learn: () => ({ id: 'learn_normalized' }),
+      indexMarkdown: () => {},
+    });
+
+    expect(result.watermarkBeforeMs).toBeUndefined();
+    expect(result.scanned).toBe(2);
+    expect(result.learned).toBe(2);
+    expect(result.capped).toBe(false);
+  });
 });

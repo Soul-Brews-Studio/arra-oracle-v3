@@ -104,6 +104,9 @@ describe('response compression middleware', () => {
     const deflate = compressBytes(bytes, 'deflate');
 
     expect(acceptedEncoding('deflate, gzip;q=0')).toBe('deflate');
+    expect(acceptedEncoding('gzip;q=0.1, deflate;q=1')).toBe('deflate');
+    expect(acceptedEncoding('gzip;q=0, *;q=0.5')).toBe('deflate');
+    expect(acceptedEncoding('gzip;q=1, deflate;q=1')).toBe('gzip');
     expect(acceptedEncoding('*;q=1')).toBe('gzip');
     expect([...Bun.gunzipSync(gzip)]).toEqual([1, 2, 3]);
     expect([...Bun.inflateSync(deflate)]).toEqual([1, 2, 3]);

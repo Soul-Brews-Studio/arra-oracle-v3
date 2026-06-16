@@ -17,6 +17,8 @@ RUN bun install --production --frozen-lockfile \
  && rm -rf node_modules/@lancedb/lancedb-*-musl
 
 FROM deps AS builder
+COPY tsconfig.json ./
+COPY packages ./packages
 COPY src ./src
 RUN bun build src/server.ts src/index.ts --target bun --outdir dist
 

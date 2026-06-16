@@ -58,10 +58,27 @@ describe('trace storage edge hardening', () => {
     expect(trace?.parentTraceId).toBeNull();
   });
 
-  test('list pagination clamps unsafe values for direct handler callers', () => {
-    const result = listTraces({ query: stamp, limit: -10, offset: Number.NaN });
+  test('runtime non-array dig point fields do not inflate persisted counts', () => {
+    const result = createTrace({
+      query: `non array dig points ${stamp}`,
+      foundFiles: 'src/trace/store.ts' as any,
+      foundCommits: { length: 2 } as any,
+      foundIssues: 'issue-1' as any,
+      foundRetrospectives: 'retro.md' as any,
+      foundResonance: 'resonance.md' as any,
+    });
+    const trace = getTrace(result.traceId);
 
-    expect(result.traces.length).toBeLessThanOrEqual(100);
+    expect(result.summary).toEqual({ fileCount: 0, commitCount: 0, issueCount: 0, totalDigPoints: 0 });
+    expect(trace?.foundFiles).toEqual([]);
+    expect(trace?.foundCommits).toEqual([]);
+    expect(trace?.foundIssues).toEqual([]);
+  });
+
+  test('list pagination clamps unsafe values for direct handler callers', () => {
+    const result = listTraces({ query: `orphan parent ${stamp}`, limit: -10, offset: Number.NaN });
+
+    expect(result.traces).toHaveLength(1);
     expect(result.hasMore).toBe(false);
   });
 });

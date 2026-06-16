@@ -18,5 +18,8 @@ export function stripMcpTenantArgs(args: Record<string, unknown>): Record<string
 }
 
 export function mcpTenantHeaders(tenantId: string | undefined): Record<string, string> {
-  return tenantId ? { [TENANT_HEADER]: tenantId } : {};
+  const trimmed = tenantId?.trim();
+  if (!trimmed) return {};
+  const validated = tenantIdFromHeaders(new Headers({ [TENANT_HEADER]: trimmed }));
+  return validated ? { [TENANT_HEADER]: validated } : {};
 }

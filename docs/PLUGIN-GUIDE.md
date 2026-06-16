@@ -1,202 +1,157 @@
-# Unified Plugin Guide
+# Plugin authoring guide
 
-The unified plugin system lets one `plugin.json` publish server, API, MCP, menu,
-and CLI surfaces. The loader lives in `src/plugins/unified-loader.ts`; the shared
-manifest contract lives in `src/plugins/unified-manifest.ts`.
+Arra plugins should feel installable like editor plugins: publish one folder (or
+artifact) with a `plugin.json`, let the installer place it in a plugin home, and
+let Arra discover it at boot.
 
-## Where plugins live
+## Target install UX
 
-By default the unified loader scans these directories, in order:
+Users should not clone Arra core to add a plugin. The target flow is one command
+that fetches a plugin repo or artifact, writes it to a plugin home, then lets Arra
+discover it on the next server/CLI start:
 
-1. `~/.arra/plugins/<plugin-name>/plugin.json`
-2. `~/.oracle/plugins/<plugin-name>/plugin.json`
+```bash
+arra plugin install github.com/owner/oracle-plugin --dry-run
+arra plugin install github.com/owner/oracle-plugin
+arra plugin list
+```
 
-Each plugin directory must contain a manifest and the entry module named by
-`entry`. The loader skips invalid manifests, disabled manifests, and duplicate
-plugin names already seen earlier in the scan.
+Today, use that installer for packaged artifact plugins that declare `wasm` and
+optional `build`. Use copy/symlink install for unified TypeScript plugin folders
+until source installs consume unified manifests directly.
 
-## Minimal shape
+During development, copy or symlink the plugin directory into a scan path:
+
+```bash
+mkdir -p ~/.oracle/plugins
+ln -s "$PWD" ~/.oracle/plugins/my-plugin
+arra-oracle-v3 serve --port 47778
+arra --help
+```
+
+The unified runtime scans `~/.arra/plugins/<name>/plugin.json` and
+`~/.oracle/plugins/<name>/plugin.json`.
+
+## Minimal unified plugin
 
 ```json
 {
-  "name": "smoke-loader",
+  "name": "hello-oracle",
   "version": "1.0.0",
   "entry": "./index.ts",
-  "description": "Example unified plugin",
+  "description": "Hello plugin for Arra Oracle",
   "apiRoutes": [
-    { "path": "/api/smoke-loader", "methods": ["GET"], "handler": "api" }
+    { "path": "/api/plugins/hello-oracle", "methods": ["GET"], "handler": "api" }
+  ],
+  "menu": [
+    { "label": "Hello Oracle", "path": "/plugins/hello-oracle", "group": "tools" }
+  ],
+  "cliSubcommands": [
+    { "command": "hello-oracle", "help": "Say hello", "handler": "cli" }
   ],
   "mcpTools": [
     {
-      "name": "smoke_loader_tool",
-      "description": "Smoke tool",
-      "inputSchema": {},
-      "handler": "tool"
+      "name": "oracle_hello",
+      "description": "Return a hello payload",
+      "inputSchema": { "type": "object", "properties": {} },
+      "handler": "tool",
+      "readOnly": true
     }
-  ],
-  "menu": [
-    { "label": "Smoke Loader", "path": "/smoke-loader", "group": "tools" }
-  ],
-  "cliSubcommands": [
-    { "command": "smoke-loader", "help": "Run smoke loader", "handler": "cli" }
   ]
 }
 ```
 
-Validation rules:
+## Entry module
 
-- `name` must match `/^[a-z0-9-]+$/`.
-- `version` must begin with semver (`1.2.3`, prerelease suffix allowed).
-- `entry` is a module path relative to the plugin directory.
-- `apiRoutes.path`, `proxy.path`, `menu.path`, and `server.healthPath` must be absolute.
-- `apiRoutes.methods` and `proxy.methods` accept `GET`, `POST`, `PUT`, `PATCH`,
-  `DELETE`, `OPTIONS`, `HEAD`, or `ALL`.
-- `mcpTools.name` must match `/^[a-z][a-z0-9_]*$/`.
-- `server.args` must be strings; `server.env` must be a string map.
-
-Legacy aliases still normalize into the unified shape:
-
-- `cli: { command, help }` becomes one `cliSubcommands` entry.
-- `api: { path, methods }` becomes one `apiRoutes` entry.
-
-## Entry module authoring
-
-Export one function per named handler, or use `default` when a surface omits
-`handler`.
+Export one function per handler named in the manifest. Return a plain response or
+an invoke-style result.
 
 ```ts
 export function api(ctx) {
-  return { body: { ok: true, query: ctx.query } };
+  return { ok: true, body: { plugin: ctx.plugin, query: ctx.query } };
+}
+
+export function cli(ctx) {
+  const name = ctx.args[0] ?? 'operator';
+  return { ok: true, output: `hello ${name}` };
 }
 
 export function tool(ctx) {
-  return { ok: true, body: ctx.body };
-}
-
-export function cli(ctx) {
-  const name = ctx.args[0] ?? 'world';
-  ctx.writer?.(`hello ${name}`);
-  return { ok: true, output: `done ${name}` };
+  return { ok: true, body: { message: 'hello from MCP', args: ctx.body } };
 }
 ```
 
-API and MCP handlers are invoked by `src/plugins/unified-loader.ts` with a context
-containing `source`, `plugin`, and surface-specific fields such as `request`,
-`params`, `query`, `body`, or `args`. API handlers may return a `Response`, a
-plain body, or an invoke result:
+Context includes `source`, `plugin`, and surface-specific fields such as
+`request`, `query`, `body`, `params`, `args`, and `writer`.
 
-```ts
-{ ok: true, body: { ... } }
-{ ok: true, output: "text" }
-{ ok: false, status: 400, error: "bad input" }
+## Manifest rules
+
+- `name` must match `/^[a-z0-9-]+$/`.
+- `version` must start with semver, e.g. `1.0.0` or `1.0.0-alpha.1`.
+- `entry` is relative to the plugin directory and must stay inside it.
+- Route, proxy, menu, and health paths must start with `/`.
+- HTTP methods may be `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`,
+  `HEAD`, or `ALL`.
+- MCP tool names must match `/^[a-z][a-z0-9_]*$/`.
+- `server.args`, `server.env`, and `depends` must be string arrays/maps as
+  documented by the schema.
+
+## Surfaces checklist
+
+| Surface | Add when | Smoke check |
+| --- | --- | --- |
+| `apiRoutes[]` | The plugin exposes HTTP behavior | `curl /api/plugins/<name>` |
+| `mcpTools[]` | Agents need a tool | `curl /api/mcp/tools` or MCP tools/list |
+| `menu[]` | Studio should show navigation | `curl /api/menu` |
+| `cliSubcommands[]` | Operators need terminal access | `arra <command> --help` |
+| `proxy[]` | Arra should front an external service | hit the proxy path |
+| `server` | The plugin owns a child process | hit `/api/plugins/<name>/server/*` |
+| `exportFormats[]` | Export app needs a new format | list export formats |
+
+## Packaging for easy install
+
+A plugin repo should keep the installable files at its root:
+
+```text
+plugin.json
+index.ts            # or dist/index.js
+README.md
+LICENSE
 ```
 
-CLI handlers are invoked by `cli/src/plugin/invoke.ts` with `ctx.args` and
-`ctx.writer`. Return `{ ok: true, output }` or `{ ok: false, error }`. If
-`handler` is absent on a CLI subcommand, the CLI calls the default export.
-
-## Surfaces
-
-### `apiRoutes`
-
-Creates Elysia routes directly in the main server. Each route declares a path,
-optional methods, and optional handler. The main server appends these to its API
-module list after core route clusters.
-
-### `mcpTools`
-
-Adds tool definitions to the MCP registry. The server-side runtime can dispatch
-with `runtime.callMcpTool(name, args)`, and `/api/mcp/tools` exposes core and
-plugin tool definitions to frontends.
-
-### `proxy`
-
-Creates proxy routes with `createUnifiedProxyRoute`. Use this when the plugin has
-an external service URL in an environment variable and the Oracle server should
-forward matching API calls.
-
-### `server`
-
-Declares a child process service:
+If you ship a prebuilt artifact for the current `arra plugin install` artifact
+path, include a manifest with artifact metadata:
 
 ```json
 {
-  "server": {
-    "command": "bun",
-    "args": ["index.ts"],
-    "healthPath": "/health",
-    "autostart": false,
-    "env": { "EXAMPLE_MODE": "smoke" }
-  }
+  "name": "hello-oracle",
+  "version": "1.0.0",
+  "wasm": "hello-oracle.wasm",
+  "build": "bun run build"
 }
 ```
 
-The unified server runtime allocates a port, injects `ARRA_PLUGIN_NAME`,
-`ARRA_PLUGIN_PORT`, and `PORT`, then proxies through
-`/api/plugins/<name>/server/*`. `autostart: false` delays startup until a server
-route is requested.
+Use `--artifact <url> --manifest <url>` for direct artifact installs. Use
+`--force` only when replacing an existing local install.
 
-### `menu`
-
-Adds navigation items to `/api/menu` as `source: "plugin"`. The boot seeder also
-persists plugin menu rows into `menu_items` with `source='plugin'` unless a
-non-plugin row already owns the same path.
-
-Groups default to `tools`; accepted groups are `main`, `tools`, and `hidden`.
-Menu items are navigation only: pair a menu item with an `apiRoutes`, `proxy`, or
-`server` path when clicking it should open a plugin feature.
-
-### `cliSubcommands`
-
-Adds commands to `arra-cli`. The CLI loader scans unified plugin directories
-before legacy CLI plugins, registers `cliSubcommands`, and resolves by command
-name. Dispatch uses `InvokeContext`:
-
-```ts
-export function cli(ctx) {
-  const [subcommand, ...rest] = ctx.args;
-  ctx.writer?.('optional progress');
-  return { ok: true, output: JSON.stringify({ subcommand, rest }) };
-}
-```
-
-`help` appears in `arra-cli --help` and `arra-cli -h <command>`. The command
-handler receives only arguments after the command name.
-
-## Registration flow
-
-Server boot:
-
-1. `src/server.ts` calls `loadUnifiedPlugins()`.
-2. The loader scans plugin dirs and normalizes each manifest.
-3. `runtime.routes` is mounted with the core Elysia modules.
-4. `runtime.servers` is passed to `startUnifiedPluginServers()`.
-5. `runtime.menu` is persisted via `seedUnifiedPluginMenuItems()` and merged into
-   `/api/menu` through `menuItemsFromUnifiedPlugins()`.
-6. `runtime.mcpTools` is passed to `createMcpRoutes()` for `/api/mcp/tools`.
-
-CLI boot:
-
-1. `cli/src/cli.ts` calls `discoverPlugins()`.
-2. `cli/src/plugin/loader.ts` imports unified manifests first, then legacy user
-   and bundled CLI plugins.
-3. `registerPlugins()` records commands from legacy `cli` and unified
-   `cliSubcommands`.
-4. `resolveCommand()` selects the command; `invokePluginCommand()` imports the
-   entry module and calls the requested handler.
-
-## Quick local check
+## Local validation
 
 ```bash
-mkdir -p ~/.oracle/plugins/smoke-loader
-cp plugin.json index.ts ~/.oracle/plugins/smoke-loader/
-bun src/server.ts
-arra-cli --help
-arra-cli smoke-loader test
-curl http://localhost:47778/api/menu
-curl http://localhost:47778/api/mcp/tools
+bun test tests/plugins/unified-manifest-surfaces.test.ts
+bun test tests/cli/plugin/loader-discovers-unified-plugin.test.ts
+bunx tsc --noEmit
 ```
 
-For tests, prefer isolated plugin directories and call
-`loadUnifiedPlugins({ dirs: [fixtureDir] })` so local user plugins do not affect
-the result.
+For fixture-driven tests, call `loadUnifiedPlugins({ dirs: [fixtureDir] })` so a
+user's local plugins do not affect the result.
+
+## Good plugin README
+
+Include:
+
+- Install command and required Arra version/tag.
+- Surfaces provided: CLI, API, MCP, menu, proxy, server, export.
+- Config/env variables and defaults.
+- Smoke checks in fenced code blocks.
+- Uninstall steps: remove `~/.oracle/plugins/<name>` or use plugin remove when
+  available.

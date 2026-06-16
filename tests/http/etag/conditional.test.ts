@@ -28,6 +28,10 @@ function app() {
       set.headers[ETAG_HEADER] = '"set-custom"';
       return { ok: true };
     })
+    .get('/set-lowercase', ({ set }) => {
+      set.headers.etag = '"lowercase-custom"';
+      return { ok: true };
+    })
     .post('/json', () => ({ ok: true }));
 }
 
@@ -84,11 +88,23 @@ describe('ETag conditional GET middleware', () => {
     const noContent = await request('/no-content');
     const explicit = await request('/explicit');
     const setExplicit = await request('/set-explicit');
+    const setLowercase = await request('/set-lowercase');
 
     expect(post.headers.get(ETAG_HEADER)).toBeNull();
     expect(missing.headers.get(ETAG_HEADER)).toBeNull();
     expect(noContent.headers.get(ETAG_HEADER)).toBeNull();
     expect(explicit.headers.get(ETAG_HEADER)).toBe('"custom"');
     expect(setExplicit.headers.get(ETAG_HEADER)).toBe('"set-custom"');
+    expect(setLowercase.headers.get(ETAG_HEADER)).toBe('"lowercase-custom"');
+  });
+
+  test('does not treat substring or malformed If-None-Match values as matches', async () => {
+    const etag = await etagForBody({ ok: true });
+    const substring = await request('/json', { headers: { [IF_NONE_MATCH_HEADER]: etag.slice(1, -1) } });
+    const malformedList = await request('/json', { headers: { [IF_NONE_MATCH_HEADER]: `"other", W/` } });
+
+    expect(ifNoneMatchMatches(etag.slice(1, -1), etag)).toBe(false);
+    expect(substring.status).toBe(200);
+    expect(malformedList.status).toBe(200);
   });
 });

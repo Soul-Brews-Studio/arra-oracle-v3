@@ -67,6 +67,21 @@ function sqliteObjectExists(sqlite: Database, type: string, name: string): boole
   return Boolean(row);
 }
 
+function stripLeadingSqlComments(statement: string): string {
+  let remaining = statement.trimStart();
+  while (remaining.startsWith('--') || remaining.startsWith('/*')) {
+    if (remaining.startsWith('--')) {
+      const nextLine = remaining.indexOf('\n');
+      remaining = nextLine === -1 ? '' : remaining.slice(nextLine + 1).trimStart();
+      continue;
+    }
+    const commentEnd = remaining.indexOf('*/');
+    if (commentEnd === -1) return '';
+    remaining = remaining.slice(commentEnd + 2).trimStart();
+  }
+  return remaining;
+}
+
 function tableColumnExists(sqlite: Database, table: string, column: string): boolean {
   if (!sqliteObjectExists(sqlite, 'table', table)) return false;
   return sqlite.query<SqliteColumnRow, []>(
@@ -83,12 +98,14 @@ function addedColumn(statement: string): [string, string] | null {
 
 function createdIndex(statement: string): string | null {
   return statement.match(
-    /^create(?:\s+unique)?\s+index\s+[`"]?([a-z_][\w]*)[`"]?\s+on\b/i,
+    /^create(?:\s+unique)?\s+index\s+(?:if\s+not\s+exists\s+)?[`"]?([a-z_][\w]*)[`"]?\s+on\b/i,
   )?.[1] ?? null;
 }
 
 function createdTable(statement: string): { table: string; columns: string[] } | null {
-  const match = statement.match(/^create\s+table\s+[`"]?([a-z_][\w]*)[`"]?\s*\(([\s\S]*)\)/i);
+  const match = statement.match(
+    /^create\s+table\s+(?:if\s+not\s+exists\s+)?[`"]?([a-z_][\w]*)[`"]?\s*\(([\s\S]*)\)/i,
+  );
   if (!match) return null;
   const columns = [...match[2].matchAll(/^\s*[`"]?([a-z_][\w]*)[`"]?\s+/gim)]
     .map((column) => column[1])
@@ -97,17 +114,37 @@ function createdTable(statement: string): { table: string; columns: string[] } |
   return { table: match[1], columns };
 }
 
+function insertedLiteralRow(statement: string): { table: string; column: string; value: string } | null {
+  const match = statement.match(
+    /^insert\s+into\s+[`"]?([a-z_][\w]*)[`"]?\s*\(\s*[`"]?([a-z_][\w]*)[`"]?[\s\S]*?\)\s*values\s*\(\s*'((?:''|[^'])*)'/i,
+  );
+  return match ? { table: match[1], column: match[2], value: match[3].replace(/''/g, "'") } : null;
+}
+
 function statementAlreadyApplied(sqlite: Database, statement: string): boolean | null {
-  const column = addedColumn(statement);
+  const cleanStatement = stripLeadingSqlComments(statement);
+  if (!cleanStatement || /^select\b/i.test(cleanStatement)) return true;
+
+  const column = addedColumn(cleanStatement);
   if (column) return tableColumnExists(sqlite, column[0], column[1]);
 
-  const indexName = createdIndex(statement);
+  const indexName = createdIndex(cleanStatement);
   if (indexName) return sqliteObjectExists(sqlite, 'index', indexName);
 
-  const table = createdTable(statement);
+  const table = createdTable(cleanStatement);
   if (table) {
     return sqliteObjectExists(sqlite, 'table', table.table)
       && table.columns.every((column) => tableColumnExists(sqlite, table.table, column));
+  }
+
+  const inserted = insertedLiteralRow(cleanStatement);
+  if (inserted) {
+    if (!tableColumnExists(sqlite, inserted.table, inserted.column)) return false;
+    const row = sqlite.query(
+      `select 1 from ${quoteIdentifier(inserted.table)}
+       where ${quoteIdentifier(inserted.column)} = ? limit 1`,
+    ).get(inserted.value);
+    return Boolean(row);
   }
 
   return null;
