@@ -38,6 +38,21 @@ describe('canvas worker edge cases', () => {
     expect(seen).toEqual(['https://studio.buildwithoracle.com/api/health?probe=1']);
   });
 
+  test('falls back to the default API base for non-http env protocols', async () => {
+    const seen: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      seen.push(String(input));
+      return Response.json({ ok: true });
+    }) as typeof fetch;
+
+    await handleCanvasRequest(
+      new Request('https://canvas.buildwithoracle.com/api/health'),
+      { ORACLE_API_BASE: 'file:///tmp/oracle.sock' },
+    );
+
+    expect(seen).toEqual(['https://studio.buildwithoracle.com/api/health']);
+  });
+
   test('rejects malformed percent-encoded local registry plugin ids', async () => {
     const response = await handleCanvasRequest(
       new Request('https://canvas.buildwithoracle.com/api/canvas/plugins/%E0%A4%A'),
@@ -46,6 +61,16 @@ describe('canvas worker edge cases', () => {
     expect(response.status).toBe(400);
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
     expect(await response.json()).toEqual({ error: 'invalid canvas plugin id' });
+  });
+
+  test('returns local registry 404s for unknown canvas plugin ids', async () => {
+    const response = await handleCanvasRequest(
+      new Request('https://canvas.buildwithoracle.com/api/plugins/canvas/missing-plugin'),
+    );
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get('content-type')).toContain('application/json');
+    expect(await response.json()).toEqual({ error: 'canvas plugin not found', id: 'missing-plugin' });
   });
 
   test('escapes unknown plugin text before rendering fallback notices', async () => {
@@ -59,6 +84,17 @@ describe('canvas worker edge cases', () => {
     expect(html).not.toContain(raw);
     expect(html).toContain('&lt;img src=x onerror=&quot;alert(1)&quot;&gt;');
     expect(html).toContain('loaded Wave instead');
+  });
+
+  test('HEAD page requests return HTML headers without a body', async () => {
+    const response = await handleCanvasRequest(
+      new Request('https://canvas.buildwithoracle.com/planets', { method: 'HEAD' }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/html');
+    expect(response.headers.get('x-oracle-canvas-worker')).toBe('canvas.buildwithoracle.com');
+    expect(await response.text()).toBe('');
   });
 
   test('non-page methods return a marked 405 with allowed methods', async () => {
