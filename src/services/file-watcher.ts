@@ -109,12 +109,13 @@ export class FileWatcherService implements FileWatcherControl {
       debounceMs: this.debounceMs,
       watchedDirs: this.watchedDirs.size,
       pending: this.pending.size,
-      events: [...this.events],
+      events: this.events.map((event) => ({ ...event })),
     };
   }
 
   schedule(filePath: string): void {
     if (!this.running) return;
+    if (typeof filePath !== 'string' || !filePath.trim()) return;
     const fullPath = path.resolve(filePath);
     if (!isWithinRoot(this.watchRoot, fullPath)) return;
     safeClearTimeout(this.pending.get(fullPath));
