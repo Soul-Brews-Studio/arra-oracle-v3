@@ -11,7 +11,7 @@ import {
 const STUDIO_HOME = 'https://studio.buildwithoracle.com/';
 
 export function normalizePlugin(value: string | null): CanvasPlugin {
-  return findCanvasPlugin(value ?? '') ?? findCanvasPlugin(DEFAULT_CANVAS_PLUGIN)!;
+  return findCanvasPlugin(value?.trim() ?? '') ?? findCanvasPlugin(DEFAULT_CANVAS_PLUGIN)!;
 }
 
 function titleFor(plugin: CanvasPlugin): string {
@@ -27,7 +27,12 @@ function canonicalUrl(id: string): string {
 }
 
 function escapeHtml(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function pluginLinks(current: string): string {

@@ -182,4 +182,27 @@ describe('tool-groups', () => {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('ignores malformed tool toggles and plugin manifest entries', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-plugin-manifest-'));
+    try {
+      fs.writeFileSync(
+        path.join(dir, 'arra.config.json'),
+        JSON.stringify({
+          tools: { search: false, knowledge: 'false', typo: false },
+          plugins: [
+            { name: ' dig ', enabled: true, weight: 1 },
+            { name: '', enabled: true },
+            { name: 'search', enabled: 'false', tier: 'unknown', weight: Number.POSITIVE_INFINITY },
+          ],
+        }),
+      );
+      const config = loadToolGroupConfig(dir);
+      expect(config.search).toBe(false);
+      expect(config.knowledge).toBe(true);
+      expect(config.plugins).toEqual([{ name: 'dig', enabled: true, weight: 1 }, { name: 'search' }]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

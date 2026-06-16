@@ -16,9 +16,19 @@ export function isWithinRoot(root: string, candidate: string): boolean {
   return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
 }
 
+function readDir(root: string): fs.Dirent[] | null {
+  try {
+    return fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+}
+
 export function listDirs(root: string): string[] {
+  const entries = readDir(root);
+  if (!entries) return [];
   const dirs = [root];
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+  for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     if (entry.name === '.git' || entry.name === 'node_modules') continue;
     dirs.push(...listDirs(path.join(root, entry.name)));
@@ -28,7 +38,9 @@ export function listDirs(root: string): string[] {
 
 export function listFiles(root: string, include: (filePath: string) => boolean): string[] {
   const files: string[] = [];
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+  const entries = readDir(root);
+  if (!entries) return files;
+  for (const entry of entries) {
     const fullPath = path.join(root, entry.name);
     if (entry.isDirectory()) files.push(...listFiles(fullPath, include));
     else if (entry.isFile() && include(fullPath)) files.push(fullPath);

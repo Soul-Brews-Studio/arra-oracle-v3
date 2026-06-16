@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
 import { createCorsMiddleware, createPrivateNetworkPreflightMiddleware } from '../../../src/middleware/cors.ts';
-import { isApiAuthorized } from '../../../src/server/api-token-auth.ts';
+import { isApiAuthorized, isApiPathProtected } from '../../../src/server/api-token-auth.ts';
 
 const previousApiToken = process.env.ARRA_API_TOKEN;
 const previousCorsOrigins = process.env.ARRA_CORS_ORIGINS;
@@ -33,6 +33,15 @@ describe('HTTP auth and CORS security contracts', () => {
     } finally {
       restoreEnv();
     }
+  });
+
+  test('open API auth bypasses match exact paths or child paths only', () => {
+    expect(isApiPathProtected('/api/health')).toBe(false);
+    expect(isApiPathProtected('/api/health/deep')).toBe(false);
+    expect(isApiPathProtected('/api/healthz')).toBe(true);
+    expect(isApiPathProtected('/api/docs')).toBe(false);
+    expect(isApiPathProtected('/api/docs/json')).toBe(false);
+    expect(isApiPathProtected('/api/docs-malicious')).toBe(true);
   });
 
   test('private-network preflight does not grant disallowed origins', async () => {

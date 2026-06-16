@@ -64,4 +64,30 @@ describe('VECTOR_URL routing guard', () => {
     }
   });
 
+  test('durable vector config accepts legacy vectorUrl when http(s)', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-vector-url-config-'));
+    try {
+      process.env.ORACLE_DATA_DIR = tmp;
+      fs.writeFileSync(
+        path.join(tmp, 'vector-server.json'),
+        JSON.stringify({ vectorUrl: ' http://127.0.0.1:8081/api/vector ' }),
+      );
+      expect(resolveVectorUrl({ ORACLE_DATA_DIR: tmp }, ['bun', 'src/server.ts'])).toBe('http://127.0.0.1:8081/api/vector');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('durable vector config ignores invalid or non-http URLs', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-vector-url-config-'));
+    try {
+      process.env.ORACLE_DATA_DIR = tmp;
+      fs.writeFileSync(path.join(tmp, 'vector-server.json'), JSON.stringify({ vectorProxyUrl: 'file:///tmp/vector.sock' }));
+      expect(resolveVectorUrl({ ORACLE_DATA_DIR: tmp }, ['bun', 'src/server.ts'])).toBe('');
+      fs.writeFileSync(path.join(tmp, 'vector-server.json'), JSON.stringify({ vectorProxyUrl: 'not a url' }));
+      expect(resolveVectorUrl({ ORACLE_DATA_DIR: tmp }, ['bun', 'src/server.ts'])).toBe('');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
 });

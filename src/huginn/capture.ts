@@ -60,11 +60,16 @@ function sha256(text: string): string {
   return crypto.createHash('sha256').update(text).digest('hex');
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
 function readState(statePath: string): CaptureState {
   try {
     const raw = fs.readFileSync(statePath, 'utf-8');
-    const parsed = JSON.parse(raw);
-    return { captures: parsed && typeof parsed.captures === 'object' ? parsed.captures : {} };
+    const parsed: unknown = JSON.parse(raw);
+    const captures = isRecord(parsed) && isRecord(parsed.captures) ? parsed.captures : {};
+    return { captures: captures as CaptureState['captures'] };
   } catch {
     return { captures: {} };
   }
@@ -122,11 +127,17 @@ function compact(text: string, max = 360): string {
   return text.replace(/\s+/g, ' ').trim().slice(0, max).trim();
 }
 
+function normalizeMaxItems(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 12;
+  return Math.floor(value);
+}
+
 export function mineSessionJsonl(transcriptPath: string, maxItems = 12): { moments: HuginnMoment[]; hash: string; sourceText: string } {
   if (!fs.existsSync(transcriptPath)) return { moments: [], hash: '', sourceText: '' };
   const raw = fs.readFileSync(transcriptPath, 'utf-8');
   const selected: HuginnMoment[] = [];
   const seen = new Set<string>();
+  const limit = normalizeMaxItems(maxItems);
 
   for (const line of raw.split(/\r?\n/)) {
     if (!line.trim()) continue;
@@ -140,7 +151,7 @@ export function mineSessionJsonl(transcriptPath: string, maxItems = 12): { momen
     if (seen.has(key)) continue;
     seen.add(key);
     selected.push({ kind: classify(clipped), text: clipped });
-    if (selected.length >= maxItems) break;
+    if (selected.length >= limit) break;
   }
 
   const sourceText = selected.map((m) => `${m.kind}: ${m.text}`).join('\n');

@@ -14,38 +14,51 @@ import * as schema from './schema.ts';
 import { DB_PATH, ORACLE_DATA_DIR } from '../config.ts';
 import { createStorageBackend } from '../storage/registry.ts';
 import type { StorageBackend } from '../storage/types.ts';
+export { createDatabase, type DatabaseConnection } from './create.ts';
 
 export { initializeDrizzleSqlite } from '../storage/drizzle-sqlite.ts';
-
-export interface DatabaseConnection {
-  sqlite: Database;
-  db: BunSQLiteDatabase<typeof schema>;
-  storage: StorageBackend;
-}
-
-/**
- * Create a fully-initialized database connection.
- * Used by MCP entry (src/index.ts) and indexer (src/indexer.ts).
- */
-export function createDatabase(dbPath?: string): DatabaseConnection {
-  const storage = createStorageBackend({ dbPath: dbPath || DB_PATH });
-  return { sqlite: storage.sqlite, db: storage.db, storage };
-}
 
 // ============================================================================
 // Default module-level connection (used by server.ts, handlers, etc.)
 // ============================================================================
 
-const isReadonly = process.env.ORACLE_VECTOR_READONLY === '1';
-let defaultStorage = createStorageBackend({ dbPath: DB_PATH, readonly: isReadonly });
-let defaultSqlite = defaultStorage.sqlite;
-let defaultDb = defaultStorage.db;
+let defaultStorage: StorageBackend | null = null;
 
-if (isReadonly) console.log('[DB] Opened in READONLY mode (vector sidecar)');
+function openDefaultStorage(): StorageBackend {
+  if (!defaultStorage) {
+    const readonly = process.env.ORACLE_VECTOR_READONLY === '1';
+    defaultStorage = createStorageBackend({ dbPath: defaultDbPath(), readonly });
+    if (readonly) console.log('[DB] Opened in READONLY mode (vector sidecar)');
+  }
+  return defaultStorage;
+}
 
-export let storage = defaultStorage;
-export let sqlite = defaultSqlite;
-export let db = defaultDb;
+function defaultDbPath(): string {
+  if (process.env.ORACLE_DB_PATH) return process.env.ORACLE_DB_PATH;
+  if (process.env.NODE_ENV === 'test') return ':memory:';
+  return DB_PATH;
+}
+
+function lazyProxy<T extends object>(resolve: () => T): T {
+  return new Proxy({} as T, {
+    get(_target, prop) {
+      const target = resolve() as Record<PropertyKey, unknown>;
+      const value = target[prop];
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+    set(_target, prop, value) {
+      (resolve() as Record<PropertyKey, unknown>)[prop] = value;
+      return true;
+    },
+    has(_target, prop) {
+      return prop in resolve();
+    },
+  });
+}
+
+export const storage = lazyProxy<StorageBackend>(() => openDefaultStorage());
+export const sqlite = lazyProxy<Database>(() => openDefaultStorage().sqlite);
+export const db = lazyProxy<BunSQLiteDatabase<typeof schema>>(() => openDefaultStorage().db);
 
 /**
  * Test-only escape hatch for raw `bun test` non-isolate runs. Some tests set
@@ -54,15 +67,15 @@ export let db = defaultDb;
  * isolation. Production callers should prefer createDatabase().
  */
 export function resetDefaultDatabaseForTests(dbPath?: string): void {
-  try { defaultStorage.close(); } catch {}
-  const resolvedPath = dbPath || process.env.ORACLE_DB_PATH
-    || path.join(process.env.ORACLE_DATA_DIR || ORACLE_DATA_DIR, 'oracle.db');
+  try { defaultStorage?.close(); } catch {}
+  const resolvedPath = dbPath || defaultDbPathForReset();
   defaultStorage = createStorageBackend({ dbPath: resolvedPath });
-  defaultSqlite = defaultStorage.sqlite;
-  defaultDb = defaultStorage.db;
-  storage = defaultStorage;
-  sqlite = defaultSqlite;
-  db = defaultDb;
+}
+
+function defaultDbPathForReset(): string {
+  if (process.env.ORACLE_DB_PATH) return process.env.ORACLE_DB_PATH;
+  if (process.env.NODE_ENV === 'test') return ':memory:';
+  return path.join(process.env.ORACLE_DATA_DIR || ORACLE_DATA_DIR, 'oracle.db');
 }
 
 // Export schema for use in queries
@@ -70,7 +83,8 @@ export * from './schema.ts';
 
 /** Close database connection. */
 export function closeDb() {
-  defaultStorage.close();
+  defaultStorage?.close();
+  defaultStorage = null;
 }
 
 // ============================================================================
