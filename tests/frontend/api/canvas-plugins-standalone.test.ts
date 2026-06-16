@@ -10,13 +10,12 @@ describe('fetchCanvasPlugins standalone metadata', () => {
         label: 'Knowledge Map',
         description: 'React map.',
         kind: 'react',
-        renderer: 'KnowledgeMapCanvas',
-        path: '/map',
-        query: { plugin: 'map' },
+        renderer: 'React',
         standalonePath: '/map',
+        apiPath: '/api/map3d',
       }],
       count: 1,
-      kind: 'all',
+      kind: 'canvas',
       standalone: { host: 'canvas.buildwithoracle.com', defaultPlugin: 'wave' },
     }));
     try {
@@ -24,7 +23,7 @@ describe('fetchCanvasPlugins standalone metadata', () => {
         plugins: [{ id: 'map', standalonePath: '/map' }],
         standalone: { host: 'canvas.buildwithoracle.com' },
       });
-      expect(fetchMock.calls[0]?.input).toBe('/api/canvas/plugins');
+      expect(fetchMock.calls[0]?.input).toBe('/api/plugins?kind=canvas');
     } finally {
       fetchMock.restore();
     }

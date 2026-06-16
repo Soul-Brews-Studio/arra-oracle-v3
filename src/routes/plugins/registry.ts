@@ -1,5 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { listCanvasPluginMetadata } from '../../canvas/metadata.ts';
+import { canvasRegistry } from '../../canvas/registry.ts';
 import type { LoadedPluginRegistryEntry } from '../../plugins/registry.ts';
 import { basePluginDir, scanPlugins } from './model.ts';
 import { readPluginEnabled } from './state.ts';
@@ -12,7 +13,7 @@ export interface PluginsRegistryRouteOptions {
 
 function canvasMetadataRegistry() {
   const metadata = listCanvasPluginMetadata();
-  return { ...metadata, count: metadata.plugins.length };
+  return { ...metadata, count: metadata.plugins.length, standalone: canvasRegistry().standalone };
 }
 
 export function createPluginsRegistryRoute(options: PluginsRegistryRouteOptions = {}) {

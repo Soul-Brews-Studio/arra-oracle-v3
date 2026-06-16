@@ -12,14 +12,16 @@ describe('/api/plugins?kind=canvas', () => {
     const body = await response.json() as {
       kind: string;
       count: number;
-      plugins: Array<{ id: string; kind: string; renderer: string }>;
+      standalone: { host: string };
+      plugins: Array<{ id: string; kind: string; renderer: string; standalonePath?: string; apiPath?: string }>;
     };
 
     expect(response.status).toBe(200);
     expect(body.kind).toBe('canvas');
     expect(body.count).toBe(body.plugins.length);
+    expect(body.standalone.host).toBe('canvas.buildwithoracle.com');
     expect(body.plugins).toContainEqual(expect.objectContaining({ id: 'wave', kind: 'three', renderer: 'Three' }));
-    expect(body.plugins).toContainEqual(expect.objectContaining({ id: 'map', kind: 'react', renderer: 'React' }));
-    expect(body.plugins).toContainEqual(expect.objectContaining({ id: 'planets', kind: 'react', renderer: 'React' }));
+    expect(body.plugins).toContainEqual(expect.objectContaining({ id: 'map', kind: 'react', renderer: 'React', standalonePath: '/map', apiPath: '/api/map3d' }));
+    expect(body.plugins).toContainEqual(expect.objectContaining({ id: 'planets', kind: 'react', renderer: 'React', standalonePath: '/planets', apiPath: '/api/map3d' }));
   });
 });
