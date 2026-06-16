@@ -82,3 +82,55 @@ test('OracleV2Client reports invalid inputs and backend errors', async () => {
   });
   await expect(malformed.listCollections()).rejects.toThrow('collections or items or data');
 });
+
+test('OracleV2Client rejects malformed construction options', () => {
+  expect(() => new OracleV2Client(null as any)).toThrow('Oracle v2 client options are required');
+  expect(() => new OracleV2Client({ baseUrl: '' })).toThrow('Oracle v2 baseUrl is required');
+  expect(() => new OracleV2Client({ baseUrl: 'not-a-url' })).toThrow('absolute URL');
+  expect(() => new OracleV2Client({ baseUrl: 'file:///tmp/oracle' })).toThrow('http or https');
+  expect(() => new OracleV2Client({ baseUrl: 'https://old.example', timeoutMs: -1 })).toThrow('timeoutMs');
+  expect(() => new OracleV2Client({ baseUrl: 'https://old.example', timeoutMs: Number.NaN })).toThrow('timeoutMs');
+});
+
+test('OracleV2Client strips base URL query and hash before appending API paths', async () => {
+  const urls: string[] = [];
+  const client = new OracleV2Client({
+    baseUrl: 'https://old.example/oracle/?debug=1#section',
+    fetch: async (input) => {
+      urls.push(String(input));
+      return json({ collections: [' oracle_documents '] });
+    },
+  });
+
+  await expect(client.listCollections()).resolves.toEqual([{ name: 'oracle_documents' }]);
+  expect(urls).toEqual(['https://old.example/oracle/api/collections']);
+});
+
+test('OracleV2Client rejects runtime-invalid collection names', async () => {
+  const client = new OracleV2Client({
+    baseUrl: 'https://old.example',
+    fetch: async () => json({ documents: [] }),
+  });
+
+  await expect(client.listDocuments(null as any)).rejects.toThrow('collection is required');
+
+  const malformed = new OracleV2Client({
+    baseUrl: 'https://old.example',
+    fetch: async () => json({ collections: ['  '] }),
+  });
+  await expect(malformed.listCollections()).rejects.toThrow('collections[0] is missing a name');
+});
+
+test('OracleV2Client aborts hanging requests after timeout', async () => {
+  const client = new OracleV2Client({
+    baseUrl: 'https://old.example',
+    timeoutMs: 1,
+    fetch: async (_input, init) => await new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal;
+      if (signal?.aborted) reject(new Error('aborted'));
+      signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+    }),
+  });
+
+  await expect(client.listCollections()).rejects.toThrow('Oracle v2 request failed: aborted');
+});
