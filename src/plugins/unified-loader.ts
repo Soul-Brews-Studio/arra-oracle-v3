@@ -3,18 +3,14 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Elysia } from 'elysia';
-
-import {
-  normalizeUnifiedPluginManifest, type NormalizedUnifiedPluginManifest,
-  type UnifiedApiRouteManifest, type UnifiedCliSubcommandManifest,
-  type UnifiedMcpToolManifest, type UnifiedMenuManifest,
-} from './unified-manifest.ts';
+import { normalizeUnifiedPluginManifest, type NormalizedUnifiedPluginManifest, type UnifiedApiRouteManifest, type UnifiedCliSubcommandManifest, type UnifiedMcpToolManifest, type UnifiedMenuManifest } from './unified-manifest.ts';
 import { sortPluginsByDependencies } from './dependency-resolver.ts';
 import { pluginRegistryFromLoadedPlugins, type LoadedPluginRegistryEntry } from './registry.ts';
 import { runPluginSandbox } from './sandbox.ts';
 import { createUnifiedProxyRoute } from './proxy-surface.ts';
 import { unifiedPluginServerRoutes, type UnifiedPluginServer } from './unified-server.ts';
 import { resolveContainedPluginEntry } from './path-containment.ts';
+import { registerPluginExportFormats } from './export-format-init.ts';
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.ARRA_PLUGIN_TIMEOUT_MS ?? 5000);
 const DEFAULT_DIRS = [join(homedir(), '.arra', 'plugins'), join(homedir(), '.oracle', 'plugins')];
@@ -219,6 +215,10 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
   };
   const init = async () => {
     for (const plugin of plugins) {
+      if (plugin.manifest.exportFormats.length) {
+        const error = await registerPluginExportFormats(plugin, timeoutMs);
+        if (error) { pluginStatus.set(plugin.manifest.name, { name: plugin.manifest.name, status: 'degraded', error }); continue; }
+      }
       if (!plugin.manifest.lifecycle?.init || initialized.has(plugin.manifest.name)) continue;
       await invokeLifecycle('init', plugin);
     }

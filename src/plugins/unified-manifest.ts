@@ -1,5 +1,6 @@
 import type { ServerPluginTier } from '../server/plugin/types.ts';
 import { validatePluginConfig, type JsonSchema } from './config-schema.ts';
+import { validateExportFormatManifests, type UnifiedExportFormatManifest } from './export-format-manifest.ts';
 
 export type UnifiedPluginSurface =
   | 'mcpTools'
@@ -7,10 +8,10 @@ export type UnifiedPluginSurface =
   | 'proxy'
   | 'server'
   | 'menu'
-  | 'cliSubcommands';
+  | 'cliSubcommands'
+  | 'exportFormats';
 
 export type UnifiedHttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'HEAD' | 'ALL';
-export type UnifiedPluginRenderer = 'Three' | 'React';
 
 export interface UnifiedMcpToolManifest {
   name: string;
@@ -83,8 +84,8 @@ export interface UnifiedPluginManifest {
   server?: UnifiedServerManifest;
   menu?: UnifiedMenuManifest[];
   cliSubcommands?: UnifiedCliSubcommandManifest[];
+  exportFormats?: UnifiedExportFormatManifest[];
 
-  /** Legacy compatibility aliases used by existing ServerPlugin/CLI manifests. */
   api?: { path: string; methods?: UnifiedHttpMethod[] };
   lifecycle?: UnifiedLifecycleManifest;
   seedMenu?: boolean;
@@ -99,6 +100,7 @@ export interface NormalizedUnifiedPluginManifest extends Omit<UnifiedPluginManif
   proxy: UnifiedProxyManifest[];
   menu: UnifiedMenuManifest[];
   cliSubcommands: UnifiedCliSubcommandManifest[];
+  exportFormats: UnifiedExportFormatManifest[];
 }
 
 const NAME_RE = /^[a-z0-9-]+$/;
@@ -164,6 +166,7 @@ export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedP
   const menu = [...asArray(manifest.menu)];
   const mcpTools = asArray(manifest.mcpTools);
   const proxy = asArray(manifest.proxy);
+  const exportFormats = asArray(manifest.exportFormats);
 
   for (const tool of mcpTools) {
     if (!TOOL_RE.test(tool.name)) throw new Error(`mcpTools.name must match ${TOOL_RE}, got: ${JSON.stringify(tool.name)}`);
@@ -199,6 +202,7 @@ export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedP
     if (!command.command || typeof command.command !== 'string') throw new Error('cliSubcommands.command must be a string');
     if (!command.help || typeof command.help !== 'string') throw new Error('cliSubcommands.help must be a string');
   }
+  validateExportFormatManifests(exportFormats);
   if (manifest.configSchema !== undefined) validatePluginConfig(manifest.config ?? {}, manifest.configSchema, manifest.name);
 
   if (manifest.lifecycle) {
@@ -218,6 +222,7 @@ export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedP
     proxy,
     menu,
     cliSubcommands,
+    exportFormats,
   };
 }
 
@@ -229,6 +234,7 @@ export function manifestSurfaces(manifest: NormalizedUnifiedPluginManifest): Uni
   if (manifest.server) surfaces.push('server');
   if (manifest.menu.length) surfaces.push('menu');
   if (manifest.cliSubcommands.length) surfaces.push('cliSubcommands');
+  if (manifest.exportFormats.length) surfaces.push('exportFormats');
   return surfaces;
 }
 

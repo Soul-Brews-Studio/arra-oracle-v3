@@ -4,7 +4,7 @@
 
 import { Elysia, t } from 'elysia';
 import { getVectorStoreByModel } from '../../vector/factory.ts';
-import { exportFormatters } from '../../vector/export-formats.ts';
+import { getExportFormat, listExportFormats } from '../../vector/export-formats.ts';
 import type { VectorStoreAdapter } from '../../vector/types.ts';
 
 interface VectorExportDeps {
@@ -14,16 +14,6 @@ interface VectorExportDeps {
 const DEFAULT_COLLECTION = 'bge-m3';
 const DEFAULT_EXPORT_LIMIT = 50_000;
 
-function contentType(format: string): string {
-  if (format === 'jsonl') return 'application/x-ndjson; charset=utf-8';
-  if (format === 'markdown') return 'text/markdown; charset=utf-8';
-  return format === 'csv' ? 'text/csv; charset=utf-8' : 'application/json; charset=utf-8';
-}
-
-function extensionFor(format: string): string {
-  return format === 'markdown' ? 'md' : format;
-}
-
 export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
   const getStore = deps.getStore ?? getVectorStoreByModel;
 
@@ -31,10 +21,10 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
     '/vector/export',
     async ({ query, set }) => {
       const format = query.format || 'json';
-      const formatter = exportFormatters[format];
+      const formatter = getExportFormat(format);
       if (!formatter) {
         set.status = 400;
-        return { error: `Invalid format: expected ${Object.keys(exportFormatters).join(' or ')}` };
+        return { error: `Invalid format: expected ${listExportFormats().join(' or ')}` };
       }
 
       const collection = query.collection || DEFAULT_COLLECTION;
@@ -54,8 +44,8 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
 
         return new Response(stream, {
           headers: {
-            'Content-Type': contentType(format),
-            'Content-Disposition': `attachment; filename="${collection}.${extensionFor(format)}"`,
+            'Content-Type': formatter.contentType ?? 'application/octet-stream',
+            'Content-Disposition': `attachment; filename="${collection}.${formatter.extension ?? format}"`,
           },
         });
       } catch (error) {

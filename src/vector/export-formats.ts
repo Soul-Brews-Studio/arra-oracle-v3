@@ -1,7 +1,10 @@
 import type { VectorStoreAdapter } from './types.ts';
 
 export type EmbeddingDump = Awaited<ReturnType<NonNullable<VectorStoreAdapter['getAllEmbeddings']>>>;
-export type ExportFormatter = (dump: EmbeddingDump) => ReadableStream<Uint8Array>;
+export type ExportFormatter = ((dump: EmbeddingDump) => ReadableStream<Uint8Array>) & {
+  contentType?: string;
+  extension?: string;
+};
 
 interface ExportRow {
   id: string;
@@ -117,9 +120,50 @@ function streamMarkdown(dump: EmbeddingDump): ReadableStream<Uint8Array> {
   });
 }
 
-export const exportFormatters: Record<string, ExportFormatter> = {
-  json: streamJson,
-  jsonl: streamJsonl,
-  csv: streamCsv,
-  markdown: streamMarkdown,
-};
+function normalizeName(name: string, strict = true): string {
+  const normalized = name.trim().toLowerCase();
+  if (!/^[a-z0-9-]+$/.test(normalized)) {
+    if (strict) throw new Error(`invalid export format: ${name}`);
+    return '';
+  }
+  return normalized;
+}
+
+function withMeta(formatter: ExportFormatter, meta: {
+  contentType: string;
+  extension: string;
+}): ExportFormatter {
+  return Object.assign(formatter, meta);
+}
+
+export const exportFormatters: Record<string, ExportFormatter> = {};
+
+export function registerExportFormat(name: string, formatter: ExportFormatter): void {
+  if (typeof formatter !== 'function') throw new Error(`formatter for ${name} must be a function`);
+  exportFormatters[normalizeName(name)] = formatter;
+}
+
+export function getExportFormat(name: string): ExportFormatter | undefined {
+  return exportFormatters[normalizeName(name, false)];
+}
+
+export function listExportFormats(): string[] {
+  return Object.keys(exportFormatters).sort();
+}
+
+registerExportFormat('json', withMeta(streamJson, {
+  contentType: 'application/json; charset=utf-8',
+  extension: 'json',
+}));
+registerExportFormat('jsonl', withMeta(streamJsonl, {
+  contentType: 'application/x-ndjson; charset=utf-8',
+  extension: 'jsonl',
+}));
+registerExportFormat('csv', withMeta(streamCsv, {
+  contentType: 'text/csv; charset=utf-8',
+  extension: 'csv',
+}));
+registerExportFormat('markdown', withMeta(streamMarkdown, {
+  contentType: 'text/markdown; charset=utf-8',
+  extension: 'md',
+}));
