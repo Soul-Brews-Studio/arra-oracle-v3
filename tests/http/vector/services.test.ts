@@ -61,6 +61,10 @@ test('vector service registry API registers, tests, lists, and removes proxy ser
 
   const removed = await fetcher(new Request('http://local/api/v1/vector/services/turbovec', { method: 'DELETE' }));
   expect(await json(removed)).toEqual({ success: true, removed: 'turbovec' });
+
+  const missingTest = await fetcher(new Request('http://local/api/v1/vector/services/turbovec/test', { method: 'POST' }));
+  expect(missingTest.status).toBe(404);
+  expect(await json(missingTest)).toEqual({ success: false, error: 'Service not found: turbovec' });
 });
 
 test('vector service registry API rejects proxy registration without endpoint', async () => {

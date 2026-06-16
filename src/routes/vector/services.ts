@@ -50,7 +50,12 @@ export function createVectorServicesApiEndpoint(registry: VectorServiceRegistry 
       params: t.Object({ name: t.String({ minLength: 1 }) }),
       detail: { tags: ['vector-registry'], summary: 'Unregister one vector service' },
     })
-    .post('/vector/services/:name/test', async ({ params }) => {
+    .post('/vector/services/:name/test', async ({ params, set }) => {
+      const services = await registry.discover();
+      if (!services.some((service) => service.name === params.name)) {
+        set.status = 404;
+        return { success: false, error: `Service not found: ${params.name}` };
+      }
       const health = await registry.healthCheck();
       const result = health.get(params.name);
       return {
