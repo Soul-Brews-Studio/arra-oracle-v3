@@ -20,6 +20,7 @@ test('GET /api/health reports uptime, DB, vector, MCP, and plugin status', async
   const body = await res.json() as Record<string, any>;
 
   expect(body.status).toBe('ok');
+  expect(body.sandbox).toBe('dev');
   expect(body.uptime).toBe(42.125);
   expect(body.uptimeSeconds).toBe(42.125);
   expect(body.db).toBe('connected');

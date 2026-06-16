@@ -142,17 +142,26 @@ export function buildMenuItems(
   const items: MenuItem[] = [];
   const seen = new Set<string>();
   const disableSet = new Set<string>(extras?.disable ?? []);
+  const [persistedPluginItems, persistedApiItems] = partitionPluginItems(apiItems);
 
-  appendUnique(items, seen, apiItems);
+  appendUnique(items, seen, persistedApiItems);
+  appendUnique(items, seen, pluginItems);
   appendUnique(items, seen, getFrontendMenuItems());
   if (extras?.items) appendUnique(items, seen, extras.items);
   appendUnique(items, seen, customItems.map((item) => ({ ...item, added: true }) as MenuItem));
+  appendUnique(items, seen, persistedPluginItems);
   appendUnique(items, seen, getPluginMenuItems());
-  appendUnique(items, seen, pluginItems);
 
   const filtered = disableSet.size ? items.filter((i) => !disableSet.has(i.path)) : items;
   filtered.sort((a, b) => GROUP_RANK[a.group] - GROUP_RANK[b.group] || a.order - b.order);
   return filtered;
+}
+
+function partitionPluginItems(items: MenuItem[]): [MenuItem[], MenuItem[]] {
+  const plugins: MenuItem[] = [];
+  const api: MenuItem[] = [];
+  for (const item of items) (item.source === 'plugin' ? plugins : api).push(item);
+  return [plugins, api];
 }
 
 function appendUnique(items: MenuItem[], seen: Set<string>, source: MenuItem[]) {

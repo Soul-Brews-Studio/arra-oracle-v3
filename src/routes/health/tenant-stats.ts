@@ -6,7 +6,7 @@ export function tenantStats() {
   const tenantId = currentTenantId();
   if (!tenantId) return null;
 
-  const projectScope = eq(oracleDocuments.project, tenantId);
+  const projectScope = eq(oracleDocuments.tenantId, tenantId);
   const total = db.select({ count: count() })
     .from(oracleDocuments)
     .where(projectScope)
@@ -30,6 +30,6 @@ export function tenantStats() {
     by_type: Object.fromEntries(byTypeRows.map((row) => [row.type, row.count])),
     last_indexed: last ? new Date(last).toISOString() : null,
     indexing: Boolean(indexing?.isIndexing),
-    tenant: { id: tenantId, scope: 'project' },
+    tenant: { id: tenantId, scope: 'tenant_id' },
   };
 }

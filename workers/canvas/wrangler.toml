@@ -4,7 +4,7 @@ compatibility_date = "2026-06-16"
 workers_dev = false
 
 routes = [
-  { pattern = "canvas.buildwithoracle.com", custom_domain = true }
+  { pattern = "canvas.buildwithoracle.com", custom_domain = true, run_worker_first = true }
 ]
 
 [vars]

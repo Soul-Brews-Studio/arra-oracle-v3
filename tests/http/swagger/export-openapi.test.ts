@@ -14,7 +14,7 @@ describe('OpenAPI export', () => {
       const out = join(dir, 'openapi.json');
       const port = String(await freePort());
       const proc = Bun.spawn(
-        ['bun', 'scripts/export-openapi.ts', '--port', port, '--out', out],
+        ['bun', 'scripts/export-openapi.ts', '--port', port, '--out', out, '--spec-path', '/api/openapi.json'],
         {
           cwd: REPO_ROOT,
           env: { ...process.env, ARRA_SCOUT_ANNOUNCE: '0', ORACLE_EMBEDDER: 'none' },

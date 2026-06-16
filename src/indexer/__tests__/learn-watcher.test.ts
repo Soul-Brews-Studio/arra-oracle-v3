@@ -23,8 +23,10 @@ CREATE TABLE oracle_documents (
   superseded_reason TEXT,
   origin TEXT,
   project TEXT,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
   created_by TEXT
 );
+CREATE VIRTUAL TABLE oracle_fts USING fts5(id UNINDEXED, content, concepts, tokenize='porter unicode61');
 CREATE TABLE indexing_jobs (
   id TEXT PRIMARY KEY,
   doc_id TEXT NOT NULL,
@@ -92,6 +94,59 @@ describe('startLearnWatcher', () => {
     const jobs = db.query<{ model_key: string }>('SELECT model_key FROM indexing_jobs ORDER BY model_key').all() as { model_key: string }[];
     expect(jobs).toHaveLength(Object.keys(MODELS).length);
     expect(jobs.map((r) => r.model_key).sort()).toEqual(Object.keys(MODELS).sort());
+
+    stop();
+  });
+
+
+  it('stores and enqueues new ψ/learn markdown files', async () => {
+    const learnDir = path.join(repoRoot, 'ψ', 'learn', 'Soul-Brews-Studio', 'demo');
+    const filePath = path.join(learnDir, 'exploration.md');
+
+    fs.mkdirSync(learnDir, { recursive: true });
+    fs.writeFileSync(filePath, '# Exploration\n\n## Finding\n\nAuto indexing should capture new learn docs.', 'utf8');
+
+    const stop = startLearnWatcher({ db, models: MODELS, repoRoot, debounceMs: 20 });
+
+    fs.writeFileSync(filePath, '# Exploration\n\n## Finding\n\nAuto indexing should capture updated learn docs.', 'utf8');
+    await wait(300);
+
+    const docs = db.query<{ id: string; source_file: string }>(
+      'SELECT id, source_file FROM oracle_documents ORDER BY id',
+    ).all() as { id: string; source_file: string }[];
+    expect(docs).toHaveLength(1);
+    expect(docs[0].source_file).toBe('ψ/learn/Soul-Brews-Studio/demo/exploration.md');
+
+    const fts = db.query<{ count: number }, []>('SELECT COUNT(*) AS count FROM oracle_fts').get() as { count: number };
+    expect(fts.count).toBe(1);
+
+    const jobs = db.query<{ count: number }, []>('SELECT COUNT(*) AS count FROM indexing_jobs').get() as { count: number };
+    expect(jobs.count).toBe(Object.keys(MODELS).length);
+
+    stop();
+  });
+
+
+  it('stores and enqueues new ψ/memory/learnings markdown files', async () => {
+    const learnDir = path.join(repoRoot, 'ψ', 'memory', 'learnings');
+    const filePath = path.join(learnDir, 'fresh.md');
+
+    fs.mkdirSync(learnDir, { recursive: true });
+    fs.writeFileSync(filePath, '# Fresh\n\n## Lesson\n\nMemory learn files should auto-index too.', 'utf8');
+
+    const stop = startLearnWatcher({ db, models: MODELS, repoRoot, debounceMs: 20 });
+    await wait(300);
+
+    const docs = db.query<{ source_file: string }>(
+      'SELECT source_file FROM oracle_documents ORDER BY id',
+    ).all() as { source_file: string }[];
+    expect(docs).toEqual([{ source_file: 'ψ/memory/learnings/fresh.md' }]);
+
+    const fts = db.query<{ count: number }, []>('SELECT COUNT(*) AS count FROM oracle_fts').get() as { count: number };
+    expect(fts.count).toBe(1);
+
+    const jobs = db.query<{ count: number }, []>('SELECT COUNT(*) AS count FROM indexing_jobs').get() as { count: number };
+    expect(jobs.count).toBe(Object.keys(MODELS).length);
 
     stop();
   });

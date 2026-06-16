@@ -6,22 +6,40 @@ import { scanPlugins } from '../plugins/model.ts';
 import { readVectorBackendHealth } from '../../vector/health.ts';
 import { mcpTools } from '../../tools/mcp-manifest.ts';
 import type { UnifiedPluginStatus } from '../../plugins/unified-loader.ts';
+import { sandboxLabel } from '../../runtime/sandbox-label.ts';
 import pkg from '../../../package.json' with { type: 'json' };
 
 type VectorHealth = Awaited<ReturnType<typeof readVectorBackendHealth>>;
 type DbStatus = { status: 'connected' } | { status: 'error'; error: string };
 type DbPing = () => DbStatus | Promise<DbStatus>;
 
+type DiskHealth = {
+  status: 'ok' | 'warning' | 'error';
+  path: string;
+  totalBytes: number;
+  freeBytes: number;
+  usedBytes: number;
+  usedPercent: number;
+  error?: string;
+};
+
+const HealthVectorEngineSchema = t.Object({
+  key: t.String(),
+  model: t.String(),
+  collection: t.String(),
+  adapter: t.Optional(t.String()),
+  embeddingProvider: t.Optional(t.String()),
+  connectionStatus: t.Optional(t.Union([t.Literal('connected'), t.Literal('error')])),
+  count: t.Optional(t.Number()),
+  ok: t.Boolean(),
+  error: t.Optional(t.String()),
+});
+
 const HealthVectorSchema = t.Object({
   status: t.Union([t.Literal('ok'), t.Literal('degraded'), t.Literal('down')]),
   checked_at: t.String(),
-  engines: t.Array(t.Object({
-    key: t.String(),
-    model: t.String(),
-    collection: t.String(),
-    ok: t.Boolean(),
-    error: t.Optional(t.String()),
-  })),
+  engines: t.Array(HealthVectorEngineSchema),
+  collections: t.Optional(t.Array(HealthVectorEngineSchema)),
   error: t.Optional(t.String()),
 });
 
@@ -30,6 +48,7 @@ const HealthResponseSchema = t.Object({
   server: t.String(),
   version: t.String(),
   port: t.Optional(t.Number()),
+  sandbox: t.Optional(t.String()),
   oracle: t.Optional(t.Union([t.Literal('connected'), t.Literal('degraded')])),
   uptimeSeconds: t.Optional(t.Number()),
   dbStatus: t.Optional(t.Union([t.Literal('connected'), t.Literal('error')])),
@@ -75,6 +94,9 @@ export interface HealthEndpointOptions {
   vectorHealth?: () => Promise<VectorHealth>;
   pluginStatuses?: () => UnifiedPluginStatus[] | Promise<UnifiedPluginStatus[]>;
   dbPing?: DbPing;
+  diskPath?: string;
+  diskUsage?: () => DiskHealth;
+  memoryUsage?: () => NodeJS.MemoryUsage;
 }
 
 function errorMessage(error: unknown): string {
@@ -100,11 +122,13 @@ async function defaultDbPing(): Promise<DbStatus> {
 
 async function readVectorStatus(check = readVectorBackendHealth): Promise<VectorHealth> {
   try {
-    return await check();
+    const vector = await check();
+    return { ...vector, collections: vector.collections ?? vector.engines };
   } catch (error) {
     return {
       status: 'down',
       engines: [],
+      collections: [],
       checked_at: new Date().toISOString(),
       error: errorMessage(error),
     } as VectorHealth & { error: string };
@@ -127,6 +151,7 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
         status: 'draining',
         server: MCP_SERVER_NAME,
         version: pkg.version,
+        sandbox: sandboxLabel(),
         draining: true,
       };
     }
@@ -145,6 +170,7 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
       server: MCP_SERVER_NAME,
       version: pkg.version,
       port: Number(PORT),
+      sandbox: sandboxLabel(),
       uptime: serviceUptime,
       uptimeSeconds: serviceUptime,
       db: dbStatus.status,

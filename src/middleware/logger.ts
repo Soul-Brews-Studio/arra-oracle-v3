@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { SANDBOX_LABEL_HEADER, sandboxLabel } from '../runtime/sandbox-label.ts';
+
+export { SANDBOX_LABEL_HEADER, sandboxLabel } from '../runtime/sandbox-label.ts';
 
 type RequestMeta = {
   startedAt: number;
@@ -75,13 +78,6 @@ function requestLogFormat(): RequestLogFormat {
   return requested && logFormats.has(requested) ? requested : 'nginx';
 }
 
-function sandboxLabel(env = process.env.ARRA_ENV): string {
-  const value = env?.trim().toLowerCase();
-  if (value === 'production') return 'prod';
-  if (value === 'staging') return 'staging';
-  return 'dev';
-}
-
 function formatDurationMs(durationMs: number): string {
   return `${Math.max(0, durationMs).toFixed(2).replace(/\.?0+$/, '')}ms`;
 }
@@ -123,14 +119,17 @@ export function createRequestLogger(options: RequestLoggerOptions = {}) {
   return {
     onRequest({ request, set }: RequestContext) {
       const correlationId = requestCorrelationId(request);
-      metaByRequest.set(request, { startedAt: now(), correlationId, headers: redactHeaders(request.headers), sandbox: sandboxLabel() });
+      const sandbox = sandboxLabel();
+      metaByRequest.set(request, { startedAt: now(), correlationId, headers: redactHeaders(request.headers), sandbox });
       set.headers['X-Correlation-Id'] = correlationId;
+      set.headers[SANDBOX_LABEL_HEADER] = sandbox;
     },
     onAfterResponse({ request, responseValue, set }: AfterResponseContext) {
       const meta = metaByRequest.get(request);
       const endedAt = now();
       const startedAt = meta?.startedAt ?? endedAt;
       const durationMs = Math.max(0, Math.round((endedAt - startedAt) * 100) / 100);
+      set.headers[SANDBOX_LABEL_HEADER] = meta?.sandbox ?? sandboxLabel();
       log({
         event: 'http_request',
         method: request.method,

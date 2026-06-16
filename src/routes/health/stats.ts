@@ -18,6 +18,10 @@ const StatsResponseSchema = t.Object({
   })),
   database: t.Optional(t.String()),
   vault_repo: t.Optional(t.Nullable(t.String())),
+  tenant: t.Optional(t.Object({
+    id: t.String(),
+    scope: t.String(),
+  })),
   error: t.Optional(t.String()),
 });
 

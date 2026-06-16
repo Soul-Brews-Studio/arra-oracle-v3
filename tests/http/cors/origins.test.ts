@@ -21,15 +21,17 @@ function request(path: string, init?: RequestInit) {
 }
 
 describe('CORS middleware origins', () => {
-  test('uses wildcard Access-Control-Allow-Origin by default', async () => {
+  test('uses explicit local development origins by default', async () => {
     delete process.env.ARRA_CORS_ORIGINS;
 
-    const res = await request('/api/ping', { headers: { origin: 'https://any.example' } });
+    const allowed = await request('/api/ping', { headers: { origin: 'http://localhost:3000' } });
+    const denied = await request('/api/ping', { headers: { origin: 'https://any.example' } });
 
-    expect(res.status).toBe(200);
-    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
-    expect(res.headers.get('Access-Control-Allow-Methods')).toContain('GET');
-    expect(res.headers.get('Access-Control-Allow-Credentials')).toBeNull();
+    expect(allowed.status).toBe(200);
+    expect(allowed.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:3000');
+    expect(allowed.headers.get('Access-Control-Allow-Methods')).toContain('GET');
+    expect(allowed.headers.get('Access-Control-Allow-Credentials')).toBe('true');
+    expect(denied.headers.get('Access-Control-Allow-Origin')).toBeNull();
   });
 
   test('reflects configured origins and rejects unlisted origins', async () => {
@@ -44,7 +46,16 @@ describe('CORS middleware origins', () => {
     expect(denied.headers.get('Access-Control-Allow-Origin')).toBeNull();
   });
 
-  test('answers preflight OPTIONS with allowed methods and requested headers', async () => {
+  test('rejects wildcard configured origins', async () => {
+    process.env.ARRA_CORS_ORIGINS = '*';
+
+    const res = await request('/api/ping', { headers: { origin: 'https://studio.example' } });
+
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull();
+    expect(res.headers.get('Access-Control-Allow-Credentials')).toBeNull();
+  });
+
+  test('answers preflight OPTIONS with restricted methods and headers', async () => {
     process.env.ARRA_CORS_ORIGINS = 'https://studio.example';
 
     const res = await request('/api/ping', {
@@ -52,14 +63,38 @@ describe('CORS middleware origins', () => {
       headers: {
         origin: 'https://studio.example',
         'access-control-request-method': 'POST',
-        'access-control-request-headers': 'authorization,x-test',
+        'access-control-request-headers': 'authorization,content-type',
       },
     });
 
     expect(res.status).toBe(204);
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://studio.example');
     expect(res.headers.get('Access-Control-Allow-Methods')).toContain('POST');
-    expect(res.headers.get('Access-Control-Allow-Headers')).toBe('authorization,x-test');
+    expect(res.headers.get('Access-Control-Allow-Headers')).toBe('authorization,content-type');
     expect(res.headers.get('Access-Control-Max-Age')).toBe('86400');
+  });
+
+  test('denies preflight for disallowed methods or headers', async () => {
+    process.env.ARRA_CORS_ORIGINS = 'https://studio.example';
+
+    const trace = await request('/api/ping', {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://studio.example',
+        'access-control-request-method': 'TRACE',
+      },
+    });
+    const unsafeHeader = await request('/api/ping', {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://studio.example',
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'authorization,x-unsafe',
+      },
+    });
+
+    expect(trace.status).toBe(204);
+    expect(trace.headers.get('Access-Control-Allow-Origin')).toBeNull();
+    expect(unsafeHeader.headers.get('Access-Control-Allow-Origin')).toBeNull();
   });
 });

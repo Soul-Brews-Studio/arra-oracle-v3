@@ -41,7 +41,7 @@ export async function fetchMenu(): Promise<MenuResponse> {
 }
 
 export async function fetchPlugins(): Promise<PluginsResponse> {
-  const data = await getJson<PluginsResponse>('/api/v1/plugins');
+  const data = await getJson<PluginsResponse>('/api/plugins');
   return {
     dir: typeof data.dir === 'string' ? data.dir : '',
     plugins: Array.isArray(data.plugins) ? data.plugins : [],
@@ -77,7 +77,7 @@ export async function fetchVectorConfig(): Promise<VectorConfigResponse> {
   return getJson<VectorConfigResponse>('/api/v1/vector/config');
 }
 
-export async function updateVectorCollection(collection: string, patch: { adapter?: string; enabled?: boolean }): Promise<VectorConfigUpdateResponse> {
+export async function updateVectorCollection(collection: string, patch: { adapter?: string; enabled?: boolean; provider?: string }): Promise<VectorConfigUpdateResponse> {
   return getJson<VectorConfigUpdateResponse>(`/api/v1/vector/config/${encodeURIComponent(collection)}`, {
     method: 'PUT',
     body: JSON.stringify(patch),

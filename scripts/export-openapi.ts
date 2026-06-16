@@ -8,6 +8,7 @@
  *
  *   bun scripts/export-openapi.ts
  *   bun scripts/export-openapi.ts --port 48900 --out docs/openapi.json
+ *   bun scripts/export-openapi.ts --spec-path /api/docs/json --out docs/openapi.json
  */
 
 import { spawn } from 'bun';
@@ -18,6 +19,7 @@ import { dirname, join, resolve } from 'node:path';
 const args = parseArgs(process.argv.slice(2));
 const PORT = args.port ?? '48900';
 const OUT = resolve(args.out ?? 'docs/openapi.json');
+const SPEC_PATH = args.specPath ?? '/api/openapi.json';
 const BOOT_TIMEOUT_MS = 30_000;
 const POLL_INTERVAL_MS = 200;
 
@@ -67,8 +69,8 @@ process.on('SIGTERM', () => shutdown(143));
 try {
   await waitForServer(`http://127.0.0.1:${PORT}/`, BOOT_TIMEOUT_MS);
 
-  const res = await fetch(`http://127.0.0.1:${PORT}/api/docs/json`);
-  if (!res.ok) throw new Error(`fetch /api/docs/json failed: ${res.status}`);
+  const res = await fetch(`http://127.0.0.1:${PORT}${SPEC_PATH}`);
+  if (!res.ok) throw new Error(`fetch ${SPEC_PATH} failed: ${res.status}`);
   const spec = await res.json();
 
   validateOpenAPI3(spec);
@@ -88,14 +90,20 @@ try {
   await shutdown(1);
 }
 
-function parseArgs(argv: string[]): { port?: string; out?: string } {
-  const out: { port?: string; out?: string } = {};
+function parseArgs(argv: string[]): { port?: string; out?: string; specPath?: string } {
+  const out: { port?: string; out?: string; specPath?: string } = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--port') out.port = argv[++i];
     else if (a === '--out') out.out = argv[++i];
+    else if (a === '--spec-path') out.specPath = normalizeSpecPath(argv[++i]);
   }
   return out;
+}
+
+function normalizeSpecPath(value: string | undefined): string {
+  if (!value) throw new Error('--spec-path requires a value');
+  return value.startsWith('/') ? value : `/${value}`;
 }
 
 async function waitForServer(url: string, timeoutMs: number): Promise<void> {

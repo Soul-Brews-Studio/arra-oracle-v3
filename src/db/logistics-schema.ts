@@ -104,4 +104,5 @@ export const menuItems = sqliteTable('menu_items', {
   index('idx_menu_parent').on(table.parentId, table.position),
   index('idx_menu_group').on(table.groupKey, table.position),
   index('idx_menu_deleted_at').on(table.deletedAt),
+  index('idx_menu_path_studio').on(table.path, table.studio),
 ]);

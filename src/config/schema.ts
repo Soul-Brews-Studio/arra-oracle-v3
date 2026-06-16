@@ -11,6 +11,7 @@ export const KNOWN_ENV_KEYS = [
   'VECTOR_FALLBACK',
   'VECTOR_PORT',
   'VECTOR_DB_URL',
+  'ORACLE_PROXY_VECTOR_URL',
   'ORACLE_PORT',
   'ORACLE_DATA_DIR',
   'ORACLE_DB_PATH',
@@ -108,6 +109,7 @@ export const EMBEDDER_VALUES = [
   'chromadb-internal',
   'ollama',
   'openai',
+  'gemini',
   'cloudflare-ai',
   'disabled',
   'off',
@@ -123,6 +125,7 @@ export const VECTOR_DB_VALUES = [
   'lancedb',
   'qdrant',
   'cloudflare-vectorize',
+  'proxy',
 ] as const;
 
 export const VECTOR_FALLBACK_VALUES = ['fts5', 'cache', 'fail', 'empty', 'error'] as const;

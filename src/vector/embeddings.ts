@@ -2,6 +2,7 @@ import type { EmbeddingProvider, EmbeddingProviderType, EmbedType } from './type
 import { NoneEmbeddings, RemoteHttpEmbeddings } from './embedding-backends.ts';
 
 export type FallbackEvent = { from: string; to?: string; error: string };
+export type EmbeddingProviderOptions = { url?: string; dimensions?: number; fallbackChain?: EmbeddingProviderType[]; fallback?: EmbeddingProviderType };
 
 export class ChromaDBInternalEmbeddings implements EmbeddingProvider {
   readonly name = 'chromadb-internal';
@@ -139,19 +140,18 @@ export class GeminiEmbeddings implements EmbeddingProvider {
   }
 
   async embed(texts: string[], _type?: EmbedType): Promise<number[][]> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:batchEmbedContents?key=${this.apiKey}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requests: texts.map((text) => ({ model: `models/${this.model}`, content: { parts: [{ text }] } })) }),
-    });
-    if (!response.ok) throw new Error(`Gemini API error: ${await response.text()}`);
-    const data = await response.json() as { embeddings?: Array<{ values?: number[] }> };
-    const vectors = data.embeddings?.map((item) => item.values);
-    if (!vectors || vectors.length !== texts.length || vectors.some((v) => !Array.isArray(v))) {
-      throw new Error('Gemini API error: invalid embedding payload');
-    }
-    return vectors as number[][];
+    return Promise.all(texts.map(async (text) => {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:embedContent?key=${this.apiKey}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: { parts: [{ text }] } }),
+      });
+      if (!response.ok) throw new Error(`Gemini API error: ${await response.text()}`);
+      const data = await response.json() as { embedding?: { values?: number[] } };
+      if (!Array.isArray(data.embedding?.values)) throw new Error('Gemini API error: invalid embedding payload');
+      return data.embedding.values;
+    }));
   }
 }
 
@@ -195,9 +195,10 @@ function errorMessage(error: unknown): string {
 export function createEmbeddingProvider(
   type: EmbeddingProviderType = 'none',
   model?: string,
-  options: { url?: string; dimensions?: number; fallbackChain?: EmbeddingProviderType[] } = {},
+  options: EmbeddingProviderOptions = {},
 ): EmbeddingProvider {
-  const chain = [type, ...(options.fallbackChain ?? [])].filter((item, index, all) =>
+  const fallbacks = options.fallbackChain ?? (options.fallback ? [options.fallback] : []);
+  const chain = [type, ...fallbacks].filter((item, index, all) =>
     item !== 'none' && all.indexOf(item) === index
   );
   if (chain.length > 1) return new FallbackEmbeddings(chain.map((item) => createSingleEmbeddingProvider(item, model, options)));
@@ -214,7 +215,7 @@ function createSingleEmbeddingProvider(
       return new NoneEmbeddings();
     case 'local':
     case 'ollama':
-      return new OllamaEmbeddings({ model });
+      return new OllamaEmbeddings({ model, baseUrl: options.url });
     case 'remote':
       return new RemoteHttpEmbeddings({ model, url: options.url, dimensions: options.dimensions });
     case 'openai':
@@ -224,7 +225,11 @@ function createSingleEmbeddingProvider(
     case 'cloudflare-ai': {
       // Dynamic import to avoid requiring CF credentials when not used
       const { CloudflareAIEmbeddings } = require('./adapters/cloudflare-vectorize.ts');
-      return new CloudflareAIEmbeddings({ model });
+      return new CloudflareAIEmbeddings({
+        model,
+        accountId: process.env.CF_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID,
+        apiToken: process.env.CF_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN,
+      });
     }
     case 'chromadb-internal':
     default:

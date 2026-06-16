@@ -4,12 +4,12 @@ import {
   vectorServiceRegistry,
   type HealthStatus,
   type RegisteredVectorService,
-  type VectorServiceRegistry,
+  type VectorServiceRegistryClient,
 } from '../../vector/registry.ts';
 
 const capabilitySchema = t.Record(t.String(), t.Unknown());
 
-export function createVectorServicesApiEndpoint(registry: VectorServiceRegistry = vectorServiceRegistry) {
+export function createVectorServicesApiEndpoint(registry: VectorServiceRegistryClient = vectorServiceRegistry) {
   return new Elysia()
     .get('/vector/services', async () => {
       const services = await registry.discover();
@@ -50,7 +50,12 @@ export function createVectorServicesApiEndpoint(registry: VectorServiceRegistry 
       params: t.Object({ name: t.String({ minLength: 1 }) }),
       detail: { tags: ['vector-registry'], summary: 'Unregister one vector service' },
     })
-    .post('/vector/services/:name/test', async ({ params }) => {
+    .post('/vector/services/:name/test', async ({ params, set }) => {
+      const services = await registry.discover();
+      if (!services.some((service) => service.name === params.name)) {
+        set.status = 404;
+        return { success: false, error: `Service not found: ${params.name}` };
+      }
       const health = await registry.healthCheck();
       const result = health.get(params.name);
       return {

@@ -1,7 +1,7 @@
 import { pathToFileURL } from 'node:url';
 
 import { registerExportFormat, type ExportFormatter } from '../vector/export-formats.ts';
-import { runPluginSandbox } from './sandbox.ts';
+import { runPluginWithErrorContainment } from './error-containment.ts';
 import type { NormalizedUnifiedPluginManifest } from './unified-manifest.ts';
 
 interface ExportFormatPlugin {
@@ -40,7 +40,7 @@ export async function registerPluginExportFormats(
   timeoutMs: number,
 ): Promise<string | undefined> {
   for (const format of plugin.manifest.exportFormats) {
-    const result = await runPluginSandbox({
+    const result = await runPluginWithErrorContainment({
       plugin: plugin.manifest.name,
       phase: 'init',
     }, () => invokeFormat(plugin, format.name, format.handler, timeoutMs));

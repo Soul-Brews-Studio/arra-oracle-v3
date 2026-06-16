@@ -16,7 +16,7 @@ describe('ApiClient vectorIndexModels', () => {
     });
 
     await expect(client.vectorIndexModels()).resolves.toMatchObject({ models: { bge: { count: 4 } } });
-    expect(String(calls[0]?.input)).toBe('/api/vector/index/models');
+    expect(String(calls[0]?.input)).toBe('/api/v1/vector/index/models');
     expect(new Headers(calls[0]?.init?.headers).get('accept')).toBe('application/json');
   });
 });

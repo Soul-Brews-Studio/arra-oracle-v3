@@ -12,7 +12,7 @@ function jsonResponse(data: unknown, init: ResponseInit = {}): Response {
 describe('frontend API client', () => {
   test('calls each typed backend route with JSON accept headers', async () => {
     const payloads: Record<string, unknown> = {
-      '/api/health': { status: 'ok', server: 'arra', version: '26.5.30', port: 47778 },
+      '/api/v1/health': { status: 'ok', server: 'arra', version: '26.5.30', port: 47778 },
       '/api/v1/metrics': {
         uptime: 4.2,
         requestCount: 7,
@@ -30,10 +30,10 @@ describe('frontend API client', () => {
         limit: 5,
         query: 'oracle memory',
       },
-      '/api/vector/index/models': {
+      '/api/v1/vector/index/models': {
         models: { 'bge-m3': { collection: 'oracle_bge_m3', model: 'bge-m3', adapter: 'lancedb', count: 12 } },
       },
-      '/api/vector/index/status': {
+      '/api/v1/vector/index/status': {
         jobId: 'vidx-1',
         model: 'bge-m3',
         status: 'indexing',
@@ -43,7 +43,7 @@ describe('frontend API client', () => {
         docsPerSec: 2.5,
         eta: 3,
       },
-      '/api/v1/plugins': {
+      '/api/plugins': {
         dir: '/tmp/plugins',
         plugins: [{ name: 'echo', file: 'echo.wasm', size: 12, modified: '2026-06-16T00:00:00.000Z' }],
       },
@@ -66,14 +66,14 @@ describe('frontend API client', () => {
     await expect(client.plugins()).resolves.toMatchObject({ plugins: [{ name: 'echo' }] });
 
     expect(calls.map((call) => String(call.input))).toEqual([
-      '/api/health',
+      '/api/v1/health',
       '/api/v1/metrics',
       '/api/menu',
       '/api/menu/search?q=vector',
       '/api/v1/vector/search?q=oracle+memory&limit=5&type=docs',
-      '/api/vector/index/models',
-      '/api/vector/index/status',
-      '/api/v1/plugins',
+      '/api/v1/vector/index/models',
+      '/api/v1/vector/index/status',
+      '/api/plugins',
     ]);
     for (const call of calls) {
       expect(new Headers(call.init?.headers).get('accept')).toBe('application/json');
@@ -98,7 +98,7 @@ describe('frontend API client', () => {
     const headers = new Headers(calls[0]?.init?.headers);
     expect(headers.get('x-client')).toBe('studio');
     expect(headers.get('content-type')).toBe('application/json');
-    expect(String(calls[1]?.input)).toBe('http://localhost:47778/api/vector/index/start');
+    expect(String(calls[1]?.input)).toBe('http://localhost:47778/api/v1/vector/index/start');
     expect(calls[1]?.init?.method).toBe('POST');
     expect(calls[1]?.init?.body).toBe(JSON.stringify({ model: 'qwen3' }));
   });
@@ -107,15 +107,15 @@ describe('frontend API client', () => {
     const networkClient = createApiClient({ fetch: () => { throw new Error('ECONNREFUSED'); } });
     await expect(networkClient.health()).rejects.toMatchObject({
       status: 0,
-      path: '/api/health',
-      message: '/api/health is unreachable: ECONNREFUSED',
+      path: '/api/v1/health',
+      message: '/api/v1/health is unreachable: ECONNREFUSED',
     } as ApiClientError);
 
     const invalidClient = createApiClient({ fetch: () => new Response('{nope', { status: 200 }) });
     await expect(invalidClient.plugins()).rejects.toMatchObject({
       status: 200,
-      path: '/api/v1/plugins',
-      message: '/api/v1/plugins returned invalid JSON',
+      path: '/api/plugins',
+      message: '/api/plugins returned invalid JSON',
     } as ApiClientError);
 
     const errorClient = createApiClient({ fetch: () => jsonResponse({ error: 'offline' }, { status: 503, statusText: 'Unavailable' }) });

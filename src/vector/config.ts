@@ -14,6 +14,8 @@ import { ORACLE_DATA_DIR, LANCEDB_DIR } from '../config.ts';
 import { COLLECTION_NAME } from '../const.ts';
 import type { UnifiedProxyManifest } from '../plugins/unified-manifest.ts';
 import type { EmbedderConfig, VectorDBType } from './types.ts';
+import { zeroConfigEmbedder } from './default-embedder.ts';
+import { normalizeVectorConfig } from './config-normalize.ts';
 
 export const VECTOR_CONFIG_FILE = 'vector-server.json';
 
@@ -43,6 +45,7 @@ export interface VectorCollectionConfig {
   endpoint?: string;
   enabled?: boolean;
   primary?: boolean;
+  embedder?: EmbedderConfig;
 }
 
 export interface VectorServerConfig {
@@ -61,7 +64,7 @@ export interface VectorServerConfig {
 export type VectorProxyManifest = UnifiedProxyManifest;
 
 /** Absolute path to vector-server.json inside ORACLE_DATA_DIR. */
-export function configPath(dataDir = ORACLE_DATA_DIR): string {
+export function configPath(dataDir = process.env.ORACLE_DATA_DIR || ORACLE_DATA_DIR): string {
   return path.join(dataDir, VECTOR_CONFIG_FILE);
 }
 
@@ -78,25 +81,27 @@ export function generateDefaultConfig(): VectorServerConfig {
       'bge-m3': {
         collection: 'oracle_knowledge_bge_m3',
         model: 'bge-m3',
-        provider: 'none',
+        provider: 'ollama',
         adapter: 'lancedb',
         primary: true,
+        embedder: zeroConfigEmbedder('bge-m3'),
       },
       nomic: {
         collection: COLLECTION_NAME,
         model: 'nomic-embed-text',
-        provider: 'none',
+        provider: 'ollama',
         adapter: 'lancedb',
+        embedder: zeroConfigEmbedder('nomic-embed-text'),
       },
       qwen3: {
         collection: 'oracle_knowledge_qwen3',
         model: 'qwen3-embedding',
-        provider: 'none',
+        provider: 'ollama',
         adapter: 'lancedb',
+        embedder: zeroConfigEmbedder('qwen3-embedding'),
       },
     },
     dataPath: LANCEDB_DIR,
-    embedder: { backend: 'none' },
     embeddingEndpoint: '',
     storage: {
       default: 'lancedb',
@@ -124,7 +129,7 @@ export function loadVectorConfig(fp = configPath()): VectorServerConfig | null {
   if (!fs.existsSync(fp)) return null;
   try {
     const raw = fs.readFileSync(fp, 'utf-8');
-    return JSON.parse(raw) as VectorServerConfig;
+    return normalizeVectorConfig(JSON.parse(raw), generateDefaultConfig());
   } catch (e) {
     console.warn('[VectorConfig] Failed to parse ' + fp + ':', e instanceof Error ? e.message : e);
     return null;
@@ -141,7 +146,17 @@ export function writeVectorConfig(config: VectorServerConfig, fp = configPath())
 }
 
 function embedderFor(config: VectorServerConfig, col: VectorCollectionConfig): EmbedderConfig | undefined {
-  if (config.embedder) return { ...config.embedder, model: config.embedder.model ?? col.model };
+  const generated = col.embedder?.backend === 'ollama' && col.embedder.model === col.model && col.provider === 'ollama';
+  const merged = config.embedder && generated ? { ...col.embedder, ...config.embedder }
+    : config.embedder || col.embedder ? { ...config.embedder, ...col.embedder } : undefined;
+  const primary = col.embedder && !generated
+    ? col.embedder.backend ?? col.embedder.default ?? config.embedder?.backend ?? config.embedder?.default
+    : config.embedder?.backend ?? config.embedder?.default ?? col.embedder?.backend ?? col.embedder?.default;
+  if (merged) return {
+    ...merged,
+    backend: primary ?? 'none',
+    model: merged.model ?? col.model,
+  };
   const provider = col.provider.toLowerCase();
   if (provider === 'ollama' || provider === 'local') return { backend: 'local', model: col.model };
   if (provider === 'openai' || provider === 'gemini' || provider === 'cloudflare-ai') {

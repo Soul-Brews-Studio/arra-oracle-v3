@@ -89,7 +89,7 @@ export interface UnifiedPluginManifest {
   api?: { path: string; methods?: UnifiedHttpMethod[] };
   lifecycle?: UnifiedLifecycleManifest;
   seedMenu?: boolean;
-  cli?: { command: string; help: string };
+  cli?: { command: string; help: string; handler?: string };
 }
 
 export interface NormalizedUnifiedPluginManifest extends Omit<UnifiedPluginManifest, 'api' | 'cli' | 'seedMenu'> {
@@ -161,7 +161,7 @@ export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedP
   if (manifest.api) apiRoutes.push({ path: manifest.api.path, methods: manifest.api.methods });
 
   const cliSubcommands = [...asArray(manifest.cliSubcommands)];
-  if (manifest.cli) cliSubcommands.push({ command: manifest.cli.command, help: manifest.cli.help });
+  if (manifest.cli) cliSubcommands.push({ command: manifest.cli.command, help: manifest.cli.help, handler: manifest.cli.handler });
 
   const menu = [...asArray(manifest.menu)];
   const mcpTools = asArray(manifest.mcpTools);

@@ -48,6 +48,10 @@ export class QueryCache<T> {
   clear(): void {
     this.entries.clear();
   }
+
+  stats(): { size: number; maxEntries: number; ttlMs: number } {
+    return { size: this.entries.size, maxEntries: this.maxEntries, ttlMs: this.ttlMs };
+  }
 }
 
 export function stableCacheKey(parts: Record<string, unknown>): string {

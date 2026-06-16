@@ -8,6 +8,13 @@ export const threadsQuery = t.Object({
   offset: t.Optional(t.String()),
 });
 
-export const threadCreateBody = t.Unknown();
+export const threadCreateBody = t.Object({
+  message: t.String({ minLength: 1 }),
+  thread_id: t.Optional(t.Union([t.Number(), t.String()])),
+  title: t.Optional(t.String()),
+  role: t.Optional(t.String()),
+});
 
-export const threadStatusBody = t.Unknown();
+export const threadStatusBody = t.Object({
+  status: t.String({ minLength: 1 }),
+});

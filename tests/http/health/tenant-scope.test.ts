@@ -10,7 +10,7 @@ const tenantB = `tenant-b-${stamp}`;
 const ids = [`tenant-doc-a-${stamp}`, `tenant-doc-b-${stamp}`];
 const now = Date.now();
 
-function insertDoc(id: string, project: string) {
+function insertDoc(id: string, tenantId: string) {
   db.insert(oracleDocuments).values({
     id,
     type: 'learning',
@@ -19,7 +19,8 @@ function insertDoc(id: string, project: string) {
     createdAt: now,
     updatedAt: now,
     indexedAt: now,
-    project,
+    tenantId,
+    project: tenantId,
   }).run();
 }
 
@@ -37,14 +38,14 @@ function createFetch() {
   return createTenantFetch((request) => app.handle(request));
 }
 
-test.skip('GET /api/stats scopes document counts by tenant header', async () => {
+test('GET /api/stats scopes document counts by tenant header', async () => {
   const res = await createFetch()(new Request('http://local/api/stats', {
     headers: { [TENANT_HEADER]: tenantA },
   }));
   const body = await res.json() as Record<string, any>;
 
   expect(res.status).toBe(200);
-  expect(body.tenant).toEqual({ id: tenantA, scope: 'project' });
+  expect(body.tenant).toEqual({ id: tenantA, scope: 'tenant_id' });
   expect(body.total).toBe(1);
   expect(body.by_type.learning).toBe(1);
 });
@@ -56,7 +57,7 @@ test('GET /api/oracles scopes project list by tenant header', async () => {
   const body = await res.json() as Record<string, any>;
 
   expect(res.status).toBe(200);
-  expect(body.tenant).toEqual({ id: tenantB, scope: 'project' });
+  expect(body.tenant).toEqual({ id: tenantB, scope: 'tenant_id' });
   expect(body.projects.map((item: { project: string }) => item.project)).toContain(tenantB);
   expect(body.projects.map((item: { project: string }) => item.project)).not.toContain(tenantA);
 });

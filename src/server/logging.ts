@@ -6,6 +6,7 @@
 
 import { db, searchLog, documentAccess, learnLog } from '../db/index.ts';
 import type { SearchResult } from './types.ts';
+import { tenantIdForWrite } from '../middleware/tenant.ts';
 
 /**
  * Log search query with full details
@@ -37,6 +38,7 @@ export function logSearch(
       resultsCount,
       searchTimeMs,
       createdAt: Date.now(),
+      tenantId: tenantIdForWrite(),
       project: project || null,
       results: resultsJson,
     }).run();
@@ -81,6 +83,7 @@ export function logDocumentAccess(documentId: string, accessType: string, projec
       documentId,
       accessType,
       createdAt: Date.now(),
+      tenantId: tenantIdForWrite(),
       project: project || null,
     }).run();
   } catch (e) {
@@ -99,6 +102,7 @@ export function logLearning(documentId: string, patternPreview: string, source: 
       source: source || 'Oracle Learn',
       concepts: JSON.stringify(concepts),
       createdAt: Date.now(),
+      tenantId: tenantIdForWrite(),
       project: project || null,
     }).run();
   } catch (e) {
