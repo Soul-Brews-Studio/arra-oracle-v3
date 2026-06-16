@@ -8,6 +8,8 @@ Use this page as the one-hop map for the 2026-06-06/07 alpha docs wave.
 | --- | --- | --- |
 | [INSTALL.md](./INSTALL.md) | Easy install through global Bun, plugins, Docker, or Docker MCP Toolkit | `bun add -g github:...#vX.Y.Z`, `arra plugin install`, GHCR |
 | [QUICKSTART.md](./QUICKSTART.md) | Five-minute first run after install | `arra-oracle-v3 serve`, `arra health`, `arra learn`, MCP config |
+| [architecture.md](./architecture.md) | Understand the installable runtime architecture | HTTP, MCP, CLI, plugins, storage |
+| [PLUGIN-GUIDE.md](./PLUGIN-GUIDE.md) | Author installable Oracle plugins | `plugin.json`, unified surfaces, plugin install smoke checks |
 | [DEPLOY-DIGITALOCEAN.md](./DEPLOY-DIGITALOCEAN.md) | Deploy a small public Arra HTTP node on DigitalOcean | `doctl`, firewall allowlist, `ARRA_API_TOKEN`, seed, teardown |
 | [FEDERATION.md](./FEDERATION.md) | Pair and secure Arra peers | `/info`, `/api/identity`, `/api/peer/feed`, `/api/peer/search`, TOFU pins |
 | [HUGINN-MUNINN.md](./HUGINN-MUNINN.md) | Understand the capture/recall naming split | Muninn recall, Huginn capture, no `huginn_*` aliases |
