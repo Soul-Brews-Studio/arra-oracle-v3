@@ -1,7 +1,12 @@
 import { writeFile } from "fs/promises";
 import { createDatabase, oracleDocuments, type DatabaseConnection } from "../../db/index.ts";
-import { getExportFormat } from "../../vector/export-formats.ts";
-import { getVectorStoreByModel } from "../../vector/factory.ts";
+import { getExportFormat, streamMarkdown } from "../../vector/export-formats.ts";
+import {
+  createVectorStoreForModel,
+  getEmbeddingModels,
+  getVectorStoreByModel,
+} from "../../vector/factory.ts";
+import { buildCollectionName, coerceRecordsForExport } from "./export-markdown.ts";
 
 const DEFAULT_COLLECTION = "bge-m3";
 
@@ -13,6 +18,10 @@ export interface DataExportOptions {
 }
 
 type OracleDocumentRow = typeof oracleDocuments.$inferSelect;
+
+type MarkdownSection = string;
+
+type MarkdownCollectionDump = Array<Record<string, unknown>>;
 
 export interface VaultJsonExport {
   format: "json";
@@ -30,7 +39,7 @@ function printHelp(): void {
   console.log("  --format <format>     output format (default: json)");
   console.log("  --source <source>     export source: vault or vector (default: vault)");
   console.log("  --collection <name>   vector collection/model key (default: bge-m3)");
-  console.log("  --out <file>         write export JSON to a file instead of stdout");
+  console.log("  --out <file>         write export to a file instead of stdout");
   console.log("  --help, -h           show this help");
 }
 
@@ -78,6 +87,76 @@ export function buildVaultJsonExport(connection: DatabaseConnection): VaultJsonE
   };
 }
 
+async function readStreamAsText(stream: ReadableStream<Uint8Array>): Promise<string> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let output = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) output += decoder.decode(value, { stream: true });
+  }
+  return output + decoder.decode();
+}
+
+function sectionHeader(name: string): string {
+  return `# Collection: ${name}\n\n`;
+}
+
+async function buildAllVectorMarkdownPayload(): Promise<MarkdownSection> {
+  const models = getEmbeddingModels();
+  const seenCollections = new Set<string>();
+  const sections: MarkdownSection[] = [];
+
+  for (const preset of Object.values(models)) {
+    if (preset.adapter && preset.adapter !== "lancedb") continue;
+    if (seenCollections.has(preset.collection)) continue;
+    seenCollections.add(preset.collection);
+
+    const store = createVectorStoreForModel(preset);
+    const collectionName = buildCollectionName(preset.collection, "vector");
+    let emittedHeader = false;
+
+    try {
+      await store.connect();
+      await store.ensureCollection();
+      sections.push(sectionHeader(collectionName));
+      emittedHeader = true;
+      
+      if (!store.getAllEmbeddings) {
+        sections.push(`Not supported for adapter ${store.name}\n\n`);
+        continue;
+      }
+
+      const stats = await store.getStats().catch(() => ({ count: 0 }));
+      const limit = stats.count > 0 ? stats.count : 50_000;
+      const dump = await store.getAllEmbeddings(limit);
+      sections.push(await readStreamAsText(streamMarkdown(dump)));
+      sections.push("\n\n");
+    } catch (err) {
+      if (!emittedHeader) sections.push(sectionHeader(collectionName));
+      sections.push(`Error: ${err instanceof Error ? err.message : String(err)}\n\n`);
+    } finally {
+      await store.close().catch(() => {});
+    }
+  }
+
+  return sections.join("");
+}
+
+function buildOracleDocumentsMarkdownTableRows(connection: DatabaseConnection): MarkdownCollectionDump {
+  const rows = connection.db.select().from(oracleDocuments).all() as MarkdownCollectionDump;
+  return coerceRecordsForExport(rows);
+}
+
+async function buildMarkdownExportPayload(connection: DatabaseConnection): Promise<string> {
+  const vectorPayload = await buildAllVectorMarkdownPayload();
+  const sqliteRows = buildOracleDocumentsMarkdownTableRows(connection);
+  return `${vectorPayload}${sectionHeader(buildCollectionName("oracle_documents", "sqlite"))}`
+    + `${JSON.stringify(sqliteRows, null, 2)}\n\n`;
+}
+
 async function buildVectorExportPayload(collection: string, format: string): Promise<string> {
   const store = getVectorStoreByModel(collection);
   try {
@@ -108,7 +187,10 @@ export async function exportCommand(args: string[]): Promise<number> {
     const options = parseExportOptions(args);
     let payload: string;
 
-    if (options.source === "vector") {
+    if (options.format === "markdown") {
+      connection = createDatabase();
+      payload = await buildMarkdownExportPayload(connection);
+    } else if (options.source === "vector") {
       payload = await buildVectorExportPayload(options.collection, options.format);
     } else {
       connection = createDatabase();
@@ -117,6 +199,7 @@ export async function exportCommand(args: string[]): Promise<number> {
 
     if (options.outFile) await writeFile(options.outFile, payload, "utf8");
     else process.stdout.write(payload);
+
     return 0;
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));

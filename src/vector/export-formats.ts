@@ -167,6 +167,8 @@ function streamMarkdown(dump: EmbeddingDump): ReadableStream<Uint8Array> {
   });
 }
 
+export { streamMarkdown };
+
 function normalizeName(name: string, strict = true): string {
   const normalized = name.trim().toLowerCase();
   if (!/^[a-z0-9-]+$/.test(normalized)) {
