@@ -134,6 +134,7 @@ describe('maw arra plugin', () => {
       [['feed'], 'GET', '/api/feed'],
       [['menu'], 'GET', '/api/menu'],
       [['vector'], 'GET', '/api/vector/config'],
+      [['vector-config'], 'GET', '/api/v1/vector/config'],
       [['vector_status'], 'GET', '/api/vector/index/status'],
       [['vector_models'], 'GET', '/api/vector/index/models'],
       [['health'], 'GET', '/api/health'],
