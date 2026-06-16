@@ -158,6 +158,58 @@ describe('watcher HTTP routes', () => {
     expect(count('indexing_jobs')).toBe(Object.keys(MODELS).length);
   });
 
+  test('ignores schedules while stopped and clears pending work on stop', async () => {
+    const filePath = path.join(repoRoot, 'ψ', 'learn', 'github.com', 'owner', 'repo', 'manual.md');
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, '# Manual\n\n## Finding\n\nStopped watchers must not index.', 'utf8');
+
+    service.schedule(filePath);
+    await sleep(60);
+    expect(service.status()).toMatchObject({ pending: 0, events: [] });
+    expect(count('indexing_jobs')).toBe(0);
+
+    await call('/api/v1/watcher/start', { method: 'POST' });
+    service.schedule(filePath);
+    expect(service.status().pending).toBe(1);
+    await call('/api/v1/watcher/stop', { method: 'POST' });
+    await sleep(60);
+
+    expect(service.status().pending).toBe(0);
+    expect(count('oracle_documents')).toBe(0);
+    expect(count('indexing_jobs')).toBe(0);
+  });
+
+  test('skips vanished paths and caps event history', async () => {
+    service.stop();
+    service = new FileWatcherService({
+      db, repoRoot, models: MODELS, debounceMs: 20, maxEvents: 2,
+      logger: { log: (msg) => logs.push(msg), warn: (msg) => logs.push(String(msg)) },
+    });
+    const filePath = path.join(repoRoot, 'ψ', 'learn', 'github.com', 'owner', 'repo', 'gone.md');
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, '# Gone\n\n## Finding\n\nDelete before debounce.', 'utf8');
+
+    service.start();
+    service.schedule(filePath);
+    fs.rmSync(filePath);
+
+    await waitFor(() => service.status().events.some((event) => event.type === 'skipped'));
+    expect(service.status().events.map((event) => event.type)).toEqual(['skipped', 'scheduled']);
+    expect(count('oracle_documents')).toBe(0);
+  });
+
+  test('normalizes invalid timing and event history options', () => {
+    service.stop();
+    service = new FileWatcherService({
+      db, repoRoot, models: MODELS, debounceMs: Number.NaN, maxEvents: -1,
+      logger: { log: (msg) => logs.push(msg), warn: (msg) => logs.push(String(msg)) },
+    });
+
+    const status = service.start();
+    expect(status.debounceMs).toBe(2_000);
+    expect(status.events[0]).toMatchObject({ type: 'started' });
+  });
+
   function count(table: string): number {
     return db.query<{ count: number }, []>(`SELECT COUNT(*) AS count FROM ${table}`).get()?.count ?? 0;
   }
