@@ -1,8 +1,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { timingSafeEqual } from 'node:crypto';
 import { Elysia } from 'elysia';
 import { eq, type SQL } from 'drizzle-orm';
 
 export const TENANT_HEADER = 'X-Oracle-Tenant';
+export const TENANT_TOKEN_HEADER = 'X-Oracle-Tenant-Token';
 export const LEGACY_TENANT_HEADER = 'X-Tenant-Id';
 export const ORG_HEADER = 'X-Org-Id';
 const TENANT_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
@@ -10,9 +12,26 @@ const TENANT_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
 type TenantContext = { tenantId?: string };
 type ProjectColumn = { project: unknown };
 type FetchHandler = (request: Request) => Response | Promise<Response>;
+type TenantTokenMap = Record<string, string>;
 
 const tenantStore = new AsyncLocalStorage<TenantContext>();
 const tenants = new WeakMap<Request, string | undefined>();
+
+function safeEqual(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+export function parseTenantTokens(raw = process.env.ORACLE_TENANT_TOKENS ?? ''): TenantTokenMap {
+  const value = raw.trim();
+  if (!value) return {};
+  if (value.startsWith('{')) return JSON.parse(value) as TenantTokenMap;
+  return Object.fromEntries(value.split(',').map((entry) => {
+    const [tenant, ...tokenParts] = entry.split('=');
+    return [tenant.trim(), tokenParts.join('=').trim()];
+  }).filter(([tenant, token]) => tenant && token));
+}
 
 export function tenantIdFromHeaders(headers: Headers): string | undefined {
   const raw = headers.get(TENANT_HEADER) ?? headers.get(LEGACY_TENANT_HEADER) ?? headers.get(ORG_HEADER);
@@ -22,6 +41,15 @@ export function tenantIdFromHeaders(headers: Headers): string | undefined {
   return tenant;
 }
 
+export function validateTenantToken(headers: Headers, tenantId: string | undefined, tokens = parseTenantTokens()): void {
+  if (!tenantId) return;
+  const expected = tokens[tenantId] ?? tokens['*'];
+  if (!expected) return;
+  const actual = headers.get(TENANT_TOKEN_HEADER)?.trim() ?? '';
+  if (!actual) throw new Error('tenant token required');
+  if (!safeEqual(actual, expected)) throw new Error('invalid tenant token');
+}
+
 export function rememberTenant(request: Request, tenantId: string | undefined): void {
   tenants.set(request, tenantId);
 }
@@ -29,6 +57,7 @@ export function rememberTenant(request: Request, tenantId: string | undefined): 
 export function tenantIdFor(request: Request): string | undefined {
   if (tenants.has(request)) return tenants.get(request);
   const tenantId = tenantIdFromHeaders(request.headers);
+  validateTenantToken(request.headers, tenantId);
   rememberTenant(request, tenantId);
   return tenantId;
 }
