@@ -67,6 +67,7 @@ class VectorIndex:
             doc_id = str(item["id"])
             text = str(item.get("document", ""))
             metadata = dict(item.get("metadata") or {})
+            metadata.setdefault("id", doc_id)
             vector = item.get("vector")
             if not isinstance(vector, list) or not all(isinstance(n, (int, float)) for n in vector):
                 vector = embed_text(text)
