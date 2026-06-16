@@ -76,6 +76,25 @@ Use the #2167 Wrangler config as source of truth. The likely minimum is:
 If auth is enabled, wrap `/mcp` with Cloudflare's OAuth provider or Access and
 keep tool authorization tenant-aware.
 
+## Team and school tenants
+
+The Worker can serve one MCP endpoint for many users when the OAuth provider
+stores a tenant claim in `McpAgent` props. Supported claim names are
+`tenantId`, `tenant_id`, `tenant`, `orgId`, `org_id`, `organizationId`, and
+`organization_id` either at the top level or under `claims`.
+
+When a tenant is resolved, the Worker forwards both backend-compatible tenant
+headers to `ORACLE_URL`:
+
+```text
+X-Tenant-ID: <tenant>
+X-Oracle-Tenant: <tenant>
+```
+
+Use tool-level `tenantId` only for local smoke tests without OAuth props. In
+production, bind tenant selection to the OAuth/access token claim so users cannot
+choose another tenant in a tool call.
+
 ## Manual Wrangler deploy fallback
 
 Use this when the button is not ready or you need to test a branch preview:

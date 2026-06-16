@@ -5,6 +5,8 @@ type ToolHandler = (input: Record<string, unknown>) => Promise<{
   isError?: boolean;
 }>;
 type RegisteredTool = { description: string; handler: ToolHandler };
+type SdkTool = { description?: string; handler: ToolHandler };
+type SdkToolServer = { _registeredTools?: Record<string, SdkTool> };
 
 const tools = new Map<string, RegisteredTool>();
 let servedPath: string | undefined;
@@ -21,8 +23,10 @@ function zShape() {
 mock.module('agents/mcp', () => ({
   McpAgent: class {
     env: Record<string, unknown>;
+    props: Record<string, unknown>;
     constructor(env: Record<string, unknown> = {}) {
       this.env = env;
+      this.props = (env.__props as Record<string, unknown> | undefined) ?? {};
     }
     static serve(path: string) {
       servedPath = path;
@@ -54,14 +58,20 @@ mock.module('zod', () => ({
   },
 }));
 
-async function loadTools() {
+async function loadTools(props: Record<string, unknown> = {}) {
   tools.clear();
   const mod = await import('../../workers/mcp/src/index.ts');
   const agent = new mod.OracleMCP({
     ORACLE_URL: 'https://oracle.example.test/root/',
     ARRA_API_TOKEN: 'proxy-secret',
+    __props: props,
   } as never);
   await agent.init();
+  if (tools.size === 0) {
+    for (const [name, tool] of Object.entries((agent.server as SdkToolServer)._registeredTools ?? {})) {
+      tools.set(name, { description: tool.description ?? '', handler: tool.handler });
+    }
+  }
 }
 
 function paramsFrom(url: string) {
@@ -89,7 +99,7 @@ describe('Cloudflare McpAgent proxy flow', () => {
       return Response.json({ ok: true, path: new URL(String(input)).pathname });
     }) as typeof fetch;
 
-    await loadTools();
+    await loadTools({ claims: { tenantId: 'tenant-from-oauth' } });
     expect(servedPath).toBe('/mcp');
     expect([...tools.keys()].sort()).toEqual(['muninn_search', 'muninn_stats', 'oracle_learn']);
 
@@ -102,15 +112,15 @@ describe('Cloudflare McpAgent proxy flow', () => {
       project: 'github.com/soul/arra',
       cwd: '/tmp/arra',
       model: 'bge-m3',
-      tenantId: 'tenant-a',
+      tenantId: 'spoofed-tenant',
     });
-    await tools.get('muninn_stats')!.handler({ tenantId: 'tenant-a' });
+    await tools.get('muninn_stats')!.handler({ tenantId: 'spoofed-tenant' });
     await tools.get('oracle_learn')!.handler({
       pattern: 'Workers proxy tests should cover MCP tool forwarding.',
       concepts: ['cloudflare', 'mcp'],
       source: 'proxy-test',
       project: 'github.com/soul/arra',
-      tenantId: 'tenant-a',
+      tenantId: 'spoofed-tenant',
     });
 
     expect(requests.map((request) => [request.method, new URL(request.url).pathname])).toEqual([
@@ -130,7 +140,8 @@ describe('Cloudflare McpAgent proxy flow', () => {
     });
     for (const request of requests) {
       expect(request.headers.get('authorization')).toBe('Bearer proxy-secret');
-      expect(request.headers.get('x-oracle-tenant-id')).toBe('tenant-a');
+      expect(request.headers.get('X-Tenant-ID')).toBe('tenant-from-oauth');
+      expect(request.headers.get('X-Oracle-Tenant')).toBe('tenant-from-oauth');
     }
     expect(requests[0].body).toBeNull();
     expect(requests[1].body).toBeNull();

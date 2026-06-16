@@ -2,6 +2,7 @@ export type OracleProxyEnv = {
   ORACLE_URL?: string;
   ORACLE_HTTP_URL?: string;
   ORACLE_API?: string;
+  ORACLE_TENANT_ID?: string;
   ARRA_API_TOKEN?: string;
   ARRA_API_KEY?: string;
 };
@@ -17,12 +18,55 @@ type ProxyRequest = {
   query?: Record<string, unknown>;
   body?: unknown;
   tenantId?: unknown;
+  authContext?: OracleMcpAuthContext;
 };
+
+export type OracleMcpAuthContext = {
+  tenantId?: unknown;
+  tenant_id?: unknown;
+  tenant?: unknown;
+  orgId?: unknown;
+  org_id?: unknown;
+  organizationId?: unknown;
+  organization_id?: unknown;
+  claims?: Record<string, unknown>;
+};
+
+const TENANT_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
+const TENANT_KEYS = ['tenantId', 'tenant_id', 'tenant', 'orgId', 'org_id', 'organizationId', 'organization_id'] as const;
 
 function trimValue(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
   const text = String(value).trim();
   return text || undefined;
+}
+
+function tenantValueFrom(source: Record<string, unknown> | undefined): string | undefined {
+  for (const key of TENANT_KEYS) {
+    const value = trimValue(source?.[key]);
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function normalizeTenantId(value: unknown): string | undefined {
+  const tenant = trimValue(value);
+  if (!tenant) return undefined;
+  if (!TENANT_PATTERN.test(tenant)) throw new Error('invalid tenant id');
+  return tenant;
+}
+
+export function resolveMcpTenantId(
+  authContext: OracleMcpAuthContext | undefined,
+  explicitTenantId?: unknown,
+  env?: OracleProxyEnv,
+): string | undefined {
+  return normalizeTenantId(
+    tenantValueFrom(authContext) ??
+    tenantValueFrom(authContext?.claims) ??
+    trimValue(env?.ORACLE_TENANT_ID) ??
+    explicitTenantId
+  );
 }
 
 export function resolveOracleUrl(env: OracleProxyEnv): string {
@@ -57,11 +101,14 @@ function textResult(payload: unknown, isError = false): TextToolResult {
   };
 }
 
-function proxyHeaders(env: OracleProxyEnv, hasBody: boolean, tenantId?: unknown): Headers {
+function proxyHeaders(env: OracleProxyEnv, hasBody: boolean, tenantId?: string): Headers {
   const headers = new Headers({ accept: 'application/json' });
   if (hasBody) headers.set('content-type', 'application/json');
-  const tenant = trimValue(tenantId);
-  if (tenant) headers.set('x-oracle-tenant-id', tenant);
+  if (tenantId) {
+    headers.set('X-Tenant-ID', tenantId);
+    headers.set('X-Oracle-Tenant', tenantId);
+    headers.set('X-Oracle-Tenant-ID', tenantId);
+  }
   const token = env.ARRA_API_TOKEN?.trim() || env.ARRA_API_KEY?.trim();
   if (token) headers.set('authorization', `Bearer ${token}`);
   return headers;
@@ -85,9 +132,10 @@ export async function oracleProxyTool(
   try {
     const baseUrl = resolveOracleUrl(env);
     const body = request.body === undefined ? undefined : JSON.stringify(request.body);
+    const tenantId = resolveMcpTenantId(request.authContext, request.tenantId, env);
     const response = await fetcher(buildProxyUrl(baseUrl, request.path, request.query), {
       method: request.method ?? 'GET',
-      headers: proxyHeaders(env, body !== undefined, request.tenantId),
+      headers: proxyHeaders(env, body !== undefined, tenantId),
       body,
     });
     return textResult(await readPayload(response), !response.ok);
