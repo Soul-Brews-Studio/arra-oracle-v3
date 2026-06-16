@@ -14,7 +14,6 @@ import { menuCommand } from "./commands/menu.ts";
 import { configCommand, useCommand } from "./commands/config.ts";
 import { doctorCommand } from "./commands/doctor.ts";
 import { completionsCommand } from "./commands/completions.ts";
-import { peersCommand } from "./commands/peers.ts";
 import { huginnCommand } from "./commands/huginn.ts";
 import { vectorConfigCommand } from "./commands/vector-config.ts";
 import { CLI_VERSION, builtinHelpFor, hasHelpFlag, renderCommandHelp, renderRootHelp } from "../../src/cli/help.ts";
@@ -99,11 +98,6 @@ async function main() {
   if (cmd === "doctor") {
     if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
     process.exit(await doctorCommand(args.slice(1)));
-  }
-
-  if (cmd === "peers") {
-    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
-    process.exit(await peersCommand(args.slice(1)));
   }
 
   if (cmd === "huginn") {

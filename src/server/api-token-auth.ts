@@ -1,8 +1,7 @@
 import { timingSafeEqual } from 'crypto';
 import { apiErrorResponse } from '../middleware/errors.ts';
 
-const OPEN_PATHS = new Set(['/info', '/api/identity']);
-const OPEN_PREFIXES = ['/api/health', '/api/docs/', '/api/peer/'];
+const OPEN_PREFIXES = ['/api/health', '/api/docs/'];
 
 export function apiToken() { return process.env.ARRA_API_TOKEN?.trim() || ''; }
 export function isApiTokenEnabled() { return apiToken().length > 0; }
@@ -15,7 +14,6 @@ function safeEqual(a: string, b: string) {
 
 export function isApiPathProtected(pathname: string) {
   if (!pathname.startsWith('/api/')) return false;
-  if (OPEN_PATHS.has(pathname)) return false;
   if (OPEN_PREFIXES.some((prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix))) return false;
   return true;
 }
