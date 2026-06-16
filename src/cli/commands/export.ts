@@ -80,8 +80,7 @@ function readNonNegativeInt(args: string[], flag: string, fallback: number): num
 
 function hasNewExportFlag(args: string[]): boolean {
   return args.some((arg) => arg === "--url" || arg.startsWith("--url=")
-    || arg === "--output" || arg.startsWith("--output=")
-    || arg === "--out" || arg.startsWith("--out=") || arg === "-o" || arg.startsWith("-o="));
+    || arg === "--output" || arg.startsWith("--output="));
 }
 
 export function parseRemoteExportOptions(args: string[]): RemoteExportOptions {

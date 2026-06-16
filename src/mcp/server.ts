@@ -134,7 +134,7 @@ export class OracleMCPServer {
     if (this.embeddedDeps) return await this.embeddedDeps;
     const [{ createVectorStoreForModel, getEmbeddingModels }, { createDatabase }] = await Promise.all([
       import('../vector/factory.ts'),
-      import('../db/index.ts'),
+      import('../db/create.ts'),
     ]);
     return { createVectorStoreForModel, getEmbeddingModels, createDatabase };
   }
@@ -194,6 +194,9 @@ export class OracleMCPServer {
     }));
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> => {
+      if (typeof request.params.name !== 'string' || !request.params.name.trim()) {
+        return errorResponse('Error: Tool name must be a non-empty string');
+      }
       const toolName = resolveToolName(request.params.name);
       const tool = (await this.toolRegistry()).get(toolName);
       if (!tool) return errorResponse(`Error: Unknown tool: ${toolName}`);

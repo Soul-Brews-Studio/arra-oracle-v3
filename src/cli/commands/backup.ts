@@ -121,9 +121,15 @@ function parseBackupArgs(args: string[]): Pick<BackupOptions, 'outDir'> {
 
 function readValue(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag);
-  if (index >= 0) return args[index + 1];
+  if (index >= 0) {
+    const value = args[index + 1];
+    if (!value || value.startsWith('-')) throw new Error(`missing value for ${flag}`);
+    return value;
+  }
   const prefix = `${flag}=`;
-  return args.find(arg => arg.startsWith(prefix))?.slice(prefix.length);
+  const value = args.find(arg => arg.startsWith(prefix))?.slice(prefix.length);
+  if (value === '') throw new Error(`missing value for ${flag}`);
+  return value;
 }
 
 function columnEntries(table: DumpTable): Array<[string, DumpColumn]> {

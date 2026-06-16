@@ -39,14 +39,36 @@ function printHelp(): void {
 
 function readValue(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag);
-  if (index >= 0) return args[index + 1];
+  if (index >= 0) {
+    const value = args[index + 1];
+    if (!value || value.startsWith("--")) throw new Error(`missing value for ${flag}`);
+    return value;
+  }
   const prefix = `${flag}=`;
-  return args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+  const value = args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+  if (value === "") throw new Error(`missing value for ${flag}`);
+  return value;
+}
+
+function consumeFlag(args: string[], flag: string, consumed: Set<number>): void {
+  const index = args.indexOf(flag);
+  if (index >= 0) {
+    consumed.add(index);
+    consumed.add(index + 1);
+  }
+  const inline = args.findIndex((arg) => arg.startsWith(`${flag}=`));
+  if (inline >= 0) consumed.add(inline);
 }
 
 export function parseChangelogOptions(args: string[]): ChangelogOptions {
+  const consumed = new Set<number>();
   const since = readValue(args, "--since");
+  consumeFlag(args, "--since", consumed);
   const outFile = readValue(args, "--out");
+  consumeFlag(args, "--out", consumed);
+  if (args.includes("--stdout")) consumed.add(args.indexOf("--stdout"));
+  const unknown = args.find((_, index) => !consumed.has(index));
+  if (unknown) throw new Error(`unknown changelog option: ${unknown}`);
   return {
     ...(since ? { since } : {}),
     ...(outFile ? { outFile } : {}),

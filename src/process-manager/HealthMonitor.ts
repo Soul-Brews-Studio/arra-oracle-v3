@@ -155,8 +155,8 @@ export async function getWorkerVersion(
   try {
     const response = await fetch(`${opts.baseUrl}:${port}${versionPath}`);
     if (!response.ok) return null;
-    const data = await response.json() as { version: string };
-    return data.version;
+    const data = await response.json() as { version?: unknown };
+    return typeof data.version === 'string' ? data.version : null;
   } catch {
     return null;
   }
