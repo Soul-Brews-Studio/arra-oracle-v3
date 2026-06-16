@@ -62,7 +62,7 @@ describe("HTTP Contract — search / knowledge / supersede", () => {
 
     test("rejects malformed JSON body", async () => {
       const res = await fetch(`${BASE_URL}/api/learn`, { method: "POST", headers: JSON_HEADERS, body: "{not json" });
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(400);
     });
   });
 

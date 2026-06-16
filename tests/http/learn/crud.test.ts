@@ -51,6 +51,16 @@ afterAll(() => {
 });
 
 describe('POST/GET/PUT/DELETE /api/learn', () => {
+  test('rejects malformed JSON body with bad request status', async () => {
+    const res = await app().handle(new Request('http://local/api/learn', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{not json',
+    }));
+    expect(res.status).toBe(400);
+    expect(await res.text()).toMatch(/bad request/i);
+  });
+
   test('creates, reads, updates, and soft-deletes a learning through Drizzle rows', async () => {
     const created = await call('POST', '/api/learn', {
       pattern: 'Learn CRUD captures route behavior',
