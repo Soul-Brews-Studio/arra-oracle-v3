@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { apiArgsToCliArgs } from './api.ts';
 import { runServe, type ServeDeps } from './serve.ts';
+import { runVectorConfig, VECTOR_CONFIG_HELP } from './vector-config.ts';
 
 type InvokeContext = { source?: string; args?: string[] | Record<string, unknown>; writer?: (...args: unknown[]) => void };
 type InvokeResult = { ok: boolean; output?: string; error?: string };
@@ -130,39 +131,6 @@ function formatHealth(data: any): string { return [`arra health: ${data?.status 
 function formatStats(data: any): string { return ['arra stats', data?.total_documents !== undefined && `docs: ${data.total_documents}`, data?.total_docs !== undefined && `docs: ${data.total_docs}`, data?.vector && `vector: ${one(JSON.stringify(data.vector), 180)}`].filter(Boolean).join('\n'); }
 function formatRows(label: string, keys: string[]) { return (data: any) => { const rows = keys.map(k => data?.[k]).find(Array.isArray) ?? []; const total = data?.total ?? data?.chain_length ?? rows.length; return Array.isArray(rows) ? [`arra ${label}: ${total} item${Number(total) === 1 ? '' : 's'}`, ...rows.slice(0, 8).map((r: any) => `- ${r.id ?? r.trace_id ?? r.path ?? r.filename ?? r.name ?? '?'} ${one(r.title ?? r.query ?? r.content ?? r.preview ?? r.label ?? '')}`)].join('\n') : `arra ${label}: ${preview(data)}`; }; }
 function formatOk(label: string) { return (data: any) => [`arra ${label}: ${data?.success === false ? 'failed' : 'ok'}`, data?.id && `id: ${data.id}`, data?.trace_id && `trace_id: ${data.trace_id}`, data?.thread_id && `thread_id: ${data.thread_id}`, data?.message && one(data.message), data?.error && `error: ${one(data.error)}`].filter(Boolean).join('\n') || `arra ${label}: ${preview(data)}`; }
-function formatVectorConfig(data: any): string {
-  const models = data?.models?.models && typeof data.models.models === 'object' ? data.models.models : {}, engines = Array.isArray(data?.health?.engines) ? data.health.engines : [], lines = ['Collection | Adapter | Model | Docs | Status'];
-  for (const [key, raw] of Object.entries(models)) {
-    const m = raw as any, engine = engines.find((e: any) => e.key === key || e.collection === m.collection || e.model === m.model);
-    lines.push(`${m.collection ?? key} | ${m.adapter ?? 'lancedb'} | ${m.model ?? key} | ${m.count ?? m.docs ?? 0} | ${engine ? (engine.ok === false ? 'down' : 'ok') : (data?.health?.status ?? 'unknown')}`);
-  }
-  if (lines.length === 1) lines.push('(none) | - | - | 0 | ' + (data?.health?.status ?? 'unknown'));
-  return lines.join('\n');
-}
-function formatVectorConfigWrite(data: any) { return ['arra vector-config: ' + (data?.success === false ? 'failed' : 'ok'), data?.collection && `collection: ${data.collection}`, data?.adapter && `adapter: ${data.adapter}`, data?.count !== undefined && `count: ${data.count}`, data?.error && `error: ${one(data.error)}`].filter(Boolean).join('\n'); }
-const VC_HELP = 'vector-config [--json] | vector-config set <collection> adapter <lancedb|qdrant|sqlite-vec|chroma> | vector-config reload | vector-config test <collection>';
-function buildVectorConfig(p: Parsed): { method: Method; built: Built } | undefined {
-  const action = key(p.pos[0] || ''), collection = p.pos[1], adapter = p.pos[3];
-  if (!action) return undefined;
-  if (action === 'reload') return { method: 'POST', built: route('/api/v1/vector/config/reload') };
-  if (!collection) throw new Error('collection required');
-  if (action === 'test') return { method: 'POST', built: route(`/api/v1/vector/config/${enc(collection)}/test`) };
-  if (action !== 'set' || key(p.pos[2] || '') !== 'adapter') throw new Error(VC_HELP);
-  if (!['lancedb', 'qdrant', 'sqlite-vec', 'chroma'].includes(adapter)) throw new Error('adapter must be lancedb, qdrant, sqlite-vec, or chroma');
-  return { method: 'PUT', built: route(`/api/v1/vector/config/${enc(collection)}`, undefined, { adapter }) };
-}
-async function runVectorConfig(parsed: Parsed, request: Requester): Promise<InvokeResult> {
-  try {
-    const write = buildVectorConfig(parsed);
-    if (write) {
-      const init: RequestInit = { method: write.method, headers: authHeaders() };
-      if (write.built.body) init.body = JSON.stringify(write.built.body);
-      return { ok: true, output: formatVectorConfigWrite(await request(qs(write.built.path, write.built.query), init)) };
-    }
-    const init: RequestInit = { method: 'GET' }, data = { models: await request('/api/vector/index/models', init), health: await request('/api/vector/health', init) };
-    return { ok: true, output: b(parsed, 'json') ? JSON.stringify(data, null, 2) : formatVectorConfig(data) };
-  } catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
-}
 export const COMMANDS: Record<string, Spec> = {
   search: { tool: 'oracle_search', method: 'GET', help: 'search <q> [--mode fts|hybrid|vector] [--limit N]', build: p => route('/api/search', { q: text(p, 'query', 'query'), type: f(p, 'type'), limit: f(p, 'limit') || '5', offset: f(p, 'offset'), mode: f(p, 'mode') || 'fts', project: f(p, 'project'), cwd: f(p, 'cwd'), model: f(p, 'model') }), format: formatSearch },
   learn: { tool: 'oracle_learn', method: 'POST', write: true, help: 'learn <text> [--project P] [--source S] [--concepts a,b]', build: p => route('/api/learn', undefined, { pattern: text(p, 'pattern', 'text'), project: f(p, 'project'), source: f(p, 'source'), concepts: f(p, 'concepts')?.split(',').map(s => s.trim()).filter(Boolean) }), format: formatOk('learn') },
@@ -178,7 +146,7 @@ export const COMMANDS: Record<string, Spec> = {
   vector_status: { tool: 'oracle_vector_status', method: 'GET', help: 'vector-status', build: () => route('/api/vector/index/status'), format: d => `arra vector-status: ${preview(d, 700)}` },
   vector_stop: { tool: 'oracle_vector_stop', method: 'POST', write: true, help: 'vector-stop', build: () => route('/api/vector/index/stop'), format: formatOk('vector-stop') },
   vector_models: { tool: 'oracle_vector_models', method: 'GET', help: 'vector-models', build: () => route('/api/vector/index/models'), format: d => `arra vector-models: ${preview(d, 700)}` },
-  vector_config: { tool: 'oracle_vector_config', method: 'GET', help: VC_HELP, build: () => route('/api/vector/index/models'), format: formatVectorConfig },
+  vector_config: { tool: 'oracle_vector_config', method: 'GET', help: VECTOR_CONFIG_HELP, build: () => route('/api/v1/vector/config'), format: d => preview(d, 700) },
   health: { tool: 'oracle_health', method: 'GET', help: 'health', build: () => route('/api/health'), format: formatHealth },
   trace: { tool: 'oracle_trace', method: 'POST', write: true, help: 'trace <query> [--scope project|cross-project|human]', build: p => route('/api/traces', undefined, { query: text(p, 'query', 'query'), queryType: f(p, 'query_type'), scope: f(p, 'scope'), parentTraceId: f(p, 'parent_trace_id'), project: f(p, 'project'), agentCount: n(p, 'agent_count'), durationMs: n(p, 'duration_ms') }), format: formatOk('trace') },
   trace_list: { tool: 'oracle_trace_list', method: 'GET', help: 'trace_list [--query Q] [--status S] [--project P] [--limit N]', build: p => route('/api/traces', { query: f(p, 'query'), status: f(p, 'status'), project: f(p, 'project'), limit: f(p, 'limit'), offset: f(p, 'offset') }), format: formatRows('trace_list', ['traces']) },
@@ -234,7 +202,7 @@ export async function runArra(args: string[], request: Requester = requestJson, 
   if (sub === 'frontend' || sub === 'ui' || sub === 'open') return runFrontend(parsed, opener, env);
   if (sub === 'studio') return runStudio(parsed, runner, env);
   if (sub === 'serve') return runServe(parsed, runner, env, serveDeps);
-  if (sub === 'vector_config') return runVectorConfig(parsed, request);
+  if (sub === 'vector_config') return runVectorConfig(parsed, request, authHeaders);
   const spec = COMMANDS[sub];
   if (!spec) return usage();
   try {
