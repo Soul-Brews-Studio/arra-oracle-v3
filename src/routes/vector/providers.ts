@@ -40,6 +40,8 @@ export function createVectorProvidersEndpoint(options: VectorProvidersEndpointOp
         url: t.Optional(t.String()),
         dimensions: t.Optional(t.Number()),
         text: t.Optional(t.String()),
+        fallback: t.Optional(providerSchema),
+        fallbackChain: t.Optional(t.Array(providerSchema)),
       }),
       detail: { tags: ['vector'], summary: 'Test one embedding provider configuration' },
     });

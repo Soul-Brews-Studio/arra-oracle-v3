@@ -101,6 +101,48 @@ test('POST /api/v1/vector/providers/test probes one provider config', async () =
   expect(body).toMatchObject({ success: true, provider: 'gemini', dimensions: 3 });
 });
 
+test('POST /api/v1/vector/providers/test forwards fallback chain config', async () => {
+  const seen: unknown[] = [];
+  const app = new Elysia({ prefix: '/api' }).use(createVectorProvidersEndpoint({
+    createProvider: (provider, model, options): EmbeddingProvider => {
+      seen.push({ provider, model, options });
+      return {
+        name: provider,
+        dimensions: 5,
+        embed: mock(async () => [[1, 2, 3, 4, 5]]),
+      };
+    },
+  }));
+
+  const res = await createApiVersionedFetch((request) => app.handle(request))(
+    new Request('http://local/api/v1/vector/providers/test', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'ollama',
+        model: 'bge-m3',
+        fallback: 'openai',
+        fallbackChain: ['gemini'],
+        text: 'hello',
+      }),
+    }),
+  );
+  const body = await res.json() as Record<string, unknown>;
+
+  expect(res.status).toBe(200);
+  expect(body).toMatchObject({ success: true, provider: 'ollama', dimensions: 5, model: 'bge-m3' });
+  expect(seen[0]).toEqual({
+    provider: 'ollama',
+    model: 'bge-m3',
+    options: {
+      url: undefined,
+      dimensions: undefined,
+      fallback: 'openai',
+      fallbackChain: ['gemini'],
+    },
+  });
+});
+
 test('POST /api/v1/vector/providers/test returns 503 when provider probe fails', async () => {
   const app = new Elysia({ prefix: '/api' }).use(createVectorProvidersEndpoint({
     createProvider: (provider): EmbeddingProvider => ({

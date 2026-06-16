@@ -46,6 +46,13 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
     ]);
   }
 
+  if (pathname === '/vector/first-run') {
+    return base('First-run setup', 'Vector', 'Auto-detect providers, review cost, and start the first vector index.', [
+      { label: 'Vector dashboard', to: '/vector' },
+      { label: 'First-run setup' },
+    ]);
+  }
+
   if (pathname === '/vector/index') {
     return base('Index Manager', 'Vector', 'Track vector backfill jobs and reindex collections.', [
       { label: 'Vector dashboard', to: '/vector' },

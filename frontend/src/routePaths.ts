@@ -57,6 +57,10 @@ export function vectorDocumentsPath(): string {
   return '/vector/documents';
 }
 
+export function vectorFirstRunPath(): string {
+  return '/vector/first-run';
+}
+
 export function vectorIndexPath(): string {
   return '/vector/index';
 }

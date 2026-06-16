@@ -1,5 +1,5 @@
 import { surfacesFor } from '../plugin-surfaces';
-import { pluginInventoryPath } from '../routePaths';
+import { mcpToolsPath, pluginInventoryPath } from '../routePaths';
 import type { PluginEntry } from '../types';
 import { Badge } from './Badge';
 import { EmptyState } from './EmptyState';
@@ -33,7 +33,7 @@ export function pluginSurfaceBadgePath(pluginName: string, surface: string): str
   return pluginInventoryPath({ q: pluginName, surface });
 }
 
-type SurfaceRow = { label: string; value: string };
+type SurfaceRow = { label: string; value: string; href: string };
 
 function routeLabel(methods: string[] | undefined, path: string): string {
   return `${methods?.length ? methods.join('|') : 'ANY'} ${path}`;
@@ -41,30 +41,38 @@ function routeLabel(methods: string[] | undefined, path: string): string {
 
 export function pluginSurfaceRows(plugin: PluginEntry): SurfaceRow[] {
   const rows: SurfaceRow[] = [];
-  if (plugin.menu) rows.push({ label: 'Menu entry', value: [plugin.menu.label, plugin.menu.path].filter(Boolean).join(' · ') });
+  if (plugin.menu) {
+    rows.push({
+      label: 'Menu entry',
+      value: [plugin.menu.label, plugin.menu.path].filter(Boolean).join(' · '),
+      href: plugin.menu.path ?? pluginSurfaceBadgePath(plugin.name, 'menu'),
+    });
+  }
   if (plugin.server) {
     rows.push({
       label: 'Server',
       value: `${plugin.server.command} ${(plugin.server.args ?? []).join(' ')} · ${plugin.server.healthPath ?? '/health'}`,
+      href: pluginSurfaceBadgePath(plugin.name, 'server'),
     });
   }
   if (plugin.mcpTools?.length) {
-    rows.push({ label: 'MCP tools', value: plugin.mcpTools.map((tool) => tool.name).join(', ') });
+    rows.push({ label: 'MCP tools', value: plugin.mcpTools.map((tool) => tool.name).join(', '), href: mcpToolsPath({ q: plugin.name, source: 'plugin' }) });
   }
   if (plugin.apiRoutes?.length) {
-    rows.push({ label: 'API routes', value: plugin.apiRoutes.map((route) => routeLabel(route.methods, route.path)).join(', ') });
+    rows.push({ label: 'API routes', value: plugin.apiRoutes.map((route) => routeLabel(route.methods, route.path)).join(', '), href: pluginSurfaceBadgePath(plugin.name, 'apiRoutes') });
   }
   if (plugin.proxy?.length) {
     rows.push({
       label: 'Proxy routes',
       value: plugin.proxy.map((proxy) => `${routeLabel(proxy.methods, proxy.path)} → $${proxy.targetEnv}`).join(', '),
+      href: pluginSurfaceBadgePath(plugin.name, 'proxy'),
     });
   }
   if (plugin.cliSubcommands?.length) {
-    rows.push({ label: 'CLI subcommands', value: plugin.cliSubcommands.map((command) => command.command).join(', ') });
+    rows.push({ label: 'CLI subcommands', value: plugin.cliSubcommands.map((command) => command.command).join(', '), href: pluginSurfaceBadgePath(plugin.name, 'cliSubcommands') });
   }
   if (plugin.exportFormats?.length) {
-    rows.push({ label: 'Export formats', value: plugin.exportFormats.map((format) => `.${format.extension}`).join(', ') });
+    rows.push({ label: 'Export formats', value: plugin.exportFormats.map((format) => `.${format.extension}`).join(', '), href: pluginSurfaceBadgePath(plugin.name, 'exportFormats') });
   }
   return rows;
 }
@@ -153,9 +161,9 @@ export function PluginList({
                   <dt className="text-slate-500">Surface details</dt>
                   <dd className="mt-2 grid gap-2">
                     {surfaceRows.map((row) => (
-                      <span key={`${row.label}:${row.value}`} className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 font-mono text-xs text-slate-200">
+                      <a key={`${row.label}:${row.value}`} className="focus-ring rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 font-mono text-xs text-slate-200 hover:border-teal-300/40" href={row.href}>
                         <span className="font-sans text-slate-500">{row.label}: </span>{row.value}
-                      </span>
+                      </a>
                     ))}
                   </dd>
                 </div>
