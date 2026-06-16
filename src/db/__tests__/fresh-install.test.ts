@@ -63,4 +63,26 @@ describe("fresh install (#1111)", () => {
 		sqlite.close();
 		rmSync(dir, { recursive: true });
 	});
+	test("query optimization indexes are installed on fresh DB", () => {
+		const dir = mkdtempSync(join(tmpdir(), "oracle-indexes-"));
+		const dbPath = join(dir, "test.db");
+		const sqlite = new Database(dbPath);
+		const db = drizzle(sqlite, { schema });
+		const migrationsFolder = join(import.meta.dir, "../migrations");
+
+		migrate(db, { migrationsFolder });
+		const rows = sqlite
+			.prepare("SELECT name FROM sqlite_master WHERE type='index'")
+			.all() as Array<{ name: string }>;
+		const names = rows.map((row) => row.name);
+
+		expect(names).toContain("idx_documents_tenant_type_active_updated");
+		expect(names).toContain("idx_search_tenant_created");
+		expect(names).toContain("idx_thread_tenant_status_updated");
+		expect(names).toContain("idx_menu_path_studio");
+
+		sqlite.close();
+		rmSync(dir, { recursive: true });
+	});
+
 });

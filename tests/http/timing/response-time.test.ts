@@ -46,7 +46,8 @@ describe('response time header', () => {
 
     expect(res.status).toBe(500);
     expect(timingMs(res)).toBeGreaterThanOrEqual(0);
-    expect(body.correlationId).toBe(res.headers.get('x-request-id'));
+    const details = body.details as Record<string, unknown>;
+    expect(details.correlationId).toBe(res.headers.get('x-request-id'));
   });
 
   test('adds X-Response-Time to before-handle short-circuited responses', async () => {

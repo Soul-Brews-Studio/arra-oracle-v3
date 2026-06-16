@@ -12,6 +12,7 @@ export function requestTimeoutMsFromEnv(value = process.env.ARRA_REQUEST_TIMEOUT
 
 function timeoutBody(request: Request, timeoutMs: number): StructuredErrorResponse {
   return {
+    success: false,
     error: 'Request Timeout',
     message: `Request exceeded ${timeoutMs}ms timeout`,
     statusCode: 408,

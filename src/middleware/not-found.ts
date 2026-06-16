@@ -1,17 +1,24 @@
 import { Elysia } from 'elysia';
 import { apiRequestPath } from './api-version.ts';
+import { apiErrorResponse } from './errors.ts';
 
 export type NotFoundResponse = {
   error: 'Not Found';
-  path: string;
-  method: string;
+  code: 404;
+  details: {
+    path: string;
+    method: string;
+  };
 };
 
 export type MethodNotAllowedResponse = {
   error: 'Method Not Allowed';
-  path: string;
-  method: string;
-  allowedMethods: string[];
+  code: 405;
+  details: {
+    path: string;
+    method: string;
+    allowedMethods: string[];
+  };
 };
 
 type RouteLike = { method?: string; path: string };
@@ -20,23 +27,21 @@ type RouteMatcher = { path: string; allowedMethods: Set<string> };
 const METHOD_ORDER = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 
 export function notFoundResponse(request: Request): NotFoundResponse {
-  return {
-    error: 'Not Found',
+  return apiErrorResponse('Not Found', 404, {
     path: apiRequestPath(request),
     method: request.method,
-  };
+  });
 }
 
 export function methodNotAllowedResponse(
   request: Request,
   allowedMethods: string[],
 ): MethodNotAllowedResponse {
-  return {
-    error: 'Method Not Allowed',
+  return apiErrorResponse('Method Not Allowed', 405, {
     path: apiRequestPath(request),
     method: request.method,
     allowedMethods,
-  };
+  });
 }
 
 function sortedMethods(methods: Set<string>): string[] {

@@ -26,7 +26,7 @@ export class LanceDBAdapter implements VectorStoreAdapter {
 
     const lancedb = await import('@lancedb/lancedb');
     this.db = await lancedb.connect(this.dbPath);
-    console.error(`[LanceDB] Connected at ${this.dbPath}`);
+    console.log('[LanceDB] Connected to local DB');
   }
 
   async close(): Promise<void> {
@@ -53,7 +53,12 @@ export class LanceDBAdapter implements VectorStoreAdapter {
       await this.table.delete('id = "__init__"');
     }
 
-    console.error(`[LanceDB] Collection '${this.collectionName}' ready`);
+    try {
+      const count = await this.table.countRows();
+      console.error(`[LanceDB] Vector collection ready (${count} items)`);
+    } catch {
+      console.error('[LanceDB] Vector collection ready');
+    }
   }
 
   async deleteCollection(): Promise<void> {
@@ -62,7 +67,7 @@ export class LanceDBAdapter implements VectorStoreAdapter {
     try {
       await this.db.dropTable(this.collectionName);
       this.table = null;
-      console.error(`[LanceDB] Collection '${this.collectionName}' deleted`);
+      console.error('[LanceDB] Vector collection deleted');
     } catch (e) {
       console.warn('[LanceDB] deleteCollection failed:', e instanceof Error ? e.message : String(e));
     }
@@ -176,13 +181,14 @@ export class LanceDBAdapter implements VectorStoreAdapter {
     return { count: stats.count, name: this.collectionName };
   }
 
-  async getAllEmbeddings(limit: number = 5000): Promise<{ ids: string[]; embeddings: number[][]; metadatas: any[] }> {
-    if (!this.table) return { ids: [], embeddings: [], metadatas: [] };
+  async getAllEmbeddings(limit: number = 5000): Promise<{ ids: string[]; embeddings: number[][]; metadatas: any[]; documents: string[] }> {
+    if (!this.table) return { ids: [], documents: [], embeddings: [], metadatas: [] };
 
     const rows = await this.table.query().limit(limit).toArray();
 
     return {
       ids: rows.map((r: any) => r.id),
+      documents: rows.map((r: any) => r.text),
       embeddings: rows.map((r: any) => Array.from(r.vector)),
       metadatas: rows.map((r: any) => JSON.parse(r.metadata || '{}')),
     };

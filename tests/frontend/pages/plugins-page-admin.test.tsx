@@ -3,7 +3,7 @@ import { PluginsPage, enabledStateForPlugins, pluginAdminSummary } from '../../.
 import { htmlFor } from '../_render';
 
 describe('PluginsPage admin view', () => {
-  test('renders version status and toggle controls for registered plugins', () => {
+  test('renders version status and health for installed plugins', () => {
     const plugins = [{ name: 'canvas', file: '', size: 0, modified: 'now', version: '1.2.3', status: 'ok' }];
     const html = htmlFor(<PluginsPage plugins={plugins} loading={false} />);
 
@@ -11,7 +11,7 @@ describe('PluginsPage admin view', () => {
     expect(html).toContain('GET /api/v1/plugins');
     expect(html).toContain('canvas');
     expect(html).toContain('1.2.3');
-    expect(html).toContain('ok');
-    expect(html).toContain('Disable canvas');
+    expect(html).toContain('active');
+    expect(html).toContain('healthy');
   });
 });

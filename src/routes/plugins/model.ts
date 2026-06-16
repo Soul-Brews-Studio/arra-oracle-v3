@@ -14,6 +14,7 @@ import {
   publicUnifiedServerManifest,
   type PublicUnifiedServerManifest,
 } from '../../plugins/unified-manifest.ts';
+import { resolveContainedPluginEntry } from '../../plugins/path-containment.ts';
 
 export const PLUGIN_DIR = join(homedir(), '.oracle', 'plugins');
 
@@ -34,6 +35,7 @@ export type PluginEntry = {
   modified: string;
   version?: string;
   description?: string;
+  enabled?: boolean;
   menu?: PluginMenu;
   server?: PublicUnifiedServerManifest;
 };
@@ -54,6 +56,7 @@ type RawPluginManifest = {
   name?: string;
   version?: string;
   description?: string;
+  enabled?: boolean;
   wasm?: string;
   menu?: unknown;
   server?: unknown;
@@ -103,10 +106,12 @@ export function readNestedPlugin(
   if (!manifest) return null;
 
   const server = serverEntry(manifest);
+  if (manifest.server && !server) return null;
   const base = {
     name: typeof manifest.name === 'string' && manifest.name ? manifest.name : entryName,
     version: typeof manifest.version === 'string' ? manifest.version : undefined,
     description: typeof manifest.description === 'string' ? manifest.description : undefined,
+    enabled: manifest.enabled !== false,
     menu: parseMenu(manifest.menu),
     server,
   };
@@ -119,11 +124,16 @@ export function readNestedPlugin(
 
   // Try manifest path as-is, then fall back to basename (plugins copied flat
   // by `arra-cli plugin install` keep the source path in manifest.wasm).
-  let wasmPath = join(dir, wasmName);
+  let wasmPath: string;
   let resolvedName = wasmName;
+  try {
+    wasmPath = resolveContainedPluginEntry(dir, wasmName);
+  } catch {
+    return null;
+  }
   if (!existsSync(wasmPath)) {
     const baseName = basename(wasmName);
-    const basePath = join(dir, baseName);
+    const basePath = resolveContainedPluginEntry(dir, baseName);
     if (!existsSync(basePath)) {
       if (!server) return null;
       const st = statSync(manifestPath);
@@ -148,6 +158,7 @@ export function readFlatPlugin(file: string): PluginEntry {
     file,
     size: st.size,
     modified: st.mtime.toISOString(),
+    enabled: true,
   };
 }
 
@@ -157,9 +168,10 @@ export function resolveWasmPath(name: string): string | null {
     try {
       const manifest = JSON.parse(readFileSync(nestedManifest, 'utf8'));
       if (manifest.wasm && typeof manifest.wasm === 'string') {
-        const full = join(PLUGIN_DIR, name, manifest.wasm);
+        const pluginDir = join(PLUGIN_DIR, name);
+        const full = resolveContainedPluginEntry(pluginDir, manifest.wasm);
         if (existsSync(full)) return full;
-        const base = join(PLUGIN_DIR, name, basename(manifest.wasm));
+        const base = resolveContainedPluginEntry(pluginDir, basename(manifest.wasm));
         if (existsSync(base)) return base;
       }
     } catch {

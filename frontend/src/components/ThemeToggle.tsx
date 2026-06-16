@@ -8,7 +8,13 @@ export function ThemeToggle() {
     applyTheme(theme);
   }, [theme]);
 
-  const next = theme === 'dark' ? 'light' : 'dark';
+  function toggleTheme() {
+    setTheme((current) => {
+      const next = current === 'dark' ? 'light' : 'dark';
+      saveTheme(next);
+      return next;
+    });
+  }
 
   return (
     <button
@@ -16,10 +22,7 @@ export function ThemeToggle() {
       type="button"
       aria-label="Dark mode"
       aria-pressed={theme === 'dark'}
-      onClick={() => {
-        saveTheme(next);
-        setTheme(next);
-      }}
+      onClick={toggleTheme}
     >
       {theme === 'dark' ? '☾ Dark' : '☀ Light'}
     </button>
