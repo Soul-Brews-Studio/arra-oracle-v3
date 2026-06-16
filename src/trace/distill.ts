@@ -2,10 +2,11 @@ import { eq } from 'drizzle-orm';
 import { db, traceLog } from '../db/index.ts';
 import { handleLearn } from '../server/handlers.ts';
 import { getTrace } from './handler.ts';
+import { THOR_ORACLE_ID, THOR_ORACLE_THEME } from '../oracles/thor.ts';
 import type { DistillTraceInput } from './types.ts';
 
-const DEFAULT_ORACLE = 'thor-oracle';
-const DEFAULT_THEME = 'stormforge';
+const DEFAULT_ORACLE = THOR_ORACLE_ID;
+const DEFAULT_THEME = THOR_ORACLE_THEME;
 
 export type DistillTraceResult = {
   success: boolean;

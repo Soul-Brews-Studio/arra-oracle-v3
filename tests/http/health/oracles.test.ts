@@ -85,3 +85,23 @@ test('GET /api/oracles aggregates active identities and projects', async () => {
   expect(body.projects.map((item: { project: string }) => item.project)).toContain(project);
   expect(body.window_hours).toBe(1);
 });
+
+
+test('GET /api/oracles/thor exposes the dev-research Stormforge profile', async () => {
+  const app = createHealthRoutes({
+    vectorHealth: async () => ({ status: 'ok', engines: [], checked_at: '2026-06-16T00:00:00.000Z' }),
+  });
+  const res = await app.handle(new Request('http://local/api/oracles/thor'));
+  const body = await res.json() as Record<string, any>;
+  const capabilities = body.capabilities.map((item: { id: string }) => item.id);
+
+  expect(res.status).toBe(200);
+  expect(body.id).toBe('thor-oracle');
+  expect(body.name).toBe('Thor Oracle');
+  expect(body.role).toBe('dev-research oracle');
+  expect(body.theme).toBe('stormforge');
+  expect(body.motto).toContain('ตีเหล็กจากพายุ');
+  expect(capabilities).toContain('research-distillation');
+  expect(capabilities).toContain('stormforge-development');
+  expect(capabilities).toContain('system-thinking');
+});

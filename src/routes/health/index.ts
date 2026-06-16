@@ -6,13 +6,15 @@ import { createHealthEndpoint, type HealthEndpointOptions } from './health.ts';
 import { createDeepHealthEndpoint } from './deep.ts';
 import { statsEndpoint } from './stats.ts';
 import { oraclesEndpoint } from './oracles.ts';
+import { thorOracleEndpoint } from './thor.ts';
 
 export function createHealthRoutes(options: HealthEndpointOptions = {}) {
   return new Elysia({ prefix: '/api' })
     .use(createHealthEndpoint(options))
     .use(createDeepHealthEndpoint(options))
     .use(statsEndpoint)
-    .use(oraclesEndpoint);
+    .use(oraclesEndpoint)
+    .use(thorOracleEndpoint);
 }
 
 export const healthRoutes = createHealthRoutes();
