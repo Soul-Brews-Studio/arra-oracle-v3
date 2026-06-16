@@ -33,10 +33,12 @@ describe('frontend router', () => {
   test('declares the public dashboard route set', () => {
     expect([...frontendRoutes]).toEqual([
       '/',
+      '/menu',
       '/plugins',
       '/canvas/plugins',
       '/metrics',
       '/search',
+      '/export',
       '/learn',
       '/vector',
       '/vector/search',
@@ -48,13 +50,14 @@ describe('frontend router', () => {
   });
 
   test('routes root, plugins, metrics, search, and learn surfaces', () => {
-    expect(htmlAt('/')).toContain('Menu viewer');
-    expect(htmlAt('/plugins')).toContain('Registered plugins');
+    expect(htmlAt('/')).toContain('Menu catalog');
+    expect(htmlAt('/plugins')).toContain('Installed plugins');
     expect(htmlAt('/canvas/plugins')).toContain('Canvas plugin registry');
     expect(htmlAt('/metrics')).toContain('Metrics dashboard');
     expect(htmlAt('/metrics')).toContain('42');
     expect(htmlAt('/metrics')).toContain('Memory usage');
     expect(htmlAt('/search')).toContain('Full-text menu search');
+    expect(htmlAt('/export')).toContain('Export collections');
     expect(htmlAt('/learn')).toContain('Learn entries');
     expect(htmlAt('/vector')).toContain('Vector dashboard');
     expect(htmlAt('/vector/search')).toContain('Vector search preview');
