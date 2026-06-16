@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildPlugin } from '../scripts/build.ts';
+import { verifyMawPluginBuild } from '../scripts/verify-build.ts';
 
 const tmp = mkdtempSync(join(tmpdir(), 'arra-maw-plugin-build-'));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
@@ -29,4 +30,12 @@ test('maw plugin build emits dist manifest, tgz, sha, and plugins.lock', async (
   expect(lock.plugins.arra).toMatchObject({ version: '1.0.0', package: 'arra-1.0.0.tgz', pinned: true });
   expect(lock.plugins.arra.artifact.sha256).toBe(sha256);
   expect(lock.plugins.arra.packageSha256).toBe(packageSha256);
+});
+
+test('actual maw plugin build emits verifiable artifact and install records plugins.lock', () => {
+  const result = verifyMawPluginBuild({ root: join(import.meta.dir, '..') });
+
+  expect(result.artifactSha256).toStartWith('sha256:');
+  expect(result.packageSha256).toStartWith('sha256:');
+  expect(result.lockSha256).toBe(result.artifactSha256);
 });
