@@ -13,8 +13,8 @@ const ORIGINAL_DATA_DIR = process.env.ORACLE_DATA_DIR;
 const ORIGINAL_HOME = process.env.HOME;
 const ORIGINAL_REPO_ROOT = process.env.ORACLE_REPO_ROOT;
 const ORIGINAL_GHQ_ROOT = process.env.GHQ_ROOT;
-// combined: mirrors production — files.ts registers /api/plugins first and
-// shadows plugins.ts. pluginsOnly: canonical dual-layout scanner in isolation.
+const ORIGINAL_ARRA_PLUGIN_DIRS = process.env.ARRA_PLUGIN_DIRS;
+// combined: files.ts owns /api/plugins; pluginsOnly: dual-layout scanner.
 let combined: any;
 let pluginsOnly: any;
 
@@ -26,13 +26,13 @@ beforeAll(async () => {
   mkdirSync(join(tmp, 'plugins'), { recursive: true });
   writeFileSync(join(tmp, 'plugins', 'alpha.wasm'), WASM_HEADER);
 
-  // plugins.ts captures PLUGIN_DIR at module load via os.homedir(), which
-  // bypasses the HOME env var — mock os before dynamic import.
+  // mock os before dynamic import; env override keeps cached modules isolated.
   const fakeHome = join(tmp, 'fake-home');
   mkdirSync(fakeHome, { recursive: true });
   mock.module('os', () => ({ ...realOs, default: realOs, homedir: () => fakeHome }));
 
   const canonical = join(fakeHome, '.oracle', 'plugins');
+  process.env.ARRA_PLUGIN_DIRS = canonical;
   mkdirSync(canonical, { recursive: true });
   // Flat entry.
   writeFileSync(join(canonical, 'flat.wasm'), WASM_HEADER);
@@ -82,6 +82,7 @@ afterAll(() => {
   if (ORIGINAL_HOME) process.env.HOME = ORIGINAL_HOME; else delete process.env.HOME;
   if (ORIGINAL_REPO_ROOT) process.env.ORACLE_REPO_ROOT = ORIGINAL_REPO_ROOT; else delete process.env.ORACLE_REPO_ROOT;
   if (ORIGINAL_GHQ_ROOT) process.env.GHQ_ROOT = ORIGINAL_GHQ_ROOT; else delete process.env.GHQ_ROOT;
+  if (ORIGINAL_ARRA_PLUGIN_DIRS) process.env.ARRA_PLUGIN_DIRS = ORIGINAL_ARRA_PLUGIN_DIRS; else delete process.env.ARRA_PLUGIN_DIRS;
 });
 
 describe('GET /api/file — security', () => {

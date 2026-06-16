@@ -18,6 +18,12 @@ import { resolveContainedPluginEntry } from '../../plugins/path-containment.ts';
 
 export const PLUGIN_DIR = join(homedir(), '.oracle', 'plugins');
 
+function pluginDir(): string {
+  const [configured] =
+    process.env.ARRA_PLUGIN_DIRS?.split(':').map((item) => item.trim()).filter(Boolean) ?? [];
+  return configured ?? PLUGIN_DIR;
+}
+
 export const PluginMenuSchema = t.Object({
   label: t.String(),
   group: t.Optional(t.Union([t.Literal('main'), t.Literal('tools'), t.Literal('hidden')])),
@@ -124,16 +130,21 @@ export function readNestedPlugin(
 
   // Try manifest path as-is, then fall back to basename (plugins copied flat
   // by `arra-cli plugin install` keep the source path in manifest.wasm).
-  let wasmPath: string;
+  let wasmPath: string | null = null;
   let resolvedName = wasmName;
   try {
     wasmPath = resolveContainedPluginEntry(dir, wasmName);
   } catch {
-    return null;
+    // Fall back to basename for copied plugins whose manifest kept a source path.
   }
-  if (!existsSync(wasmPath)) {
+  if (!wasmPath || !existsSync(wasmPath)) {
     const baseName = basename(wasmName);
-    const basePath = resolveContainedPluginEntry(dir, baseName);
+    let basePath: string;
+    try {
+      basePath = resolveContainedPluginEntry(dir, baseName);
+    } catch {
+      return null;
+    }
     if (!existsSync(basePath)) {
       if (!server) return null;
       const st = statSync(manifestPath);
@@ -151,8 +162,8 @@ export function readNestedPlugin(
   };
 }
 
-export function readFlatPlugin(file: string): PluginEntry {
-  const st = statSync(join(PLUGIN_DIR, file));
+export function readFlatPlugin(file: string, dir = pluginDir()): PluginEntry {
+  const st = statSync(join(dir, file));
   return {
     name: file.replace(/\.wasm$/, ''),
     file,
@@ -163,31 +174,37 @@ export function readFlatPlugin(file: string): PluginEntry {
 }
 
 export function resolveWasmPath(name: string): string | null {
-  const nestedManifest = join(PLUGIN_DIR, name, 'plugin.json');
+  const dir = pluginDir();
+  const nestedManifest = join(dir, name, 'plugin.json');
   if (existsSync(nestedManifest)) {
     try {
       const manifest = JSON.parse(readFileSync(nestedManifest, 'utf8'));
       if (manifest.wasm && typeof manifest.wasm === 'string') {
-        const pluginDir = join(PLUGIN_DIR, name);
-        const full = resolveContainedPluginEntry(pluginDir, manifest.wasm);
-        if (existsSync(full)) return full;
-        const base = resolveContainedPluginEntry(pluginDir, basename(manifest.wasm));
+        const pluginRoot = join(dir, name);
+        try {
+          const full = resolveContainedPluginEntry(pluginRoot, manifest.wasm);
+          if (existsSync(full)) return full;
+        } catch {
+          // Try basename below.
+        }
+        const base = resolveContainedPluginEntry(pluginRoot, basename(manifest.wasm));
         if (existsSync(base)) return base;
       }
     } catch {
       // fall through to flat
     }
   }
-  const flat = join(PLUGIN_DIR, `${name}.wasm`);
+  const flat = join(dir, `${name}.wasm`);
   if (existsSync(flat)) return flat;
   return null;
 }
 
 export function scanPlugins(): { plugins: PluginEntry[]; dir: string } {
-  if (!existsSync(PLUGIN_DIR)) return { plugins: [], dir: PLUGIN_DIR };
+  const dir = pluginDir();
+  if (!existsSync(dir)) return { plugins: [], dir };
   const plugins: PluginEntry[] = [];
-  for (const entry of readdirSync(PLUGIN_DIR)) {
-    const fullPath = join(PLUGIN_DIR, entry);
+  for (const entry of readdirSync(dir)) {
+    const fullPath = join(dir, entry);
     let st;
     try {
       st = statSync(fullPath);
@@ -198,10 +215,10 @@ export function scanPlugins(): { plugins: PluginEntry[]; dir: string } {
       const nested = readNestedPlugin(fullPath, entry);
       if (nested) plugins.push(nested);
     } else if (st.isFile() && entry.endsWith('.wasm')) {
-      plugins.push(readFlatPlugin(entry));
+      plugins.push(readFlatPlugin(entry, dir));
     }
   }
-  return { plugins, dir: PLUGIN_DIR };
+  return { plugins, dir };
 }
 
 export function getPluginMenuItems(): MenuItem[] {
