@@ -10,6 +10,12 @@ maw plugin enable arra
 ```
 
 
+## MCP surface
+
+The manifest exposes `oracle_arra_read` as an MCP-out tool. It reuses the same
+command core as CLI/menu/API and only advertises read-only commands; write verbs
+stay on the CLI/API surface where auth headers are explicit.
+
 ## Build artifact
 
 The repo-local manifest declares `target: "js"` and keeps `artifact.sha256` pinned to

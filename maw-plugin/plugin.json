@@ -74,6 +74,67 @@
   ],
   "artifact": {
     "path": "./index.ts",
-    "sha256": "917531bf76cc16ef6949f96158db491fc9e053d5715b2169777ec92ba127063f"
-  }
+    "sha256": "ff8251c42ce5854f6d19deeb7d9fa2a54ca2caf5bc128182aba50c0dbdcbf9b5"
+  },
+  "mcpTools": [
+    {
+      "name": "oracle_arra_read",
+      "description": "Run read-only ARRA Oracle commands through the shared maw plugin command core.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "enum": [
+              "commands",
+              "search",
+              "stats",
+              "plugins",
+              "settings",
+              "feed",
+              "menu",
+              "vector",
+              "vector_status",
+              "vector_models",
+              "health",
+              "trace_list",
+              "trace_get",
+              "trace_chain",
+              "concepts",
+              "inbox",
+              "list",
+              "read",
+              "reflect",
+              "supersede_list",
+              "supersede_chain",
+              "threads",
+              "thread_read",
+              "schedule",
+              "mcp_tools"
+            ]
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "query": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "additionalProperties": true
+      },
+      "handler": "default",
+      "group": "oracle",
+      "readOnly": true,
+      "enabledByDefault": true
+    }
+  ]
 }

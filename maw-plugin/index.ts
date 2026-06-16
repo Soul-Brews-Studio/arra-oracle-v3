@@ -177,6 +177,7 @@ export const COMMANDS: Record<string, Spec> = {
 };
 
 const LOCAL_COMMANDS = { commands: 'commands', frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]', serve: 'serve [--stop|--status] [--port N]', server: 'server [start|stop|status]', studio: 'studio [--port N]', ...LOCAL_CLI_HELP } as const;
+const MCP_COMMANDS = new Set(['commands', ...Object.entries(COMMANDS).filter(([name, spec]) => name !== 'vector_config' && !spec.write && spec.method === 'GET').map(([name]) => name)]);
 function usage(): InvokeResult {
   const commandNames = [...Object.keys(COMMANDS), ...Object.keys(LOCAL_COMMANDS)].sort();
   return { ok: false, error: 'usage', output: ['usage: maw arra <subcommand> [args]', `subcommands: ${commandNames.join('|')}`, '', ...Object.entries(LOCAL_COMMANDS).sort().map(([name, help]) => `  ${name}  ${help}`), ...Object.entries(COMMANDS).sort().map(([name, spec]) => `  ${name}  ${spec.help}`)].join('\n') };
@@ -235,6 +236,7 @@ export async function runArra(args: string[], request: Requester = requestJson, 
 
 export default async function handler(ctx: InvokeContext): Promise<InvokeResult> {
   const args = apiArgsToCliArgs(ctx.args);
+  if (ctx.source === 'mcp' && args.length && !MCP_COMMANDS.has(key(args[0]))) return { ok: false, error: 'MCP surface exposes read-only commands only' };
   if (ctx.source !== 'cli' && args.length === 0) return registryPayload(ctx.source);
   const result = await runArra(args);
   if (ctx.source === 'cli' && ctx.writer && result.ok && result.output) {
