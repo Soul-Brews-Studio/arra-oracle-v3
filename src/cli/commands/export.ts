@@ -10,7 +10,7 @@ import {
 export { buildMarkdownExportPayload, buildVaultJsonExport, buildVectorExportPayload };
 
 const RUN_PATH = "/api/v1/export/app/run";
-const FORMATS = new Set(["markdown", "json", "jsonl"]);
+const FORMATS = new Set(["markdown", "json", "jsonl", "csv"]);
 const DEFAULT_RETRY_DELAY_MS = 250;
 
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
@@ -37,14 +37,14 @@ export interface RemoteExportDeps {
 
 function printHelp(): void {
   console.log([
-    "bun run export -- --url <oracle-v2-url> --collection <name> --format markdown|json|jsonl --output <path>",
+    "bun run export -- --url <oracle-v2-url> --collection <name> --format markdown|json|jsonl|csv --output <path>",
     "",
     "Exports one collection through the Oracle v2 export-app engine.",
     "",
     "Flags:",
     "  --url <url>          Oracle v2 base URL, e.g. http://localhost:47778",
     "  --collection <name>  export collection name, e.g. oracle_documents",
-    "  --format <format>    markdown, json, or jsonl",
+    "  --format <format>    markdown, json, jsonl, or csv",
     "  --output <path>      destination file path",
     "  --include-graph      include relationship graph rows when supported",
     "  --graph              alias for --include-graph",
@@ -96,7 +96,7 @@ export function parseRemoteExportOptions(args: string[]): RemoteExportOptions {
 function requireRemoteOptions(options: RemoteExportOptions): asserts options is Required<RemoteExportOptions> {
   if (!options.url) throw new Error("export requires --url <oracle-v2-url>");
   if (!options.collection) throw new Error("export requires --collection <name>");
-  if (!options.format) throw new Error("export requires --format markdown|json|jsonl");
+  if (!options.format) throw new Error("export requires --format markdown|json|jsonl|csv");
   if (!options.output) throw new Error("export requires --output <path>");
   if (!FORMATS.has(options.format)) throw new Error(`unsupported format: ${options.format}`);
 }

@@ -49,6 +49,29 @@ describe("export CLI remote engine", () => {
     expect((calls[0]!.init!.headers as Record<string, string>).authorization).toBe("Bearer secret");
   });
 
+  test("supports CSV remote export downloads", async () => {
+    const output = tempFile("oracle_documents.csv");
+    const fetcher = async (input: string, init?: RequestInit): Promise<Response> => {
+      if (input.endsWith("/api/v1/export/app/run")) {
+        expect(JSON.parse(String(init?.body))).toEqual({ collection: "oracle_documents", format: "csv" });
+        return Response.json({ downloadUrl: "/api/v1/export/app/download/job-csv" });
+      }
+      return new Response('id,title\n"doc-1","CSV"\n', {
+        headers: { "content-type": "text/csv; charset=utf-8" },
+      });
+    };
+
+    const message = await runRemoteExportCommand([
+      "--url", "http://oracle.test",
+      "--collection", "oracle_documents",
+      "--format", "csv",
+      "--output", output,
+    ], { fetch: fetcher });
+
+    expect(message).toContain("exported oracle_documents (csv)");
+    expect(readFileSync(output, "utf8")).toBe('id,title\n"doc-1","CSV"\n');
+  });
+
   test("sends includeGraph when the graph CLI flag is present", async () => {
     const output = tempFile("oracle_documents.json");
     let body: unknown;
