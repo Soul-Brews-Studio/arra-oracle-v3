@@ -22,6 +22,13 @@ interface ExportRow {
   concepts: string[];
 }
 
+interface V2CompatDocument {
+  id: string;
+  content: string;
+  metadata: Record<string, unknown>;
+  source: string;
+}
+
 const encoder = new TextEncoder();
 
 function text(value: unknown): string {
@@ -42,15 +49,33 @@ function concepts(value: unknown): string[] {
   return value.split(',').map((part) => part.trim()).filter(Boolean);
 }
 
-function rowAt(dump: EmbeddingDump, index: number): ExportRow {
+function metadataAt(dump: EmbeddingDump, index: number): Record<string, unknown> {
   const metadata = dump.metadatas[index] ?? {};
-  const meta = metadata && typeof metadata === 'object' ? metadata as Record<string, unknown> : {};
+  return metadata && typeof metadata === 'object' ? metadata as Record<string, unknown> : {};
+}
+
+function contentAt(dump: EmbeddingDump, index: number, meta: Record<string, unknown>): string {
+  return text(dump.documents?.[index] ?? meta.document ?? meta.content ?? meta.text);
+}
+
+function rowAt(dump: EmbeddingDump, index: number): ExportRow {
+  const meta = metadataAt(dump, index);
   return {
     id: text(dump.ids[index]),
-    document: text(dump.documents?.[index] ?? meta.document ?? meta.content ?? meta.text),
+    document: contentAt(dump, index, meta),
     type: text(meta.type),
     source_file: text(meta.source_file ?? meta.sourceFile),
     concepts: concepts(meta.concepts),
+  };
+}
+
+function v2CompatDocumentAt(dump: EmbeddingDump, index: number): V2CompatDocument {
+  const metadata = metadataAt(dump, index);
+  return {
+    id: text(dump.ids[index]),
+    content: contentAt(dump, index, metadata),
+    metadata,
+    source: text(metadata.source_file ?? metadata.sourceFile ?? metadata.source),
   };
 }
 
@@ -74,6 +99,20 @@ function streamJsonl(dump: EmbeddingDump): ReadableStream<Uint8Array> {
       for (let i = 0; i < dump.ids.length; i++) {
         controller.enqueue(encoder.encode(`${JSON.stringify(rowAt(dump, i))}\n`));
       }
+      controller.close();
+    },
+  });
+}
+
+function streamV2Compat(dump: EmbeddingDump): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode('{"version":1,"documents":['));
+      for (let i = 0; i < dump.ids.length; i++) {
+        if (i > 0) controller.enqueue(encoder.encode(','));
+        controller.enqueue(encoder.encode(JSON.stringify(v2CompatDocumentAt(dump, i))));
+      }
+      controller.enqueue(encoder.encode(']}'));
       controller.close();
     },
   });
@@ -199,4 +238,8 @@ registerExportFormat('markdown', withMeta(streamMarkdown, {
   contentType: 'text/markdown; charset=utf-8',
   extension: 'md',
   label: 'Markdown',
+}));
+registerExportFormat('v2', withMeta(streamV2Compat, {
+  contentType: 'application/json; charset=utf-8',
+  extension: 'v2.json',
 }));
