@@ -9,14 +9,16 @@
     "aliases": [
       "or"
     ],
-    "help": "maw arra <frontend|ui|open|serve|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|vector-config|vector_index|vector_status|vector_stop|vector_models|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|thread|thread_read|thread_update|threads|verify>"
+    "help": "maw arra <backup|canvas-plugins|canvas-serve|changelog|completions|config|doctor|export|export-obsidian|huginn|import|import-obsidian|migrate|peers|plugin|release|seed|session|use|vault|frontend|ui|open|serve|server|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|vector-config|vector_index|vector_status|vector_stop|vector_models|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|supersede_list|supersede_chain|thread|thread_read|thread_update|threads|schedule|schedule_add|vault_sync|mcp_tools|verify>"
   },
   "capabilities": [
-    "net:http"
+    "net:http",
+    "proc",
+    "shell"
   ],
   "weight": 50,
   "schemaVersion": 1,
-  "help": "maw arra <frontend|ui|open|serve|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|vector-config|vector_index|vector_status|vector_stop|vector_models|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|thread|thread_read|thread_update|threads|verify>",
+  "help": "maw arra <backup|canvas-plugins|canvas-serve|changelog|completions|config|doctor|export|export-obsidian|huginn|import|import-obsidian|migrate|peers|plugin|release|seed|session|use|vault|frontend|ui|open|serve|server|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|vector-config|vector_index|vector_status|vector_stop|vector_models|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|supersede_list|supersede_chain|thread|thread_read|thread_update|threads|schedule|schedule_add|vault_sync|mcp_tools|verify>",
   "api": {
     "path": "/api/arra",
     "methods": [

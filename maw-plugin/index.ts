@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { apiArgsToCliArgs } from './api.ts';
 import { runServe, type ServeDeps } from './serve.ts';
+import { LOCAL_CLI_HELP, resolveLocalCliName, runLocalCli } from './local-cli.ts';
 import { runVectorConfig, VECTOR_CONFIG_HELP } from './vector-config.ts';
 type InvokeContext = { source?: string; args?: string[] | Record<string, unknown>; writer?: (...args: unknown[]) => void };
 type InvokeResult = { ok: boolean; output?: string; error?: string };
@@ -160,14 +161,20 @@ export const COMMANDS: Record<string, Spec> = {
   read: { tool: 'oracle_read', method: 'GET', help: 'read <file-or-id> [--file F|--id ID]', build: p => route('/api/read', { file: f(p, 'file') || (!f(p, 'id') ? p.pos[0] : undefined), id: f(p, 'id') }), format: d => one(d?.content ?? d?.text ?? preview(d), 900) },
   reflect: { tool: 'oracle_reflect', method: 'GET', help: 'reflect', build: () => route('/api/reflect'), format: d => `arra reflect: ${one(d?.text ?? d?.reflection ?? preview(d), 500)}` },
   supersede: { tool: 'oracle_supersede', method: 'POST', write: true, help: 'supersede <oldId> <newId> [--reason R]', build: p => { const oldId = first(p, 'old_id', 'oldId'); const newId = f(p, 'new_id') || p.pos[1]; if (!newId) throw new Error('newId required'); return route('/api/supersede/document', undefined, { oldId, newId, reason: f(p, 'reason') }); }, format: formatOk('supersede') },
+  supersede_list: { tool: 'oracle_supersede_list', method: 'GET', help: 'supersede-list [--project P] [--limit N]', build: p => route('/api/supersede', { project: f(p, 'project'), limit: f(p, 'limit'), offset: f(p, 'offset') }), format: formatRows('supersede-list', ['supersessions']) },
+  supersede_chain: { tool: 'oracle_supersede_chain', method: 'GET', help: 'supersede-chain <path>', build: p => route(`/api/supersede/chain/${enc(first(p, 'path', 'path'))}`), format: d => `arra supersede-chain: ${preview(d, 700)}` },
   thread: { tool: 'oracle_thread', method: 'POST', write: true, help: 'thread <message> [--thread-id N] [--title T]', build: p => route('/api/thread', undefined, { message: text(p, 'message', 'message'), thread_id: n(p, 'thread_id'), title: f(p, 'title'), role: f(p, 'role') || 'human', model: f(p, 'model') }), format: formatOk('thread') },
   threads: { tool: 'oracle_threads', method: 'GET', help: 'threads [--status active|closed] [--limit N]', build: p => route('/api/threads', { status: f(p, 'status'), limit: f(p, 'limit'), offset: f(p, 'offset') }), format: formatRows('threads', ['threads']) },
   thread_read: { tool: 'oracle_thread_read', method: 'GET', help: 'thread_read <threadId>', build: p => route(`/api/thread/${enc(first(p, 'thread_id', 'threadId'))}`), format: d => [`arra thread: ${d?.thread?.id ?? d?.thread_id ?? '?'}`, d?.thread?.title && `title: ${d.thread.title}`, Array.isArray(d?.messages) && `messages: ${d.messages.length}`].filter(Boolean).join('\n') },
   thread_update: { tool: 'oracle_thread_update', method: 'PATCH', write: true, help: 'thread_update <threadId> --status active|closed|answered|pending', build: p => route(`/api/thread/${enc(first(p, 'thread_id', 'threadId'))}/status`, undefined, { status: f(p, 'status') || p.pos[1] }), format: formatOk('thread_update') },
+  schedule: { tool: 'oracle_schedule_list', method: 'GET', help: 'schedule [--date YYYY-MM-DD] [--from D] [--to D] [--status S]', build: p => route('/api/schedule', { date: f(p, 'date'), from: f(p, 'from'), to: f(p, 'to'), filter: f(p, 'filter'), status: f(p, 'status'), limit: f(p, 'limit') }), format: formatRows('schedule', ['events', 'items', 'schedule']) },
+  schedule_add: { tool: 'oracle_schedule_add', method: 'POST', write: true, help: 'schedule-add <event> --date D [--time T]', build: p => route('/api/schedule', undefined, { event: text(p, 'event', 'event'), date: f(p, 'date'), time: f(p, 'time'), notes: f(p, 'notes'), recurring: f(p, 'recurring') }), format: formatOk('schedule-add') },
+  vault_sync: { tool: 'oracle_vault_sync', method: 'POST', write: true, help: 'vault-sync [--dry-run] [--reindex]', build: p => route('/api/vault/sync', undefined, { dryRun: b(p, 'dry_run'), reindex: b(p, 'reindex') }), format: formatOk('vault-sync') },
+  mcp_tools: { tool: 'oracle_mcp_tools', method: 'GET', help: 'mcp-tools', build: () => route('/api/mcp/tools'), format: formatRows('mcp-tools', ['tools']) },
   verify: { tool: 'oracle_verify', method: 'POST', write: true, help: 'verify [--check true|false] [--type all|learning|pattern]', build: p => route('/api/verify', undefined, { check: b(p, 'check'), type: f(p, 'type') }), format: d => `arra verify: ${preview(d, 500)}` },
 };
 
-const LOCAL_COMMANDS = { frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]', serve: 'serve [--stop|--status] [--port N]', studio: 'studio [--port N]' } as const;
+const LOCAL_COMMANDS = { frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]', serve: 'serve [--stop|--status] [--port N]', server: 'server [start|stop|status]', studio: 'studio [--port N]', ...LOCAL_CLI_HELP } as const;
 function usage(): InvokeResult {
   const commandNames = [...Object.keys(COMMANDS), ...Object.keys(LOCAL_COMMANDS)].sort();
   return { ok: false, error: 'usage', output: ['usage: maw arra <subcommand> [args]', `subcommands: ${commandNames.join('|')}`, '', ...Object.entries(LOCAL_COMMANDS).sort().map(([name, help]) => `  ${name}  ${help}`), ...Object.entries(COMMANDS).sort().map(([name, spec]) => `  ${name}  ${spec.help}`)].join('\n') };
@@ -200,7 +207,8 @@ export async function runArra(args: string[], request: Requester = requestJson, 
   const parsed = parse(args.slice(1));
   if (sub === 'frontend' || sub === 'ui' || sub === 'open') return runFrontend(parsed, opener, env);
   if (sub === 'studio') return runStudio(parsed, runner, env);
-  if (sub === 'serve') return runServe(parsed, runner, env, serveDeps);
+  if (sub === 'serve' || sub === 'server') return runServe(parsed, runner, env, serveDeps);
+  if (resolveLocalCliName(sub)) return runLocalCli(sub, args.slice(1), runner, env);
   if (sub === 'vector_config') return runVectorConfig(parsed, request, authHeaders);
   const spec = COMMANDS[sub];
   if (!spec) return usage();
