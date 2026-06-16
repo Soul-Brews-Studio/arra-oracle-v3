@@ -3,6 +3,7 @@ import { findCanvasPlugin, listCanvasPlugins, type CanvasPluginDescriptor } from
 export type CanvasPlugin = CanvasPluginDescriptor;
 
 const DEFAULT_PLUGIN = 'wave';
+const STUDIO_HOME = 'https://studio.buildwithoracle.com/';
 
 export function normalizePlugin(value: string | null): CanvasPlugin {
   return findCanvasPlugin(value ?? '') ?? findCanvasPlugin(DEFAULT_PLUGIN)!;
@@ -49,7 +50,7 @@ p{margin:.25rem 0 0;color:#94a3b8}.pill{border:1px solid rgb(45 212 191/.4);bord
 </style>
 </head>
 <body data-plugin="${id}" data-kind="${plugin.kind}" data-api-base="${apiBase}">
-<header><div class="top"><div><h1 id="canvas-title">${titleFor(plugin)}</h1><p id="canvas-subtitle">canvas.buildwithoracle.com · plugin=${id} · ${plugin.kind}</p></div><span class="pill" id="status">loading API</span></div><div class="picker"><label for="plugin-picker">Hot-swap plugin</label><select id="plugin-picker" aria-label="Hot-swap canvas plugin">${pluginOptions(id)}</select></div><nav aria-label="Canvas plugins">${pluginLinks(id)}</nav></header>
+<header><div class="top"><div><h1 id="canvas-title">${titleFor(plugin)}</h1><p id="canvas-subtitle">canvas.buildwithoracle.com · plugin=${id} · ${plugin.kind}</p></div><span class="pill" id="status">loading API</span></div><div class="picker"><label for="plugin-picker">Hot-swap plugin</label><select id="plugin-picker" aria-label="Hot-swap canvas plugin">${pluginOptions(id)}</select><a href="${STUDIO_HOME}" data-studio-home aria-label="Open Oracle Studio home">Studio home</a></div><nav aria-label="Canvas plugins">${pluginLinks(id)}</nav></header>
 <canvas id="oracle-canvas" aria-label="${id} canvas visualization"></canvas><p class="error" id="error"></p>
 <script type="module">
 const plugins=${JSON.stringify(plugins)};let plugin=${JSON.stringify(id)};const apiBase=${JSON.stringify(apiBase)};const canvas=document.querySelector('canvas');const ctx=canvas.getContext('2d');

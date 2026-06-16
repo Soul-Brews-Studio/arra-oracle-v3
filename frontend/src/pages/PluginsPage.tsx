@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { setPluginEnabled } from '../api/plugin-admin';
 import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
-import { isPluginEnabled, pluginStatusLabel, type PluginEnabledState } from '../components/PluginList';
+import { isPluginEnabled, PluginList, type PluginEnabledState } from '../components/PluginList';
 import { PLUGINS_ENDPOINT, usePlugins, type PluginFetch } from '../hooks/usePlugins';
-import { surfacesFor } from '../plugin-surfaces';
+import { countPluginSurfaces } from '../plugin-surfaces';
+import { UnifiedPluginSurfaceOverview } from './UnifiedPluginSurfaceOverview';
 import type { PluginEntry } from '../types';
 
 const EMPTY_PLUGINS: PluginEntry[] = [];
@@ -49,57 +51,12 @@ function healthForPlugin(plugin: PluginEntry, enabled: boolean): { label: string
   return { label: 'healthy', detail: plugin.server?.healthPath ?? 'manifest ok', tone: 'ok' };
 }
 
-function Pill({ children, tone = 'idle' }: { children: string; tone?: Tone }) {
-  return <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${toneClass(tone)}`}>{children}</span>;
-}
-
 function MetricCard({ label, value, detail, tone = 'idle' }: { label: string; value: string | number; detail: string; tone?: Tone }) {
   return (
     <article className={`rounded-lg border p-4 ${toneClass(tone)}`}>
       <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-80">{label}</p>
       <p className="mt-2 text-2xl font-semibold">{value}</p>
       <p className="mt-1 text-sm opacity-75">{detail}</p>
-    </article>
-  );
-}
-
-function Detail({ label, value, detail }: { label: string; value: string; detail?: string }) {
-  return (
-    <div>
-      <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</dt>
-      <dd className="mt-1 font-mono text-sm text-slate-100">{value}</dd>
-      {detail ? <dd className="mt-1 text-xs text-slate-500">{detail}</dd> : null}
-    </div>
-  );
-}
-
-function PluginCard({ plugin, enabled }: { plugin: PluginEntry; enabled: boolean }) {
-  const health = healthForPlugin(plugin, enabled);
-  const surfaces = surfacesFor(plugin);
-  const status = enabled ? 'active' : 'inactive';
-
-  return (
-    <article className="rounded-lg border border-white/10 bg-slate-950/70 p-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-white">{plugin.name}</h2>
-          <p className="mt-1 text-sm text-slate-400">{plugin.description ?? 'Installed plugin manifest.'}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Pill tone={enabled ? 'ok' : 'idle'}>{status}</Pill>
-          <Pill tone={health.tone}>{health.label}</Pill>
-        </div>
-      </div>
-
-      <dl className="mt-5 grid gap-4 sm:grid-cols-3">
-        <Detail label="Status" value={status} detail={pluginStatusLabel(plugin, enabled)} />
-        <Detail label="Version" value={plugin.version ?? 'unknown'} />
-        <Detail label="Health" value={health.label} detail={health.detail} />
-      </dl>
-
-      <div className="mt-5 flex flex-wrap gap-2">
-        {surfaces.length ? surfaces.map((surface) => <Pill key={surface}>{surface}</Pill>) : <Pill>metadata</Pill>}
-      </div>
     </article>
   );
 }
@@ -111,42 +68,70 @@ export function PluginsPage({
   fetcher,
 }: PluginsPageProps) {
   const initialLoading = loading || initialPlugins.length === 0;
-  const { plugins, loading: fetching, error } = usePlugins({ initialPlugins, initialLoading, endpoint, fetcher });
-  const enabledState = useMemo(() => enabledStateForPlugins(plugins), [plugins]);
+  const { plugins, loading: fetching, error, reload } = usePlugins({ initialPlugins, initialLoading, endpoint, fetcher });
+  const [overrides, setOverrides] = useState<PluginEnabledState>({});
+  const [adminError, setAdminError] = useState('');
+  const [adminMessage, setAdminMessage] = useState('');
+  const enabledState = useMemo(() => ({ ...enabledStateForPlugins(plugins), ...overrides }), [plugins, overrides]);
   const summary = useMemo(() => pluginAdminSummary(plugins, enabledState), [plugins, enabledState]);
   const metrics = useMemo(() => {
     const active = plugins.filter((plugin) => isPluginEnabled(plugin, enabledState)).length;
     const unhealthy = plugins.filter((plugin) => healthForPlugin(plugin, isPluginEnabled(plugin, enabledState)).tone === 'bad').length;
-    return { active, inactive: plugins.length - active, unhealthy };
+    const surfaces = countPluginSurfaces(plugins);
+    return { active, inactive: plugins.length - active, unhealthy, surfaces };
   }, [plugins, enabledState]);
   const showInventory = plugins.length > 0 || !fetching;
+
+  async function togglePlugin(name: string) {
+    const plugin = plugins.find((item) => item.name === name);
+    if (!plugin) return;
+    const next = !isPluginEnabled(plugin, enabledState);
+    setAdminError('');
+    setAdminMessage(`Saving ${name}…`);
+    setOverrides((current) => ({ ...current, [name]: next }));
+    try {
+      const result = await setPluginEnabled(name, next);
+      setAdminMessage(result.message);
+      reload();
+    } catch (cause) {
+      setOverrides((current) => {
+        const copy = { ...current };
+        delete copy[name];
+        return copy;
+      });
+      setAdminError(cause instanceof Error ? cause.message : String(cause));
+      setAdminMessage('');
+    }
+  }
 
   return (
     <section className="grid gap-5" aria-labelledby="plugins-page-title">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Plugin list</p>
-        <h1 id="plugins-page-title" className="mt-2 text-3xl font-semibold text-white">Installed plugin status</h1>
-        <p className="mt-2 text-sm text-slate-400">Registered plugins and live installed inventory from GET {endpoint}.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Plugin management</p>
+        <h1 id="plugins-page-title" className="mt-2 text-3xl font-semibold text-white">Unified plugin surfaces</h1>
+        <p className="mt-2 text-sm text-slate-400">Registered plugins, backend surfaces, and enable/disable controls from GET {endpoint}.</p>
       </header>
 
       {fetching ? <LoadingPanel title="Loading plugins…" detail={`Fetching ${endpoint} and plugin health metadata.`} /> : null}
       {error ? <ErrorMessage title="Could not load plugins." message={error} /> : null}
 
       {showInventory ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <MetricCard label="Installed" value={plugins.length} detail={summary} />
           <MetricCard label="Active" value={metrics.active} detail="ready to serve surfaces" tone="ok" />
           <MetricCard label="Inactive" value={metrics.inactive} detail="disabled or unavailable" />
+          <MetricCard label="Surfaces" value={metrics.surfaces} detail="menu, server, MCP, API, proxy, CLI, export" />
           <MetricCard label="Health" value={metrics.unhealthy ? `${metrics.unhealthy} alert` : 'ok'} detail="manifest and server signal" tone={metrics.unhealthy ? 'bad' : 'ok'} />
         </div>
       ) : null}
 
+      {adminMessage ? <p className="rounded-lg border border-teal-300/20 bg-teal-300/10 p-3 text-sm text-teal-100">{adminMessage}</p> : null}
+      {adminError ? <ErrorMessage title="Could not update plugin state." message={adminError} /> : null}
+
+      {showInventory ? <UnifiedPluginSurfaceOverview plugins={plugins} /> : null}
+
       {plugins.length ? (
-        <div className="grid gap-4 xl:grid-cols-2">
-          {plugins.map((plugin) => (
-            <PluginCard key={plugin.name} plugin={plugin} enabled={isPluginEnabled(plugin, enabledState)} />
-          ))}
-        </div>
+        <PluginList plugins={plugins} enabledState={enabledState} onToggle={(name) => void togglePlugin(name)} />
       ) : showInventory ? (
         <p className="rounded-lg border border-white/10 bg-slate-950/70 p-5 text-sm text-slate-400">
           No installed plugins returned by {endpoint}.

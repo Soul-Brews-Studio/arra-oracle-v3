@@ -1,6 +1,12 @@
 import { Elysia, t } from 'elysia';
 import { getDetectedEmbeddingProviders } from '../../vector/provider-detection.ts';
-import { estimateEmbeddingCost, recommendEmbeddingModel, type CostProvider } from '../../vector/cost-estimation.ts';
+import {
+  estimateEmbeddingCost,
+  estimateEmbeddingCosts,
+  isCostProvider,
+  recommendEmbeddingModel,
+  type CostProvider,
+} from '../../vector/cost-estimation.ts';
 import { getEmbeddingModels, createVectorStoreForModel, type EmbeddingModelConfig } from '../../vector/factory.ts';
 
 export interface VectorCostEndpointOptions {
@@ -34,6 +40,14 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
+function comparisonProviders(selected: CostProvider, available: string[]): CostProvider[] {
+  const providers: CostProvider[] = [];
+  for (const item of [selected, ...available, 'openai', 'gemini', 'ollama']) {
+    if (isCostProvider(item) && !providers.includes(item)) providers.push(item);
+  }
+  return providers;
+}
+
 export function createVectorCostEndpoint(options: VectorCostEndpointOptions = {}) {
   return new Elysia().get('/vector/cost-estimate', async ({ query }) => {
     const models = options.getModels?.() ?? getEmbeddingModels();
@@ -42,20 +56,24 @@ export function createVectorCostEndpoint(options: VectorCostEndpointOptions = {}
     const counts = await Promise.all(requested.map(async ([key, model]) => options.getCount?.(key, model) ?? defaultCount(key, model)));
     const docs = query.docs ? parsePositiveInt(query.docs, 0) : counts.reduce((sum, count) => sum + count, 0);
     const provider = (query.provider ?? 'openai') as CostProvider;
-    const estimate = estimateEmbeddingCost({
+    const input = {
       docs,
       provider,
       model: query.model,
       tokensPerDoc: parsePositiveInt(query.tokensPerDoc, 500),
-    });
+    };
+    const estimate = estimateEmbeddingCost(input);
     const detected = await (options.detectProviders?.() ?? getDetectedEmbeddingProviders(false));
     const availableProviders = detected.providers.filter((item) => item.available).map((item) => item.type);
+    const providerEstimates = estimateEmbeddingCosts(input, comparisonProviders(provider, availableProviders));
     return {
       ...estimate,
       collection: query.collection ?? 'all',
       collections: requested.map(([key], index) => ({ key, docs: counts[index] })),
       availableProviders,
+      providerEstimates,
       recommendation: recommendEmbeddingModel(docs, availableProviders),
+      trackingEndpoint: '/api/v1/vector/costs',
     };
   }, {
     query: t.Object({

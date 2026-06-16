@@ -37,6 +37,8 @@ export const frontendRoutes = [
   '/vector/results',
   '/vector/export',
   '/vector/settings',
+  '/mcp',
+  '/settings',
 ] as const;
 export type FrontendRoute = typeof frontendRoutes[number];
 

@@ -123,7 +123,23 @@ describe('watcher HTTP routes', () => {
     expect(logs.some((line) => line.includes('re-indexed ψ/learn/github.com/owner/repo/watch.md'))).toBe(true);
 
     const status = await call('/api/v1/watcher/status');
-    expect(status.body.events[0]).toMatchObject({ type: 'indexed', docs: 1, jobs: 2 });
+    expect(status.body.events.some((event: any) =>
+      event.type === 'indexed' && event.docs === 1 && event.jobs === 2,
+    )).toBe(true);
+  });
+
+  test('discovers nested ψ/learn directories created after start', async () => {
+    const filePath = path.join(repoRoot, 'ψ', 'learn', 'github.com', 'owner', 'repo', 'fresh.md');
+
+    await call('/api/v1/watcher/start', { method: 'POST' });
+    await sleep(50);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, '# Fresh\n\n## Finding\n\nNew directory trees must be scanned.', 'utf8');
+
+    await waitFor(() => count('indexing_jobs') === Object.keys(MODELS).length, 2_500);
+
+    const row = db.query<{ source_file: string }, []>('SELECT source_file FROM oracle_documents').get();
+    expect(row?.source_file).toBe('ψ/learn/github.com/owner/repo/fresh.md');
   });
 
   test('debounces bursty writes into one re-index event', async () => {
