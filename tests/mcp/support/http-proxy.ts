@@ -10,6 +10,7 @@ export async function captureProxyRequest(toolName: string, args: Record<string,
         method: request.method,
         path: url.pathname,
         query: Object.fromEntries(url.searchParams.entries()),
+        headers: Object.fromEntries(request.headers.entries()),
         body: request.headers.get('content-type') ? await request.json() : null,
       };
       return Response.json(captured);

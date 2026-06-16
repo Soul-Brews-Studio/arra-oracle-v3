@@ -1,4 +1,5 @@
 import type { ToolResponse } from '../tools/types.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 import { mcpTenantHeaders, stripMcpTenantArgs, tenantIdFromMcpArgs } from './tenant.ts';
 
 const EMBEDDED_API_VALUES = new Set(['embedded', 'embed', 'off', 'none', 'false', '0']);
@@ -138,7 +139,7 @@ function toToolResponse(payload: unknown, isError = false): ToolResponse {
 }
 
 function proxyHeaders(hasBody: boolean, tenantId?: string): Record<string, string> | undefined {
-  const headers: Record<string, string> = { ...mcpTenantHeaders(tenantId) };
+  const headers: Record<string, string> = { ...mcpTenantHeaders(tenantId ?? currentTenantId()) };
   if (hasBody) headers['content-type'] = 'application/json';
   const token = process.env.ARRA_API_TOKEN?.trim() || process.env.ARRA_API_KEY?.trim();
   if (token) headers.authorization = `Bearer ${token}`;
