@@ -214,7 +214,7 @@ function createSingleEmbeddingProvider(
       return new NoneEmbeddings();
     case 'local':
     case 'ollama':
-      return new OllamaEmbeddings({ model });
+      return new OllamaEmbeddings({ model, baseUrl: options.url });
     case 'remote':
       return new RemoteHttpEmbeddings({ model, url: options.url, dimensions: options.dimensions });
     case 'openai':

@@ -108,6 +108,7 @@ export const EMBEDDER_VALUES = [
   'chromadb-internal',
   'ollama',
   'openai',
+  'gemini',
   'cloudflare-ai',
   'disabled',
   'off',
