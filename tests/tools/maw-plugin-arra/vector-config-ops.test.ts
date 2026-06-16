@@ -31,7 +31,7 @@ afterEach(() => {
 describe('maw arra vector-config ops commands', () => {
   test('adds a configured vector collection', async () => {
     const { result, calls, body } = await run([
-      'vector-config', 'add', 'qwen3', '--model', 'qwen3-embedding', '--adapter', 'lancedb', '--collection', 'oracle_qwen3', '--primary', 'true',
+      'vector-config', 'add', 'qwen3', '--model', 'qwen3-embedding', '--adapter', 'lancedb', '--collection', 'oracle_qwen3', '--primary',
     ], { success: true, collection: 'qwen3' });
 
     expect(result.ok).toBe(true);

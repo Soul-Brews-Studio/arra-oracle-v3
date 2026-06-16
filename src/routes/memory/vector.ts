@@ -1,5 +1,5 @@
 import { ensureVectorStoreConnected } from '../../vector/factory.ts';
-import { currentTenantId } from '../../middleware/tenant.ts';
+import { activeTenantId, currentTenantId } from '../../middleware/tenant.ts';
 import type { VectorDocument, VectorQueryResult, VectorStoreAdapter } from '../../vector/types.ts';
 import type { MemoryRecord } from './store.ts';
 
@@ -52,7 +52,7 @@ function memoryDocument(memory: MemoryRecord): VectorDocument {
     metadata: {
       type: 'memory',
       memoryId: memory.id,
-      tenant_id: memory.tenantId ?? 'default',
+      tenant_id: memory.tenantId ?? activeTenantId(),
       title: memory.title ?? '',
       source: memory.source ?? '',
       tags: (memory.tags ?? []).join(','),

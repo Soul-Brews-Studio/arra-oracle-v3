@@ -22,13 +22,17 @@ type OracleDb = BunSQLiteDatabase<typeof schema>;
 type MemoryRow = typeof oracleMemories.$inferSelect;
 
 export class MemoryStore {
-  constructor(private readonly database: OracleDb = defaultDb) {}
+  constructor(private readonly database?: OracleDb) {}
+
+  private get db(): OracleDb {
+    return this.database ?? defaultDb;
+  }
 
   save(input: MemoryInput): MemoryRecord {
     const content = input.content.trim();
     if (!content) throw new Error('memory content is required');
     const now = Date.now();
-    const row = this.database.insert(oracleMemories).values({
+    const row = this.db.insert(oracleMemories).values({
       id: `mem_${now.toString(36)}_${crypto.randomUUID().slice(0, 8)}`,
       tenantId: tenantIdForWrite(),
       content,
@@ -45,7 +49,7 @@ export class MemoryStore {
     const normalized = query.trim();
     const safeLimit = Math.min(50, Math.max(1, limit));
     const where = combineWhere(tenantWhere(), searchWhere(normalized));
-    const selected = this.database.select().from(oracleMemories);
+    const selected = this.db.select().from(oracleMemories);
     const rows = where
       ? selected.where(where).orderBy(desc(oracleMemories.createdAt)).limit(safeLimit).all()
       : selected.orderBy(desc(oracleMemories.createdAt)).limit(safeLimit).all();
@@ -55,7 +59,7 @@ export class MemoryStore {
   getByIds(ids: string[]): MemoryRecord[] {
     if (!ids.length) return [];
     const where = combineWhere(inArray(oracleMemories.id, ids), tenantWhere());
-    const rows = this.database.select().from(oracleMemories).where(where).all();
+    const rows = this.db.select().from(oracleMemories).where(where).all();
     const byId = new Map(rows.map((row) => [row.id, memoryFromRow(row)]));
     return ids.map((id) => byId.get(id)).filter((row): row is MemoryRecord => Boolean(row));
   }

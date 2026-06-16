@@ -147,6 +147,10 @@ describe("built-in arra plugin", () => {
       expect(set.ok).toBe(true);
       expect(calls.at(-1)).toMatchObject({ method: "PUT", path: "/api/v1/vector/config/phase1", body: { adapter: "qdrant", endpoint: "http://localhost:6333" } });
 
+      const added = await arraCli({ source: "cli", plugin: "arra", args: ["vector-config", "add", "qwen3", "--model", "qwen3-embedding", "--primary"] });
+      expect(added.ok).toBe(true);
+      expect(calls.at(-1)).toMatchObject({ method: "POST", path: "/api/v1/vector/config/qwen3", body: { model: "qwen3-embedding", primary: true } });
+
       const blocked = await arraCli({ source: "cli", plugin: "arra", args: ["vector-config", "remove", "phase1"] });
       expect(blocked).toEqual({ ok: false, error: "remove requires --yes" });
 
