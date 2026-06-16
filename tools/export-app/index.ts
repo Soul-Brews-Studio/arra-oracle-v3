@@ -2,18 +2,20 @@ import { existsSync, statSync } from 'node:fs';
 import { DB_PATH } from '../../src/config.ts';
 import { exportOracleData, type ExportProgressEvent } from './exporter.ts';
 import { previewOracleExport } from './summary.ts';
+import { appendCollectionFilter } from './collections.ts';
 import { verifyExportBundle } from './verify.ts';
 
 type Writer = (message: string) => void;
 type ProgressMode = 'text' | 'json' | 'silent';
 
 interface CliOptions {
-  outputDir?: string;
+  outputDir: string;
   dbPath?: string;
-  verifyDir?: string;
   quiet: boolean;
   progressMode: ProgressMode;
   dryRun: boolean;
+  verifyDir?: string;
+  collections: string[];
 }
 
 function flagValue(args: string[], index: number, flag: string): string {
@@ -33,25 +35,33 @@ function assignedValue(arg: string, flag: string): string | undefined {
 export function parseArgs(args: string[]): CliOptions {
   let outputDir: string | undefined;
   let dbPath: string | undefined;
-  let verifyDir: string | undefined;
   let quiet = false;
   let progressMode: ProgressMode = 'text';
   let dryRun = false;
+  let verifyDir: string | undefined;
+  let collections: string[] = [];
 
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
     const outputAssigned = assignedValue(arg, '--output');
     const dbAssigned = assignedValue(arg, '--db');
-    const verifyAssigned = assignedValue(arg, '--verify');
     const progressAssigned = assignedValue(arg, '--progress');
+    const verifyAssigned = assignedValue(arg, '--verify');
+    const collectionAssigned = assignedValue(arg, '--collection') ?? assignedValue(arg, '--collections');
     if (outputAssigned !== undefined) { outputDir = outputAssigned; continue; }
     if (dbAssigned !== undefined) { dbPath = dbAssigned; continue; }
-    if (verifyAssigned !== undefined) { verifyDir = verifyAssigned; continue; }
     if (progressAssigned !== undefined) { progressMode = readProgressMode(progressAssigned); continue; }
+    if (verifyAssigned !== undefined) { verifyDir = verifyAssigned; continue; }
+    if (collectionAssigned !== undefined) { collections = appendCollectionFilter(collections, collectionAssigned); continue; }
     if (arg === '--output' || arg === '-o') { outputDir = flagValue(args, i, arg); i += 1; continue; }
     if (arg === '--db') { dbPath = flagValue(args, i, arg); i += 1; continue; }
-    if (arg === '--verify') { verifyDir = flagValue(args, i, arg); i += 1; continue; }
     if (arg === '--progress') { progressMode = readProgressMode(flagValue(args, i, arg)); i += 1; continue; }
+    if (arg === '--verify') { verifyDir = flagValue(args, i, arg); i += 1; continue; }
+    if (arg === '--collection' || arg === '--collections') {
+      collections = appendCollectionFilter(collections, flagValue(args, i, arg));
+      i += 1;
+      continue;
+    }
     if (arg === '--quiet' || arg === '--no-progress') { quiet = true; continue; }
     if (arg === '--progress-json') { progressMode = 'json'; continue; }
     if (arg === '--dry-run') { dryRun = true; continue; }
@@ -60,8 +70,8 @@ export function parseArgs(args: string[]): CliOptions {
   }
 
   if (verifyDir && outputDir) throw new Error('--verify cannot be combined with --output');
-  if (!verifyDir && !outputDir) throw new Error('missing required --output <dir>');
-  return { outputDir, dbPath, verifyDir, quiet, progressMode, dryRun };
+  if (!outputDir && !verifyDir) throw new Error('missing required --output <dir>');
+  return { outputDir: outputDir ?? verifyDir!, dbPath, quiet, progressMode, dryRun, verifyDir, collections };
 }
 
 function readProgressMode(value: string): ProgressMode {
@@ -83,9 +93,8 @@ function requireOutputTarget(path: string): void {
 }
 
 export function validateCliOptions(options: CliOptions): void {
-  if (options.verifyDir) return;
   requireFile(options.dbPath ?? DB_PATH);
-  requireOutputTarget(options.outputDir!);
+  requireOutputTarget(options.outputDir);
 }
 
 function printHelp(write: Writer): void {
@@ -97,9 +106,10 @@ function printHelp(write: Writer): void {
     'Flags:',
     '  --output, -o <dir>   destination backup directory',
     '  --db <path>          SQLite database path (defaults to ORACLE_DB_PATH)',
-    '  --verify <dir>       verify manifest file sizes and SHA-256 checksums',
+    '  --collection <name>  export only matching collection; repeat or comma-separate',
     '  --progress <mode>    progress output: text, json, or silent',
     '  --dry-run            print collection counts without writing files',
+    '  --verify <dir>       verify manifest file sizes and SHA-256 checksums',
     '  --quiet              suppress progress output',
     '  --no-progress        alias for --quiet',
     '  --progress-json      emit progress as JSON lines on stderr',
@@ -128,20 +138,21 @@ export async function runExportApp(args: string[], stdout: Writer = process.stdo
       return 0;
     }
     const options = parseArgs(args);
-    validateCliOptions(options);
     if (options.verifyDir) {
       const result = await verifyExportBundle(options.verifyDir);
       stdout(`${JSON.stringify({ success: result.ok, verified: result.ok, ...result }, null, 2)}\n`);
       return result.ok ? 0 : 1;
     }
+    validateCliOptions(options);
     if (options.dryRun) {
-      stdout(`${JSON.stringify({ success: true, dryRun: true, ...previewOracleExport({ dbPath: options.dbPath }) }, null, 2)}\n`);
+      stdout(`${JSON.stringify({ success: true, dryRun: true, ...previewOracleExport({ dbPath: options.dbPath, collections: options.collections }) }, null, 2)}\n`);
       return 0;
     }
     const progress = progressWriter(options, stderr);
     const result = await exportOracleData({
-      outputDir: options.outputDir!,
+      outputDir: options.outputDir,
       dbPath: options.dbPath,
+      collections: options.collections,
       progress,
     });
     stdout(`${JSON.stringify({ success: true, ...result }, null, 2)}\n`);

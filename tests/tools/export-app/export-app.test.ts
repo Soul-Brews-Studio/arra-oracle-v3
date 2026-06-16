@@ -149,6 +149,28 @@ describe('standalone export app', () => {
     expect(existsSync(join(outputDir, 'collections', 'oracle_documents.json'))).toBe(true);
   });
 
+  test('CLI filters batch exports to selected collections', async () => {
+    const filterDbPath = join(root, 'filter.db');
+    const outputDir = join(root, 'backup-filter');
+    const connection = createDatabase(filterDbPath);
+    const stdout: string[] = [];
+    seed(connection);
+    connection.storage.close();
+
+    const code = await runExportApp(
+      ['--output', outputDir, '--db', filterDbPath, '--collection', 'oracle_documents'],
+      (msg) => stdout.push(msg),
+      () => {},
+    );
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join('')).collectionCount).toBe(1);
+    expect(existsSync(join(outputDir, 'collections', 'oracle_documents.json'))).toBe(true);
+    expect(existsSync(join(outputDir, 'collections', 'trace_log.json'))).toBe(false);
+    const manifest = JSON.parse(readFileSync(join(outputDir, 'manifest.json'), 'utf8'));
+    expect(Object.keys(manifest.collections)).toEqual(['oracle_documents']);
+  });
+
   test('document engine reads a legacy Oracle v2 database with only docs and FTS', async () => {
     const legacyDbPath = join(root, 'legacy-v2.db');
     const legacyOutput = join(root, 'legacy-v2-export');

@@ -19,6 +19,7 @@ import { exportOracleV2Documents } from './documents.ts';
 import { EXPORT_MANIFEST_SCHEMA } from './schema.ts';
 import { exportFileInventory } from './inventory.ts';
 import { exportBundleReadme } from './bundle-readme.ts';
+import { selectExportTables, shouldExportDocuments } from './collections.ts';
 
 type ExportTable = Parameters<typeof getTableName>[0];
 type Progress = (message: string, event?: ExportProgressEvent) => void;
@@ -37,6 +38,7 @@ export interface ExportAppOptions {
   connection?: DatabaseConnection;
   progress?: Progress;
   now?: () => Date;
+  collections?: readonly string[];
 }
 
 export interface ExportOracleDataResult {
@@ -65,7 +67,7 @@ export function schemaTables(): ExportTable[] {
 export async function exportOracleData(options: ExportAppOptions): Promise<ExportOracleDataResult> {
   const close = options.connection ? undefined : openReadonlyConnection(options.dbPath);
   const connection = options.connection ?? close!.connection;
-  const tables = introspectDrizzleTables();
+  const tables = selectExportTables(introspectDrizzleTables(), options.collections);
   const outputDir = path.resolve(options.outputDir);
   const collectionsDir = path.join(outputDir, 'collections');
   const progress = options.progress ?? ((message) => console.error(message));
@@ -86,7 +88,9 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
     }
 
     const relationships = graphRelationships(allCollections);
-    const documentExport = await exportOracleV2Documents({ ...options, outputDir, connection, progress });
+    const documentExport = shouldExportDocuments(options.collections)
+      ? await exportOracleV2Documents({ ...options, outputDir, connection, progress })
+      : { documentCount: 0 };
     await writeCollectionFiles(outputDir, 'relationships', relationships);
     await writeJson(path.join(outputDir, 'all-collections.json'), { exportedAt, collections: allCollections });
     await writeJson(path.join(outputDir, 'manifest.schema.json'), EXPORT_MANIFEST_SCHEMA);
@@ -126,7 +130,7 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
 export async function exportMarkdownData(options: ExportAppOptions): Promise<ExportMarkdownResult> {
   const close = options.connection ? undefined : openReadonlyConnection(options.dbPath);
   const connection = options.connection ?? close!.connection;
-  const tables = schemaTables();
+  const tables = selectExportTables(schemaTables(), options.collections);
   const outputDir = path.resolve(options.outputDir);
   const progress = options.progress ?? ((message) => console.error(message));
   let fileCount = 0;
