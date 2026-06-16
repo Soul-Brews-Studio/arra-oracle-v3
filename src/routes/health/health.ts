@@ -12,6 +12,16 @@ type VectorHealth = Awaited<ReturnType<typeof readVectorBackendHealth>>;
 type DbStatus = { status: 'connected' } | { status: 'error'; error: string };
 type DbPing = () => DbStatus | Promise<DbStatus>;
 
+type DiskHealth = {
+  status: 'ok' | 'warning' | 'error';
+  path: string;
+  totalBytes: number;
+  freeBytes: number;
+  usedBytes: number;
+  usedPercent: number;
+  error?: string;
+};
+
 const HealthVectorSchema = t.Object({
   status: t.Union([t.Literal('ok'), t.Literal('degraded'), t.Literal('down')]),
   checked_at: t.String(),
@@ -75,6 +85,9 @@ export interface HealthEndpointOptions {
   vectorHealth?: () => Promise<VectorHealth>;
   pluginStatuses?: () => UnifiedPluginStatus[] | Promise<UnifiedPluginStatus[]>;
   dbPing?: DbPing;
+  diskPath?: string;
+  diskUsage?: () => DiskHealth;
+  memoryUsage?: () => NodeJS.MemoryUsage;
 }
 
 function errorMessage(error: unknown): string {
