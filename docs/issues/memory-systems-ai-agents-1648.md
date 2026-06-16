@@ -90,6 +90,7 @@ knowledge corpus.
 
 ## Source filings
 
+- `ψ/learn/memory-systems-for-ai-agents-1648.md`
 - `ψ/memory/ai-memory-systems-research.md`
 - `ψ/memory/ai-memory-systems-claims-ledger.md`
 - `ψ/memory/ai-memory-product-patterns-2026.md`
