@@ -4,6 +4,24 @@ import { API_VERSION_HEADER, createApiVersionedFetch } from '../../../src/middle
 import { createVectorHealthEndpoint } from '../../../src/routes/vector/health.ts';
 import { createVectorModelEndpoints } from '../../../src/routes/vector/indexer.ts';
 import type { EmbeddingModelConfig } from '../../../src/vector/factory.ts';
+import type { HealthStatus, RegisteredVectorService, VectorServiceRegistryClient } from '../../../src/vector/service-registry.ts';
+
+const services: RegisteredVectorService[] = [
+  { name: 'lancedb', type: 'builtin' },
+  { name: 'turbovec', type: 'proxy', endpoint: 'http://127.0.0.1:8082' },
+];
+
+const serviceHealth = new Map<string, HealthStatus>([
+  ['lancedb', { status: 'up', checkedAt: '2026-06-16T00:00:00.000Z' }],
+  ['turbovec', { status: 'down', checkedAt: '2026-06-16T00:00:00.000Z', error: 'connection refused' }],
+]);
+
+const registry: VectorServiceRegistryClient = {
+  register: async (service) => service,
+  discover: async () => services,
+  unregister: async () => false,
+  healthCheck: async () => serviceHealth,
+};
 
 const models = {
   'bge-m3': { collection: 'oracle_bge', model: 'bge-m3', adapter: 'lancedb' },
@@ -18,6 +36,7 @@ function createFetch() {
         { type: 'ollama', available: true },
         { type: 'openai', available: false, detail: 'missing OPENAI_API_KEY' },
       ] }),
+      serviceRegistry: registry,
       vectorHealth: async () => ({
         status: 'ok',
         checked_at: '2026-06-16T00:00:00.000Z',
@@ -63,6 +82,10 @@ test('GET /api/v1/vector/status and /api/v1/vector/models return vector status s
       { type: 'openai', available: false, status: 'red', detail: 'missing OPENAI_API_KEY' },
     ],
     freshness: { status: 'stale', totalIndexed: 15, sourceDocs: 20, docsPending: 8 },
+    services: [
+      { name: 'lancedb', status: 'green', available: true },
+      { name: 'turbovec', status: 'red', available: false, health: { error: 'connection refused' } },
+    ],
     storage: [
       { adapter: 'lancedb', status: 'green', healthy: 1, total: 1 },
       { adapter: 'qdrant', status: 'green', healthy: 1, total: 1 },
