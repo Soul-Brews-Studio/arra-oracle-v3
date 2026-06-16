@@ -32,6 +32,7 @@ import { createEtagMiddleware } from './middleware/etag.ts';
 import { createCompressMiddleware } from './middleware/compress.ts';
 import { createRequestDedupFetch } from './middleware/dedup.ts';
 import { createDbContextFetch } from './middleware/db-context.ts';
+import { createTenantFetch, createTenantMiddleware } from './middleware/tenant.ts';
 
 import { authRoutes } from './routes/auth/index.ts';
 import { settingsRoutes } from './routes/settings/index.ts';
@@ -114,6 +115,7 @@ const requestLogger = createRequestLogger();
 const app = new Elysia()
   .onRequest(requestLogger.onRequest)
   .use(createCorrelationMiddleware())
+  .use(createTenantMiddleware())
   .use(createPrivateNetworkPreflightMiddleware())
   .use(createCorsMiddleware())
   .use(createApiVersionHeaderMiddleware())
@@ -233,7 +235,7 @@ await runStartupSelfTest({
 });
 
 const serverFetch = createRequestTimeoutFetch(
-  createRequestDedupFetch(createApiVersionedFetch(createDbContextFetch((request: Request) => app.fetch(request)))),
+  createRequestDedupFetch(createApiVersionedFetch(createTenantFetch(createDbContextFetch((request: Request) => app.fetch(request))))),
 );
 
 export default {

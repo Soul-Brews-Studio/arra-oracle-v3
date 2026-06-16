@@ -3,10 +3,11 @@ import { DB_PATH } from '../../config.ts';
 import { getSetting, isDbLockError } from '../../db/index.ts';
 import { handleStats } from '../../server/handlers.ts';
 import { handleVectorStats } from '../../server/vector-handlers.ts';
+import { tenantStats } from './tenant-stats.ts';
 
 export const statsEndpoint = new Elysia().get('/stats', async () => {
   try {
-    const stats = handleStats(DB_PATH);
+    const stats = tenantStats() ?? handleStats(DB_PATH);
     const vaultRepo = getSetting('vault_repo');
     let vectorStats = { vector: { enabled: false, count: 0, collection: 'oracle_knowledge' } };
     try {
