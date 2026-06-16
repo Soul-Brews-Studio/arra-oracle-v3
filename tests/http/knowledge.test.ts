@@ -1,8 +1,3 @@
-/**
- * HTTP Contract Tests — search, knowledge (learn/handoff/inbox), supersede.
- * Covers src/routes/{search,knowledge,supersede}.ts. Seeds via POST /api/learn,
- * reuses an already-running server on BASE_URL or spawns src/server.ts.
- */
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import type { Subprocess } from "bun";
 import fs from "fs";
@@ -79,12 +74,12 @@ describe("HTTP Contract — search / knowledge / supersede", () => {
       expect((await res.json()).error).toMatch(/pattern/i);
     });
 
-    test("rejects malformed JSON body", async () => {
+    test("rejects malformed JSON body as 400, not 500", async () => {
       const res = await fetch(`${BASE_URL}/api/learn`, { method: "POST", headers: JSON_HEADERS, body: "{not json" });
       const body = await res.json();
       expect(res.status).toBe(400);
       expect(res.headers.get("content-type")).toContain("application/json");
-      expect(body).toMatchObject({ error: "Bad Request", code: 400 });
+      expect(body).toMatchObject({ success: false, error: "Bad Request", code: 400 });
     });
   });
 

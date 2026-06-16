@@ -59,7 +59,7 @@ afterAll(() => {
 });
 
 describe('POST/GET/PUT/DELETE /api/learn', () => {
-  test('rejects malformed JSON body with bad request status', async () => {
+  test('rejects malformed JSON body as 400, not 500', async () => {
     const res = await app().handle(new Request('http://local/api/learn', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -67,7 +67,7 @@ describe('POST/GET/PUT/DELETE /api/learn', () => {
     }));
     expect(res.status).toBe(400);
     expect(res.headers.get('content-type')).toContain('application/json');
-    expect(await res.json()).toMatchObject({ error: 'Bad Request', code: 400 });
+    expect(await res.json()).toMatchObject({ success: false, error: 'Bad Request', code: 400 });
   });
 
   test('rejects malformed JSON on versioned route with 400 contract', async () => {
@@ -78,7 +78,7 @@ describe('POST/GET/PUT/DELETE /api/learn', () => {
     }));
     expect(res.status).toBe(400);
     expect(res.headers.get('content-type')).toContain('application/json');
-    expect(await res.json()).toMatchObject({ error: 'Bad Request', code: 400 });
+    expect(await res.json()).toMatchObject({ success: false, error: 'Bad Request', code: 400 });
   });
 
   test('creates, reads, updates, and soft-deletes a learning through Drizzle rows', async () => {
