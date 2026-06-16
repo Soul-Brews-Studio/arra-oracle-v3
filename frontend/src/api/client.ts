@@ -7,6 +7,7 @@ import type {
   VectorSearchResponse,
 } from '../../../src/server/types';
 import type { LearnCreateResponse, LearnDeleteResponse, LearnListResponse, LearnMutationPayload, LearnUpdateResponse } from '../types';
+import { API_BASE } from './oracle';
 
 export interface MenuSearchResponse {
   data: MenuItem[];
@@ -124,7 +125,7 @@ function backendMessage(payload: unknown, fallback: string): string {
   return fallback;
 }
 
-function urlFor(path: string, baseUrl?: string): string {
+function urlFor(path: string, baseUrl = API_BASE): string {
   if (!baseUrl) return path;
   return new URL(path, baseUrl).toString();
 }
@@ -246,5 +247,4 @@ export class ApiClient {
 }
 
 export const createApiClient = (options?: ApiClientOptions): ApiClient => new ApiClient(options);
-
 export const apiClient = createApiClient();
