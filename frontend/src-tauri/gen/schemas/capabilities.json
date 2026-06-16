@@ -1,1 +1,1 @@
-{}
+{"default":{"identifier":"default","description":"Default permissions for the main ARRA Oracle window.","local":true,"windows":["main"],"permissions":["core:default","opener:default","shell:allow-execute","shell:allow-spawn"]}}
