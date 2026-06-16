@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { Elysia, t } from 'elysia';
+import { createApiVersionedFetch } from '../../src/middleware/api-version.ts';
 import { createApiKeyAuthMiddleware } from '../../src/middleware/auth.ts';
 import { createContentTypeMiddleware } from '../../src/middleware/content-type.ts';
 import { createCorrelationMiddleware } from '../../src/middleware/correlation.ts';
@@ -108,5 +109,26 @@ describe('middleware stack integration', () => {
     expect(thirdLimited.status).toBe(429);
     expect(thirdLimited.headers.get('Retry-After')).toBe('60');
     expect(await thirdLimited.json()).toMatchObject({ error: 'rate_limit_exceeded' });
+  });
+
+  test('keeps auth and rate-limit behavior intact after /api/v1 rewrite', async () => {
+    const app = createStackedApp();
+    const fetchVersioned = createApiVersionedFetch((request) => app.handle(request));
+
+    const unauthenticated = await fetchVersioned(jsonRequest('/api/v1/fail', {
+      headers: { authorization: '' },
+    }));
+    expect(unauthenticated.status).toBe(401);
+    expect(unauthenticated.headers.get('Access-Control-Allow-Origin')).toBe('https://studio.example');
+
+    const headers = { 'x-forwarded-for': 'versioned-limited-client' };
+    const first = await fetchVersioned(jsonRequest('/api/v1/fail', { headers }));
+    const second = await fetchVersioned(jsonRequest('/api/v1/fail', { headers }));
+    const third = await fetchVersioned(jsonRequest('/api/v1/fail', { headers }));
+
+    expect(first.status).toBe(400);
+    expect(second.status).toBe(400);
+    expect(third.status).toBe(429);
+    expect(await third.json()).toMatchObject({ error: 'rate_limit_exceeded' });
   });
 });

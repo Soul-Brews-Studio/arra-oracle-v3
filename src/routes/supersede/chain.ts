@@ -11,7 +11,9 @@ import { activeTenantId } from '../../middleware/tenant.ts';
 function decodePathParam(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   try {
-    return decodeURIComponent(value);
+    const decoded = decodeURIComponent(value).trim();
+    if (!decoded || /[\u0000-\u001F\u007F]/.test(decoded)) return null;
+    return decoded;
   } catch {
     return null;
   }

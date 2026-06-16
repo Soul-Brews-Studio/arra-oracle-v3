@@ -69,7 +69,9 @@ export function getTraceLinkedChain(traceId: string): { chain: TraceRecord[]; po
 
   while (current?.prevTraceId && !backwardVisited.has(current.prevTraceId)) {
     backwardVisited.add(current.traceId);
-    current = getTrace(current.prevTraceId);
+    const previous = getTrace(current.prevTraceId);
+    if (!previous) break;
+    current = previous;
   }
 
   const forwardVisited = new Set<string>();

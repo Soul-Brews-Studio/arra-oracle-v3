@@ -18,6 +18,15 @@ describe('config env validation', () => {
     expect(warnings).toContain('[Config] ORACLE_PORT/PORT is unset; using 47778.');
   });
 
+  test('treats blank path env as unset during validation', () => {
+    const result = validateEnv({
+      env: { HOME: '/tmp/arra-home', ORACLE_DATA_DIR: '   ', ORACLE_VECTOR_DB_PATH: '   ' },
+      emitOptionalWarnings: false,
+    });
+
+    expect(result.warnings).toContain('ORACLE_DATA_DIR is unset; using ~/.arra-oracle-v2.');
+  });
+
   test('rejects invalid port range before server startup', () => {
     expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', PORT: '70000' }, emitOptionalWarnings: false }))
       .toThrow(/PORT must be <= 65535/);
@@ -65,6 +74,15 @@ describe('config env validation', () => {
       .toThrow(/Qdrant vector DB requires QDRANT_URL/);
     expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', ORACLE_VECTOR_DB: 'proxy' }, emitOptionalWarnings: false }))
       .toThrow(/Proxy vector DB requires ORACLE_PROXY_VECTOR_URL/);
+  });
+
+  test('requires provider credentials for remote embedding backends', () => {
+    expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', ORACLE_EMBEDDER: 'remote' }, emitOptionalWarnings: false }))
+      .toThrow(/Remote embedder requires ORACLE_EMBEDDER_URL or ORACLE_REMOTE_EMBEDDING_URL/);
+    expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', ORACLE_EMBEDDER: 'openai' }, emitOptionalWarnings: false }))
+      .toThrow(/OpenAI embedder requires OPENAI_API_KEY/);
+    expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', ORACLE_VECTOR_DB: 'cloudflare-vectorize' }, emitOptionalWarnings: false }))
+      .toThrow(/Cloudflare vector\/AI config requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN/);
   });
 
   test('rejects non-http remote service URLs clearly', () => {

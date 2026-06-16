@@ -11,6 +11,7 @@ import type { ToolContext, ToolResponse, OracleConceptsInput } from './types.ts'
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
+const VALID_TYPES = ['principle', 'pattern', 'learning', 'retro', 'all'];
 
 export const conceptsToolDef = {
   name: 'oracle_concepts',
@@ -57,9 +58,17 @@ function conceptNames(raw: string): string[] {
   return [...unique];
 }
 
+function inputObject(input: OracleConceptsInput): Record<string, unknown> {
+  return input && typeof input === 'object' ? input as Record<string, unknown> : {};
+}
+
 export function listConcepts(db: ToolContext['db'], input: OracleConceptsInput) {
-  const limit = normalizeLimit(input.limit);
-  const type = input.type ?? 'all';
+  const raw = inputObject(input);
+  if (raw.limit !== undefined && typeof raw.limit !== 'number') throw new Error('limit must be a number');
+  const limit = normalizeLimit(raw.limit);
+  const type = raw.type ?? 'all';
+  if (typeof type !== 'string') throw new Error('type must be a string');
+  if (!VALID_TYPES.includes(type)) throw new Error(`Invalid type: ${type}. Must be one of: ${VALID_TYPES.join(', ')}`);
 
   const filters = [isNotNull(oracleDocuments.concepts), ne(oracleDocuments.concepts, '[]')];
   const tenantId = currentTenantId();

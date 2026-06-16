@@ -2,80 +2,10 @@ import { Elysia } from 'elysia';
 import fs from 'fs';
 import { FEED_LOG } from '../../config.ts';
 import { currentTenantId, tenantDataPath, TENANT_HEADER } from '../../middleware/tenant.ts';
-import { FeedQuery, type FeedEvent } from './model.ts';
+import { feedTimestampMs, normalizeFeedLimit, parseLocalEvent, parseMawEvent, type FeedEvent } from '../../feed/events.ts';
+import { FeedQuery } from './model.ts';
 
 const MAW_JS_URL = process.env.MAW_JS_URL || 'http://localhost:3456';
-const DEFAULT_LIMIT = 50;
-const MAX_LIMIT = 200;
-
-export function normalizeFeedLimit(value: string | undefined): number {
-  const parsed = Number.parseInt(value ?? '', 10);
-  if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_LIMIT;
-  return Math.min(parsed, MAX_LIMIT);
-}
-
-function valueString(value: unknown): string {
-  return typeof value === 'string' ? value : '';
-}
-
-function parseLocalEvent(line: string, fallbackTenantId?: string): FeedEvent | undefined {
-  const parts = line.split(' | ').map(s => s.trim());
-  if (parts.length < 6) return undefined;
-  const hasTenant = parts.length >= 7;
-  const [ts, tenantOrOracle, oracleOrHost, hostOrEvent, eventOrProject, projectOrRest, ...restParts] = parts;
-  const rest = (hasTenant ? restParts : [projectOrRest, ...restParts]).join(' | ');
-  const [sessionId, ...msgParts] = (rest || '').split(' » ');
-  const oracle = hasTenant ? oracleOrHost : tenantOrOracle;
-  const event = hasTenant ? eventOrProject : hostOrEvent;
-  if (!ts || !oracle || !event) return undefined;
-  return {
-    timestamp: ts,
-    tenant_id: hasTenant ? tenantOrOracle : fallbackTenantId,
-    oracle,
-    host: hasTenant ? hostOrEvent : oracleOrHost,
-    event,
-    project: hasTenant ? projectOrRest : eventOrProject,
-    session_id: sessionId?.trim() ?? '',
-    message: msgParts.join(' » ').trim(),
-    source: 'local',
-  };
-}
-
-function remoteTimestamp(event: Record<string, unknown>): string {
-  const timestamp = valueString(event.timestamp).trim();
-  if (timestamp) return timestamp;
-  const date = new Date(valueString(event.ts));
-  return Number.isNaN(date.getTime())
-    ? new Date().toISOString().replace('T', ' ').slice(0, 19)
-    : date.toISOString().replace('T', ' ').slice(0, 19);
-}
-
-function parseMawEvent(event: unknown): FeedEvent | undefined {
-  if (!event || typeof event !== 'object') return undefined;
-  const raw = event as Record<string, unknown>;
-  const oracle = valueString(raw.oracle);
-  const type = valueString(raw.event);
-  if (!oracle || !type) return undefined;
-  return {
-    timestamp: remoteTimestamp(raw),
-    tenant_id: tenantForEvent(raw),
-    oracle,
-    host: valueString(raw.host),
-    event: type,
-    project: valueString(raw.project),
-    session_id: valueString(raw.sessionId ?? raw.session_id),
-    message: valueString(raw.message),
-    source: 'maw-js',
-  };
-}
-
-function tenantForEvent(event: unknown): string | undefined {
-  if (!event || typeof event !== 'object') return undefined;
-  const value = (event as Record<string, unknown>).tenant_id
-    ?? (event as Record<string, unknown>).tenantId
-    ?? (event as Record<string, unknown>).tenant;
-  return typeof value === 'string' ? value : undefined;
-}
 
 export const listFeedRoute = new Elysia().get('/', async ({ query, set }) => {
   try {
@@ -117,7 +47,7 @@ export const listFeedRoute = new Elysia().get('/', async ({ query, set }) => {
     if (event) allEvents = allEvents.filter(e => e.event === event);
     if (since) allEvents = allEvents.filter(e => e.timestamp >= since);
 
-    allEvents.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    allEvents.sort((a, b) => feedTimestampMs(b) - feedTimestampMs(a));
     const total = allEvents.length;
     allEvents = allEvents.slice(0, limit);
 

@@ -1,5 +1,5 @@
 import { afterAll, expect, test } from 'bun:test';
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -12,9 +12,10 @@ process.env.ORACLE_DB_PATH = path.join(tempData, 'oracle.db');
 
 const dbModule = await import('../../../src/db/index.ts');
 dbModule.resetDefaultDatabaseForTests(process.env.ORACLE_DB_PATH);
-const { oracleDocuments } = dbModule;
-const { createTenantFetch, TENANT_HEADER } = await import('../../../src/middleware/tenant.ts');
+const { oracleDocuments, supersedeLog } = dbModule;
+const { createTenantFetch, runWithTenant, TENANT_HEADER } = await import('../../../src/middleware/tenant.ts');
 const { supersedeRoutes } = await import('../../../src/routes/supersede/index.ts');
+const { runSupersede } = await import('../../../src/tools/supersede.ts');
 
 const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const tenantA = `tenant-a-${stamp}`;
@@ -26,6 +27,7 @@ const ids = {
   bNew: `sup-b-new-${stamp}`,
 };
 const paths = Object.fromEntries(Object.entries(ids).map(([key, id]) => [key, `ψ/memory/${id}.md`])) as Record<keyof typeof ids, string>;
+const insertedDocIds = new Set<string>(Object.values(ids));
 
 function requestSupersede(tenantId: string, pathname: string, init: RequestInit = {}) {
   return createTenantFetch((request) => supersedeRoutes.handle(request))(new Request(`http://local${pathname}`, {
@@ -48,6 +50,7 @@ function insertDoc(id: string, tenantId: string, sourceFile: string) {
     project: `project-${tenantId}`,
     createdBy: 'tenant-test',
   }).run();
+  insertedDocIds.add(id);
 }
 
 insertDoc(ids.aOld, tenantA, paths.aOld);
@@ -56,7 +59,7 @@ insertDoc(ids.bOld, tenantB, paths.bOld);
 insertDoc(ids.bNew, tenantB, paths.bNew);
 
 afterAll(() => {
-  dbModule.db.delete(oracleDocuments).where(inArray(oracleDocuments.id, Object.values(ids))).run();
+  dbModule.db.delete(oracleDocuments).where(inArray(oracleDocuments.id, [...insertedDocIds])).run();
   dbModule.closeDb();
   if (previousData === undefined) delete process.env.ORACLE_DATA_DIR;
   else process.env.ORACLE_DATA_DIR = previousData;
@@ -99,7 +102,7 @@ test('/api/supersede list and chain stay tenant scoped after document updates', 
 });
 
 test('/api/supersede clamps malformed pagination instead of throwing', async () => {
-  const res = await requestSupersede(tenantA, '/api/supersede?limit=not-a-number&offset=-10');
+  const res = await requestSupersede(tenantA, '/api/supersede?limit=10abc&offset=1.5&project=%20%20');
   const body = await res.json() as { limit: number; offset: number; supersessions: unknown[] };
 
   expect(res.status).toBe(200);
@@ -108,11 +111,70 @@ test('/api/supersede clamps malformed pagination instead of throwing', async () 
   expect(Array.isArray(body.supersessions)).toBe(true);
 });
 
-test('/api/supersede/chain rejects malformed encoded paths', async () => {
+test('/api/supersede legacy log trims fields and rejects blank paths', async () => {
+  const bad = await requestSupersede(tenantA, '/api/supersede', {
+    method: 'POST',
+    body: JSON.stringify({ old_path: '   ' }),
+  });
+  expect(bad.status).toBe(400);
+
+  const good = await requestSupersede(tenantA, '/api/supersede', {
+    method: 'POST',
+    body: JSON.stringify({
+      old_path: '  ψ/memory/old.md  ',
+      old_id: ' old-log ',
+      new_path: '\nψ/memory/new.md\t',
+      reason: '  replaced by a cleaner note  ',
+      superseded_by: ' codex ',
+      project: '  oracle  ',
+    }),
+  });
+  const body = await good.json() as { id: number };
+  const row = dbModule.db.select().from(supersedeLog).where(eq(supersedeLog.id, body.id)).get();
+
+  expect(good.status).toBe(201);
+  expect(row?.oldPath).toBe('ψ/memory/old.md');
+  expect(row?.oldId).toBe('old-log');
+  expect(row?.newPath).toBe('ψ/memory/new.md');
+  expect(row?.reason).toBe('replaced by a cleaner note');
+  expect(row?.supersededBy).toBe('codex');
+  expect(row?.project).toBe('oracle');
+});
+
+test('/api/supersede/chain rejects malformed or empty encoded paths', async () => {
   const res = await requestSupersede(tenantA, '/api/supersede/chain/%E0%A4%A');
+  const blank = await requestSupersede(tenantA, '/api/supersede/chain/%20%20');
+  const nul = await requestSupersede(tenantA, `/api/supersede/chain/${encodeURIComponent(`${paths.aOld}\0`)}`);
 
   expect(res.status).toBe(400);
   expect(await res.json()).toEqual({ error: 'Invalid path parameter' });
+  expect(blank.status).toBe(400);
+  expect(nul.status).toBe(400);
+});
+
+test('runSupersede trims ids and blank reasons before updating documents', () => {
+  const oldId = `trim-old-${stamp}`;
+  const newId = `trim-new-${stamp}`;
+  insertDoc(oldId, tenantA, `ψ/memory/${oldId}.md`);
+  insertDoc(newId, tenantA, `ψ/memory/${newId}.md`);
+
+  const result = runWithTenant(tenantA, () => runSupersede(dbModule.db, {
+    oldId: ` ${oldId} `,
+    newId: `\n${newId}\t`,
+    reason: '   ',
+  }));
+  const row = dbModule.db.select({
+    supersededBy: oracleDocuments.supersededBy,
+    supersededReason: oracleDocuments.supersededReason,
+  }).from(oracleDocuments).where(eq(oracleDocuments.id, oldId)).get();
+  const self = runSupersede(dbModule.db, { oldId: ` ${newId} `, newId });
+
+  expect(result.payload.success).toBe(true);
+  expect(result.payload.old_id).toBe(oldId);
+  expect(result.payload.new_id).toBe(newId);
+  expect(result.payload.reason).toBeNull();
+  expect(row).toEqual({ supersededBy: newId, supersededReason: null });
+  expect(self.isError).toBe(true);
 });
 
 function supersededBy(id: string): string | null {

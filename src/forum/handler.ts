@@ -1,6 +1,17 @@
 import { eq, desc, and, sql } from 'drizzle-orm';
 import { db, forumThreads, forumMessages } from '../db/index.ts';
 import { currentTenantId, tenantIdForWrite } from '../middleware/tenant.ts';
+import {
+  boundedInteger,
+  normalizeStoredRole,
+  normalizeStoredStatus,
+  optionalCount,
+  optionalText,
+  requiredText,
+  validThreadId,
+  validateRole,
+  validateStatus,
+} from './validation.ts';
 import { getProjectContext } from '../server/context.ts';
 import type {
   ForumThread,
@@ -11,45 +22,9 @@ import type {
   OracleThreadOutput,
 } from './types.ts';
 
-const threadStatuses = new Set<ThreadStatus>(['active', 'answered', 'pending', 'closed']);
-const messageRoles = new Set<MessageRole>(['human', 'oracle', 'claude']);
-
 function getProjectContext_(): string | undefined {
   const projectCtx = getProjectContext(process.cwd());
   return projectCtx && 'repo' in projectCtx ? projectCtx.repo : undefined;
-}
-
-function requiredText(value: unknown, label: string): string {
-  if (typeof value !== 'string') throw new Error(`${label} must be a string`);
-  const trimmed = value.trim();
-  if (!trimmed) throw new Error(`${label} must not be blank`);
-  return trimmed;
-}
-
-function optionalText(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-}
-
-function validThreadId(threadId: unknown): threadId is number {
-  return typeof threadId === 'number' && Number.isSafeInteger(threadId) && threadId > 0;
-}
-
-function validateStatus(status: ThreadStatus): ThreadStatus {
-  if (!threadStatuses.has(status)) throw new Error(`Invalid thread status: ${status}`);
-  return status;
-}
-
-function validateRole(role: MessageRole): MessageRole {
-  if (!messageRoles.has(role)) throw new Error(`Invalid message role: ${role}`);
-  return role;
-}
-
-function boundedInteger(value: number | undefined, fallback: number, min: number, max: number, label: string): number {
-  if (value === undefined) return fallback;
-  if (!Number.isSafeInteger(value) || value < min) {
-    throw new Error(`${label} must be an integer between ${min} and ${max}`);
-  }
-  return Math.min(value, max);
 }
 
 function threadWhere(threadId: number) {
@@ -62,7 +37,7 @@ function toForumThread(row: typeof forumThreads.$inferSelect): ForumThread {
     id: row.id,
     title: row.title,
     createdBy: row.createdBy || 'unknown',
-    status: (row.status || 'active') as ThreadStatus,
+    status: normalizeStoredStatus(row.status),
     issueUrl: row.issueUrl || undefined,
     issueNumber: row.issueNumber ?? undefined,
     project: row.project || undefined,
@@ -76,7 +51,7 @@ function toForumMessage(row: typeof forumMessages.$inferSelect): ForumMessage {
   return {
     id: row.id,
     threadId: row.threadId,
-    role: row.role as MessageRole,
+    role: normalizeStoredRole(row.role),
     content: row.content,
     author: row.author || undefined,
     principlesFound: row.principlesFound ?? undefined,
@@ -164,13 +139,15 @@ export function addMessage(
   const cleanContent = requiredText(content, 'Message content');
   const cleanAuthor = optionalText(options.author);
   const cleanSearch = optionalText(options.searchQuery);
+  const cleanPrinciples = optionalCount(options.principlesFound, 'principlesFound');
+  const cleanPatterns = optionalCount(options.patternsFound, 'patternsFound');
   const result = db.insert(forumMessages).values({
     threadId,
     role: cleanRole,
     content: cleanContent,
     author: cleanAuthor || null,
-    principlesFound: options.principlesFound ?? null,
-    patternsFound: options.patternsFound ?? null,
+    principlesFound: cleanPrinciples ?? null,
+    patternsFound: cleanPatterns ?? null,
     searchQuery: cleanSearch || null,
     createdAt: now,
   }).returning({ id: forumMessages.id }).get();
@@ -181,8 +158,8 @@ export function addMessage(
     role: cleanRole,
     content: cleanContent,
     author: cleanAuthor,
-    principlesFound: options.principlesFound,
-    patternsFound: options.patternsFound,
+    principlesFound: cleanPrinciples,
+    patternsFound: cleanPatterns,
     searchQuery: cleanSearch,
     createdAt: now,
   };

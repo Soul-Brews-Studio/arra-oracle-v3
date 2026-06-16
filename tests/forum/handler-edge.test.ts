@@ -58,3 +58,35 @@ test('forum lib validates runtime enum and pagination edge cases', () => {
   expect(() => forum.listThreads({ offset: 1.5 })).toThrow('offset must be an integer between 0 and 10000');
   expect(forum.listThreads({ limit: 1_000 }).threads.length).toBeLessThanOrEqual(100);
 });
+
+test('forum lib rejects unsafe message metadata before writing', () => {
+  const thread = forum.createThread('metadata guards');
+  const before = forum.getMessages(thread.id).length;
+
+  expect(() => forum.addMessage(thread.id, 'oracle', 'bad counts', { principlesFound: -1 as any }))
+    .toThrow('principlesFound must be a non-negative safe integer');
+  expect(() => forum.addMessage(thread.id, 'oracle', 'bad counts', { patternsFound: 1.5 as any }))
+    .toThrow('patternsFound must be a non-negative safe integer');
+  expect(forum.getMessages(thread.id)).toHaveLength(before);
+});
+
+test('forum lib normalizes invalid legacy enums read from storage', () => {
+  const now = Date.now();
+  const result = dbModule.db.insert(dbModule.forumThreads).values({
+    title: 'legacy enum row',
+    tenantId: 'default',
+    createdBy: 'legacy',
+    status: 'archived',
+    createdAt: now,
+    updatedAt: now,
+  }).returning({ id: dbModule.forumThreads.id }).get();
+  dbModule.db.insert(dbModule.forumMessages).values({
+    threadId: result.id,
+    role: 'robot',
+    content: 'legacy role',
+    createdAt: now,
+  }).run();
+
+  expect(forum.getThread(result.id)?.status).toBe('active');
+  expect(forum.getMessages(result.id)[0]?.role).toBe('oracle');
+});

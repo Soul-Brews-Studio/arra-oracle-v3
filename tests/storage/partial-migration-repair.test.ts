@@ -7,6 +7,7 @@ import { createStorageBackend } from '../../src/storage/registry.ts';
 import type { StorageBackend } from '../../src/storage/types.ts';
 
 const FIRST_TENANT_MEMORY_MIGRATION = 1781628166154;
+const INDEXING_JOBS_MIGRATION = 1780185600000;
 let tempDir = '';
 let backend: StorageBackend | undefined;
 
@@ -39,4 +40,28 @@ test('sqlite backend repairs additive migrations already present in schema', () 
 
   expect(repaired?.count).toBe(4);
   expect(memoryColumns).toContain('tenant_id');
+});
+
+test('sqlite backend repairs migrations with if-not-exists DDL', () => {
+  tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-storage-migration-if-not-exists-'));
+  const dbPath = path.join(tempDir, 'oracle.db');
+  backend = createStorageBackend({ dbPath });
+  backend.close();
+  backend = undefined;
+
+  const raw = new Database(dbPath);
+  raw.query('delete from __drizzle_migrations where created_at >= ?')
+    .run(INDEXING_JOBS_MIGRATION);
+  raw.close();
+
+  backend = createStorageBackend({ dbPath });
+  const repaired = backend.sqlite.query<{ count: number }, [number]>(
+    'select count(*) as count from __drizzle_migrations where created_at = ?',
+  ).get(INDEXING_JOBS_MIGRATION);
+  const pendingIndex = backend.sqlite.query<{ name: string }, []>(
+    "select name from sqlite_master where type = 'index' and name = 'idx_indexing_jobs_pending'",
+  ).get();
+
+  expect(repaired?.count).toBe(1);
+  expect(pendingIndex?.name).toBe('idx_indexing_jobs_pending');
 });
