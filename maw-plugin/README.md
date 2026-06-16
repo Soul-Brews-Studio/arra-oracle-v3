@@ -9,6 +9,20 @@ ln -s $(pwd)/maw-plugin ~/.maw/plugins/arra
 maw plugin enable arra
 ```
 
+
+## Build artifact
+
+The repo-local manifest declares `target: "js"` and keeps `artifact.sha256` pinned to
+`index.ts` for loader verification during development. To produce the installable
+bundle, run:
+
+```sh
+cd maw-plugin
+bun run build
+```
+
+The build writes `dist/index.js`, `dist/plugin.json`, a tarball, and `dist/plugins.lock`.
+
 ## Auth
 
 Read commands are open. Write commands attach `Authorization: Bearer $ARRA_API_TOKEN` when `ARRA_API_TOKEN` is set, matching the `/api/learn` token gate.
@@ -17,6 +31,7 @@ Read commands are open. Write commands attach `Authorization: Bearer $ARRA_API_T
 
 ```sh
 maw arra help
+maw arra commands          # JSON registry shared by CLI/menu/API
 maw arra config show
 maw arra doctor --json
 maw arra session list

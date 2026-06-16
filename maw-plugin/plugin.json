@@ -1,6 +1,7 @@
 {
   "name": "arra",
   "version": "1.0.0",
+  "target": "js",
   "entry": "./index.ts",
   "sdk": "^1.0.0",
   "description": "Unified maw-js plugin for ARRA Oracle CLI, API, and menu surfaces.",
