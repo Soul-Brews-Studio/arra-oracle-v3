@@ -28,6 +28,7 @@ import { createApiVersionHeaderMiddleware, createApiVersionedFetch } from './mid
 import { createSecurityHeadersMiddleware } from './middleware/security-headers.ts';
 import { createRequestTimeoutFetch } from './middleware/timeout.ts';
 import { createBodyLimitMiddleware } from './middleware/body-limit.ts';
+import { createResponseFormatMiddleware } from './middleware/response-format.ts';
 import { createNotFoundMiddleware } from './middleware/not-found.ts';
 import { createEtagMiddleware } from './middleware/etag.ts';
 import { createCompressMiddleware } from './middleware/compress.ts';
@@ -90,7 +91,6 @@ writePidFile({
   startedAt: new Date().toISOString(),
   name: 'oracle-http',
 });
-
 const scoutAnnouncer = shouldStartScoutAnnouncer() ? new ScoutAnnouncer() : null;
 scoutAnnouncer?.start();
 
@@ -127,6 +127,7 @@ const app = new Elysia()
   .use(createBodyLimitMiddleware())
   .use(createApiKeyAuthMiddleware())
   .use(createMetricsLifecycle())
+  .use(createResponseFormatMiddleware())
   .use(createCompressMiddleware())
   .use(createEtagMiddleware())
   .onBeforeHandle(({ request, set }) => {

@@ -44,7 +44,7 @@ describe('tenant auth middleware', () => {
         headers: { [TENANT_HEADER]: 'acme', [TENANT_TOKEN_HEADER]: 'bad' },
       }));
       expect(res.status).toBe(400);
-      expect(await res.json()).toEqual({ error: 'invalid tenant token' });
+      expect(await res.json()).toEqual({ success: false, error: 'invalid tenant token' });
     } finally {
       if (previous === undefined) delete process.env.ORACLE_TENANT_TOKENS;
       else process.env.ORACLE_TENANT_TOKENS = previous;

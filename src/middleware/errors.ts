@@ -2,12 +2,14 @@ import { Elysia } from 'elysia';
 import { REQUEST_ID_HEADER, RESPONSE_TIME_HEADER, requestIdFor, responseTimeFor } from './correlation.ts';
 
 export type ApiErrorResponse = {
+  success: false;
   error: string;
   code: number;
   details?: unknown;
 };
 
 export type StructuredErrorResponse = {
+  success: false;
   error: string;
   message: string;
   statusCode: number;
@@ -18,8 +20,8 @@ export function apiErrorResponse<const T extends string, const C extends number,
   error: T,
   code: C,
   details: D,
-): { error: T; code: C; details: D } {
-  return { error, code, details };
+): { success: false; error: T; code: C; details: D } {
+  return { success: false, error, code, details };
 }
 
 export class HttpError extends Error {

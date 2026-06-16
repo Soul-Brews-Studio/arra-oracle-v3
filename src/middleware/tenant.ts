@@ -132,7 +132,7 @@ export function createTenantFetch(next: FetchHandler): FetchHandler {
       const tenantId = tenantIdFor(request);
       return runWithTenant(tenantId, () => next(request));
     } catch (error) {
-      return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });
+      return Response.json({ success: false, error: error instanceof Error ? error.message : String(error) }, { status: 400 });
     }
   };
 }

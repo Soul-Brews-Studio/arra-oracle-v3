@@ -42,6 +42,7 @@ async function request(path: string, init?: RequestInit) {
 
 function expectStructured(body: Record<string, unknown>, code: number) {
   expect(body).toEqual({
+    success: false,
     error: expect.any(String),
     code,
     details: {
@@ -62,6 +63,7 @@ describe('structured error middleware', () => {
     expect(res.status).toBe(400);
     expect(res.headers.get('x-correlation-id')).toBe('test-correlation');
     expect(body).toEqual({
+      success: false,
       error: 'Bad Request',
       code: 400,
       details: {
