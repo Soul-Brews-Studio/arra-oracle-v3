@@ -97,7 +97,7 @@ function printHelp(write: Writer): void {
     'Flags:',
     '  --output, -o <dir>   destination backup directory',
     '  --db <path>          SQLite database path (defaults to ORACLE_DB_PATH)',
-    '  --verify <dir>       verify an existing export bundle manifest/checksums',
+    '  --verify <dir>       verify manifest file sizes and SHA-256 checksums',
     '  --progress <mode>    progress output: text, json, or silent',
     '  --dry-run            print collection counts without writing files',
     '  --quiet              suppress progress output',
@@ -131,7 +131,7 @@ export async function runExportApp(args: string[], stdout: Writer = process.stdo
     validateCliOptions(options);
     if (options.verifyDir) {
       const result = await verifyExportBundle(options.verifyDir);
-      stdout(`${JSON.stringify({ success: result.ok, ...result }, null, 2)}\n`);
+      stdout(`${JSON.stringify({ success: result.ok, verified: result.ok, ...result }, null, 2)}\n`);
       return result.ok ? 0 : 1;
     }
     if (options.dryRun) {

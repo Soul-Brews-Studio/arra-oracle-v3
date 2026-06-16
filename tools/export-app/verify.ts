@@ -6,6 +6,7 @@ export interface ExportBundleVerification {
   ok: boolean;
   bundleDir: string;
   checkedFiles: number;
+  fileCount: number;
   errors: string[];
   exportedAt?: string;
   collectionCount?: number;
@@ -84,9 +85,7 @@ function verifyEntry(expected: ExportFileInventoryEntry, actual: ExportFileInven
   if (actual.bytes !== expected.bytes) {
     errors.push(`byte mismatch for ${expected.path}: expected ${expected.bytes}, got ${actual.bytes}`);
   }
-  if (actual.sha256 !== expected.sha256) {
-    errors.push(`sha256 mismatch for ${expected.path}`);
-  }
+  if (actual.sha256 !== expected.sha256) errors.push(`sha256 mismatch for ${expected.path}`);
 }
 
 function requiredFiles(manifest: Manifest): string[] {
@@ -102,5 +101,5 @@ function requiredFiles(manifest: Manifest): string[] {
 }
 
 function result(root: string, errors: string[], checkedFiles: number): ExportBundleVerification {
-  return { ok: errors.length === 0, bundleDir: root, checkedFiles, errors };
+  return { ok: errors.length === 0, bundleDir: root, checkedFiles, fileCount: checkedFiles, errors };
 }

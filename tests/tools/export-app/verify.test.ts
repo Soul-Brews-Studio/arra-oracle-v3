@@ -64,6 +64,7 @@ describe('export bundle verifier', () => {
     await expect(verifyExportBundle(outputDir)).resolves.toMatchObject({
       ok: true,
       checkedFiles: expect.any(Number),
+      fileCount: expect.any(Number),
       errors: [],
       documentCount: 1,
     });
@@ -72,7 +73,7 @@ describe('export bundle verifier', () => {
     const code = await runExportApp(['--verify', outputDir], (message) => stdout.push(message), () => {});
     const payload = JSON.parse(stdout.join(''));
     expect(code).toBe(0);
-    expect(payload).toMatchObject({ success: true, ok: true, documentCount: 1 });
+    expect(payload).toMatchObject({ success: true, verified: true, ok: true, documentCount: 1 });
   });
 
   test('fails when a listed file no longer matches manifest checksums', async () => {
@@ -85,10 +86,10 @@ describe('export bundle verifier', () => {
     expect(result.errors.join('\n')).toContain('README.md');
     expect(result.errors.join('\n')).toContain('sha256 mismatch');
 
-    const stderr: string[] = [];
-    const code = await runExportApp(['--verify', outputDir], () => {}, (message) => stderr.push(message));
+    const stdout: string[] = [];
+    const code = await runExportApp(['--verify', outputDir], (message) => stdout.push(message), () => {});
     expect(code).toBe(1);
-    expect(stderr.join('')).toBe('');
+    expect(JSON.parse(stdout.join(''))).toMatchObject({ success: false, verified: false });
   });
 
   test('parses verify mode without requiring output', () => {
