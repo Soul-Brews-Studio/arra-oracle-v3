@@ -74,7 +74,17 @@ function buildVectorConfig(p: Parsed): { method: Method; built: Built } | undefi
 }
 
 function rows(data: any): any[] {
-  return Array.isArray(data?.collections) ? data.collections : Object.entries(data?.config?.collections ?? {}).map(([key, col]) => ({ key, ...(col as object), count: data?.doc_counts?.[key] ?? 0, status: data?.health?.[key]?.status ?? 'unknown' }));
+  const configRows = Object.entries(data?.config?.collections ?? {}).map(([key, col]: any) => ({
+    key,
+    ...col,
+    count: data?.doc_counts?.[key] ?? 0,
+    status: data?.health?.[key]?.status ?? 'unknown',
+  }));
+  const listed = Array.isArray(data?.collections) ? data.collections : configRows;
+  return listed.map((row: any) => {
+    const configured = configRows.find((item: any) => item.key === row.key || item.collection === row.collection) ?? {};
+    return { ...configured, ...row, primary: row.primary ?? configured.primary };
+  });
 }
 
 function pickCollection(data: any, collection: string): any | undefined {
@@ -83,9 +93,12 @@ function pickCollection(data: any, collection: string): any | undefined {
 
 function formatList(data: any): string {
   const lines = ['Collection | Adapter | Model | Enabled | Docs | Status'];
-  for (const row of rows(data)) lines.push(`${row.collection ?? row.key} | ${row.adapter ?? 'lancedb'} | ${row.model ?? row.key} | ${row.enabled !== false} | ${row.count ?? 0} | ${row.status ?? (row.ok === false ? 'down' : 'ok')}`);
+  for (const row of rows(data)) {
+    const label = `${row.collection ?? row.key}${row.primary ? ' ★' : ''}`;
+    lines.push(`${label} | ${row.adapter ?? 'lancedb'} | ${row.model ?? row.key} | ${row.enabled !== false} | ${row.count ?? 0} | ${row.status ?? (row.ok === false ? 'down' : 'ok')}`);
+  }
   if (lines.length === 1) lines.push('(none) | - | - | true | 0 | unknown');
-  return lines.join('\n');
+  return [lines.join('\n'), '★ = primary'].join('\n');
 }
 
 function formatRead(data: any, p: Parsed): string {
