@@ -72,6 +72,7 @@ beforeAll(async () => {
   const vectorConfig = await import('../../../src/vector/config.ts');
   const config = vectorConfig.generateDefaultConfig();
   config.version = '2.0';
+  config.enabled = true;
   config.dataPath = join(root, 'lancedb');
   config.embedder = { default: 'ollama', fallback: 'gemini', model: 'bge-m3' };
   config.storage = {

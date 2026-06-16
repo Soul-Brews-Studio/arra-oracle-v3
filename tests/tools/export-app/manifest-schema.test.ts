@@ -49,6 +49,8 @@ test('writes a manifest JSON schema with required export fields', async () => {
   expect(schema).toEqual(EXPORT_MANIFEST_SCHEMA);
   expect(schema.required).toEqual(Object.keys(manifest));
   expect(schema.properties.formats.items.enum).toEqual(['json', 'csv', 'markdown']);
+  expect(manifest.collections.oracle_documents).toEqual({ rowCount: 0 });
+  expect(schema.properties.collections.additionalProperties.required).toEqual(['rowCount']);
   expect(manifest.files).toContainEqual(expect.objectContaining({
     path: 'manifest.schema.json',
     bytes: expect.any(Number),

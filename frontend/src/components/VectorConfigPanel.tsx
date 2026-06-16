@@ -3,10 +3,10 @@ import { apiUrl, fetchVectorConfig, reloadVectorConfig, updateVectorCollection }
 import { ErrorMessage, Spinner } from './AsyncState';
 import type { SettingsEmbedderCollection, VectorConfigResponse } from '../types';
 
-const ADAPTERS = ['lancedb', 'qdrant', 'chroma', 'sqlite-vec', 'cloudflare-vectorize', 'proxy'] as const;
+const ADAPTERS = ['lancedb', 'qdrant', 'chroma', 'sqlite-vec', 'cloudflare-vectorize', 'proxy', 'turbovec'] as const;
 export const VECTOR_PROVIDERS = ['none', 'ollama', 'gemini', 'openai', 'local', 'remote'] as const;
-type SaveState = Record<string, 'idle' | 'saving' | 'testing'>;
-type Drafts = Record<string, { adapter: string; enabled: boolean; provider: string }>;
+type SaveState = Record<string, 'idle' | 'saving' | 'testing' | 'primary'>;
+type Drafts = Record<string, { adapter: string; enabled: boolean; provider: string; model: string }>;
 
 function statusClass(status: string) {
   if (status === 'ok') return 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200';
@@ -41,7 +41,7 @@ export function VectorConfigPanel() {
       setState(next);
       setDrafts(Object.fromEntries(Object.entries(next.config.collections).map(([key, item]) => [
         key,
-        { adapter: item.adapter ?? 'lancedb', enabled: collectionEnabled(item), provider: item.provider },
+        { adapter: item.adapter ?? 'lancedb', enabled: collectionEnabled(item), provider: item.provider, model: item.model },
       ])));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -60,7 +60,7 @@ export function VectorConfigPanel() {
   }, [rows, state]);
 
   function updateDraft(key: string, patch: Partial<Drafts[string]>) {
-    setDrafts((current) => ({ ...current, [key]: { ...(current[key] ?? { adapter: 'lancedb', enabled: true, provider: 'none' }), ...patch } }));
+    setDrafts((current) => ({ ...current, [key]: { ...(current[key] ?? { adapter: 'lancedb', enabled: true, provider: 'none', model: key }), ...patch } }));
   }
 
   async function saveAdapter(key: string) {
@@ -70,10 +70,10 @@ export function VectorConfigPanel() {
     setError('');
     setMessage('');
     try {
-      await updateVectorCollection(key, { adapter: draft.adapter, enabled: draft.enabled, provider: draft.provider });
+      await updateVectorCollection(key, { adapter: draft.adapter, enabled: draft.enabled, provider: draft.provider, model: draft.model });
       await reloadVectorConfig();
       await load();
-      setMessage(`Saved ${key}: ${draft.enabled ? `${draft.adapter} · ${draft.provider}` : 'disabled'}.`);
+      setMessage(`Saved ${key}: ${draft.enabled ? `${draft.adapter} · ${draft.provider} · ${draft.model}` : 'disabled'}.`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -89,6 +89,22 @@ export function VectorConfigPanel() {
       const result = await testVectorCollection(key);
       setMessage(`${key} ${result.success ? 'ok' : result.status ?? 'failed'} · ${result.count ?? 0} docs`);
       await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSaving((current) => ({ ...current, [key]: 'idle' }));
+    }
+  }
+
+  async function setPrimary(key: string) {
+    setSaving((current) => ({ ...current, [key]: 'primary' }));
+    setError('');
+    setMessage('');
+    try {
+      await updateVectorCollection(key, { primary: true });
+      await reloadVectorConfig();
+      await load();
+      setMessage(`Set ${key} as primary vector collection.`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -115,7 +131,7 @@ export function VectorConfigPanel() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300">Vector config</p>
           <h3 className="mt-2 text-lg font-semibold text-white">Active vector adapters</h3>
-          <p className="mt-2 text-sm text-slate-400">Switch each collection between LanceDB, Qdrant, Chroma, sqlite-vec, Cloudflare, or proxy adapters.</p>
+          <p className="mt-2 text-sm text-slate-400">Get current config, edit model/provider, switch adapters, enable rows, set primary, and test health.</p>
           <p className="mt-2 text-xs text-slate-500">{summary}</p>
         </div>
         <button className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" type="button" onClick={reload}>
@@ -128,10 +144,10 @@ export function VectorConfigPanel() {
 
       <div className="mt-5 grid gap-3">
         {rows.map(([key, item]) => {
-          const draft = drafts[key] ?? { adapter: item.adapter ?? 'lancedb', enabled: collectionEnabled(item), provider: item.provider };
+          const draft = drafts[key] ?? { adapter: item.adapter ?? 'lancedb', enabled: collectionEnabled(item), provider: item.provider, model: item.model };
           const health = state?.health[key];
           const status = health?.status ?? (draft.enabled ? 'unknown' : 'disabled');
-          const dirty = draft.adapter !== (item.adapter ?? 'lancedb') || draft.enabled !== collectionEnabled(item) || draft.provider !== item.provider;
+          const dirty = draft.adapter !== (item.adapter ?? 'lancedb') || draft.enabled !== collectionEnabled(item) || draft.provider !== item.provider || draft.model !== item.model;
           return (
             <article key={key} className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -146,6 +162,10 @@ export function VectorConfigPanel() {
                   {health?.error ? <p className="mt-2 text-xs text-rose-300">{health.error}</p> : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
+                  <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Model
+                    <input className="mt-1 block rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100" value={draft.model} onChange={(event) => updateDraft(key, { model: event.target.value })} />
+                  </label>
                   <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                     Active adapter
                     <select className="mt-1 block rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100" value={draft.adapter} onChange={(event) => updateDraft(key, { adapter: event.target.value })}>
@@ -164,6 +184,7 @@ export function VectorConfigPanel() {
                   </label>
                   <button className="focus-ring rounded-xl border border-teal-300/30 px-3 py-2 text-sm font-semibold text-teal-100 disabled:opacity-50" disabled={!dirty || saving[key] === 'saving'} type="button" onClick={() => void saveAdapter(key)}>{saving[key] === 'saving' ? <Spinner label="Saving" /> : 'Save switch'}</button>
                   <button className="focus-ring rounded-xl border border-purple-300/30 px-3 py-2 text-sm font-semibold text-purple-100 disabled:opacity-50" disabled={saving[key] === 'testing'} type="button" onClick={() => void testAdapter(key)}>{saving[key] === 'testing' ? <Spinner label="Testing" /> : 'Test'}</button>
+                  <button className="focus-ring rounded-xl border border-cyan-300/30 px-3 py-2 text-sm font-semibold text-cyan-100 disabled:opacity-50" disabled={item.primary || saving[key] === 'primary'} type="button" onClick={() => void setPrimary(key)}>{saving[key] === 'primary' ? <Spinner label="Setting primary" /> : 'Set primary'}</button>
                 </div>
               </div>
             </article>

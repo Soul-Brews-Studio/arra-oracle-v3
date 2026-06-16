@@ -6,7 +6,7 @@ import { Elysia } from "elysia";
 import { loadUnifiedPlugins } from "../unified-loader.ts";
 
 const pluginRoot = join(process.cwd(), "src/plugins");
-const ARRA_VERBS = ["help", "version", "menu", "status", "health", "vector-config", "serve"];
+const ARRA_VERBS = ["help", "version", "menu", "status", "commands", "health", "vector-config", "serve"];
 
 describe("built-in arra plugin", () => {
   test("declares modern maw-js CLI, menu, and HTTP surfaces", () => {

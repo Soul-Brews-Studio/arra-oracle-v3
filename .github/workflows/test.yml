@@ -15,7 +15,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.2.15
 
       - name: Cache bun deps
         uses: actions/cache@v4
@@ -59,19 +59,29 @@ jobs:
         run: cd frontend/src-tauri && cargo check
 
       - name: Run scoped unit tests
-        run: >
-          bun test --isolate
-          src/tools/__tests__/
-          src/server/__tests__/
-          tests/storage/
-          tests/http/swagger/
-          tests/http/health/
-          tests/lifecycle/
-          tests/plugins/
-          src/vault/__tests__/
-          src/indexer/__tests__/
-          src/drizzle-migration.test.ts
-          src/indexer-preservation.test.ts
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r test_file; do
+            echo "::group::${test_file}"
+            bun test --isolate "${test_file}"
+            echo "::endgroup::"
+          done < <(
+            find \
+              src/tools/__tests__ \
+              src/server/__tests__ \
+              tests/storage \
+              tests/http/swagger \
+              tests/http/health \
+              tests/lifecycle \
+              tests/plugins \
+              src/vault/__tests__ \
+              src/indexer/__tests__ \
+              -name '*.test.ts' -print
+            printf '%s\n' \
+              src/drizzle-migration.test.ts \
+              src/indexer-preservation.test.ts
+          )
 
       - name: Run scoped integration tests
         run: bun test --isolate src/integration/

@@ -24,6 +24,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 VERSION = "0.1.0"
+PROTOCOL = "vector-proxy-v1"
 DIMENSIONS = 64
 
 
@@ -112,7 +113,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path == "/health":
-            return self.send_json({"status": "ok", "name": self.index.name, "version": VERSION})
+            return self.send_json({"status": "ok", "name": self.index.name, "version": VERSION, "protocol": PROTOCOL})
         if self.path == "/vectors/stats":
             return self.send_json({"count": len(self.index.docs), "name": self.index.name})
         self.send_json({"error": "not found"}, 404)

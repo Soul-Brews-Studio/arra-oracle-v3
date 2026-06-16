@@ -165,6 +165,31 @@ test('CLI progress-json flag emits machine-readable progress', async () => {
   }));
 });
 
+test('CLI dry-run reports counts without writing a backup bundle', async () => {
+  const dbPath = join(root, 'dry-run.db');
+  const outputDir = join(root, 'dry-run-export');
+  const connection = createDatabase(dbPath);
+  seed(connection);
+  connection.storage.close();
+
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const code = await runExportApp(
+    ['--output', outputDir, '--db', dbPath, '--dry-run'],
+    (message) => stdout.push(message),
+    (message) => stderr.push(message),
+  );
+  const payload = JSON.parse(stdout.join(''));
+
+  expect(code).toBe(0);
+  expect(stderr.join('')).toBe('');
+  expect(payload).toMatchObject({ success: true, dryRun: true, dbPath, documentCount: 2 });
+  expect(payload.collectionCount).toBeGreaterThan(5);
+  expect(payload.rowCount).toBeGreaterThanOrEqual(3);
+  expect(payload.collections).toContainEqual(expect.objectContaining({ name: 'oracle_documents', rowCount: 2 }));
+  expect(existsSync(outputDir)).toBe(false);
+});
+
 test('CLI rejects unknown flags before exporting', () => {
   expect(() => parseArgs(['--output', './backup', '--bogus'])).toThrow('unknown flag: --bogus');
   expect(() => parseArgs(['--output'])).toThrow('missing value for --output');
@@ -203,4 +228,16 @@ test('CLI rejects output paths that are files', async () => {
 
   expect(code).toBe(1);
   expect(stderr.join('')).toContain('output path exists but is not a directory:');
+});
+
+test('README documents standalone remote export CLI flags', () => {
+  const readme = readFileSync(join(process.cwd(), 'tools/export-app/README.md'), 'utf8');
+  expect(readme).toContain('bun run export -- --url http://localhost:47778');
+  expect(readme).toContain('--format json --output ./backup/docs.json');
+  expect(readme).toContain('--format markdown --output ./backup/docs.md');
+  expect(readme).toContain('--format jsonl --output ./backup/docs.jsonl');
+  expect(readme).toContain('--include-graph');
+  expect(readme).toContain('--retries <count>');
+  expect(readme).toContain('--graph --retries 3 --retry-delay-ms 500');
+  expect(readme).toContain('--version');
 });

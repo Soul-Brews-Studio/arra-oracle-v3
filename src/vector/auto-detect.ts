@@ -31,11 +31,11 @@ export async function detectEmbeddingProviders(
   const env = options.env ?? process.env;
   const providers: AutoDetectedEmbeddingProvider[] = [
     await detectOllama(options),
-    envProvider('openai', hasEnv(env, 'OPENAI_API_KEY'), [
+    envProvider('openai', hasAnyEnv(env, 'OPENAI_API_KEY'), [
       'text-embedding-3-small',
       'text-embedding-3-large',
     ]),
-    envProvider('gemini', hasEnv(env, 'GEMINI_API_KEY'), ['text-embedding-004']),
+    envProvider('gemini', hasAnyEnv(env, 'GEMINI_API_KEY', 'GOOGLE_API_KEY'), ['text-embedding-004']),
     envProvider('cloudflare-ai', hasCloudflareCredentials(env), ['@cf/baai/bge-m3']),
   ];
 
@@ -51,7 +51,7 @@ async function detectOllama(
   options: DetectEmbeddingProvidersOptions,
 ): Promise<AutoDetectedEmbeddingProvider> {
   const fetcher = options.fetcher ?? fetch;
-  const baseUrl = options.ollamaUrl ?? 'http://localhost:11434';
+  const baseUrl = options.ollamaUrl ?? options.env?.OLLAMA_BASE_URL ?? 'http://localhost:11434';
 
   try {
     const response = await fetcher(`${baseUrl}/api/tags`, {
@@ -84,12 +84,12 @@ function unavailable(provider: AutoDetectProvider): AutoDetectedEmbeddingProvide
 }
 
 function hasCloudflareCredentials(env: Record<string, string | undefined>): boolean {
-  return (hasEnv(env, 'CF_ACCOUNT_ID') && hasEnv(env, 'CF_API_TOKEN'))
-    || (hasEnv(env, 'CLOUDFLARE_ACCOUNT_ID') && hasEnv(env, 'CLOUDFLARE_API_TOKEN'));
+  return (hasAnyEnv(env, 'CF_ACCOUNT_ID') && hasAnyEnv(env, 'CF_API_TOKEN'))
+    || (hasAnyEnv(env, 'CLOUDFLARE_ACCOUNT_ID') && hasAnyEnv(env, 'CLOUDFLARE_API_TOKEN'));
 }
 
-function hasEnv(env: Record<string, string | undefined>, key: string): boolean {
-  return Boolean(env[key]?.trim());
+function hasAnyEnv(env: Record<string, string | undefined>, ...keys: string[]): boolean {
+  return keys.some((key) => Boolean(env[key]?.trim()));
 }
 
 function cloneProviders(

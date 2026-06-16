@@ -12,6 +12,7 @@
  *   GET /api/vector/health   — adapter liveness probe
  *   GET /api/vector/cost-estimate — estimate remote embedding cost
  *   GET /api/vector/costs    — embedding provider usage costs
+ *   POST /api/vector/costs/usage — record provider usage for live cost tracking
  *   GET /api/vector/documents — browse indexed vector documents
  *   GET /api/vector/providers — detected embedding providers and capabilities
  *   POST /api/vector/providers/test — probe one embedding provider config

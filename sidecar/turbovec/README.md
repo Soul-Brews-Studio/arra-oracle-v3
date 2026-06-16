@@ -9,6 +9,9 @@ It exposes the standard HTTP contract used by `ProxyVectorAdapter`:
 - `DELETE /vectors/collection`
 - `GET /health`
 
+`GET /health` includes `protocol: "vector-proxy-v1"` so Arra can verify the
+service speaks the #1438 proxy contract.
+
 Run locally:
 
 ```bash
