@@ -32,7 +32,7 @@ export interface HealthStatus {
   error?: string;
 }
 
-export interface VectorServiceRegistry {
+export interface VectorServiceRegistryClient {
   register(service: Omit<RegisteredVectorService, 'name'> & { name: string }): Promise<RegisteredVectorService>;
   discover(): Promise<RegisteredVectorService[]>;
   unregister(name: string): Promise<boolean>;
@@ -54,9 +54,6 @@ function activeConfigPath(): string {
 function loadActiveConfig(): VectorServerConfig | null {
   return loadVectorConfig(activeConfigPath());
 }
-
-let currentConfig: VectorServerConfig = loadActiveConfig() ?? generateDefaultConfig();
-let registry = seedFromConfig(currentConfig);
 
 function seedFromConfig(config: VectorServerConfig): Map<string, RegisteredVectorService> {
   const services = config.storage?.services ?? {
@@ -80,7 +77,10 @@ function seedFromConfig(config: VectorServerConfig): Map<string, RegisteredVecto
   return out;
 }
 
-function normalizeStorage(services: Map<string, RegisteredVectorService>): VectorStorageConfig {
+function normalizeStorage(
+  config: VectorServerConfig,
+  services: Map<string, RegisteredVectorService>,
+): VectorStorageConfig {
   const storageServices: Record<string, VectorStorageService> = {};
   for (const [name, service] of services) {
     storageServices[name] = {
@@ -90,9 +90,9 @@ function normalizeStorage(services: Map<string, RegisteredVectorService>): Vecto
     };
   }
 
-  const defaultService = currentConfig.storage?.default
-    && services.has(currentConfig.storage.default)
-    ? currentConfig.storage.default
+  const defaultService = config.storage?.default
+    && services.has(config.storage.default)
+    ? config.storage.default
     : 'lancedb';
 
   return {
@@ -101,20 +101,13 @@ function normalizeStorage(services: Map<string, RegisteredVectorService>): Vecto
   };
 }
 
-function syncConfig(services: Map<string, RegisteredVectorService>): void {
-  if (!currentConfig.storage) {
-    currentConfig.storage = { default: 'lancedb', services: {} };
-  }
-  currentConfig.storage = normalizeStorage(services);
-  writeVectorConfig(currentConfig, activeConfigPath());
-}
-
-function ensureConfigRefreshed(): void {
-  const latest = loadActiveConfig() ?? currentConfig;
-  if (latest) {
-    currentConfig = latest;
-    registry = seedFromConfig(latest);
-  }
+function syncConfig(
+  config: VectorServerConfig,
+  services: Map<string, RegisteredVectorService>,
+): VectorServerConfig {
+  const next = { ...config, storage: normalizeStorage(config, services) };
+  writeVectorConfig(next, activeConfigPath());
+  return next;
 }
 
 function validateService(service: RegisteredVectorService): RegisteredVectorService {
@@ -132,26 +125,39 @@ function validateService(service: RegisteredVectorService): RegisteredVectorServ
   };
 }
 
-class InMemoryVectorServiceRegistry implements VectorServiceRegistry {
+export class VectorServiceRegistry implements VectorServiceRegistryClient {
+  private currentConfig: VectorServerConfig;
+  private registry: Map<string, RegisteredVectorService>;
+
+  constructor(config: VectorServerConfig = loadActiveConfig() ?? generateDefaultConfig()) {
+    this.currentConfig = config;
+    this.registry = seedFromConfig(config);
+  }
+
+  private refresh(): void {
+    this.currentConfig = loadActiveConfig() ?? this.currentConfig;
+    this.registry = seedFromConfig(this.currentConfig);
+  }
+
   async register(service: RegisteredVectorService): Promise<RegisteredVectorService> {
-    ensureConfigRefreshed();
+    this.refresh();
     const normalized = validateService(service);
-    registry.set(normalized.name, normalized);
-    syncConfig(registry);
+    this.registry.set(normalized.name, normalized);
+    this.currentConfig = syncConfig(this.currentConfig, this.registry);
     return normalized;
   }
 
   async discover(): Promise<RegisteredVectorService[]> {
-    ensureConfigRefreshed();
-    if (registry.size === 0) registry = seedFromConfig(currentConfig);
+    this.refresh();
+    if (this.registry.size === 0) this.registry = seedFromConfig(this.currentConfig);
 
-    return [...registry.values()].sort((a, b) => a.name.localeCompare(b.name));
+    return [...this.registry.values()].sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async unregister(name: string): Promise<boolean> {
-    ensureConfigRefreshed();
-    const removed = registry.delete(name);
-    if (removed) syncConfig(registry);
+    this.refresh();
+    const removed = this.registry.delete(name);
+    if (removed) this.currentConfig = syncConfig(this.currentConfig, this.registry);
     return removed;
   }
 
@@ -167,7 +173,7 @@ class InMemoryVectorServiceRegistry implements VectorServiceRegistry {
 
       const started = Date.now();
       try {
-        const endpoint = resolveServiceEndpoint(currentConfig, service.name) || service.endpoint;
+        const endpoint = resolveServiceEndpoint(this.currentConfig, service.name) || service.endpoint;
         if (!endpoint) {
           throw new Error('missing endpoint');
         }
@@ -196,11 +202,10 @@ class InMemoryVectorServiceRegistry implements VectorServiceRegistry {
   }
 }
 
-export const vectorServiceRegistry = new InMemoryVectorServiceRegistry();
+export const vectorServiceRegistry = new VectorServiceRegistry();
 
 export async function getRegisteredServiceEndpoint(name: string): Promise<string | undefined> {
   const services = await vectorServiceRegistry.discover();
   const match = services.find((item) => item.name === name);
   return match?.type === 'proxy' ? match.endpoint : undefined;
 }
-

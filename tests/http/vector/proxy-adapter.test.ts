@@ -1,6 +1,7 @@
 import { afterAll, expect, test } from 'bun:test';
 import type { VectorDocument } from '../../../src/vector/types.ts';
 import { ProxyVectorAdapter } from '../../../src/vector/adapters/proxy.ts';
+import { createVectorStore } from '../../../src/vector/factory.ts';
 import { vectorServiceUrl } from '../../../src/vector/registry.ts';
 
 const requests: Array<{ method: string; path: string; body?: unknown }> = [];
@@ -50,4 +51,15 @@ test('ProxyVectorAdapter speaks vector proxy protocol under endpoint path prefix
 
 test('vectorServiceUrl preserves path prefixes', () => {
   expect(vectorServiceUrl('http://example.test/base/', '/health')).toBe('http://example.test/base/health');
+});
+
+test('factory registers proxy vector stores', async () => {
+  const adapter = createVectorStore({
+    type: 'proxy',
+    collectionName: 'proxy_docs',
+    proxyEndpoint: `${server.url}proxy`,
+  });
+
+  expect(adapter).toBeInstanceOf(ProxyVectorAdapter);
+  await expect(adapter.getCollectionInfo()).resolves.toEqual({ name: 'remote_proxy_docs', count: 2 });
 });
