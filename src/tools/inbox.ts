@@ -35,7 +35,17 @@ export const inboxToolDef = {
 };
 
 export async function handleInbox(ctx: ToolContext, input: OracleInboxInput): Promise<ToolResponse> {
+  if (input == null || typeof input !== 'object') throw new Error('inbox input must be an object');
   const { limit = 10, offset = 0, type = 'all' } = input;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    throw new Error('limit must be between 1 and 100');
+  }
+  if (!Number.isSafeInteger(offset) || offset < 0) {
+    throw new Error('offset must be >= 0');
+  }
+  if (!['all', 'handoff'].includes(type)) {
+    throw new Error('Invalid inbox type: must be one of all, handoff');
+  }
   const inboxDir = path.join(ctx.repoRoot, 'ψ/inbox');
   const results: Array<{ filename: string; path: string; created: string; preview: string; type: string }> = [];
 
