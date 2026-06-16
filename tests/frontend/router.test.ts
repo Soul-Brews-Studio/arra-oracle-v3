@@ -47,6 +47,8 @@ describe('frontend router', () => {
       '/vector/results',
       '/vector/export',
       '/vector/settings',
+      '/mcp',
+      '/settings',
     ]);
   });
 
@@ -59,7 +61,7 @@ describe('frontend router', () => {
     expect(htmlAt('/metrics')).toContain('42');
     expect(htmlAt('/metrics')).toContain('Memory usage');
     expect(htmlAt('/search')).toContain('Full-text menu search');
-    expect(htmlAt('/export')).toContain('Export collections');
+    expect(htmlAt('/export')).toContain('Export app');
     expect(htmlAt('/learn')).toContain('Learn entries');
     expect(htmlAt('/vector')).toContain('Vector dashboard');
     expect(htmlAt('/vector/search')).toContain('Vector search preview');
@@ -67,6 +69,8 @@ describe('frontend router', () => {
     expect(htmlAt('/vector/results')).toContain('Vector search results');
     expect(htmlAt('/vector/export')).toContain('Vector export');
     expect(htmlAt('/vector/settings')).toContain('Configure adapters, embedding models');
+    expect(htmlAt('/mcp')).toContain('Tool browser');
+    expect(htmlAt('/settings')).toContain('Runtime configuration');
   });
 
   test('wraps routed children in the browser router and error boundary shell', () => {
