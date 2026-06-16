@@ -70,22 +70,26 @@ export async function waitForProcessesExit(pids: number[], timeoutMs: number): P
 }
 
 export async function findProcesses(pattern: string): Promise<number[]> {
-  if (typeof pattern !== 'string' || pattern.length === 0) return [];
+  const search = normalizeProcessPattern(pattern);
+  if (!search) return [];
 
   try {
-    if (process.platform === 'win32') return await findWindowsProcesses(pattern);
-    return await findUnixProcesses(pattern);
+    if (process.platform === 'win32') return await findWindowsProcesses(search);
+    return await findUnixProcesses(search);
   } catch (error) {
-    logger.warn('SYSTEM', 'Failed to find processes', { pattern }, error as Error);
+    logger.warn('SYSTEM', 'Failed to find processes', { pattern: search }, error as Error);
     return [];
   }
 }
 
 export async function killProcesses(pattern: string): Promise<number> {
-  const pids = await findProcesses(pattern);
+  const search = normalizeProcessPattern(pattern);
+  if (!search) return 0;
+
+  const pids = await findProcesses(search);
   if (pids.length === 0) return 0;
 
-  logger.info('SYSTEM', 'Killing processes', { pattern, count: pids.length, pids });
+  logger.info('SYSTEM', 'Killing processes', { pattern: search, count: pids.length, pids });
   let killed = 0;
   for (const pid of pids) {
     try {
@@ -127,6 +131,12 @@ function processIdsFromWmic(stdout: string): number[] {
     .split('\n')
     .map(line => Number.parseInt(line.match(/ProcessId=(\d+)/i)?.[1] ?? '', 10))
     .filter(isPositiveInteger);
+}
+
+function normalizeProcessPattern(pattern: string): string | null {
+  if (typeof pattern !== 'string') return null;
+  const trimmed = pattern.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function isPositiveInteger(value: number): boolean {
