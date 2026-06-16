@@ -3,7 +3,7 @@
  */
 
 import { Elysia, t } from 'elysia';
-import { getVectorStoreByModel } from '../../vector/factory.ts';
+import { getEmbeddingModels, getVectorStoreByModel } from '../../vector/factory.ts';
 import { availableExportFormats, exportFormatInfo, getExportFormat } from '../../vector/export-formats.ts';
 import type { VectorStoreAdapter } from '../../vector/types.ts';
 
@@ -53,6 +53,12 @@ function progressStream(getStore: GetStore, collection: string): ReadableStream<
   });
 }
 
+function resolveCollection(collection: string | undefined): string | null {
+  const resolved = collection || DEFAULT_COLLECTION;
+  const models = getEmbeddingModels();
+  return models[resolved] ? resolved : null;
+}
+
 export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
   const getStore = deps.getStore ?? getVectorStoreByModel;
 
@@ -65,13 +71,21 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
     })
     .get(
       '/vector/export/progress',
-      ({ query }) => new Response(progressStream(getStore, query.collection || DEFAULT_COLLECTION), {
-        headers: {
-          'Content-Type': 'text/event-stream; charset=utf-8',
-          'Cache-Control': 'no-cache, no-transform',
-          Connection: 'keep-alive',
-        },
-      }),
+      ({ query, set }) => {
+        const collection = resolveCollection(query.collection);
+        if (!collection) {
+          set.status = 404;
+          return { error: `Unknown vector collection: ${query.collection}` };
+        }
+
+        return new Response(progressStream(getStore, collection), {
+          headers: {
+            'Content-Type': 'text/event-stream; charset=utf-8',
+            'Cache-Control': 'no-cache, no-transform',
+            Connection: 'keep-alive',
+          },
+        });
+      },
       {
         query: t.Object({ collection: t.Optional(t.String()) }),
         detail: {
@@ -89,7 +103,12 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
         return { error: 'Invalid format', formats: availableExportFormats() };
       }
 
-      const collection = query.collection || DEFAULT_COLLECTION;
+      const collection = resolveCollection(query.collection);
+      if (!collection) {
+        set.status = 404;
+        return { error: `Unknown vector collection: ${query.collection}` };
+      }
+
       try {
         const store = getStore(collection);
         await store.connect();
