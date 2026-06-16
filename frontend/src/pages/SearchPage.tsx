@@ -132,9 +132,10 @@ export function SearchPage() {
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="menu-search-title">
       <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Menu search</p>
-        <h1 id="menu-search-title" className="mt-2 text-3xl font-semibold text-white">Full-text menu search</h1>
-        <p className="mt-2 text-sm text-slate-400">Search dashboard labels and paths through /api/menu/search?q=.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Search surfaces</p>
+        <h1 id="menu-search-title" className="mt-2 text-3xl font-semibold text-white">Search all surfaces</h1>
+        <p className="mt-2 text-sm text-slate-400">Search menu items and route to surface actions.</p>
+        <p className="mt-2 text-sm text-slate-400">Search menu labels and paths through /api/menu/search?q=.</p>
       </div>
 
       <form aria-label="Menu search form" className="flex flex-col gap-3 sm:flex-row" role="search" onSubmit={submit}>

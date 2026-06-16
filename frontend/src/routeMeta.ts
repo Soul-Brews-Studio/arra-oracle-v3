@@ -62,11 +62,11 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
   }
 
   if (pathname === '/plugins') return base('Plugin list', 'Plugins', 'Registered plugins and exposed runtime surfaces.', [{ label: 'Plugins' }]);
-  if (pathname === '/metrics') return base('Metrics dashboard', 'Metrics', 'Runtime counters from /api/v1/metrics.', [{ label: 'Metrics' }]);
-  if (pathname === '/search') return base('Menu search', 'Search', 'Full-text search over /api/menu rows.', [{ label: 'Search' }]);
+  if (pathname === '/metrics') return base('Runtime metrics', 'Metrics', 'Runtime counters from /api/v1/metrics.', [{ label: 'Metrics' }]);
+  if (pathname === '/search') return base('Search', 'Search', 'Search menu, plugin, and MCP tool surfaces.', [{ label: 'Search' }]);
   if (pathname === '/learn') return base('Learn entries', 'Learn', 'Capture and edit Oracle learnings.', [{ label: 'Learn' }]);
   if (pathname === '/vector') return base('Vector dashboard', 'Vector', 'Collection health, search, and export status.', [{ label: 'Vector dashboard' }]);
   if (pathname === '/mcp') return base('MCP tools', 'MCP', 'Browse available MCP tool schemas and groups.', [{ label: 'MCP tools' }]);
-  if (pathname === '/settings') return base('Runtime settings', 'Settings', 'Storage, embedder, and migration status.', [{ label: 'Settings' }]);
+  if (pathname === '/settings') return base('Runtime settings', 'Settings', 'Storage, embedder, and DB status.', [{ label: 'Settings' }]);
   return base('Menu viewer', 'Menu', 'Navigation rows from /api/menu.', [{ label: 'Menu' }]);
 }
