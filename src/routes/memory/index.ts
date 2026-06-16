@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia';
 import { RecallMemoryQuery, SaveMemoryBody, SemanticMemoryQuery } from './model.ts';
+import { createMemoryFanoutEndpoint } from './fanout.ts';
 import { memoryStore, type MemoryInput, type MemoryRecord, type MemoryStore } from './store.ts';
 import { memoryVectorIndex, type MemoryVectorHit, type MemoryVectorIndex } from './vector.ts';
 
@@ -21,6 +22,7 @@ export function createMemoryRoutes(
       body: SaveMemoryBody,
       detail: { tags: ['memory'], menu: { group: 'hidden' }, summary: 'Save a persisted memory' },
     })
+    .use(createMemoryFanoutEndpoint())
     .get('/memory/recall', ({ query }) => {
       const limit = Math.min(50, Math.max(1, parseInt(query.limit ?? '10')));
       const items = store.recall(query.q ?? '', limit);
