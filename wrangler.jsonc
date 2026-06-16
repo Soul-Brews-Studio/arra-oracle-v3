@@ -1,0 +1,39 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "arra-oracle-remote-mcp",
+  // Placeholder owned by the #2167 Worker-entry lane. This docs/config PR
+  // intentionally does not add or overwrite src/workers/* implementation.
+  "main": "./src/workers/oracle-mcp.ts",
+  "compatibility_date": "2026-06-16",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "vars": {
+    "ORACLE_MCP_PATH": "/mcp",
+    "ORACLE_STORAGE_BACKEND": "d1",
+    "ORACLE_VECTOR_BACKEND": "cloudflare-vectorize"
+  }
+
+  // Bindings for the Worker-entry/vector lanes to enable after resources exist:
+  // "ai": { "binding": "AI" },
+  // "d1_databases": [
+  //   {
+  //     "binding": "ORACLE_DB",
+  //     "database_name": "arra-oracle",
+  //     "database_id": "<created-by-cloudflare>"
+  //   }
+  // ],
+  // "vectorize": [
+  //   {
+  //     "binding": "ORACLE_VECTORIZE",
+  //     "index_name": "arra-oracle-vector"
+  //   }
+  // ],
+  // "kv_namespaces": [
+  //   {
+  //     "binding": "ORACLE_STATE",
+  //     "id": "<kv-namespace-id>"
+  //   }
+  // ],
+  // "secrets": { "required": ["ARRA_API_TOKEN"] }
+}
