@@ -17,6 +17,7 @@ import {
 import { graphRelationships } from './graph.ts';
 import { exportOracleV2Documents } from './documents.ts';
 import { EXPORT_MANIFEST_SCHEMA } from './schema.ts';
+import { writeExportInventory } from './inventory.ts';
 
 type ExportTable = Parameters<typeof getTableName>[0];
 type Progress = (message: string) => void;
@@ -89,6 +90,7 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
       relationshipCount: relationships.length,
       documentCount: documentExport.documentCount,
     });
+    await writeExportInventory(outputDir, options.now);
     return {
       outputDir,
       collectionCount: tables.length,

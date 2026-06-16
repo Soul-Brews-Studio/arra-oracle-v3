@@ -75,6 +75,7 @@ The batch output includes:
 - `relationships.<ext>`
 - `all-collections.json`
 - `manifest.json`
+- `inventory.json`
 
 ## CLI Usage
 
