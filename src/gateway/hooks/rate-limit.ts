@@ -37,6 +37,7 @@ const DEFAULTS = {
   tokens_per_window: 60,
   window_ms: 60_000,
 } as const;
+const HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
 // Module-level state — per-process bucket map keyed by client identifier.
 const buckets = new Map<string, Bucket>();
@@ -52,6 +53,11 @@ function extractKey(request: Request, header: string): string {
   const raw = request.headers.get(header);
   if (!raw) return 'anonymous';
   return raw.split(',')[0].trim() || 'anonymous';
+}
+
+function configuredHeader(value: unknown): string {
+  const header = typeof value === 'string' ? value.trim() : '';
+  return header && HEADER_NAME.test(header) ? header : DEFAULTS.header;
 }
 
 function tenantBucketKey(request: Request, clientKey: string): string {
@@ -74,7 +80,7 @@ registerHook({
     const opts =
       (ctx.meta.hook_options as Record<string, RateLimitOptions> | undefined)?.['rate-limit'] ??
       {};
-    const headerName = opts.header ?? DEFAULTS.header;
+    const headerName = configuredHeader(opts.header);
     const tokensPerWindow = opts.tokens_per_window ?? DEFAULTS.tokens_per_window;
     const windowMs = opts.window_ms ?? DEFAULTS.window_ms;
     const burst = opts.burst ?? tokensPerWindow;
