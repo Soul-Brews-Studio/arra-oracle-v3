@@ -58,9 +58,10 @@ function insertDoc(id: string, tenantId: string, type: string, content: string) 
     .run(id, content, tenantId);
 }
 
-function request(tenantId: string, route: string) {
+function request(tenantId: string, route: string, init: RequestInit = {}) {
   return createTenantFetch((req) => filesRouter.handle(req))(new Request(`http://local${route}`, {
-    headers: { [TENANT_HEADER]: tenantId },
+    ...init,
+    headers: { [TENANT_HEADER]: tenantId, ...(init.headers ?? {}) },
   }));
 }
 
@@ -103,5 +104,21 @@ describe('files routes tenant isolation', () => {
     expect(denied.status).toBe(404);
     expect(allowed.status).toBe(200);
     expect(body.ghqPath).toBe('github.com/tenant-b/repo');
+  });
+
+  test('POST /api/doc keeps cross-tenant id collisions generic', async () => {
+    const res = await request(tenantA, '/api/doc', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: ids.b,
+        type: 'learning',
+        content: 'tenant a duplicate id attempt',
+      }),
+    });
+    const body = await res.json() as { error: string };
+
+    expect(res.status).toBe(409);
+    expect(body.error).toBe('Document id unavailable');
   });
 });

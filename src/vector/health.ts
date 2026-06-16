@@ -8,6 +8,7 @@ import { Database } from 'bun:sqlite';
 import { DB_PATH } from '../config.ts';
 import { isVectorSectionEnabled } from './config.ts';
 import { localNativeVectorDisabledReason, localVectorIndexMissingReason } from './cpu-capabilities.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 
 export type VectorBackendEngine = {
   key: string;
@@ -183,10 +184,16 @@ function readSourceDocumentStats(): { docs?: number; lastIndexed?: string } {
   let db: Database | undefined;
   try {
     db = new Database(DB_PATH, { readonly: true });
-    const row = db.query<{ docs: number; lastIndexed: string | null }, []>(`
-      SELECT COUNT(DISTINCT id) AS docs, MAX(indexed_at) AS lastIndexed
-      FROM oracle_documents
-    `).get();
+    const tenantId = currentTenantId();
+    const row = tenantId
+      ? db.query<{ docs: number; lastIndexed: string | null }, [string]>(`
+          SELECT COUNT(DISTINCT id) AS docs, MAX(indexed_at) AS lastIndexed
+          FROM oracle_documents WHERE tenant_id = ?
+        `).get(tenantId)
+      : db.query<{ docs: number; lastIndexed: string | null }, []>(`
+          SELECT COUNT(DISTINCT id) AS docs, MAX(indexed_at) AS lastIndexed
+          FROM oracle_documents
+        `).get();
     return {
       docs: row?.docs ?? 0,
       ...(row?.lastIndexed && { lastIndexed: row.lastIndexed }),

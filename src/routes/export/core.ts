@@ -11,6 +11,7 @@ import {
   normalizeRecords,
   type ExportRecord,
 } from './format.ts';
+import { tenantWhereFor } from './tenant.ts';
 
 type ExportTable = ReturnType<typeof introspectDrizzleTables>[number];
 type QueryConnection = Pick<DatabaseConnection, 'db' | 'sqlite'>;
@@ -47,7 +48,9 @@ function tableMap(): Map<string, ExportTable> {
 }
 
 function selectRows(connection: QueryConnection, table: ExportTable): ExportRecord[] {
-  return normalizeRecords((connection.db as any).select().from(table).all() as ExportRecord[]);
+  const query = (connection.db as any).select().from(table).$dynamic();
+  const where = tenantWhereFor(table);
+  return normalizeRecords((where ? query.where(where) : query).all() as ExportRecord[]);
 }
 
 function readCollectionRows(connection: QueryConnection, collection: string): ExportRecord[] | null {
