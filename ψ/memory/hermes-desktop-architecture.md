@@ -1,152 +1,171 @@
-# Hermes Desktop Architecture Reference for arra-oracle-v3
+# Hermes Desktop Architecture Review for arra-oracle-v3
 
 Issue: #1598  
 Date: 2026-06-16  
-Purpose: convert Hermes Agent desktop research into concrete `arra-oracle-v3` architecture guidance.
+Purpose: turn Hermes Agent Desktop research into an ARRA Oracle V3 design reference.
 
-## Short conclusion
+## Executive recommendation
 
-Hermes proves the right product boundary: **desktop is a thin host around one local runtime**. It should own install, boot, process supervision, OS integration, secure token storage, updates, diagnostics, and IPC hardening. It should not fork backend logic away from the CLI/API/MCP runtime.
+Hermes validates a **thin desktop host over one shared local runtime**. ARRA should not copy Hermes wholesale. ARRA should first harden the existing Bun/Elysia HTTP runtime and React Studio, then add a Tauri 2 desktop shell that launches and supervises that runtime.
 
-For ARRA, that means a future desktop shell should launch and monitor the existing Bun/Elysia server, then load the existing React Studio. ARRA should keep memory/search/vector/plugin behavior in `src/`, not in a desktop renderer.
-
-## Hermes pattern summary
-
-- Main desktop app: Electron + React/Vite shell.
-- Backend: existing Hermes Python runtime/dashboard spawned locally.
-- State root: `HERMES_HOME` holds config, sessions, logs, memories, plugins, MCP installs, backups, and runtime bootstrap metadata.
-- MCP: backend/CLI-owned config and catalog, surfaced in UI rather than stored only in renderer state.
-- Plugins: capability registration with provenance, enable/disable controls, and runtime status.
-- Packaging: Electron installers for macOS/Windows/Linux, plus a separate Tauri bootstrap installer path.
-- Security posture: hardened IPC/path helpers, sensitive-file blocking, safe token storage, process teardown before updates.
-
-## Current ARRA patterns to preserve
-
-### Shared Bun/Elysia runtime
-
-Relevant ARRA anchors:
-- `src/server.ts`
-- `src/routes/`
-- `src/middleware/api-version.ts`
-- `src/routes/health/`
-
-ARRA already has a modular HTTP runtime with versioned API compatibility, direct `/api/health`, and route clusters. A desktop shell should treat this server as the product core and gate launch on health readiness.
-
-Recommended desktop boot contract:
+Recommended target:
 
 ```text
-Desktop host
-  -> resolve ARRA_HOME / data dir
-  -> start Bun/Elysia server on 127.0.0.1:0
-  -> pass local session token / profile env
-  -> wait for /api/health = ok
-  -> load Studio UI
-  -> stream logs + expose repair/restart actions
+[Tauri shell]
+  -> resolve ARRA_HOME, token, profile, logs
+  -> spawn `maw arra serve --port 0 --json-ready`
+  -> wait for /api/v1/health and vector/plugin readiness
+  -> load bundled Studio or localhost Studio
+  -> expose restart, logs, diagnostics, import/export, notifications
 ```
 
-### React Studio as the UI shell
+Use Electron only if ARRA later needs bundled Chromium consistency, deep PTY panes, or Hermes-style heavy desktop surfaces that Tauri cannot support cleanly.
 
-Relevant ARRA anchors:
-- `frontend/src/pages/VectorPage.tsx`
-- `frontend/src/pages/VectorSettingsPage.tsx`
-- `frontend/src/pages/IndexManagerPanel.tsx`
-- `frontend/src/api/client.ts`
+## Hermes reference model
 
-ARRA should continue improving Studio as a web-first/PWA shell before native packaging. Hermes’ value is the shell supervision and OS integration, not a need to rebuild UI in native widgets.
+Hermes is a multi-surface agent runtime with a desktop shell, not a desktop-only product.
 
-Adopt from Hermes:
-- status bar for server/vector/indexer/MCP/plugin health;
-- preview rail for search results, traces, documents, and plugin output;
-- command palette over pages, collections, plugins, tools, and jobs;
-- one-click diagnostics bundle with logs and health JSON.
+- Desktop shell: Electron + React/Vite.
+- Bootstrap installer: separate Tauri 2 setup path.
+- Backend: Python/FastAPI dashboard/runtime spawned on loopback.
+- Startup contract: shell picks an ephemeral port, passes a session token, waits for backend-ready output, then loads the renderer.
+- State root: `HERMES_HOME` for config, sessions, logs, memories, MCP installs, plugins, and bootstrap metadata.
+- Auth: local loopback session token; public binding requires stronger dashboard auth; websocket access uses short-lived tickets.
+- MCP: backend/CLI-owned catalog and config, surfaced in UI with install-time tool selection.
+- Packaging: Electron Builder for macOS/Windows/Linux; signing/notarization paths; custom runtime updater.
 
-### Unified plugin manifest
+## Current ARRA anchors to preserve
 
-Relevant ARRA anchors:
-- `src/plugins/unified-manifest.ts`
-- `src/plugins/unified-loader.ts`
-- `src/plugins/path-containment.ts`
-- `src/plugins/unified-server.ts`
-- `src/plugins/error-containment.ts`
+ARRA already has the better core shape for this repo:
 
-ARRA’s declarative manifest is stricter than Hermes’ broad plugin registration model and should remain the spine. Borrow Hermes’ provenance/status ideas without allowing arbitrary hidden side effects.
+- Bun/TypeScript/Elysia server in `src/server.ts` and `src/routes/`.
+- React/Vite Studio in `frontend/`.
+- SQLite/Drizzle schema in `src/db/schema.ts`.
+- Vector/search/indexing core in `src/vector/`, `src/indexer/`, and `src/tools/`.
+- Unified plugin manifest and loader in `src/plugins/`.
+- Versioned HTTP surface under `/api/v1/*` with backward-compatible `/api/*` support.
 
-Recommended manifest evolution:
-- track every registered API route, MCP tool, CLI command, menu item, server, proxy, and hook by plugin ID;
-- add visible capability/provenance fields;
-- support safe enable/disable at plugin and surface level;
-- keep project-local plugins opt-in and clearly scoped;
-- show per-plugin server logs, health, and last error in Studio.
+Do not move MCP, search, vector, memory, indexing, or plugin behavior into a desktop renderer. The desktop should be a launcher, supervisor, and native integration layer.
 
-### Memory and search core
+## Hermes patterns ARRA should adopt
 
-Relevant ARRA anchors:
-- `src/tools/`
-- `src/vector/`
-- `src/indexer/`
-- `src/routes/memory/`
-- `ψ/memory/`
+### 1. Health-gated startup
 
-Hermes is useful for session/user memory lifecycle ideas, but ARRA is already stronger as a knowledge/search backend. Do not replace ARRA’s vector/FTS/indexer pipeline with a desktop-specific memory model.
+Desktop should never show a half-dead Studio. The host should render boot state, logs, repair actions, and precise failures while waiting for:
 
-Recommended separation:
-- **Knowledge index:** current ARRA SQLite/FTS/vector/indexer pipeline.
-- **Agent memory layer:** future Hermes-like lifecycle for profile/session memory, background prefetch/sync, and memory tools.
-- **Human memory:** `ψ/memory/` markdown for reviewable long-term notes and architecture records.
+- server health;
+- database readiness;
+- vector backend readiness;
+- plugin registry load;
+- indexer job state;
+- auth/session token availability.
 
-## Recommended ARRA desktop architecture
+### 2. One local data root
 
-Prefer this staged path:
+Formalize `ARRA_HOME` as the desktop data root for:
 
-1. **Web/PWA first**
-   - Finish Studio readiness, health cards, plugin status, vector/indexer controls, and diagnostics.
-   - Keep all core behavior testable through HTTP contract tests.
+- SQLite and WAL files;
+- vector metadata and collections;
+- plugin manifests and server logs;
+- `ψ/memory` exports/imports;
+- config, profiles, and tenant context;
+- diagnostics bundles.
 
-2. **Tauri shell prototype**
-   - Tauri is likely a better first ARRA fit than Electron because ARRA is Bun-native and does not need bundled Chromium/Node for backend compatibility.
-   - Use the shell only for process lifecycle, native menus, notifications, file dialogs, secure storage, and update UX.
+This mirrors `HERMES_HOME` while staying aligned with ARRA’s existing local-first model.
 
-3. **Electron only if requirements force it**
-   - Consider Electron if ARRA needs deep PTY/xterm workflows, bundled Chromium consistency, or Hermes-like complex desktop panes.
-   - If chosen, copy Hermes’ security posture: context isolation, no Node in renderer, preload bridge, strict navigation, IPC allow-list, and path hardening.
+### 3. Loopback auth boundary
 
-4. **Installer/update layer**
-   - Decide whether to bundle Bun or require system Bun.
-   - Support alpha/stable channels aligned with ARRA release policy.
-   - Stop child processes cleanly before update.
-   - Include logs and health output in support bundles.
+For desktop-local calls:
 
-## Concrete adoption backlog
+```text
+Shell generates local session token
+  -> spawns Bun server with token/env
+  -> renderer calls 127.0.0.1:<port> with X-Oracle-Session
+  -> server rejects missing/invalid desktop token
+  -> remote/public mode uses normal API-token auth
+```
 
-Near-term, before native desktop:
-- Add a Studio runtime readiness page backed by `/api/health`, `/api/plugins`, vector health, and index status.
-- Add plugin provenance/capability display in the plugin UI.
-- Add per-plugin logs and restart/stop actions for plugin server surfaces.
-- Add backup/export flow that includes SQLite, vector metadata, config, plugin manifests, and `ψ/memory`.
-- Add a diagnostics endpoint or CLI command that bundles health, config redactions, log tails, and plugin status.
+Keep desktop-local auth separate from API keys used by remote clients and MCP peers.
 
-Medium-term desktop prototype:
-- Define `ARRA_HOME` as the single desktop data root.
-- Add `maw arra serve --port 0 --json-ready` or equivalent readiness output.
-- Add local-only auth/session token for desktop renderer calls.
-- Add shell-owned log file paths and recovery actions.
-- Add a minimal Tauri launcher that opens existing Studio after health passes.
+### 4. Observable subprocesses
 
-Later polish:
-- Native file dialogs for import/export and vault selection.
-- OS notifications for index completion and plugin failures.
-- Secure storage for remote gateway tokens.
-- Signed installers and updater with explicit channel selection.
+Hermes treats external tools as supervised, logged, degraded components. ARRA should do the same for plugin server surfaces, external MCP servers, vector backends, and indexer workers:
 
-## Risks and guardrails
+- per-component status;
+- bounded startup timeouts;
+- stderr/log capture;
+- restart/stop controls;
+- credential redaction;
+- support bundle export.
 
-- Do not duplicate server logic in a desktop renderer.
-- Do not make desktop packaging block core MCP/search/server delivery.
-- Do not expose project-local plugins by default.
-- Do not rely on renderer-side secrets or broad filesystem IPC.
-- Keep health probes fast, direct, and independent of optional plugins.
-- Keep every native-shell capability behind a small audited bridge.
+### 5. MCP catalog and capability UX
 
-## Final recommendation
+Hermes’ MCP install/catalog flow is a strong operator pattern. ARRA’s stricter unified manifests should add:
 
-Use Hermes as a reference for **agent host ergonomics**: bootstrap, health-gated startup, profile-aware local state, MCP/catalog UX, plugin provenance, logs, and diagnostics. Keep ARRA’s identity as the stricter Bun/Elysia **Oracle memory/search MCP backend** with a React Studio operator console. Native desktop should arrive as a thin launcher and supervisor only after the web/server experience is stable.
+- plugin/tool provenance;
+- declared capabilities by surface: HTTP, MCP, CLI, menu, server, hook;
+- enable/disable per plugin and per surface;
+- visible tool inclusion/exclusion;
+- status for remote MCP and local stdio servers.
+
+### 6. Studio as operator console
+
+Hermes validates the direction of ARRA Studio: bento cards, command palette, previews, status rail, and activity HUD. Near-term Studio should expose:
+
+- runtime readiness;
+- vector provider and index status;
+- plugin capability inventory;
+- memory/search diagnostics;
+- recent jobs and failures;
+- “copy diagnostics” action.
+
+## Patterns not to copy
+
+- Do not default to Electron while ARRA can stay Bun-native and lightweight.
+- Do not introduce a second backend stack for desktop.
+- Do not adopt broad heuristic plugin discovery; keep manifest declarations explicit.
+- Do not make desktop packaging block core server, MCP, or search work.
+- Do not store secrets in renderer state or expose broad filesystem IPC.
+- Do not replace ARRA’s vector/FTS/indexer with Hermes-like session memory.
+
+## Proposed ARRA roadmap
+
+### Phase 0 — web/server readiness
+
+- Stabilize `maw arra serve` as the one server lifecycle command.
+- Add `--port 0 --json-ready` output for launcher integration.
+- Add readiness cards in Studio backed by health, vector, plugins, and indexer endpoints.
+- Add diagnostics bundle command/endpoint with redacted config and log tails.
+
+### Phase 1 — Tauri launcher prototype
+
+- Spawn the Bun server on loopback with a local session token.
+- Wait for health before loading Studio.
+- Add native menu items for restart, open logs, open data dir, copy diagnostics.
+- Keep all application behavior behind the existing HTTP API.
+
+### Phase 2 — desktop-safe operations
+
+- Add secure token storage for remote gateway credentials.
+- Add native file dialogs for import/export and vault selection.
+- Add OS notifications for indexing completion and plugin failures.
+- Add safe process teardown before updates.
+
+### Phase 3 — distribution
+
+- Decide whether to bundle Bun or require system Bun.
+- Align updater channels with ARRA alpha/stable release policy.
+- Add signing/notarization and platform-specific installer checks.
+- Keep CLI/web install path available for developers.
+
+## Open decisions
+
+1. Bundle Bun sidecar or require an installed Bun runtime?
+2. Serve Studio from bundled Tauri assets or from Bun/Elysia static output?
+3. Should desktop-local token auth be middleware-only or integrated with API key scopes?
+4. How should tenant/profile context map to `ARRA_HOME` and SQLite/vector paths?
+5. What update mechanism fits alpha prerelease cadence without unsafe self-modification?
+
+## Final design stance
+
+Use Hermes as a reference for **agent host ergonomics**: bootstrap, health-gated startup, profile-aware local state, MCP catalog UX, plugin provenance, logs, diagnostics, and safe subprocess management. Keep ARRA’s product identity as a Bun/Elysia **Oracle memory/search MCP backend** with a React Studio operator console. Native desktop should be a thin Tauri launcher and supervisor after the server and web surfaces are stable.
