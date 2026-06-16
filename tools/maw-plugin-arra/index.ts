@@ -19,8 +19,27 @@ type RegistryCommand = {
 
 const surfaces = ['cli', 'api', 'menu'] as const;
 
+export const pluginConfig = {
+  dbBackend: 'http',
+  embedderBackend: 'none',
+  apiBase: 'http://localhost:47778',
+  remoteEmbedderUrl: '',
+};
+
+export const pluginConfigSchema = {
+  type: 'object',
+  properties: {
+    dbBackend: { type: 'string', enum: ['http', 'sqlite', 'memory', 'custom'] },
+    embedderBackend: { type: 'string', enum: ['none', 'local', 'remote'] },
+    apiBase: { type: 'string' },
+    remoteEmbedderUrl: { type: 'string' },
+  },
+  additionalProperties: true,
+};
+
 const commandHandlers: Record<string, CommandHandler> = {
   commands: runCommandsCommand,
+  config: runConfigCommand,
   export: runExportCommand,
   status: () => runStatusCommand(),
   'vector-config': runVectorConfigCommand,
@@ -29,6 +48,7 @@ const commandHandlers: Record<string, CommandHandler> = {
 
 export const commandRegistry: RegistryCommand[] = [
   { name: 'commands', help: 'list the shared CLI/API/menu command registry', surfaces: [...surfaces] },
+  { name: 'config', help: 'show swappable DB and optional embedder defaults', surfaces: [...surfaces] },
   { name: 'status', help: 'show vector collections, doc counts, and health', surfaces: [...surfaces] },
   { name: 'export', help: 'export app collections as json, csv, md, or jsonl', surfaces: [...surfaces] },
   { name: 'vector-config', help: VECTOR_CONFIG_HELP, surfaces: [...surfaces] },
@@ -90,6 +110,8 @@ function registryPayload(source: string) {
   return {
     plugin: 'arra',
     source,
+    config: pluginConfig,
+    configSchema: pluginConfigSchema,
     menu: { label: 'ARRA Oracle', path: '/plugins/arra', group: 'tools' },
     api: { path: '/api/plugins/arra', methods: ['GET', 'POST'] },
     cli: { command: 'arra' },
@@ -109,6 +131,18 @@ async function runCommandsCommand(args: string[]): Promise<string> {
   return wantsJson(args)
     ? JSON.stringify(registryPayload('cli'), null, 2)
     : registryText();
+}
+
+async function runConfigCommand(args: string[]): Promise<string> {
+  const payload = { config: pluginConfig, configSchema: pluginConfigSchema };
+  if (wantsJson(args)) return JSON.stringify(payload, null, 2);
+  return [
+    'arra plugin config defaults:',
+    `  dbBackend: ${pluginConfig.dbBackend}`,
+    `  embedderBackend: ${pluginConfig.embedderBackend}`,
+    `  apiBase: ${pluginConfig.apiBase}`,
+    '  remoteEmbedderUrl: (unset)',
+  ].join('\n');
 }
 
 export default async function handler(ctx: InvokeContext): Promise<InvokeResult> {

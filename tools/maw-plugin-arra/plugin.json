@@ -9,6 +9,22 @@
   },
   "sdk": "^1.0.0",
   "description": "ARRA Oracle CLI bridge for vector export, status, and vector config commands.",
+  "config": {
+    "dbBackend": "http",
+    "embedderBackend": "none",
+    "apiBase": "http://localhost:47778",
+    "remoteEmbedderUrl": ""
+  },
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "dbBackend": { "type": "string", "enum": ["http", "sqlite", "memory", "custom"] },
+      "embedderBackend": { "type": "string", "enum": ["none", "local", "remote"] },
+      "apiBase": { "type": "string" },
+      "remoteEmbedderUrl": { "type": "string" }
+    },
+    "additionalProperties": true
+  },
   "author": "Soul-Brews-Studio",
   "api": {
     "path": "/api/plugins/arra",
@@ -24,7 +40,7 @@
   ],
   "cli": {
     "command": "arra",
-    "help": "maw arra <commands|status|export --collection X --format json|csv|md|vector-config list|get|set|add|remove|set-primary|reload|test>"
+    "help": "maw arra <commands|config|status|export --collection X --format json|csv|md|vector-config list|get|set|add|remove|set-primary|reload|test>"
   },
   "weight": 10,
   "license": "BUSL-1.1",
