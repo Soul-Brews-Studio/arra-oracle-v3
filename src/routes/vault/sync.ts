@@ -9,10 +9,11 @@
  */
 
 import { Elysia, t } from 'elysia';
-import { migrate as runMigrate, type MigrateResult } from '../../vault/migrate.ts';
+import { migrate as runMigrate, type MigrateOptions, type MigrateResult } from '../../vault/migrate.ts';
+import { currentTenantId } from '../../middleware/tenant.ts';
 
 export interface SyncDeps {
-  migrate: (opts: { dryRun: boolean }) => MigrateResult;
+  migrate: (opts: MigrateOptions) => MigrateResult;
   spawnIndexer: () => void;
 }
 
@@ -35,7 +36,9 @@ export function createVaultSyncRoute(deps: SyncDeps = defaultDeps) {
       const reindex = body?.reindex === true;
 
       try {
-        const result = deps.migrate({ dryRun });
+        const tenantId = currentTenantId();
+        const migrateOpts = tenantId ? { dryRun, tenantId } : { dryRun };
+        const result = deps.migrate(migrateOpts);
 
         let reindexSpawned = false;
         if (reindex && !dryRun && result.filesCopied > 0) {
@@ -47,6 +50,7 @@ export function createVaultSyncRoute(deps: SyncDeps = defaultDeps) {
           ok: true,
           dryRun,
           reindex: reindexSpawned,
+          tenant: tenantId ? { id: tenantId, scope: 'vault_project' } : undefined,
           migrate: result,
         };
       } catch (err) {
