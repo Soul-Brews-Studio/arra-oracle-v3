@@ -1,13 +1,15 @@
 import { Elysia } from 'elysia';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { db, searchLog } from '../../db/index.ts';
 import { logsQuery } from './model.ts';
+import { currentTenantId } from '../../middleware/tenant.ts';
 
 export const logsRoute = new Elysia().get(
   '/api/logs',
   ({ query }) => {
     try {
       const limit = parseInt(query.limit || '20');
+      const tenantId = currentTenantId();
       const logs = db
         .select({
           id: searchLog.id,
@@ -21,6 +23,7 @@ export const logsRoute = new Elysia().get(
           results: searchLog.results,
         })
         .from(searchLog)
+        .where(tenantId ? eq(searchLog.tenantId, tenantId) : undefined)
         .orderBy(desc(searchLog.createdAt))
         .limit(limit)
         .all();
