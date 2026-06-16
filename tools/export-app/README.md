@@ -39,7 +39,8 @@ The vector HTTP exporter advertises formats from
 files under `collections/` and a top-level relationship export.
 When `/api/export/run` is pointed at a legacy Oracle v2 backend with
 `oracleV2Url`, `format: "json"` writes the metadata dump and
-`format: "markdown"` writes a readable document vault file.
+`format: "markdown"` writes a readable document vault file, and
+`format: "csv"` writes a spreadsheet review artifact.
 The direct fallback download path is
 `/api/v1/export/app?collection=oracle_documents&format=markdown`.
 

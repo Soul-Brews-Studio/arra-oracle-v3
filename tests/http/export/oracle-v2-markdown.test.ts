@@ -96,16 +96,46 @@ describe('Oracle v2 markdown export history route', () => {
     }
   });
 
+  test('writes a CSV artifact for Oracle v2 documents', async () => {
+    const legacy = legacyOracle();
+    try {
+      const res = await postExport({
+        collection: 'oracle_documents',
+        format: 'csv',
+        oracleV2Url: `http://127.0.0.1:${legacy.server.port}`,
+      });
+      const body = await res.json() as Record<string, any>;
+      const artifact = body.artifact as { filename: string; filePath: string };
+      const filename = artifact.filename;
+      const filePath = artifact.filePath;
+
+      expect(res.status).toBe(201);
+      expect(body.job).toMatchObject({ collection: 'oracle_documents', format: 'csv' });
+      expect(body.artifact).toMatchObject({
+        filename: expect.stringContaining('oracle_documents'),
+        contentType: 'text/csv; charset=utf-8',
+        documentCount: 2,
+      });
+      expect(filename.endsWith('.csv')).toBe(true);
+      const csv = readFileSync(filePath, 'utf8');
+      expect(csv.split('\n')[0]).toBe('id,title,source_file,concepts,content_preview,metadata_json');
+      expect(csv).toContain('"legacy-a","Alpha note","psi/a.md","alpha backup"');
+      expect(csv).toContain('Alpha legacy body');
+    } finally {
+      legacy.server.stop(true);
+    }
+  });
+
   test('keeps unsupported Oracle v2 formats rejected', async () => {
     const res = await postExport({
       collection: 'oracle_documents',
-      format: 'csv',
+      format: 'xml',
       oracleV2Url: 'http://127.0.0.1:1',
     });
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({
-      error: 'Oracle v2 export supports json or markdown format only',
-      format: 'csv',
+      error: 'Oracle v2 export supports json, markdown, or csv format only',
+      format: 'xml',
     });
   });
 });
