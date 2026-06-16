@@ -1,7 +1,7 @@
 import { Elysia } from 'elysia';
 import { DB_PATH, PORT } from '../../config.ts';
 import { MCP_SERVER_NAME } from '../../const.ts';
-import { db, settings } from '../../db/index.ts';
+import { db, sqlite, settings } from '../../db/index.ts';
 import { scanPlugins } from '../plugins/model.ts';
 import { handleVectorHealth } from '../../server/vector-handlers.ts';
 import { mcpTools } from '../../tools/mcp-manifest.ts';
@@ -9,7 +9,7 @@ import type { UnifiedPluginStatus } from '../../plugins/unified-loader.ts';
 import pkg from '../../../package.json' with { type: 'json' };
 
 type VectorHealth = Awaited<ReturnType<typeof handleVectorHealth>>;
-type DbStatus = { status: 'ok' } | { status: 'down'; error: string };
+type DbStatus = { status: 'connected' } | { status: 'error'; error: string };
 
 export interface HealthEndpointOptions {
   pluginCount?: number;
@@ -27,9 +27,10 @@ function errorMessage(error: unknown): string {
 function readDbStatus(): DbStatus {
   try {
     db.select({ key: settings.key }).from(settings).limit(1).all();
-    return { status: 'ok' };
+    sqlite.prepare('SELECT 1 as ok').get();
+    return { status: 'connected' };
   } catch (error) {
-    return { status: 'down', error: errorMessage(error) };
+    return { status: 'error', error: errorMessage(error) };
   }
 }
 
@@ -66,28 +67,31 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
       };
     }
 
-    const uptimeSeconds = Number(options.uptimeSeconds?.() ?? process.uptime());
-    const dbStatus = readDbStatus();
-    const vector = await readVectorStatus(options.vectorHealth);
-    const pluginItems = await options.pluginStatuses?.() ?? [];
+  const uptimeSeconds = Number(options.uptimeSeconds?.() ?? process.uptime());
+  const dbStatus = readDbStatus();
+  const vector = await readVectorStatus(options.vectorHealth);
+  const pluginItems = await options.pluginStatuses?.() ?? [];
     const pluginCount = options.pluginCount ?? (pluginItems.length || installedPluginCount());
     const pluginStatus = pluginItems.some((plugin) => plugin.status === 'degraded') ? 'degraded' : 'ok';
     const toolCount = mcpTools.length + (options.pluginMcpToolCount ?? 0);
 
-    return {
-      status: 'ok',
+  const serviceUptime = Math.round(uptimeSeconds * 1000) / 1000;
+  return {
+      status: dbStatus.status === 'connected' ? 'ok' : 'degraded',
       server: MCP_SERVER_NAME,
       version: pkg.version,
       port: Number(PORT),
-      oracle: dbStatus.status === 'ok' ? 'connected' : 'degraded',
-      uptimeSeconds: Math.round(uptimeSeconds * 1000) / 1000,
+      uptime: serviceUptime,
+      uptimeSeconds: serviceUptime,
+      db: dbStatus.status,
+      oracle: dbStatus.status === 'connected' ? 'connected' : 'error',
       dbStatus: dbStatus.status,
       vectorStatus: vector.status,
       pluginStatus,
       mcpToolCount: toolCount,
       pluginCount,
-      uptime: { seconds: Math.round(uptimeSeconds * 1000) / 1000 },
-      db: { ...dbStatus, path: DB_PATH },
+      uptimeSecondsBreakdown: { seconds: serviceUptime },
+      dbCheck: { ...dbStatus, path: DB_PATH },
       vector,
       mcp: { toolCount },
       plugins: { count: pluginCount, status: pluginStatus, items: pluginItems },
