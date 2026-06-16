@@ -10,7 +10,7 @@ export function VectorSettingsPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Vector settings</p>
         <h1 id="vector-settings-title" className="mt-2 text-3xl font-semibold text-white">Vector settings</h1>
         <p className="mt-2 text-sm text-slate-400">
-          Configure vector search, embedding providers, storage services, adapters, and backfill jobs.
+          Configure adapters, embedding models, vector search, storage services, and backfill jobs.
         </p>
       </header>
 
