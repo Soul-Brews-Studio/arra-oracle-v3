@@ -51,6 +51,11 @@ async function postExport(body: Record<string, unknown>): Promise<Response> {
   }));
 }
 
+async function getExport(path: string): Promise<Response> {
+  const api = new Elysia().use(exportRoutes);
+  return api.handle(new Request(`http://local${path}`));
+}
+
 afterAll(() => {
   dbMod.closeDb();
   if (savedDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
@@ -62,6 +67,22 @@ afterAll(() => {
 });
 
 describe('Oracle v2 markdown export history route', () => {
+  test('lists collections from a legacy Oracle v2 backend', async () => {
+    const legacy = legacyOracle();
+    try {
+      const query = new URLSearchParams({ baseUrl: `http://127.0.0.1:${legacy.server.port}` });
+      const res = await getExport(`/api/export/oracle-v2/collections?${query.toString()}`);
+      const body = await res.json() as Record<string, any>;
+
+      expect(res.status).toBe(200);
+      expect(body.collections).toEqual([{ name: 'oracle_documents', count: 2 }]);
+      expect(body.total).toBe(1);
+      expect(legacy.seen).toEqual(['/api/collections']);
+    } finally {
+      legacy.server.stop(true);
+    }
+  });
+
   test('writes a Markdown artifact for Oracle v2 documents', async () => {
     const legacy = legacyOracle();
     try {
@@ -71,9 +92,10 @@ describe('Oracle v2 markdown export history route', () => {
         oracleV2Url: `http://127.0.0.1:${legacy.server.port}`,
       });
       const body = await res.json() as Record<string, any>;
-      const artifact = body.artifact as { filename: string; filePath: string };
+      const artifact = body.artifact as { filename: string; filePath: string; downloadUrl: string };
       const filename = artifact.filename;
       const filePath = artifact.filePath;
+      const downloadUrl = artifact.downloadUrl;
 
       expect(res.status).toBe(201);
       expect(body.job).toMatchObject({ collection: 'oracle_documents', format: 'markdown' });
@@ -81,6 +103,7 @@ describe('Oracle v2 markdown export history route', () => {
         filename: expect.stringContaining('oracle_documents'),
         contentType: 'text/markdown; charset=utf-8',
         documentCount: 2,
+        downloadUrl: expect.stringContaining('/api/v1/export/history/'),
       });
       expect(filename.endsWith('.md')).toBe(true);
       expect(existsSync(filePath)).toBe(true);
@@ -92,6 +115,11 @@ describe('Oracle v2 markdown export history route', () => {
       expect(markdown).toContain('Alpha legacy body');
       expect(markdown).toContain('Bravo legacy body');
       expect(legacy.seen).toEqual(['/api/collections', '/api/documents?collection=oracle_documents']);
+
+      const download = await getExport(downloadUrl.replace('/api/v1', '/api'));
+      expect(download.status).toBe(200);
+      expect(download.headers.get('content-type')).toBe('text/markdown; charset=utf-8');
+      expect(await download.text()).toBe(markdown);
     } finally {
       legacy.server.stop(true);
     }

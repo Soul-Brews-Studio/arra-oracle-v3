@@ -1,19 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
 import { BackendSelector, DEFAULT_BACKEND_URL, normalizeBackendUrl } from '../components/export/BackendSelector';
+import { DownloadCard } from '../components/export/DownloadCard';
 import { ExportProgress } from '../components/export/ExportProgress';
 import {
   backendApiUrl,
+  collectionLabel,
+  errorMessage,
   exportResponseError,
   exportAppFormats,
   exportProgressUrl,
+  isLegacyFallback,
+  isOracleV2ProxyFormat,
   legacyDirectExportLink,
   messageFromPayload,
   normalizeExportAppCollections,
+  oracleV2CollectionsPath,
+  oracleV2RunPayload,
   progressPatchFromExportPayload,
   readExportPayload,
   resolveDownloadLink,
   type ExportAppFormat,
+  type ExportAppMode,
   type ExportDownloadLink,
   type LegacyExportCollection,
 } from './exportAppHelpers';
@@ -29,33 +37,9 @@ type ExportAppProps = {
   autoLoad?: boolean;
 };
 
-function collectionLabel(collection: LegacyExportCollection): string {
-  const count = typeof collection.count === 'number' ? ` · ${collection.count.toLocaleString()} rows` : '';
-  return `${collection.label}${count}`;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function isLegacyFallback(status: number): boolean {
-  return status === 404 || status === 405 || status === 501;
-}
-
-function DownloadCard({ link }: { link: ExportDownloadLink | null }) {
-  if (!link) return null;
-  return (
-    <div className="rounded-2xl border border-emerald-300/20 bg-emerald-300/10 p-4" role="status">
-      <p className="text-sm font-semibold text-emerald-100">Export is ready.</p>
-      <a className="focus-ring mt-3 inline-flex rounded-xl bg-teal-300 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-teal-200" href={link.url} download={link.filename}>
-        Download {link.filename}
-      </a>
-    </div>
-  );
-}
-
 export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = globalThis.fetch?.bind(globalThis), autoLoad = true }: ExportAppProps) {
   const [backendUrl, setBackendUrl] = useState(() => normalizeBackendUrl(initialBackendUrl));
+  const [mode, setMode] = useState<ExportAppMode>('export-app');
   const [loadState, setLoadState] = useState<LoadState>('idle');
   const [exportState, setExportState] = useState<ExportState>('idle');
   const [error, setError] = useState('');
@@ -102,6 +86,16 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
     setProgress({ status: 'idle', jobId: null, progress: 0 });
     try {
       if (!fetcher) throw new Error('fetch is unavailable in this runtime.');
+      const proxyPath = oracleV2CollectionsPath(normalized);
+      const proxy = await fetcher(backendApiUrl(DEFAULT_BACKEND_URL, proxyPath), { headers: { accept: 'application/json' } }).catch(() => null);
+      if (proxy?.ok) {
+        const next = normalizeExportAppCollections(await readExportPayload(proxy, proxyPath));
+        setCollections(next);
+        setCollection((current) => next.find((item) => item.id === current)?.id ?? next[0]?.id ?? '');
+        setMode('oracle-v2');
+        setLoadState('ready');
+        return;
+      }
       const path = '/api/v1/export/app/collections';
       const response = await fetcher(backendApiUrl(normalized, '/api/v1/export/app/collections'), {
         headers: { accept: 'application/json' },
@@ -110,6 +104,7 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
       const next = normalizeExportAppCollections(await readExportPayload(response, path));
       setCollections(next);
       setCollection((current) => next.find((item) => item.id === current)?.id ?? next[0]?.id ?? '');
+      setMode('export-app');
       setLoadState('ready');
     } catch (err) {
       setCollections([]);
@@ -131,15 +126,21 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
     closeProgress();
     setProgress({ status: 'starting', jobId: null, progress: 0 });
     const normalized = normalizeBackendUrl(backendUrl);
-    const payload = { collection: selected.id, format, includeGraph: true, includeMetadata: true };
+    const apiBase = mode === 'oracle-v2' ? DEFAULT_BACKEND_URL : normalized;
+    const path = mode === 'oracle-v2' ? '/api/v1/export/run' : '/api/v1/export/app/run';
+    const payload = mode === 'oracle-v2'
+      ? oracleV2RunPayload(selected.id, format, normalized)
+      : { collection: selected.id, format, includeGraph: true, includeMetadata: true };
     try {
-      const path = '/api/v1/export/app/run';
-      const response = await fetcher(backendApiUrl(normalized, '/api/v1/export/app/run'), {
+      if (mode === 'oracle-v2' && !isOracleV2ProxyFormat(format)) {
+        throw new Error('Oracle v2 direct export supports JSON, CSV, and Markdown. Choose JSON or Markdown for migration backups.');
+      }
+      const response = await fetcher(backendApiUrl(apiBase, path), {
         method: 'POST',
         headers: { accept: 'application/json', 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (isLegacyFallback(response.status)) {
+      if (mode === 'export-app' && isLegacyFallback(response.status)) {
         const link = legacyDirectExportLink(normalized, selected.id, format);
         setDownload(link);
         setProgress({ status: 'done', jobId: null, progress: 100, downloadUrl: link.url, filename: link.filename });
@@ -151,7 +152,7 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
         const detail = progressPatchFromExportPayload(body).error ?? messageFromPayload(body);
         throw new Error(`${path} returned ${response.status}${detail ? `: ${detail}` : ''}`);
       }
-      const link = resolveDownloadLink(normalized, body, selected.id, format);
+      const link = resolveDownloadLink(apiBase, body, selected.id, format);
       if (!link) throw new Error('Export response did not include a download URL or job id.');
       const patch = progressPatchFromExportPayload(body);
       setDownload(link);
@@ -163,7 +164,7 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
         downloadUrl: link.url,
         filename: link.filename,
       }));
-      if (patch.jobId) connectProgress(normalized, patch.jobId);
+      if (patch.jobId) connectProgress(apiBase, patch.jobId);
       setExportState('ready');
     } catch (err) {
       const message = errorMessage(err);
@@ -181,7 +182,7 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
       <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="export-app-title">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Legacy Oracle v2</p>
         <h1 id="export-app-title" className="mt-2 text-3xl font-semibold text-white">Export app</h1>
-        <p className="mt-2 text-sm text-slate-400">Connect to an old Oracle v2 backend, list collections, and prepare JSON, JSONL, CSV, or Markdown backups before migration.</p>
+        <p className="mt-2 text-sm text-slate-400">Connect to an old Oracle v2 backend, list collections, and prepare JSON or Markdown backups before migration.</p>
       </section>
 
       <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="backend-title">
@@ -198,7 +199,7 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
         <div className="mt-4"><BackendSelector value={backendUrl} onChange={setBackendUrl} /></div>
       </section>
 
-      {loadState === 'loading' ? <LoadingPanel title="Loading export collections" detail="Calling /api/v1/export/app/collections on the selected backend." /> : null}
+      {loadState === 'loading' ? <LoadingPanel title="Loading export collections" detail="Checking the local Oracle v2 proxy, then export-app collections if needed." /> : null}
       {loadState === 'error' ? (
         <ErrorMessage
           title="Could not load legacy backend collections."

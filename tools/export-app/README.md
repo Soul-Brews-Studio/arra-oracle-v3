@@ -41,6 +41,8 @@ When `/api/export/run` is pointed at a legacy Oracle v2 backend with
 `oracleV2Url`, `format: "json"` writes the metadata dump and
 `format: "markdown"` writes a readable document vault file, and
 `format: "csv"` writes a spreadsheet review artifact.
+The Tauri/React export screen uses the local backend as a proxy so a raw Oracle
+v2 server only needs `/api/collections` and `/api/documents`.
 The direct fallback download path is
 `/api/v1/export/app?collection=oracle_documents&format=markdown`.
 
@@ -171,7 +173,9 @@ bun run export -- --url http://localhost:47778 --collection oracle_documents \
 The React export app is intentionally safe to use before a migration:
 
 - **Loading collections** calls `GET /api/v1/export/app/collections` on the
-  selected backend and disables the reload button while the request is active.
+  selected backend when the local Oracle v2 proxy is unavailable. Direct Oracle
+  v2 collection probes call `/api/v1/export/oracle-v2/collections?baseUrl=...`
+  through the local Tauri backend.
 - **Backend errors** display the backend `error`, `message`, or nested
   `data.message` value when one is returned; invalid JSON is reported as a
   response-shape problem so operators do not mistake it for an empty export.

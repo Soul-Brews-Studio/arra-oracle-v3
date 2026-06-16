@@ -6,6 +6,9 @@ import {
   legacyDirectExportLink,
   messageFromPayload,
   normalizeExportAppCollections,
+  oracleV2CollectionsPath,
+  oracleV2RunPayload,
+  progressPatchFromExportPayload,
   readExportPayload,
   resolveDownloadLink,
 } from '../../../frontend/src/pages/exportAppHelpers';
@@ -36,10 +39,33 @@ describe('ExportApp legacy v2 UI', () => {
       .toBe('oracle_documents.csv');
     expect(resolveDownloadLink('https://oracle.example/root', { jobId: 'job 3' }, 'oracle_documents', 'jsonl')?.filename)
       .toBe('oracle_documents.jsonl');
+    expect(resolveDownloadLink('localhost:47778', {
+      job: { id: 'job-v2', status: 'completed' },
+      artifact: { downloadUrl: '/api/v1/export/history/job-v2/download', filename: 'oracle_documents-job-v2.md' },
+    }, 'oracle_documents', 'markdown')).toEqual({
+      url: 'http://localhost:47778/api/v1/export/history/job-v2/download',
+      filename: 'oracle_documents-job-v2.md',
+    });
     expect(legacyDirectExportLink('localhost:47778', 'oracle_documents', 'markdown').url)
       .toContain('/api/v1/export/app?collection=oracle_documents&format=markdown');
     expect(legacyDirectExportLink('localhost:47778', 'oracle_documents', 'csv').filename)
       .toBe('oracle_documents.csv');
+    expect(oracleV2CollectionsPath('old.example/oracle'))
+      .toBe('/api/v1/export/oracle-v2/collections?baseUrl=http%3A%2F%2Fold.example%2Foracle');
+    expect(oracleV2RunPayload('oracle_documents', 'json', 'old.example')).toEqual({
+      collection: 'oracle_documents',
+      format: 'json',
+      oracleV2Url: 'http://old.example',
+    });
+    expect(progressPatchFromExportPayload({
+      job: { id: 'job-v2', status: 'completed' },
+      artifact: { downloadUrl: '/api/v1/export/history/job-v2/download', filename: 'docs.md', sizeBytes: 12 },
+    })).toMatchObject({
+      jobId: 'job-v2',
+      status: 'done',
+      filename: 'docs.md',
+      fileSizeEstimate: 12,
+    });
   });
 
   test('extracts backend error payloads and invalid JSON failures', async () => {

@@ -2,6 +2,7 @@ import { normalizeBackendUrl } from '../components/export/BackendSelector';
 import type { ExportProgressState } from '../hooks/useExport';
 
 export type ExportAppFormat = 'json' | 'jsonl' | 'csv' | 'markdown';
+export type ExportAppMode = 'export-app' | 'oracle-v2';
 
 export type LegacyExportCollection = {
   id: string;
@@ -80,12 +81,43 @@ function nestedJob(payload: Record<string, unknown>): Record<string, unknown> {
   return isRecord(job) ? job : payload;
 }
 
+function nestedArtifact(payload: Record<string, unknown>): Record<string, unknown> {
+  const artifact = payload.artifact;
+  return isRecord(artifact) ? artifact : {};
+}
+
 function stringField(payload: Record<string, unknown>, fields: string[]): string {
   for (const field of fields) {
     const value = payload[field];
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
   return '';
+}
+
+export function collectionLabel(collection: LegacyExportCollection): string {
+  const count = typeof collection.count === 'number' ? ` · ${collection.count.toLocaleString()} rows` : '';
+  return `${collection.label}${count}`;
+}
+
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function isLegacyFallback(status: number): boolean {
+  return status === 404 || status === 405 || status === 501;
+}
+
+export function isOracleV2ProxyFormat(format: ExportAppFormat): boolean {
+  return format === 'json' || format === 'markdown' || format === 'csv';
+}
+
+export function oracleV2CollectionsPath(oracleV2Url: string): string {
+  const query = new URLSearchParams({ baseUrl: normalizeBackendUrl(oracleV2Url) });
+  return `/api/v1/export/oracle-v2/collections?${query.toString()}`;
+}
+
+export function oracleV2RunPayload(collection: string, format: ExportAppFormat, oracleV2Url: string) {
+  return { collection, format, oracleV2Url: normalizeBackendUrl(oracleV2Url) };
 }
 
 export function resolveDownloadLink(
@@ -96,13 +128,17 @@ export function resolveDownloadLink(
 ): ExportDownloadLink | null {
   if (!isRecord(payload)) return null;
   const job = nestedJob(payload);
-  const rawUrl = stringField(job, ['downloadUrl', 'download_url', 'url', 'href']);
+  const artifact = nestedArtifact(payload);
+  const rawUrl = stringField(job, ['downloadUrl', 'download_url', 'url', 'href'])
+    || stringField(artifact, ['downloadUrl', 'download_url', 'url', 'href']);
   const jobId = stringField(job, ['jobId', 'id']);
   const path = rawUrl || (jobId ? `/api/v1/export/app/download/${encodeURIComponent(jobId)}` : '');
   if (!path) return null;
   return {
     url: new URL(path, `${normalizeBackendUrl(backendUrl)}/`).toString(),
-    filename: stringField(job, ['filename', 'fileName', 'name']) || filenameFrom(format, collection),
+    filename: stringField(job, ['filename', 'fileName', 'name'])
+      || stringField(artifact, ['filename', 'fileName', 'name'])
+      || filenameFrom(format, collection),
   };
 }
 
@@ -123,7 +159,9 @@ export function exportProgressUrl(backendUrl: string, jobId: string): string {
 }
 
 export function progressPatchFromExportPayload(payload: unknown): Partial<ExportProgressState> {
-  const job = nestedJob(isRecord(payload) ? payload : {});
+  const record = isRecord(payload) ? payload : {};
+  const job = nestedJob(record);
+  const artifact = nestedArtifact(record);
   const rawStatus = stringField(job, ['status', 'state']).toLowerCase();
   const progress = numberValue(job.progress, job.percent, job.progressPercent);
   const status = rawStatus === 'completed' || rawStatus === 'done' ? 'done'
@@ -133,9 +171,11 @@ export function progressPatchFromExportPayload(payload: unknown): Partial<Export
     ...(status ? { status } : {}),
     jobId: stringField(job, ['jobId', 'id']) || null,
     progress: progress === undefined ? undefined : Math.max(0, Math.min(100, progress <= 1 ? progress * 100 : progress)),
-    fileSizeEstimate: numberValue(job.fileSizeEstimate, job.sizeBytes, job.bytes),
-    downloadUrl: stringField(job, ['downloadUrl', 'download_url', 'url', 'href']) || undefined,
-    filename: stringField(job, ['filename', 'fileName', 'name']) || undefined,
+    fileSizeEstimate: numberValue(job.fileSizeEstimate, job.sizeBytes, job.bytes, artifact.sizeBytes, artifact.bytes),
+    downloadUrl: stringField(job, ['downloadUrl', 'download_url', 'url', 'href'])
+      || stringField(artifact, ['downloadUrl', 'download_url', 'url', 'href']) || undefined,
+    filename: stringField(job, ['filename', 'fileName', 'name'])
+      || stringField(artifact, ['filename', 'fileName', 'name']) || undefined,
     error: stringField(job, ['error', 'message']) || undefined,
   };
 }
