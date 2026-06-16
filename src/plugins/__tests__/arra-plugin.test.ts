@@ -18,6 +18,7 @@ describe("built-in arra plugin", () => {
     expect(manifest.cli.handler).toBe("arraCli");
     expect(manifest.verbs).toEqual(ARRA_VERBS);
     expect(manifest.httpRoutes[0].path).toBe("/api/plugins/arra");
+    expect(manifest.apiRoutes[0].methods).toEqual(["GET", "POST"]);
     expect(manifest.config).toMatchObject({ dbBackend: "sqlite", embedderBackend: "none" });
     expect(manifest.configSchema.properties.dbBackend.enum).toEqual(["sqlite", "http", "memory", "custom"]);
   });
@@ -54,6 +55,18 @@ describe("built-in arra plugin", () => {
     expect(body.backends.embedder.optional).toBe(true);
     expect(body.backends.embedder.supported).toContain("remote");
     expect(body.verbs.map((verb) => verb.name)).toEqual(ARRA_VERBS);
+
+    const version = await app.handle(new Request("http://local/api/plugins/arra?command=version"));
+    expect(await version.json()).toEqual({ ok: true, command: "version", output: "arra 1.0.0" });
+
+    const commands = await app.handle(new Request("http://local/api/plugins/arra", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ command: "commands", json: true }),
+    }));
+    const commandsBody = await commands.json() as { surface: string; verbs: Array<{ name: string }> };
+    expect(commandsBody.surface).toBe("api");
+    expect(commandsBody.verbs.map((verb) => verb.name)).toEqual(ARRA_VERBS);
   });
 
   test("delegates maw arra health to vector engine details", async () => {
