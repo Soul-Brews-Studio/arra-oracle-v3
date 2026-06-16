@@ -2,6 +2,12 @@
 
 Purpose: recover enough context to work safely in under two minutes after a fresh session or compaction.
 
+Boot self-check:
+
+- ✅ Target read time is ≤2 minutes.
+- ✅ Wake protocol, memory map, task loop, and blocked report format are present.
+- ✅ Reflection explains why this stays short and operational.
+
 ## 0. Wake protocol
 
 1. Read the current user task and latest lead message first.
