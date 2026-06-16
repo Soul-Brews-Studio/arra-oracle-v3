@@ -60,12 +60,13 @@ export class OracleV2Client {
   private readonly timeoutMs?: number;
 
   constructor(options: OracleV2ClientOptions) {
-    const base = String(options.baseUrl).trim();
-    if (!base) throw new OracleV2ClientError('Oracle v2 baseUrl is required');
-    this.baseUrl = base.replace(/\/+$/, '');
+    if (!options || typeof options !== 'object') {
+      throw new OracleV2ClientError('Oracle v2 client options are required');
+    }
+    this.baseUrl = normalizeBaseUrl(options.baseUrl);
     this.fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.headers = options.headers;
-    this.timeoutMs = options.timeoutMs;
+    this.timeoutMs = normalizeTimeoutMs(options.timeoutMs);
   }
 
   async fetchCollections(): Promise<OracleV2CollectionsResponse> {
@@ -78,8 +79,7 @@ export class OracleV2Client {
   }
 
   async fetchDocuments(collection: string): Promise<OracleV2DocumentsResponse> {
-    const name = collection.trim();
-    if (!name) throw new OracleV2ClientError('collection is required');
+    const name = requiredString(collection, 'collection');
     const raw = await this.getJson(`/api/documents?collection=${encodeURIComponent(name)}`);
     return { collection: name, documents: normalizeDocuments(raw, name), raw };
   }
@@ -90,7 +90,7 @@ export class OracleV2Client {
 
   private async getJson(path: string): Promise<unknown> {
     const url = this.url(path);
-    const controller = this.timeoutMs ? new AbortController() : undefined;
+    const controller = this.timeoutMs !== undefined ? new AbortController() : undefined;
     const timeout = controller ? setTimeout(() => controller.abort(), this.timeoutMs) : undefined;
 
     try {
@@ -131,7 +131,11 @@ export function createOracleV2Client(options: OracleV2ClientOptions): OracleV2Cl
 
 function normalizeCollections(payload: unknown): OracleV2Collection[] {
   return payloadArray(payload, ['collections', 'items', 'data']).map((item, index) => {
-    if (typeof item === 'string') return { name: item };
+    if (typeof item === 'string') {
+      const name = item.trim();
+      if (!name) throw new OracleV2ClientError(`collections[${index}] is missing a name`);
+      return { name };
+    }
     const record = objectRecord(item, `collections[${index}]`);
     const name = record.name ?? record.collection ?? record.key ?? record.id;
     if (typeof name !== 'string' || !name.trim()) {
@@ -172,6 +176,43 @@ function isRecord(value: unknown): value is OracleV2Record {
 function headersObject(headers?: OracleV2Headers): Record<string, string> {
   if (!headers) return {};
   return Object.fromEntries(new Headers(headers).entries());
+}
+
+function normalizeBaseUrl(baseUrl: unknown): string {
+  if (baseUrl === undefined || baseUrl === null) {
+    throw new OracleV2ClientError('Oracle v2 baseUrl is required');
+  }
+  const raw = String(baseUrl).trim();
+  if (!raw) throw new OracleV2ClientError('Oracle v2 baseUrl is required');
+
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new OracleV2ClientError('Oracle v2 baseUrl must be an absolute URL');
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new OracleV2ClientError('Oracle v2 baseUrl must use http or https');
+  }
+  parsed.hash = '';
+  parsed.search = '';
+  parsed.pathname = parsed.pathname.replace(/\/+$/, '') || '/';
+  return parsed.toString().replace(/\/+$/, '');
+}
+
+function normalizeTimeoutMs(timeoutMs: unknown): number | undefined {
+  if (timeoutMs === undefined || timeoutMs === 0) return undefined;
+  if (typeof timeoutMs !== 'number' || !Number.isFinite(timeoutMs) || timeoutMs < 0) {
+    throw new OracleV2ClientError('timeoutMs must be a non-negative finite number');
+  }
+  return timeoutMs;
+}
+
+function requiredString(value: unknown, label: string): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new OracleV2ClientError(`${label} is required`);
+  }
+  return value.trim();
 }
 
 async function throwHttpError(response: Response, url: string): Promise<never> {
