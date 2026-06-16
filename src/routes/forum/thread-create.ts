@@ -23,7 +23,7 @@ export const threadCreateRoute = new Elysia().post('/api/thread', async ({ body,
       issue_url: result.issueUrl,
     };
   } catch (error) {
-    set.status = 500;
+    set.status = error instanceof Error && /Thread \d+ not found/.test(error.message) ? 404 : 500;
     return { error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }, {
