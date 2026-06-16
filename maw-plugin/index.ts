@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
+import { apiArgsToCliArgs } from './api.ts';
 import { runServe, type ServeDeps } from './serve.ts';
 
-type InvokeContext = { source?: string; args?: string[]; writer?: (...args: unknown[]) => void };
+type InvokeContext = { source?: string; args?: string[] | Record<string, unknown>; writer?: (...args: unknown[]) => void };
 type InvokeResult = { ok: boolean; output?: string; error?: string };
 type Requester = (path: string, init?: RequestInit) => Promise<unknown>;
 type Opener = (url: string) => void;
@@ -30,7 +31,6 @@ export function resolveFrontendUrl(env: Record<string, string | undefined> = pro
 export function buildFrontendUrl(env: Record<string, string | undefined> = process.env): string {
   return `${resolveFrontendUrl(env)}/?api=${resolveBaseUrl(env)}`;
 }
-
 
 function runCommand(cmd: string, args: string[], options: RunOptions = {}): Promise<RunResult> {
   return new Promise((resolve, reject) => {
@@ -247,4 +247,4 @@ export async function runArra(args: string[], request: Requester = requestJson, 
   } catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
 }
 
-export default async function handler(ctx: InvokeContext): Promise<InvokeResult> { return runArra(ctx.args ?? []); }
+export default async function handler(ctx: InvokeContext): Promise<InvokeResult> { return runArra(apiArgsToCliArgs(ctx.args)); }
