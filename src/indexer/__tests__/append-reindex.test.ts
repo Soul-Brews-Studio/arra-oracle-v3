@@ -24,19 +24,21 @@ process.env.ORACLE_DATA_DIR = dataDir;
 process.env.ORACLE_DB_PATH = path.join(dataDir, 'oracle.db');
 delete process.env.ORACLE_REPO_ROOT;
 
+const { createDatabase, closeDb, resetDefaultDatabaseForTests } = await import('../../db/index.ts');
+resetDefaultDatabaseForTests(process.env.ORACLE_DB_PATH);
 const { runOracleReindex } = await import('../runner.ts');
-const { createDatabase, closeDb } = await import('../../db/index.ts');
 
 describe('append reindex mode', () => {
   afterAll(() => {
     try { closeDb(); } catch {}
-    fs.rmSync(tmp, { recursive: true, force: true });
     if (originalDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
     else process.env.ORACLE_DATA_DIR = originalDataDir;
     if (originalDbPath === undefined) delete process.env.ORACLE_DB_PATH;
     else process.env.ORACLE_DB_PATH = originalDbPath;
     if (originalRepoRoot === undefined) delete process.env.ORACLE_REPO_ROOT;
     else process.env.ORACLE_REPO_ROOT = originalRepoRoot;
+    resetDefaultDatabaseForTests(':memory:');
+    fs.rmSync(tmp, { recursive: true, force: true });
   });
 
   test('upserts from a new repo root without deleting older indexed docs', async () => {

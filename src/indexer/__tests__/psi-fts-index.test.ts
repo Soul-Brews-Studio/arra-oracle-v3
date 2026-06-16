@@ -23,19 +23,21 @@ process.env.ORACLE_DATA_DIR = dataDir;
 process.env.ORACLE_DB_PATH = path.join(dataDir, 'oracle.db');
 delete process.env.ORACLE_REPO_ROOT;
 
+const { createDatabase, closeDb, resetDefaultDatabaseForTests } = await import('../../db/index.ts');
+resetDefaultDatabaseForTests(process.env.ORACLE_DB_PATH);
 const { normalizeIndexerRepoRoot, runOracleReindex } = await import('../runner.ts');
-const { createDatabase, closeDb } = await import('../../db/index.ts');
 
 describe('ψ-folder detection → FTS indexing', () => {
   afterAll(() => {
     try { closeDb(); } catch {}
-    fs.rmSync(tmp, { recursive: true, force: true });
     if (originalDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
     else process.env.ORACLE_DATA_DIR = originalDataDir;
     if (originalDbPath === undefined) delete process.env.ORACLE_DB_PATH;
     else process.env.ORACLE_DB_PATH = originalDbPath;
     if (originalRepoRoot === undefined) delete process.env.ORACLE_REPO_ROOT;
     else process.env.ORACLE_REPO_ROOT = originalRepoRoot;
+    resetDefaultDatabaseForTests(':memory:');
+    fs.rmSync(tmp, { recursive: true, force: true });
   });
 
   test('normalizes an explicit ψ path to its repo root', () => {
