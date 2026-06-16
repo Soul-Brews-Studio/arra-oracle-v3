@@ -46,6 +46,16 @@ describe('CORS middleware origins', () => {
     expect(denied.headers.get('Access-Control-Allow-Origin')).toBeNull();
   });
 
+  test('normalizes configured origins and drops invalid entries', async () => {
+    process.env.ARRA_CORS_ORIGINS = ' https://studio.example/path , not-a-url, ftp://bad.example, * ';
+
+    const allowed = await request('/api/ping', { headers: { origin: 'https://studio.example' } });
+    const denied = await request('/api/ping', { headers: { origin: 'https://bad.example' } });
+
+    expect(allowed.headers.get('Access-Control-Allow-Origin')).toBe('https://studio.example');
+    expect(denied.headers.get('Access-Control-Allow-Origin')).toBeNull();
+  });
+
   test('rejects wildcard configured origins', async () => {
     process.env.ARRA_CORS_ORIGINS = '*';
 
@@ -72,6 +82,24 @@ describe('CORS middleware origins', () => {
     expect(res.headers.get('Access-Control-Allow-Methods')).toContain('POST');
     expect(res.headers.get('Access-Control-Allow-Headers')).toBe('authorization,content-type');
     expect(res.headers.get('Access-Control-Max-Age')).toBe('86400');
+  });
+
+  test('allows tenant and API key auth headers in preflight requests', async () => {
+    process.env.ARRA_CORS_ORIGINS = 'https://studio.example';
+
+    const res = await request('/api/ping', {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://studio.example',
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'X-Oracle-Tenant, X-Oracle-Tenant-Token, X-API-Key, X-Org-Id',
+      },
+    });
+
+    expect(res.status).toBe(204);
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://studio.example');
+    expect(res.headers.get('Access-Control-Allow-Headers'))
+      .toBe('x-oracle-tenant,x-oracle-tenant-token,x-api-key,x-org-id');
   });
 
   test('denies preflight for disallowed methods or headers', async () => {

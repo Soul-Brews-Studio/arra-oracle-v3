@@ -40,6 +40,9 @@ playwright-report/
 test-results/
 *.pid
 
+# Local Cloudflare Wrangler state
+.wrangler/
+
 # Oracle instance data (per-user vault; never commit)
 ψ/
 

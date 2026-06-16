@@ -1,8 +1,8 @@
 # Deploy Arra Oracle on Cloudflare Workers
 
-> Status: **draft for #2167.** This document and the root `wrangler.jsonc`
-> reserve the Cloudflare deploy shape only. They do **not** add the Worker
-> entrypoint or replace the vector implementation owned by the c5/c6 lanes.
+> Status: **draft for #2167.** The root `wrangler.jsonc` now starts a minimal
+> smoke-tested Worker entrypoint at `src/workers/oracle-mcp.ts`. Full D1,
+> Vectorize, and MCP tool expansion remain staged follow-up work.
 
 ## Goal
 
@@ -16,9 +16,8 @@ memory/search surface once D1 and Vectorize bindings are wired.
   Cloudflare Worker already serves the canvas subdomain.
 - Do not move `src/vector/**` adapters in this docs slice. The edge vector lane
   should decide how local adapters map to Cloudflare Vectorize/Workers AI.
-- The root `wrangler.jsonc` points at the future `src/workers/oracle-mcp.ts`.
-  Until that file lands, `wrangler deploy` is expected to stop at a missing
-  entrypoint.
+- Keep the root `src/workers/oracle-mcp.ts` entrypoint minimal until D1,
+  Vectorize, and remote MCP tool contracts are agreed.
 
 ## Deploy button target
 
@@ -61,7 +60,7 @@ This repo uses a root skeleton:
 {
   "name": "arra-oracle-remote-mcp",
   "main": "./src/workers/oracle-mcp.ts",
-  "compatibility_date": "2026-06-16",
+  "compatibility_date": "2026-05-07",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true }
@@ -86,7 +85,7 @@ provision resources before the entry/vector lanes agree on names.
 
 ## Manual deploy fallback
 
-After the entrypoint exists and binding names are finalized:
+After binding names are finalized:
 
 ```bash
 bun install
@@ -120,9 +119,8 @@ For clients that need a local bridge, use `mcp-remote`:
 }
 ```
 
-## Known gaps before the button goes live
+## Known gaps before full production deploy
 
-- Add `src/workers/oracle-mcp.ts` without disturbing the existing canvas Worker.
 - Decide whether the first MCP tools call D1/Vectorize directly or proxy a
   trusted Arra HTTP backend.
 - Port or gate local-only modules that depend on native SQLite, filesystem
