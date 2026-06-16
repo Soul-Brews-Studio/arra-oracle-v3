@@ -1,4 +1,4 @@
-import type { VectorDocument, VectorQueryResult } from './types.ts';
+import type { VectorDocument, VectorQueryResult } from './adapter.ts';
 
 export const VECTOR_PROXY_PROTOCOL_VERSION = 'vector-proxy-v1';
 
