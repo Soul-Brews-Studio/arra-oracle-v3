@@ -77,7 +77,10 @@ describe("HTTP Contract — search / knowledge / supersede", () => {
 
     test("rejects malformed JSON body", async () => {
       const res = await fetch(`${BASE_URL}/api/learn`, { method: "POST", headers: JSON_HEADERS, body: "{not json" });
+      const body = await res.json();
       expect(res.status).toBe(400);
+      expect(res.headers.get("content-type")).toContain("application/json");
+      expect(body).toMatchObject({ error: "Bad Request", code: 400 });
     });
   });
 
