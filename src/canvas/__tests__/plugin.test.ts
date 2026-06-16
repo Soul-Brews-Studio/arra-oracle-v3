@@ -30,4 +30,9 @@ describe('CanvasPlugin contract', () => {
     expect(isCanvasPlugin({ name: 'federation', tier: 'standard', routes: () => null })).toBe(false);
     expect(isCanvasPlugin({ name: 'menu-plugin', file: 'menu-plugin.wasm', size: 42 })).toBe(false);
   });
+
+  test('rejects whitespace-only plugin identifiers and labels', () => {
+    expect(isCanvasPlugin({ id: ' ', label: 'Wave', kind: 'three', mount: () => {} })).toBe(false);
+    expect(isCanvasPlugin({ id: 'wave', label: '\t', kind: 'three', mount: () => {} })).toBe(false);
+  });
 });
