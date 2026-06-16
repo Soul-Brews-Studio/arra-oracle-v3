@@ -41,6 +41,11 @@ export interface VectorServiceRegistry {
 
 const HEALTH_TIMEOUT_MS = 5_000;
 
+export function vectorServiceUrl(endpoint: string, suffix: string): string {
+  const safeBase = endpoint.replace(/\/+$/, '');
+  return `${safeBase}${suffix.startsWith('/') ? suffix : `/${suffix}`}`;
+}
+
 function activeConfigPath(): string {
   const dataDir = process.env.ORACLE_DATA_DIR;
   return dataDir ? configPath(dataDir) : configPath();
@@ -166,7 +171,7 @@ class InMemoryVectorServiceRegistry implements VectorServiceRegistry {
         if (!endpoint) {
           throw new Error('missing endpoint');
         }
-        const healthUrl = new URL('/health', endpoint);
+        const healthUrl = vectorServiceUrl(endpoint, '/health');
         const response = await fetch(healthUrl, {
           method: 'GET',
           signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
