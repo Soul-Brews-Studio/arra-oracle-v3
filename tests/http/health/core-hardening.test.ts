@@ -37,7 +37,7 @@ function pluginDir(name: string, entry: string) {
   return dir;
 }
 
-test('core hardening keeps health direct, logs configurable, and rejects escaping plugin entries', async () => {
+test('core hardening keeps versioned health reachable, logs configurable, and rejects escaping plugin entries', async () => {
   const oldFormat = process.env.LOG_FORMAT;
   process.env.LOG_FORMAT = 'short';
   const lines: string[] = [];
@@ -50,7 +50,7 @@ test('core hardening keeps health direct, logs configurable, and rejects escapin
   const fetcher = createApiVersionedFetch((request) => app.handle(request));
 
   try {
-    const res = await fetcher(new Request('http://local/api/health'));
+    const res = await fetcher(new Request('http://local/api/v1/health'));
     const body = await res.json() as Record<string, unknown>;
     expect(res.status).toBe(200);
     expect(res.headers.get('location')).toBeNull();

@@ -17,13 +17,11 @@ function createFetch() {
   return createApiVersionedFetch((request) => app.handle(request));
 }
 
-test('GET /api/health returns ok directly without a version redirect', async () => {
+test('GET /api/health redirects to the canonical versioned health route', async () => {
   const res = await createFetch()(new Request('http://local/api/health'));
-  const body = await res.json() as { status: string };
 
-  expect(res.status).toBe(200);
-  expect(res.headers.get('location')).toBeNull();
-  expect(body.status).toBe('ok');
+  expect(res.status).toBe(308);
+  expect(res.headers.get('location')).toBe('http://local/api/v1/health');
 });
 
 test('GET /api/v1/health still rewrites to the health route', async () => {
