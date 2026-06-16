@@ -39,9 +39,8 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   index('idx_origin').on(table.origin),
   index('idx_project').on(table.project),
   index('idx_documents_tenant').on(table.tenantId),
+  index('idx_documents_tenant_type_active_updated').on(table.tenantId, table.type, table.supersededAt, table.updatedAt),
 ]);
-
-
 // Challenge 2 memory system persistence (#1457)
 export const oracleMemories = sqliteTable('oracle_memories', {
   id: text('id').primaryKey(),
@@ -106,6 +105,7 @@ export const searchLog = sqliteTable('search_log', {
   index('idx_search_project').on(table.project),
   index('idx_search_tenant').on(table.tenantId),
   index('idx_search_created').on(table.createdAt),
+  index('idx_search_tenant_created').on(table.tenantId, table.createdAt),
 ]);
 
 // Consult log — legacy table kept for backward compat (pre-0007 snapshot had it).
@@ -173,6 +173,7 @@ export const forumThreads = sqliteTable('forum_threads', {
   index('idx_thread_project').on(table.project),
   index('idx_thread_tenant').on(table.tenantId),
   index('idx_thread_created').on(table.createdAt),
+  index('idx_thread_tenant_status_updated').on(table.tenantId, table.status, table.updatedAt),
 ]);
 
 export const forumMessages = sqliteTable('forum_messages', {
@@ -191,10 +192,8 @@ export const forumMessages = sqliteTable('forum_messages', {
   index('idx_message_role').on(table.role),
   index('idx_message_created').on(table.createdAt),
 ]);
-
 // Note: FTS5 virtual table (oracle_fts) is managed via raw SQL
 // since Drizzle doesn't natively support FTS5
-
 // Trace Log Tables (discovery tracing with dig points)
 
 export const traceLog = sqliteTable('trace_log', {

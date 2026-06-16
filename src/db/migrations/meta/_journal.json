@@ -162,6 +162,13 @@
       "when": 1781595000000,
       "tag": "0022_tenant_isolation",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1781597100000,
+      "tag": "0023_query_optimization_indexes",
+      "breakpoints": true
     }
   ]
 }
