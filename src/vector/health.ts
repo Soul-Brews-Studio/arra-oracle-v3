@@ -4,6 +4,8 @@ import {
   type EmbeddingModelConfig,
 } from './factory.ts';
 import { resolveEmbeddingProviderType } from './embedder-config.ts';
+import { Database } from 'bun:sqlite';
+import { DB_PATH } from '../config.ts';
 
 export type VectorBackendEngine = {
   key: string;
@@ -25,8 +27,9 @@ export type VectorProviderHealth = {
 };
 
 export type VectorFreshness = {
-  status: 'fresh' | 'empty';
+  status: 'fresh' | 'empty' | 'stale';
   totalIndexed: number;
+  sourceDocs?: number;
   docsPending?: number;
   lastIndexed?: string;
 };
@@ -45,7 +48,6 @@ export function attachVectorDashboardHealth(
   health: VectorBackendHealth,
   providers: Array<{ type: string; available: boolean; error?: string; detail?: string }> = [],
 ): VectorBackendHealth {
-  const totalIndexed = health.engines.reduce((sum, engine) => sum + (engine.count || 0), 0);
   return {
     ...health,
     collections: health.collections ?? health.engines,
@@ -55,10 +57,24 @@ export function attachVectorDashboardHealth(
       status: provider.available ? 'green' : 'red',
       detail: provider.error ?? provider.detail,
     })),
-    freshness: {
-      status: totalIndexed > 0 ? 'fresh' : 'empty',
-      totalIndexed,
-    },
+    freshness: health.freshness ?? buildVectorFreshness(health.engines),
+  };
+}
+
+export function buildVectorFreshness(
+  engines: Array<Pick<VectorBackendEngine, 'count'>>,
+  source?: { docs?: number; lastIndexed?: string },
+): VectorFreshness {
+  const counts = engines.map((engine) => engine.count || 0);
+  const totalIndexed = counts.reduce((sum, count) => sum + count, 0);
+  const maxIndexed = counts.reduce((max, count) => Math.max(max, count), 0);
+  const docsPending = source?.docs === undefined ? undefined : Math.max(0, source.docs - maxIndexed);
+  const status = totalIndexed === 0 ? 'empty' : docsPending && docsPending > 0 ? 'stale' : 'fresh';
+  return {
+    status,
+    totalIndexed,
+    ...(source?.docs !== undefined && { sourceDocs: source.docs, docsPending }),
+    ...(source?.lastIndexed && { lastIndexed: source.lastIndexed }),
   };
 }
 
@@ -111,5 +127,30 @@ export async function readVectorBackendHealth(): Promise<VectorBackendHealth> {
 
   const okCount = engines.filter((engine) => engine.ok).length;
   const status = okCount === engines.length ? 'ok' : okCount === 0 ? 'down' : 'degraded';
-  return { status, engines, collections: engines, checked_at: new Date().toISOString() };
+  return {
+    status,
+    engines,
+    collections: engines,
+    checked_at: new Date().toISOString(),
+    freshness: buildVectorFreshness(engines, readSourceDocumentStats()),
+  };
+}
+
+function readSourceDocumentStats(): { docs?: number; lastIndexed?: string } {
+  let db: Database | undefined;
+  try {
+    db = new Database(DB_PATH, { readonly: true });
+    const row = db.query<{ docs: number; lastIndexed: string | null }, []>(`
+      SELECT COUNT(DISTINCT id) AS docs, MAX(indexed_at) AS lastIndexed
+      FROM oracle_documents
+    `).get();
+    return {
+      docs: row?.docs ?? 0,
+      ...(row?.lastIndexed && { lastIndexed: row.lastIndexed }),
+    };
+  } catch {
+    return {};
+  } finally {
+    db?.close();
+  }
 }

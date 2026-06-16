@@ -50,6 +50,15 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function waitFor(check: () => boolean, timeoutMs = 1_500): Promise<void> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (check()) return;
+    await wait(25);
+  }
+  throw new Error('timed out waiting for learn watcher');
+}
+
 describe('startLearnWatcher', () => {
   let repoRoot: string;
   let db: Database;
@@ -147,6 +156,25 @@ describe('startLearnWatcher', () => {
 
     const jobs = db.query<{ count: number }, []>('SELECT COUNT(*) AS count FROM indexing_jobs').get() as { count: number };
     expect(jobs.count).toBe(Object.keys(MODELS).length);
+
+    stop();
+  });
+
+  it('stores files created under new ψ/learn directories after start', async () => {
+    const filePath = path.join(repoRoot, 'ψ', 'learn', 'Soul-Brews-Studio', 'demo', 'new-tree.md');
+
+    const stop = startLearnWatcher({ db, models: MODELS, repoRoot, debounceMs: 20 });
+    await wait(50);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, '# New Tree\n\n## Finding\n\nWatcher scans directories created after startup.', 'utf8');
+
+    await waitFor(() => {
+      const jobs = db.query<{ count: number }, []>('SELECT COUNT(*) AS count FROM indexing_jobs').get();
+      return jobs?.count === Object.keys(MODELS).length;
+    }, 2_500);
+
+    const doc = db.query<{ source_file: string }, []>('SELECT source_file FROM oracle_documents').get();
+    expect(doc?.source_file).toBe('ψ/learn/Soul-Brews-Studio/demo/new-tree.md');
 
     stop();
   });
