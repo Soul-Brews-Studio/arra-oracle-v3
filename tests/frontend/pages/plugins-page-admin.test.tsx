@@ -13,5 +13,6 @@ describe('PluginsPage admin view', () => {
     expect(html).toContain('1.2.3');
     expect(html).toContain('ok');
     expect(html).toContain('Disable canvas');
+    expect(html).toContain('Vector search');
   });
 });

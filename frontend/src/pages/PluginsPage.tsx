@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { apiClient, type ApiClient } from '../api/client';
 import { setPluginEnabled } from '../api/plugin-admin';
 import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
+import { VectorSearchWidget } from '../components/VectorSearchWidget';
 import { pluginStatusLabel, isPluginEnabled, type PluginEnabledState } from '../components/PluginList';
 import { surfacesFor } from '../plugin-surfaces';
 import type { PluginEntry } from '../types';
@@ -223,6 +224,8 @@ export function PluginsPage({ plugins: initialPlugins = [], loading = true, clie
       </section>
 
       {isLoading || state === 'error' ? null : <UnifiedPluginSurfaceOverview plugins={plugins} />}
+
+      {isLoading || state === 'error' ? null : <VectorSearchWidget />}
 
       {isLoading || state === 'error' ? null : (
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.8fr)]">

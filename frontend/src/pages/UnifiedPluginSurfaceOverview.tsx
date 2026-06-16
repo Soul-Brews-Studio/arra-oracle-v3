@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchMcpTools, fetchMenu, fetchSettingsSystem, fetchVectorConfig } from '../api';
 import { apiClient } from '../api/client';
 import { surfacesFor } from '../plugin-surfaces';
-import type { MenuItem, PluginEntry, SettingsSystemResponse, VectorConfigResponse, McpTool } from '../types';
+import type { McpTool, MenuItem, PluginEntry, SettingsSystemResponse, VectorConfigResponse } from '../types';
 import type { HealthResponse } from '../../../src/server/types';
 
 type SurfaceState = {
@@ -42,6 +42,16 @@ function buildCards(plugins: PluginEntry[], state: SurfaceState): Card[] {
   ];
 }
 
+export function pluginServerRows(plugins: PluginEntry[]): Array<{ name: string; status: string; health: string }> {
+  return plugins
+    .filter((plugin) => plugin.server || plugin.proxy?.length)
+    .map((plugin) => ({
+      name: plugin.name,
+      status: plugin.status ?? 'ok',
+      health: plugin.server?.healthPath ?? plugin.proxy?.[0]?.path ?? 'proxy route',
+    }));
+}
+
 export function UnifiedPluginSurfaceOverview({ plugins }: { plugins: PluginEntry[] }) {
   const [state, setState] = useState<SurfaceState>({ menu: [], tools: [], settings: null, vector: null, health: null });
   const [error, setError] = useState('');
@@ -66,6 +76,7 @@ export function UnifiedPluginSurfaceOverview({ plugins }: { plugins: PluginEntry
 
   const cards = useMemo(() => buildCards(plugins, state), [plugins, state]);
   const counts = useMemo(() => countBySurface(plugins), [plugins]);
+  const servers = useMemo(() => pluginServerRows(plugins), [plugins]);
 
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="unified-surfaces-title">
@@ -78,8 +89,12 @@ export function UnifiedPluginSurfaceOverview({ plugins }: { plugins: PluginEntry
         <p className="text-sm text-slate-500">{Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(' · ') || 'metadata only'}</p>
       </div>
       {error ? <p className="mb-3 text-sm text-amber-200">{error}</p> : null}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {cards.map((card) => <SurfaceCard key={card.label} card={card} />)}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{cards.map((card) => <SurfaceCard key={card.label} card={card} />)}</div>
+      <div className="mt-4 grid gap-3 xl:grid-cols-4">
+        <SurfaceList title="Menu items" items={state.menu.slice(0, 5).map((item) => `${item.label} → ${item.path}`)} empty="No /api/menu items loaded yet." />
+        <SurfaceList title="MCP tools" items={state.tools.slice(0, 5).map((tool) => `${tool.name}${tool.plugin ? ` · ${tool.plugin}` : ''}`)} empty="No /api/mcp/tools entries loaded yet." />
+        <SurfaceList title="Plugin servers" items={servers.map((server) => `${server.name} · ${server.status} · ${server.health}`)} empty="No plugin server or proxy surfaces." />
+        <SurfaceList title="Storage" items={[state.settings ? `${state.settings.storage.activeBackend} · ${formatPath(state.settings.storage.dbPath)}` : 'Storage config not loaded yet.']} empty="Storage config not loaded yet." />
       </div>
     </section>
   );
@@ -88,4 +103,14 @@ export function UnifiedPluginSurfaceOverview({ plugins }: { plugins: PluginEntry
 function SurfaceCard({ card }: { card: Card }) {
   const tone = card.tone === 'warn' ? 'text-amber-100' : 'text-teal-100';
   return <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{card.label}</p><p className={`mt-2 text-2xl font-semibold ${tone}`}>{card.value}</p><p className="mt-2 text-sm leading-6 text-slate-400">{card.detail}</p></article>;
+}
+
+function SurfaceList({ title, items, empty }: { title: string; items: string[]; empty: string }) {
+  const visible = items.filter(Boolean);
+  return (
+    <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{title}</p>
+      {visible.length ? <ul className="mt-3 space-y-2 text-sm text-slate-300">{visible.map((item) => <li key={item} className="truncate font-mono">{item}</li>)}</ul> : <p className="mt-3 text-sm text-slate-500">{empty}</p>}
+    </article>
+  );
 }
