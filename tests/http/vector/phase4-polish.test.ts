@@ -1,0 +1,81 @@
+import { expect, mock, test } from 'bun:test';
+import { Elysia } from 'elysia';
+import { createApiVersionedFetch } from '../../../src/middleware/api-version.ts';
+import type { EmbeddingProvider, VectorQueryResult } from '../../../src/vector/types.ts';
+
+const models = {
+  local: { collection: 'local_docs', model: 'bge-m3', adapter: 'lancedb' as const },
+  remote: { collection: 'remote_docs', model: 'qwen3', adapter: 'qdrant' as const },
+};
+
+function queryResult(ids: string[], distances: number[]): VectorQueryResult {
+  return {
+    ids,
+    distances,
+    documents: ids.map((id) => `${id} body`),
+    metadatas: ids.map(() => ({ type: 'note', source_file: 'note.md' })),
+  };
+}
+
+test('GET /api/v1/vector/fanout merges and deduplicates parallel backend results', async () => {
+  const { createFanoutEndpoint } = await import('../../../src/routes/vector/fanout.ts');
+  const app = new Elysia({ prefix: '/api' }).use(createFanoutEndpoint({
+    getModels: () => models,
+    getStore: async (key) => ({
+      query: mock(async () => key === 'local'
+        ? queryResult(['same', 'local-only'], [10, 20])
+        : queryResult(['same', 'remote-only'], [5, 30])),
+    }),
+  }));
+  const res = await createApiVersionedFetch((request) => app.handle(request))(
+    new Request('http://local/api/v1/vector/fanout?q=oracle&fanout=local,remote&limit=5&cache=false'),
+  );
+  const body = await res.json() as { backends: string[]; results: Array<{ id: string; source: string }>; errors: Record<string, string> };
+
+  expect(res.status).toBe(200);
+  expect(body.backends).toEqual(['local', 'remote']);
+  expect(body.results.map((item) => item.id)).toEqual(['same', 'local-only', 'remote-only']);
+  expect(body.results[0].source).toBe('hybrid');
+  expect(body.errors).toEqual({});
+});
+
+test('GET /api/v1/vector/cost-estimate returns token cost and recommendation', async () => {
+  const { createVectorCostEndpoint } = await import('../../../src/routes/vector/cost.ts');
+  const app = new Elysia({ prefix: '/api' }).use(createVectorCostEndpoint({
+    getModels: () => models,
+    getCount: async (key) => key === 'local' ? 10 : 20,
+    detectProviders: async () => ({ providers: [{ type: 'gemini', available: true }] }),
+  }));
+  const res = await createApiVersionedFetch((request) => app.handle(request))(
+    new Request('http://local/api/v1/vector/cost-estimate?provider=openai&tokensPerDoc=500'),
+  );
+  const body = await res.json() as Record<string, unknown>;
+
+  expect(res.status).toBe(200);
+  expect(body.docs).toBe(30);
+  expect(body.totalTokens).toBe(15_000);
+  expect(body.estimatedUsd).toBe(0.0003);
+  expect(String(body.formula)).toContain('30 docs');
+  expect(String(body.recommendation)).toContain('Any configured');
+});
+
+test('FallbackEmbeddings switches to the next provider after primary failure', async () => {
+  const { FallbackEmbeddings } = await import('../../../src/vector/embeddings.ts');
+  const events: Array<{ from: string; to?: string }> = [];
+  const failing: EmbeddingProvider = {
+    name: 'ollama',
+    dimensions: 3,
+    embed: mock(async () => { throw new Error('ollama down'); }),
+  };
+  const fallback: EmbeddingProvider = {
+    name: 'gemini',
+    dimensions: 3,
+    embed: mock(async () => [[1, 2, 3]]),
+  };
+
+  const provider = new FallbackEmbeddings([failing, fallback], (event) => events.push(event));
+  await expect(provider.embed(['hello'], 'passage')).resolves.toEqual([[1, 2, 3]]);
+  expect(failing.embed).toHaveBeenCalled();
+  expect(fallback.embed).toHaveBeenCalled();
+  expect(events).toEqual([{ from: 'ollama', to: 'gemini', error: 'ollama down' }]);
+});

@@ -120,6 +120,7 @@ function validateService(service: RegisteredVectorService): RegisteredVectorServ
 
 class InMemoryVectorServiceRegistry implements VectorServiceRegistry {
   async register(service: RegisteredVectorService): Promise<RegisteredVectorService> {
+    ensureConfigRefreshed();
     const normalized = validateService(service);
     registry.set(normalized.name, normalized);
     syncConfig(registry);
@@ -138,6 +139,7 @@ class InMemoryVectorServiceRegistry implements VectorServiceRegistry {
   }
 
   async unregister(name: string): Promise<boolean> {
+    ensureConfigRefreshed();
     const removed = registry.delete(name);
     if (removed) syncConfig(registry);
     return removed;

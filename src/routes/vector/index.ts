@@ -10,6 +10,7 @@
  *   GET /api/map3d           — 3D PCA projection from real embeddings
  *   GET /api/vector/stats    — per-engine collection counts
  *   GET /api/vector/health   — adapter liveness probe
+ *   GET /api/vector/cost-estimate — estimate remote embedding cost
  *   GET /api/vector/documents — browse indexed vector documents
  *   GET /api/v1/vector/export/formats — available export formats
  *   GET /api/v1/vector/export — stream vector docs in a registered format
@@ -38,6 +39,7 @@ import { vectorDocumentsEndpoint } from './documents.ts';
 import { vectorExportEndpoint } from './export.ts';
 import { vectorServicesApiEndpoint } from './services.ts';
 import { vectorProvidersEndpoint } from './providers.ts';
+import { vectorCostEndpoint } from './cost.ts';
 
 export const vectorRoutes = new Elysia({ prefix: '/api' })
   .use(vectorProxyEndpoint)
@@ -53,5 +55,6 @@ export const vectorRoutes = new Elysia({ prefix: '/api' })
   .use(vectorExportEndpoint)
   .use(vectorConfigApiEndpoint)
   .use(vectorProvidersEndpoint)
+  .use(vectorCostEndpoint)
   .use(vectorServicesApiEndpoint)
   .use(vectorIndexerEndpoints);

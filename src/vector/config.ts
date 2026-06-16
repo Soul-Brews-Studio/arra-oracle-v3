@@ -61,7 +61,7 @@ export interface VectorServerConfig {
 export type VectorProxyManifest = UnifiedProxyManifest;
 
 /** Absolute path to vector-server.json inside ORACLE_DATA_DIR. */
-export function configPath(dataDir = ORACLE_DATA_DIR): string {
+export function configPath(dataDir = process.env.ORACLE_DATA_DIR || ORACLE_DATA_DIR): string {
   return path.join(dataDir, VECTOR_CONFIG_FILE);
 }
 
