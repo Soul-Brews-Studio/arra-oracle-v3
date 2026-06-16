@@ -64,6 +64,7 @@ import { watcherRoutes } from './routes/watcher/index.ts';
 import { fileWatcherService } from './services/file-watcher.ts';
 import { exportAppRoutes } from './routes/export/app.ts';
 import { exportBatchRoutes } from './routes/export/batch.ts';
+import { exportImportRoutes } from './routes/export/import.ts';
 let indexerRoutes: any = null;
 try {
   indexerRoutes = (await import('./routes/indexer/index.ts')).indexerRoutes;
@@ -200,6 +201,7 @@ const apiModules = [
   watcherRoutes,
   exportAppRoutes,
   exportBatchRoutes,
+  exportImportRoutes,
   ...(indexerRoutes ? [indexerRoutes] : []),
   ...unifiedPlugins.routes,
 ];

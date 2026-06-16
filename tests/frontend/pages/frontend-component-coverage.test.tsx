@@ -5,7 +5,7 @@ import { VectorHealthDashboardCard } from '../../../frontend/src/pages/vector-da
 import { htmlFor } from '../_render';
 
 describe('frontend component coverage', () => {
-  test('renders plugin admin surfaces and selected status panel', () => {
+  test('renders plugin status bento details', () => {
     const html = htmlFor(<PluginsPage plugins={[{
       name: 'hermes',
       file: 'hermes.json',
@@ -22,10 +22,11 @@ describe('frontend component coverage', () => {
     }]} loading={false} />);
 
     expect(html).toContain('1 enabled · 0 disabled · 1 registered');
-    expect(html).toContain('Plugin system map');
-    expect(html).toContain('hermes api GET /api/plugins/hermes/ping');
-    expect(html).toContain('/api/plugins/hermes/server');
-    expect(html).toContain('Per-plugin status panel');
+    expect(html).toContain('Installed plugin status');
+    expect(html).toContain('active');
+    expect(html).toContain('2.0.0');
+    expect(html).toContain('apiRoutes');
+    expect(html).toContain('proxy');
     expect(html).toContain('/health');
   });
 

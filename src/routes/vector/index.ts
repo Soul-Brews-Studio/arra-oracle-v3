@@ -39,6 +39,7 @@ import { vectorProvidersEndpoint } from './providers.ts';
 import { vectorCostEndpoint } from './cost.ts';
 import { vectorCostsEndpoint } from './costs.ts';
 import { vectorConfigApiEndpoint } from './config-api.ts';
+import { vectorCollectionsEndpoint } from './collections.ts';
 
 export const vectorRoutes = new Elysia({ prefix: '/api' })
   .use(vectorProxyEndpoint)
@@ -56,5 +57,6 @@ export const vectorRoutes = new Elysia({ prefix: '/api' })
   .use(vectorCostEndpoint)
   .use(vectorCostsEndpoint)
   .use(vectorConfigApiEndpoint)
+  .use(vectorCollectionsEndpoint)
   .use(vectorServicesApiEndpoint)
   .use(vectorIndexerEndpoints);
