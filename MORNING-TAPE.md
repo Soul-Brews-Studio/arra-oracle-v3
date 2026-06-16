@@ -30,7 +30,7 @@ Boot self-check:
 
 Check these before claiming certainty:
 
-- Branch/worktree: `agents/1-codex-11`; leave `.maw-engine` untouched if dirty.
+- Branch/worktree: use only your assigned `agents/1-codex-N` worktree; do not switch to another coder branch.
 - Working trunk: `alpha`; `main` is release-only.
 - Framework: Elysia route clusters under `src/routes/`.
 - Runtime: Bun commands, not Node-only scripts.
@@ -38,7 +38,7 @@ Check these before claiming certainty:
 
 ## 3. Memory system map
 
-- Human-readable durable memory: repo docs, `MORNING-TAPE.md`, and `ψ/memory/` when present.
+- Human-readable durable memory: repo docs, `MORNING-TAPE.md`, `docs/MORNING-TAPE-TEMPLATE.md`, and `ψ/memory/` when present.
 - DB memory: `oracle_memories` through `/api/memory/save`, `/api/memory/recall`, and `/api/memory/search`.
 - Morning recovery API: `/api/memory/morning-tape` renders recent persisted memories into a two-minute briefing.
 - Vector search helps recall but is not authority; verify against files before claiming done.
