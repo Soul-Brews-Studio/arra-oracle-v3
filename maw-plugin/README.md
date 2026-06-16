@@ -21,7 +21,9 @@ maw arra frontend          # opens https://studio.buildwithoracle.com/?api=<back
 maw arra ui --no-open      # prints the link only
 maw arra serve             # starts bun run server in the background
 maw arra serve --status    # checks PID + /api/health
+maw arra serve status      # same as --status
 maw arra serve --stop      # stops the PID from ~/.arra-oracle-v2/server.pid
+maw arra serve stop        # same as --stop
 maw arra serve --port 47779
 maw arra search "query" --mode fts --limit 5
 maw arra learn "new project fact" --project my-repo
@@ -62,7 +64,7 @@ maw arra thread_update 42 --status closed
 maw arra verify --check false --type learning
 ```
 
-`serve` resolves the repo root from `ORACLE_ROOT` or `ghq locate`, writes `~/.arra-oracle-v2/server.pid`, and passes `--port` as `ORACLE_PORT`.
+`serve` accepts `start`/`stop`/`status` positionals or `--stop`/`--status` flags. It resolves the repo root from `ORACLE_ROOT` or `ghq locate`, writes `~/.arra-oracle-v2/server.pid`, and passes `--port` as `ORACLE_PORT`.
 
 `frontend`, `ui`, and `open` construct `/?api=<backend>` from `ARRA_FRONTEND_URL` (default `https://studio.buildwithoracle.com`) and `ORACLE_API`.
 
