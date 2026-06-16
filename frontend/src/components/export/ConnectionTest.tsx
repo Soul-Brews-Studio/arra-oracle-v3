@@ -22,6 +22,7 @@ type RawCollection = {
   collection?: unknown;
   title?: unknown;
   count?: unknown;
+  rowCount?: unknown;
   docs?: unknown;
   docCount?: unknown;
   documentCount?: unknown;
@@ -45,7 +46,7 @@ function readCollection(raw: RawCollection, index: number): ExportAppCollection 
   const name = text(raw.name) || text(raw.key) || text(raw.collection) || text(raw.title) || `collection-${index + 1}`;
   return {
     name,
-    count: numberValue(raw.count ?? raw.docs ?? raw.docCount ?? raw.documentCount),
+    count: numberValue(raw.count ?? raw.rowCount ?? raw.docs ?? raw.docCount ?? raw.documentCount),
     description: text(raw.description) || undefined,
   };
 }
@@ -119,18 +120,22 @@ export function ConnectionTest({ initialBackendUrl = DEFAULT_BACKEND_URL, fetche
     setState('testing');
     setMessage(`Testing ${normalized}...`);
     try {
-      const health = await fetcher(apiUrl(normalized, '/api/v1/health'), { headers: { accept: 'application/json' } });
-      if (!health.ok) throw new Error(`/api/v1/health returned ${health.status}`);
-
-      const collectionResponse = await fetcher(apiUrl(normalized, '/api/v1/export/app/collections'), {
-        headers: { accept: 'application/json' },
+      const response = await fetcher(apiUrl(normalized, '/api/v1/export/test-connection'), {
+        method: 'POST',
+        headers: { accept: 'application/json', 'content-type': 'application/json' },
+        body: JSON.stringify({}),
       });
-      if (!collectionResponse.ok) throw new Error(`/api/v1/export/app/collections returned ${collectionResponse.status}`);
+      const payload = await readJson(response);
+      if (!response.ok) throw new Error(`/api/v1/export/test-connection returned ${response.status}`);
+      if (payload && typeof payload === 'object' && (payload as { ok?: unknown }).ok === false) {
+        throw new Error(text((payload as { error?: unknown }).error) || 'Export database connection failed');
+      }
 
-      const nextCollections = normalizeCollections(await readJson(collectionResponse));
+      const nextCollections = normalizeCollections(payload);
+      const rowTotal = nextCollections.reduce((total, item) => total + item.count, 0);
       setCollections(nextCollections);
       setState('connected');
-      setMessage(`Connected to ${normalized}.`);
+      setMessage(`Connected to ${normalized}; ${nextCollections.length} collections, ${rowTotal.toLocaleString()} rows.`);
     } catch (error) {
       setCollections([]);
       setState('failed');
@@ -168,7 +173,7 @@ export function ConnectionTest({ initialBackendUrl = DEFAULT_BACKEND_URL, fetche
         <p className="text-sm text-slate-500">{message}</p>
       </div>
 
-      {state === 'testing' ? <LoadingPanel title="Testing backend..." detail="Checking /api/v1/health and loading export collections." /> : null}
+      {state === 'testing' ? <LoadingPanel title="Testing backend..." detail="Checking /api/v1/export/test-connection." /> : null}
       {state === 'failed' ? <ErrorMessage title="Connection failed." message={message} /> : null}
 
       <section className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4" aria-label="Export collections">
