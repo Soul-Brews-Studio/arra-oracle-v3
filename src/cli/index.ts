@@ -3,12 +3,14 @@
 import { exportCommand } from './commands/export.ts';
 import { serveCommand } from './commands/serve.ts';
 import { canvasPluginsCommand } from './commands/canvas-plugins.ts';
+import { canvasServeCommand } from './commands/canvas-serve.ts';
 
 function printUsage(): void {
-  console.error('usage: bun run src/cli/index.ts <export|serve|canvas-plugins> ...');
+  console.error('usage: bun run src/cli/index.ts <export|serve|canvas-plugins|canvas-serve> ...');
   console.error('  export: bun run src/cli/index.ts export --format json|markdown [--out <file>]');
   console.error('  serve:  bun run src/cli/index.ts serve <start|stop|status> [--foreground|--background] [--json]');
   console.error('  canvas-plugins: bun run src/cli/index.ts canvas-plugins [--kind three|react] [--id <id>] [--json]');
+  console.error('  canvas-serve: bun run src/cli/index.ts canvas-serve [--port N] [--api-base URL]');
 }
 
 async function main() {
@@ -20,6 +22,7 @@ async function main() {
 
   if (args[0] === 'serve') process.exit(await serveCommand(args));
   if (args[0] === 'canvas-plugins') process.exit(await canvasPluginsCommand(args));
+  if (args[0] === 'canvas-serve') process.exit(await canvasServeCommand(args));
   if (args[0] === 'export') process.exit(await exportCommand(args));
 
   console.error(`unknown command: ${args[0]}`);

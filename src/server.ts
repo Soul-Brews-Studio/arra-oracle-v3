@@ -56,6 +56,7 @@ import { peerRoutes } from './routes/peer/index.ts';
 import { createMcpRoutes } from './routes/mcp/index.ts';
 import { createMetricsLifecycle, metricsRoutes } from './routes/metrics/index.ts';
 import { memoryRoutes } from './routes/memory/index.ts';
+import { canvasRoutes } from './routes/canvas/index.ts';
 
 let indexerRoutes: any = null;
 try {
@@ -194,6 +195,7 @@ const apiModules = [
   vaultRoutes,
   metricsRoutes,
   memoryRoutes,
+  canvasRoutes,
   ...(indexerRoutes ? [indexerRoutes] : []),
   ...unifiedPlugins.routes,
 ];
