@@ -28,6 +28,9 @@ export interface RemoteHttpEmbeddingOptions {
   timeoutMs?: number;
 }
 
+const DEFAULT_REMOTE_DIMENSIONS = 768;
+const DEFAULT_REMOTE_TIMEOUT_MS = 15_000;
+
 export class RemoteHttpEmbeddings implements EmbeddingProvider {
   readonly name = 'remote';
   dimensions: number;
@@ -41,13 +44,18 @@ export class RemoteHttpEmbeddings implements EmbeddingProvider {
       || process.env.ORACLE_REMOTE_EMBEDDING_URL
       || '';
     this.model = options.model || process.env.ORACLE_EMBEDDING_MODEL;
-    this.dimensions = options.dimensions
-      || Number(process.env.ORACLE_EMBEDDING_DIMENSIONS || 768);
-    this.timeoutMs = options.timeoutMs
-      || Number(process.env.ORACLE_EMBEDDER_TIMEOUT_MS || 15_000);
+    this.dimensions = positiveInteger(
+      options.dimensions ?? Number(process.env.ORACLE_EMBEDDING_DIMENSIONS),
+      DEFAULT_REMOTE_DIMENSIONS,
+    );
+    this.timeoutMs = positiveInteger(
+      options.timeoutMs ?? Number(process.env.ORACLE_EMBEDDER_TIMEOUT_MS),
+      DEFAULT_REMOTE_TIMEOUT_MS,
+    );
   }
 
   async embed(texts: string[], type?: EmbedType): Promise<number[][]> {
+    if (texts.length === 0) return [];
     if (!this.url) {
       throw new EmbeddingUnavailableError('Remote embedder selected but ORACLE_EMBEDDER_URL is unset.');
     }
@@ -72,7 +80,7 @@ export class RemoteHttpEmbeddings implements EmbeddingProvider {
 }
 
 export function parseRemoteEmbeddingResponse(payload: unknown, expected: number): number[][] {
-  const value = payload as {
+  const value = record(payload) as {
     embeddings?: unknown;
     embedding?: unknown;
     data?: Array<{ embedding?: unknown; index?: number }>;
@@ -82,14 +90,15 @@ export function parseRemoteEmbeddingResponse(payload: unknown, expected: number)
   if (Array.isArray(value.embeddings)) vectors = value.embeddings;
   else if (Array.isArray(value.data)) {
     vectors = [...value.data]
-      .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
-      .map((item) => item.embedding);
+      .sort((a, b) => dataIndex(a) - dataIndex(b))
+      .map((item) => record(item).embedding);
   } else if (Array.isArray(value.embedding)) vectors = [value.embedding];
 
   if (!Array.isArray(vectors)) throw new Error('missing embeddings array');
   const normalized = vectors.map((vector) => {
-    if (!Array.isArray(vector) || !vector.every((n) => typeof n === 'number')) {
-      throw new Error('embedding must be number[]');
+    if (!Array.isArray(vector) || vector.length === 0) throw new Error('embedding must be non-empty number[]');
+    if (!vector.every((n) => typeof n === 'number' && Number.isFinite(n))) {
+      throw new Error('embedding must contain finite numbers');
     }
     return vector as number[];
   });
@@ -98,4 +107,17 @@ export function parseRemoteEmbeddingResponse(payload: unknown, expected: number)
     throw new Error(`embedding count ${normalized.length} does not match input count ${expected}`);
   }
   return normalized;
+}
+
+function positiveInteger(value: number, fallback: number): number {
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+}
+
+function dataIndex(value: unknown): number {
+  const index = record(value).index;
+  return typeof index === 'number' && Number.isFinite(index) ? index : 0;
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }

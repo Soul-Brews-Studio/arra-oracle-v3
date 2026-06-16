@@ -37,3 +37,31 @@ test('fanout query runs targets in parallel and preserves partial errors', async
   expect(response.results).toHaveLength(1);
   expect(response.errors).toEqual({ turbovec: 'backend down' });
 });
+
+
+test('fanout query normalizes bad limits and non-finite distances', async () => {
+  let seenLimit = 0;
+  const response = await queryFanout({
+    text: 'oracle',
+    limit: Number.NaN,
+    targets: [{
+      key: 'lancedb',
+      store: {
+        query: async (_text, limit) => {
+          seenLimit = limit ?? 0;
+          return {
+            ids: ['negative', 'nan'],
+            documents: ['negative body', 'nan body'],
+            distances: [-10, Number.NaN],
+            metadatas: [{}, {}],
+          };
+        },
+      },
+    }],
+  });
+
+  expect(seenLimit).toBe(10);
+  expect(response.results).toHaveLength(2);
+  expect(response.results.every((item) => item.score >= 0 && item.score <= 1)).toBe(true);
+  expect(response.results.map((item) => item.distance)).toEqual([0, 0]);
+});

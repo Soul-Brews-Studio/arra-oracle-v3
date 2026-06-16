@@ -24,11 +24,15 @@ export interface FanoutQueryResponse {
   errors: Record<string, string>;
 }
 
+const DEFAULT_FANOUT_LIMIT = 10;
+const MAX_FANOUT_LIMIT = 100;
+
 export async function queryFanout(options: FanoutQueryOptions): Promise<FanoutQueryResponse> {
+  const limit = normalizeFanoutLimit(options.limit);
   const settled = await Promise.allSettled(options.targets.map(async (target) => {
     const startedAt = Date.now();
     try {
-      const result = await target.store.query(options.text, options.limit, options.where);
+      const result = await target.store.query(options.text, limit, options.where);
       return {
         key: target.key,
         elapsedMs: Math.max(0, Date.now() - startedAt),
@@ -64,7 +68,7 @@ export async function queryFanout(options: FanoutQueryOptions): Promise<FanoutQu
     strategy: options.strategy ?? 'merge',
     backends: options.targets.map((target) => target.key),
     backendStats,
-    results: mergeFanoutResults(results).slice(0, options.limit),
+    results: mergeFanoutResults(results).slice(0, limit),
     errors,
   };
 }
@@ -88,7 +92,7 @@ export function mergeFanoutResults(results: SearchResult[]): SearchResult[] {
 
 function toSearchResults(backend: string, result: VectorQueryResult): SearchResult[] {
   return result.ids.map((id, i) => {
-    const distance = result.distances?.[i] ?? 0;
+    const distance = finiteDistance(result.distances?.[i]);
     return {
       id,
       type: result.metadatas?.[i]?.type ?? 'unknown',
@@ -96,9 +100,22 @@ function toSearchResults(backend: string, result: VectorQueryResult): SearchResu
       source_file: result.metadatas?.[i]?.source_file ?? '',
       concepts: [],
       source: 'vector' as const,
-      score: 1 / (1 + distance / 100),
+      score: scoreFromDistance(distance),
       distance,
       model: backend,
     };
   });
+}
+
+function normalizeFanoutLimit(limit: number): number {
+  if (!Number.isFinite(limit)) return DEFAULT_FANOUT_LIMIT;
+  return Math.min(MAX_FANOUT_LIMIT, Math.max(1, Math.floor(limit)));
+}
+
+function finiteDistance(distance: unknown): number {
+  return typeof distance === 'number' && Number.isFinite(distance) && distance >= 0 ? distance : 0;
+}
+
+function scoreFromDistance(distance: number): number {
+  return Math.max(0, Math.min(1, 1 / (1 + distance / 100)));
 }
