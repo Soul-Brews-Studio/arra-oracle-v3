@@ -24,6 +24,6 @@ export const BUILTIN_COMMANDS: CommandSpec[] = [
   { command: "backup", help: "dump SQLite DB to timestamped SQL", flags: ["--out-dir", "--help", "-h"] },
   { command: "changelog", help: "generate CHANGELOG.md from git history", flags: ["--since", "--out", "--stdout", "--help", "-h"] },
   { command: "release", help: "bump CalVer, write changelog, and create a tag", flags: ["--beta", "--stable", "--changelog", "--dry-run", "--help", "-h"] },
-  { command: "export", help: "export vault JSON or vector embeddings", flags: ["--format", "--source", "--collection", "--out", "--help", "-h"] },
+  { command: "export", help: "export a collection through Oracle v2", flags: ["--url", "--collection", "--format", "--output", "--help", "-h"] },
   { command: "import", help: "import vault data from JSON", flags: ["--format", "--in", "--help", "-h"] },
 ];
