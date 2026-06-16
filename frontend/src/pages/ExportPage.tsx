@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
+import { ConnectionTest } from '../components/export/ConnectionTest';
 import { apiUrl } from '../api/oracle';
 
 type LoadState = 'loading' | 'ready' | 'error';
@@ -116,6 +117,7 @@ export function ExportPage() {
 
       {state === 'loading' ? <LoadingPanel title="Loading collections" detail="Fetching /api/v1/export/app/collections." /> : null}
       {state === 'error' ? <ErrorMessage title="Could not load export collections." message={error} /> : null}
+      <ConnectionTest />
 
       <div className="grid gap-4 lg:grid-cols-4">
         <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6 lg:col-span-2" aria-labelledby="export-collection-title">
