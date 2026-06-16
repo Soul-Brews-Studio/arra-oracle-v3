@@ -35,6 +35,8 @@ export type RequestLoggerOptions = {
   now?: () => number;
 };
 
+export const SANDBOX_LABEL_HEADER = 'X-Sandbox-Label';
+
 const REDACTED = '[REDACTED]';
 const sensitiveHeaders = new Set(['authorization', 'proxy-authorization']);
 const logFormats = new Set<RequestLogFormat>(['json', 'nginx', 'short']);
@@ -123,14 +125,17 @@ export function createRequestLogger(options: RequestLoggerOptions = {}) {
   return {
     onRequest({ request, set }: RequestContext) {
       const correlationId = requestCorrelationId(request);
-      metaByRequest.set(request, { startedAt: now(), correlationId, headers: redactHeaders(request.headers), sandbox: sandboxLabel() });
+      const sandbox = sandboxLabel();
+      metaByRequest.set(request, { startedAt: now(), correlationId, headers: redactHeaders(request.headers), sandbox });
       set.headers['X-Correlation-Id'] = correlationId;
+      set.headers[SANDBOX_LABEL_HEADER] = sandbox;
     },
     onAfterResponse({ request, responseValue, set }: AfterResponseContext) {
       const meta = metaByRequest.get(request);
       const endedAt = now();
       const startedAt = meta?.startedAt ?? endedAt;
       const durationMs = Math.max(0, Math.round((endedAt - startedAt) * 100) / 100);
+      set.headers[SANDBOX_LABEL_HEADER] = meta?.sandbox ?? sandboxLabel();
       log({
         event: 'http_request',
         method: request.method,

@@ -44,6 +44,7 @@ async function captureLogLine(format: string | undefined, env?: string): Promise
     }));
     expect(response.status).toBe(200);
     expect(response.headers.get('x-correlation-id')).toBe(CORRELATION_ID);
+    expect(response.headers.get('x-sandbox-label')).toBe(env === 'production' ? 'prod' : 'dev');
 
     return await waitForLog(lines);
   } finally {
