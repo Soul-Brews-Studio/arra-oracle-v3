@@ -40,6 +40,7 @@ Check these before claiming certainty:
 
 - Human-readable durable memory: repo docs, `MORNING-TAPE.md`, `docs/MORNING-TAPE-TEMPLATE.md`, and `ψ/memory/` when present.
 - DB memory: `oracle_memories` through `/api/memory/save`, `/api/memory/recall`, and `/api/memory/search`.
+- Session close-out: `/api/memory/closeout` saves the summary, next action, blockers, and artifacts for future boot.
 - Morning recovery API: `/api/memory/morning-tape` renders recent persisted memories into a two-minute briefing.
 - Vector search helps recall but is not authority; verify against files before claiming done.
 
