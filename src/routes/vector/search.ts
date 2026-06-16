@@ -6,7 +6,7 @@ import type { SearchResult } from '../../server/types.ts';
 
 type SortField = 'score' | 'distance' | 'date' | 'id' | 'type' | 'source_file';
 type SortOrder = 'asc' | 'desc';
-type SearchStore = Pick<VectorStoreAdapter, 'connect' | 'ensureCollection' | 'query'>;
+type SearchStore = Pick<VectorStoreAdapter, 'connect' | 'ensureCollection' | 'query'> & Partial<Pick<VectorStoreAdapter, 'close'>>;
 
 interface VectorSearchDeps {
   getStore?: (collection?: string) => SearchStore;
@@ -206,15 +206,14 @@ export function createVectorSearchEndpoint(deps: VectorSearchDeps = {}) {
       return { error: 'Invalid metadata filter', message: error instanceof Error ? error.message : String(error) };
     }
 
-    const limit = positiveInt(query.limit, 10, MAX_LIMIT);
-    const offset = offsetOf(query.offset);
-    const from = timestamp(query.from ?? query.dateFrom);
-    const to = timestamp(query.to ?? query.dateTo);
+    const limit = positiveInt(query.limit, 10, MAX_LIMIT), offset = offsetOf(query.offset);
+    const from = timestamp(query.from ?? query.dateFrom), to = timestamp(query.to ?? query.dateTo);
     const sort = sortConfig(query.sort, query.order);
     const fetchLimit = Math.min(MAX_FETCH, Math.max(offset + limit, limit * 5));
 
+    let store: SearchStore | undefined;
     try {
-      const store = getStore(collection);
+      store = getStore(collection);
       await store.connect();
       await store.ensureCollection();
       const raw = await store.query(q, fetchLimit, Object.keys(metadata).length > 0 ? metadata : undefined);
@@ -238,6 +237,8 @@ export function createVectorSearchEndpoint(deps: VectorSearchDeps = {}) {
       set.status = 400;
       const message = error instanceof Error ? error.message : String(error);
       return { results: [], total: 0, query: q, error: 'Vector search failed', message };
+    } finally {
+      await store?.close?.().catch(() => undefined);
     }
   }, {
     query: VectorSearchQuery,

@@ -19,27 +19,29 @@ export const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 type SessionPayload = { exp: number; tenant: string };
 
 export function isLocalIp(ip: string): boolean {
-  return ip === '127.0.0.1'
-      || ip === '::1'
-      || ip === 'localhost'
-      || ip.startsWith('192.168.')
-      || ip.startsWith('10.')
-      || ip.startsWith('172.16.')
-      || ip.startsWith('172.17.')
-      || ip.startsWith('172.18.')
-      || ip.startsWith('172.19.')
-      || ip.startsWith('172.20.')
-      || ip.startsWith('172.21.')
-      || ip.startsWith('172.22.')
-      || ip.startsWith('172.23.')
-      || ip.startsWith('172.24.')
-      || ip.startsWith('172.25.')
-      || ip.startsWith('172.26.')
-      || ip.startsWith('172.27.')
-      || ip.startsWith('172.28.')
-      || ip.startsWith('172.29.')
-      || ip.startsWith('172.30.')
-      || ip.startsWith('172.31.');
+  const value = ip.trim().toLowerCase();
+  const normalized = value.startsWith('::ffff:') ? value.slice('::ffff:'.length) : value;
+  return normalized === '127.0.0.1'
+      || normalized === '::1'
+      || normalized === 'localhost'
+      || normalized.startsWith('192.168.')
+      || normalized.startsWith('10.')
+      || normalized.startsWith('172.16.')
+      || normalized.startsWith('172.17.')
+      || normalized.startsWith('172.18.')
+      || normalized.startsWith('172.19.')
+      || normalized.startsWith('172.20.')
+      || normalized.startsWith('172.21.')
+      || normalized.startsWith('172.22.')
+      || normalized.startsWith('172.23.')
+      || normalized.startsWith('172.24.')
+      || normalized.startsWith('172.25.')
+      || normalized.startsWith('172.26.')
+      || normalized.startsWith('172.27.')
+      || normalized.startsWith('172.28.')
+      || normalized.startsWith('172.29.')
+      || normalized.startsWith('172.30.')
+      || normalized.startsWith('172.31.');
 }
 
 export function remoteAddress(server: any, request: Request): string {
@@ -88,6 +90,19 @@ function verifyLegacySessionToken(token: string, tenantId: string): boolean {
   if (isNaN(expires) || expires < Date.now()) return false;
 
   return safeCompare(signature, signatureFor(expiresStr));
+}
+
+export function usablePassword(value: string | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  return value.trim().length > 0 ? value : null;
+}
+
+export async function passwordMatches(password: string, hash: string): Promise<boolean> {
+  try {
+    return await Bun.password.verify(password, hash);
+  } catch {
+    return false;
+  }
 }
 
 export function generateSessionToken(tenantId = activeTenantId()): string {
