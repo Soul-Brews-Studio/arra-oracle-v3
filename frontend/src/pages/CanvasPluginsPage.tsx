@@ -10,11 +10,19 @@ export interface CanvasPluginsPageProps {
   plugins?: CanvasPluginEntry[];
   loading?: boolean;
   client?: CanvasClient;
+  standaloneHost?: string;
 }
 
-function pluginHref(plugin: CanvasPluginEntry): string {
+function withCanvasHost(path: string, host?: string): string {
+  if (!host) return path;
+  const origin = host.startsWith('http') ? host : `https://${host}`;
+  return new URL(path.startsWith('/') ? path : `/${path}`, origin).toString();
+}
+
+function pluginHref(plugin: CanvasPluginEntry, host?: string): string {
+  if (plugin.standalonePath) return withCanvasHost(plugin.standalonePath, host);
   const qs = new URLSearchParams(plugin.query ?? { plugin: plugin.id });
-  return `${plugin.path || '/canvas'}?${qs.toString()}`;
+  return withCanvasHost(`${plugin.path || '/canvas'}?${qs.toString()}`, host);
 }
 
 function statusClass(plugin: CanvasPluginEntry): string {
@@ -22,8 +30,8 @@ function statusClass(plugin: CanvasPluginEntry): string {
   return 'border-teal-300/30 bg-teal-300/10 text-teal-100';
 }
 
-function PluginCard({ plugin }: { plugin: CanvasPluginEntry }) {
-  const target = pluginHref(plugin);
+function PluginCard({ plugin, host }: { plugin: CanvasPluginEntry; host?: string }) {
+  const target = pluginHref(plugin, host);
   return (
     <article className="rounded-3xl border border-white/10 bg-slate-950/70 p-5" aria-label={`${plugin.label} canvas plugin`}>
       <div className="mb-4 flex items-start justify-between gap-3">
@@ -45,8 +53,9 @@ function PluginCard({ plugin }: { plugin: CanvasPluginEntry }) {
   );
 }
 
-export function CanvasPluginsPage({ plugins: initialPlugins = [], loading = true, client = defaultClient }: CanvasPluginsPageProps) {
+export function CanvasPluginsPage({ plugins: initialPlugins = [], loading = true, client = defaultClient, standaloneHost = '' }: CanvasPluginsPageProps) {
   const [plugins, setPlugins] = useState(initialPlugins);
+  const [host, setHost] = useState(standaloneHost);
   const [state, setState] = useState<PageState>(loading ? 'loading' : 'ready');
   const [error, setError] = useState('');
 
@@ -58,6 +67,7 @@ export function CanvasPluginsPage({ plugins: initialPlugins = [], loading = true
       .then((response) => {
         if (cancelled) return;
         setPlugins(response.plugins);
+        setHost(response.standalone?.host ?? standaloneHost);
         setState('ready');
       })
       .catch((cause) => {
@@ -66,7 +76,7 @@ export function CanvasPluginsPage({ plugins: initialPlugins = [], loading = true
         setState(initialPlugins.length ? 'ready' : 'error');
       });
     return () => { cancelled = true; };
-  }, [client, initialPlugins.length]);
+  }, [client, initialPlugins.length, standaloneHost]);
 
   const summary = useMemo(() => {
     const react = plugins.filter((plugin) => plugin.kind === 'react').length;
@@ -86,7 +96,7 @@ export function CanvasPluginsPage({ plugins: initialPlugins = [], loading = true
       {state === 'loading' ? <LoadingPanel title="Loading canvas plugins" detail="Reading /api/canvas/plugins." /> : null}
       {state === 'error' ? <ErrorMessage title="Could not load canvas plugins." message={error} /> : null}
       {state !== 'error' && error ? <ErrorMessage title="Canvas plugin warning" message={error} /> : null}
-      {state !== 'error' ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{plugins.map((plugin) => <PluginCard key={plugin.id} plugin={plugin} />)}</div> : null}
+      {state !== 'error' ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{plugins.map((plugin) => <PluginCard key={plugin.id} plugin={plugin} host={host} />)}</div> : null}
     </section>
   );
 }
