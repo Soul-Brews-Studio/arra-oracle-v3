@@ -29,7 +29,7 @@ export function PluginList({
   enabledState?: PluginEnabledState;
   onToggle?: (name: string) => void;
 }) {
-  if (!plugins.length) return <EmptyState text="No plugins registered in /api/v1/plugins." />;
+  if (!plugins.length) return <EmptyState text="No plugins registered in /api/plugins." />;
 
   return (
     <div className="grid gap-4">

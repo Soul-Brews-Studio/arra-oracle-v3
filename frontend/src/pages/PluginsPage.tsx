@@ -213,11 +213,11 @@ export function PluginsPage({ plugins: initialPlugins = [], loading = true, clie
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Plugin admin</p>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Plugin list</p>
             <h2 id="plugins-page-title" className="mt-2 text-2xl font-semibold text-white">Registered plugins</h2>
-            <p className="mt-2 text-sm text-slate-400">Canvas view for unified backend surfaces from GET /api/v1/plugins, with register/unregister controls.</p>
+            <p className="mt-2 text-sm text-slate-400">Canvas view for unified backend surfaces from GET /api/plugins, with register/unregister controls.</p>
           </div>
           <div className="flex flex-wrap gap-2"><p className="rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300">{summary}</p><p className="rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300">{surfaceCount} surfaces</p></div>
         </div>
-        {isLoading ? <LoadingPanel title="Loading plugins…" detail="Fetching /api/v1/plugins and plugin server manifests." /> : null}
+        {isLoading ? <LoadingPanel title="Loading plugins…" detail="Fetching /api/plugins and plugin server manifests." /> : null}
         {state === 'error' ? <ErrorMessage title="Could not load plugins." message={error} /> : null}
         {state !== 'error' && error ? <ErrorMessage title="Plugin action failed." message={error} /> : null}
         {actionMessage ? <p className="mt-3 text-sm text-amber-200">{actionMessage}</p> : null}

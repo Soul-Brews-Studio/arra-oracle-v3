@@ -75,7 +75,7 @@ export interface ApiRouteResponses {
   '/api/vector/index/models': VectorIndexModelsResponse;
   '/api/vector/index/status': VectorIndexStatusResponse;
   '/api/vector/health': VectorHealthResponse;
-  '/api/v1/plugins': PluginsResponse;
+  '/api/plugins': PluginsResponse;
   '/api/v1/learn': LearnListResponse;
 }
 
@@ -168,7 +168,7 @@ export class ApiClient {
   }
 
   plugins(): Promise<PluginsResponse> {
-    return this.request('/api/v1/plugins');
+    return this.request('/api/plugins');
   }
 
   learn(): Promise<LearnListResponse> {
