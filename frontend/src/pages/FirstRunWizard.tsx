@@ -1,0 +1,116 @@
+import { useEffect, useMemo, useState } from 'react';
+import { ErrorMessage, Spinner } from '../components/AsyncState';
+import { fetchJson, type VectorConfigRow } from './vectorSettingsHelpers';
+
+type WizardStep = 0 | 1 | 2 | 3;
+type Provider = { type: string; available?: boolean; configured?: boolean; models?: string[]; error?: string; status?: string };
+type ProvidersResponse = { checkedAt?: string; providers?: Provider[] };
+type StatsResponse = { total?: number; total_docs?: number; vector?: { enabled?: boolean; count?: number } };
+
+const steps = ['Welcome', 'Provider', 'Vault + index', 'Done'] as const;
+
+function primaryKey(rows: VectorConfigRow[]): string | null {
+  return (rows.find((row) => row.primary) ?? rows[0])?.key ?? null;
+}
+
+function firstRun(stats: StatsResponse | null, rows: VectorConfigRow[]): boolean {
+  const total = stats?.total_docs ?? stats?.total ?? 0;
+  const vectorCount = stats?.vector?.count ?? rows.reduce((sum, row) => sum + (row.count ?? 0), 0);
+  return total === 0 || vectorCount === 0;
+}
+
+export function FirstRunWizard({ rows, onRefresh }: { rows: VectorConfigRow[]; onRefresh: () => Promise<void> | void }) {
+  const [step, setStep] = useState<WizardStep>(0);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [stats, setStats] = useState<StatsResponse | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const recommended = useMemo(() => providers.find((item) => item.available) ?? providers[0], [providers]);
+  const showAsFirstRun = firstRun(stats, rows);
+
+  useEffect(() => {
+    let active = true;
+    Promise.allSettled([
+      fetchJson<ProvidersResponse>('/api/v1/vector/providers'),
+      fetchJson<StatsResponse>('/api/stats'),
+    ]).then(([providerResult, statsResult]) => {
+      if (!active) return;
+      if (providerResult.status === 'fulfilled') setProviders(providerResult.value.providers ?? []);
+      if (statsResult.status === 'fulfilled') setStats(statsResult.value);
+    });
+    return () => { active = false; };
+  }, []);
+
+  async function reloadHealth() {
+    setBusy(true);
+    setError('');
+    try {
+      await fetchJson('/api/v1/vector/config/reload', { method: 'POST' });
+      await onRefresh();
+      setMessage('Auto-detect refreshed. Review collection health and continue.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function startIndex() {
+    const model = primaryKey(rows);
+    if (!model) return setError('No vector collection is available to index.');
+    setBusy(true);
+    setError('');
+    try {
+      await fetchJson('/api/vector/index/start', { method: 'POST', body: JSON.stringify({ model }) });
+      setStep(3);
+      setMessage(`Started indexing ${model}. Track progress in the Index Manager.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className={`rounded-3xl border p-5 sm:p-6 ${showAsFirstRun ? 'border-purple-300/20 bg-purple-300/10' : 'border-white/10 bg-slate-950/70'}`} aria-labelledby="first-run-wizard-title">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-purple-200">First-run wizard</p>
+          <h2 id="first-run-wizard-title" className="mt-2 text-2xl font-semibold text-white">{steps[step]}</h2>
+          <p className="mt-2 max-w-3xl text-sm text-purple-100/80">{copyFor(step, showAsFirstRun, recommended)}</p>
+        </div>
+        <ol className="flex gap-2" aria-label="First-run steps">{steps.map((item, index) => <li key={item} className={`h-2 w-10 rounded-full ${index <= step ? 'bg-purple-200' : 'bg-white/20'}`} />)}</ol>
+      </div>
+
+      {step === 1 ? <ProviderList providers={providers} /> : null}
+      {step === 2 ? <VaultPlan rows={rows} /> : null}
+      {message ? <p className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-sm text-purple-100">{message}</p> : null}
+      {error ? <div className="mt-4"><ErrorMessage title="First-run step failed." message={error} /></div> : null}
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        <button className="focus-ring rounded-xl border border-white/10 px-3 py-2 text-sm text-purple-100 disabled:opacity-50" disabled={step === 0} type="button" onClick={() => setStep((step - 1) as WizardStep)}>Back</button>
+        {step === 0 ? <button className="focus-ring rounded-xl bg-purple-200 px-3 py-2 text-sm font-semibold text-slate-950" type="button" onClick={() => void reloadHealth()}>{busy ? <Spinner label="Detecting" /> : 'Run auto-detect'}</button> : null}
+        {step === 2 ? <button className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50" disabled={busy || !rows.length} type="button" onClick={() => void startIndex()}>{busy ? <Spinner label="Starting" /> : 'Start indexing'}</button> : null}
+        <button className="focus-ring rounded-xl border border-purple-200/40 px-3 py-2 text-sm font-semibold text-purple-100 disabled:opacity-50" disabled={step === 3} type="button" onClick={() => setStep((step + 1) as WizardStep)}>Next</button>
+      </div>
+    </section>
+  );
+}
+
+function copyFor(step: WizardStep, firstRun: boolean, provider?: Provider): string {
+  if (step === 0) return firstRun ? 'No complete vector index was detected. Start here to choose a provider and build the first index.' : 'Vector search is configured; use this wizard to refresh provider detection or onboard a new vault.';
+  if (step === 1) return provider ? `Recommended provider: ${provider.type}. Choose a configured provider before indexing.` : 'No providers reported yet; run auto-detect or configure keys.';
+  if (step === 2) return 'Select the primary collection, confirm vault/source docs, then start indexing.';
+  return 'Indexing has started. The Index Manager shows live progress and completion state.';
+}
+
+function ProviderList({ providers }: { providers: Provider[] }) {
+  if (!providers.length) return <p className="mt-4 text-sm text-purple-100/70">Provider detection has not returned results yet.</p>;
+  return <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{providers.map((provider) => <div key={provider.type} className="rounded-2xl border border-white/10 bg-slate-950/50 p-3"><p className="font-semibold text-purple-100">{provider.type}</p><p className="text-sm text-slate-400">{provider.available ? 'available' : 'unavailable'} · {(provider.models ?? []).slice(0, 2).join(', ') || 'no models'}</p></div>)}</div>;
+}
+
+function VaultPlan({ rows }: { rows: VectorConfigRow[] }) {
+  const primary = rows.find((row) => row.primary) ?? rows[0];
+  return <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-sm text-purple-100"><p>Primary collection: <span className="font-semibold">{primary?.collection ?? 'none'}</span></p><p className="mt-1 text-purple-100/70">Vault selection is represented by indexed source documents; use Index now to backfill vectors for the primary model.</p></div>;
+}
