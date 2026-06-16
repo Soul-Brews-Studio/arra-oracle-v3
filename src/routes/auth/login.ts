@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { getSetting } from '../../db/index.ts';
+import { getScopedSetting } from '../../db/scoped-settings.ts';
 import {
   SESSION_COOKIE_NAME,
   SESSION_DURATION_MS,
@@ -15,7 +15,7 @@ export const loginRoute = new Elysia().post('/login', async ({ body, server, req
     return { success: false, error: 'Password required' };
   }
 
-  const storedHash = getSetting('auth_password_hash');
+  const storedHash = getScopedSetting('auth_password_hash');
   if (!storedHash) {
     set.status = 400;
     return { success: false, error: 'No password configured' };

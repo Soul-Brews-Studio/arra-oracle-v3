@@ -19,18 +19,24 @@ const dbMod = await import('../../../src/db/index.ts');
 dbMod.resetDefaultDatabaseForTests(dbPath);
 const { authRoutes } = await import('../../../src/routes/auth/index.ts');
 const { sessionsRoutes } = await import('../../../src/routes/sessions/index.ts');
-const { createTenantFetch, TENANT_HEADER } = await import('../../../src/middleware/tenant.ts');
+const { createTenantFetch, runWithTenant, TENANT_HEADER } = await import('../../../src/middleware/tenant.ts');
+const { setScopedSetting } = await import('../../../src/db/scoped-settings.ts');
 
 const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const tenantA = `auth-a-${stamp}`;
 const tenantB = `auth-b-${stamp}`;
 const password = `pw-${stamp}`;
+const passwordHash = await Bun.password.hash(password);
 const sessionId = `session-${stamp}`;
 const createdIds: string[] = [];
 
-dbMod.setSetting('auth_enabled', 'true');
-dbMod.setSetting('auth_local_bypass', 'false');
-dbMod.setSetting('auth_password_hash', await Bun.password.hash(password));
+for (const tenantId of [tenantA, tenantB]) {
+  runWithTenant(tenantId, () => {
+    setScopedSetting('auth_enabled', 'true');
+    setScopedSetting('auth_local_bypass', 'false');
+    setScopedSetting('auth_password_hash', passwordHash);
+  });
+}
 
 function restore(name: string, value: string | undefined) {
   if (value === undefined) delete process.env[name];

@@ -7,7 +7,7 @@
 
 import { Elysia } from 'elysia';
 import { createHmac, timingSafeEqual } from 'crypto';
-import { getSetting } from '../../db/index.ts';
+import { getScopedSetting } from '../../db/scoped-settings.ts';
 import { activeTenantId, DEFAULT_TENANT_ID } from '../../middleware/tenant.ts';
 import { statusRoute } from './status.ts';
 import { loginRoute } from './login.ts';
@@ -113,10 +113,10 @@ export function isAuthenticated(
   request: Request,
   sessionValue: string | undefined,
 ): boolean {
-  const authEnabled = getSetting('auth_enabled') === 'true';
+  const authEnabled = getScopedSetting('auth_enabled') === 'true';
   if (!authEnabled) return true;
 
-  const localBypass = getSetting('auth_local_bypass') !== 'false';
+  const localBypass = getScopedSetting('auth_local_bypass') !== 'false';
   if (localBypass && isLocalNetwork(server, request)) return true;
 
   return verifySessionToken(sessionValue || '', activeTenantId());

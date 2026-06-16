@@ -1,10 +1,11 @@
 import { Elysia } from 'elysia';
-import { getSetting, setSetting } from '../../db/index.ts';
+import { getScopedSetting, setScopedSetting } from '../../db/scoped-settings.ts';
+import { activeTenantId } from '../../middleware/tenant.ts';
 import { UpdateSettingsBody } from './model.ts';
 
 export const updateSettingsRoute = new Elysia().post('/', async ({ body, set }) => {
   if (body.newPassword) {
-    const existingHash = getSetting('auth_password_hash');
+    const existingHash = getScopedSetting('auth_password_hash');
     if (existingHash) {
       if (!body.currentPassword) {
         set.status = 400;
@@ -17,11 +18,11 @@ export const updateSettingsRoute = new Elysia().post('/', async ({ body, set }) 
       }
     }
     const hash = await Bun.password.hash(body.newPassword);
-    setSetting('auth_password_hash', hash);
+    setScopedSetting('auth_password_hash', hash);
   }
 
   if (body.removePassword === true) {
-    const existingHash = getSetting('auth_password_hash');
+    const existingHash = getScopedSetting('auth_password_hash');
     if (existingHash && body.currentPassword) {
       const valid = await Bun.password.verify(body.currentPassword, existingHash);
       if (!valid) {
@@ -29,27 +30,28 @@ export const updateSettingsRoute = new Elysia().post('/', async ({ body, set }) 
         return { error: 'Current password is incorrect' };
       }
     }
-    setSetting('auth_password_hash', null);
-    setSetting('auth_enabled', 'false');
+    setScopedSetting('auth_password_hash', null);
+    setScopedSetting('auth_enabled', 'false');
   }
 
   if (typeof body.authEnabled === 'boolean') {
-    if (body.authEnabled && !getSetting('auth_password_hash')) {
+    if (body.authEnabled && !getScopedSetting('auth_password_hash')) {
       set.status = 400;
       return { error: 'Cannot enable auth without password' };
     }
-    setSetting('auth_enabled', body.authEnabled ? 'true' : 'false');
+    setScopedSetting('auth_enabled', body.authEnabled ? 'true' : 'false');
   }
 
   if (typeof body.localBypass === 'boolean') {
-    setSetting('auth_local_bypass', body.localBypass ? 'true' : 'false');
+    setScopedSetting('auth_local_bypass', body.localBypass ? 'true' : 'false');
   }
 
   return {
     success: true,
-    authEnabled: getSetting('auth_enabled') === 'true',
-    localBypass: getSetting('auth_local_bypass') !== 'false',
-    hasPassword: !!getSetting('auth_password_hash'),
+    authEnabled: getScopedSetting('auth_enabled') === 'true',
+    localBypass: getScopedSetting('auth_local_bypass') !== 'false',
+    hasPassword: !!getScopedSetting('auth_password_hash'),
+    tenantId: activeTenantId(),
   };
 }, {
   body: UpdateSettingsBody,
