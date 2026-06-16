@@ -1,0 +1,74 @@
+import { afterEach, expect, test } from 'bun:test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { configPath, loadVectorConfig } from '../../src/vector/config.ts';
+import { VectorServiceRegistry } from '../../src/vector/service-registry.ts';
+
+const savedDataDir = process.env.ORACLE_DATA_DIR;
+const roots: string[] = [];
+
+function useTempDataDir(): string {
+  const root = mkdtempSync(join(tmpdir(), 'vector-service-registry-'));
+  roots.push(root);
+  process.env.ORACLE_DATA_DIR = root;
+  return root;
+}
+
+afterEach(() => {
+  if (savedDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
+  else process.env.ORACLE_DATA_DIR = savedDataDir;
+  while (roots.length) rmSync(roots.pop()!, { recursive: true, force: true });
+});
+
+test('VectorServiceRegistry registers and discovers configured vector backends', async () => {
+  const root = useTempDataDir();
+  const registry = new VectorServiceRegistry();
+
+  await registry.register({
+    name: ' turbovec ',
+    type: 'proxy',
+    endpoint: 'http://127.0.0.1:8082',
+    capabilities: { protocol: 'vector-proxy-v1' },
+  });
+
+  expect(await registry.discover()).toEqual([
+    { name: 'lancedb', type: 'builtin', endpoint: undefined, capabilities: undefined },
+    {
+      name: 'turbovec',
+      type: 'proxy',
+      endpoint: 'http://127.0.0.1:8082',
+      capabilities: { protocol: 'vector-proxy-v1' },
+    },
+  ]);
+  expect(loadVectorConfig(configPath(root))?.storage?.services.turbovec).toMatchObject({
+    type: 'proxy',
+    endpoint: 'http://127.0.0.1:8082',
+  });
+});
+
+test('VectorServiceRegistry healthCheck follows proxy /health status contract', async () => {
+  useTempDataDir();
+  const server = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch() {
+      return Response.json({ status: 'degraded', name: 'proxy-a', version: 'test' });
+    },
+  });
+
+  try {
+    const registry = new VectorServiceRegistry();
+    await registry.register({ name: 'proxy-a', type: 'proxy', endpoint: String(server.url).replace(/\/$/, '') });
+    const health = await registry.healthCheck();
+
+    expect(health.get('proxy-a')).toMatchObject({
+      status: 'down',
+      name: 'proxy-a',
+      version: 'test',
+      error: 'health status degraded',
+    });
+  } finally {
+    server.stop(true);
+  }
+});

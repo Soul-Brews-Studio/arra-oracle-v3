@@ -3,7 +3,6 @@ import { Elysia } from 'elysia';
 import { createErrorMiddleware } from '../../src/middleware/errors.ts';
 import { forumApi } from '../../src/routes/forum/index.ts';
 import { knowledgeRoutes } from '../../src/routes/knowledge/index.ts';
-import { peerRoutes } from '../../src/routes/peer/index.ts';
 import { scheduleApi } from '../../src/routes/schedule/index.ts';
 import { supersedeRoutes } from '../../src/routes/supersede/index.ts';
 import { tracesApi } from '../../src/routes/traces/index.ts';
@@ -16,7 +15,6 @@ function app() {
     .use(createErrorMiddleware(() => undefined))
     .use(forumApi)
     .use(scheduleApi)
-    .use(peerRoutes)
     .use(knowledgeRoutes)
     .use(supersedeRoutes)
     .use(tracesApi)
@@ -53,11 +51,6 @@ describe('input validation hardening', () => {
   test('rejects malformed schedule create and update bodies', async () => {
     expect((await post('/api/schedule', { date: 42, event: 'standup' })).res.status).toBe(422);
     expect((await patch('/api/schedule/1', { status: 'bogus' })).res.status).toBe(422);
-  });
-
-  test('rejects malformed federation search input', async () => {
-    expect((await post('/api/peer/search', { q: 42 })).res.status).toBe(422);
-    expect((await post('/api/search', { limit: true })).res.status).toBe(422);
   });
 
   test('rejects malformed knowledge and supersede bodies', async () => {

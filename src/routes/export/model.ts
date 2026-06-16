@@ -66,6 +66,8 @@ export const exportHistoryRunBody = t.Object({
   collection: t.String({ minLength: 1 }),
   format: t.String({ minLength: 1 }),
   status: t.Optional(t.String({ minLength: 1 })),
+  oracleV2Url: t.Optional(t.String({ minLength: 1 })),
+  baseUrl: t.Optional(t.String({ minLength: 1 })),
 });
 
 export interface ExportHistoryJob {

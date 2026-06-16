@@ -42,7 +42,6 @@ const child = spawn({
     ORACLE_DATA_DIR: dataDir,
     ORACLE_DB_PATH: join(dataDir, 'oracle.db'),
     ORACLE_REPO_ROOT: repoRoot,
-    ARRA_SCOUT_ANNOUNCE: '0',
     ORACLE_EMBEDDER: 'none',
     NODE_ENV: 'development',
   },

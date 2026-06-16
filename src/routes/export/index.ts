@@ -1,9 +1,19 @@
-/** Export Data App routes — async data export jobs and artifact downloads. */
+/** Export Data App routes — core dumps, app helpers, and async artifacts. */
 
 import { Elysia } from 'elysia';
 import { exportCreateBody, normalizeExportRequest } from './model.ts';
 import { defaultExportJobManager, type ExportJobManager } from './jobs.ts';
 import { createExportHistoryRoutes } from './history.ts';
+import { exportCoreRoutes } from './core.ts';
+import { exportAppRoutes } from './app.ts';
+import { exportBatchRoutes } from './batch.ts';
+import { exportImportRoutes } from './import.ts';
+
+export { createExportCoreRoutes, exportCoreRoutes } from './core.ts';
+export { createExportAppRoutes, exportAppRoutes } from './app.ts';
+export { createExportBatchRoutes, exportBatchRoutes } from './batch.ts';
+export { createExportImportRoutes, exportImportRoutes } from './import.ts';
+export { createExportTestConnectionRoutes, exportTestConnectionRoutes } from './test-connection.ts';
 
 export function createExportRoutes(manager: ExportJobManager = defaultExportJobManager) {
   return new Elysia({ prefix: '/api' })
@@ -45,4 +55,13 @@ export function createExportRoutes(manager: ExportJobManager = defaultExportJobM
     });
 }
 
-export const exportRoutes = createExportRoutes();
+export function createCombinedExportRoutes(manager: ExportJobManager = defaultExportJobManager) {
+  return new Elysia()
+    .use(exportCoreRoutes)
+    .use(exportAppRoutes)
+    .use(exportBatchRoutes)
+    .use(exportImportRoutes)
+    .use(createExportRoutes(manager));
+}
+
+export const exportRoutes = createCombinedExportRoutes();

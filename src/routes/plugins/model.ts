@@ -130,21 +130,12 @@ export function readNestedPlugin(
 
   // Try manifest path as-is, then fall back to basename (plugins copied flat
   // by `arra-cli plugin install` keep the source path in manifest.wasm).
-  let wasmPath: string | null = null;
+  let wasmPath = containedPluginPath(dir, wasmName);
   let resolvedName = wasmName;
-  try {
-    wasmPath = resolveContainedPluginEntry(dir, wasmName);
-  } catch {
-    // Fall back to basename for copied plugins whose manifest kept a source path.
-  }
   if (!wasmPath || !existsSync(wasmPath)) {
     const baseName = basename(wasmName);
-    let basePath: string;
-    try {
-      basePath = resolveContainedPluginEntry(dir, baseName);
-    } catch {
-      return null;
-    }
+    const basePath = containedPluginPath(dir, baseName);
+    if (!basePath) return null;
     if (!existsSync(basePath)) {
       if (!server) return null;
       const st = statSync(manifestPath);
@@ -160,6 +151,14 @@ export function readNestedPlugin(
     size: st.size,
     modified: st.mtime.toISOString(),
   };
+}
+
+function containedPluginPath(dir: string, wasmName: string): string | null {
+  try {
+    return resolveContainedPluginEntry(dir, wasmName);
+  } catch {
+    return null;
+  }
 }
 
 export function readFlatPlugin(file: string, dir = pluginDir()): PluginEntry {
@@ -181,14 +180,10 @@ export function resolveWasmPath(name: string): string | null {
       const manifest = JSON.parse(readFileSync(nestedManifest, 'utf8'));
       if (manifest.wasm && typeof manifest.wasm === 'string') {
         const pluginRoot = join(dir, name);
-        try {
-          const full = resolveContainedPluginEntry(pluginRoot, manifest.wasm);
-          if (existsSync(full)) return full;
-        } catch {
-          // Try basename below.
-        }
-        const base = resolveContainedPluginEntry(pluginRoot, basename(manifest.wasm));
-        if (existsSync(base)) return base;
+        const full = containedPluginPath(pluginRoot, manifest.wasm);
+        if (full && existsSync(full)) return full;
+        const base = containedPluginPath(pluginRoot, basename(manifest.wasm));
+        if (base && existsSync(base)) return base;
       }
     } catch {
       // fall through to flat
