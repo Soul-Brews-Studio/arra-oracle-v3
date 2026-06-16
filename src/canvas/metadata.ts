@@ -1,4 +1,5 @@
 import type { CanvasPluginKind } from './plugin.ts';
+import { canvasPluginDataPath, canvasPluginPath } from './urls.ts';
 
 export type CanvasPluginRenderer = 'Three' | 'React';
 
@@ -78,21 +79,13 @@ export const CANVAS_PLUGIN_METADATA: CanvasPluginMetadataEntry[] = [
   },
 ];
 
-function standalonePath(id: string): string {
-  return id === 'map' || id === 'planets' ? `/${id}` : `/?plugin=${id}`;
-}
-
-function apiPath(id: string): string | undefined {
-  return id === 'map' || id === 'planets' ? '/api/map3d' : undefined;
-}
-
 export function listCanvasPluginMetadata(): { kind: 'canvas'; plugins: CanvasPluginMetadataEntry[] } {
   return {
     kind: 'canvas',
     plugins: CANVAS_PLUGIN_METADATA.map((plugin) => ({
       ...plugin,
-      standalonePath: standalonePath(plugin.id),
-      apiPath: apiPath(plugin.id),
+      standalonePath: canvasPluginPath(plugin.id),
+      apiPath: canvasPluginDataPath(plugin.id),
     })),
   };
 }

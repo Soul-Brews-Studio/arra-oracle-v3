@@ -1,4 +1,5 @@
 import { findCanvasPlugin, listCanvasPlugins, type CanvasPluginKind } from './plugins.ts';
+import { canvasPluginPath } from './urls.ts';
 
 const kinds = new Set<CanvasPluginKind>(['three', 'react']);
 
@@ -6,9 +7,7 @@ export function parseCanvasKind(value: unknown): CanvasPluginKind | undefined {
   return typeof value === 'string' && kinds.has(value as CanvasPluginKind) ? value as CanvasPluginKind : undefined;
 }
 
-export function canvasPluginUrl(id: string): string {
-  return id === 'map' || id === 'planets' ? `/${id}` : `/?plugin=${id}`;
-}
+export const canvasPluginUrl = canvasPluginPath;
 
 export function canvasRegistry(kind?: CanvasPluginKind) {
   const plugins = listCanvasPlugins(kind).map((plugin) => ({

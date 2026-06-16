@@ -1,9 +1,9 @@
 import { findCanvasPlugin, listCanvasPlugins, type CanvasPluginDescriptor } from '../../canvas/plugins.ts';
+import { CANVAS_ORIGIN, canvasPluginPath } from '../../canvas/urls.ts';
 
 export type CanvasPlugin = CanvasPluginDescriptor;
 
 const DEFAULT_PLUGIN = 'wave';
-const CANVAS_ORIGIN = 'https://canvas.buildwithoracle.com';
 const STUDIO_HOME = 'https://studio.buildwithoracle.com/';
 
 export function normalizePlugin(value: string | null): CanvasPlugin {
@@ -15,7 +15,7 @@ function titleFor(plugin: CanvasPlugin): string {
 }
 
 function pluginUrl(id: string): string {
-  return id === 'map' || id === 'planets' ? `/${id}` : `/?plugin=${id}`;
+  return canvasPluginPath(id);
 }
 
 function canonicalUrl(id: string): string {
