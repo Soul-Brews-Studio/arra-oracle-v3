@@ -88,7 +88,7 @@ test('live backend responses match the unified plugin menu, registry, and vector
   expect(Number.isNaN(Date.parse(plugin?.modified ?? ''))).toBe(false);
   expect(plugin?.server && 'env' in plugin.server).toBe(false);
 
-  const vector = await getJson<SearchBody>('/api/vector/search?q=smoke-orbit&limit=1');
+  const vector = await getJson<SearchBody>('/api/search?q=smoke-orbit&mode=hybrid&limit=1');
   expect(vector).toMatchObject({ query: 'smoke-orbit', total: 1, limit: 1, offset: 0 });
   expect(vector.results).toHaveLength(1);
   expect(vector.results[0]).toMatchObject({
