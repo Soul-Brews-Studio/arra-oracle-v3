@@ -4,10 +4,21 @@ export function mcpToolPath(name: string): string {
   return `/mcp/tools/${encodeURIComponent(name)}`;
 }
 
+function trimmed(value: string | undefined): string {
+  return value?.trim() ?? '';
+}
+
+function scopedFilter(value: string | undefined): string {
+  const normalized = trimmed(value);
+  return normalized && normalized !== 'all' ? normalized : '';
+}
+
 export function mcpToolsPath(filters: { q?: string; source?: string } = {}): string {
   const params = new URLSearchParams();
-  if (filters.q?.trim()) params.set('q', filters.q.trim());
-  if (filters.source && filters.source !== 'all') params.set('source', filters.source);
+  const q = trimmed(filters.q);
+  const source = scopedFilter(filters.source);
+  if (q) params.set('q', q);
+  if (source) params.set('source', source);
   const query = params.toString();
   return query ? `/mcp?${query}` : '/mcp';
 }
@@ -20,17 +31,22 @@ export function menuSearchPath(query: string): string {
 
 export function pluginInventoryPath(filters: { q?: string; surface?: string; visibility?: string } = {}): string {
   const params = new URLSearchParams();
-  if (filters.q?.trim()) params.set('q', filters.q.trim());
-  if (filters.surface && filters.surface !== 'all') params.set('surface', filters.surface);
-  if (filters.visibility && filters.visibility !== 'all') params.set('visibility', filters.visibility);
+  const q = trimmed(filters.q);
+  const surface = scopedFilter(filters.surface);
+  const visibility = scopedFilter(filters.visibility);
+  if (q) params.set('q', q);
+  if (surface) params.set('surface', surface);
+  if (visibility) params.set('visibility', visibility);
   const query = params.toString();
   return query ? `/plugins?${query}` : '/plugins';
 }
 
 export function menuCatalogPath(filters: { group?: string; source?: string } = {}): string {
   const params = new URLSearchParams();
-  if (filters.group && filters.group !== 'all') params.set('group', filters.group);
-  if (filters.source && filters.source !== 'all') params.set('source', filters.source);
+  const group = scopedFilter(filters.group);
+  const source = scopedFilter(filters.source);
+  if (group) params.set('group', group);
+  if (source) params.set('source', source);
   const query = params.toString();
   return query ? `/menu?${query}` : '/menu';
 }

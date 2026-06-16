@@ -48,6 +48,10 @@ function apiBase(env: CanvasWorkerEnv): string {
   try {
     const url = new URL(raw);
     if (url.protocol !== 'https:' && url.protocol !== 'http:') return DEFAULT_API_BASE;
+    url.username = '';
+    url.password = '';
+    url.search = '';
+    url.hash = '';
     return url.toString().replace(/\/$/, '');
   } catch {
     return DEFAULT_API_BASE;

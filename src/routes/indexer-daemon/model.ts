@@ -58,8 +58,10 @@ function parseOptionalModelFilter(value: unknown, models: ModelRegistry): ParseR
 
 function parseLimit(value: unknown): ParseResult<number> {
   if (value === undefined || value === null || value === '') return { ok: true, value: 100 };
-  if (typeof value !== 'string' || !/^\d+$/.test(value)) return { ok: false, error: 'limit must be an integer between 1 and 1000' };
-  const limit = Number(value);
+  if (typeof value !== 'string') return { ok: false, error: 'limit must be an integer between 1 and 1000' };
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) return { ok: false, error: 'limit must be an integer between 1 and 1000' };
+  const limit = Number(trimmed);
   if (!Number.isSafeInteger(limit) || limit < 1) return { ok: false, error: 'limit must be an integer between 1 and 1000' };
   return { ok: true, value: Math.min(limit, 1000) };
 }
