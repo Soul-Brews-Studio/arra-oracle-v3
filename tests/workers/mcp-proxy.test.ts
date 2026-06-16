@@ -68,6 +68,10 @@ function paramsFrom(url: string) {
   return Object.fromEntries(new URL(url).searchParams.entries());
 }
 
+function payloadFrom(result: Awaited<ReturnType<ToolHandler>>) {
+  return JSON.parse(result.content[0].text);
+}
+
 afterEach(() => {
   globalThis.fetch = originalFetch;
 });
@@ -136,5 +140,46 @@ describe('Cloudflare McpAgent proxy flow', () => {
       source: 'proxy-test',
       project: 'github.com/soul/arra',
     });
+  });
+
+  test('keeps two tenants isolated on the same search endpoint', async () => {
+    const seen: Array<{ path: string; tenant: string | null; query: Record<string, string> }> = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      const tenant = new Headers(init?.headers).get('x-oracle-tenant-id');
+      seen.push({ path: url.pathname, tenant, query: paramsFrom(String(input)) });
+      const docId = tenant === 'tenant-b' ? 'tenant-b-learning' : 'tenant-a-learning';
+      return Response.json({
+        tenant,
+        results: [{ id: docId, content: `${tenant} private result` }],
+      });
+    }) as typeof fetch;
+
+    await loadTools();
+    const search = tools.get('muninn_search')!.handler;
+    const tenantA = payloadFrom(await search({
+      query: 'shared endpoint',
+      limit: 1,
+      tenantId: 'tenant-a',
+    }));
+    const tenantB = payloadFrom(await search({
+      query: 'shared endpoint',
+      limit: 1,
+      tenantId: 'tenant-b',
+    }));
+
+    expect(seen).toEqual([
+      { path: '/root/api/search', tenant: 'tenant-a', query: { q: 'shared endpoint', limit: '1' } },
+      { path: '/root/api/search', tenant: 'tenant-b', query: { q: 'shared endpoint', limit: '1' } },
+    ]);
+    expect(tenantA).toEqual({
+      tenant: 'tenant-a',
+      results: [{ id: 'tenant-a-learning', content: 'tenant-a private result' }],
+    });
+    expect(tenantB).toEqual({
+      tenant: 'tenant-b',
+      results: [{ id: 'tenant-b-learning', content: 'tenant-b private result' }],
+    });
+    expect(tenantA.results[0].id).not.toBe(tenantB.results[0].id);
   });
 });

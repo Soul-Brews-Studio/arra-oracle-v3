@@ -17,6 +17,15 @@ import type { StorageBackend } from '../storage/types.ts';
 import { resolveDatabasePath } from './create.ts';
 export { createDatabase, type DatabaseConnection } from './create.ts';
 export {
+  atomicOp,
+  atomicOps,
+  type AtomicBatchDb,
+  type AtomicOperation,
+  type AtomicTransactionDb,
+  type PairedAtomicOperation,
+  type RunnableAtomicStatement,
+} from './atomic-ops.ts';
+export {
   createDb,
   detectDbRuntime,
   type CreateDbEnv,
