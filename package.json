@@ -61,8 +61,6 @@
     "vault:status": "bun src/vault/cli.ts status",
     "vault:migrate": "bun src/vault/cli.ts migrate",
     "vault:rsync": "./scripts/vault-rsync.sh",
-    "test:e2e:federation": "bun test tests/e2e/federation-smoke.test.ts",
-    "smoke:federation": "bun scripts/federation-smoke.ts",
     "huginn:capture": "bun scripts/huginn-capture-hook.ts",
     "test:huginn": "bun test src/huginn/__tests__/capture.test.ts src/huginn/__tests__/sweep.test.ts",
     "huginn:sweep": "bun scripts/huginn-sweep.ts",

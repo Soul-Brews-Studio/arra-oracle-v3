@@ -59,7 +59,6 @@ export function createSmokeEnv(name: string): SmokeEnv {
       ORACLE_MENU_GIST_URL: '',
       ORACLE_NAV_DISABLE: '',
       ORACLE_EMBEDDER: 'none',
-      ARRA_SCOUT_ANNOUNCE: '0',
     },
   };
 }

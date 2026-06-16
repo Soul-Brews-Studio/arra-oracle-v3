@@ -55,7 +55,6 @@ async function startServer(): Promise<ServerFixture> {
       ORACLE_REPO_ROOT: repoRoot,
       ORACLE_EMBEDDER: 'none',
       ORACLE_VECTOR_HEALTH_TIMEOUT: '50',
-      ARRA_SCOUT_ANNOUNCE: '0',
       ARRA_SHUTDOWN_MIN_DRAIN_MS: '1000',
     },
     stdout: 'pipe',

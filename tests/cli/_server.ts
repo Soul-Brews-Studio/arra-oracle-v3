@@ -55,7 +55,6 @@ export async function ensureServer(): Promise<void> {
       ORACLE_DB_PATH: join(dataDir, "oracle.db"),
       ORACLE_REPO_ROOT: repoRoot,
       ORACLE_CHROMA_TIMEOUT: "3000",
-      ARRA_SCOUT_ANNOUNCE: "0",
     },
   });
   const ready = await waitForServer();
