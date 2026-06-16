@@ -11,6 +11,7 @@ Use this page as the one-hop map for the 2026-06-06/07 alpha docs wave.
 | [FEDERATION.md](./FEDERATION.md) | Pair and secure Arra peers | `/info`, `/api/identity`, `/api/peer/feed`, `/api/peer/search`, TOFU pins |
 | [HUGINN-MUNINN.md](./HUGINN-MUNINN.md) | Understand the capture/recall naming split | Muninn recall, Huginn capture, no `huginn_*` aliases |
 | [issues/memory-systems-ai-agents-1648.md](./issues/memory-systems-ai-agents-1648.md) | Apply the #1648 memory-systems research | provenance-first hybrid memory, confidence, validation, review-gated capture |
+| [MORNING-TAPE-TEMPLATE.md](./MORNING-TAPE-TEMPLATE.md) | Complete Challenge 2 memory bootstrapping | two-minute recovery tape, safety rails, blocked/done reporting |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | Pick the correct repo/branch for PRs | two-repo rule, source PRs to `arra-oracle-v3:alpha` |
 | [CHANGELOG.md](../CHANGELOG.md) | Review what changed in the alpha wave | release notes, tracker issues, source PRs |
 | [TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md) | Find feature knobs and first commands | MCP modes, plugins, CLI targets, vectors, Docker, federation |
