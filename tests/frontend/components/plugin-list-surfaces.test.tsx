@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { PluginList } from '../../../frontend/src/components/PluginList';
+import { surfacesFor } from '../../../frontend/src/plugin-surfaces';
 import { htmlFor } from '../_render';
 
 describe('PluginList surfaces', () => {
@@ -37,5 +38,9 @@ describe('PluginList surfaces', () => {
     expect(html).toContain('GET /proxy/echo → $ECHO_URL');
     expect(html).toContain('CLI subcommands');
     expect(html).toContain('.echo');
+  });
+
+  test('normalizes backend mcpTools surface names for badges', () => {
+    expect(surfacesFor({ name: 'echo', file: '', size: 0, modified: 'now', surfaces: ['mcpTools'] })).toEqual(['mcp']);
   });
 });
