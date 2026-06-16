@@ -149,8 +149,8 @@ async function readPluginStatuses(
   }
 }
 
-function aggregateStatus(db: DbStatus, vector: VectorHealth, pluginStatus: 'ok' | 'degraded') {
-  return db.status === 'connected' && vector.status === 'ok' && pluginStatus === 'ok' ? 'ok' : 'degraded';
+function aggregateStatus(db: DbStatus, pluginStatus: 'ok' | 'degraded') {
+  return db.status === 'connected' && pluginStatus === 'ok' ? 'ok' : 'degraded';
 }
 
 function installedPluginCount(): number {
@@ -185,7 +185,7 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
 
     const serviceUptime = Math.round(uptimeSeconds * 1000) / 1000;
     return {
-      status: aggregateStatus(dbStatus, vector, pluginStatus),
+      status: aggregateStatus(dbStatus, pluginStatus),
       server: MCP_SERVER_NAME,
       version: pkg.version,
       port: Number(PORT),
