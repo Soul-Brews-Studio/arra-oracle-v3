@@ -123,7 +123,7 @@ Protected routes may require API token/session auth; tenant-aware routes honor `
 | GET | `/api/menu/source/official` | None. | Official menu source. |
 | POST | `/api/menu/reset-all` | None. | Reset all menu rows. |
 | POST | `/api/menu/reload` | None. | Reload/seed menu. |
-| GET | `/api/plugins` | None. | Plugin registry entries. |
+| GET | `/api/plugins` | `kind=canvas?` | Plugin registry entries or CanvasPlugin metadata. |
 | GET | `/api/plugins/:name` | `name` path. | Plugin details or file plugin details. |
 | PATCH | `/api/plugins/:name/state` | `{ enabled }` | Enable/disable state. |
 | GET | `/api/plugins/canvas` | `kind?` | Canvas plugin entries. |
