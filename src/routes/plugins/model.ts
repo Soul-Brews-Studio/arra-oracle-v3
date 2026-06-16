@@ -129,9 +129,9 @@ export function readNestedPlugin(
   try {
     wasmPath = resolveContainedPluginEntry(dir, wasmName);
   } catch {
-    return null;
+    wasmPath = '';
   }
-  if (!existsSync(wasmPath)) {
+  if (!wasmPath || !existsSync(wasmPath)) {
     const baseName = basename(wasmName);
     const basePath = resolveContainedPluginEntry(dir, baseName);
     if (!existsSync(basePath)) {
@@ -169,7 +169,8 @@ export function resolveWasmPath(name: string): string | null {
       const manifest = JSON.parse(readFileSync(nestedManifest, 'utf8'));
       if (manifest.wasm && typeof manifest.wasm === 'string') {
         const pluginDir = join(PLUGIN_DIR, name);
-        const full = resolveContainedPluginEntry(pluginDir, manifest.wasm);
+        let full = '';
+        try { full = resolveContainedPluginEntry(pluginDir, manifest.wasm); } catch {}
         if (existsSync(full)) return full;
         const base = resolveContainedPluginEntry(pluginDir, basename(manifest.wasm));
         if (existsSync(base)) return base;
