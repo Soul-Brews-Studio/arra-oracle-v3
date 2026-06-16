@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { buildGlobalSearchResults } from '../../../frontend/src/global-search';
 
 describe('buildGlobalSearchResults plugin matches', () => {
-  test('matches plugin descriptions and points results at the plugin page', () => {
+  test('matches plugin descriptions and points results at filtered plugin inventory', () => {
     const results = buildGlobalSearchResults({
       menu: [],
       plugins: [{
@@ -15,7 +15,7 @@ describe('buildGlobalSearchResults plugin matches', () => {
       }],
       tools: [],
     }, 'workshop');
-    expect(results).toMatchObject([{ surface: 'plugin', title: 'echo', href: '/plugins' }]);
+    expect(results).toMatchObject([{ surface: 'plugin', title: 'echo', href: '/plugins?q=echo' }]);
     expect(results[0].detail).toContain('mcp');
   });
 });

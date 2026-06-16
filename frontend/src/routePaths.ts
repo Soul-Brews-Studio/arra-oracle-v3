@@ -8,6 +8,15 @@ export function menuSearchPath(query: string): string {
   return `/search?${new URLSearchParams({ q })}`;
 }
 
+export function pluginInventoryPath(filters: { q?: string; surface?: string; visibility?: string } = {}): string {
+  const params = new URLSearchParams();
+  if (filters.q?.trim()) params.set('q', filters.q.trim());
+  if (filters.surface && filters.surface !== 'all') params.set('surface', filters.surface);
+  if (filters.visibility && filters.visibility !== 'all') params.set('visibility', filters.visibility);
+  const query = params.toString();
+  return query ? `/plugins?${query}` : '/plugins';
+}
+
 export function vectorDashboardPath(): string {
   return '/vector';
 }

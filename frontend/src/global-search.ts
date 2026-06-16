@@ -1,6 +1,6 @@
 import { fetchMcpTools, fetchMenu, fetchPlugins } from './api';
 import { surfacesFor } from './plugin-surfaces';
-import { mcpToolPath } from './routePaths';
+import { mcpToolPath, pluginInventoryPath } from './routePaths';
 import type { McpTool, MenuItem, PluginEntry } from './types';
 
 export type GlobalSearchSurface = 'menu' | 'plugin' | 'mcp-tool';
@@ -65,7 +65,7 @@ function pluginResult(plugin: PluginEntry): GlobalSearchResult {
     surface: 'plugin',
     title: plugin.name,
     detail: surfaces.length ? `${detail} · ${surfaces.join(', ')}` : detail,
-    href: '/plugins',
+    href: pluginInventoryPath({ q: plugin.name }),
     keywords: [plugin.file, plugin.version, plugin.menu?.label, server, tools, surfaces.join(' ')].map(text).join(' '),
   };
 }
