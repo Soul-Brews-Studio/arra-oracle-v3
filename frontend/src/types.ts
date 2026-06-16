@@ -29,6 +29,30 @@ export interface PublicServerManifest {
   autostart?: boolean;
 }
 
+export interface PluginApiRoute {
+  path: string;
+  methods?: string[];
+}
+
+export interface PluginProxyConfig {
+  path: string;
+  targetEnv: string;
+  stripPrefix?: boolean;
+  methods?: string[];
+}
+
+export interface PluginCliSubcommand {
+  command: string;
+  help: string;
+  handler?: string;
+}
+
+export interface PluginExportFormat {
+  extension: string;
+  mimeType?: string;
+  name?: string;
+}
+
 export interface McpTool {
   name: string;
   description: string;
@@ -53,6 +77,10 @@ export interface PluginEntry {
   menu?: PluginMenu;
   server?: PublicServerManifest;
   mcpTools?: McpTool[];
+  apiRoutes?: PluginApiRoute[];
+  proxy?: PluginProxyConfig[];
+  cliSubcommands?: PluginCliSubcommand[];
+  exportFormats?: PluginExportFormat[];
   surfaces?: string[];
 }
 

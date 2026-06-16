@@ -46,7 +46,9 @@ export function PluginList({
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge>{status}</Badge>
-                {surfaces.length ? surfaces.map((surface) => <Badge key={surface}>{surface}</Badge>) : <Badge>metadata</Badge>}
+                {surfaces.length
+                  ? surfaces.map((surface) => <Badge key={surface}>{surface}</Badge>)
+                  : <Badge>metadata</Badge>}
               </div>
             </div>
             <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
@@ -94,6 +96,30 @@ export function PluginList({
                 <div className="sm:col-span-2">
                   <dt className="text-slate-500">MCP tools</dt>
                   <dd className="font-mono text-slate-200">{plugin.mcpTools.length}</dd>
+                </div>
+              ) : null}
+              {plugin.apiRoutes?.length ? (
+                <div className="sm:col-span-2">
+                  <dt className="text-slate-500">API routes</dt>
+                  <dd className="font-mono text-slate-200">{plugin.apiRoutes.length}</dd>
+                </div>
+              ) : null}
+              {plugin.proxy?.length ? (
+                <div className="sm:col-span-2">
+                  <dt className="text-slate-500">Proxy routes</dt>
+                  <dd className="font-mono text-slate-200">{plugin.proxy.length}</dd>
+                </div>
+              ) : null}
+              {plugin.cliSubcommands?.length ? (
+                <div className="sm:col-span-2">
+                  <dt className="text-slate-500">CLI subcommands</dt>
+                  <dd className="font-mono text-slate-200">{plugin.cliSubcommands.length}</dd>
+                </div>
+              ) : null}
+              {plugin.exportFormats?.length ? (
+                <div className="sm:col-span-2">
+                  <dt className="text-slate-500">Export formats</dt>
+                  <dd className="font-mono text-slate-200">{plugin.exportFormats.length}</dd>
                 </div>
               ) : null}
             </dl>

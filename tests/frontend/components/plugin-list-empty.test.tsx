@@ -4,6 +4,6 @@ import { htmlFor } from '../_render';
 
 describe('PluginList empty state', () => {
   test('renders an empty state when no plugins are registered', () => {
-    expect(htmlFor(<PluginList plugins={[]} />)).toContain('No plugins registered in /api/plugins.');
+    expect(htmlFor(<PluginList plugins={[]} />)).toContain('No plugins registered in /api/v1/plugins.');
   });
 });
