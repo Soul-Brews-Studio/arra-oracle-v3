@@ -8,6 +8,7 @@ import { db as defaultDb, type DatabaseConnection } from '../../db/index.ts';
 import { introspectDrizzleTables } from '../../cli/commands/backup.ts';
 import { createExportStatsRoutes } from './stats.ts';
 import { createExportTestConnectionRoutes } from './test-connection.ts';
+import { rememberExportProgress } from './progress.ts';
 
 type ExportRecord = Record<string, unknown>;
 type BaseExportFormat = 'json' | 'csv' | 'markdown';
@@ -32,6 +33,7 @@ interface ExportJob {
   mimeType: string;
   rowCount: number;
   relationshipCount: number;
+  sizeBytes: number;
   createdAt: string;
 }
 
@@ -167,6 +169,8 @@ export function createExportAppRoutes(deps: ExportAppDeps = {}) {
       const filePath = path.join(outputDir, filename);
       await mkdir(outputDir, { recursive: true });
       await writeFile(filePath, content, 'utf8');
+      const sizeBytes = new TextEncoder().encode(content).byteLength;
+      const downloadUrl = `/api/v1/export/app/download/${jobId}`;
 
       const job: ExportJob = {
         jobId,
@@ -178,10 +182,22 @@ export function createExportAppRoutes(deps: ExportAppDeps = {}) {
         mimeType: mimeType(format),
         rowCount: rows.length,
         relationshipCount: relationships.length,
+        sizeBytes,
         createdAt: (deps.now?.() ?? new Date()).toISOString(),
       };
       jobs.set(jobId, job);
-      return { ...job, filePath: undefined, downloadUrl: `/api/v1/export/app/download/${jobId}` };
+      rememberExportProgress({
+        id: jobId,
+        jobId,
+        status: 'completed',
+        progress: 100,
+        updatedAt: job.createdAt,
+        downloadUrl,
+        filename,
+        fileSizeEstimate: sizeBytes,
+        sizeBytes,
+      });
+      return { ...job, filePath: undefined, status: 'completed', progress: 100, downloadUrl };
     }, {
       body: t.Object({
         collection: t.String(),

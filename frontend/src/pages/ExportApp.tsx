@@ -1,16 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
 import { BackendSelector, DEFAULT_BACKEND_URL, normalizeBackendUrl } from '../components/export/BackendSelector';
+import { ExportProgress } from '../components/export/ExportProgress';
 import {
   backendApiUrl,
   exportAppFormats,
+  exportProgressUrl,
   legacyDirectExportLink,
   normalizeExportAppCollections,
+  progressPatchFromExportPayload,
   resolveDownloadLink,
   type ExportAppFormat,
   type ExportDownloadLink,
   type LegacyExportCollection,
 } from './exportAppHelpers';
+import type { ExportProgressState } from '../hooks/useExport';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 type ExportState = 'idle' | 'exporting' | 'ready' | 'error';
@@ -61,11 +65,33 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
   const [collection, setCollection] = useState('');
   const [format, setFormat] = useState<ExportAppFormat>('json');
   const [download, setDownload] = useState<ExportDownloadLink | null>(null);
+  const [progress, setProgress] = useState<ExportProgressState>({ status: 'idle', jobId: null, progress: 0 });
+  const progressSource = useRef<EventSource | null>(null);
 
   const selected = useMemo(
     () => collections.find((item) => item.id === collection) ?? collections[0],
     [collection, collections],
   );
+
+  function closeProgress() {
+    progressSource.current?.close();
+    progressSource.current = null;
+  }
+
+  function connectProgress(targetUrl: string, jobId: string) {
+    closeProgress();
+    if (typeof EventSource === 'undefined') return;
+    const source = new EventSource(exportProgressUrl(targetUrl, jobId));
+    progressSource.current = source;
+    const update = (event: MessageEvent) => {
+      const patch = progressPatchFromExportPayload(JSON.parse(event.data));
+      setProgress((current) => ({ ...current, ...patch, progress: patch.progress ?? current.progress }));
+      if (patch.status === 'done' || patch.status === 'error') closeProgress();
+    };
+    source.addEventListener('progress', update);
+    source.onmessage = update;
+    source.onerror = () => closeProgress();
+  }
 
   async function loadCollections(targetUrl = backendUrl) {
     if (!fetcher) throw new Error('fetch is unavailable in this runtime.');
@@ -75,6 +101,8 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
     setExportState('idle');
     setError('');
     setDownload(null);
+    closeProgress();
+    setProgress({ status: 'idle', jobId: null, progress: 0 });
     try {
       const response = await fetcher(backendApiUrl(normalized, '/api/v1/export/app/collections'), {
         headers: { accept: 'application/json' },
@@ -97,6 +125,8 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
     setExportState('exporting');
     setError('');
     setDownload(null);
+    closeProgress();
+    setProgress({ status: 'starting', jobId: null, progress: 0 });
     const normalized = normalizeBackendUrl(backendUrl);
     const payload = { collection: selected.id, format, includeGraph: true, includeMetadata: true };
     try {
@@ -106,18 +136,32 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
         body: JSON.stringify(payload),
       });
       if (isLegacyFallback(response.status)) {
-        setDownload(legacyDirectExportLink(normalized, selected.id, format));
+        const link = legacyDirectExportLink(normalized, selected.id, format);
+        setDownload(link);
+        setProgress({ status: 'done', jobId: null, progress: 100, downloadUrl: link.url, filename: link.filename });
         setExportState('ready');
         return;
       }
       const body = await jsonPayload(response);
-      if (!response.ok) throw new Error(`/api/v1/export/app/run returned ${response.status}`);
+      if (!response.ok) throw new Error(progressPatchFromExportPayload(body).error ?? `/api/v1/export/app/run returned ${response.status}`);
       const link = resolveDownloadLink(normalized, body, selected.id, format);
       if (!link) throw new Error('Export response did not include a download URL or job id.');
+      const patch = progressPatchFromExportPayload(body);
       setDownload(link);
+      setProgress((current) => ({
+        ...current,
+        ...patch,
+        status: patch.status ?? 'done',
+        progress: patch.progress ?? 100,
+        downloadUrl: link.url,
+        filename: link.filename,
+      }));
+      if (patch.jobId) connectProgress(normalized, patch.jobId);
       setExportState('ready');
     } catch (err) {
-      setError(errorMessage(err));
+      const message = errorMessage(err);
+      setError(message);
+      setProgress((current) => ({ ...current, status: 'error', error: message }));
       setExportState('error');
     }
   }
@@ -125,6 +169,8 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
   useEffect(() => {
     if (autoLoad) void loadCollections(backendUrl);
   }, [autoLoad]);
+
+  useEffect(() => () => closeProgress(), []);
 
   return (
     <div className="grid gap-5">
@@ -184,6 +230,7 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
           <div className="mt-4"><DownloadCard link={download} /></div>
         </div>
       </section>
+      <ExportProgress state={progress} title="Export progress" onRetry={() => void triggerExport()} />
     </div>
   );
 }

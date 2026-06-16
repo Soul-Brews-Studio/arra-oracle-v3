@@ -42,7 +42,9 @@ import { dashboardRoutes } from './routes/dashboard/index.ts';
 import { searchRoutes } from './routes/search/index.ts';
 import { vectorRoutes } from './routes/vector/index.ts';
 import { vectorConfigApiRoutes } from './routes/vector/config-api.ts';
+import { conceptsRoutes } from './routes/concepts/index.ts';
 import { knowledgeRoutes } from './routes/knowledge/index.ts';
+import { verifyRoutes } from './routes/verify/index.ts';
 import { supersedeRoutes } from './routes/supersede/index.ts';
 import { forumApi } from './routes/forum/index.ts';
 import { tracesApi } from './routes/traces/index.ts';
@@ -175,7 +177,9 @@ const apiModules = [
   searchRoutes,
   vectorRoutes,
   vectorConfigApiRoutes,
+  conceptsRoutes,
   knowledgeRoutes,
+  verifyRoutes,
   supersedeRoutes,
   forumApi,
   tracesApi,

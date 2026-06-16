@@ -16,6 +16,9 @@ describe('ExportProgress', () => {
 
     expect(html).toContain('Exporting 42%');
     expect(html).toContain('role="status"');
+    expect(html).toContain('role="progressbar"');
+    expect(html).toContain('aria-live="polite"');
+    expect(html).toContain('dark:bg-slate-950');
     expect(html).toContain('1.5 KB');
     expect(html).toContain('exp-1');
   });

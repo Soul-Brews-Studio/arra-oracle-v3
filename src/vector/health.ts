@@ -6,6 +6,8 @@ import {
 import { resolveEmbeddingProviderType } from './embedder-config.ts';
 import { Database } from 'bun:sqlite';
 import { DB_PATH } from '../config.ts';
+import { isVectorSectionEnabled } from './config.ts';
+import { localNativeVectorDisabledReason, localVectorIndexMissingReason } from './cpu-capabilities.ts';
 
 export type VectorBackendEngine = {
   key: string;
@@ -97,9 +99,18 @@ export async function readVectorBackendHealth(): Promise<VectorBackendHealth> {
   const timeout = parseInt(process.env.ORACLE_VECTOR_HEALTH_TIMEOUT || '2000', 10);
   const models = getEmbeddingModels();
 
+  const vectorEnabled = isVectorSectionEnabled();
   const engines = await Promise.all(Object.entries(models).map(async ([key, preset]) => {
     const details = vectorEngineDetails(preset);
     try {
+      const unavailable = !vectorEnabled
+        ? 'vector section disabled'
+        : localNativeVectorDisabledReason(details.adapter) || localVectorIndexMissingReason({
+          type: details.adapter,
+          dataPath: preset.dataPath,
+          collectionName: preset.collection,
+        });
+      if (unavailable) throw new Error(unavailable);
       const store = await ensureVectorStoreConnected(key);
       const stats = await withTimeout(store.getStats(), timeout);
       return {

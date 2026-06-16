@@ -10,6 +10,7 @@ import {
   type VectorServerConfig,
 } from '../../vector/config.ts';
 import { createVectorStoreForModel } from '../../vector/factory.ts';
+import { localNativeVectorDisabledReason, localVectorIndexMissingReason } from '../../vector/cpu-capabilities.ts';
 import type { VectorDBType } from '../../vector/types.ts';
 
 export type CollectionUpdate = Partial<Pick<VectorCollectionConfig,
@@ -30,6 +31,11 @@ export type CollectionHealth = {
   ok: boolean;
   status: 'ok' | 'down' | 'disabled';
   error?: string;
+};
+
+export type InspectCollectionOptions = {
+  allowMissingLocalIndex?: boolean;
+  ignoreGlobalDisabled?: boolean;
 };
 
 export function activeConfig(): { source: 'file' | 'defaults'; config: VectorServerConfig } {
@@ -72,13 +78,27 @@ export async function inspectCollection(
   key: string,
   col: VectorCollectionConfig,
   config: VectorServerConfig,
+  options: InspectCollectionOptions = {},
 ): Promise<CollectionHealth> {
   const adapter = col.adapter || 'lancedb';
-  if (col.enabled === false) {
+  if (col.enabled === false || (config.enabled !== true && !options.ignoreGlobalDisabled)) {
     return {
       key, collection: col.collection, model: col.model, provider: col.provider,
       adapter, service: col.service, endpoint: col.endpoint,
       enabled: false, count: 0, ok: false, status: 'disabled',
+    };
+  }
+  const unavailable = localNativeVectorDisabledReason(adapter)
+    || (!options.allowMissingLocalIndex && localVectorIndexMissingReason({
+      type: adapter,
+      dataPath: col.dataPath ?? config.dataPath,
+      collectionName: col.collection,
+    }));
+  if (unavailable) {
+    return {
+      key, collection: col.collection, model: col.model, provider: col.provider,
+      adapter, service: col.service, endpoint: col.endpoint,
+      enabled: true, count: 0, ok: false, status: 'down', error: unavailable,
     };
   }
   const timeout = parseInt(process.env.ORACLE_VECTOR_HEALTH_TIMEOUT || '2000', 10);
@@ -158,4 +178,20 @@ export function withoutCollection(config: VectorServerConfig, removeKey: string)
   const entries = Object.entries(config.collections).filter(([key]) => key !== removeKey);
   if (!entries.some(([, col]) => col.primary) && entries[0]) entries[0][1] = { ...entries[0][1], primary: true };
   return { ...config, collections: Object.fromEntries(entries) };
+}
+
+export function vectorConfigState(config: VectorServerConfig, collections: CollectionHealth[]) {
+  const enabled = config.enabled === true;
+  const primaryKey = Object.entries(config.collections).find(([, col]) => col.primary)?.[0]
+    ?? collections[0]?.key
+    ?? 'bge-m3';
+  const primary = collections.find((col) => col.key === primaryKey) ?? collections[0];
+  return {
+    enabled,
+    ready: enabled && Boolean(primary?.ok),
+    primary: primaryKey,
+    reason: enabled ? primary?.error : 'vector section disabled',
+    recommendedAction: enabled && !primary?.ok ? 'POST /api/vector/index/start' : null,
+    collections: Object.fromEntries(collections.map((col) => [col.key, col])),
+  };
 }
