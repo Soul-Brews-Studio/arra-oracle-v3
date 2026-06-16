@@ -28,6 +28,8 @@ describe('canvas Cloudflare Worker', () => {
     expect(html).toContain('aria-label="Hot-swap canvas plugin"');
     expect(html).toContain('<option value="planets" selected>Planets · react</option>');
     expect(html).toContain('data-plugin-link="planets" aria-current="page"');
+    expect(html).toContain('data-studio-home aria-label="Open Oracle Studio home"');
+    expect(html).toContain('href="https://studio.buildwithoracle.com/"');
     expect(html).toContain('history.pushState');
   });
 

@@ -20,6 +20,8 @@ export interface CostEstimate {
   note: string;
 }
 
+export type CostEstimateComparison = Partial<Record<CostProvider, CostEstimate>>;
+
 const DEFAULT_TOKENS_PER_DOC = 500;
 
 const PRICE_PER_MILLION: Record<CostProvider, number> = {
@@ -40,6 +42,15 @@ const DEFAULT_MODEL: Record<CostProvider, string> = {
   'cloudflare-ai': '@cf/baai/bge-base-en-v1.5',
 };
 
+export const COST_PROVIDERS: readonly CostProvider[] = [
+  'openai',
+  'gemini',
+  'ollama',
+  'local',
+  'remote',
+  'cloudflare-ai',
+];
+
 export function estimateEmbeddingCost(input: CostEstimateInput): CostEstimate {
   const docs = Math.max(0, Math.floor(input.docs));
   const tokensPerDoc = Math.max(1, Math.floor(input.tokensPerDoc ?? DEFAULT_TOKENS_PER_DOC));
@@ -57,6 +68,25 @@ export function estimateEmbeddingCost(input: CostEstimateInput): CostEstimate {
     formula: `${docs.toLocaleString()} docs × ~${tokensPerDoc.toLocaleString()} tokens/doc ≈ ${compactTokens(totalTokens)} tokens`,
     note: noteFor(provider),
   };
+}
+
+export function estimateEmbeddingCosts(
+  input: CostEstimateInput,
+  providers: readonly CostProvider[],
+): CostEstimateComparison {
+  const unique = providers.filter((provider, index) => providers.indexOf(provider) === index);
+  return Object.fromEntries(unique.map((provider) => [
+    provider,
+    estimateEmbeddingCost({
+      ...input,
+      provider,
+      model: input.provider === provider ? input.model : undefined,
+    }),
+  ])) as CostEstimateComparison;
+}
+
+export function isCostProvider(value: string): value is CostProvider {
+  return (COST_PROVIDERS as readonly string[]).includes(value);
 }
 
 export function recommendEmbeddingModel(docs: number, availableProviders: string[] = []): string {

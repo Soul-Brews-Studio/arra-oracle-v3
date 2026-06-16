@@ -37,4 +37,22 @@ describe('maw arra API surface', () => {
       globalThis.fetch = oldFetch;
     }
   });
+
+  test('default handler streams CLI output through maw-js writer', async () => {
+    const oldFetch = globalThis.fetch;
+    const writes: string[] = [];
+    globalThis.fetch = (async () => new Response(JSON.stringify({ status: 'ok' }), { status: 200 })) as typeof fetch;
+    try {
+      const result = await handler({
+        source: 'cli',
+        args: ['health'],
+        writer: (line) => writes.push(String(line)),
+      });
+
+      expect(result).toEqual({ ok: true });
+      expect(writes.join('\n')).toContain('arra health: ok');
+    } finally {
+      globalThis.fetch = oldFetch;
+    }
+  });
 });
