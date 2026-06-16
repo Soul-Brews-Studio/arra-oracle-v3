@@ -1,3 +1,4 @@
+import { SetupWizardCostEstimate } from "./SetupWizardCostEstimate";
 import type { Provider, Step, VectorConfig, VectorIndexSource } from "./setupWizardTypes";
 
 export const setupSteps = [
@@ -39,7 +40,7 @@ export function StepBody({
     );
   if (step === 1)
     return <ProviderList providers={providers} recommended={recommended} selectedProvider={selectedProvider} onProviderSelect={onProviderSelect} />;
-  if (step === 2) return <VaultPlan config={config} source={indexSource} repoRoot={repoRoot} onSource={onIndexSource} onRepoRoot={onRepoRoot} />;
+  if (step === 2) return <VaultPlan config={config} provider={selectedProvider || recommended?.type || "openai"} source={indexSource} repoRoot={repoRoot} onSource={onIndexSource} onRepoRoot={onRepoRoot} />;
   return (
     <p className="mt-2 text-sm text-slate-300">
       Done. Continue to the Vector dashboard or watch live progress in Vector Settings.
@@ -101,8 +102,9 @@ function ProviderList({
   );
 }
 
-function VaultPlan({ config, source, repoRoot, onSource, onRepoRoot }: {
+function VaultPlan({ config, provider, source, repoRoot, onSource, onRepoRoot }: {
   config: VectorConfig | null;
+  provider: string;
   source: VectorIndexSource;
   repoRoot: string;
   onSource?: (source: VectorIndexSource) => void;
@@ -125,6 +127,7 @@ function VaultPlan({ config, source, repoRoot, onSource, onRepoRoot }: {
         <input className="rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm normal-case text-slate-100" disabled={source === 'sqlite'} placeholder="Optional repo/vault path" value={repoRoot} onChange={(event) => onRepoRoot?.(event.target.value)} />
       </label>
       <p className="text-slate-400">Configured collections: {collections.length ? collections.map(([key]) => key).join(", ") : "none yet"}</p>
+      <SetupWizardCostEstimate provider={provider} />
     </div>
   );
 }

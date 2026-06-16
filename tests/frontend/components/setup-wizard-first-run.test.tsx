@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { shouldShowSetupWizard } from "../../../frontend/src/components/SetupWizard";
+import { SetupWizardCostEstimate } from "../../../frontend/src/components/SetupWizardCostEstimate";
 import { StepBody, setupSteps } from "../../../frontend/src/components/SetupWizardContent";
 import { buildIndexStartBody, primaryCollectionKey } from "../../../frontend/src/components/setupWizardIndex";
 import { buildProviderConfigPatch, recommendedProvider } from "../../../frontend/src/components/setupWizardProvider";
@@ -81,6 +82,24 @@ describe("SetupWizard first-run detection", () => {
     expect(html).toContain("Vault path");
     expect(html).toContain("/repo/oracle");
     expect(html).toContain("Configured collections: bge");
+  });
+
+
+  test("renders first-run preflight cost estimate", () => {
+    const html = htmlFor(<SetupWizardCostEstimate
+      provider="gemini"
+      initialEstimate={{
+        estimatedUsd: 0,
+        formula: "42 docs × ~500 tokens/doc ≈ 21K tokens",
+        provider: "gemini",
+        recommendation: "Gemini free tier is recommended before paid remote embedding.",
+        fallbackSummary: "Fallback chain gemini stays free/local for this estimate.",
+      }}
+    />);
+    expect(html).toContain("Preflight cost before Start indexing");
+    expect(html).toContain("gemini: Free / local");
+    expect(html).toContain("21K tokens");
+    expect(html).toContain("Gemini free tier");
   });
 
   test("labels the final wizard step as done with dashboard guidance", () => {
