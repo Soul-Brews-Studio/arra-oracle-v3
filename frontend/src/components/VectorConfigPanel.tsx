@@ -1,29 +1,47 @@
-import { useEffect, useState } from 'react';
-import { fetchVectorConfig, reloadVectorConfig, updateVectorCollection } from '../api';
+import { useEffect, useMemo, useState } from 'react';
+import { apiUrl, fetchVectorConfig, reloadVectorConfig, updateVectorCollection } from '../api';
 import { ErrorMessage, Spinner } from './AsyncState';
-import type { VectorConfigResponse } from '../types';
+import type { SettingsEmbedderCollection, VectorConfigResponse } from '../types';
 
-const ADAPTERS = ['lancedb', 'qdrant', 'chroma', 'sqlite-vec'] as const;
-
-type SaveState = Record<string, 'idle' | 'saving'>;
+const ADAPTERS = ['lancedb', 'qdrant', 'chroma', 'sqlite-vec', 'cloudflare-vectorize', 'proxy'] as const;
+type SaveState = Record<string, 'idle' | 'saving' | 'testing'>;
+type Drafts = Record<string, { adapter: string; enabled: boolean }>;
 
 function statusClass(status: string) {
-  if (status === 'ok') return 'border-emerald-400/30 text-emerald-200';
-  if (status === 'disabled') return 'border-slate-600 text-slate-400';
-  return 'border-rose-400/30 text-rose-200';
+  if (status === 'ok') return 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200';
+  if (status === 'disabled') return 'border-slate-600 bg-slate-900/70 text-slate-400';
+  return 'border-rose-400/30 bg-rose-400/10 text-rose-200';
+}
+
+function collectionEnabled(item: SettingsEmbedderCollection): boolean {
+  return item.enabled !== false;
+}
+
+async function testVectorCollection(key: string): Promise<{ success?: boolean; count?: number; error?: string; status?: string }> {
+  const response = await fetch(apiUrl(`/api/v1/vector/config/${encodeURIComponent(key)}/test`), { method: 'POST', headers: { accept: 'application/json' } });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(typeof payload.error === 'string' ? payload.error : response.statusText);
+  return payload;
 }
 
 export function VectorConfigPanel() {
   const [state, setState] = useState<VectorConfigResponse | null>(null);
+  const [drafts, setDrafts] = useState<Drafts>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const [saving, setSaving] = useState<SaveState>({});
 
   async function load() {
     setError('');
     setLoading(true);
     try {
-      setState(await fetchVectorConfig());
+      const next = await fetchVectorConfig();
+      setState(next);
+      setDrafts(Object.fromEntries(Object.entries(next.config.collections).map(([key, item]) => [
+        key,
+        { adapter: item.adapter ?? 'lancedb', enabled: collectionEnabled(item) },
+      ])));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -33,11 +51,42 @@ export function VectorConfigPanel() {
 
   useEffect(() => { void load(); }, []);
 
-  async function patchCollection(key: string, patch: { adapter?: string; enabled?: boolean }) {
+  const rows = useMemo(() => Object.entries(state?.config.collections ?? {}), [state]);
+  const summary = useMemo(() => {
+    const healthy = rows.filter(([key]) => state?.health[key]?.ok).length;
+    const enabled = rows.filter(([, item]) => collectionEnabled(item)).length;
+    return `${enabled}/${rows.length} enabled · ${healthy}/${rows.length} healthy`;
+  }, [rows, state]);
+
+  function updateDraft(key: string, patch: Partial<Drafts[string]>) {
+    setDrafts((current) => ({ ...current, [key]: { ...(current[key] ?? { adapter: 'lancedb', enabled: true }), ...patch } }));
+  }
+
+  async function saveAdapter(key: string) {
+    const draft = drafts[key];
+    if (!draft) return;
     setSaving((current) => ({ ...current, [key]: 'saving' }));
     setError('');
+    setMessage('');
     try {
-      await updateVectorCollection(key, patch);
+      await updateVectorCollection(key, { adapter: draft.adapter, enabled: draft.enabled });
+      await reloadVectorConfig();
+      await load();
+      setMessage(`Saved ${key}: ${draft.enabled ? draft.adapter : 'disabled'}.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSaving((current) => ({ ...current, [key]: 'idle' }));
+    }
+  }
+
+  async function testAdapter(key: string) {
+    setSaving((current) => ({ ...current, [key]: 'testing' }));
+    setError('');
+    setMessage('');
+    try {
+      const result = await testVectorCollection(key);
+      setMessage(`${key} ${result.success ? 'ok' : result.status ?? 'failed'} · ${result.count ?? 0} docs`);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -52,21 +101,21 @@ export function VectorConfigPanel() {
     try {
       await reloadVectorConfig();
       await load();
+      setMessage('Reloaded vector config cache.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setLoading(false);
     }
   }
 
-  const rows = state ? Object.entries(state.config.collections) : [];
-
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-label="Vector backend config">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300">Vector config</p>
-          <h3 className="mt-2 text-lg font-semibold text-white">Backend state</h3>
-          <p className="mt-2 text-sm text-slate-400">Switch adapters, enable collections, and reload cached vector stores.</p>
+          <h3 className="mt-2 text-lg font-semibold text-white">Active vector adapters</h3>
+          <p className="mt-2 text-sm text-slate-400">Switch each collection between LanceDB, Qdrant, Chroma, sqlite-vec, Cloudflare, or proxy adapters.</p>
+          <p className="mt-2 text-xs text-slate-500">{summary}</p>
         </div>
         <button className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" type="button" onClick={reload}>
           {loading ? <Spinner label="Reloading" /> : 'Reload vector config'}
@@ -74,12 +123,14 @@ export function VectorConfigPanel() {
       </div>
 
       {error ? <div className="mt-4"><ErrorMessage title="Vector config update failed." message={error} /></div> : null}
+      {message ? <p className="mt-4 rounded-2xl border border-white/10 bg-slate-900/70 p-3 text-sm text-teal-100">{message}</p> : null}
 
       <div className="mt-5 grid gap-3">
         {rows.map(([key, item]) => {
+          const draft = drafts[key] ?? { adapter: item.adapter ?? 'lancedb', enabled: collectionEnabled(item) };
           const health = state?.health[key];
-          const enabled = item.enabled !== false;
-          const status = health?.status ?? (enabled ? 'unknown' : 'disabled');
+          const status = health?.status ?? (draft.enabled ? 'unknown' : 'disabled');
+          const dirty = draft.adapter !== (item.adapter ?? 'lancedb') || draft.enabled !== collectionEnabled(item);
           return (
             <article key={key} className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -87,6 +138,7 @@ export function VectorConfigPanel() {
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-mono text-sm text-teal-200">{key}</p>
                     <span className={`rounded-full border px-2 py-0.5 text-xs ${statusClass(status)}`}>{status}</span>
+                    {item.primary ? <span className="rounded-full border border-purple-300/30 px-2 py-0.5 text-xs text-purple-200">primary</span> : null}
                   </div>
                   <p className="mt-2 text-sm text-slate-100">{item.collection}</p>
                   <p className="mt-1 text-xs text-slate-500">{item.provider} · {item.model} · {state?.doc_counts[key] ?? 0} docs</p>
@@ -94,24 +146,17 @@ export function VectorConfigPanel() {
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Adapter
-                    <select
-                      className="mt-1 block rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100"
-                      value={item.adapter ?? 'lancedb'}
-                      onChange={(event) => void patchCollection(key, { adapter: event.target.value })}
-                    >
+                    Active adapter
+                    <select className="mt-1 block rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100" value={draft.adapter} onChange={(event) => updateDraft(key, { adapter: event.target.value })}>
                       {ADAPTERS.map((adapter) => <option key={adapter} value={adapter}>{adapter}</option>)}
                     </select>
                   </label>
                   <label className="flex items-center gap-2 text-sm text-slate-200">
-                    <input
-                      type="checkbox"
-                      checked={enabled}
-                      onChange={(event) => void patchCollection(key, { enabled: event.target.checked })}
-                    />
+                    <input type="checkbox" checked={draft.enabled} onChange={(event) => updateDraft(key, { enabled: event.target.checked })} />
                     Enabled
                   </label>
-                  {saving[key] === 'saving' ? <Spinner label="Saving" /> : null}
+                  <button className="focus-ring rounded-xl border border-teal-300/30 px-3 py-2 text-sm font-semibold text-teal-100 disabled:opacity-50" disabled={!dirty || saving[key] === 'saving'} type="button" onClick={() => void saveAdapter(key)}>{saving[key] === 'saving' ? <Spinner label="Saving" /> : 'Save switch'}</button>
+                  <button className="focus-ring rounded-xl border border-purple-300/30 px-3 py-2 text-sm font-semibold text-purple-100 disabled:opacity-50" disabled={saving[key] === 'testing'} type="button" onClick={() => void testAdapter(key)}>{saving[key] === 'testing' ? <Spinner label="Testing" /> : 'Test'}</button>
                 </div>
               </div>
             </article>
