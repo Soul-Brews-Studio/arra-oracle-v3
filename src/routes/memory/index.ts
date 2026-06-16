@@ -4,6 +4,7 @@ import { createMemoryFanoutEndpoint } from './fanout.ts';
 import { memoryStore, type MemoryInput, type MemoryRecord, type MemoryStore } from './store.ts';
 import { memoryVectorIndex, type MemoryVectorHit, type MemoryVectorIndex } from './vector.ts';
 import { buildMorningTape } from './morning-tape.ts';
+import { MEMORY_CONFIDENCE_STRATEGY, memoryConfidence } from './confidence.ts';
 
 export function createMemoryRoutes(
   store: MemoryStore = memoryStore,
@@ -38,7 +39,7 @@ export function createMemoryRoutes(
     .get('/memory/recall', ({ query }) => {
       const limit = Math.min(50, Math.max(1, parseInt(query.limit ?? '10')));
       const items = store.recall(query.q ?? '', limit);
-      return { query: query.q ?? '', total: items.length, items };
+      return { query: query.q ?? '', total: items.length, confidence: MEMORY_CONFIDENCE_STRATEGY, items: items.map(withKeywordConfidence) };
     }, {
       query: RecallMemoryQuery,
       detail: { tags: ['memory'], menu: { group: 'hidden' }, summary: 'Recall persisted memories by keyword' },
@@ -52,7 +53,7 @@ export function createMemoryRoutes(
       try {
         const hits = await vectorIndex.search(query.q, limit);
         const records = store.getByIds(hits.map((hit) => hit.memoryId));
-        return { success: true, query: query.q, total: hits.length, results: mergeHits(hits, records) };
+        return { success: true, query: query.q, total: hits.length, confidence: MEMORY_CONFIDENCE_STRATEGY, results: mergeHits(hits, records) };
       } catch (error) {
         set.status = 503;
         return { success: false, error: error instanceof Error ? error.message : 'memory vector search failed', results: [] };
@@ -65,12 +66,32 @@ export function createMemoryRoutes(
 
 function mergeHits(hits: MemoryVectorHit[], records: MemoryRecord[]) {
   const byId = new Map(records.map((record) => [record.id, record]));
-  return hits.map((hit) => ({
-    ...(byId.get(hit.memoryId) ?? { id: hit.memoryId, content: hit.document }),
-    score: hit.score,
-    distance: hit.distance,
-    vectorId: hit.vectorId,
-  }));
+  return hits.map((hit) => {
+    const memory = memoryForHit(hit, byId.get(hit.memoryId));
+    return {
+      ...memory,
+      score: hit.score,
+      distance: hit.distance,
+      vectorId: hit.vectorId,
+      confidence: memoryConfidence(memory, { mode: 'semantic', semanticScore: hit.score }),
+    };
+  });
+}
+
+function withKeywordConfidence(memory: MemoryRecord) {
+  return { ...memory, confidence: memoryConfidence(memory, { mode: 'keyword' }) };
+}
+
+function memoryForHit(hit: MemoryVectorHit, record?: MemoryRecord): MemoryRecord {
+  if (record) return record;
+  const createdAt = typeof hit.metadata.createdAt === 'string' ? hit.metadata.createdAt : new Date().toISOString();
+  return {
+    id: hit.memoryId,
+    content: hit.document,
+    tags: [],
+    createdAt,
+    updatedAt: createdAt,
+  };
 }
 
 export const memoryRoutes = createMemoryRoutes();

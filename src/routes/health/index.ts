@@ -6,6 +6,7 @@ import { createHealthEndpoint, type HealthEndpointOptions } from './health.ts';
 import { createDeepHealthEndpoint } from './deep.ts';
 import { statsEndpoint } from './stats.ts';
 import { oraclesEndpoint } from './oracles.ts';
+import { oracleProfilesEndpoint } from './oracle-profiles.ts';
 import { thorOracleEndpoint } from './thor.ts';
 
 export function createHealthRoutes(options: HealthEndpointOptions = {}) {
@@ -14,6 +15,7 @@ export function createHealthRoutes(options: HealthEndpointOptions = {}) {
     .use(createDeepHealthEndpoint(options))
     .use(statsEndpoint)
     .use(oraclesEndpoint)
+    .use(oracleProfilesEndpoint)
     .use(thorOracleEndpoint);
 }
 

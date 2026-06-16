@@ -12,6 +12,14 @@ import { handoffToolDef, handleHandoff } from './handoff.ts';
 import { inboxToolDef, handleInbox } from './inbox.ts';
 import { forumToolDefs, handleThread, handleThreads, handleThreadRead, handleThreadUpdate } from './forum.ts';
 import { traceToolDefs, handleTrace, handleTraceList, handleTraceGet, handleTraceLink, handleTraceUnlink, handleTraceChain } from './trace.ts';
+import {
+  oracleProfileToolDef,
+  oracleTraceDistillToolDef,
+  oracleResearchNoteToolDef,
+  handleOracleProfile,
+  handleOracleTraceDistill,
+  handleOracleResearchNote,
+} from './oracle.ts';
 import { reflectToolDef, handleReflect } from './reflect.ts';
 import { verifyToolDef, handleVerify } from './verify.ts';
 import { mcpCallToolDef, mcpListToolsToolDef, handleMcpCall, handleMcpListTools } from './mcp-in.ts';
@@ -47,10 +55,13 @@ export const mcpTools: RuntimeMcpToolManifest[] = [
   ctxTool(statsToolDef, 'knowledge', true, 'handleStats', handleStats),
   ctxTool(conceptsToolDef, 'search', true, 'handleConcepts', handleConcepts),
   ctxTool(supersedeToolDef, 'knowledge', false, 'handleSupersede', handleSupersede),
+  ctxTool(oracleResearchNoteToolDef, 'knowledge', false, 'handleOracleResearchNote', handleOracleResearchNote),
   ctxTool(handoffToolDef, 'session', false, 'handleHandoff', handleHandoff),
   ctxTool(inboxToolDef, 'session', true, 'handleInbox', handleInbox),
   ...forumToolDefs.map((def, index) => noCtxTool(def, 'forum', index !== 0 && index !== 3, forumHandlers[index].name, forumHandlers[index])),
+  noCtxTool(oracleProfileToolDef, 'oracle', true, 'handleOracleProfile', handleOracleProfile),
   ...traceToolDefs.map((def, index) => noCtxTool(def, index === 0 ? 'trace' : 'dig', traceReadOnly[index], traceHandlers[index].name, traceHandlers[index])),
+  noCtxTool(oracleTraceDistillToolDef, 'trace', false, 'handleOracleTraceDistill', handleOracleTraceDistill),
   ctxTool(reflectToolDef, 'standalone', true, 'handleReflect', handleReflect),
   ctxTool(verifyToolDef, 'standalone', false, 'handleVerify', handleVerify),
   noCtxTool(mcpListToolsToolDef, 'mcp', true, 'handleMcpListTools', handleMcpListTools),

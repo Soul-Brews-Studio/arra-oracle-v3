@@ -34,6 +34,13 @@ describe('runtime MCP manifest', () => {
     expect(order).toContain('oracle_mcp_call');
   });
 
+  it('exposes Thor oracle profile and distillation tools', () => {
+    expect(mcpToolByName.get('oracle_profile')?.readOnly).toBe(true);
+    expect(mcpToolByName.get('oracle_trace_distill')?.readOnly).toBe(false);
+    expect(mcpToolByName.get('oracle_research_note')?.readOnly).toBe(false);
+    expect(mcpToolByName.get('oracle_profile')?.group).toBe('oracle');
+  });
+
 
   it('does not re-enable configured-out static tools', () => {
     const order = defaultMcpToolOrder(['oracle_search']);

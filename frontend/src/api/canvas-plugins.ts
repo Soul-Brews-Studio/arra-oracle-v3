@@ -9,6 +9,7 @@ interface BaseCanvasPluginEntry {
   kind: CanvasPluginKind;
   path: string;
   query: { plugin: string };
+  standalonePath?: string;
 }
 
 export interface ThreeCanvasPluginEntry extends BaseCanvasPluginEntry {
@@ -28,6 +29,11 @@ export interface CanvasPluginsResponse {
   plugins: CanvasPluginEntry[];
   count: number;
   kind: CanvasPluginKind | 'all';
+  standalone?: {
+    host: string;
+    defaultPlugin: string;
+    serveCommand?: string;
+  };
 }
 
 function urlFor(path: string): string {
