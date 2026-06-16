@@ -4,7 +4,6 @@ import { swagger } from '@elysiajs/swagger';
 import { eq } from 'drizzle-orm';
 import { configure, writePidFile, removePidFile } from './process-manager/index.ts';
 import { PORT, ORACLE_DATA_DIR, VECTOR_URL } from './config.ts';
-import { ScoutAnnouncer, shouldStartScoutAnnouncer } from './peer/scout-announcer.ts';
 import { MCP_SERVER_NAME } from './const.ts';
 import { db, sqlite, closeDb, indexingStatus, settings } from './db/index.ts';
 import { isApiAuthorized, isApiPathProtected, unauthorizedApiResponse } from './server/api-token-auth.ts';
@@ -90,8 +89,6 @@ try {
 } catch {}
 configure({ dataDir: ORACLE_DATA_DIR, pidFileName: 'oracle-http.pid' });
 writePidFile({ pid: process.pid, port: Number(PORT), startedAt: new Date().toISOString(), name: 'oracle-http' });
-const scoutAnnouncer = shouldStartScoutAnnouncer() ? new ScoutAnnouncer() : null;
-scoutAnnouncer?.start();
 if (process.env.ORACLE_FILE_WATCHER !== '0') fileWatcherService.start();
 
 const unifiedPlugins = await loadUnifiedPlugins({
@@ -104,7 +101,6 @@ registerGracefulShutdown({
   close: async () => {
     console.log('\n🔮 Shutting down gracefully...');
     await runShutdownSteps([
-      { name: 'scout-announcer', run: () => scoutAnnouncer?.stop() },
       { name: 'file-watcher', run: () => { fileWatcherService.stop(); } },
       { name: 'unified-plugins', run: () => unifiedPlugins.stop() },
       { name: 'unified-plugin-servers', run: () => unifiedServers.stop() },

@@ -57,7 +57,7 @@ export function ExportSummary({
   collections,
   format,
   estimatedBytes,
-  relationshipCount = 0,
+  relationshipCount,
   title = 'Export summary',
 }: ExportSummaryProps) {
   const docs = totalDocs(collections);
@@ -78,7 +78,7 @@ export function ExportSummary({
         <Stat label="Documents" value={docValue} detail={docs.unknown ? 'Known count plus unknown collections' : 'Total selected documents'} />
         <Stat label="Collections" value={collections.length.toLocaleString()} detail="Selected for export" />
         <Stat label="Format" value={format.toUpperCase()} detail="Output file type" />
-        <Stat label="Estimated size" value={formatBytes(size)} detail={`${relationshipCount.toLocaleString()} graph relationships`} />
+        <Stat label="Estimated size" value={formatBytes(size)} detail={relationshipCount === undefined ? 'Graph relationships included' : `${relationshipCount.toLocaleString()} graph relationships`} />
       </dl>
 
       <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
