@@ -44,6 +44,36 @@ const createSchema = t.Object({
   embedder: t.Optional(t.Any()),
 });
 
+const configPatchKeys = new Set([
+  'version',
+  'host',
+  'port',
+  'collections',
+  'dataPath',
+  'embedder',
+  'embeddingEndpoint',
+  'storage',
+  'proxy',
+]);
+
+const configPatchSchema = t.Object({
+  version: t.Optional(t.Union([
+    t.Literal('1'),
+    t.Literal('1.0'),
+    t.Literal('2'),
+    t.Literal('2.0'),
+    t.Literal('legacy'),
+  ])),
+  host: t.Optional(t.String()),
+  port: t.Optional(t.Number()),
+  collections: t.Optional(t.Record(t.String(), t.Unknown())),
+  dataPath: t.Optional(t.String()),
+  embedder: t.Optional(t.Any()),
+  embeddingEndpoint: t.Optional(t.String()),
+  storage: t.Optional(t.Record(t.String(), t.Unknown())),
+  proxy: t.Optional(t.Array(t.Unknown())),
+}, { additionalProperties: true });
+
 export const vectorConfigApiEndpoint = new Elysia()
   .get('/vector/config', async () => {
     const { source, config } = activeConfig();
@@ -72,14 +102,23 @@ export const vectorConfigApiEndpoint = new Elysia()
     const { source, config } = activeConfig();
     return { success: true, reloaded: true, source, config };
   }, { detail: { tags: ['vector'], summary: 'Reload vector config and clear cached vector stores' } })
-  .patch('/vector/config', async ({ body }) => {
+  .patch('/vector/config', async ({ body, set }) => {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      set.status = 422;
+      return { error: 'Vector config patch body must be an object' };
+    }
+    const unknownKeys = Object.keys(body).filter((key) => !configPatchKeys.has(key));
+    if (unknownKeys.length) {
+      set.status = 422;
+      return { error: `Unknown vector config patch field: ${unknownKeys[0]}` };
+    }
     const { source, config } = activeConfig();
     const next = { ...config, ...(body as Partial<VectorServerConfig>) };
     const path = atomicWriteVectorConfig(next);
     await closeCachedVectorStores();
     return { success: true, reloaded: true, source, path, config: next };
   }, {
-    body: t.Any(),
+    body: configPatchSchema,
     detail: { tags: ['vector'], summary: 'Patch vector config and hot-reload adapters' },
   })
   .post('/vector/config/:collection/test', async ({ params, set }) => {
