@@ -39,6 +39,28 @@ test('GET /api/v1/vector/fanout merges and deduplicates parallel backend results
   expect(body.errors).toEqual({});
 });
 
+test('GET /api/v1/vector/fanout caches and clears query results', async () => {
+  const { createFanoutEndpoint } = await import('../../../src/routes/vector/fanout.ts');
+  const query = mock(async () => queryResult(['cached'], [1]));
+  const app = new Elysia({ prefix: '/api' }).use(createFanoutEndpoint({
+    getModels: () => ({ local: models.local }),
+    getStore: async () => ({ query }),
+  }));
+  const fetch = createApiVersionedFetch((request) => app.handle(request));
+
+  const first = await fetch(new Request('http://local/api/v1/vector/fanout?q=cache&fanout=local'));
+  const second = await fetch(new Request('http://local/api/v1/vector/fanout?q=cache&fanout=local'));
+  const cached = await second.json() as { cached?: boolean };
+  const stats = await (await fetch(new Request('http://local/api/v1/vector/fanout/cache'))).json() as { cache: { size: number } };
+  const cleared = await (await fetch(new Request('http://local/api/v1/vector/fanout/cache', { method: 'DELETE' }))).json() as { cache: { size: number } };
+
+  expect(first.status).toBe(200);
+  expect(cached.cached).toBe(true);
+  expect(query).toHaveBeenCalledTimes(1);
+  expect(stats.cache.size).toBeGreaterThanOrEqual(1);
+  expect(cleared.cache.size).toBe(0);
+});
+
 test('GET /api/v1/vector/cost-estimate returns token cost and recommendation', async () => {
   const { createVectorCostEndpoint } = await import('../../../src/routes/vector/cost.ts');
   const app = new Elysia({ prefix: '/api' }).use(createVectorCostEndpoint({

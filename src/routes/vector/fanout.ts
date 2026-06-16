@@ -22,9 +22,12 @@ function requestedBackends(raw: string | undefined, enabled: string[]): string[]
 }
 
 export function createFanoutEndpoint(options: FanoutEndpointOptions = {}) {
-  return new Elysia().get(
-  '/vector/fanout',
-  async ({ query, set }) => {
+  return new Elysia()
+    .get('/vector/fanout/cache', () => ({ cache: cache.stats() }), { detail: { tags: ['vector'], summary: 'Fan-out query cache stats' } })
+    .delete('/vector/fanout/cache', () => { cache.clear(); return { success: true, cache: cache.stats() }; }, { detail: { tags: ['vector'], summary: 'Clear fan-out query cache' } })
+    .get(
+      '/vector/fanout',
+      async ({ query, set }) => {
     if (!query.q) {
       set.status = 400;
       return { error: 'Missing query parameter: q' };
@@ -54,16 +57,16 @@ export function createFanoutEndpoint(options: FanoutEndpointOptions = {}) {
     const result = { query: q, ...(await queryFanout({ text: q, limit, where, targets })) };
     if (query.cache !== 'false') cache.set(cacheKey, result);
     return result;
-  },
-  {
-    query: FanoutQuery,
-    detail: {
-      tags: ['vector'],
-      menu: { group: 'hidden' },
-      summary: 'Fan out vector search across configured collections/backends',
-    },
-  },
-);
+      },
+      {
+        query: FanoutQuery,
+        detail: {
+          tags: ['vector'],
+          menu: { group: 'hidden' },
+          summary: 'Fan out vector search across configured collections/backends',
+        },
+      },
+    );
 }
 
 export const fanoutEndpoint = createFanoutEndpoint();
