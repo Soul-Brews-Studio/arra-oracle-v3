@@ -1,7 +1,7 @@
 import { flag, parseArgs, requestJson, requestText, type ParsedArgs } from './http.ts';
 
 const usage = 'usage: maw arra vector-config list|get [collection]|set <collection> <field> <value>';
-const adapters = new Set(['chroma', 'sqlite-vec', 'lancedb', 'qdrant', 'cloudflare-vectorize', 'proxy']);
+const adapters = new Set(['chroma', 'sqlite-vec', 'lancedb', 'qdrant', 'cloudflare-vectorize', 'proxy', 'turbovec']);
 const updateFields = new Set(['adapter', 'model', 'provider', 'service', 'endpoint', 'enabled', 'primary', 'embedder', 'collection']);
 
 type JsonObject = Record<string, unknown>;

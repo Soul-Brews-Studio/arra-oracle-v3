@@ -98,8 +98,8 @@ describe('tools maw arra vector-config command', () => {
 
   test('sets one vector backend config field with JSON output', async () => {
     process.env.ARRA_API_TOKEN = 'secret';
-    const response = { success: true, collection: 'bge-m3', config: { collections: { 'bge-m3': { adapter: 'proxy' } } } };
-    const { result, calls } = await run(['vector-config', 'set', 'bge-m3', 'adapter', 'proxy', '--endpoint', 'http://proxy.test'], response);
+    const response = { success: true, collection: 'bge-m3', config: { collections: { 'bge-m3': { adapter: 'turbovec' } } } };
+    const { result, calls } = await run(['vector-config', 'set', 'bge-m3', 'adapter', 'turbovec', '--endpoint', 'http://turbo.test'], response);
     const body = JSON.parse(result.output ?? '');
 
     expect(result.ok).toBe(true);
@@ -109,7 +109,7 @@ describe('tools maw arra vector-config command', () => {
       authorization: 'Bearer secret',
       'content-type': 'application/json',
     });
-    expect(calls[0].body).toEqual({ adapter: 'proxy', endpoint: 'http://proxy.test' });
+    expect(calls[0].body).toEqual({ adapter: 'turbovec', endpoint: 'http://turbo.test' });
     expect(body).toMatchObject({ success: true, collection: 'bge-m3' });
   });
 
