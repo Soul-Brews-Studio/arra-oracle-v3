@@ -7,6 +7,8 @@ const ADAPTERS = ['lancedb', 'qdrant', 'chroma', 'sqlite-vec', 'cloudflare-vecto
 export const VECTOR_PROVIDERS = ['none', 'ollama', 'gemini', 'openai', 'local', 'remote'] as const;
 type SaveState = Record<string, 'idle' | 'saving' | 'testing' | 'primary'>;
 type Drafts = Record<string, { adapter: string; enabled: boolean; provider: string; model: string }>;
+type RuntimeState = { enabled?: boolean; ready?: boolean; primary?: string; reason?: string; recommendedAction?: string | null };
+type PanelResponse = VectorConfigResponse & { enabled?: boolean; engine?: string; state?: RuntimeState };
 
 function statusClass(status: string) {
   if (status === 'ok') return 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200';
@@ -26,7 +28,7 @@ async function testVectorCollection(key: string): Promise<{ success?: boolean; c
 }
 
 export function VectorConfigPanel() {
-  const [state, setState] = useState<VectorConfigResponse | null>(null);
+  const [state, setState] = useState<PanelResponse | null>(null);
   const [drafts, setDrafts] = useState<Drafts>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -37,7 +39,7 @@ export function VectorConfigPanel() {
     setError('');
     setLoading(true);
     try {
-      const next = await fetchVectorConfig();
+      const next = await fetchVectorConfig() as PanelResponse;
       setState(next);
       setDrafts(Object.fromEntries(Object.entries(next.config.collections).map(([key, item]) => [
         key,
@@ -58,6 +60,7 @@ export function VectorConfigPanel() {
     const enabled = rows.filter(([, item]) => collectionEnabled(item)).length;
     return `${enabled}/${rows.length} enabled · ${healthy}/${rows.length} healthy`;
   }, [rows, state]);
+  const runtime = state?.state;
 
   function updateDraft(key: string, patch: Partial<Drafts[string]>) {
     setDrafts((current) => ({ ...current, [key]: { ...(current[key] ?? { adapter: 'lancedb', enabled: true, provider: 'none', model: key }), ...patch } }));
@@ -133,6 +136,10 @@ export function VectorConfigPanel() {
           <h3 className="mt-2 text-lg font-semibold text-white">Active vector adapters</h3>
           <p className="mt-2 text-sm text-slate-400">Get current config, edit model/provider, switch adapters, enable rows, set primary, and test health.</p>
           <p className="mt-2 text-xs text-slate-500">{summary}</p>
+          <p className="mt-2 text-xs text-slate-500">
+            Source {state?.source ?? 'loading'} · engine {state?.engine ?? 'loading'} · primary {runtime?.primary ?? 'none'} · {runtime?.ready ? 'ready' : 'not ready'}
+          </p>
+          {runtime?.reason ? <p className="mt-1 text-xs text-amber-200">State: {runtime.reason}{runtime.recommendedAction ? ` · ${runtime.recommendedAction}` : ''}</p> : null}
         </div>
         <button className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" type="button" onClick={reload}>
           {loading ? <Spinner label="Reloading" /> : 'Reload vector config'}
