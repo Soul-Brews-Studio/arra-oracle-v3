@@ -1,31 +1,12 @@
 import { sqlite } from '../../db/index.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
 import type { SearchResponse } from '../../server/types.ts';
+import { buildTenantFtsQuery, parseConcepts } from '../../search/query.ts';
 
 type SearchRouteResponse = SearchResponse & { mode: string; warning?: string; vectorAvailable: boolean };
 type ListRow = Record<string, any>;
-const FTS_TOKEN_LIMIT = 8;
-
 function normalizeRank(rank: number): number {
   return Math.min(1, Math.max(0, 1 / (1 + Math.abs(rank))));
-}
-
-function parseConcepts(value: string | null | undefined): string[] {
-  try { return JSON.parse(value || '[]') as string[]; } catch { return []; }
-}
-
-function buildTenantFtsQuery(query: string): string {
-  const tokens = query
-    .replace(/<[^>]*>/g, ' ')
-    .normalize('NFKC')
-    .match(/[\p{L}\p{N}_]+/gu)
-    ?.map((token) => token.trim())
-    .filter(Boolean)
-    .slice(0, FTS_TOKEN_LIMIT) ?? [];
-
-  return Array.from(new Set(tokens))
-    .map((token) => `"${token.replace(/"/g, '""')}"`)
-    .join(' OR ');
 }
 
 function runFtsGet<T>(stmt: { get: (...args: any[]) => T }, args: unknown[]): T | null {

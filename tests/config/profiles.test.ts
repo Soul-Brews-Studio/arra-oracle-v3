@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   applyProfileDefaults,
+  applyProfileDefaultsToProcessEnv,
   resolveArraEnv,
   resolveConfigProfile,
 } from '../../src/config/profiles.ts';
@@ -38,6 +39,21 @@ describe('environment config profiles', () => {
     expect(profile.verboseLogging).toBe(true);
     expect(profile.rateLimit.tokensPerWindow).toBe(250);
     expect(profile.rateLimit.burst).toBe(300);
+  });
+
+  test('process env defaults fill blanks without overwriting explicit values', () => {
+    const env = {
+      HOME: '/tmp/arra-home',
+      ARRA_ENV: 'staging',
+      DEBUG: '1',
+      ARRA_RATE_LIMIT_ENABLED: ' ',
+    } as NodeJS.ProcessEnv;
+    const merged = applyProfileDefaultsToProcessEnv(env);
+
+    expect(env.DEBUG).toBe('1');
+    expect(env.ARRA_RATE_LIMIT_ENABLED).toBe('1');
+    expect(env.ORACLE_GATEWAY_HOT_RELOAD).toBe('1');
+    expect(merged.ARRA_ENV).toBe('staging');
   });
 
   test('profile booleans accept padded truthy values', () => {
