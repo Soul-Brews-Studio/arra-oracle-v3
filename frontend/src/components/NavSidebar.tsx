@@ -5,6 +5,7 @@ export type NavItem = {
   label: string;
   description: string;
   badge?: string | number;
+  end?: boolean;
 };
 
 function navClass({ isActive }: { isActive: boolean }) {
@@ -25,7 +26,7 @@ export function NavSidebar({ items }: { items: NavItem[] }) {
 
         <nav aria-label="Frontend sections" className="grid auto-cols-[minmax(10rem,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1 lg:grid-flow-row lg:grid-cols-1 lg:overflow-visible lg:pb-0">
           {items.map((item) => (
-            <NavLink key={item.to} to={item.to} aria-label={`${item.label}: ${item.description}`} className={navClass}>
+            <NavLink key={item.to} to={item.to} end={item.end} aria-label={`${item.label}: ${item.description}`} className={navClass}>
               <span className="flex items-center justify-between gap-3">
                 <span className="font-semibold">{item.label}</span>
                 {item.badge !== undefined ? (

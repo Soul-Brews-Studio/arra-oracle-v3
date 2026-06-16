@@ -13,10 +13,22 @@ import { VectorPage } from './pages/VectorPage';
 import { VectorSearchPage } from './pages/VectorSearchPage';
 import { VectorDocumentsPage } from './pages/VectorDocumentsPage';
 import { VectorSearchResultsPage } from './pages/VectorSearchResultsPage';
+import { VectorExportPage } from './pages/VectorExportPage';
 import type { LoadState, MenuItem, PluginEntry } from './types';
 import type { MetricsSnapshot } from '../../src/server/types';
 
-export const frontendRoutes = ['/', '/plugins', '/metrics', '/search', '/learn'] as const;
+export const frontendRoutes = [
+  '/',
+  '/plugins',
+  '/metrics',
+  '/search',
+  '/learn',
+  '/vector',
+  '/vector/search',
+  '/vector/documents',
+  '/vector/results',
+  '/vector/export',
+] as const;
 export type FrontendRoute = typeof frontendRoutes[number];
 
 export type DashboardRouteStates = Record<'menu' | 'plugins' | 'metrics', LoadState>;
@@ -66,6 +78,7 @@ export function DashboardRoutes({
       <Route path="/vector/search" element={<VectorSearchPage />} />
       <Route path="/vector/documents" element={<VectorDocumentsPage />} />
       <Route path="/vector/results" element={<VectorSearchResultsPage />} />
+      <Route path="/vector/export" element={<VectorExportPage />} />
       <Route path="/mcp" element={<McpPage />} />
       <Route path="/mcp/tools/:name" element={<McpToolDetailPage />} />
       <Route
