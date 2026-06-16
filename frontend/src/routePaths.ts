@@ -17,6 +17,14 @@ export function pluginInventoryPath(filters: { q?: string; surface?: string; vis
   return query ? `/plugins?${query}` : '/plugins';
 }
 
+export function menuCatalogPath(filters: { group?: string; source?: string } = {}): string {
+  const params = new URLSearchParams();
+  if (filters.group && filters.group !== 'all') params.set('group', filters.group);
+  if (filters.source && filters.source !== 'all') params.set('source', filters.source);
+  const query = params.toString();
+  return query ? `/menu?${query}` : '/menu';
+}
+
 export function vectorDashboardPath(): string {
   return '/vector';
 }

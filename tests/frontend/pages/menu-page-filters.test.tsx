@@ -38,6 +38,7 @@ describe('MenuPage filters', () => {
     expect(html).toContain('1/3 items');
     expect(html).toContain('value="tools" selected');
     expect(html).toContain('value="plugin:echo" selected');
+    expect(html).toContain('href="/menu?group=tools&amp;source=plugin%3Aecho"');
   });
 
   test('renders menu filter controls with plugin sources', () => {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { apiClient, type ApiClient } from '../api/client';
 import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
 import { EmptyState } from '../components/EmptyState';
+import { menuCatalogPath } from '../routePaths';
 import type { MenuItem } from '../types';
 import { menuFiltersFromSearch, type MenuFilters } from './menuFilters';
 
@@ -122,6 +123,7 @@ function MenuFiltersCard({
   onGroup,
   onSource,
   onClear,
+  sharePath,
 }: {
   groups: string[];
   sources: string[];
@@ -131,6 +133,7 @@ function MenuFiltersCard({
   onGroup: (value: string) => void;
   onSource: (value: string) => void;
   onClear: () => void;
+  sharePath: string;
 }) {
   const hasFilters = filters.group !== 'all' || filters.source !== 'all';
   return (
@@ -158,6 +161,9 @@ function MenuFiltersCard({
           <button className="focus-ring self-end rounded-xl border border-white/10 px-3 py-2 text-sm font-semibold text-slate-200 hover:border-teal-300/40 disabled:opacity-40" disabled={!hasFilters} type="button" onClick={onClear}>
             Clear
           </button>
+          <a className="focus-ring self-end rounded-xl border border-teal-300/20 px-3 py-2 text-sm font-semibold text-teal-100 hover:border-teal-300/50" href={sharePath}>
+            Share view
+          </a>
         </div>
       </div>
     </section>
@@ -219,6 +225,7 @@ export function MenuPage({ items: initialItems = [], loading, client = apiClient
           onGroup={(group) => setFilters((current) => ({ ...current, group }))}
           onSource={(source) => setFilters((current) => ({ ...current, source }))}
           onClear={clearFilters}
+          sharePath={menuCatalogPath(filters)}
         />
       ) : null}
       {state === 'loading' ? <LoadingPanel title="Loading menu items..." detail="Fetching /api/menu from the Elysia backend." /> : null}
