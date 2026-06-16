@@ -52,10 +52,16 @@ export async function forceKillProcess(pid: number): Promise<void> {
 }
 
 export async function waitForProcessesExit(pids: number[], timeoutMs: number): Promise<boolean> {
+  const validPids = pids.filter(isPositiveInteger);
+  if (validPids.length === 0) {
+    logger.info('SYSTEM', 'All processes exited');
+    return true;
+  }
+
   const start = Date.now();
 
   while (Date.now() - start < timeoutMs) {
-    const stillAlive = pids.filter(pid => isProcessAlive(pid));
+    const stillAlive = validPids.filter(pid => isProcessAlive(pid));
     if (stillAlive.length === 0) {
       logger.info('SYSTEM', 'All processes exited');
       return true;

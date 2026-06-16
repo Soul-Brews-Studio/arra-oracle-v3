@@ -126,8 +126,9 @@ export interface VectorProxy {
  * @param baseUrl — e.g. `https://vector.example.com` or empty/undefined for local mode
  */
 export function createVectorProxy(baseUrl: string | undefined | null): VectorProxy | null {
-  if (!baseUrl) return null;
-  const base = baseUrl.replace(/\/+$/, '');
+  const trimmedBaseUrl = baseUrl?.trim();
+  if (!trimmedBaseUrl) return null;
+  const base = trimmedBaseUrl.replace(/\/+$/, '');
 
   async function fetchJson<T>(pathAndQuery: string, timeoutMs = TIMEOUT_MS): Promise<T | null> {
     const url = `${base}${pathAndQuery}`;
