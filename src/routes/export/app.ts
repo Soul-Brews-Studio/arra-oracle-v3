@@ -6,6 +6,7 @@ import path from 'node:path';
 import { ORACLE_DATA_DIR } from '../../config.ts';
 import { db as defaultDb, type DatabaseConnection } from '../../db/index.ts';
 import { introspectDrizzleTables } from '../../cli/commands/backup.ts';
+import { createExportStatsRoutes } from './stats.ts';
 
 type ExportRecord = Record<string, unknown>;
 type ExportFormat = 'json' | 'csv' | 'markdown';
@@ -177,4 +178,4 @@ export function createExportAppRoutes(deps: ExportAppDeps = {}) {
     }, { params: t.Object({ jobId: t.String() }) });
 }
 
-export const exportAppRoutes = new Elysia({ prefix: '/api' }).use(createExportAppRoutes());
+export const exportAppRoutes = new Elysia({ prefix: '/api' }).use(createExportAppRoutes()).use(createExportStatsRoutes());
