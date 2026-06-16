@@ -5,11 +5,31 @@ import { groupLabel, toolMode } from './toolView';
 import type { McpTool } from '../types';
 
 export type McpToolSourceFilter = 'all' | 'plugin' | 'core';
+export type McpToolFilterDefaults = { query: string; source: McpToolSourceFilter };
+
+const sourceFilters: McpToolSourceFilter[] = ['all', 'plugin', 'core'];
 
 type McpToolsResponse = {
   tools: McpTool[];
   total: number;
 };
+
+function browserSearch(): string {
+  return typeof window === 'undefined' ? '' : window.location.search;
+}
+
+function isSourceFilter(value: string | null): value is McpToolSourceFilter {
+  return sourceFilters.includes(value as McpToolSourceFilter);
+}
+
+export function mcpToolFiltersFromSearch(search = ''): McpToolFilterDefaults {
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+  const source = params.get('source');
+  return {
+    query: params.get('q') ?? params.get('query') ?? '',
+    source: isSourceFilter(source) ? source : 'all',
+  };
+}
 
 function sourceKind(tool: McpTool): Exclude<McpToolSourceFilter, 'all'> {
   return tool.source === 'plugin' || Boolean(tool.plugin) ? 'plugin' : 'core';
@@ -69,15 +89,22 @@ function ToolCard({ tool, onOpen }: { tool: McpTool; onOpen?: (tool: McpTool) =>
 export function McpToolBrowser({
   onOpenTool,
   initialTools,
+  initialFilter,
+  initialSource,
+  initialSearch,
   fetcher = fetchMcpTools,
 }: {
   onOpenTool?: (tool: McpTool) => void;
   initialTools?: McpTool[];
+  initialFilter?: string;
+  initialSource?: McpToolSourceFilter;
+  initialSearch?: string;
   fetcher?: () => Promise<McpToolsResponse>;
 }) {
+  const filterDefaults = mcpToolFiltersFromSearch(initialSearch ?? browserSearch());
   const [tools, setTools] = useState<McpTool[]>(initialTools ?? []);
-  const [filter, setFilter] = useState('');
-  const [source, setSource] = useState<McpToolSourceFilter>('all');
+  const [filter, setFilter] = useState(initialFilter ?? filterDefaults.query);
+  const [source, setSource] = useState<McpToolSourceFilter>(initialSource ?? filterDefaults.source);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>(initialTools ? 'ready' : 'loading');
   const [error, setError] = useState('');
 

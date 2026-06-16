@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   filterMcpTools,
   McpToolBrowser,
+  mcpToolFiltersFromSearch,
   mcpToolSourceCounts,
   mcpToolSourceLabel,
 } from '../../../frontend/src/components/McpToolBrowser';
@@ -24,6 +25,18 @@ describe('McpToolBrowser source filters', () => {
     expect(filterMcpTools(tools, '', 'plugin').map((tool) => tool.name)).toEqual(['echo.say']);
     expect(filterMcpTools(tools, 'write', 'all').map((tool) => tool.name)).toEqual(['memory.write']);
     expect(filterMcpTools(tools, 'plugin:echo', 'all').map((tool) => tool.name)).toEqual(['echo.say']);
+  });
+
+  test('hydrates source and query filters from shareable route search', () => {
+    expect(mcpToolFiltersFromSearch('?q=echo&source=plugin')).toEqual({ query: 'echo', source: 'plugin' });
+    expect(mcpToolFiltersFromSearch('?query=memory&source=core')).toEqual({ query: 'memory', source: 'core' });
+    expect(mcpToolFiltersFromSearch('?source=bad')).toEqual({ query: '', source: 'all' });
+
+    const html = htmlFor(<McpToolBrowser initialTools={tools} initialSearch="?q=echo&source=plugin" />);
+    expect(html).toContain('value="echo"');
+    expect(html).toContain('value="plugin" selected');
+    expect(html).toContain('1/2 tools');
+    expect(html).toContain('echo.say');
   });
 
   test('renders the source selector and source badges from initial tools', () => {
