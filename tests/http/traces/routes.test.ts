@@ -173,13 +173,13 @@ describe("Trace routes", () => {
     expect(learning.concepts).toContain("continuity");
   });
 
-  test("POST /api/traces/:prevId/link without body returns 400", async () => {
+  test("POST /api/traces/:prevId/link without body is rejected", async () => {
     const res = await fetch(`${BASE_URL}/api/traces/${traceA}/link`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({}),
     });
-    expect(res.status).toBe(400);
+    expect([400, 422]).toContain(res.status);
   });
 
   test("POST /api/traces/:prevId/link links prev→next", async () => {

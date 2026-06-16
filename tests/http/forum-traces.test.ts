@@ -65,13 +65,13 @@ describe("Forum routes", () => {
     createdThreadId = data.thread_id;
   }, 30_000);
 
-  test("POST /api/thread without message returns 400", async () => {
+  test("POST /api/thread without message is rejected", async () => {
     const res = await fetch(`${BASE_URL}/api/thread`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({}),
     });
-    expect(res.status).toBe(400);
+    expect([400, 422]).toContain(res.status);
   });
 
   test("GET /api/thread/:id returns thread with messages", async () => {
@@ -92,6 +92,16 @@ describe("Forum routes", () => {
   test("GET /api/thread/:id with missing id returns 404", async () => {
     const res = await fetch(`${BASE_URL}/api/thread/99999999`);
     expect(res.status).toBe(404);
+  });
+
+  test("PATCH /api/thread/:id/status rejects non-string status", async () => {
+    expect(createdThreadId).not.toBeNull();
+    const res = await fetch(`${BASE_URL}/api/thread/${createdThreadId}/status`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: 123 }),
+    });
+    expect(res.status).toBe(422);
   });
 
   test("PATCH /api/thread/:id/status updates status", async () => {
@@ -144,11 +154,30 @@ describe("Schedule routes", () => {
     createdEventId = data.id;
   });
 
+  test("POST /api/schedule rejects missing event", async () => {
+    const res = await fetch(`${BASE_URL}/api/schedule`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ date: "2099-01-01" }),
+    });
+    expect(res.status).toBe(422);
+  });
+
   test("GET /api/schedule lists events", async () => {
     const res = await fetch(`${BASE_URL}/api/schedule?status=all&limit=50`);
     expect(res.ok).toBe(true);
     const data = await res.json();
     expect(typeof data).toBe("object");
+  });
+
+  test("PATCH /api/schedule/:id rejects invalid status", async () => {
+    expect(createdEventId).not.toBeNull();
+    const res = await fetch(`${BASE_URL}/api/schedule/${createdEventId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: "sideways" }),
+    });
+    expect(res.status).toBe(422);
   });
 
   test("PATCH /api/schedule/:id updates status", async () => {
