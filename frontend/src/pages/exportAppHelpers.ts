@@ -1,7 +1,7 @@
 import { normalizeBackendUrl } from '../components/export/BackendSelector';
 import type { ExportProgressState } from '../hooks/useExport';
 
-export type ExportAppFormat = 'json' | 'markdown';
+export type ExportAppFormat = 'json' | 'csv' | 'markdown';
 
 export type LegacyExportCollection = {
   id: string;
@@ -19,6 +19,7 @@ type RawCollection = Record<string, unknown>;
 
 export const exportAppFormats: Array<{ value: ExportAppFormat; label: string; detail: string }> = [
   { value: 'json', label: 'JSON', detail: 'Full metadata dump for restore tooling.' },
+  { value: 'csv', label: 'CSV', detail: 'Tabular backup for spreadsheet review and audits.' },
   { value: 'markdown', label: 'Markdown', detail: 'Readable vault-style backup files.' },
 ];
 
@@ -70,7 +71,7 @@ export function normalizeExportAppCollections(payload: unknown): LegacyExportCol
 
 function filenameFrom(format: ExportAppFormat, collection: string): string {
   const safe = collection.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'oracle-export';
-  return `${safe}.${format === 'markdown' ? 'md' : 'json'}`;
+  return `${safe}.${format === 'markdown' ? 'md' : format}`;
 }
 
 function nestedJob(payload: Record<string, unknown>): Record<string, unknown> {

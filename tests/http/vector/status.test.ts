@@ -26,6 +26,10 @@ function createFetch() {
           { key: 'qdrant', model: 'qdrant-embed', collection: 'oracle_qdrant', count: 3, ok: true },
         ],
         freshness: { status: 'stale', totalIndexed: 15, sourceDocs: 20, docsPending: 8, lastIndexed: '2026-06-15T00:00:00.000Z' },
+        storage: [
+          { adapter: 'lancedb', status: 'green', healthy: 1, total: 1 },
+          { adapter: 'qdrant', status: 'green', healthy: 1, total: 1 },
+        ],
       }),
     }))
     .use(createVectorModelEndpoints({
@@ -59,6 +63,10 @@ test('GET /api/v1/vector/status and /api/v1/vector/models return vector status s
       { type: 'openai', available: false, status: 'red', detail: 'missing OPENAI_API_KEY' },
     ],
     freshness: { status: 'stale', totalIndexed: 15, sourceDocs: 20, docsPending: 8 },
+    storage: [
+      { adapter: 'lancedb', status: 'green', healthy: 1, total: 1 },
+      { adapter: 'qdrant', status: 'green', healthy: 1, total: 1 },
+    ],
   });
 
   const modelsRes = await fetcher(new Request('http://local/api/v1/vector/models'));

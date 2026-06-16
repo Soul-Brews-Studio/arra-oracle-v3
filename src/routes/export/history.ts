@@ -7,6 +7,7 @@ import { ORACLE_DATA_DIR } from '../../config.ts';
 import { db, exportJobs } from '../../db/index.ts';
 import { createOracleV2Client, type OracleV2Document } from '../../lib/oracle-v2-client.ts';
 import { exportHistoryRunBody, type ExportHistoryJob } from './model.ts';
+import { formatOracleV2DocumentsMarkdown } from './oracle-v2-markdown.ts';
 
 function clean(value: string): string {
   return value.trim();
@@ -34,21 +35,25 @@ async function writeOracleV2Export(
   if (!names.includes(job.collection)) throw new Error(`Oracle v2 collection not found: ${job.collection}`);
 
   const documents = await client.listDocuments(job.collection);
-  const filename = `${safeName(job.collection)}-${job.id}.json`;
+  const exportedAt = new Date(job.timestamp).toISOString();
+  const isMarkdown = job.format === 'markdown';
+  const filename = `${safeName(job.collection)}-${job.id}.${isMarkdown ? 'md' : 'json'}`;
   const filePath = path.join(ORACLE_DATA_DIR, 'exports', 'oracle-v2', filename);
-  const payload = {
-    version: 1,
-    source: 'oracle-v2',
-    baseUrl,
-    exportedAt: new Date(job.timestamp).toISOString(),
-    collection: job.collection,
-    documentCount: documents.length,
-    collections,
-    documents,
-  };
+  const payload = isMarkdown
+    ? formatOracleV2DocumentsMarkdown({ baseUrl, collection: job.collection, exportedAt, documents, collections })
+    : `${JSON.stringify({
+      version: 1,
+      source: 'oracle-v2',
+      baseUrl,
+      exportedAt,
+      collection: job.collection,
+      documentCount: documents.length,
+      collections,
+      documents,
+    }, null, 2)}\n`;
 
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+  await writeFile(filePath, payload, 'utf8');
   return { filePath, filename, documents, collections: names };
 }
 
@@ -64,9 +69,9 @@ export function createExportHistoryRoutes() {
       }
 
       const baseUrl = oracleV2Url(body);
-      if (baseUrl && format !== 'json') {
+      if (baseUrl && format !== 'json' && format !== 'markdown') {
         set.status = 400;
-        return { error: 'Oracle v2 export supports json format only', format };
+        return { error: 'Oracle v2 export supports json or markdown format only', format };
       }
 
       const job: ExportHistoryJob = {
@@ -87,7 +92,7 @@ export function createExportHistoryRoutes() {
             artifact: {
               filePath: artifact.filePath,
               filename: artifact.filename,
-              contentType: 'application/json; charset=utf-8',
+              contentType: format === 'markdown' ? 'text/markdown; charset=utf-8' : 'application/json; charset=utf-8',
               documentCount: artifact.documents.length,
             },
             collections: artifact.collections,

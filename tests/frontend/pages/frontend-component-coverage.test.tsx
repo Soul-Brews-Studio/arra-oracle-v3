@@ -36,11 +36,18 @@ describe('frontend component coverage', () => {
         { type: 'ollama', status: 'green', available: true, detail: 'local' },
         { type: 'openai', status: 'red', available: false, detail: 'missing key' },
       ]}
+      storage={[
+        { adapter: 'lancedb', status: 'green', healthy: 2, total: 2 },
+        { adapter: 'qdrant', status: 'red', healthy: 0, total: 1, detail: 'down' },
+      ]}
       freshness={{ status: 'stale', totalIndexed: 1532, sourceDocs: 1600, docsPending: 68, lastIndexed: '2026-06-16T00:00:00Z' }}
     />);
 
     expect(html).toContain('Vector health dashboard');
     expect(html).toContain('1/2 providers available');
+    expect(html).toContain('1/2 storage backends healthy');
+    expect(html).toContain('lancedb: 2/2');
+    expect(html).toContain('qdrant: 0/1');
     expect(html).toContain('stale · 1,532 indexed');
     expect(html).toContain('68 pending of 1,600 source docs');
     expect(html).toContain('2026-06-16T00:00:00Z');
