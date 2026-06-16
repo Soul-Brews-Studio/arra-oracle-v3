@@ -69,6 +69,7 @@ bun run tools/export-app/index.ts --output ./backup/export-app
 bun run tools/export-app/index.ts --output ./backup/export-app --db ./oracle.db
 bun run tools/export-app/index.ts --output ./backup/export-app --dry-run
 bun run tools/export-app/index.ts --output ./backup/export-app --progress json
+bun run tools/export-app/index.ts --verify ./backup/export-app
 ```
 
 Use `--dry-run` to print collection, row, relationship, and document counts
@@ -95,6 +96,9 @@ It also includes `collections.<table>.rowCount` so restore/preflight tooling can
 compare source and destination collection sizes without loading every artifact.
 The generated bundle `README.md` summarizes counts and verification steps for
 offline review before migration.
+Run `--verify <bundle-dir>` after export to re-read `manifest.json`, recompute
+each listed file's byte count and SHA-256 checksum, and fail if a required
+bundle artifact is missing.
 Progress writes to stderr by default as collection counts, percentages, and row
 counts. Use `--progress json` or `--progress-json` for machine-readable events,
 `--progress silent` or `--quiet` when another wrapper owns progress display.

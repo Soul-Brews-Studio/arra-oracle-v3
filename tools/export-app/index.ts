@@ -2,13 +2,15 @@ import { existsSync, statSync } from 'node:fs';
 import { DB_PATH } from '../../src/config.ts';
 import { exportOracleData, type ExportProgressEvent } from './exporter.ts';
 import { previewOracleExport } from './summary.ts';
+import { verifyExportBundle } from './verify.ts';
 
 type Writer = (message: string) => void;
 type ProgressMode = 'text' | 'json' | 'silent';
 
 interface CliOptions {
-  outputDir: string;
+  outputDir?: string;
   dbPath?: string;
+  verifyDir?: string;
   quiet: boolean;
   progressMode: ProgressMode;
   dryRun: boolean;
@@ -31,6 +33,7 @@ function assignedValue(arg: string, flag: string): string | undefined {
 export function parseArgs(args: string[]): CliOptions {
   let outputDir: string | undefined;
   let dbPath: string | undefined;
+  let verifyDir: string | undefined;
   let quiet = false;
   let progressMode: ProgressMode = 'text';
   let dryRun = false;
@@ -39,12 +42,15 @@ export function parseArgs(args: string[]): CliOptions {
     const arg = args[i]!;
     const outputAssigned = assignedValue(arg, '--output');
     const dbAssigned = assignedValue(arg, '--db');
+    const verifyAssigned = assignedValue(arg, '--verify');
     const progressAssigned = assignedValue(arg, '--progress');
     if (outputAssigned !== undefined) { outputDir = outputAssigned; continue; }
     if (dbAssigned !== undefined) { dbPath = dbAssigned; continue; }
+    if (verifyAssigned !== undefined) { verifyDir = verifyAssigned; continue; }
     if (progressAssigned !== undefined) { progressMode = readProgressMode(progressAssigned); continue; }
     if (arg === '--output' || arg === '-o') { outputDir = flagValue(args, i, arg); i += 1; continue; }
     if (arg === '--db') { dbPath = flagValue(args, i, arg); i += 1; continue; }
+    if (arg === '--verify') { verifyDir = flagValue(args, i, arg); i += 1; continue; }
     if (arg === '--progress') { progressMode = readProgressMode(flagValue(args, i, arg)); i += 1; continue; }
     if (arg === '--quiet' || arg === '--no-progress') { quiet = true; continue; }
     if (arg === '--progress-json') { progressMode = 'json'; continue; }
@@ -53,8 +59,9 @@ export function parseArgs(args: string[]): CliOptions {
     throw new Error(arg.startsWith('-') ? `unknown flag: ${arg}` : `unexpected argument: ${arg}`);
   }
 
-  if (!outputDir) throw new Error('missing required --output <dir>');
-  return { outputDir, dbPath, quiet, progressMode, dryRun };
+  if (verifyDir && outputDir) throw new Error('--verify cannot be combined with --output');
+  if (!verifyDir && !outputDir) throw new Error('missing required --output <dir>');
+  return { outputDir, dbPath, verifyDir, quiet, progressMode, dryRun };
 }
 
 function readProgressMode(value: string): ProgressMode {
@@ -76,8 +83,9 @@ function requireOutputTarget(path: string): void {
 }
 
 export function validateCliOptions(options: CliOptions): void {
+  if (options.verifyDir) return;
   requireFile(options.dbPath ?? DB_PATH);
-  requireOutputTarget(options.outputDir);
+  requireOutputTarget(options.outputDir!);
 }
 
 function printHelp(write: Writer): void {
@@ -89,6 +97,7 @@ function printHelp(write: Writer): void {
     'Flags:',
     '  --output, -o <dir>   destination backup directory',
     '  --db <path>          SQLite database path (defaults to ORACLE_DB_PATH)',
+    '  --verify <dir>       verify an existing export bundle manifest/checksums',
     '  --progress <mode>    progress output: text, json, or silent',
     '  --dry-run            print collection counts without writing files',
     '  --quiet              suppress progress output',
@@ -120,13 +129,18 @@ export async function runExportApp(args: string[], stdout: Writer = process.stdo
     }
     const options = parseArgs(args);
     validateCliOptions(options);
+    if (options.verifyDir) {
+      const result = await verifyExportBundle(options.verifyDir);
+      stdout(`${JSON.stringify({ success: result.ok, ...result }, null, 2)}\n`);
+      return result.ok ? 0 : 1;
+    }
     if (options.dryRun) {
       stdout(`${JSON.stringify({ success: true, dryRun: true, ...previewOracleExport({ dbPath: options.dbPath }) }, null, 2)}\n`);
       return 0;
     }
     const progress = progressWriter(options, stderr);
     const result = await exportOracleData({
-      outputDir: options.outputDir,
+      outputDir: options.outputDir!,
       dbPath: options.dbPath,
       progress,
     });
