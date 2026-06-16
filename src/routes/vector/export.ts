@@ -1,5 +1,5 @@
 /**
- * GET /api/vector/export — stream a vector collection as JSON, JSONL, or CSV.
+ * GET /api/vector/export — stream a vector collection as JSON, JSONL, CSV, or Markdown.
  */
 
 import { Elysia, t } from 'elysia';
@@ -16,7 +16,12 @@ const DEFAULT_EXPORT_LIMIT = 50_000;
 
 function contentType(format: string): string {
   if (format === 'jsonl') return 'application/x-ndjson; charset=utf-8';
+  if (format === 'markdown') return 'text/markdown; charset=utf-8';
   return format === 'csv' ? 'text/csv; charset=utf-8' : 'application/json; charset=utf-8';
+}
+
+function extensionFor(format: string): string {
+  return format === 'markdown' ? 'md' : format;
 }
 
 export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
@@ -50,7 +55,7 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
         return new Response(stream, {
           headers: {
             'Content-Type': contentType(format),
-            'Content-Disposition': `attachment; filename="${collection}.${format}"`,
+            'Content-Disposition': `attachment; filename="${collection}.${extensionFor(format)}"`,
           },
         });
       } catch (error) {
@@ -67,7 +72,7 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
       detail: {
         tags: ['vector'],
         menu: { group: 'tools', order: 57 },
-        summary: 'Export a vector collection as JSON, JSONL, or CSV',
+        summary: 'Export a vector collection as JSON, JSONL, CSV, or Markdown',
       },
     },
   );
