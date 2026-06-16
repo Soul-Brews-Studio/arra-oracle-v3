@@ -82,4 +82,15 @@ describe('gateway tenant proxying', () => {
       stopServers();
     }
   });
+
+  it('returns JSON 502 for malformed service URLs', async () => {
+    const response = await proxyToService(
+      new Request('http://local/api/search?q=bad-target'),
+      { url: '   ', timeout: 10 },
+    );
+
+    expect(response.status).toBe(502);
+    expect(response.headers.get('content-type')).toContain('application/json');
+    expect(await response.json()).toEqual({ error: 'Bad gateway', target: '<invalid>' });
+  });
 });

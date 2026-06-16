@@ -42,6 +42,20 @@ describe('shutdown controller', () => {
     expect(health).toBeNull();
   });
 
+  test('normalizes malformed Retry-After values while draining', () => {
+    const nan = drainingResponseFor(new Request('http://local/api/search'), {
+      draining: true,
+      retryAfterSeconds: Number.NaN,
+    });
+    const fractional = drainingResponseFor(new Request('http://local/api/search'), {
+      draining: true,
+      retryAfterSeconds: 2.2,
+    });
+
+    expect(nan?.headers.get('Retry-After')).toBe('5');
+    expect(fractional?.headers.get('Retry-After')).toBe('3');
+  });
+
   test('runs every cleanup step and reports any cleanup failures', async () => {
     const calls: string[] = [];
     const warnings: string[] = [];

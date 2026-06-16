@@ -60,6 +60,10 @@ function configuredHeader(value: unknown): string {
   return header && HEADER_NAME.test(header) ? header : DEFAULTS.header;
 }
 
+function numericOption(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
 function tenantBucketKey(request: Request, clientKey: string): string {
   const tenantId = currentTenantId() ?? tenantIdFor(request) ?? 'default';
   return `tenant:${tenantId}|client:${clientKey}`;
@@ -81,9 +85,9 @@ registerHook({
       (ctx.meta.hook_options as Record<string, RateLimitOptions> | undefined)?.['rate-limit'] ??
       {};
     const headerName = configuredHeader(opts.header);
-    const tokensPerWindow = opts.tokens_per_window ?? DEFAULTS.tokens_per_window;
-    const windowMs = opts.window_ms ?? DEFAULTS.window_ms;
-    const burst = opts.burst ?? tokensPerWindow;
+    const tokensPerWindow = numericOption(opts.tokens_per_window, DEFAULTS.tokens_per_window);
+    const windowMs = numericOption(opts.window_ms, DEFAULTS.window_ms);
+    const burst = numericOption(opts.burst, tokensPerWindow);
 
     if (tokensPerWindow <= 0 || windowMs <= 0 || burst <= 0) return; // disabled / malformed
 
