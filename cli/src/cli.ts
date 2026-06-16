@@ -16,13 +16,8 @@ import { doctorCommand } from "./commands/doctor.ts";
 import { completionsCommand } from "./commands/completions.ts";
 import { peersCommand } from "./commands/peers.ts";
 import { huginnCommand } from "./commands/huginn.ts";
-import {
-  CLI_VERSION,
-  builtinHelpFor,
-  hasHelpFlag,
-  renderCommandHelp,
-  renderRootHelp,
-} from "../../src/cli/help.ts";
+import { vectorConfigCommand } from "./commands/vector-config.ts";
+import { CLI_VERSION, builtinHelpFor, hasHelpFlag, renderCommandHelp, renderRootHelp } from "../../src/cli/help.ts";
 
 async function loadAll() {
   const { plugins, bundled, user } = await discoverPlugins();
@@ -114,6 +109,11 @@ async function main() {
   if (cmd === "huginn") {
     if (hasHelpFlag(args.slice(1))) return printScopedBuiltinHelp(cmd, args.slice(1));
     process.exit(await huginnCommand(args.slice(1)));
+  }
+
+  if (cmd === "vector-config") {
+    if (hasHelpFlag(args.slice(1))) return printScopedBuiltinHelp(cmd, args.slice(1));
+    process.exit(await vectorConfigCommand(args.slice(1)));
   }
 
   if (cmd === "changelog") {
