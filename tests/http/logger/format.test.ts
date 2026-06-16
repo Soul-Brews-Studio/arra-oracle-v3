@@ -1,6 +1,12 @@
 import { expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
-import { createRequestLogger, type RequestLogEntry } from '../../../src/middleware/logger.ts';
+import {
+  createRequestLogger,
+  requestLogFormat,
+  REQUEST_LOG_FORMATS,
+  startupRequestLogFormat,
+  type RequestLogEntry,
+} from '../../../src/middleware/logger.ts';
 
 const CORRELATION_ID = 'abcdef12-correlation-id';
 
@@ -56,6 +62,11 @@ async function captureLogLine(format: string | undefined, env?: string): Promise
 }
 
 test('LOG_FORMAT selects json, nginx, and short request log output', async () => {
+  expect(REQUEST_LOG_FORMATS).toEqual(['nginx', 'json', 'short']);
+  expect(requestLogFormat(' JSON ')).toBe('json');
+  expect(requestLogFormat('verbose')).toBe('nginx');
+  expect(startupRequestLogFormat({ LOG_FORMAT: 'short' })).toBe('short');
+
   const json = JSON.parse(await captureLogLine('json')) as RequestLogEntry;
   expect(json).toMatchObject({
     event: 'http_request',
@@ -73,4 +84,33 @@ test('LOG_FORMAT selects json, nginx, and short request log output', async () =>
 
 test('LOG_FORMAT defaults to nginx and labels production sandbox', async () => {
   expect(await captureLogLine(undefined, 'production')).toBe('GET /api/health 200 1.37ms [abcdef12] [prod]');
+});
+
+test('request logger captures LOG_FORMAT when created', async () => {
+  const lines: string[] = [];
+  const originalLog = console.log;
+  const originalFormat = process.env.LOG_FORMAT;
+  process.env.LOG_FORMAT = 'short';
+  console.log = (message?: unknown) => {
+    lines.push(String(message));
+  };
+
+  try {
+    const ticks = [200, 201.1];
+    const logger = createRequestLogger({ now: () => ticks.shift() ?? 201.1 });
+    process.env.LOG_FORMAT = 'json';
+    const app = new Elysia()
+      .onRequest(logger.onRequest)
+      .onAfterResponse(logger.onAfterResponse)
+      .get('/startup-log-format', () => ({ ok: true }));
+
+    const response = await app.fetch(new Request('http://local/startup-log-format', {
+      headers: { 'x-correlation-id': CORRELATION_ID },
+    }));
+    expect(response.status).toBe(200);
+    expect(await waitForLog(lines)).toBe('200 GET /startup-log-format 1ms');
+  } finally {
+    console.log = originalLog;
+    restoreLogFormat(originalFormat);
+  }
 });

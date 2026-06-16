@@ -9,10 +9,13 @@ describe('maw-plugin-arra dual surface contract', () => {
       target: 'js',
       entry: './index.ts',
       artifact: { path: 'dist/index.js', sha256: null },
+      config: { dbBackend: 'http', embedderBackend: 'none' },
       cli: { command: 'arra' },
       api: { path: '/api/plugins/arra', methods: ['GET', 'POST'] },
     });
     expect(manifest.menu[0]).toMatchObject({ label: 'ARRA Oracle', path: '/plugins/arra' });
+    expect(manifest.configSchema.properties.dbBackend.enum).toEqual(['http', 'sqlite', 'memory', 'custom']);
+    expect(manifest.configSchema.properties.embedderBackend.enum).toEqual(['none', 'local', 'remote']);
   });
 
   test('serves the shared command registry for menu/API callers', async () => {
@@ -22,6 +25,8 @@ describe('maw-plugin-arra dual surface contract', () => {
     expect(result.ok).toBe(true);
     expect(body.menu.path).toBe('/plugins/arra');
     expect(body.api.path).toBe('/api/plugins/arra');
+    expect(body.config).toMatchObject({ dbBackend: 'http', embedderBackend: 'none' });
+    expect(body.configSchema.properties.embedderBackend.enum).toEqual(['none', 'local', 'remote']);
     expect(body.commands.map((item: { name: string }) => item.name))
       .toEqual(commandRegistry.map((item) => item.name));
     expect(body.commands.map((item: { name: string }) => item.name)).toContain('commands');
@@ -37,6 +42,20 @@ describe('maw-plugin-arra dual surface contract', () => {
     expect(body.output).toContain('maw arra');
     expect(body.output).toContain('vector-config');
   });
+
+  test('exposes swappable backend config via CLI and API registry', async () => {
+    const text = await handler({ args: ['config'] });
+    const raw = await handler({ source: 'api', args: { command: 'config', args: ['--json'] } });
+    const body = JSON.parse(JSON.parse(raw.output ?? '{}').output);
+
+    expect(text.ok).toBe(true);
+    expect(text.output).toContain('dbBackend: http');
+    expect(text.output).toContain('embedderBackend: none');
+    expect(raw.ok).toBe(true);
+    expect(body.configSchema.properties.dbBackend.enum).toContain('custom');
+    expect(body.configSchema.properties.embedderBackend.enum).toContain('remote');
+  });
+
   test('runs the explicit command registry from CLI text and JSON', async () => {
     const text = await handler({ args: ['commands'] });
 

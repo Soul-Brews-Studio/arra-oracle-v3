@@ -14,6 +14,7 @@ process.env.ORACLE_REPO_ROOT = root;
 const dbMod = await import('../../../src/db/index.ts');
 const tenantMod = await import('../../../src/middleware/tenant.ts');
 const routeMod = await import('../../../src/routes/schedule/index.ts');
+dbMod.resetDefaultDatabaseForTests(process.env.ORACLE_DB_PATH);
 
 const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const tenantA = `tenant-a-${stamp}`;
@@ -53,6 +54,9 @@ afterAll(() => {
   if (previousRepoRoot === undefined) delete process.env.ORACLE_REPO_ROOT;
   else process.env.ORACLE_REPO_ROOT = previousRepoRoot;
   rmSync(root, { recursive: true, force: true });
+  const restoreDbPath = previousDbPath
+    ?? join(previousDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
+  dbMod.resetDefaultDatabaseForTests(restoreDbPath);
 });
 
 test('schedule HTTP routes isolate create/list/update/markdown by tenant', async () => {
