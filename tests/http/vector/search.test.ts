@@ -5,13 +5,17 @@ import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant
 import { createVectorSearchEndpoint } from '../../../src/routes/vector/search.ts';
 import type { VectorQueryResult } from '../../../src/vector/types.ts';
 
-function createFetch(result: VectorQueryResult, collections = ['bge-m3', 'qwen3']) {
+function createFetch(
+  result: VectorQueryResult,
+  collections = ['bge-m3', 'qwen3'],
+  queryImpl: () => Promise<VectorQueryResult> = async () => result,
+) {
   const requested: string[] = [];
   const store = {
     connect: mock(async () => {}),
     ensureCollection: mock(async () => {}),
-    query: mock(async () => result),
-    getStats: mock(async () => ({ count: result.ids.length })),
+    query: mock(queryImpl),
+    close: mock(async () => {}),
   };
   const app = new Elysia({ prefix: '/api' }).use(createVectorSearchEndpoint({
     getModels: () => Object.fromEntries(collections.map((name) => [name, {}])),
@@ -57,6 +61,7 @@ test('GET /api/v1/vector/search filters selected collection before paginating so
   expect(res.status).toBe(200);
   expect(requested).toEqual(['qwen3']);
   expect(store.query).toHaveBeenCalledWith('oracle', 5, { origin: 'human', type: 'note' });
+  expect(store.close).toHaveBeenCalledTimes(1);
   expect(body.total).toBe(3);
   expect(body.offset).toBe(1);
   expect(body.limit).toBe(1);
@@ -106,6 +111,16 @@ test('GET /api/v1/vector/search scopes results by resolved tenant', async () => 
   expect(store.query).toHaveBeenCalledWith('oracle', 50, { tenant_id: 'tenant-a' });
   expect(body.filters.metadata).toEqual({ tenant_id: 'tenant-a' });
   expect(body.results.map((item) => item.id)).toEqual(['doc-a']);
+});
+
+test('GET /api/v1/vector/search closes stores when vector query fails', async () => {
+  const { fetcher, store } = createFetch(result, ['bge-m3'], async () => { throw new Error('adapter down'); });
+  const res = await fetcher(new Request('http://local/api/v1/vector/search?q=oracle'));
+  const body = await res.json() as Record<string, unknown>;
+
+  expect(res.status).toBe(400);
+  expect(body).toMatchObject({ results: [], total: 0, error: 'Vector search failed', message: 'adapter down' });
+  expect(store.close).toHaveBeenCalledTimes(1);
 });
 
 test('GET /api/v1/vector/search rejects bad filters and unknown collections', async () => {
