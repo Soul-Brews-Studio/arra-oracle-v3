@@ -1,7 +1,7 @@
 import { normalizeBackendUrl } from '../components/export/BackendSelector';
 import type { ExportProgressState } from '../hooks/useExport';
 
-export type ExportAppFormat = 'json' | 'csv' | 'markdown';
+export type ExportAppFormat = 'json' | 'jsonl' | 'csv' | 'markdown';
 
 export type LegacyExportCollection = {
   id: string;
@@ -19,6 +19,7 @@ type RawCollection = Record<string, unknown>;
 
 export const exportAppFormats: Array<{ value: ExportAppFormat; label: string; detail: string }> = [
   { value: 'json', label: 'JSON', detail: 'Full metadata dump for restore tooling.' },
+  { value: 'jsonl', label: 'JSONL', detail: 'Line-delimited records for streaming restore jobs.' },
   { value: 'csv', label: 'CSV', detail: 'Tabular backup for spreadsheet review and audits.' },
   { value: 'markdown', label: 'Markdown', detail: 'Readable vault-style backup files.' },
 ];
