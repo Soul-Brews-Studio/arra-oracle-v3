@@ -58,11 +58,13 @@ export function createVectorServicesApiEndpoint(registry: VectorServiceRegistryC
       }
       const health = await registry.healthCheck();
       const result = health.get(params.name);
+      const status = result?.status ?? 'unknown';
+      if (status !== 'up') set.status = 503;
       return {
         name: params.name,
-        status: result?.status ?? 'unknown',
+        status,
         ...(result || {}),
-        success: result?.status === 'up',
+        success: status === 'up',
       };
     }, {
       params: t.Object({ name: t.String({ minLength: 1 }) }),

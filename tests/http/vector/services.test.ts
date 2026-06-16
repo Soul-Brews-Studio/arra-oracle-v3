@@ -91,6 +91,35 @@ test('vector service registry API rejects proxy registration without endpoint', 
   expect(await json(res)).toMatchObject({ success: false, error: 'proxy service requires endpoint' });
 });
 
+test('vector service registry API returns 503 when service test is down', async () => {
+  const registry = new FakeRegistry();
+  registry.services.set('down-proxy', {
+    name: 'down-proxy',
+    type: 'proxy',
+    endpoint: 'http://127.0.0.1:9',
+  });
+  registry.healthCheck = async () => new Map<string, HealthStatus>([
+    ['lancedb', { status: 'up', checkedAt: '2026-06-16T00:00:00.000Z' }],
+    ['down-proxy', {
+      status: 'down',
+      checkedAt: '2026-06-16T00:00:00.000Z',
+      error: 'connection refused',
+    }],
+  ]);
+
+  const res = await createFetch(registry)(
+    new Request('http://local/api/v1/vector/services/down-proxy/test', { method: 'POST' }),
+  );
+
+  expect(res.status).toBe(503);
+  expect(await json(res)).toMatchObject({
+    name: 'down-proxy',
+    status: 'down',
+    success: false,
+    error: 'connection refused',
+  });
+});
+
 test('VectorServiceRegistry persists services and probes proxy health', async () => {
   const savedDataDir = process.env.ORACLE_DATA_DIR;
   const root = mkdtempSync(join(tmpdir(), 'vector-services-registry-'));
