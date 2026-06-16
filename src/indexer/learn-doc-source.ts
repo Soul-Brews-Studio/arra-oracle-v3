@@ -9,6 +9,7 @@ import type { OracleDocument } from '../types.ts';
 import { parseLearningFile } from './parser.ts';
 
 export const PSI_LEARN_REL = path.join('ψ', 'learn');
+export const MEMORY_LEARN_REL = path.join('ψ', 'memory', 'learnings');
 
 export function normalizeSourceFile(repoRoot: string, filePath: string): string {
   return path.relative(repoRoot, filePath).split(path.sep).join('/');
@@ -24,6 +25,10 @@ export function isPsiLearnSource(sourceFile: string): boolean {
   return normalized.startsWith('ψ/learn/') && !normalized.startsWith('ψ/learn/security-corpus/');
 }
 
+export function isMemoryLearningSource(sourceFile: string): boolean {
+  return sourceFile.split(path.sep).join('/').startsWith('ψ/memory/learnings/');
+}
+
 export function parsePsiLearnFile(relativePath: string, content: string): OracleDocument[] {
   const sourceFile = relativePath.split(path.sep).join('/');
   const basename = path.basename(sourceFile);
@@ -36,13 +41,17 @@ export function parsePsiLearnFile(relativePath: string, content: string): Oracle
   }));
 }
 
-export function readPsiLearnDocuments(repoRoot: string, filePath: string): OracleDocument[] {
+export function readLearningDocuments(repoRoot: string, filePath: string): OracleDocument[] {
   const sourceFile = normalizeSourceFile(repoRoot, filePath);
-  if (!isPsiLearnSource(sourceFile) || !isMarkdownFile(filePath)) return [];
+  if (!isMarkdownFile(filePath)) return [];
   const content = fs.readFileSync(filePath, 'utf8');
   if (!content.trim()) return [];
-  return parsePsiLearnFile(sourceFile, content);
+  if (isPsiLearnSource(sourceFile)) return parsePsiLearnFile(sourceFile, content);
+  if (isMemoryLearningSource(sourceFile)) return parseLearningFile(path.basename(sourceFile), content, sourceFile);
+  return [];
 }
+
+export const readPsiLearnDocuments = readLearningDocuments;
 
 export function storeSqliteDocuments(db: Database, documents: OracleDocument[]): string[] {
   if (documents.length === 0) return [];

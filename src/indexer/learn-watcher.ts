@@ -2,7 +2,8 @@
  * Auto-index learn documents when files change under ψ/memory/learnings or ψ/learn.
  *
  * Existing indexed learning files are re-queued by source_file. New ψ/learn
- * Markdown files are inserted into SQLite/FTS first, then queued for vector jobs.
+ * and ψ/memory/learnings Markdown files are inserted into SQLite/FTS first,
+ * then queued for vector jobs.
  */
 
 import fs from 'fs';
@@ -11,13 +12,16 @@ import type Database from 'bun:sqlite';
 import { enqueueIndexJob } from './jobs.ts';
 import { REPO_ROOT } from '../config.ts';
 import {
+  MEMORY_LEARN_REL,
   PSI_LEARN_REL,
   isMarkdownFile,
+  isMemoryLearningSource,
   isPsiLearnSource,
   normalizeSourceFile,
-  readPsiLearnDocuments,
+  readLearningDocuments,
   storeSqliteDocuments,
 } from './learn-doc-source.ts';
+import { isWithinRoot, listDirs, listFiles, safeClearTimeout, safeClose, watchDir } from './watch-utils.ts';
 
 export interface LearnWatcherOptions {
   /** sqlite database used by enqueueIndexJob(). */
@@ -33,17 +37,6 @@ export interface LearnWatcherOptions {
 export type StopWatch = () => void;
 
 const DEFAULT_DEBOUNCE_MS = 250;
-const MEMORY_LEARN_REL = path.join('ψ', 'memory', 'learnings');
-
-function safeClose(watchers: Array<{ close: () => void }>): void {
-  for (const watcher of watchers) {
-    try { watcher.close(); } catch {}
-  }
-}
-
-function safeClearTimeout(id: ReturnType<typeof setTimeout> | undefined): void {
-  if (id !== undefined) clearTimeout(id);
-}
 
 function hasActiveJobs(db: Database, docId: string): boolean {
   const row = db.query<{ count: number }, [string]>(
@@ -57,59 +50,20 @@ function enqueueDocIds(db: Database, models: Record<string, { collection: string
   let count = 0;
   for (const id of ids) {
     if (hasActiveJobs(db, id)) continue;
-    try {
-      count += enqueueIndexJob(db, { docId: id, models }).length;
-    } catch {
-      continue;
-    }
+    try { count += enqueueIndexJob(db, { docId: id, models }).length; } catch { continue; }
   }
   return count;
 }
 
 function existingLearningIds(db: Database, sourceFile: string): string[] {
-  return db
-    .query<{ id: string }, [string]>(
-      `SELECT id
-       FROM oracle_documents
-       WHERE source_file = ? AND type = 'learning' AND superseded_at IS NULL`,
-    )
-    .all(sourceFile)
-    .map((row) => row.id);
+  return db.query<{ id: string }, [string]>(
+    `SELECT id FROM oracle_documents
+     WHERE source_file = ? AND type = 'learning' AND superseded_at IS NULL`,
+  ).all(sourceFile).map((row) => row.id);
 }
 
-function isWithinRoot(root: string, candidate: string): boolean {
-  const rel = path.relative(root, candidate);
-  return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
-}
-
-function listDirs(root: string): string[] {
-  const dirs = [root];
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    if (entry.name === '.git' || entry.name === 'node_modules') continue;
-    dirs.push(...listDirs(path.join(root, entry.name)));
-  }
-  return dirs;
-}
-
-function listMarkdownFiles(root: string): string[] {
-  const files: string[] = [];
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-    const fullPath = path.join(root, entry.name);
-    if (entry.isDirectory()) files.push(...listMarkdownFiles(fullPath));
-    else if (entry.isFile() && isMarkdownFile(fullPath)) files.push(fullPath);
-  }
-  return files;
-}
-
-function watchDir(dir: string, onFileEvent: (filePath: string) => void): fs.FSWatcher | null {
-  try {
-    return fs.watch(dir, { persistent: false }, (_event, filename) => {
-      if (filename) onFileEvent(path.join(dir, filename));
-    });
-  } catch {
-    return null;
-  }
+function shouldAutoStore(sourceFile: string): boolean {
+  return isPsiLearnSource(sourceFile) || isMemoryLearningSource(sourceFile);
 }
 
 /**
@@ -151,9 +105,9 @@ export function startLearnWatcher({
 
     const sourceFile = normalizeSourceFile(root, fullPath);
     let ids = existingLearningIds(db, sourceFile);
-    if (ids.length === 0 && isPsiLearnSource(sourceFile)) {
+    if (ids.length === 0 && shouldAutoStore(sourceFile)) {
       try {
-        ids = storeSqliteDocuments(db, readPsiLearnDocuments(root, fullPath));
+        ids = storeSqliteDocuments(db, readLearningDocuments(root, fullPath));
       } catch (error) {
         console.warn(`[learn-watch] failed to index ${sourceFile}:`, error);
         return;
@@ -179,9 +133,8 @@ export function startLearnWatcher({
 
   for (const sourceRoot of roots) addWatchers(sourceRoot);
 
-  const psiLearnRoot = path.join(root, PSI_LEARN_REL);
-  if (fs.existsSync(psiLearnRoot)) {
-    for (const filePath of listMarkdownFiles(psiLearnRoot)) {
+  for (const sourceRoot of roots) {
+    for (const filePath of listFiles(sourceRoot, isMarkdownFile)) {
       const sourceFile = normalizeSourceFile(root, filePath);
       if (existingLearningIds(db, sourceFile).length === 0) indexOrQueue(filePath);
     }

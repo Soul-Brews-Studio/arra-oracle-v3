@@ -125,6 +125,31 @@ describe('startLearnWatcher', () => {
     stop();
   });
 
+
+  it('stores and enqueues new ψ/memory/learnings markdown files', async () => {
+    const learnDir = path.join(repoRoot, 'ψ', 'memory', 'learnings');
+    const filePath = path.join(learnDir, 'fresh.md');
+
+    fs.mkdirSync(learnDir, { recursive: true });
+    fs.writeFileSync(filePath, '# Fresh\n\n## Lesson\n\nMemory learn files should auto-index too.', 'utf8');
+
+    const stop = startLearnWatcher({ db, models: MODELS, repoRoot, debounceMs: 20 });
+    await wait(300);
+
+    const docs = db.query<{ source_file: string }>(
+      'SELECT source_file FROM oracle_documents ORDER BY id',
+    ).all() as { source_file: string }[];
+    expect(docs).toEqual([{ source_file: 'ψ/memory/learnings/fresh.md' }]);
+
+    const fts = db.query<{ count: number }, []>('SELECT COUNT(*) AS count FROM oracle_fts').get() as { count: number };
+    expect(fts.count).toBe(1);
+
+    const jobs = db.query<{ count: number }, []>('SELECT COUNT(*) AS count FROM indexing_jobs').get() as { count: number };
+    expect(jobs.count).toBe(Object.keys(MODELS).length);
+
+    stop();
+  });
+
   it('does nothing for non-markdown files', async () => {
     const learnDir = path.join(repoRoot, 'ψ', 'memory', 'learnings');
     const filePath = path.join(learnDir, 'note.txt');
