@@ -11,6 +11,12 @@ function apiBase(): string {
 function json(data: unknown): string {
   return JSON.stringify(data, null, 2);
 }
+function wantsJson(args: string[]): boolean {
+  return args.includes("--json");
+}
+function compact(value: unknown): string {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
 function bool(value: string | undefined): boolean {
   if (value === "true") return true;
   if (value === "false") return false;
@@ -66,6 +72,31 @@ function rows(payload: any) {
   }));
 }
 
+function formatTable(payload: any): string {
+  const lines = ["Collection | Adapter | Model | Enabled | Docs | Status"];
+  for (const row of rows(payload)) {
+    const mark = row.primary ? " ★" : "";
+    lines.push(`${row.collection ?? row.key}${mark} | ${row.adapter ?? "lancedb"} | ${row.model ?? row.key} | ${row.enabled} | ${row.docs} | ${row.status}`);
+  }
+  if (lines.length === 1) lines.push("(none) | - | - | true | 0 | unknown");
+  const embedder = payload.config?.embedder ? `Embedder: ${compact(JSON.stringify(payload.config.embedder))}` : undefined;
+  const data = payload.config?.dataPath ? `Data: ${payload.config.dataPath}` : undefined;
+  return [lines.join("\n"), "★ = primary", embedder, data].filter(Boolean).join("\n");
+}
+
+function formatCollection(payload: any, key: string): string {
+  const row = rows(payload).find((item) => item.key === key) ?? {};
+  return [
+    `collection: ${(row as any).collection ?? key}`,
+    `key: ${key}`,
+    `adapter: ${(row as any).adapter ?? "lancedb"}`,
+    `model: ${(row as any).model ?? key}`,
+    `enabled: ${(row as any).enabled ?? true}`,
+    `docs: ${(row as any).docs ?? 0}`,
+    `status: ${(row as any).status ?? "unknown"}`,
+  ].join("\n");
+}
+
 function fieldPayload(args: string[]): Record<string, unknown> {
   const rest = clean(args);
   const payload: Record<string, unknown> = {};
@@ -96,12 +127,11 @@ async function readOne(sub: string, rest: string[]): Promise<CliResult> {
   const collection =
     sub === "get"
       ? requireArg(rest[0], "usage: vector-config get <collection>")
-      : rest[0];
-  if (!collection)
-    return {
-      ok: true,
-      output: json({ source: payload.source, collections: rows(payload) }),
-    };
+      : rest.find((arg) => !arg.startsWith("--"));
+  if (!collection) {
+    const body = { source: payload.source, collections: rows(payload) };
+    return { ok: true, output: wantsJson(rest) ? json(body) : formatTable(payload) };
+  }
   const key = resolveKey(payload, collection);
   if (!key) throw new Error(`unknown collection: ${collection}`);
   const row = rows(payload).find((item) => item.key === key) ?? {};
@@ -115,7 +145,7 @@ async function readOne(sub: string, rest: string[]): Promise<CliResult> {
           health: payload.health?.[key],
         }
       : { source: payload.source, ...(row as object) };
-  return { ok: true, output: json(body) };
+  return { ok: true, output: wantsJson(rest) ? json(body) : formatCollection(payload, key) };
 }
 
 export async function vectorConfigCli(args: string[]): Promise<CliResult> {
@@ -124,14 +154,8 @@ export async function vectorConfigCli(args: string[]): Promise<CliResult> {
     const sub = raw.toLowerCase();
     if (sub === "list") {
       const payload = await request(VECTOR_ENDPOINT);
-      return {
-        ok: true,
-        output: json({
-          source: payload.source,
-          count: rows(payload).length,
-          collections: rows(payload),
-        }),
-      };
+      const body = { source: payload.source, count: rows(payload).length, collections: rows(payload) };
+      return { ok: true, output: wantsJson(rest) ? json(body) : formatTable(payload) };
     }
     if (sub === "stats" || sub === "get") return readOne(sub, rest);
     if (sub === "set")
@@ -156,7 +180,8 @@ export async function vectorConfigCli(args: string[]): Promise<CliResult> {
           ),
         ),
       };
-    if (sub === "remove" || sub === "rm")
+    if (sub === "remove" || sub === "rm") {
+      if (!rest.includes("--yes") && !rest.includes("-y")) throw new Error("remove requires --yes");
       return {
         ok: true,
         output: json(
@@ -166,6 +191,7 @@ export async function vectorConfigCli(args: string[]): Promise<CliResult> {
           ),
         ),
       };
+    }
     if (sub === "set-primary" || sub === "primary")
       return {
         ok: true,

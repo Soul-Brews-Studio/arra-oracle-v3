@@ -107,27 +107,51 @@ describe("built-in arra plugin", () => {
     }
   });
 
-  test("delegates maw arra vector-config to the vector config CLI", async () => {
+  test("delegates maw arra vector-config read and write commands", async () => {
     const { arraCli } = await import("../arra/index.ts");
+    const calls: Array<{ method: string; path: string; body?: any }> = [];
     const state = {
       source: "file",
-      config: { collections: { phase1: { collection: "phase1_collection", model: "bge-m3", provider: "none", adapter: "lancedb" } } },
+      config: {
+        dataPath: "/tmp/lancedb",
+        collections: {
+          phase1: { collection: "phase1_collection", model: "bge-m3", provider: "none", adapter: "lancedb", primary: true },
+        },
+      },
       doc_counts: { phase1: 3 },
       health: { phase1: { ok: true, status: "ok", collection: "phase1_collection", adapter: "lancedb" } },
     };
     const server = Bun.serve({
       port: 0,
-      fetch(req) {
-        if (new URL(req.url).pathname === "/api/v1/vector/config") return Response.json(state);
+      async fetch(req) {
+        const url = new URL(req.url);
+        calls.push({ method: req.method, path: url.pathname, body: req.body ? await req.json() : undefined });
+        if (url.pathname === "/api/v1/vector/config" && req.method === "GET") return Response.json(state);
+        if (url.pathname.startsWith("/api/v1/vector/config/")) return Response.json({ success: true, collection: "phase1" });
+        if (url.pathname === "/api/v1/vector/config/reload") return Response.json({ success: true, reloaded: true });
         return Response.json({ error: "not found" }, { status: 404 });
       },
     });
     const saved = process.env.ORACLE_API;
     process.env.ORACLE_API = String(server.url);
     try {
-      const result = await arraCli({ source: "cli", plugin: "arra", args: ["vector-config", "list", "--json"] });
-      const payload = JSON.parse(result.output!);
-      expect(payload.collections[0]).toMatchObject({ key: "phase1", docs: 3, status: "ok" });
+      const table = await arraCli({ source: "cli", plugin: "arra", args: ["vector-config"] });
+      expect(table.output).toContain("Collection | Adapter | Model | Enabled | Docs | Status");
+      expect(table.output).toContain("phase1_collection ★ | lancedb | bge-m3 | true | 3 | ok");
+
+      const raw = await arraCli({ source: "cli", plugin: "arra", args: ["vector-config", "list", "--json"] });
+      expect(JSON.parse(raw.output!).collections[0]).toMatchObject({ key: "phase1", docs: 3, status: "ok" });
+
+      const set = await arraCli({ source: "cli", plugin: "arra", args: ["vector-config", "set", "phase1", "adapter", "qdrant", "--url", "http://localhost:6333"] });
+      expect(set.ok).toBe(true);
+      expect(calls.at(-1)).toMatchObject({ method: "PUT", path: "/api/v1/vector/config/phase1", body: { adapter: "qdrant", endpoint: "http://localhost:6333" } });
+
+      const blocked = await arraCli({ source: "cli", plugin: "arra", args: ["vector-config", "remove", "phase1"] });
+      expect(blocked).toEqual({ ok: false, error: "remove requires --yes" });
+
+      const removed = await arraCli({ source: "cli", plugin: "arra", args: ["vector-config", "remove", "phase1", "--yes"] });
+      expect(removed.ok).toBe(true);
+      expect(calls.at(-1)).toMatchObject({ method: "DELETE", path: "/api/v1/vector/config/phase1" });
     } finally {
       if (saved === undefined) delete process.env.ORACLE_API;
       else process.env.ORACLE_API = saved;
