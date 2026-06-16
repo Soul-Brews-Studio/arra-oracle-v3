@@ -1,9 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ErrorMessage, Spinner } from './AsyncState';
-import { type VectorConfigAdapter, type VectorConfigRow, fetchJson } from '../pages/vectorSettingsHelpers';
-
-const SWITCHABLE_ADAPTERS = ['lancedb', 'qdrant'] as const satisfies readonly VectorConfigAdapter[];
-type SwitchableAdapter = (typeof SWITCHABLE_ADAPTERS)[number];
+import { ADAPTER_OPTIONS, type VectorConfigAdapter, type VectorConfigRow, fetchJson } from '../pages/vectorSettingsHelpers';
 
 interface VectorAdapterSwitcherProps {
   rows: VectorConfigRow[];
@@ -31,18 +28,18 @@ function currentAdapter(rows: VectorConfigRow[]): string {
   return unique.size === 1 ? rows[0]?.adapter ?? 'none' : 'mixed';
 }
 
-function targetLabel(adapter: SwitchableAdapter): string {
-  return adapter === 'lancedb' ? 'Use LanceDB' : 'Use Qdrant';
+function targetLabel(adapter: VectorConfigAdapter): string {
+  return `Use ${adapter}`;
 }
 
 export function VectorAdapterSwitcher({ rows, onRefresh }: VectorAdapterSwitcherProps) {
-  const [saving, setSaving] = useState<SwitchableAdapter | null>(null);
+  const [saving, setSaving] = useState<VectorConfigAdapter | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const summary = useMemo(() => adapterStatus(rows), [rows]);
   const activeAdapter = useMemo(() => currentAdapter(rows), [rows]);
 
-  async function switchAdapter(adapter: SwitchableAdapter) {
+  async function switchAdapter(adapter: VectorConfigAdapter) {
     const changedRows = rows.filter((row) => row.adapter !== adapter);
     setSaving(adapter);
     setMessage('');
@@ -69,11 +66,11 @@ export function VectorAdapterSwitcher({ rows, onRefresh }: VectorAdapterSwitcher
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-300">Adapter switcher</p>
-          <h2 id="vector-adapter-switcher-title" className="mt-2 text-2xl font-semibold text-white">LanceDB / Qdrant backend</h2>
-          <p className="mt-2 text-sm text-slate-400">Toggle all vector collections between local LanceDB and Qdrant backends.</p>
+          <h2 id="vector-adapter-switcher-title" className="mt-2 text-2xl font-semibold text-white">Vector backend adapter</h2>
+          <p className="mt-2 text-sm text-slate-400">Switch all vector collections across built-in and proxy-capable adapters.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {SWITCHABLE_ADAPTERS.map((adapter) => (
+          {ADAPTER_OPTIONS.map((adapter) => (
             <button
               className="focus-ring rounded-xl border border-cyan-300/30 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={Boolean(saving) || !rows.length}
