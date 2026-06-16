@@ -28,7 +28,7 @@ class OracleApiUnavailableError extends Error {
 export function resolveOracleApiBase(): string | null {
   const trimmed = configuredApiBase();
   if (!trimmed || EMBEDDED_API_VALUES.has(trimmed.toLowerCase())) return null;
-  return trimmed.replace(/\/+$/, '');
+  return normalizeApiBase(trimmed);
 }
 
 function configuredApiBase(): string | null {
@@ -41,9 +41,25 @@ function configuredApiBase(): string | null {
 
 function cleanQueryValue(value: unknown): string | undefined {
   if (value === undefined || value === null) return undefined;
-  if (typeof value === 'string') return value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || undefined;
+  }
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   return undefined;
+}
+
+function normalizeApiBase(raw: string): string | null {
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    url.search = '';
+    url.hash = '';
+    url.pathname = url.pathname.replace(/\/+$/, '');
+    return url.toString().replace(/\/+$/, '');
+  } catch {
+    return raw.replace(/\/+$/, '') || null;
+  }
 }
 
 function queryFrom(input: Record<string, unknown>, fields: Record<string, string>): Record<string, string> {

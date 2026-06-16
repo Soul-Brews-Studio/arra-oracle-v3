@@ -97,6 +97,20 @@ function sourceFileForMarkdown(repoRoot: string, filePath: string): string {
   return path.relative(repoRoot, filePath).split(path.sep).join('/');
 }
 
+function positiveNumber(value: unknown, fallback: number): number {
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+function positiveInteger(value: unknown, fallback: number): number {
+  return Math.max(1, Math.floor(positiveNumber(value, fallback)));
+}
+
+function validWatermark(value: unknown, now: number): number | undefined {
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) && number >= 0 && number <= now ? number : undefined;
+}
+
 function safeSessionIdFromFile(filePath: string): string {
   return path.basename(filePath).replace(/\.jsonl$/i, '');
 }
@@ -142,13 +156,14 @@ async function markdownIndexed(sourceFile: string): Promise<boolean> {
 }
 
 export async function sweepHuginn(options: HuginnSweepOptions = {}): Promise<HuginnSweepSummary> {
-  const now = options.now ?? Date.now();
+  const now = Number.isFinite(options.now) ? options.now! : Date.now();
   const statePath = options.statePath ?? defaultStatePath();
   const state = readSweepState(statePath);
-  const lookbackMs = (options.lookbackHours ?? Number(process.env.ARRA_HUGINN_SWEEP_LOOKBACK_HOURS || 24)) * 60 * 60 * 1000;
-  const watermarkBeforeMs = state.sweeps?.lastSweepAtMs;
+  const lookbackHours = positiveNumber(options.lookbackHours ?? process.env.ARRA_HUGINN_SWEEP_LOOKBACK_HOURS ?? 24, 24);
+  const lookbackMs = lookbackHours * 60 * 60 * 1000;
+  const watermarkBeforeMs = validWatermark(state.sweeps?.lastSweepAtMs, now);
   const sinceMs = watermarkBeforeMs ?? now - lookbackMs;
-  const maxFiles = options.maxFiles ?? Number(process.env.ARRA_HUGINN_SWEEP_MAX_FILES || 200);
+  const maxFiles = positiveInteger(options.maxFiles ?? process.env.ARRA_HUGINN_SWEEP_MAX_FILES ?? 200, 200);
   const files: HuginnSweepSummary['files'] = [];
   const summary: HuginnSweepSummary = {
     ok: true,
@@ -191,7 +206,6 @@ export async function sweepHuginn(options: HuginnSweepOptions = {}): Promise<Hug
   const repoRoot = options.repoRoot ?? REPO_ROOT;
   const learningsDir = path.join(repoRoot, 'ψ', 'memory', 'learnings');
   const markdowns: string[] = [];
-  walkRecentFiles(learningsDir, sinceMs, [], 0); // no-op guard for missing dir parity
   if (fs.existsSync(learningsDir)) {
     const collectMd = (dir: string) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

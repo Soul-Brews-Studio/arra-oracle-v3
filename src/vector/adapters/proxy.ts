@@ -61,6 +61,7 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
   }
 
   async addDocuments(docs: VectorDocument[]): Promise<void> {
+    if (docs.length === 0) return;
     const body: VectorProxyAddRequest = { documents: docs };
     await this.post(VECTOR_PROXY_ROUTES.add, body);
   }
@@ -71,7 +72,7 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
   }
 
   async query(text: string, limit: number = 10, where?: Record<string, any>): Promise<VectorQueryResult> {
-    const body: VectorProxyQueryRequest = { text, limit, ...(where ? { where } : {}) };
+    const body: VectorProxyQueryRequest = { text, limit: normalizeLimit(limit), ...(where ? { where } : {}) };
     return this.postJson<VectorProxyQueryResponse>(VECTOR_PROXY_ROUTES.query, body);
   }
 
@@ -107,7 +108,7 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
 
   private async proxyStats(): Promise<VectorProxyStatsResponse> {
     const stats = await this.fetchJson<VectorProxyStatsResponse>(VECTOR_PROXY_ROUTES.stats);
-    return { count: stats?.count ?? 0, name: stats?.name || this.collectionName };
+    return { count: nonNegativeCount(stats?.count), name: displayName(stats?.name, this.collectionName) };
   }
 
   private async health(): Promise<VectorProxyHealthResponse> {
@@ -163,4 +164,16 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
     const body = await res.text().catch(() => '');
     throw new Error(`Proxy vector request failed: ${res.status} ${res.statusText} ${body}`);
   }
+}
+
+function normalizeLimit(limit: number): number {
+  return Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 10;
+}
+
+function nonNegativeCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
+}
+
+function displayName(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }

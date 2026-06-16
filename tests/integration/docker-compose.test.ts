@@ -84,7 +84,7 @@ test('docker compose prod stack serves versioned health and menu as non-root', a
     const health = await jsonGet(`${baseUrl}/api/v1/health`);
     expect(health.response.status).toBe(200);
     expect(health.response.headers.get('X-API-Version')).toBe('v1');
-    expect(health.body).toMatchObject({ status: 'ok', server: 'arra-oracle-v3', dbStatus: 'ok' });
+    expect(health.body).toMatchObject({ status: 'ok', server: 'arra-oracle-v3', dbStatus: 'connected' });
 
     const menu = await jsonGet(`${baseUrl}/api/v1/menu`);
     expect(menu.response.status).toBe(200);

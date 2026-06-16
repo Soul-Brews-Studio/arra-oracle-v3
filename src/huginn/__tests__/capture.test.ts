@@ -116,4 +116,16 @@ describe('Huginn session capture', () => {
     const result = await captureSession({ transcriptPath: transcript, learn: () => { throw new Error('should not learn'); } });
     expect(result.skipped).toBe('empty');
   });
+
+  it('treats directory transcript paths as missing instead of throwing', async () => {
+    const dir = tmpdir();
+    const mined = mineSessionJsonl(dir);
+    const result = await captureSession({
+      transcriptPath: dir,
+      learn: () => { throw new Error('should not learn'); },
+    });
+
+    expect(mined).toEqual({ moments: [], hash: '', sourceText: '' });
+    expect(result.skipped).toBe('missing-transcript');
+  });
 });
