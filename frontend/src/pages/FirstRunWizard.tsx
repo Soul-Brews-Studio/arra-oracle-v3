@@ -6,6 +6,24 @@ type WizardStep = 0 | 1 | 2 | 3;
 type Provider = { type: string; available?: boolean; configured?: boolean; models?: string[]; error?: string; status?: string };
 type ProvidersResponse = { checkedAt?: string; providers?: Provider[] };
 type StatsResponse = { total?: number; total_docs?: number; vector?: { enabled?: boolean; count?: number } };
+type CostEstimate = {
+  docs: number;
+  tokensPerDoc: number;
+  totalTokens: number;
+  provider: string;
+  model: string;
+  estimatedUsd: number;
+  formula: string;
+  note: string;
+  recommendation: string;
+};
+
+export type FirstRunWizardProps = {
+  rows: VectorConfigRow[];
+  onRefresh: () => Promise<void> | void;
+  initialStep?: WizardStep;
+  initialCost?: CostEstimate | null;
+};
 
 const steps = ['Welcome', 'Provider', 'Vault + index', 'Done'] as const;
 
@@ -19,10 +37,11 @@ function firstRun(stats: StatsResponse | null, rows: VectorConfigRow[]): boolean
   return total === 0 || vectorCount === 0;
 }
 
-export function FirstRunWizard({ rows, onRefresh }: { rows: VectorConfigRow[]; onRefresh: () => Promise<void> | void }) {
-  const [step, setStep] = useState<WizardStep>(0);
+export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost = null }: FirstRunWizardProps) {
+  const [step, setStep] = useState<WizardStep>(initialStep);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [stats, setStats] = useState<StatsResponse | null>(null);
+  const [cost, setCost] = useState<CostEstimate | null>(initialCost);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -33,11 +52,13 @@ export function FirstRunWizard({ rows, onRefresh }: { rows: VectorConfigRow[]; o
     let active = true;
     Promise.allSettled([
       fetchJson<ProvidersResponse>('/api/v1/vector/providers'),
-      fetchJson<StatsResponse>('/api/stats'),
-    ]).then(([providerResult, statsResult]) => {
+      fetchJson<StatsResponse>('/api/v1/stats'),
+      fetchJson<CostEstimate>('/api/v1/vector/cost-estimate'),
+    ]).then(([providerResult, statsResult, costResult]) => {
       if (!active) return;
       if (providerResult.status === 'fulfilled') setProviders(providerResult.value.providers ?? []);
       if (statsResult.status === 'fulfilled') setStats(statsResult.value);
+      if (costResult.status === 'fulfilled') setCost(costResult.value);
     });
     return () => { active = false; };
   }, []);
@@ -62,7 +83,7 @@ export function FirstRunWizard({ rows, onRefresh }: { rows: VectorConfigRow[]; o
     setBusy(true);
     setError('');
     try {
-      await fetchJson('/api/vector/index/start', { method: 'POST', body: JSON.stringify({ model }) });
+      await fetchJson('/api/v1/vector/index/start', { method: 'POST', body: JSON.stringify({ model }) });
       setStep(3);
       setMessage(`Started indexing ${model}. Track progress in the Index Manager.`);
     } catch (cause) {
@@ -84,7 +105,7 @@ export function FirstRunWizard({ rows, onRefresh }: { rows: VectorConfigRow[]; o
       </div>
 
       {step === 1 ? <ProviderList providers={providers} /> : null}
-      {step === 2 ? <VaultPlan rows={rows} /> : null}
+      {step === 2 ? <VaultPlan rows={rows} cost={cost} /> : null}
       {message ? <p className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-sm text-purple-100">{message}</p> : null}
       {error ? <div className="mt-4"><ErrorMessage title="First-run step failed." message={error} /></div> : null}
 
@@ -101,7 +122,7 @@ export function FirstRunWizard({ rows, onRefresh }: { rows: VectorConfigRow[]; o
 function copyFor(step: WizardStep, firstRun: boolean, provider?: Provider): string {
   if (step === 0) return firstRun ? 'No complete vector index was detected. Start here to choose a provider and build the first index.' : 'Vector search is configured; use this wizard to refresh provider detection or onboard a new vault.';
   if (step === 1) return provider ? `Recommended provider: ${provider.type}. Choose a configured provider before indexing.` : 'No providers reported yet; run auto-detect or configure keys.';
-  if (step === 2) return 'Select the primary collection, confirm vault/source docs, then start indexing.';
+  if (step === 2) return 'Review the primary collection, estimated cost, and recommendation before indexing.';
   return 'Indexing has started. The Index Manager shows live progress and completion state.';
 }
 
@@ -110,7 +131,30 @@ function ProviderList({ providers }: { providers: Provider[] }) {
   return <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{providers.map((provider) => <div key={provider.type} className="rounded-2xl border border-white/10 bg-slate-950/50 p-3"><p className="font-semibold text-purple-100">{provider.type}</p><p className="text-sm text-slate-400">{provider.available ? 'available' : 'unavailable'} · {(provider.models ?? []).slice(0, 2).join(', ') || 'no models'}</p></div>)}</div>;
 }
 
-function VaultPlan({ rows }: { rows: VectorConfigRow[] }) {
+function VaultPlan({ rows, cost }: { rows: VectorConfigRow[]; cost: CostEstimate | null }) {
   const primary = rows.find((row) => row.primary) ?? rows[0];
-  return <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-sm text-purple-100"><p>Primary collection: <span className="font-semibold">{primary?.collection ?? 'none'}</span></p><p className="mt-1 text-purple-100/70">Vault selection is represented by indexed source documents; use Index now to backfill vectors for the primary model.</p></div>;
+  return (
+    <div className="mt-4 grid gap-3 text-sm text-purple-100 lg:grid-cols-[1fr_1.3fr]">
+      <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+        <p>Primary collection: <span className="font-semibold">{primary?.collection ?? 'none'}</span></p>
+        <p className="mt-1 text-purple-100/70">Vault selection is represented by indexed source documents; use Index now to backfill vectors for the primary model.</p>
+      </div>
+      <div className="rounded-2xl border border-teal-200/20 bg-teal-200/10 p-4">
+        <p className="font-semibold text-teal-100">Estimated embedding cost</p>
+        {cost ? <CostSummary cost={cost} /> : <p className="mt-2 text-teal-100/70">Cost estimate will appear after provider detection completes.</p>}
+      </div>
+    </div>
+  );
+}
+
+function CostSummary({ cost }: { cost: CostEstimate }) {
+  return (
+    <div className="mt-2 space-y-2 text-teal-50/85">
+      <p>{cost.docs.toLocaleString()} docs · {cost.tokensPerDoc.toLocaleString()} tokens/doc · {cost.totalTokens.toLocaleString()} tokens total</p>
+      <p>{cost.provider} / {cost.model}: <span className="font-semibold text-teal-100">${cost.estimatedUsd.toFixed(4)}</span></p>
+      <p className="text-teal-100/70">{cost.formula}</p>
+      <p><span className="font-semibold text-teal-100">Recommendation:</span> {cost.recommendation}</p>
+      <p className="text-teal-100/70">{cost.note}</p>
+    </div>
+  );
 }
