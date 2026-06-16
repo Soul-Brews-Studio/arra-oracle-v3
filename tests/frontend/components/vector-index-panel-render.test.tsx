@@ -18,6 +18,12 @@ describe('VectorIndexPanel', () => {
     const html = htmlFor(
       <VectorIndexPanel
         initialStatus={status}
+        initialCostEstimate={{
+          formula: '100 docs × ~500 tokens/doc ≈ 50K tokens',
+          provider: 'openai',
+          estimatedUsd: 0.001,
+          recommendation: 'Any configured embedding model should work.',
+        }}
         initialModels={{
           'bge-m3': { collection: 'oracle_bge_m3', model: 'BAAI/bge-m3', adapter: 'lancedb', count: 100 },
           qwen3: { collection: 'oracle_qwen3', model: 'Qwen3', adapter: 'lancedb', count: 80 },
@@ -30,6 +36,9 @@ describe('VectorIndexPanel', () => {
     expect(html).toContain('Vault list');
     expect(html).toContain('Vector Models');
     expect(html).toContain('75 docs need backfill');
+    expect(html).toContain('Preflight cost before Index Now');
+    expect(html).toContain('100 docs × ~500 tokens/doc ≈ 50K tokens');
+    expect(html).toContain('$0.0010');
     expect(html).toContain('Index Now');
     expect(html).toContain('Backfill Vectors');
     expect(html).toContain('Add Vault');
