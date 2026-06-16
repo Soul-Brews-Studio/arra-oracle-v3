@@ -35,7 +35,7 @@ describe('Huginn session capture', () => {
     const transcript = path.join(dir, 'session.jsonl');
     writeJsonl(transcript, [
       { message: { role: 'user', content: 'hello there' } },
-      { message: { role: 'assistant', content: 'Decision: keep /api/feed local and add peer feed at /api/peer/feed.' } },
+      { message: { role: 'assistant', content: 'Decision: keep /api/feed local and add export jobs under /api/v1/export/app.' } },
       { message: { role: 'assistant', content: [{ type: 'text', text: 'Fixed regression in src/gateway/config.ts; bun test is green.' }] } },
       { message: { role: 'assistant', content: 'PR #1356 merged and issue #44 closed.' } },
     ]);
@@ -44,7 +44,7 @@ describe('Huginn session capture', () => {
     expect(mined.moments.length).toBe(3);
     expect(mined.moments.map((m) => m.kind)).toContain('decision');
     expect(mined.moments.map((m) => m.kind)).toContain('command');
-    expect(mined.sourceText).toContain('/api/peer/feed');
+    expect(mined.sourceText).toContain('/api/v1/export/app');
     expect(mined.hash).toMatch(/^[a-f0-9]{64}$/);
   });
 

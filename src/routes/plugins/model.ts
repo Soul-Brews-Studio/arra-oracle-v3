@@ -128,16 +128,12 @@ export function readNestedPlugin(
 
   // Try manifest path as-is, then fall back to basename (plugins copied flat
   // by `arra-cli plugin install` keep the source path in manifest.wasm).
-  let wasmPath: string | undefined;
+  let wasmPath = containedPluginPath(dir, wasmName);
   let resolvedName = wasmName;
-  try {
-    wasmPath = resolveContainedPluginEntry(dir, wasmName);
-  } catch {
-    wasmPath = undefined;
-  }
   if (!wasmPath || !existsSync(wasmPath)) {
     const baseName = basename(wasmName);
-    const basePath = resolveContainedPluginEntry(dir, baseName);
+    const basePath = containedPluginPath(dir, baseName);
+    if (!basePath) return null;
     if (!existsSync(basePath)) {
       if (!server) return null;
       const st = statSync(manifestPath);
@@ -153,6 +149,14 @@ export function readNestedPlugin(
     size: st.size,
     modified: st.mtime.toISOString(),
   };
+}
+
+function containedPluginPath(dir: string, wasmName: string): string | null {
+  try {
+    return resolveContainedPluginEntry(dir, wasmName);
+  } catch {
+    return null;
+  }
 }
 
 export function readFlatPlugin(file: string, dir = currentPluginDir()): PluginEntry {
@@ -173,15 +177,10 @@ export function resolveWasmPath(name: string, dir = currentPluginDir()): string 
       const manifest = JSON.parse(readFileSync(nestedManifest, 'utf8'));
       if (manifest.wasm && typeof manifest.wasm === 'string') {
         const pluginDir = join(dir, name);
-        let full: string | undefined;
-        try {
-          full = resolveContainedPluginEntry(pluginDir, manifest.wasm);
-        } catch {
-          full = undefined;
-        }
+        const full = containedPluginPath(pluginDir, manifest.wasm);
         if (full && existsSync(full)) return full;
-        const base = resolveContainedPluginEntry(pluginDir, basename(manifest.wasm));
-        if (existsSync(base)) return base;
+        const base = containedPluginPath(pluginDir, basename(manifest.wasm));
+        if (base && existsSync(base)) return base;
       }
     } catch {
       // fall through to flat
