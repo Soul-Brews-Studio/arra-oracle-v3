@@ -1,6 +1,7 @@
-import { desc, inArray, like, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, like, or, type SQL } from 'drizzle-orm';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import { db as defaultDb, oracleMemories } from '../../db/index.ts';
+import { currentTenantId, tenantIdForWrite } from '../../middleware/tenant.ts';
 import type * as schema from '../../db/schema.ts';
 
 export type MemoryInput = {
@@ -12,6 +13,7 @@ export type MemoryInput = {
 
 export type MemoryRecord = MemoryInput & {
   id: string;
+  tenantId?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -28,6 +30,7 @@ export class MemoryStore {
     const now = Date.now();
     const row = this.database.insert(oracleMemories).values({
       id: `mem_${now.toString(36)}_${crypto.randomUUID().slice(0, 8)}`,
+      tenantId: tenantIdForWrite(),
       content,
       title: input.title?.trim() || null,
       tags: JSON.stringify(cleanTags(input.tags)),
@@ -41,27 +44,42 @@ export class MemoryStore {
   recall(query = '', limit = 10): MemoryRecord[] {
     const normalized = query.trim();
     const safeLimit = Math.min(50, Math.max(1, limit));
-    const base = this.database.select().from(oracleMemories);
-    const rows = normalized
-      ? base.where(or(
-        like(oracleMemories.content, `%${normalized}%`),
-        like(oracleMemories.title, `%${normalized}%`),
-        like(oracleMemories.tags, `%${normalized}%`),
-        like(oracleMemories.source, `%${normalized}%`),
-      )).orderBy(desc(oracleMemories.createdAt)).limit(safeLimit).all()
-      : base.orderBy(desc(oracleMemories.createdAt)).limit(safeLimit).all();
+    const where = combineWhere(tenantWhere(), searchWhere(normalized));
+    const selected = this.database.select().from(oracleMemories);
+    const rows = where
+      ? selected.where(where).orderBy(desc(oracleMemories.createdAt)).limit(safeLimit).all()
+      : selected.orderBy(desc(oracleMemories.createdAt)).limit(safeLimit).all();
     return rows.map(memoryFromRow);
   }
 
   getByIds(ids: string[]): MemoryRecord[] {
     if (!ids.length) return [];
-    const rows = this.database.select().from(oracleMemories)
-      .where(inArray(oracleMemories.id, ids))
-      .all();
+    const where = combineWhere(inArray(oracleMemories.id, ids), tenantWhere());
+    const rows = this.database.select().from(oracleMemories).where(where).all();
     const byId = new Map(rows.map((row) => [row.id, memoryFromRow(row)]));
     return ids.map((id) => byId.get(id)).filter((row): row is MemoryRecord => Boolean(row));
   }
 
+}
+
+function tenantWhere(): SQL | undefined {
+  const tenantId = currentTenantId();
+  return tenantId ? eq(oracleMemories.tenantId, tenantId) : undefined;
+}
+
+function searchWhere(query: string): SQL | undefined {
+  if (!query) return undefined;
+  return or(
+    like(oracleMemories.content, `%${query}%`),
+    like(oracleMemories.title, `%${query}%`),
+    like(oracleMemories.tags, `%${query}%`),
+    like(oracleMemories.source, `%${query}%`),
+  );
+}
+
+function combineWhere(...clauses: Array<SQL | undefined>): SQL | undefined {
+  const present = clauses.filter((clause): clause is SQL => Boolean(clause));
+  return present.length > 1 ? and(...present) : present[0];
 }
 
 function cleanTags(tags: string[] = []): string[] {
@@ -79,6 +97,7 @@ function tagsFrom(value: string): string[] {
 function memoryFromRow(row: MemoryRow): MemoryRecord {
   return {
     id: row.id,
+    tenantId: row.tenantId,
     content: row.content,
     title: row.title ?? undefined,
     tags: tagsFrom(row.tags),
