@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient, type ApiClient } from '../api/client';
+import { setPluginEnabled } from '../api/plugin-admin';
 import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
-import { pluginStatusLabel, isPluginEnabled, togglePluginEnabled, type PluginEnabledState } from '../components/PluginList';
+import { pluginStatusLabel, isPluginEnabled, type PluginEnabledState } from '../components/PluginList';
 import { surfacesFor } from '../plugin-surfaces';
 import type { PluginEntry } from '../types';
 
@@ -37,10 +38,12 @@ function PluginsCards({
   plugins,
   enabledState,
   onToggle,
+  pending,
 }: {
   plugins: PluginEntry[];
   enabledState: PluginEnabledState;
-  onToggle: (name: string) => void;
+  onToggle: (name: string, enabled: boolean) => void;
+  pending: string | null;
 }) {
   if (!plugins.length) return <p className="text-sm text-slate-400">No plugins are registered.</p>;
 
@@ -83,11 +86,12 @@ function PluginsCards({
               <button
                 aria-label={`${enabled ? 'Disable' : 'Enable'} ${plugin.name}`}
                 aria-pressed={enabled}
-                className="focus-ring rounded-lg border border-teal-300/30 px-3 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-300/10"
+                className="focus-ring rounded-lg border border-teal-300/30 px-3 py-2 text-sm font-semibold text-teal-100 transition hover:bg-teal-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={pending === plugin.name}
                 type="button"
-                onClick={() => onToggle(plugin.name)}
+                onClick={() => onToggle(plugin.name, !enabled)}
               >
-                {enabled ? 'Disable' : 'Enable'}
+                {pending === plugin.name ? 'Saving…' : enabled ? 'Disable' : 'Enable'}
               </button>
             </div>
           </article>
@@ -101,6 +105,8 @@ export function PluginsPage({ plugins: initialPlugins = [], loading = true, clie
   const [plugins, setPlugins] = useState(initialPlugins);
   const [state, setState] = useState<PageState>(loading ? 'loading' : 'ready');
   const [error, setError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
+  const [pendingPlugin, setPendingPlugin] = useState<string | null>(null);
   const [enabledState, setEnabledState] = useState<PluginEnabledState>(() => enabledStateForPlugins(initialPlugins));
 
   useEffect(() => {
@@ -125,6 +131,20 @@ export function PluginsPage({ plugins: initialPlugins = [], loading = true, clie
   const summary = useMemo(() => pluginAdminSummary(plugins, enabledState), [plugins, enabledState]);
   const isLoading = state === 'loading';
 
+  async function togglePlugin(name: string, enabled: boolean) {
+    setPendingPlugin(name);
+    setActionMessage('');
+    try {
+      const response = await setPluginEnabled(name, enabled);
+      setEnabledState((current) => ({ ...current, [name]: response.enabled }));
+      setActionMessage(response.message);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setPendingPlugin(null);
+    }
+  }
+
   return (
     <div className="grid gap-5">
       <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="plugins-page-title">
@@ -133,12 +153,14 @@ export function PluginsPage({ plugins: initialPlugins = [], loading = true, clie
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Plugin admin</p>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Plugin list</p>
             <h2 id="plugins-page-title" className="mt-2 text-2xl font-semibold text-white">Registered plugins</h2>
-            <p className="mt-2 text-sm text-slate-400">Loaded from GET /api/v1/plugins with local enable/disable controls.</p>
+            <p className="mt-2 text-sm text-slate-400">Loaded from GET /api/v1/plugins with manifest-backed enable/disable controls.</p>
           </div>
           <p className="rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300">{summary}</p>
         </div>
         {isLoading ? <LoadingPanel title="Loading plugins…" detail="Fetching /api/v1/plugins and plugin server manifests." /> : null}
         {state === 'error' ? <ErrorMessage title="Could not load plugins." message={error} /> : null}
+        {state !== 'error' && error ? <ErrorMessage title="Plugin action failed." message={error} /> : null}
+        {actionMessage ? <p className="mt-3 text-sm text-amber-200">{actionMessage}</p> : null}
       </section>
 
       <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-label="Plugin registry cards">
@@ -147,7 +169,8 @@ export function PluginsPage({ plugins: initialPlugins = [], loading = true, clie
           : <PluginsCards
               plugins={plugins}
               enabledState={enabledState}
-              onToggle={(name) => setEnabledState((current) => togglePluginEnabled(current, name))}
+              onToggle={(name, enabled) => void togglePlugin(name, enabled)}
+              pending={pendingPlugin}
             />}
       </section>
     </div>

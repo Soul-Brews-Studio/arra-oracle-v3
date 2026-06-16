@@ -34,6 +34,7 @@ export type PluginEntry = {
   modified: string;
   version?: string;
   description?: string;
+  enabled?: boolean;
   menu?: PluginMenu;
   server?: PublicUnifiedServerManifest;
 };
@@ -54,6 +55,7 @@ type RawPluginManifest = {
   name?: string;
   version?: string;
   description?: string;
+  enabled?: boolean;
   wasm?: string;
   menu?: unknown;
   server?: unknown;
@@ -107,6 +109,7 @@ export function readNestedPlugin(
     name: typeof manifest.name === 'string' && manifest.name ? manifest.name : entryName,
     version: typeof manifest.version === 'string' ? manifest.version : undefined,
     description: typeof manifest.description === 'string' ? manifest.description : undefined,
+    enabled: manifest.enabled !== false,
     menu: parseMenu(manifest.menu),
     server,
   };
@@ -148,6 +151,7 @@ export function readFlatPlugin(file: string): PluginEntry {
     file,
     size: st.size,
     modified: st.mtime.toISOString(),
+    enabled: true,
   };
 }
 
