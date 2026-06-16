@@ -57,6 +57,7 @@ import { createMenuRoutes, menuItemsFromUnifiedPlugins } from './routes/menu/ind
 import { peerRoutes } from './routes/peer/index.ts';
 import { createMcpRoutes } from './routes/mcp/index.ts';
 import { createMetricsLifecycle, metricsRoutes } from './routes/metrics/index.ts';
+import { exportRoutes } from './routes/export/index.ts';
 import { memoryRoutes } from './routes/memory/index.ts';
 import { canvasRoutes } from './routes/canvas/index.ts';
 import { tenantsRoutes } from './routes/tenants/index.ts';
@@ -195,6 +196,7 @@ const apiModules = [
   sessionsRoutes,
   vaultRoutes,
   metricsRoutes,
+  exportRoutes,
   memoryRoutes,
   canvasRoutes,
   tenantsRoutes,
@@ -242,7 +244,6 @@ await runStartupSelfTest({
 const serverFetch = createRequestTimeoutFetch(
   createRequestDedupFetch(createApiVersionedFetch(createTenantFetch(createDbContextFetch((request: Request) => app.fetch(request))))),
 );
-
 export default {
   port: Number(PORT),
   fetch: (request: Request) => drainingResponseFor(request) ?? trackRequest(() => serverFetch(request)),

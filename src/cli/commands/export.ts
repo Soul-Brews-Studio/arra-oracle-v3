@@ -104,7 +104,7 @@ function sectionHeader(name: string): string {
   return `# Collection: ${name}\n\n`;
 }
 
-async function buildAllVectorMarkdownPayload(): Promise<MarkdownSection> {
+export async function buildAllVectorMarkdownPayload(): Promise<MarkdownSection> {
   const models = getEmbeddingModels();
   const seenCollections = new Set<string>();
   const sections: MarkdownSection[] = [];
@@ -145,19 +145,19 @@ async function buildAllVectorMarkdownPayload(): Promise<MarkdownSection> {
   return sections.join("");
 }
 
-function buildOracleDocumentsMarkdownTableRows(connection: DatabaseConnection): MarkdownCollectionDump {
+export function buildOracleDocumentsMarkdownTableRows(connection: DatabaseConnection): MarkdownCollectionDump {
   const rows = connection.db.select().from(oracleDocuments).all() as MarkdownCollectionDump;
   return coerceRecordsForExport(rows);
 }
 
-async function buildMarkdownExportPayload(connection: DatabaseConnection): Promise<string> {
+export async function buildMarkdownExportPayload(connection: DatabaseConnection): Promise<string> {
   const vectorPayload = await buildAllVectorMarkdownPayload();
   const sqliteRows = buildOracleDocumentsMarkdownTableRows(connection);
   return `${vectorPayload}${sectionHeader(buildCollectionName("oracle_documents", "sqlite"))}`
     + `${JSON.stringify(sqliteRows, null, 2)}\n\n`;
 }
 
-async function buildVectorExportPayload(collection: string, format: string): Promise<string> {
+export async function buildVectorExportPayload(collection: string, format: string): Promise<string> {
   const store = getVectorStoreByModel(collection);
   try {
     await store.connect();
