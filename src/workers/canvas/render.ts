@@ -1,7 +1,12 @@
-import { findCanvasPlugin, listCanvasPlugins, type CanvasPluginDescriptor } from '../../canvas/plugins.ts';
-import { CANVAS_HOST, CANVAS_ORIGIN, DEFAULT_CANVAS_PLUGIN, canvasPluginPath } from '../../canvas/urls.ts';
-
-export type CanvasPlugin = CanvasPluginDescriptor;
+import {
+  CANVAS_HOST,
+  CANVAS_ORIGIN,
+  DEFAULT_CANVAS_PLUGIN,
+  canvasPluginPath,
+  findCanvasPlugin,
+  listCanvasPlugins,
+  type CanvasPlugin,
+} from '@soul-brews/canvas-plugins';
 
 const STUDIO_HOME = 'https://studio.buildwithoracle.com/';
 
