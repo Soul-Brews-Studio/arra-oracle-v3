@@ -33,6 +33,11 @@ export type CollectionHealth = {
   error?: string;
 };
 
+export type InspectCollectionOptions = {
+  allowMissingLocalIndex?: boolean;
+  ignoreGlobalDisabled?: boolean;
+};
+
 export function activeConfig(): { source: 'file' | 'defaults'; config: VectorServerConfig } {
   const fromDisk = loadVectorConfig(currentConfigPath());
   return { source: fromDisk ? 'file' : 'defaults', config: fromDisk ?? generateDefaultConfig() };
@@ -73,20 +78,22 @@ export async function inspectCollection(
   key: string,
   col: VectorCollectionConfig,
   config: VectorServerConfig,
+  options: InspectCollectionOptions = {},
 ): Promise<CollectionHealth> {
   const adapter = col.adapter || 'lancedb';
-  if (config.enabled !== true || col.enabled === false) {
+  if (col.enabled === false || (config.enabled !== true && !options.ignoreGlobalDisabled)) {
     return {
       key, collection: col.collection, model: col.model, provider: col.provider,
       adapter, service: col.service, endpoint: col.endpoint,
       enabled: false, count: 0, ok: false, status: 'disabled',
     };
   }
-  const unavailable = localNativeVectorDisabledReason(adapter) || localVectorIndexMissingReason({
-    type: adapter,
-    dataPath: col.dataPath ?? config.dataPath,
-    collectionName: col.collection,
-  });
+  const unavailable = localNativeVectorDisabledReason(adapter)
+    || (!options.allowMissingLocalIndex && localVectorIndexMissingReason({
+      type: adapter,
+      dataPath: col.dataPath ?? config.dataPath,
+      collectionName: col.collection,
+    }));
   if (unavailable) {
     return {
       key, collection: col.collection, model: col.model, provider: col.provider,

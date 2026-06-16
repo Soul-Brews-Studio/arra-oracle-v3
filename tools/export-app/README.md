@@ -23,6 +23,9 @@ https://studio.buildwithoracle.com/?api=http://localhost:47778
 
 Local batch exports under `tools/export-app` read SQLite directly. Use `--db`
 when the database is not at the default `ORACLE_DB_PATH` / configured data dir.
+The core document exporter reads the legacy Oracle v2 `oracle_documents` plus
+`oracle_fts` tables directly, so document Markdown preserves the original body
+content while JSON keeps the full database metadata.
 
 ## Supported Formats
 
@@ -62,6 +65,9 @@ bun run tools/export-app/index.ts --output ./backup/export-app --db ./oracle.db
 
 The batch output includes:
 
+- `documents/markdown/<source-or-id>.md`
+- `documents/json/<source-or-id>.json`
+- `documents/index.json`
 - `collections/<collection>.json`
 - `collections/<collection>.csv`
 - `collections/<collection>.md`

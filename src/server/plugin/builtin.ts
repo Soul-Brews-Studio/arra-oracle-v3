@@ -19,7 +19,6 @@ import { tracesApi } from '../../routes/traces/index.ts';
 import { scheduleApi } from '../../routes/schedule/index.ts';
 import { filesRouter } from '../../routes/files/index.ts';
 import { pluginsRouter } from '../../routes/plugins/index.ts';
-import { oraclenetRoutes } from '../../routes/oraclenet/index.ts';
 import { sessionsRoutes } from '../../routes/sessions/index.ts';
 import { vaultRoutes } from '../../routes/vault/index.ts';
 import { createMenuRoutes } from '../../routes/menu/index.ts';
@@ -89,7 +88,6 @@ export async function createBuiltinServerPlugins(options: BuiltinOptions): Promi
     routePlugin('traces', 'standard', () => tracesApi),
     routePlugin('schedule', 'standard', () => scheduleApi),
     routePlugin('plugins', 'standard', () => pluginsRouter),
-    routePlugin('oraclenet', 'standard', () => oraclenetRoutes),
     routePlugin('sessions', 'standard', () => sessionsRoutes),
     routePlugin('vault', 'standard', () => vaultRoutes),
     routePlugin('menu', 'standard', () => menuRoutes, false),

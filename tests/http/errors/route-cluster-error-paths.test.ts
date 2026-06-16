@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
 import { authRoutes } from '../../../src/routes/auth/index.ts';
 import { updateSettingsRoute } from '../../../src/routes/settings/update.ts';
@@ -14,7 +14,6 @@ import { tracesApi } from '../../../src/routes/traces/index.ts';
 import { scheduleApi } from '../../../src/routes/schedule/index.ts';
 import { filesRouter } from '../../../src/routes/files/index.ts';
 import { createPluginsRouter } from '../../../src/routes/plugins/index.ts';
-import { oraclenetRoutes } from '../../../src/routes/oraclenet/index.ts';
 import { sessionsRoutes } from '../../../src/routes/sessions/index.ts';
 import { createVaultSyncRoute } from '../../../src/routes/vault/sync.ts';
 import { metricsRoutes } from '../../../src/routes/metrics/index.ts';
@@ -27,12 +26,6 @@ import { daemonApiPlugin } from '../../../src/routes/indexer-daemon/index.ts';
 import { createErrorMiddleware } from '../../../src/middleware/errors.ts';
 import { createNotFoundMiddleware } from '../../../src/middleware/not-found.ts';
 
-const originalFetch = globalThis.fetch;
-
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
-
 type AnyApp = Elysia<any, any, any, any, any, any, any>;
 type Case = {
   cluster: string;
@@ -41,7 +34,6 @@ type Case = {
   init?: RequestInit;
   status: number;
   error?: string;
-  before?: () => void;
 };
 
 function withErrors(route: AnyApp): AnyApp {
@@ -55,7 +47,6 @@ function jsonPost(body: unknown): RequestInit {
 }
 
 async function hit(testCase: Case) {
-  testCase.before?.();
   const res = await testCase.app().handle(new Request(`http://local${testCase.path}`, testCase.init));
   const body = await res.json() as Record<string, unknown>;
   return { res, body };
@@ -98,13 +89,6 @@ describe('route-cluster error contracts', () => {
       expectErrorBody(body, testCase.error);
     });
   }
-
-  test('oraclenet upstream failures are locked as 502 JSON errors', async () => {
-    globalThis.fetch = (() => Promise.reject(new Error('offline'))) as typeof fetch;
-    const { res, body } = await hit({ cluster: 'oraclenet', app: () => withErrors(oraclenetRoutes), path: '/api/oraclenet/feed', status: 502 });
-    expect(res.status).toBe(502);
-    expectErrorBody(body, 'OracleNet unreachable');
-  });
 
   test('vault route failures preserve route-provided 500 message', async () => {
     const route = new Elysia({ prefix: '/api/vault' }).use(createVaultSyncRoute({

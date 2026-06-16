@@ -15,6 +15,7 @@ import {
   type ExportRecord,
 } from './formats.ts';
 import { graphRelationships } from './graph.ts';
+import { exportOracleV2Documents } from './documents.ts';
 
 type ExportTable = Parameters<typeof getTableName>[0];
 type Progress = (message: string) => void;
@@ -32,6 +33,7 @@ export interface ExportOracleDataResult {
   collectionCount: number;
   rowCount: number;
   relationshipCount: number;
+  documentCount: number;
 }
 
 export interface ExportMarkdownResult {
@@ -41,6 +43,7 @@ export interface ExportMarkdownResult {
 }
 
 export { graphRelationships, type GraphRelationship } from './graph.ts';
+export { exportOracleV2Documents, readOracleV2Documents } from './documents.ts';
 
 export function schemaTables(): ExportTable[] {
   return (Object.values(schema).filter(isTable) as ExportTable[])
@@ -71,6 +74,7 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
     }
 
     const relationships = graphRelationships(allCollections);
+    const documentExport = await exportOracleV2Documents({ ...options, outputDir, connection, progress });
     await writeCollectionFiles(outputDir, 'relationships', relationships);
     await writeJson(path.join(outputDir, 'all-collections.json'), { exportedAt, collections: allCollections });
     await writeJson(path.join(outputDir, 'manifest.json'), {
@@ -80,8 +84,15 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
       collectionCount: tables.length,
       rowCount,
       relationshipCount: relationships.length,
+      documentCount: documentExport.documentCount,
     });
-    return { outputDir, collectionCount: tables.length, rowCount, relationshipCount: relationships.length };
+    return {
+      outputDir,
+      collectionCount: tables.length,
+      rowCount,
+      relationshipCount: relationships.length,
+      documentCount: documentExport.documentCount,
+    };
   } finally {
     close?.connection.storage.close();
   }

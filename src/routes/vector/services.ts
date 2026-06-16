@@ -5,7 +5,7 @@ import {
   type HealthStatus,
   type RegisteredVectorService,
   type VectorServiceRegistryClient,
-} from '../../vector/registry.ts';
+} from '../../vector/service-registry.ts';
 
 const capabilitySchema = t.Record(t.String(), t.Unknown());
 

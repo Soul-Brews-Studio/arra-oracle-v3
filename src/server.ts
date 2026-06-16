@@ -51,20 +51,17 @@ import { tracesApi } from './routes/traces/index.ts';
 import { scheduleApi } from './routes/schedule/index.ts';
 import { filesRouter } from './routes/files/index.ts';
 import { createPluginsRouter } from './routes/plugins/index.ts';
-import { oraclenetRoutes } from './routes/oraclenet/index.ts';
 import { sessionsRoutes } from './routes/sessions/index.ts';
 import { vaultRoutes } from './routes/vault/index.ts';
 import { createMenuRoutes, menuItemsFromUnifiedPlugins } from './routes/menu/index.ts';
 import { createMcpRoutes } from './routes/mcp/index.ts';
 import { createMetricsLifecycle, metricsRoutes } from './routes/metrics/index.ts';
+import { exportRoutes } from './routes/export/index.ts';
 import { memoryRoutes } from './routes/memory/index.ts';
 import { canvasRoutes } from './routes/canvas/index.ts';
 import { tenantsRoutes } from './routes/tenants/index.ts';
 import { watcherRoutes } from './routes/watcher/index.ts';
 import { fileWatcherService } from './services/file-watcher.ts';
-import { exportAppRoutes } from './routes/export/app.ts';
-import { exportBatchRoutes } from './routes/export/batch.ts';
-import { exportImportRoutes } from './routes/export/import.ts';
 let indexerRoutes: any = null;
 try {
   indexerRoutes = (await import('./routes/indexer/index.ts')).indexerRoutes;
@@ -189,17 +186,14 @@ const apiModules = [
   scheduleApi,
   filesRouter,
   createPluginsRouter({ registry: unifiedPlugins.pluginRegistry }),
-  oraclenetRoutes,
   sessionsRoutes,
   vaultRoutes,
   metricsRoutes,
+  exportRoutes,
   memoryRoutes,
   canvasRoutes,
   tenantsRoutes,
   watcherRoutes,
-  exportAppRoutes,
-  exportBatchRoutes,
-  exportImportRoutes,
   ...(indexerRoutes ? [indexerRoutes] : []),
   ...unifiedPlugins.routes,
 ];
@@ -240,7 +234,6 @@ await runStartupSelfTest({
 const serverFetch = createRequestTimeoutFetch(
   createRequestDedupFetch(createApiVersionedFetch(createTenantFetch(createDbContextFetch((request: Request) => app.fetch(request))))),
 );
-
 export default {
   port: Number(PORT),
   fetch: (request: Request) => drainingResponseFor(request) ?? trackRequest(() => serverFetch(request)),
