@@ -52,8 +52,12 @@ describe("HTTP Contract — search / knowledge / supersede", () => {
     });
     if (!(await waitUp())) throw new Error("Server failed to start within 15s");
   }, 30_000);
-  afterAll(() => {
-    if (serverProcess) serverProcess.kill();
+  afterAll(async () => {
+    if (serverProcess) {
+      serverProcess.kill();
+      await serverProcess.exited;
+      await Bun.sleep(500);
+    }
     if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true });
   });
 

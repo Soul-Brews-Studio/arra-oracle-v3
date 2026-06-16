@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { apiArgsToCliArgs } from './api.ts';
-import { runServe, type ServeDeps } from './serve.ts';
+import { resolveServePort, runServe, type ServeDeps } from './serve.ts';
 import { LOCAL_CLI_HELP, resolveLocalCliName, runLocalCli } from './local-cli.ts';
 import { runVectorConfig, VECTOR_CONFIG_HELP } from './vector-config.ts';
 type InvokeContext = { source?: string; args?: string[] | Record<string, unknown>; writer?: (...args: unknown[]) => void };
@@ -22,7 +22,9 @@ const normalizeApiBase = (url: string) => url.replace(/\/+$/, '');
 export const command = { name: 'arra', description: 'ARRA Oracle HTTP helper — 1:1 maw CLI surface for ARRA MCP tools.' };
 
 export function resolveBaseUrl(env: Record<string, string | undefined> = process.env): string {
-  return normalizeApiBase(env.ORACLE_API?.trim() || DEFAULT_ORACLE_API);
+  const explicit = env.ORACLE_API?.trim();
+  if (explicit) return normalizeApiBase(explicit);
+  return normalizeApiBase(`http://localhost:${resolveServePort(env, DEFAULT_ORACLE_API.split(':').at(-1) ?? '47778')}`);
 }
 
 export function resolveFrontendUrl(env: Record<string, string | undefined> = process.env): string {
