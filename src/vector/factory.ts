@@ -5,7 +5,7 @@ import { ChromaMcpAdapter } from './adapters/chroma-mcp.ts';
 import { SqliteVecAdapter } from './adapters/sqlite-vec.ts';
 import { LanceDBAdapter } from './adapters/lancedb.ts';
 import { QdrantAdapter } from './adapters/qdrant.ts';
-import { CloudflareVectorizeAdapter, CloudflareAIEmbeddings } from './adapters/cloudflare-vectorize.ts';
+import { createCloudflareVectorStore, type CloudflareAIWorkerBinding, type CloudflareD1Database, type CloudflareVectorizeBinding } from './adapters/cloudflare.ts';
 import { ProxyVectorAdapter } from './adapters/proxy.ts';
 import { TurboVecAdapter } from './adapters/turbovec.ts';
 import { createEmbeddingProvider, FallbackEmbeddings } from './embeddings.ts';
@@ -27,6 +27,10 @@ export interface VectorStoreConfig {
   qdrantApiKey?: string;
   cfAccountId?: string;
   cfApiToken?: string;
+  cfAi?: CloudflareAIWorkerBinding;
+  cfVectorize?: CloudflareVectorizeBinding;
+  cfD1?: CloudflareD1Database;
+  cfD1Table?: string;
   proxyEndpoint?: string;
 }
 export interface EmbeddingModelConfig {
@@ -70,17 +74,7 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
       });
     }
     case 'cloudflare-vectorize': {
-      const cfConfig = {
-        accountId: clean(config.cfAccountId) || clean(process.env.CF_ACCOUNT_ID) || clean(process.env.CLOUDFLARE_ACCOUNT_ID),
-        apiToken: clean(config.cfApiToken) || clean(process.env.CF_API_TOKEN) || clean(process.env.CLOUDFLARE_API_TOKEN),
-      };
-      const embeddingModel = config.embeddingModel
-        || process.env.ORACLE_EMBEDDING_MODEL;
-      const embedder = new CloudflareAIEmbeddings({
-        ...cfConfig,
-        model: embeddingModel,
-      });
-      return new CloudflareVectorizeAdapter(collectionName, embedder, cfConfig);
+      return createCloudflareVectorStore(collectionName, config);
     }
     case 'proxy': {
       const proxyUrl = clean(config.proxyEndpoint) || clean(process.env.ORACLE_PROXY_VECTOR_URL);
