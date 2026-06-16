@@ -1,5 +1,5 @@
 /**
- * GET /api/vector/export — stream a vector collection as JSON or CSV.
+ * GET /api/vector/export — stream a vector collection as JSON, JSONL, or CSV.
  */
 
 import { Elysia, t } from 'elysia';
@@ -15,6 +15,7 @@ const DEFAULT_COLLECTION = 'bge-m3';
 const DEFAULT_EXPORT_LIMIT = 50_000;
 
 function contentType(format: string): string {
+  if (format === 'jsonl') return 'application/x-ndjson; charset=utf-8';
   return format === 'csv' ? 'text/csv; charset=utf-8' : 'application/json; charset=utf-8';
 }
 
@@ -66,7 +67,7 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
       detail: {
         tags: ['vector'],
         menu: { group: 'tools', order: 57 },
-        summary: 'Export a vector collection as JSON or CSV',
+        summary: 'Export a vector collection as JSON, JSONL, or CSV',
       },
     },
   );

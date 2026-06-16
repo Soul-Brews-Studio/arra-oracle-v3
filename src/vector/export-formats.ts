@@ -57,6 +57,17 @@ function streamJson(dump: EmbeddingDump): ReadableStream<Uint8Array> {
   });
 }
 
+function streamJsonl(dump: EmbeddingDump): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    start(controller) {
+      for (let i = 0; i < dump.ids.length; i++) {
+        controller.enqueue(encoder.encode(`${JSON.stringify(rowAt(dump, i))}\n`));
+      }
+      controller.close();
+    },
+  });
+}
+
 function csvCell(value: unknown): string {
   return `"${text(value).replaceAll('"', '""')}"`;
 }
@@ -85,5 +96,6 @@ function streamCsv(dump: EmbeddingDump): ReadableStream<Uint8Array> {
 
 export const exportFormatters: Record<string, ExportFormatter> = {
   json: streamJson,
+  jsonl: streamJsonl,
   csv: streamCsv,
 };
