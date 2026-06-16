@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { PluginEventBus, type PluginEventMap } from "../../src/plugins/event-bus.ts";
 import { runPluginWithErrorContainment } from "../../src/plugins/error-containment.ts";
-import { runPluginSandbox } from "../../src/plugins/sandbox.ts";
+import { runPluginSandbox as runLegacyPluginBoundary } from "../../src/plugins/sandbox.ts";
 
 describe("plugin error containment", () => {
   test("returns plugin failures and emits plugin:error without throwing", async () => {
@@ -32,8 +32,8 @@ describe("plugin error containment", () => {
     expect(events[0].error).toBeInstanceOf(Error);
   });
 
-  test("keeps the legacy sandbox export as a compatibility alias", async () => {
-    await expect(runPluginSandbox({ plugin: "legacy", phase: "runtime" }, () => "ok"))
+  test("keeps the legacy compatibility module as an error-containment alias", async () => {
+    await expect(runLegacyPluginBoundary({ plugin: "legacy", phase: "runtime" }, () => "ok"))
       .resolves.toEqual({ ok: true, value: "ok" });
   });
 });
