@@ -20,6 +20,17 @@ describe('maw arra dual-surface registry', () => {
     expect(body.commands.map(command => command.name)).toEqual(listSubcommands());
     expect(body.commands).toContainEqual(expect.objectContaining({ name: 'search', help: expect.stringContaining('search <q>') }));
     expect(body.commands).toContainEqual(expect.objectContaining({ name: 'serve', help: expect.stringContaining('serve') }));
+    expect(body.commands).toContainEqual(expect.objectContaining({ name: 'commands' }));
+  });
+
+  test('commands subcommand returns the registry for CLI callers', async () => {
+    const result = await handler({ source: 'cli', args: ['commands'] });
+    const body = JSON.parse(result.output ?? '{}') as Registry;
+
+    expect(result.ok).toBe(true);
+    expect(body.surface).toBe('cli');
+    expect(body.commands.map(command => command.name)).toEqual(listSubcommands());
+    expect(body.commands).toContainEqual(expect.objectContaining({ name: 'commands' }));
   });
 
   test('empty CLI invoke still renders CLI usage for maw arra --help parity', async () => {
