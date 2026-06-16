@@ -18,6 +18,7 @@ export type ServeDeps = {
 
 const DEFAULT_PORT = '47778';
 const PID_FILE_NAME = 'server.pid';
+type ServeState = { pid: number; port?: string; root?: string; startedAt?: string };
 const REPO_SLUGS = ['Soul-Brews-Studio/arra-oracle-v3', 'github.com/Soul-Brews-Studio/arra-oracle-v3'];
 
 function flag(parsed: Parsed, name: string): string | undefined {
@@ -46,10 +47,26 @@ function pidFile(env: Record<string, string | undefined>): string {
   return join(home, '.arra-oracle-v2', PID_FILE_NAME);
 }
 
-function readPid(path: string): number | undefined {
-  if (!existsSync(path)) return undefined;
-  const pid = Number(readFileSync(path, 'utf8').trim());
+function validPid(pid: number): number | undefined {
   return Number.isInteger(pid) && pid > 0 ? pid : undefined;
+}
+
+function readState(path: string): ServeState | undefined {
+  if (!existsSync(path)) return undefined;
+  const text = readFileSync(path, 'utf8').trim();
+  const legacyPid = validPid(Number(text));
+  if (legacyPid) return { pid: legacyPid };
+  try {
+    const parsed = JSON.parse(text) as Partial<ServeState>;
+    const pid = validPid(Number(parsed.pid));
+    return pid ? { ...parsed, pid, port: parsed.port ? String(parsed.port) : undefined } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeState(path: string, state: ServeState): void {
+  writeFileSync(path, `${JSON.stringify(state)}\n`);
 }
 
 function alive(pid: number): boolean {
@@ -100,7 +117,8 @@ export async function runServe(parsed: Parsed, runner: Runner, env: Record<strin
   try {
     const port = parsePort(parsed, env);
     const path = pidFile(env);
-    const currentPid = readPid(path);
+    const state = readState(path);
+    const currentPid = state?.pid;
     const isAlive = deps.isAlive ?? alive;
     const kill = deps.kill ?? ((pid, signal) => process.kill(pid, signal));
     const sleep = deps.sleep ?? ((ms) => new Promise<void>(resolve => setTimeout(resolve, ms)));
@@ -108,8 +126,10 @@ export async function runServe(parsed: Parsed, runner: Runner, env: Record<strin
     const action = serveAction(parsed);
 
     if (action === 'status') {
+      const healthPort = flag(parsed, 'port') ? port : state?.port ?? port;
       const pidState = currentPid ? `${isAlive(currentPid) ? 'alive' : 'dead'} pid=${currentPid}` : 'missing pid';
-      return { ok: true, output: `arra serve: ${pidState}\nhealth: ${await health(port, deps.fetch ?? fetch)}` };
+      const details = [state?.root && `root: ${state.root}`, `port: ${healthPort}`].filter(Boolean).join('\n');
+      return { ok: true, output: `arra serve: ${pidState}${details ? `\n${details}` : ''}\nhealth: ${await health(healthPort, deps.fetch ?? fetch)}` };
     }
 
     if (action === 'stop') {
@@ -120,14 +140,15 @@ export async function runServe(parsed: Parsed, runner: Runner, env: Record<strin
     }
 
     if (currentPid && isAlive(currentPid)) {
-      return { ok: true, output: `arra serve: already running pid=${currentPid}\nhealth: ${await health(port, deps.fetch ?? fetch)}` };
+      const healthPort = flag(parsed, 'port') ? port : state?.port ?? port;
+      return { ok: true, output: `arra serve: already running pid=${currentPid}\nport: ${healthPort}\nhealth: ${await health(healthPort, deps.fetch ?? fetch)}` };
     }
 
     const cwd = await resolveRoot(env, runner);
     mkdirSync(dirname(path), { recursive: true });
     const pid = (deps.start ?? startServer)(cwd, { ...env, ORACLE_PORT: port });
     if (!pid) throw new Error('bun run server did not return a PID');
-    writeFileSync(path, `${pid}\n`);
+    writeState(path, { pid, port, root: cwd, startedAt: new Date().toISOString() });
     return { ok: true, output: `arra serve: started pid=${pid} port=${port}\nroot: ${cwd}\npid: ${path}` };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };

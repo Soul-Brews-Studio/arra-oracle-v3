@@ -76,6 +76,46 @@ describe('maw arra serve command', () => {
     expect(after.output).toContain('missing pid');
   });
 
+  test('status reuses the tracked start port when --port is omitted', async () => {
+    const home = env();
+    const seen: string[] = [];
+    await runServe({ pos: [], flags: { port: '47779' } }, runner, home, {
+      start: () => 24680,
+      isAlive: () => false,
+    });
+
+    const status = await runServe({ pos: ['status'], flags: {} }, runner, home, {
+      isAlive: () => true,
+      fetch: async (input) => {
+        seen.push(String(input));
+        return new Response('{"status":"ok"}', { status: 200 });
+      },
+    });
+
+    expect(status.output).toContain('port: 47779');
+    expect(status.output).toContain('root: /repo/arra-oracle-v3');
+    expect(seen).toEqual(['http://127.0.0.1:47779/api/health']);
+  });
+
+  test('status remains compatible with legacy pid-only files', async () => {
+    const legacy = env();
+    await runServe({ pos: [], flags: {} }, runner, legacy, {
+      start: () => 13579,
+      isAlive: () => false,
+    });
+    const { writeFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    writeFileSync(join(legacy.HOME, '.arra-oracle-v2', 'server.pid'), '13579\n');
+
+    const status = await runServe({ pos: ['status'], flags: {} }, runner, legacy, {
+      isAlive: () => true,
+      fetch: async (input) => new Response(String(input), { status: 200 }),
+    });
+
+    expect(status.output).toContain('alive pid=13579');
+    expect(status.output).toContain('port: 47778');
+  });
+
 
   test('starts from ghq locate when ORACLE_ROOT is unset', async () => {
     const calls: unknown[] = [];
