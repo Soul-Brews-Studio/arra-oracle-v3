@@ -9,7 +9,7 @@ function fetcher() {
     models: [{ name: 'bge-m3' }, { name: 'nomic-embed-text' }],
   }), { status: 200 }));
   const app = new Elysia({ prefix: '/api' }).use(createVectorProvidersEndpoint({
-    env: { OPENAI_API_KEY: 'sk-test', GEMINI_API_KEY: 'g-test' },
+    env: { OPENAI_API_KEY: 'sk-test', GEMINI_API_KEY: 'g-test', CF_ACCOUNT_ID: 'cf-account', CF_API_TOKEN: 'cf-token' },
     fetcher: tags as unknown as typeof fetch,
     createProvider: (provider): EmbeddingProvider => ({
       name: provider,
@@ -30,6 +30,7 @@ test('GET /api/v1/vector/providers returns detected providers and capabilities',
   }));
   expect(body.providers).toContainEqual(expect.objectContaining({ type: 'openai', available: true }));
   expect(body.providers).toContainEqual(expect.objectContaining({ type: 'gemini', available: true }));
+  expect(body.providers).toContainEqual(expect.objectContaining({ type: 'cloudflare-ai', available: true }));
 });
 
 test('POST /api/v1/vector/providers/test probes one provider config', async () => {

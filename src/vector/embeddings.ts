@@ -224,7 +224,11 @@ function createSingleEmbeddingProvider(
     case 'cloudflare-ai': {
       // Dynamic import to avoid requiring CF credentials when not used
       const { CloudflareAIEmbeddings } = require('./adapters/cloudflare-vectorize.ts');
-      return new CloudflareAIEmbeddings({ model });
+      return new CloudflareAIEmbeddings({
+        model,
+        accountId: process.env.CF_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID,
+        apiToken: process.env.CF_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN,
+      });
     }
     case 'chromadb-internal':
     default:

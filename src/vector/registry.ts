@@ -128,12 +128,8 @@ class InMemoryVectorServiceRegistry implements VectorServiceRegistry {
   }
 
   async discover(): Promise<RegisteredVectorService[]> {
-    if (registry.size === 0) {
-      ensureConfigRefreshed();
-      if (registry.size === 0) {
-        registry = seedFromConfig(currentConfig);
-      }
-    }
+    ensureConfigRefreshed();
+    if (registry.size === 0) registry = seedFromConfig(currentConfig);
 
     return [...registry.values()].sort((a, b) => a.name.localeCompare(b.name));
   }

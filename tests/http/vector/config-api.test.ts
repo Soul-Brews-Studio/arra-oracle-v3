@@ -115,7 +115,12 @@ test('GET and PUT /api/v1/vector/config expose and update vector-server.json', a
   const addRes = await call('/api/v1/vector/config/phase2', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ collection: 'phase2_collection', model: 'phase2-model', primary: true }),
+    body: JSON.stringify({
+      collection: 'phase2_collection',
+      model: 'phase2-model',
+      primary: true,
+      embedder: { backend: 'gemini', fallback: 'openai' },
+    }),
   });
   expect(addRes.status).toBe(200);
   expect(addRes.body.config.collections.phase2).toMatchObject({
@@ -124,6 +129,7 @@ test('GET and PUT /api/v1/vector/config expose and update vector-server.json', a
     provider: 'none',
     adapter: 'lancedb',
     primary: true,
+    embedder: { backend: 'gemini', fallback: 'openai' },
   });
   expect(addRes.body.config.collections.phase1.primary).toBe(false);
 

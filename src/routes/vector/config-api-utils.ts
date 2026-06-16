@@ -13,7 +13,7 @@ import { createVectorStoreForModel } from '../../vector/factory.ts';
 import type { VectorDBType } from '../../vector/types.ts';
 
 export type CollectionUpdate = Partial<Pick<VectorCollectionConfig,
-  'adapter' | 'model' | 'provider' | 'service' | 'endpoint' | 'enabled' | 'primary'
+  'adapter' | 'model' | 'provider' | 'service' | 'endpoint' | 'enabled' | 'primary' | 'embedder'
 >>;
 export type CollectionCreate = CollectionUpdate & { collection?: string };
 
@@ -122,7 +122,8 @@ export function normalizedUpdate(body: CollectionUpdate): CollectionUpdate | { e
   if (body.endpoint !== undefined) update.endpoint = body.endpoint;
   if (body.enabled !== undefined) update.enabled = body.enabled;
   if (body.primary !== undefined) update.primary = body.primary;
-  if (!Object.keys(update).length) return { error: 'body must include adapter, model, provider, service, endpoint, enabled, or primary' };
+  if (body.embedder !== undefined) update.embedder = body.embedder;
+  if (!Object.keys(update).length) return { error: 'body must include adapter, model, provider, service, endpoint, enabled, primary, or embedder' };
   return update;
 }
 
@@ -139,6 +140,7 @@ export function normalizedCreate(key: string, body: CollectionCreate): VectorCol
     ...(body.endpoint !== undefined && { endpoint: body.endpoint }),
     ...(body.enabled !== undefined && { enabled: body.enabled }),
     ...(body.primary !== undefined && { primary: body.primary }),
+    ...(body.embedder !== undefined && { embedder: body.embedder }),
   };
 }
 

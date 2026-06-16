@@ -83,8 +83,8 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
     }
     case 'cloudflare-vectorize': {
       const cfConfig = {
-        accountId: config.cfAccountId || process.env.CLOUDFLARE_ACCOUNT_ID,
-        apiToken: config.cfApiToken || process.env.CLOUDFLARE_API_TOKEN,
+        accountId: config.cfAccountId || process.env.CF_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID,
+        apiToken: config.cfApiToken || process.env.CF_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN,
       };
 
       const embeddingModel = config.embeddingModel

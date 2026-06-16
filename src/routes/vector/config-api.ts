@@ -29,6 +29,7 @@ const updateSchema = t.Object({
   endpoint: t.Optional(t.String()),
   enabled: t.Optional(t.Boolean()),
   primary: t.Optional(t.Boolean()),
+  embedder: t.Optional(t.Any()),
 });
 
 const createSchema = t.Object({
@@ -40,6 +41,7 @@ const createSchema = t.Object({
   endpoint: t.Optional(t.String()),
   enabled: t.Optional(t.Boolean()),
   primary: t.Optional(t.Boolean()),
+  embedder: t.Optional(t.Any()),
 });
 
 export const vectorConfigApiEndpoint = new Elysia()

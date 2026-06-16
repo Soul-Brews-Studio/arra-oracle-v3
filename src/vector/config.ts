@@ -43,6 +43,7 @@ export interface VectorCollectionConfig {
   endpoint?: string;
   enabled?: boolean;
   primary?: boolean;
+  embedder?: EmbedderConfig;
 }
 
 export interface VectorServerConfig {
@@ -141,13 +142,12 @@ export function writeVectorConfig(config: VectorServerConfig, fp = configPath())
 }
 
 function embedderFor(config: VectorServerConfig, col: VectorCollectionConfig): EmbedderConfig | undefined {
-  if (config.embedder) {
-    return {
-      ...config.embedder,
-      backend: config.embedder.backend ?? config.embedder.default ?? 'none',
-      model: config.embedder.model ?? col.model,
-    };
-  }
+  const merged = config.embedder || col.embedder ? { ...config.embedder, ...col.embedder } : undefined;
+  if (merged) return {
+    ...merged,
+    backend: merged.backend ?? merged.default ?? 'none',
+    model: merged.model ?? col.model,
+  };
   const provider = col.provider.toLowerCase();
   if (provider === 'ollama' || provider === 'local') return { backend: 'local', model: col.model };
   if (provider === 'openai' || provider === 'gemini' || provider === 'cloudflare-ai') {
