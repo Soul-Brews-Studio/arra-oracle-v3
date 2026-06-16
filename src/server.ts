@@ -61,7 +61,7 @@ import { memoryRoutes } from './routes/memory/index.ts';
 import { canvasRoutes } from './routes/canvas/index.ts';
 import { tenantsRoutes } from './routes/tenants/index.ts';
 import { exportAppRoutes } from './routes/export/app.ts';
-
+import { exportBatchRoutes } from './routes/export/batch.ts';
 let indexerRoutes: any = null;
 try {
   indexerRoutes = (await import('./routes/indexer/index.ts')).indexerRoutes;
@@ -199,6 +199,7 @@ const apiModules = [
   canvasRoutes,
   tenantsRoutes,
   exportAppRoutes,
+  exportBatchRoutes,
   ...(indexerRoutes ? [indexerRoutes] : []),
   ...unifiedPlugins.routes,
 ];
@@ -215,7 +216,6 @@ try {
 
 const menuRoutes = createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu));
 const mcpRoutes = createMcpRoutes(unifiedPlugins.mcpTools);
-
 const modules = [...apiModules, mcpRoutes, menuRoutes];
 for (const mod of modules) app.use(mod as any);
 app.use(createNotFoundMiddleware(app.routes));
