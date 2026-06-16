@@ -23,7 +23,7 @@ import { validateStartupEnv } from './config/validate.ts';
 import { printStartupBanner } from './lifecycle/banner.ts';
 import { createStartupSelfTest, runStartupSelfTest } from './lifecycle/self-test.ts';
 import { readStartupDbStatus, runtimeMiddleware } from './lifecycle/startup-context.ts';
-import { createRequestLogger } from './middleware/logger.ts';
+import { createRequestLoggingMiddleware } from './middleware/request-logger.ts';
 import { createApiVersionHeaderMiddleware, createApiVersionedFetch } from './middleware/api-version.ts';
 import { createSecurityHeadersMiddleware } from './middleware/security-headers.ts';
 import { createRequestTimeoutFetch } from './middleware/timeout.ts';
@@ -114,9 +114,8 @@ registerGracefulShutdown({
   },
 });
 
-const requestLogger = createRequestLogger();
 const app = new Elysia()
-  .onRequest(requestLogger.onRequest)
+  .use(createRequestLoggingMiddleware())
   .use(createCorrelationMiddleware())
   .use(createTenantMiddleware())
   .use(createPrivateNetworkPreflightMiddleware())
@@ -141,7 +140,6 @@ const app = new Elysia()
     set.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
     set.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
   })
-  .onAfterResponse(requestLogger.onAfterResponse)
   .use(createErrorMiddleware())
   .use(
     swagger({
