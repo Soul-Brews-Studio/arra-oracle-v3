@@ -127,6 +127,13 @@ describe("changelog generator", () => {
     });
   });
 
+  test("rejects malformed changelog flags before running git", () => {
+    expect(() => parseChangelogOptions(["--since"])).toThrow("missing value for --since");
+    expect(() => parseChangelogOptions(["--out="])).toThrow("missing value for --out");
+    expect(() => parseChangelogOptions(["--stdout=true"])).toThrow("unknown changelog option: --stdout=true");
+    expect(() => parseChangelogOptions(["--unknown"])).toThrow("unknown changelog option: --unknown");
+  });
+
   test("writes CHANGELOG.md through the command", async () => {
     await initRepo(root);
     await emptyCommit(root, "chore: baseline");
