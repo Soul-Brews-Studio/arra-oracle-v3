@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "entry": "./index.ts",
   "sdk": "^1.0.0",
-  "description": "Query and write ARRA Oracle over HTTP from maw.",
+  "description": "Unified maw-js plugin for ARRA Oracle CLI, API, and menu surfaces.",
   "cli": {
     "command": "arra",
     "aliases": [
@@ -23,5 +23,50 @@
       "GET",
       "POST"
     ]
-  }
+  },
+  "config": {
+    "dbBackend": "http",
+    "embedderBackend": "none",
+    "apiBase": "http://localhost:47778"
+  },
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "dbBackend": {
+        "type": "string",
+        "enum": [
+          "http",
+          "sqlite",
+          "memory",
+          "custom"
+        ]
+      },
+      "embedderBackend": {
+        "type": "string"
+      },
+      "apiBase": {
+        "type": "string"
+      },
+      "remoteEmbedderUrl": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": true
+  },
+  "menu": [
+    {
+      "label": "ARRA Oracle",
+      "path": "/plugins/arra",
+      "group": "tools",
+      "order": 15,
+      "icon": "sparkles"
+    },
+    {
+      "label": "ARRA Search",
+      "path": "/search",
+      "group": "main",
+      "order": 10,
+      "icon": "search"
+    }
+  ]
 }
