@@ -101,6 +101,25 @@ describe("Trace routes", () => {
     expect(data).toHaveProperty("chain");
   });
 
+  test("POST /api/traces/:id/distill stores an awakening", async () => {
+    const res = await fetch(`${BASE_URL}/api/traces/${traceA}/distill`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ awakening: "Thor turns storm into research-grade dev context." }),
+    });
+    expect(res.ok).toBe(true);
+    expect(await res.json()).toMatchObject({ success: true, status: "distilled" });
+
+    const traceRes = await fetch(`${BASE_URL}/api/traces/${traceA}`);
+    const trace = await traceRes.json();
+    expect(trace.status).toBe("distilled");
+    expect(trace.awakening).toContain("Thor turns storm");
+
+    const chainRes = await fetch(`${BASE_URL}/api/traces/${traceA}/chain`);
+    const chain = await chainRes.json();
+    expect(chain).toMatchObject({ hasAwakening: true, awakeningTraceId: traceA });
+  });
+
   test("POST /api/traces/:prevId/link without body returns 400", async () => {
     const res = await fetch(`${BASE_URL}/api/traces/${traceA}/link`, {
       method: "POST",

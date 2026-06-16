@@ -1,7 +1,6 @@
 import { t } from 'elysia';
 
 export const traceIdParam = t.Object({ id: t.String() });
-export const prevIdParam = t.Object({ prevId: t.String() });
 
 export const listQuery = t.Object({
   query: t.Optional(t.String()),
