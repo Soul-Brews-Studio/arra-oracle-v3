@@ -59,7 +59,7 @@ afterAll(() => {
 });
 
 describe('POST/GET/PUT/DELETE /api/learn', () => {
-  test('rejects malformed JSON body as 400, not 500', async () => {
+  test('rejects malformed JSON body as 400', async () => {
     const res = await app().handle(new Request('http://local/api/learn', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

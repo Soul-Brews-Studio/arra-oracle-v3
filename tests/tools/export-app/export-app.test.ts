@@ -13,10 +13,14 @@ process.env.ORACLE_DB_PATH = dbPath;
 const dbModule = await import('../../../src/db/index.ts');
 const appModule = await import('../../../tools/export-app/index.ts');
 const exporterModule = await import('../../../tools/export-app/exporter.ts');
+const csvModule = await import('../../../tools/export-app/format-csv.ts');
+const jsonModule = await import('../../../tools/export-app/format-json.ts');
 
-const { createDatabase, oracleDocuments, traceLog, resetDefaultDatabaseForTests } = dbModule;
+const { createDatabase, oracleDocuments, supersedeLog, traceLog, resetDefaultDatabaseForTests } = dbModule;
 const { runExportApp } = appModule;
 const { exportOracleData, graphRelationships } = exporterModule;
+const { formatCsvCollection } = csvModule;
+const { formatJsonCollection } = jsonModule;
 
 function restoreDbPath() {
   return savedDbPath
@@ -39,6 +43,11 @@ function seed(connection: ReturnType<typeof createDatabase>) {
     { traceId: 'trace-a', query: 'backup root', childTraceIds: '["trace-b"]', nextTraceId: 'trace-b', createdAt: now, updatedAt: now },
     { traceId: 'trace-b', query: 'backup child', parentTraceId: 'trace-a', prevTraceId: 'trace-a', createdAt: now, updatedAt: now },
   ]).run();
+  connection.db.insert(supersedeLog).values({
+    oldPath: 'ψ/learn/old.md', oldId: 'doc-old', oldTitle: 'Old',
+    newPath: 'ψ/learn/new.md', newId: 'doc-new', newTitle: 'New',
+    reason: 'refresh', supersededAt: now + 2, supersededBy: 'test', project: 'demo',
+  }).run();
 }
 
 afterAll(() => {
@@ -67,14 +76,19 @@ describe('standalone export app', () => {
 
       for (const ext of ['json', 'csv', 'md']) expect(existsSync(join(outputDir, 'collections', `oracle_documents.${ext}`))).toBe(true);
       expect(readFileSync(join(outputDir, 'collections', 'oracle_documents.md'), 'utf8')).toContain('doc-old');
-      expect(readFileSync(join(outputDir, 'collections', 'oracle_documents.csv'), 'utf8')).toContain('doc-new');
+      const csv = readFileSync(join(outputDir, 'collections', 'oracle_documents.csv'), 'utf8');
+      expect(csv.split('\n')[0]).toBe('id,title,content_preview,collection,created_at');
+      expect(csv).toContain('"doc-new"');
 
+      const documentsJson = JSON.parse(readFileSync(join(outputDir, 'collections', 'oracle_documents.json'), 'utf8'));
+      expect(documentsJson).toMatchObject({ collection: 'oracle_documents', rowCount: 2 });
       const all = JSON.parse(readFileSync(join(outputDir, 'all-collections.json'), 'utf8'));
       expect(all.collections.oracle_documents.map((row: { id: string }) => row.id)).toContain('doc-old');
 
       const relationships = JSON.parse(readFileSync(join(outputDir, 'relationships.json'), 'utf8'));
       expect(relationships.rows).toEqual(expect.arrayContaining([
         expect.objectContaining({ type: 'document_superseded_by', from: 'doc-old', to: 'doc-new' }),
+        expect.objectContaining({ type: 'supersede_log', from: 'doc-old', to: 'doc-new' }),
         expect.objectContaining({ type: 'trace_next', from: 'trace-a', to: 'trace-b' }),
       ]));
     } finally {
@@ -98,10 +112,30 @@ describe('standalone export app', () => {
   test('graph relationship extraction is deterministic for rows', () => {
     expect(graphRelationships({
       oracle_documents: [{ id: 'a', supersededBy: 'b' }],
+      supersede_log: [{ oldId: 'b', newId: 'c', oldPath: 'old.md', newPath: 'new.md', reason: 'rename', supersededAt: 2 }],
       trace_log: [{ traceId: 't1', childTraceIds: '["t2"]' }],
     })).toEqual([
       { type: 'document_superseded_by', from: 'a', to: 'b', metadata: { reason: undefined, at: undefined } },
+      { type: 'supersede_log', from: 'b', to: 'c', metadata: { oldPath: 'old.md', newPath: 'new.md', reason: 'rename', at: 2, by: undefined, project: undefined } },
       { type: 'trace_child', from: 't1', to: 't2' },
     ]);
+  });
+
+  test('json formatter keeps full metadata and embeddings', () => {
+    const payload = JSON.parse(formatJsonCollection('vectors', [
+      { id: 'vec-1', title: 'Vector row', metadata: { source: 'test' }, embeddings: [0.1, 0.2] },
+    ]));
+
+    expect(payload).toEqual({
+      collection: 'vectors',
+      rowCount: 1,
+      rows: [{ id: 'vec-1', title: 'Vector row', metadata: { source: 'test' }, embeddings: [0.1, 0.2] }],
+    });
+  });
+
+  test('csv formatter writes the fixed tabular export view', () => {
+    expect(formatCsvCollection('oracle_documents', [
+      { id: 'doc-1', title: 'Doc', content: 'Line one\nline two', createdAt: 7 },
+    ])).toBe('id,title,content_preview,collection,created_at\n"doc-1","Doc","Line one line two","oracle_documents","7"\n');
   });
 });

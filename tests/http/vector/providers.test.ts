@@ -49,6 +49,25 @@ test('GET /api/v1/vector/providers accepts GOOGLE_API_KEY for Gemini detection',
   }));
 });
 
+test('GET /api/v1/vector/providers reports missing env and failed Ollama probe', async () => {
+  const app = new Elysia({ prefix: '/api' }).use(createVectorProvidersEndpoint({
+    env: {},
+    fetcher: mock(async () => new Response('down', { status: 503 })) as unknown as typeof fetch,
+  }));
+  const res = await createApiVersionedFetch((request) => app.handle(request))(
+    new Request('http://local/api/v1/vector/providers'),
+  );
+  const body = await res.json() as { providers: Array<Record<string, unknown>> };
+
+  expect(res.status).toBe(200);
+  expect(body.providers).toContainEqual(expect.objectContaining({
+    type: 'ollama', available: false, status: 'unavailable', error: 'HTTP 503',
+  }));
+  expect(body.providers).toContainEqual(expect.objectContaining({ type: 'openai', available: false }));
+  expect(body.providers).toContainEqual(expect.objectContaining({ type: 'gemini', available: false }));
+  expect(body.providers).toContainEqual(expect.objectContaining({ type: 'cloudflare-ai', available: false }));
+});
+
 test('POST /api/v1/vector/providers/test probes one provider config', async () => {
   const res = await fetcher()(new Request('http://local/api/v1/vector/providers/test', {
     method: 'POST',
@@ -59,4 +78,30 @@ test('POST /api/v1/vector/providers/test probes one provider config', async () =
 
   expect(res.status).toBe(200);
   expect(body).toMatchObject({ success: true, provider: 'gemini', dimensions: 3 });
+});
+
+test('POST /api/v1/vector/providers/test returns 503 when provider probe fails', async () => {
+  const app = new Elysia({ prefix: '/api' }).use(createVectorProvidersEndpoint({
+    createProvider: (provider): EmbeddingProvider => ({
+      name: provider,
+      dimensions: 0,
+      embed: mock(async () => { throw new Error('provider unreachable'); }),
+    }),
+  }));
+
+  const res = await createApiVersionedFetch((request) => app.handle(request))(
+    new Request('http://local/api/v1/vector/providers/test', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ provider: 'ollama', model: 'bge-m3' }),
+    }),
+  );
+  const body = await res.json() as Record<string, unknown>;
+
+  expect(res.status).toBe(503);
+  expect(body).toMatchObject({
+    success: false,
+    provider: 'ollama',
+    error: 'provider unreachable',
+  });
 });

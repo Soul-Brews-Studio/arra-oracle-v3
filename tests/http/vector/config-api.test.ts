@@ -1,5 +1,4 @@
 import { afterAll, expect, test } from 'bun:test';
-import { Elysia } from 'elysia';
 import { mkdtempSync, readdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -12,10 +11,9 @@ process.env.ORACLE_DATA_DIR = root;
 process.env.ORACLE_VECTOR_HEALTH_TIMEOUT = '1500';
 
 const vectorConfig = await import('../../../src/vector/config.ts');
-const { vectorConfigApiEndpoint } = await import('../../../src/routes/vector/config-api.ts');
+const { vectorConfigApiRoutes } = await import('../../../src/routes/vector/config-api.ts');
 
-const app = new Elysia({ prefix: '/api' }).use(vectorConfigApiEndpoint);
-const versionedFetch = createApiVersionedFetch((request) => app.handle(request));
+const versionedFetch = createApiVersionedFetch((request) => vectorConfigApiRoutes.handle(request));
 
 function seedConfig() {
   const config = vectorConfig.generateDefaultConfig();
@@ -155,7 +153,7 @@ test('GET and PUT /api/v1/vector/config expose and update vector-server.json', a
   expect(removeRes.body.removed).toBe('phase2');
   expect(removeRes.body.config.collections.phase2).toBeUndefined();
 
-const patchRes = await call('/api/v1/vector/config', {
+  const patchRes = await call('/api/v1/vector/config', {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ embedder: { default: 'ollama', fallback: 'openai' } }),

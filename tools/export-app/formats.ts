@@ -1,4 +1,6 @@
 import { exportFormatInfo } from '../../src/vector/export-formats.ts';
+import { formatCsvCollection } from './format-csv.ts';
+import { formatJsonCollection } from './format-json.ts';
 
 export type ExportRecord = Record<string, unknown>;
 
@@ -25,30 +27,9 @@ export function normalizeRecords(records: ExportRecord[]): ExportRecord[] {
 }
 
 export function formatCollection(name: string, rows: ExportRecord[], format: ExportFormat): string {
-  if (format === 'json') return `${JSON.stringify({ collection: name, rowCount: rows.length, rows }, null, 2)}\n`;
-  if (format === 'csv') return toCsv(rows);
+  if (format === 'json') return formatJsonCollection(name, rows);
+  if (format === 'csv') return formatCsvCollection(name, rows);
   return toMarkdown(name, rows);
-}
-
-function allKeys(rows: ExportRecord[]): string[] {
-  const keys = new Set<string>();
-  for (const row of rows) for (const key of Object.keys(row)) keys.add(key);
-  return [...keys];
-}
-
-function csvCell(value: unknown): string {
-  if (value == null) return '';
-  const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
-  return `"${text.replaceAll('"', '""')}"`;
-}
-
-function toCsv(rows: ExportRecord[]): string {
-  const keys = allKeys(rows);
-  if (keys.length === 0) return '\n';
-  return [
-    keys.map(csvCell).join(','),
-    ...rows.map((row) => keys.map((key) => csvCell(row[key])).join(',')),
-  ].join('\n') + '\n';
 }
 
 function printable(value: unknown): string {

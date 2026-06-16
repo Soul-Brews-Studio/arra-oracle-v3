@@ -1,122 +1,150 @@
 import { useEffect, useMemo, useState } from 'react';
-import { LoadingPanel } from '../components/AsyncState';
-import { MenuViewer } from '../components/MenuViewer';
+import { apiClient, type ApiClient } from '../api/client';
+import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
+import { EmptyState } from '../components/EmptyState';
 import type { MenuItem } from '../types';
 
-interface MenuHistoryEntry {
-  label: string;
-  path: string;
-  seenAt: number;
+type PageState = 'loading' | 'ready' | 'error';
+type MenuClient = Pick<ApiClient, 'menu'>;
+
+export interface MenuPageProps {
+  items?: MenuItem[];
+  loading?: boolean;
+  client?: MenuClient;
 }
 
-const historyStorageKey = 'arra-oracle:menu-command-history';
+function menuKey(item: MenuItem): string {
+  return `${item.source ?? 'api'}:${item.sourceName ?? 'core'}:${item.path}:${item.label}`;
+}
 
-function parseHistory(raw: string | null): MenuHistoryEntry[] {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((entry): entry is MenuHistoryEntry =>
-        typeof entry === 'object' &&
-        entry !== null &&
-        typeof (entry as MenuHistoryEntry).label === 'string' &&
-        typeof (entry as MenuHistoryEntry).path === 'string' &&
-        typeof (entry as MenuHistoryEntry).seenAt === 'number'
-      )
-      .slice(0, 5)
-      .sort((a, b) => b.seenAt - a.seenAt);
-  } catch {
-    return [];
+function menuSource(item: MenuItem): string {
+  if (item.sourceName) return `${item.source ?? 'source'}:${item.sourceName}`;
+  return item.source ?? 'api';
+}
+
+function sortMenuItems(items: MenuItem[]): MenuItem[] {
+  return [...items].sort((a, b) =>
+    a.group.localeCompare(b.group) ||
+    (a.order ?? 999) - (b.order ?? 999) ||
+    a.label.localeCompare(b.label)
+  );
+}
+
+function MenuTypeBadge({ type }: { type: string }) {
+  return (
+    <span className="inline-flex rounded-full border border-teal-300/20 bg-teal-300/10 px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-teal-100">
+      {type}
+    </span>
+  );
+}
+
+function MenuRows({ items }: { items: MenuItem[] }) {
+  if (!items.length) return <EmptyState text="No menu items returned from /api/menu." />;
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/50">
+      <div className="hidden overflow-x-auto md:block">
+        <table className="min-w-full divide-y divide-white/10 text-left text-sm">
+          <thead className="bg-white/[0.03] text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <tr>
+              <th className="px-4 py-3" scope="col">Name</th>
+              <th className="px-4 py-3" scope="col">Type</th>
+              <th className="px-4 py-3" scope="col">Source</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/10">
+            {items.map((item) => (
+              <tr key={menuKey(item)} className="transition hover:bg-white/[0.03]">
+                <td className="px-4 py-4 align-top">
+                  <a className="focus-ring font-semibold text-white hover:text-teal-200" href={item.path}>
+                    {item.label}
+                  </a>
+                  <p className="mt-1 font-mono text-xs text-slate-500">{item.path}</p>
+                </td>
+                <td className="px-4 py-4 align-top">
+                  <MenuTypeBadge type={item.group} />
+                </td>
+                <td className="px-4 py-4 align-top">
+                  <p className="font-mono text-xs text-slate-300">{menuSource(item)}</p>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <ul className="grid gap-2 p-3 md:hidden" aria-label="Menu items">
+        {items.map((item) => (
+          <li key={menuKey(item)} className="rounded-xl border border-white/10 bg-slate-950/70 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <a className="focus-ring font-semibold text-white hover:text-teal-200" href={item.path}>
+                  {item.label}
+                </a>
+                <p className="mt-1 truncate font-mono text-xs text-slate-500">{item.path}</p>
+              </div>
+              <MenuTypeBadge type={item.group} />
+            </div>
+            <p className="mt-3 font-mono text-xs text-slate-300">{menuSource(item)}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function MenuPage({ items: initialItems = [], loading, client = apiClient }: MenuPageProps) {
+  const [items, setItems] = useState<MenuItem[]>(initialItems);
+  const [state, setState] = useState<PageState>(() =>
+    loading || (loading === undefined && !initialItems.length) ? 'loading' : 'ready'
+  );
+  const [error, setError] = useState('');
+
+  async function loadMenu() {
+    setState('loading');
+    setError('');
+    try {
+      const response = await client.menu();
+      setItems(Array.isArray(response.items) ? response.items : []);
+      setState('ready');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setState('error');
+    }
   }
-}
-
-function readRecentHistory(): MenuHistoryEntry[] {
-  if (typeof window === 'undefined') return [];
-  return parseHistory(window.localStorage.getItem(historyStorageKey));
-}
-
-function topByOrder(items: MenuItem[]) {
-  return [...items]
-    .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
-    .slice(0, 6);
-}
-
-function formatAction(item: MenuItem) {
-  return `${item.label} • ${item.path}`;
-}
-
-export function MenuPage({ items, loading }: { items: MenuItem[]; loading: boolean }) {
-  const quickItems = useMemo(() => topByOrder(items), [items]);
-  const recentCommands = useMemo(() => topByOrder(items).slice(0, 3), [items]);
-  const [history, setHistory] = useState<MenuHistoryEntry[]>([]);
 
   useEffect(() => {
-    setHistory(readRecentHistory());
-  }, []);
+    void loadMenu();
+  }, [client]);
+
+  const sortedItems = useMemo(() => sortMenuItems(items), [items]);
 
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="menu-page-title">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Menu</p>
-      <h2 id="menu-page-title" className="mt-2 mb-4 text-2xl font-semibold text-white">Menu viewer</h2>
-      {loading ? (
-        <LoadingPanel title="Loading menu items…" detail="Fetching /api/menu from the Elysia backend." />
-      ) : (
-        <div className="grid gap-4 xl:grid-cols-2">
-          <section className="rounded-3xl border border-white/10 bg-slate-950/60 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Quick access</p>
-            <h3 className="mt-2 text-xl font-semibold text-white">Frequently used items</h3>
-            <p className="mt-2 text-sm text-slate-400">One-click links to surfaces you reach most often.</p>
-            <div className="mt-4 grid gap-3">
-              {quickItems.length ? quickItems.map((item) => (
-                <a key={`quick-${item.path}-${item.label}`} href={item.path} className="focus-ring rounded-xl border border-white/10 bg-slate-950 p-3 text-sm text-slate-200 transition hover:border-teal-300/40 hover:bg-slate-900">
-                  <p className="font-medium text-white">{item.label}</p>
-                  <p className="mt-1 font-mono text-xs text-teal-200">{item.path}</p>
-                </a>
-              )) : <p className="text-sm text-slate-400">No menu items yet.</p>}
-            </div>
-          </section>
-
-          <section className="rounded-3xl border border-white/10 bg-slate-950/60 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Recent commands</p>
-            <h3 className="mt-2 text-xl font-semibold text-white">Actions as cards</h3>
-            <p className="mt-2 text-sm text-slate-400">Recent navigation and action targets in a compact card grid.</p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {recentCommands.length ? recentCommands.map((item) => (
-                <article key={`recent-${item.path}-${item.label}`} className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
-                  <p className="font-medium text-white">{item.label}</p>
-                  <p className="mt-1 text-xs text-slate-400">{formatAction(item)}</p>
-                  <a href={item.path} className="mt-3 inline-flex text-xs text-teal-300 transition hover:text-teal-200">Open route</a>
-                </article>
-              )) : <p className="text-sm text-slate-400">No commands yet.</p>}
-            </div>
-          </section>
-
-          <section className="rounded-3xl border border-white/10 bg-slate-950/60 p-4 xl:col-span-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Command history</p>
-            <h3 className="mt-2 text-xl font-semibold text-white">Menu command history</h3>
-            <p className="mt-2 text-sm text-slate-400">Recent command executions captured during this browser session.</p>
-            {history.length ? (
-              <ul className="mt-4 grid gap-2 text-sm text-slate-200 sm:grid-cols-2">
-                {history.map((entry) => (
-                  <li key={`${entry.path}-${entry.seenAt}`} className="rounded-xl border border-white/10 bg-slate-950 px-3 py-2">
-                    <span className="font-mono text-teal-200">{entry.path}</span>
-                    <p className="text-xs text-slate-400">{entry.label}</p>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-4 text-sm text-slate-400">No command history yet. Use a menu action to begin tracking.</p>
-            )}
-          </section>
-
-          <section className="rounded-3xl border border-white/10 bg-slate-950/60 p-4 xl:col-span-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">All commands</p>
-            <h3 className="mt-2 text-xl font-semibold text-white">Menu catalog</h3>
-            <MenuViewer items={items} />
-          </section>
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Menu</p>
+          <h2 id="menu-page-title" className="mt-2 text-2xl font-semibold text-white">Menu catalog</h2>
+          <p className="mt-2 text-sm text-slate-400">All frontend menu rows from GET /api/menu.</p>
         </div>
-      )}
+        <p className="rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300">
+          {state === 'ready' ? `${sortedItems.length} items` : 'Loading items'}
+        </p>
+      </div>
+
+      {state === 'loading' ? <LoadingPanel title="Loading menu items..." detail="Fetching /api/menu from the Elysia backend." /> : null}
+      {state === 'error' ? (
+        <ErrorMessage
+          title="Could not load menu items."
+          message={error || 'The /api/menu request failed.'}
+          action={
+            <button className="focus-ring rounded-lg border border-red-200/30 px-3 py-2 font-semibold text-red-50 hover:bg-red-200/10" type="button" onClick={() => void loadMenu()}>
+              Retry
+            </button>
+          }
+        />
+      ) : null}
+      {state === 'ready' ? <MenuRows items={sortedItems} /> : null}
     </section>
   );
 }
