@@ -14,3 +14,4 @@ export { renderCanvasPlugin } from './host.ts';
 export { isCanvasPlugin } from './plugin.ts';
 export type { CanvasPluginMetadataEntry, CanvasPluginRenderer } from './metadata.ts';
 export { CANVAS_PLUGIN_METADATA, listCanvasPluginMetadata } from './metadata.ts';
+export { CANVAS_HOST, CANVAS_ORIGIN, DEFAULT_CANVAS_PLUGIN, canvasPluginAbsoluteUrl, canvasPluginDataPath, canvasPluginPath } from './urls.ts';
