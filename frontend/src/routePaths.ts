@@ -32,6 +32,10 @@ export function vectorDocumentsPath(): string {
   return '/vector/documents';
 }
 
+export function vectorIndexPath(): string {
+  return '/vector/index';
+}
+
 export function vectorExportPagePath(): string {
   return '/vector/export';
 }

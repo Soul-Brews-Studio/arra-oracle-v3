@@ -44,6 +44,7 @@ describe('frontend router', () => {
       '/vector',
       '/vector/search',
       '/vector/documents',
+      '/vector/index',
       '/vector/results',
       '/vector/export',
       '/vector/settings',
@@ -67,6 +68,7 @@ describe('frontend router', () => {
     expect(htmlAt('/vector')).toContain('Vector dashboard');
     expect(htmlAt('/vector/search')).toContain('Vector search preview');
     expect(htmlAt('/vector/documents')).toContain('Vector documents');
+    expect(htmlAt('/vector/index')).toContain('Index Manager');
     expect(htmlAt('/vector/results')).toContain('Vector search results');
     expect(htmlAt('/vector/export')).toContain('Vector export');
     expect(htmlAt('/vector/settings')).toContain('Configure adapters, embedding models');

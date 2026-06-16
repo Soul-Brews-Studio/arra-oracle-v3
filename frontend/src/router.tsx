@@ -19,6 +19,7 @@ import { VectorDocumentsPage } from './pages/VectorDocumentsPage';
 import { VectorSearchResultsPage } from './pages/VectorSearchResultsPage';
 import { VectorExportPage } from './pages/VectorExportPage';
 import { VectorSettingsPage } from './pages/VectorSettingsPage';
+import { IndexManagerPanel } from './pages/IndexManagerPanel';
 import type { LoadState, MenuItem, PluginEntry } from './types';
 import type { MetricsSnapshot } from '../../src/server/types';
 
@@ -35,6 +36,7 @@ export const frontendRoutes = [
   '/vector',
   '/vector/search',
   '/vector/documents',
+  '/vector/index',
   '/vector/results',
   '/vector/export',
   '/vector/settings',
@@ -93,6 +95,7 @@ export function DashboardRoutes({
       <Route path="/vector" element={<VectorPage />} />
       <Route path="/vector/search" element={<VectorSearchPage />} />
       <Route path="/vector/documents" element={<VectorDocumentsPage />} />
+      <Route path="/vector/index" element={<IndexManagerPanel />} />
       <Route path="/vector/results" element={<VectorSearchResultsPage />} />
       <Route path="/vector/export" element={<VectorExportPage />} />
       <Route path="/vector/settings" element={<VectorSettingsPage />} />

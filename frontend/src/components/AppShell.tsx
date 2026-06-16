@@ -57,6 +57,7 @@ export function AppShell({
     { to: '/export', label: 'Export App', description: 'Legacy v2 JSON/Markdown backups' },
     { to: '/vector', label: 'Vector Dashboard', description: 'Collection health and indexing', end: true },
     { to: '/vector/documents', label: 'Document Browser', description: 'Browse indexed vector documents' },
+    { to: '/vector/index', label: 'Index Manager', description: 'Backfill vectors and watch jobs' },
     { to: '/vector/search', label: 'Vector Search', description: 'Semantic preview by collection' },
     { to: '/vector/settings', label: 'Vector settings', description: 'Collection config and index controls' },
     { to: '/vector/export', label: 'Export', description: 'Download vector collections' },
