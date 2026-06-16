@@ -36,6 +36,16 @@ export const listToolDef = {
   }
 };
 
+function parseConcepts(raw: unknown): string[] {
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return raw.split(',').map((item) => item.trim()).filter(Boolean);
+  }
+}
+
 export async function handleList(ctx: ToolContext, input: OracleListInput): Promise<ToolResponse> {
   const { type = 'all', limit = 10, offset = 0 } = input;
 
@@ -88,7 +98,7 @@ export async function handleList(ctx: ToolContext, input: OracleListInput): Prom
     title: row.content.split('\n')[0].substring(0, 80),
     content: row.content.substring(0, 500),
     source_file: row.source_file,
-    concepts: JSON.parse(row.concepts || '[]'),
+    concepts: parseConcepts(row.concepts),
     indexed_at: row.indexed_at,
   }));
 

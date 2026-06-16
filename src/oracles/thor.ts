@@ -5,7 +5,16 @@ export const THOR_ORACLE_THEME = 'stormforge';
 
 export const THOR_ORACLE_SLUG = 'thor';
 
-export const thorOracleProfile: OracleProfile = {
+function freezeProfile<T extends OracleProfile>(profile: T): T {
+  Object.freeze(profile.principles);
+  for (const capability of profile.capabilities) Object.freeze(capability);
+  Object.freeze(profile.capabilities);
+  Object.freeze(profile.workflows);
+  Object.freeze(profile.defaultConcepts);
+  return Object.freeze(profile);
+}
+
+export const thorOracleProfile: OracleProfile = freezeProfile({
   id: THOR_ORACLE_ID,
   slug: THOR_ORACLE_SLUG,
   name: 'Thor Oracle',
@@ -46,6 +55,6 @@ export const thorOracleProfile: OracleProfile = {
     THOR_ORACLE_THEME,
     'dev-research',
   ],
-};
+});
 
 export type ThorOracleProfile = typeof thorOracleProfile;

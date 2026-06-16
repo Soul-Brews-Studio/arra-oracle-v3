@@ -22,15 +22,17 @@ function add(surfaceSet: Set<Surface>, surface: unknown): void {
 
 export function surfacesFor(plugin: PluginEntry): Surface[] {
   const surfaceSet = new Set<Surface>();
-  plugin.surfaces?.forEach((surface) => add(surfaceSet, surface));
+  if (Array.isArray(plugin.surfaces)) {
+    plugin.surfaces.forEach((surface) => add(surfaceSet, surface));
+  }
   if (plugin.file) surfaceSet.add('wasm');
   if (plugin.menu) surfaceSet.add('menu');
   if (plugin.server) surfaceSet.add('server');
-  if (plugin.mcpTools?.length) surfaceSet.add('mcp');
-  if (plugin.apiRoutes?.length) surfaceSet.add('apiRoutes');
-  if (plugin.proxy?.length) surfaceSet.add('proxy');
-  if (plugin.cliSubcommands?.length) surfaceSet.add('cliSubcommands');
-  if (plugin.exportFormats?.length) surfaceSet.add('exportFormats');
+  if (Array.isArray(plugin.mcpTools) && plugin.mcpTools.length) surfaceSet.add('mcp');
+  if (Array.isArray(plugin.apiRoutes) && plugin.apiRoutes.length) surfaceSet.add('apiRoutes');
+  if (Array.isArray(plugin.proxy) && plugin.proxy.length) surfaceSet.add('proxy');
+  if (Array.isArray(plugin.cliSubcommands) && plugin.cliSubcommands.length) surfaceSet.add('cliSubcommands');
+  if (Array.isArray(plugin.exportFormats) && plugin.exportFormats.length) surfaceSet.add('exportFormats');
   return [...surfaceSet];
 }
 

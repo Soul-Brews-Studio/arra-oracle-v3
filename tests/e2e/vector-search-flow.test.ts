@@ -29,8 +29,12 @@ afterAll(async () => {
   await server.stop();
 });
 
-test('vector search flow sends a query and returns result records', async () => {
-  const response = await fetch(`${server.baseUrl}/api/vector/search?q=vector-flow&limit=1`, {
+test('vector proxy search flow sends a query and returns result records', async () => {
+  const url = new URL('/api/search', server.baseUrl);
+  url.searchParams.set('q', 'vector-flow');
+  url.searchParams.set('mode', 'hybrid');
+  url.searchParams.set('limit', '1');
+  const response = await fetch(url, {
     headers: { accept: 'application/json' },
   });
   expect(response.status).toBe(200);

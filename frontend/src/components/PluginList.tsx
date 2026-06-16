@@ -36,7 +36,8 @@ export function pluginSurfaceBadgePath(pluginName: string, surface: string): str
 type SurfaceRow = { label: string; value: string; href: string };
 
 function routeLabel(methods: string[] | undefined, path: string): string {
-  return `${methods?.length ? methods.join('|') : 'ANY'} ${path}`;
+  const safeMethods = Array.isArray(methods) ? methods : [];
+  return `${safeMethods.length ? safeMethods.join('|') : 'ANY'} ${path}`;
 }
 
 export function pluginSurfaceRows(plugin: PluginEntry): SurfaceRow[] {
@@ -55,23 +56,23 @@ export function pluginSurfaceRows(plugin: PluginEntry): SurfaceRow[] {
       href: pluginSurfaceBadgePath(plugin.name, 'server'),
     });
   }
-  if (plugin.mcpTools?.length) {
+  if (Array.isArray(plugin.mcpTools) && plugin.mcpTools.length) {
     rows.push({ label: 'MCP tools', value: plugin.mcpTools.map((tool) => tool.name).join(', '), href: mcpToolsPath({ q: plugin.name, source: 'plugin' }) });
   }
-  if (plugin.apiRoutes?.length) {
+  if (Array.isArray(plugin.apiRoutes) && plugin.apiRoutes.length) {
     rows.push({ label: 'API routes', value: plugin.apiRoutes.map((route) => routeLabel(route.methods, route.path)).join(', '), href: pluginSurfaceBadgePath(plugin.name, 'apiRoutes') });
   }
-  if (plugin.proxy?.length) {
+  if (Array.isArray(plugin.proxy) && plugin.proxy.length) {
     rows.push({
       label: 'Proxy routes',
       value: plugin.proxy.map((proxy) => `${routeLabel(proxy.methods, proxy.path)} → $${proxy.targetEnv}`).join(', '),
       href: pluginSurfaceBadgePath(plugin.name, 'proxy'),
     });
   }
-  if (plugin.cliSubcommands?.length) {
+  if (Array.isArray(plugin.cliSubcommands) && plugin.cliSubcommands.length) {
     rows.push({ label: 'CLI subcommands', value: plugin.cliSubcommands.map((command) => command.command).join(', '), href: pluginSurfaceBadgePath(plugin.name, 'cliSubcommands') });
   }
-  if (plugin.exportFormats?.length) {
+  if (Array.isArray(plugin.exportFormats) && plugin.exportFormats.length) {
     rows.push({ label: 'Export formats', value: plugin.exportFormats.map((format) => `.${format.extension}`).join(', '), href: pluginSurfaceBadgePath(plugin.name, 'exportFormats') });
   }
   return rows;
