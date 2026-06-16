@@ -69,7 +69,7 @@ export function mapFromVaultPath(vaultRelativePath: string, project: string): st
  * Returns modified content (or original if already has project).
  */
 export function ensureFrontmatterProject(content: string, project: string): string {
-  const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 
   if (frontmatterMatch) {
     const frontmatter = frontmatterMatch[1];
@@ -77,8 +77,9 @@ export function ensureFrontmatterProject(content: string, project: string): stri
     if (/^project:\s/m.test(frontmatter)) return content;
 
     // Inject project: after existing frontmatter fields
-    const newFrontmatter = `${frontmatter}\nproject: ${project}`;
-    return content.replace(frontmatterMatch[0], `---\n${newFrontmatter}\n---`);
+    const newline = frontmatterMatch[0].includes('\r\n') ? '\r\n' : '\n';
+    const newFrontmatter = `${frontmatter}${newline}project: ${project}`;
+    return content.replace(frontmatterMatch[0], `---${newline}${newFrontmatter}${newline}---`);
   }
 
   // No frontmatter — add one

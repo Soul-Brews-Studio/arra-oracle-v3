@@ -66,9 +66,7 @@ export function validateStartupEnv(): ConfigValidationResult { return validateEn
 
 function cleanEnv(env: NodeJS.ProcessEnv): RuntimeEnv {
   const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(env)) {
-    if (value !== undefined) out[key] = String(value);
-  }
+  for (const [key, value] of Object.entries(env)) if (value !== undefined) out[key] = String(value);
   return out as RuntimeEnv;
 }
 
@@ -88,7 +86,7 @@ function requireHome(env: RuntimeEnv, issues: string[]): void {
 
 function validateIntegers(env: RuntimeEnv, issues: string[]): void {
   for (const key of INTEGER_ENV_KEYS) {
-    const value = env[key];
+    const value = env[key]?.trim();
     if (!filled(value)) continue;
     if (!/^\d+$/.test(value)) {
       issues.push(`${key} must be a positive integer; received "${value}".`);
@@ -101,14 +99,14 @@ function validateIntegers(env: RuntimeEnv, issues: string[]): void {
     }
   }
   for (const key of PORT_ENV_KEYS) {
-    const value = env[key];
+    const value = env[key]?.trim();
     if (filled(value) && Number(value) > 65_535) issues.push(`${key} must be <= 65535; received "${value}".`);
   }
 }
 
 function validateBooleans(env: RuntimeEnv, issues: string[]): void {
   for (const key of BOOLEAN_ENV_KEYS) {
-    const value = env[key];
+    const value = env[key]?.trim();
     if (filled(value) && !BOOL_VALUES.has(value.toLowerCase())) {
       issues.push(`${key} must be boolean-like (0/1/true/false/yes/no/on/off); received "${value}".`);
     }
@@ -117,17 +115,13 @@ function validateBooleans(env: RuntimeEnv, issues: string[]): void {
 
 function validateUrls(env: RuntimeEnv, issues: string[]): void {
   for (const key of URL_ENV_KEYS) {
-    const value = env[key];
+    const value = env[key]?.trim();
     if (!filled(value)) continue;
-    try {
-      const url = new URL(value);
-      if (!['http:', 'https:'].includes(url.protocol)) issues.push(`${key} must be http(s); received "${value}".`);
-    } catch {
-      issues.push(`${key} must be a valid URL; received "${value}".`);
-    }
+    validateHttpUrl(key, value, issues);
   }
-  if (filled(env.ORACLE_HTTP_URL) && env.ORACLE_HTTP_URL !== 'embedded') {
-    try { new URL(env.ORACLE_HTTP_URL); } catch { issues.push('ORACLE_HTTP_URL must be a valid URL or "embedded".'); }
+  const oracleHttpUrl = env.ORACLE_HTTP_URL?.trim();
+  if (filled(oracleHttpUrl) && oracleHttpUrl !== 'embedded') {
+    validateHttpUrl('ORACLE_HTTP_URL', oracleHttpUrl, issues, ' or "embedded"');
   }
 }
 
@@ -140,7 +134,7 @@ function validateEnums(env: RuntimeEnv, issues: string[]): void {
 }
 
 function validateDatabaseUrl(env: RuntimeEnv, issues: string[]): void {
-  const value = env.DATABASE_URL;
+  const value = env.DATABASE_URL?.trim();
   if (!filled(value)) return;
   try {
     const url = new URL(value);
@@ -176,7 +170,7 @@ function validateRuntimePaths(env: RuntimeEnv, issues: string[]): void {
 }
 
 function validateVectorConnectionConfig(env: RuntimeEnv, issues: string[]): void {
-  const type = (env.ORACLE_VECTOR_DB || 'lancedb').toLowerCase();
+  const type = (env.ORACLE_VECTOR_DB?.trim() || 'lancedb').toLowerCase();
   if (type === 'qdrant' && !filled(env.QDRANT_URL)) issues.push('Qdrant vector DB requires QDRANT_URL.');
   if (type === 'proxy' && !filled(env.ORACLE_PROXY_VECTOR_URL)) issues.push('Proxy vector DB requires ORACLE_PROXY_VECTOR_URL.');
   if (type === 'lancedb' || type === 'sqlite-vec') {
@@ -212,6 +206,7 @@ function nearestExistingDir(start: string): string {
 }
 
 function pathFromDatabaseUrl(value?: string): string {
+  value = value?.trim();
   if (!filled(value)) return '';
   try {
     const url = new URL(value);
@@ -230,11 +225,16 @@ function optionalWarnings(env: RuntimeEnv): string[] {
 
 function checkEnum<T extends readonly string[]>(env: RuntimeEnv, issues: string[], keys: readonly string[], allowed: T): void {
   for (const key of keys) {
-    const value = env[key];
+    const value = env[key]?.trim();
     if (filled(value) && !(allowed as readonly string[]).includes(value.toLowerCase())) {
       issues.push(`${key} must be one of ${allowed.join(', ')}; received "${value}".`);
     }
   }
+}
+
+function validateHttpUrl(label: string, value: string, issues: string[], suffix = ''): void {
+  try { if (!['http:', 'https:'].includes(new URL(value).protocol)) throw new Error('not http(s)'); }
+  catch { issues.push(`${label} must be a valid http(s) URL${suffix}; received "${value}".`); }
 }
 
 function normalizeEmbedder(value?: string): string {
