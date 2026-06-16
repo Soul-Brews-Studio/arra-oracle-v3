@@ -20,6 +20,17 @@ describe('canvas Cloudflare Worker', () => {
     expect(await cube.text()).toContain('plugin=cube');
   });
 
+
+  test('renders hot-swap picker with selected plugin state', async () => {
+    const response = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/planets'));
+    const html = await response.text();
+
+    expect(html).toContain('aria-label="Hot-swap canvas plugin"');
+    expect(html).toContain('<option value="planets" selected>Planets · react</option>');
+    expect(html).toContain('data-plugin-link="planets" aria-current="page"');
+    expect(html).toContain('history.pushState');
+  });
+
   test('falls back to wave for unknown plugins', async () => {
     const response = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/?plugin=unknown'));
     expect(await response.text()).toContain('plugin=wave');
