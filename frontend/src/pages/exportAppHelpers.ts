@@ -26,7 +26,7 @@ export const exportAppFormats: Array<{ value: ExportAppFormat; label: string; de
 ];
 
 function isRecord(value: unknown): value is RawCollection {
-  return typeof value === 'object' && value !== null;
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function text(...values: unknown[]): string {

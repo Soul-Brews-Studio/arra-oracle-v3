@@ -80,16 +80,24 @@ export const CANVAS_PLUGINS: readonly CanvasPlugin[] = [...CANVAS_THREE_PLUGINS,
 
 const kinds = new Set<CanvasPluginKind>(['three', 'react']);
 
+function cloneCanvasPlugin(plugin: CanvasPlugin): CanvasPlugin {
+  return { ...plugin, query: { ...plugin.query } };
+}
+
 export function parseCanvasKind(value: unknown): CanvasPluginKind | undefined {
-  return typeof value === 'string' && kinds.has(value as CanvasPluginKind) ? value as CanvasPluginKind : undefined;
+  const kind = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return kinds.has(kind as CanvasPluginKind) ? kind as CanvasPluginKind : undefined;
 }
 
 export function listCanvasPlugins(kind?: CanvasPluginKind): CanvasPlugin[] {
-  return kind ? CANVAS_PLUGINS.filter((plugin) => plugin.kind === kind) : [...CANVAS_PLUGINS];
+  const plugins = kind ? CANVAS_PLUGINS.filter((plugin) => plugin.kind === kind) : CANVAS_PLUGINS;
+  return plugins.map(cloneCanvasPlugin);
 }
 
 export function findCanvasPlugin(id: string): CanvasPlugin | undefined {
-  return CANVAS_PLUGINS.find((plugin) => plugin.id === id);
+  const pluginId = id.trim();
+  const plugin = CANVAS_PLUGINS.find((candidate) => candidate.id === pluginId);
+  return plugin ? cloneCanvasPlugin(plugin) : undefined;
 }
 
 export function canvasPluginPath(id: string): string {
