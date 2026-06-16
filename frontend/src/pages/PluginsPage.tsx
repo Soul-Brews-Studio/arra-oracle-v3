@@ -126,7 +126,7 @@ export function PluginsPage({
       <header>
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Plugin list</p>
         <h1 id="plugins-page-title" className="mt-2 text-3xl font-semibold text-white">Installed plugin status</h1>
-        <p className="mt-2 text-sm text-slate-400">Live installed plugin inventory from GET {endpoint}.</p>
+        <p className="mt-2 text-sm text-slate-400">Registered plugins and live installed inventory from GET {endpoint}.</p>
       </header>
 
       {fetching ? <LoadingPanel title="Loading plugins…" detail={`Fetching ${endpoint} and plugin health metadata.`} /> : null}
