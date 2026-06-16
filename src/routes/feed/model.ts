@@ -15,14 +15,4 @@ export const CreateFeedBody = t.Object({
   message: t.Optional(t.String()),
 });
 
-export interface FeedEvent {
-  timestamp: string;
-  oracle: string;
-  host: string;
-  event: string;
-  project: string;
-  session_id: string;
-  message: string;
-  tenant_id?: string;
-  source: 'local' | 'maw-js';
-}
+export type { FeedEvent } from '../../feed/events.ts';

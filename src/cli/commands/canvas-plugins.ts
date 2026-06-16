@@ -6,13 +6,35 @@ interface Options {
   id?: string;
 }
 
+const VALID_KINDS = new Set<CanvasPluginKind>(['three', 'react']);
+
+function optionValue(args: string[], index: number, name: string): string {
+  const value = args[index + 1]?.trim();
+  if (!value || value.startsWith('--')) throw new Error(`${name} requires a value`);
+  return value;
+}
+
+function parseKind(raw: string): CanvasPluginKind {
+  const kind = raw.trim() as CanvasPluginKind;
+  if (!VALID_KINDS.has(kind)) throw new Error(`--kind must be one of: ${[...VALID_KINDS].join(', ')}`);
+  return kind;
+}
+
+function parseText(raw: string, name: string): string {
+  const value = raw.trim();
+  if (!value) throw new Error(`${name} requires a value`);
+  return value;
+}
+
 function parseArgs(args: string[]): Options {
   const options: Options = { json: false };
   for (let i = 1; i < args.length; i += 1) {
     const arg = args[i];
     if (arg === '--json') options.json = true;
-    else if (arg === '--kind') options.kind = args[++i] as CanvasPluginKind;
-    else if (arg === '--id') options.id = args[++i];
+    else if (arg === '--kind') options.kind = parseKind(optionValue(args, i++, '--kind'));
+    else if (arg.startsWith('--kind=')) options.kind = parseKind(arg.slice('--kind='.length));
+    else if (arg === '--id') options.id = parseText(optionValue(args, i++, '--id'), '--id');
+    else if (arg.startsWith('--id=')) options.id = parseText(arg.slice('--id='.length), '--id');
     else if (arg) throw new Error(`unknown canvas-plugins option: ${arg}`);
   }
   return options;
