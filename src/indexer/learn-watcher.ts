@@ -79,7 +79,10 @@ export function startLearnWatcher({
 }: LearnWatcherOptions): StopWatch {
   const root = path.resolve(repoRoot);
   const roots = [path.join(root, MEMORY_LEARN_REL), path.join(root, PSI_LEARN_REL)]
-    .filter((dir) => fs.existsSync(dir));
+    .filter((dir) => {
+      try { fs.mkdirSync(dir, { recursive: true }); return true; }
+      catch { return false; }
+    });
 
   if (roots.length === 0) return () => {};
 
@@ -100,7 +103,7 @@ export function startLearnWatcher({
 
     let stat: fs.Stats;
     try { stat = fs.statSync(fullPath); } catch { return; }
-    if (stat.isDirectory()) { addWatchers(fullPath); return; }
+    if (stat.isDirectory()) { addWatchers(fullPath); indexTree(fullPath); return; }
     if (!stat.isFile() || !isMarkdownFile(fullPath)) return;
 
     const sourceFile = normalizeSourceFile(root, fullPath);
@@ -120,6 +123,10 @@ export function startLearnWatcher({
     }
     enqueueDocIds(db, models, ids);
   };
+
+  function indexTree(dir: string): void {
+    for (const filePath of listFiles(dir, isMarkdownFile)) indexOrQueue(filePath);
+  }
 
   function addWatchers(dir: string): void {
     for (const childDir of listDirs(dir)) {

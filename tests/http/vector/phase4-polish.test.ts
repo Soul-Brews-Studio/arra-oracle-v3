@@ -118,6 +118,22 @@ test('GET /api/v1/vector/cost-estimate returns token cost and recommendation', a
   expect(String(body.recommendation)).toContain('Any configured');
 });
 
+test('buildVectorFreshness reports pending source documents', async () => {
+  const { buildVectorFreshness } = await import('../../../src/vector/health.ts');
+  const freshness = buildVectorFreshness([
+    { count: 12 },
+    { count: 3 },
+  ], { docs: 20, lastIndexed: '2026-06-16T00:00:00Z' });
+
+  expect(freshness).toEqual({
+    status: 'stale',
+    totalIndexed: 15,
+    sourceDocs: 20,
+    docsPending: 8,
+    lastIndexed: '2026-06-16T00:00:00Z',
+  });
+});
+
 test('FallbackEmbeddings switches to the next provider after primary failure', async () => {
   const { FallbackEmbeddings } = await import('../../../src/vector/embeddings.ts');
   const events: Array<{ from: string; to?: string }> = [];

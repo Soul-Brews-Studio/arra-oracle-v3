@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiUrl } from '../api/oracle';
 import type { PluginEntry, PluginsResponse } from '../types';
 
-export const PLUGINS_ENDPOINT = '/api/v1/plugins';
+export const PLUGINS_ENDPOINT = '/api/plugins';
 const EMPTY_PLUGINS: PluginEntry[] = [];
 
 export type PluginFetch = (input: RequestInfo | URL, init?: RequestInit) => Response | Promise<Response>;

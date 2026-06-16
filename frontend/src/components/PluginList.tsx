@@ -16,6 +16,14 @@ export function pluginStatusLabel(plugin: PluginEntry, enabled: boolean): string
   return plugin.status || 'ok';
 }
 
+export function pluginHealthLabel(plugin: PluginEntry, enabled: boolean): string {
+  if (!enabled) return 'inactive';
+  if (plugin.error) return 'unhealthy';
+  if (plugin.status === 'degraded') return 'degraded';
+  if (plugin.status && plugin.status !== 'ok') return plugin.status;
+  return 'healthy';
+}
+
 export function togglePluginEnabled(state: PluginEnabledState, name: string): PluginEnabledState {
   return { ...state, [name]: !(state[name] ?? true) };
 }
@@ -37,6 +45,7 @@ export function PluginList({
         const surfaces = surfacesFor(plugin);
         const enabled = isPluginEnabled(plugin, enabledState);
         const status = pluginStatusLabel(plugin, enabled);
+        const health = pluginHealthLabel(plugin, enabled);
         return (
           <article key={plugin.name} className="rounded-2xl border border-white/10 bg-slate-950/60 p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -46,6 +55,7 @@ export function PluginList({
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge>{status}</Badge>
+                <Badge>{health}</Badge>
                 {surfaces.length
                   ? surfaces.map((surface) => <Badge key={surface}>{surface}</Badge>)
                   : <Badge>metadata</Badge>}
@@ -59,6 +69,10 @@ export function PluginList({
               <div>
                 <dt className="text-slate-500">Status</dt>
                 <dd className="font-mono text-slate-200">{status}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Health</dt>
+                <dd className="font-mono text-slate-200">{health}</dd>
               </div>
               <div>
                 <dt className="text-slate-500">Artifact</dt>

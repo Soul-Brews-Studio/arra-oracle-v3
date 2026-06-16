@@ -22,8 +22,8 @@ describe('frontend component coverage', () => {
     }]} loading={false} />);
 
     expect(html).toContain('1 enabled · 0 disabled · 1 registered');
-    expect(html).toContain('Installed plugin status');
-    expect(html).toContain('active');
+    expect(html).toContain('Unified plugin surfaces');
+    expect(html).toContain('ok');
     expect(html).toContain('2.0.0');
     expect(html).toContain('apiRoutes');
     expect(html).toContain('proxy');
@@ -36,12 +36,14 @@ describe('frontend component coverage', () => {
         { type: 'ollama', status: 'green', available: true, detail: 'local' },
         { type: 'openai', status: 'red', available: false, detail: 'missing key' },
       ]}
-      freshness={{ status: 'fresh', totalIndexed: 1532, docsPending: 0, lastIndexed: '2026-06-16T00:00:00Z' }}
+      freshness={{ status: 'stale', totalIndexed: 1532, sourceDocs: 1600, docsPending: 68, lastIndexed: '2026-06-16T00:00:00Z' }}
     />);
 
     expect(html).toContain('Vector health dashboard');
     expect(html).toContain('1/2 providers available');
-    expect(html).toContain('fresh · 1,532 indexed');
+    expect(html).toContain('stale · 1,532 indexed');
+    expect(html).toContain('68 pending of 1,600 source docs');
+    expect(html).toContain('2026-06-16T00:00:00Z');
     expect(html).toContain('ollama: green');
     expect(html).toContain('openai: red');
   });
