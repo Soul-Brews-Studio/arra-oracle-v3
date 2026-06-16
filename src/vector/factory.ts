@@ -30,18 +30,9 @@ export interface VectorStoreConfig {
   proxyEndpoint?: string;
 }
 export interface EmbeddingModelConfig {
-  collection: string;
-  model: string;
-  adapter?: VectorDBType;
-  dataPath?: string;
-  embedder?: EmbedderConfig;
-  provider?: string;
-  endpoint?: string;
-  pythonVersion?: string;
-  qdrantUrl?: string;
-  qdrantApiKey?: string;
-  cfAccountId?: string;
-  cfApiToken?: string;
+  collection: string; model: string; adapter?: VectorDBType; dataPath?: string; embedder?: EmbedderConfig;
+  provider?: string; endpoint?: string; pythonVersion?: string; qdrantUrl?: string; qdrantApiKey?: string;
+  cfAccountId?: string; cfApiToken?: string;
 }
 function createConfiguredEmbedder(config: VectorStoreConfig) {
   const provider = resolveEmbeddingProviderType(config.embeddingProvider ?? (config.embeddingModel ? 'ollama' : undefined));
@@ -157,6 +148,11 @@ export const EMBEDDING_MODELS = new Proxy({} as Record<string, EmbeddingModelCon
 });
 const modelStoreCache = new Map<string, VectorStoreAdapter>();
 const connectPromises = new Map<string, Promise<void>>();
+function resolveModelKey(model: string | undefined, models: Record<string, EmbeddingModelConfig>): string {
+  const key = model && models[model] ? model : (models['bge-m3'] ? 'bge-m3' : Object.keys(models)[0]);
+  if (!key) throw new Error('No embedding models configured');
+  return key;
+}
 export function createVectorStoreForModel(preset: EmbeddingModelConfig): VectorStoreAdapter {
   return createVectorStore({
     type: preset.adapter || 'lancedb',
@@ -175,7 +171,7 @@ export function getVectorStoreConfigByModel(
   model?: string,
   models = getEmbeddingModels(),
 ): VectorStoreConfig {
-  const key = model && models[model] ? model : 'bge-m3';
+  const key = resolveModelKey(model, models);
   const preset = models[key];
   return {
     type: preset.adapter || 'lancedb',
@@ -202,7 +198,7 @@ export function getVectorStoreByModel(
   models = getEmbeddingModels(),
   connectStore: (store: VectorStoreAdapter) => Promise<void> = (store) => store.connect(),
 ): VectorStoreAdapter {
-  const key = model && models[model] ? model : 'bge-m3';
+  const key = resolveModelKey(model, models);
   let store = modelStoreCache.get(key);
   if (!store) {
     const preset = models[key];
@@ -218,7 +214,7 @@ export async function ensureVectorStoreConnected(
   model?: string,
   models = getEmbeddingModels(),
 ): Promise<VectorStoreAdapter> {
-  const key = model && models[model] ? model : 'bge-m3';
+  const key = resolveModelKey(model, models);
   const store = getVectorStoreByModel(model, models);
   const pending = connectPromises.get(key);
   if (pending) await pending;

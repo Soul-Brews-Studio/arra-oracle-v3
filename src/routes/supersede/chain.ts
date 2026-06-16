@@ -8,10 +8,23 @@ import { alias } from 'drizzle-orm/sqlite-core';
 import { db, oracleDocuments } from '../../db/index.ts';
 import { activeTenantId } from '../../middleware/tenant.ts';
 
+function decodePathParam(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+}
+
 export const supersedeChainEndpoint = new Elysia().get(
   '/supersede/chain/:path',
-  ({ params }) => {
-    const docPath = decodeURIComponent(params.path);
+  ({ params, set }) => {
+    const docPath = decodePathParam(params.path);
+    if (!docPath) {
+      set.status = 400;
+      return { error: 'Invalid path parameter' };
+    }
     const tenantId = activeTenantId();
     const targetWhere = and(eq(oracleDocuments.sourceFile, docPath), eq(oracleDocuments.tenantId, tenantId));
 

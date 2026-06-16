@@ -9,12 +9,18 @@ import { db, oracleDocuments } from '../../db/index.ts';
 import { SupersedeQuery } from './model.ts';
 import { activeTenantId } from '../../middleware/tenant.ts';
 
+function boundedInteger(raw: string | undefined, fallback: number, min: number, max: number): number {
+  const value = Number.parseInt(raw ?? '', 10);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(Math.max(value, min), max);
+}
+
 export const supersedeListEndpoint = new Elysia().get(
   '/supersede',
   ({ query }) => {
     const project = query.project;
-    const limit = parseInt(query.limit ?? '50');
-    const offset = parseInt(query.offset ?? '0');
+    const limit = boundedInteger(query.limit, 50, 1, 200);
+    const offset = boundedInteger(query.offset, 0, 0, 100_000);
 
     const tenantId = activeTenantId();
     const filters = [isNotNull(oracleDocuments.supersededBy), eq(oracleDocuments.tenantId, tenantId)];

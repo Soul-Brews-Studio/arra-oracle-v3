@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, mock, test } from 'bun:test';
 import { Elysia } from 'elysia';
 import { Database } from 'bun:sqlite';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
@@ -24,8 +24,8 @@ function request(path: string, init: RequestInit = {}) {
   return indexerRoutes.handle(new Request(`http://local${path}`, init));
 }
 
-function post(path: string, body: unknown) {
-  return request(path, {
+function post(path: string, body: unknown, fetcher = request) {
+  return fetcher(path, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -79,6 +79,43 @@ describe('indexer HTTP routes', () => {
     const res = await post('/api/indexer/stop', {});
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ stopped: true });
+  });
+
+  test('POST /api/indexer/start returns 503 when no embedding models are configured', async () => {
+    const app = new Elysia({ prefix: '/api' }).use(createStartRoute({ getModels: () => ({} as any) }));
+    const res = await post('/api/indexer/start', {}, (path, init) => app.handle(new Request(`http://local${path}`, init)));
+    const body = await res.json() as Record<string, unknown>;
+
+    expect(res.status).toBe(503);
+    expect(body).toEqual({ status: 'error', error: 'No embedding models configured' });
+  });
+
+  test('POST /api/indexer/start normalizes bad batch size and closes failed stores', async () => {
+    const sqlite = tenantIndexerDb();
+    const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    seedDoc(sqlite, `idx-fail-${stamp}`, 'default', `alpha ${stamp}`, 1);
+    const close = mock(async () => {});
+    const tasks: Promise<void>[] = [];
+    const app = new Elysia({ prefix: '/api' }).use(createStartRoute({
+      createDb: () => ({ sqlite } as any),
+      createStore: () => ({ ...fakeStore([]), close, addDocuments: mock(async () => { throw new Error('embed failed'); }) }),
+      getModels: () => ({ nomic: { collection: 'test', model: 'nomic-embed-text' } } as any),
+      runInBackground: (task) => tasks.push(task),
+    }));
+
+    try {
+      const res = await post('/api/indexer/start', { model: 'nomic', batchSize: -3 }, (path, init) => app.handle(new Request(`http://local${path}`, init)));
+      const body = await res.json() as Record<string, unknown>;
+      await Promise.all(tasks);
+      const status = sqlite.prepare('SELECT error FROM indexing_status WHERE id = 1').get() as any;
+
+      expect(res.status).toBe(200);
+      expect(body.batchSize).toBe(100);
+      expect(status.error).toBe('embed failed');
+      expect(close).toHaveBeenCalledTimes(1);
+    } finally {
+      sqlite.close();
+    }
   });
 
   test('POST /api/indexer/start scopes vector indexing by tenant', async () => {

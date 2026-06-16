@@ -22,22 +22,27 @@ const tenantB = `concepts-b-${stamp}`;
 const docs = {
   aLearning: `concept-a-learning-${stamp}`,
   aPrinciple: `concept-a-principle-${stamp}`,
+  aNoisy: `concept-a-noisy-${stamp}`,
+  aLegacy: `concept-a-legacy-${stamp}`,
   bLearning: `concept-b-learning-${stamp}`,
 };
 const concepts = {
   shared: `shared-${stamp}`,
   aOnly: `a-only-${stamp}`,
+  noisy: `noisy-${stamp}`,
+  legacyA: `legacy-a-${stamp}`,
+  legacyB: `legacy-b-${stamp}`,
   bOnly: `b-only-${stamp}`,
 };
 
-function insertDoc(id: string, tenantId: string, type: string, values: string[]) {
+function insertDoc(id: string, tenantId: string, type: string, values: unknown[] | string) {
   const now = Date.now();
   dbMod.db.insert(dbMod.oracleDocuments).values({
     id,
     tenantId,
     type,
     sourceFile: `ψ/memory/${id}.md`,
-    concepts: JSON.stringify(values),
+    concepts: typeof values === 'string' ? values : JSON.stringify(values),
     createdAt: now,
     updatedAt: now,
     indexedAt: now,
@@ -58,6 +63,8 @@ function countByName(body: { concepts: Array<{ name: string; count: number }> },
 
 insertDoc(docs.aLearning, tenantA, 'learning', [concepts.shared, concepts.aOnly]);
 insertDoc(docs.aPrinciple, tenantA, 'principle', [concepts.shared]);
+insertDoc(docs.aNoisy, tenantA, 'learning', [` ${concepts.noisy} `, concepts.noisy, '', 42]);
+insertDoc(docs.aLegacy, tenantA, 'learning', `${concepts.legacyA}, ${concepts.legacyA}, ${concepts.legacyB},`);
 insertDoc(docs.bLearning, tenantB, 'learning', [concepts.shared, concepts.bOnly]);
 
 afterAll(() => {
@@ -68,7 +75,7 @@ afterAll(() => {
   else process.env.ORACLE_DATA_DIR = savedDataDir;
   if (savedDbPath === undefined) delete process.env.ORACLE_DB_PATH;
   else process.env.ORACLE_DB_PATH = savedDbPath;
-  dbMod.resetDefaultDatabaseForTests();
+  dbMod.resetDefaultDatabaseForTests(':memory:');
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -80,7 +87,7 @@ test('/api/concepts counts only documents from the active tenant', async () => {
   expect(countByName(body, concepts.shared)).toBe(2);
   expect(countByName(body, concepts.aOnly)).toBe(1);
   expect(countByName(body, concepts.bOnly)).toBe(0);
-  expect(body.total_unique).toBe(2);
+  expect(body.total_unique).toBe(5);
 });
 
 test('/api/concepts keeps type filters inside the selected tenant', async () => {
@@ -92,4 +99,16 @@ test('/api/concepts keeps type filters inside the selected tenant', async () => 
   expect(countByName(body, concepts.bOnly)).toBe(1);
   expect(countByName(body, concepts.aOnly)).toBe(0);
   expect(body.total_unique).toBe(2);
+});
+
+test('/api/concepts normalizes noisy concept payloads and rejects partial limits', async () => {
+  const res = await requestConcepts(tenantA, '/api/concepts?type=learning&limit=1abc');
+  const body = await res.json() as { concepts: Array<{ name: string; count: number }>; total_unique: number };
+
+  expect(res.status).toBe(200);
+  expect(body.concepts.length).toBeGreaterThan(1);
+  expect(countByName(body, concepts.noisy)).toBe(1);
+  expect(countByName(body, concepts.legacyA)).toBe(1);
+  expect(countByName(body, concepts.legacyB)).toBe(1);
+  expect(body.total_unique).toBe(5);
 });

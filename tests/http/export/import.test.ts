@@ -160,3 +160,26 @@ test('POST /api/v1/export/import rejects unknown vector collections', async () =
   expect(batches).toEqual([]);
   expect(store.addDocuments).not.toHaveBeenCalled();
 });
+
+test('POST /api/v1/export/import normalizes invalid chunk sizes', async () => {
+  const { store, batches } = createStore();
+  const app = new Elysia({ prefix: '/api' }).use(createExportImportRoutes({
+    getModels: () => ({ 'bge-m3': {} }),
+    getStore: () => store,
+    chunkSize: 0,
+  }));
+  const fetcher = createApiVersionedFetch((request) => app.handle(request));
+  const rows = [
+    { id: 'chunk-1', document: 'alpha' },
+    { id: 'chunk-2', document: 'bravo' },
+  ];
+
+  const res = await fetcher(new Request('http://local/api/v1/export/import', {
+    method: 'POST',
+    body: multipart(new Blob([JSON.stringify(rows)], { type: 'application/json' }), 'export.json'),
+  }));
+
+  expect(res.status).toBe(200);
+  expect(await res.json()).toMatchObject({ success: true, imported: 2 });
+  expect(batches.map((batch) => batch.map((doc) => doc.id))).toEqual([['chunk-1', 'chunk-2']]);
+});

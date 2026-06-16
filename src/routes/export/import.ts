@@ -21,6 +21,11 @@ interface ExportImportDeps {
 
 const DEFAULT_COLLECTION = 'bge-m3';
 
+function normalizeChunkSize(value: number | undefined): number {
+  if (!Number.isFinite(value) || !value || value < 1) return 500;
+  return Math.max(1, Math.trunc(value));
+}
+
 async function readPayload(request: Request): Promise<ImportPayload> {
   const url = new URL(request.url);
   const type = request.headers.get('content-type') ?? '';
@@ -59,7 +64,7 @@ async function addInChunks(store: ImportStore, docs: VectorDocument[], chunkSize
 export function createExportImportRoutes(deps: ExportImportDeps = {}) {
   const getModels = deps.getModels ?? getEmbeddingModels;
   const getStore = deps.getStore ?? getVectorStoreByModel;
-  const chunkSize = deps.chunkSize ?? 500;
+  const chunkSize = normalizeChunkSize(deps.chunkSize);
 
   return new Elysia().post('/export/import', async ({ request, set }) => {
     let payload: ImportPayload;
