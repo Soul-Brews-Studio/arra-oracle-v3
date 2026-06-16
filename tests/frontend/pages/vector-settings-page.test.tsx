@@ -10,8 +10,8 @@ describe('VectorSettingsPage', () => {
     expect(html).toContain('Enable vector search');
     expect(html).toContain('PATCH /api/v1/vector/config');
     expect(html).toContain('First-run wizard');
-    expect(html).toContain('Provider → vault → first index');
-    expect(html).toContain('Open Index Manager');
+    expect(html).toContain('Choose a storage adapter');
+    expect(html).toContain('No collections loaded yet.');
     expect(html).toContain('Embedding providers and storage services');
     expect(html).toContain('Model recommendation');
     expect(html).toContain('Active vector adapters');
