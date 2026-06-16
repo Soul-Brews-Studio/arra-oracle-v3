@@ -2,420 +2,179 @@
 
 [![CI](https://github.com/Soul-Brews-Studio/arra-oracle-v3/actions/workflows/ci.yml/badge.svg)](https://github.com/Soul-Brews-Studio/arra-oracle-v3/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](./LICENSE) [![CalVer](https://img.shields.io/badge/calver-v26.4.20--alpha.7-blue)](https://calver.org) [![Bun](https://img.shields.io/badge/runtime-Bun%201.2%2B-f9f1e1)](https://bun.sh)
 
-> "The Oracle Keeps the Human Human" - now queryable via MCP
+> "The Oracle Keeps the Human Human" — now queryable via MCP.
 
-Phukhao Oracle is landing here: https://phukhao.buildwithoracle.com/presentation/
+Arra Oracle is the MCP memory and search layer for the Oracle family: semantic
+search over local knowledge, vector indexing, federation plumbing, and an Elysia
+HTTP API for tools, dashboard, and desktop clients.
 
-| | |
-|---|---|
-| **Status** | Always Nightly |
-| **Version** | 26.4.19-alpha.7 |
-| **Created** | 2025-12-29 |
-| **Updated** | 2026-04-19 |
-
-TypeScript MCP server for semantic search over Oracle philosophy — SQLite FTS5 + ChromaDB hybrid search, HTTP API, and vault CLI.
-
-See [docs/LOCAL-DEV.md](docs/LOCAL-DEV.md) for local development.
+See [docs/LOCAL-DEV.md](docs/LOCAL-DEV.md) for local development and
+[docs/README.md](docs/README.md) for the full docs index.
 
 ## Docs navigation
-
-The alpha docs wave is reachable from here in one hop:
 
 | Guide | What it covers |
 | --- | --- |
 | [docs/README.md](docs/README.md) | Docs index and feature-knob map. |
-| [docs/INSTALL.md](docs/INSTALL.md) | Fresh install through Bun remote, Docker GHCR, and Docker MCP Toolkit. |
-| [docs/DEPLOY-DIGITALOCEAN.md](docs/DEPLOY-DIGITALOCEAN.md) | DigitalOcean runbook: provision, firewall/token, connect, seed, teardown. |
+| [docs/INSTALL.md](docs/INSTALL.md) | Fresh install with Bun, Docker GHCR, and Docker MCP Toolkit. |
+| [docs/DEPLOY-DIGITALOCEAN.md](docs/DEPLOY-DIGITALOCEAN.md) | DigitalOcean runbook. |
 | [docs/FEDERATION.md](docs/FEDERATION.md) | Pairing, Scout discovery, TOFU pins, peer feed/search, and peer auth. |
-| [docs/HUGINN-MUNINN.md](docs/HUGINN-MUNINN.md) | Capture/recall naming taxonomy: Arra=Muninn recall, Huginn=capture now. |
+| [docs/HUGINN-MUNINN.md](docs/HUGINN-MUNINN.md) | Capture/recall naming taxonomy. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Two-repo rule and PR target rules. |
 | [CHANGELOG.md](CHANGELOG.md) | Alpha wave release notes and source PR links. |
-| [docs/TONIGHT-SHIPPED.md](docs/TONIGHT-SHIPPED.md) | Consolidated feature reference and per-feature config knobs. |
+| [docs/API.md](docs/API.md) | HTTP API reference. |
 
+## Desktop App
 
-## Huginn & Muninn
+The desktop app is a Tauri 2 shell around the Arra Oracle dashboard. It gives
+operators a native window for the React UI while controlling the local Bun API
+backend on `http://localhost:47778`. The desktop side exposes small Rust commands
+for backend status, launch/stop controls, and app metadata such as About info.
 
-Arra is **Muninn**, the recall raven: `oracle_search`, `oracle_read`,
-`oracle_list`, `oracle_stats`, and `oracle_trace*` help recover what is already
-in memory. **Huginn** is capture-now: `oracle_learn`, `oracle_handoff`,
-write-time indexing, and future auto-capture work save the present so Muninn can
-recall it later. This taxonomy is for legibility, not a rename; do not add
-`huginn_*` aliases. See [docs/HUGINN-MUNINN.md](docs/HUGINN-MUNINN.md).
+### Install
 
-## Architecture
+Build a distributable desktop bundle from the frontend workspace:
 
-```
-arra-oracle-v3 (one package, four bins)
-├── bunx arra-oracle-v3                     → HTTP API / server launcher (bin/arra.ts)
-├── bunx arra-oracle-v2                     → MCP server (src/index.ts)
-├── bunx arra-cli                           → operator CLI (cli/src/cli.ts)
-└── bunx arra                               → operator CLI alias (cli/src/cli.ts)
-
-oracle-studio (separate repo)
-└── bunx oracle-studio                      → React dashboard
+```bash
+bun install
+cd frontend
+cargo tauri build
 ```
 
-**Stack:**
-- **Bun** runtime (>=1.2.0)
-- **SQLite** + FTS5 for full-text search
-- **ChromaDB** for vector/semantic search
-- **Drizzle ORM** for type-safe queries
-- **Hono** for HTTP API
-- **MCP** protocol for Claude integration
+The Tauri config lives in `frontend/src-tauri/tauri.conf.json`; generated bundles
+land under `frontend/src-tauri/target/release/bundle/`.
+
+### Development
+
+Run the desktop shell in dev mode:
+
+```bash
+bun install
+cd frontend
+cargo tauri dev
+```
+
+`cargo tauri dev` starts Vite through the Tauri `beforeDevCommand`. The desktop
+shell can start/stop the Bun backend, or you can run it separately from the repo
+root with `bun run server`.
+
+### Architecture
+
+- **Tauri shell** (`frontend/src-tauri/`) owns the native window, permissions,
+  shell plugin, backend process control, and `get_about_info` command.
+- **React frontend** (`frontend/src/`) renders the dashboard and calls Tauri
+  commands when running inside the desktop shell.
+- **Bun backend** (`src/server.ts`) serves the Elysia HTTP API, MCP-adjacent
+  memory/search routes, vector endpoints, and federation surfaces on `:47778`.
 
 ## Install
 
-### bunx (recommended)
-
-Distributed via GitHub — no npm publish needed:
+### Bun package entry points
 
 ```bash
-# Backend (MCP server)
+# HTTP API / server launcher
 bunx --bun arra-oracle@github:Soul-Brews-Studio/arra-oracle-v3
 
-# Operator CLI (plugin runner)
+# MCP server
+bunx --bun arra-oracle-v2@github:Soul-Brews-Studio/arra-oracle-v3
+
+# Operator CLI
 bunx --bun arra-cli@github:Soul-Brews-Studio/arra-oracle-v3 --help
-
-# Short operator CLI alias
 bunx --bun arra@github:Soul-Brews-Studio/arra-oracle-v3 health
-
-# UI (dashboard — separate repo)
-bunx --bun oracle-studio@github:Soul-Brews-Studio/oracle-studio
-
 ```
-
-### Add to Claude Code
-
-```bash
-claude mcp add arra-oracle-v2 -- bunx --bun arra-oracle-v2@github:Soul-Brews-Studio/arra-oracle-v3#main
-```
-
-Or in `~/.claude.json`:
-```json
-{
-  "mcpServers": {
-    "arra-oracle-v2": {
-      "command": "bunx",
-      "args": ["--bun", "arra-oracle-v2@github:Soul-Brews-Studio/arra-oracle-v3#main"]
-    }
-  }
-}
-```
-
-
-### Docker / Docker MCP Toolkit
-
-The `alpha` branch publishes Docker images to GHCR for both runtime modes:
-
-| Image | Purpose |
-| --- | --- |
-| `ghcr.io/soul-brews-studio/arra-oracle-v3:http` | HTTP API on `:47778` |
-| `ghcr.io/soul-brews-studio/arra-oracle-v3:stdio` | MCP stdio server for Docker MCP Toolkit / Gateway |
-
-Build locally:
-
-```bash
-docker build -t arra-oracle-v3:http --target http-server .
-docker build -t arra-oracle-v3:stdio --target mcp-stdio .
-```
-
-Run the HTTP server:
-
-```bash
-docker run --rm -p 47778:47778 -v arra-data:/data ghcr.io/soul-brews-studio/arra-oracle-v3:http
-curl -sf http://localhost:47778/api/health
-```
-
-Or use Compose, which also serves the HTTP target on `:47778`:
-
-```bash
-docker compose up -d
-curl -sf http://localhost:47778/api/health
-```
-
-For Docker MCP Toolkit click-to-install, use `catalog/arra-oracle.yaml`. It points at the real published stdio image:
-
-```bash
-mkdir -p ~/.docker/mcp/catalogs
-cp catalog/arra-oracle.yaml ~/.docker/mcp/catalogs/
-```
-
-Then add `arra-oracle` to Docker MCP Toolkit's registry configuration and restart Docker Desktop / the MCP gateway.
 
 ### From source
 
 ```bash
 git clone https://github.com/Soul-Brews-Studio/arra-oracle-v3.git
-cd arra-oracle-v3 && bun install
-bun run dev          # MCP server
+cd arra-oracle-v3
+bun install
 bun run server       # HTTP API on :47778
+bun run dev          # MCP server
 ```
 
-### Operator CLI targets
+### Docker
 
-`arra` and `arra-cli` resolve the HTTP API target in this order:
-
-1. `ORACLE_API=http://host:47778`
-2. `arra --at <name> <command>` from configured targets
-3. nearest project `.arra/config.json` default target
-4. global `$XDG_CONFIG_HOME/arra/config.json` (or `~/.config/arra/config.json`) default target
-5. legacy `NEO_ARRA_API`
-6. `http://localhost:47778`
-
-Config shape:
-
-```json
-{
-  "default": "local",
-  "targets": {
-    "local": "http://localhost:47778",
-    "m5": "http://m5.local:47778"
-  }
-}
-```
+The `alpha` branch publishes GHCR images for HTTP and MCP stdio modes:
 
 ```bash
-arra config          # show resolved target, sources, and targets
-arra config path     # print global config path
+docker run --rm -p 47778:47778 -v arra-data:/data \
+  ghcr.io/soul-brews-studio/arra-oracle-v3:http
+curl -sf http://localhost:47778/api/health
+```
+
+For Docker MCP Toolkit, use `catalog/arra-oracle.yaml`.
+
+## Operator CLI targets
+
+`arra` and `arra-cli` resolve HTTP API targets from `ORACLE_API`, `arra --at`,
+project config, global config, legacy `NEO_ARRA_API`, then localhost.
+
+```bash
+arra config          # show resolved target and sources
 arra use m5          # set global default target
 arra --at m5 health  # one-off target override
-arra doctor          # diagnose target, server, DB/vector, config, and MCP mode
 arra doctor --json   # machine-readable diagnostics
-arra plugins         # list MCP tool plugins from plugins.json
-arra plugins disable trace
-arra plugins enable trace
+arra plugins         # list MCP tool plugins
 ```
-
-Shell completions:
-
-```bash
-# zsh
-mkdir -p ~/.zsh/completions
-arra completions zsh > ~/.zsh/completions/_arra
-# then add to ~/.zshrc: fpath=(~/.zsh/completions $fpath); autoload -Uz compinit && compinit
-
-# bash
-arra completions bash > ~/.arra-completion.bash
-# then source ~/.arra-completion.bash from ~/.bashrc
-
-# fish
-mkdir -p ~/.config/fish/completions
-arra completions fish > ~/.config/fish/completions/arra.fish
-```
-
-<details>
-<summary>Install script (legacy)</summary>
-
-```bash
-curl -sSL https://raw.githubusercontent.com/Soul-Brews-Studio/arra-oracle-v3/main/scripts/install.sh | bash
-```
-</details>
-
-<details>
-<summary>Troubleshooting</summary>
-
-| Problem | Fix |
-|---------|-----|
-| `bun: command not found` | `export PATH="$HOME/.bun/bin:$PATH"` |
-| ChromaDB hangs/timeout | Skip it — SQLite FTS5 works fine without vectors |
-| Server crashes on empty DB | Run `bun run index` first to index knowledge base |
-
-</details>
 
 ## MCP Tools
 
-22 tools available via Claude Code:
+Core tools include `oracle_search`, `oracle_read`, `oracle_list`,
+`oracle_stats`, `oracle_learn`, `oracle_handoff`, `oracle_inbox`,
+`oracle_trace*`, `oracle_thread*`, `oracle_supersede`, and `oracle_verify`.
 
-| Tool | Description |
-|------|-------------|
-| `oracle_search` | Hybrid search (FTS5 + ChromaDB) |
-| `oracle_reflect` | Random wisdom |
-| `oracle_learn` | Add new patterns |
-| `oracle_list` | Browse documents |
-| `oracle_stats` | Database statistics |
-| `oracle_concepts` | List concept tags |
-| `oracle_supersede` | Mark documents as superseded |
-| `oracle_handoff` | Session handoff |
-| `oracle_inbox` | Inbox messages |
-| `oracle_verify` | Verify documents |
-| `oracle_thread` | Create thread |
-| `oracle_threads` | List threads |
-| `oracle_thread_read` | Read thread |
-| `oracle_thread_update` | Update thread |
-| `oracle_trace` | Create trace |
-| `oracle_trace_list` | List traces |
-| `oracle_trace_get` | Get trace |
-| `oracle_trace_link` | Link traces |
-| `oracle_trace_unlink` | Unlink traces |
-| `oracle_trace_chain` | Trace chain |
-| `oracle_schedule_add` | Add schedule entry |
-| `oracle_schedule_list` | List schedule |
+## API and data
 
-## Vault CLI
+- HTTP API: `bun run server` on `:47778`; see [docs/API.md](docs/API.md).
+- Database: Drizzle + SQLite (`bun db:push`, `bun db:migrate`, `bun db:studio`).
+- Vector/search: LanceDB/Qdrant/sqlite-vec surfaces under `src/vector/` and
+  `src/routes/vector/`.
+- Optional HTTP auth: set `ARRA_API_TOKEN` for protected `/api/*` routes.
 
-Global CLI for managing the Oracle knowledge vault:
+## Project structure
 
-```bash
-oracle-vault init <owner/repo>    # Initialize vault with GitHub repo
-oracle-vault status               # Show config and pending changes
-oracle-vault sync                 # Commit + push to GitHub
-oracle-vault pull                 # Pull vault files into local ψ/
-oracle-vault migrate              # Seed vault from ghq repos
-```
-
-## API Endpoints
-
-HTTP API on port 47778 (`bun run server`).
-
-<!-- endpoints:start -->
-
-> Auto-generated by `bun run scripts/gen-endpoints.ts`. 55 endpoints across 14 modules.
-
-| Method | Path | Module | Description |
-|--------|------|--------|-------------|
-| `GET` | `/api/auth/status` | `auth` | Auth status - public |
-| `POST` | `/api/auth/login` | `auth` | Login |
-| `POST` | `/api/auth/logout` | `auth` | Logout |
-| `GET` | `/api/dashboard` | `dashboard` |  |
-| `GET` | `/api/dashboard/summary` | `dashboard` |  |
-| `GET` | `/api/dashboard/activity` | `dashboard` |  |
-| `GET` | `/api/dashboard/growth` | `dashboard` |  |
-| `GET` | `/api/session/stats` | `dashboard` | Session stats endpoint - tracks activity from DB (includes MCP usage) |
-| `GET` | `/api/peer/feed` | `feed` |  |
-| `POST` | `/api/peer/feed` | `feed` | Log an event to feed.log |
-| `GET` | `/api/graph` | `files` | Graph |
-| `GET` | `/api/context` | `files` | Context |
-| `GET` | `/api/file` | `files` | File - supports cross-repo access via ghq project paths |
-| `GET` | `/api/read` | `files` |  |
-| `GET` | `/api/doc/:id` | `files` |  |
-| `GET` | `/api/logs` | `files` |  |
-| `GET` | `/api/plugins` | `files` |  |
-| `GET` | `/api/plugins/:name` | `files` |  |
-| `GET` | `/api/threads` | `forum` | List threads |
-| `POST` | `/api/thread` | `forum` | Create thread / send message |
-| `GET` | `/api/thread/:id` | `forum` | Get thread by ID |
-| `PATCH` | `/api/thread/:id/status` | `forum` | Update thread status |
-| `GET` | `/api/health` | `health` | Health check |
-| `GET` | `/api/stats` | `health` | Stats (extended with vector metrics) |
-| `GET` | `/api/oracles` | `health` | Active Oracles — detected from existing activity across all log tables |
-| `POST` | `/api/learn` | `knowledge` | Learn |
-| `POST` | `/api/handoff` | `knowledge` | Handoff |
-| `GET` | `/api/inbox` | `knowledge` | Inbox |
-| `GET` | `/api/oraclenet/feed` | `oraclenet` | Feed — recent posts |
-| `GET` | `/api/oraclenet/oracles` | `oraclenet` | Oracles directory |
-| `GET` | `/api/oraclenet/presence` | `oraclenet` | Presence — recent heartbeats |
-| `GET` | `/api/oraclenet/status` | `oraclenet` | Health check — is OracleNet reachable? |
-| `GET` | `/api/plugins` | `plugins` |  |
-| `GET` | `/api/plugins/:name` | `plugins` |  |
-| `GET` | `/api/schedule/md` | `schedule` | Serve raw schedule.md for frontend rendering |
-| `GET` | `/api/schedule` | `schedule` |  |
-| `POST` | `/api/schedule` | `schedule` |  |
-| `PATCH` | `/api/schedule/:id` | `schedule` | Update schedule event status |
-| `GET` | `/api/search` | `search` | Search |
-| `GET` | `/api/reflect` | `search` | Reflect |
-| `GET` | `/api/similar` | `search` | Similar documents (vector nearest neighbors) |
-| `GET` | `/api/map` | `search` | Knowledge map (2D projection of all embeddings) |
-| `GET` | `/api/map3d` | `search` | Knowledge map 3D (real PCA from LanceDB bge-m3 embeddings) |
-| `GET` | `/api/list` | `search` | List documents |
-| `GET` | `/api/settings` | `settings` | Get settings (no password hash exposed) |
-| `POST` | `/api/settings` | `settings` | Update settings |
-| `GET` | `/api/supersede` | `supersede` | List supersessions from oracle_documents.superseded_by |
-| `GET` | `/api/supersede/chain/:path` | `supersede` | Get supersede chain for a document (by source_file path) |
-| `POST` | `/api/supersede` | `supersede` | Log a new supersession |
-| `GET` | `/api/traces` | `traces` |  |
-| `GET` | `/api/traces/:id` | `traces` |  |
-| `GET` | `/api/traces/:id/chain` | `traces` |  |
-| `POST` | `/api/traces/:prevId/link` | `traces` | Link traces: POST /api/traces/:prevId/link { nextId: "..." } |
-| `DELETE` | `/api/traces/:id/link` | `traces` | Unlink trace: DELETE /api/traces/:id/link?direction=prev\|next |
-| `GET` | `/api/traces/:id/linked-chain` | `traces` | Get trace linked chain: GET /api/traces/:id/linked-chain |
-
-<!-- endpoints:end -->
-
-## Database
-
-Drizzle ORM with SQLite:
-
-```bash
-bun db:push       # Push schema to DB
-bun db:generate   # Generate migrations
-bun db:migrate    # Apply migrations
-bun db:studio     # Open Drizzle Studio GUI
-```
-
-## Project Structure
-
-```
+```text
 arra-oracle-v3/
-├── src/
-│   ├── index.ts          # MCP server entry
-│   ├── server.ts         # HTTP API (Hono)
-│   ├── indexer.ts        # Knowledge indexer
-│   ├── vault/
-│   │   └── cli.ts        # Vault CLI entry
-│   ├── tools/            # MCP tool handlers
-│   ├── trace/            # Trace system
-│   ├── db/
-│   │   ├── schema.ts     # Drizzle schema
-│   │   └── index.ts      # DB client
-│   └── server/           # HTTP server modules
-├── scripts/              # Setup & utility scripts
-├── docs/                 # Documentation
-└── drizzle.config.ts     # Drizzle configuration
+├── src/                 # Elysia API, MCP tools, indexer, vector, federation
+├── frontend/            # React dashboard and Tauri desktop app
+├── cli/                 # arra / arra-cli operator CLI
+├── tests/               # HTTP, frontend, integration, and behavior tests
+├── docs/                # Detailed operator and architecture docs
+└── catalog/             # Docker MCP Toolkit catalog entry
 ```
-
-## Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ORACLE_PORT` | `47778` | HTTP server port |
-| `ORACLE_REPO_ROOT` | `process.cwd()` | Knowledge base root |
 
 ## Testing
 
 ```bash
-bun test              # All tests
-bun test:unit         # Unit tests
-bun test:integration  # Integration tests
-bun test:e2e          # Playwright E2E tests
-bun test:coverage     # With coverage
+bun run build                       # Type-check backend/package
+bun test tests/http/<cluster>/      # Scoped HTTP tests
+cd frontend && bun run build        # Frontend type-check + Vite build
+cd frontend/src-tauri && cargo check
 ```
+
+## Federation
+
+Arra exposes MAW-compatible peer endpoints for Oracle federation. See
+[docs/FEDERATION.md](docs/FEDERATION.md) for pairing, Scout discovery, TOFU
+pinning, bearer-token protection, and Arra↔mawjs examples.
 
 ## New awakenings welcome
 
-Awakening a new Oracle? Post the birth announcement and experience report
-to **[Discussions](https://github.com/Soul-Brews-Studio/arra-oracle-v3/discussions)**,
-not Issues. See [docs/CONTRIBUTING-AWAKENING.md](./docs/CONTRIBUTING-AWAKENING.md)
-for categories and signature convention.
+Awakening a new Oracle? Post the birth announcement and experience report to
+[Discussions](https://github.com/Soul-Brews-Studio/arra-oracle-v3/discussions),
+not Issues. See [docs/CONTRIBUTING-AWAKENING.md](docs/CONTRIBUTING-AWAKENING.md).
 
 ## References
 
-- [TIMELINE.md](./TIMELINE.md) - Full evolution history
-- [docs/API.md](./docs/API.md) - API documentation
-- [docs/architecture.md](./docs/architecture.md) - Architecture details
-- [docs/CONTRIBUTING-AWAKENING.md](./docs/CONTRIBUTING-AWAKENING.md) - Where to post awakening announcements
+- [TIMELINE.md](TIMELINE.md) — evolution history.
+- [docs/architecture.md](docs/architecture.md) — architecture details.
 - [Drizzle ORM](https://orm.drizzle.team/)
 - [MCP SDK](https://github.com/modelcontextprotocol/typescript-sdk)
+- [Tauri](https://tauri.app/)
 
 ## Acknowledgments
 
-Inspired by [claude-mem](https://github.com/thedotmack/claude-mem) by Alex Newman — process manager pattern, worker service architecture, and hook system concepts.
-
-
-### Opt-in HTTP API token
-
-Set `ARRA_API_TOKEN` to require `Authorization: Bearer <token>` (or `?token=`) for HTTP `/api/*` endpoints, including write/index routes such as `POST /api/learn` and `/api/indexer/*`. The default is unset/open for backward compatibility, and local MCP stdio calls do not use this HTTP gate. `/api/health`, `/info`, and `/api/identity` stay open for monitoring and federation handshakes; `/api/peer/*` continues to use the separate `ARRA_PEER_TOKEN` gate.
-
-## Federation peer endpoints
-
-Arra exposes a MAW-compatible federation surface for peer oracles. See
-[docs/FEDERATION.md](docs/FEDERATION.md) for the full operator guide, including
-pairing, Scout discovery, TOFU pinning, bearer-token protection, and an
-Arra↔mawjs worked example.
-
-Key paths:
-
-- `GET /info` — public MAW schema/capability document.
-- `GET /api/identity` — public stable node identity and local TOFU pubkey.
-- `GET /api/peers` — probes peers from `ARRA_NAMED_PEERS` or `peers.json` and pins pubkeys on first contact.
-- `GET /api/peer/feed` — peer-readable feed (optionally protected); this is **not** `/api/feed`.
-- `POST /api/peer/search` — peer-callable Arra search.
+Inspired by [claude-mem](https://github.com/thedotmack/claude-mem) by Alex
+Newman — process manager pattern, worker service architecture, and hook system
+concepts.
