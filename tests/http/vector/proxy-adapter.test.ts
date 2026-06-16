@@ -13,7 +13,7 @@ const server = Bun.serve({
     const body = request.method === 'GET' || request.method === 'DELETE' ? undefined : await request.json();
     requests.push({ method: request.method, path: url.pathname, body });
     if (url.pathname === '/proxy/health') return Response.json({ status: 'ok', name: 'proxy-test', version: '1' });
-    if (url.pathname === '/proxy/vectors/stats') return Response.json({ count: 2, name: 'proxy_docs' });
+    if (url.pathname === '/proxy/vectors/stats') return Response.json({ count: 2, name: 'remote_proxy_docs' });
     if (url.pathname === '/proxy/vectors/add') return Response.json({ success: true });
     if (url.pathname === '/proxy/vectors/query') return Response.json({
       ids: ['doc-1'], documents: ['hello'], distances: [0.1], metadatas: [{ type: 'learning' }],
@@ -37,7 +37,7 @@ test('ProxyVectorAdapter speaks vector proxy protocol under endpoint path prefix
   await adapter.deleteCollection();
 
   expect(result.ids).toEqual(['doc-1']);
-  expect(info).toEqual({ name: 'proxy_docs', count: 2 });
+  expect(info).toEqual({ name: 'remote_proxy_docs', count: 2 });
   expect(requests.map((item) => `${item.method} ${item.path}`)).toEqual([
     'GET /proxy/health',
     'POST /proxy/vectors/add',
