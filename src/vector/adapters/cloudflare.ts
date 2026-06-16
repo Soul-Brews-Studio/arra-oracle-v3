@@ -1,5 +1,6 @@
 import type { VectorStoreAdapter } from '../types.ts';
 import { CloudflareAIEmbeddings, CloudflareVectorizeAdapter } from './cloudflare-vectorize.ts';
+import { VectorizeAdapter } from './vectorize.ts';
 import {
   CloudflareVectorizeD1Adapter,
   CloudflareWorkerAIEmbeddings,
@@ -32,6 +33,12 @@ export function createCloudflareVectorStore(
       d1: config.cfD1,
     }, { tableName: config.cfD1Table });
   }
+  if (config.cfVectorize) {
+    const embedder = config.cfAi
+      ? new CloudflareWorkerAIEmbeddings(config.cfAi, { model })
+      : new CloudflareAIEmbeddings({ ...restConfig(config), model });
+    return new VectorizeAdapter(collectionName, embedder, config.cfVectorize);
+  }
   const cfConfig = restConfig(config);
   return new CloudflareVectorizeAdapter(
     collectionName,
@@ -52,6 +59,7 @@ function clean(value: string | undefined): string | undefined {
   return trimmed || undefined;
 }
 
+export { VectorizeAdapter } from './vectorize.ts';
 export { CloudflareAIEmbeddings, CloudflareVectorizeAdapter } from './cloudflare-vectorize.ts';
 export {
   CloudflareVectorizeD1Adapter,
