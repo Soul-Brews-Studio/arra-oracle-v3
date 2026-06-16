@@ -18,10 +18,6 @@ import { resolveContainedPluginEntry } from '../../plugins/path-containment.ts';
 
 export const PLUGIN_DIR = join(homedir(), '.oracle', 'plugins');
 
-export function getPluginDir(): string {
-  return process.env.ORACLE_PLUGIN_DIR?.trim() || PLUGIN_DIR;
-}
-
 export const PluginMenuSchema = t.Object({
   label: t.String(),
   group: t.Optional(t.Union([t.Literal('main'), t.Literal('tools'), t.Literal('hidden')])),
@@ -68,6 +64,10 @@ type RawPluginManifest = {
 
 export function sanitizePluginName(name: string): string {
   return name.replace(/[^\w.-]/g, '').replace(/\.wasm$/, '');
+}
+
+export function currentPluginDir(): string {
+  return process.env.ORACLE_PLUGIN_DIR || PLUGIN_DIR;
 }
 
 export function readPluginManifest(dir: string): RawPluginManifest | null {
@@ -159,7 +159,7 @@ function containedPluginPath(dir: string, wasmName: string): string | null {
   }
 }
 
-export function readFlatPlugin(file: string, dir = getPluginDir()): PluginEntry {
+export function readFlatPlugin(file: string, dir = currentPluginDir()): PluginEntry {
   const st = statSync(join(dir, file));
   return {
     name: file.replace(/\.wasm$/, ''),
@@ -170,7 +170,7 @@ export function readFlatPlugin(file: string, dir = getPluginDir()): PluginEntry 
   };
 }
 
-export function resolveWasmPath(name: string, dir = getPluginDir()): string | null {
+export function resolveWasmPath(name: string, dir = currentPluginDir()): string | null {
   const nestedManifest = join(dir, name, 'plugin.json');
   if (existsSync(nestedManifest)) {
     try {
@@ -191,7 +191,7 @@ export function resolveWasmPath(name: string, dir = getPluginDir()): string | nu
   return null;
 }
 
-export function scanPlugins(dir = getPluginDir()): { plugins: PluginEntry[]; dir: string } {
+export function scanPlugins(dir = currentPluginDir()): { plugins: PluginEntry[]; dir: string } {
   if (!existsSync(dir)) return { plugins: [], dir };
   const plugins: PluginEntry[] = [];
   for (const entry of readdirSync(dir)) {
@@ -212,7 +212,7 @@ export function scanPlugins(dir = getPluginDir()): { plugins: PluginEntry[]; dir
   return { plugins, dir };
 }
 
-export function getPluginMenuItems(dir = getPluginDir()): MenuItem[] {
+export function getPluginMenuItems(dir = currentPluginDir()): MenuItem[] {
   const { plugins } = scanPlugins(dir);
   const items: MenuItem[] = [];
   for (const p of plugins) {

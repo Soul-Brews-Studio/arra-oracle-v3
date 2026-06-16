@@ -49,7 +49,7 @@ export interface UnifiedRuntime {
 interface InvokeContext {
   source: 'api' | 'mcp' | 'cli' | 'server' | LifecycleSource;
   plugin: string;
-  args?: unknown[];
+  args?: unknown[] | JsonRecord;
   request?: Request;
   params?: JsonRecord;
   query?: JsonRecord;
@@ -144,6 +144,7 @@ function apiRoute(plugin: LoadedUnifiedPlugin, route: UnifiedApiRouteManifest, t
       const result = await invoke(plugin, route.handler, {
         source: 'api',
         plugin: plugin.manifest.name,
+        args: (body ?? query) as JsonRecord,
         request,
         params,
         query,

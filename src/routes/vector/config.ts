@@ -48,7 +48,7 @@ const createSchema = t.Object({
 
 const configPatchKeys = new Set([
   'version', 'host', 'port', 'collections', 'dataPath', 'engine',
-  'embedder', 'embeddingEndpoint', 'enabled', 'storage', 'proxy', 'vectorProxyUrl',
+  'embedder', 'embeddingEndpoint', 'enabled', 'fanout', 'storage', 'proxy', 'vectorProxyUrl',
 ]);
 
 const configPatchSchema = t.Object({
@@ -61,6 +61,7 @@ const configPatchSchema = t.Object({
   embedder: t.Optional(t.Any()),
   embeddingEndpoint: t.Optional(t.String()),
   enabled: t.Optional(t.Boolean()),
+  fanout: t.Optional(t.Any()),
   storage: t.Optional(t.Record(t.String(), t.Unknown())),
   proxy: t.Optional(t.Array(t.Unknown())),
   vectorProxyUrl: t.Optional(t.String()),

@@ -224,4 +224,11 @@ export async function runArra(args: string[], request: Requester = requestJson, 
   } catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
 }
 
-export default async function handler(ctx: InvokeContext): Promise<InvokeResult> { return runArra(apiArgsToCliArgs(ctx.args)); }
+export default async function handler(ctx: InvokeContext): Promise<InvokeResult> {
+  const result = await runArra(apiArgsToCliArgs(ctx.args));
+  if (ctx.source === 'cli' && ctx.writer && result.ok && result.output) {
+    ctx.writer(result.output);
+    return { ok: true };
+  }
+  return result;
+}
