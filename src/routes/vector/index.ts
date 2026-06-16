@@ -3,6 +3,7 @@
  *
  * Endpoints:
  *   GET /api/vector/search  — vector-mode search alias
+ *   GET /api/vector/fanout  — fan-out query across configured vector backends
  *   GET /api/similar         — nearest-neighbor by doc id
  *   GET /api/compare         — fan-out search across embedding models
  *   GET /api/map             — 2D layout of all docs
@@ -23,6 +24,7 @@
 
 import { Elysia } from 'elysia';
 import { vectorSearchEndpoint } from './search.ts';
+import { fanoutEndpoint } from './fanout.ts';
 import { similarEndpoint } from './similar.ts';
 import { compareEndpoint } from './compare.ts';
 import { mapEndpoint } from './map.ts';
@@ -39,6 +41,7 @@ import { vectorServicesApiEndpoint } from './services.ts';
 export const vectorRoutes = new Elysia({ prefix: '/api' })
   .use(vectorProxyEndpoint)
   .use(vectorSearchEndpoint)
+  .use(fanoutEndpoint)
   .use(similarEndpoint)
   .use(compareEndpoint)
   .use(mapEndpoint)

@@ -65,13 +65,14 @@ export interface EmbeddingProvider {
   embed(texts: string[], type?: EmbedType): Promise<number[][]>;
 }
 
-export type EmbedderBackend = 'none' | 'local' | 'remote';
+export type EmbedderBackend = 'none' | 'local' | 'remote' | 'ollama' | 'openai' | 'gemini' | 'cloudflare-ai';
 
 export interface EmbedderConfig {
   backend: EmbedderBackend;
   url?: string;
   model?: string;
   dimensions?: number;
+  fallbackChain?: EmbeddingProviderType[];
 }
 
 export type VectorDBType =
@@ -88,4 +89,5 @@ export type EmbeddingProviderType =
   | 'chromadb-internal'
   | 'ollama'
   | 'openai'
+  | 'gemini'
   | 'cloudflare-ai';

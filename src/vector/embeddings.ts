@@ -1,17 +1,8 @@
-/**
- * Embedding Providers
- *
- * Ported from Nat-s-Agents data-aware-rag.
- * ChromaDB handles embeddings internally; other stores need these.
- */
-
 import type { EmbeddingProvider, EmbeddingProviderType, EmbedType } from './types.ts';
 import { NoneEmbeddings, RemoteHttpEmbeddings } from './embedding-backends.ts';
 
-/**
- * Placeholder for ChromaDB's internal embeddings.
- * ChromaDB generates embeddings server-side — this is never called directly.
- */
+export type FallbackEvent = { from: string; to?: string; error: string };
+
 export class ChromaDBInternalEmbeddings implements EmbeddingProvider {
   readonly name = 'chromadb-internal';
   readonly dimensions = 384; // all-MiniLM-L6-v2 default
@@ -21,9 +12,6 @@ export class ChromaDBInternalEmbeddings implements EmbeddingProvider {
   }
 }
 
-/**
- * Ollama local embeddings
- */
 export class OllamaEmbeddings implements EmbeddingProvider {
   readonly name = 'ollama';
   dimensions: number;
@@ -34,12 +22,9 @@ export class OllamaEmbeddings implements EmbeddingProvider {
   constructor(config: { baseUrl?: string; model?: string } = {}) {
     this.baseUrl = config.baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     this.model = config.model || 'nomic-embed-text';
-    // Known model dimensions (fallback before auto-detect).
-    // For unknown models, set to 0 → adapters MUST probe via embed() before
-    // creating columns (see #qwen3-dim-fallback issue).
     const KNOWN_DIMS: Record<string, number> = {
       'nomic-embed-text': 768,
-      'qwen3-embedding': 1024,                             // 0.6B variant (default tag)
+      'qwen3-embedding': 1024,
       'qwen3-embedding:0.6b': 1024,
       'qwen3-embedding:4b': 2560,
       'qwen3-embedding:8b': 4096,
@@ -59,16 +44,7 @@ export class OllamaEmbeddings implements EmbeddingProvider {
     const embeddings: number[][] = [];
 
     for (const text of texts) {
-      // Truncate to ~2000 chars — Thai text uses 2-3x more tokens than English
       let truncated = text.length > 2000 ? text.slice(0, 2000) : text;
-
-      // Instruction prefixes per model family. Wrong protocol = silent
-      // 5–30pt cross-language recall regression (observed on qwen3:4b).
-      //
-      //   - bge-v1.5 / multilingual-e5 → "query: ..." / "passage: ..."
-      //     (bge-m3 doesn't strictly require it but tolerates it)
-      //   - qwen3-embedding → "Instruct: <task>\nQuery: <q>" on QUERIES ONLY
-      //     passages stay raw. https://huggingface.co/Qwen/Qwen3-Embedding-0.6B
       const isQwen3 = this.model.includes('qwen3-embedding');
       const isE5 = this.model.includes('multilingual-e5') || this.model.includes('/e5-');
       const isBge = this.model.includes('bge');
@@ -83,7 +59,6 @@ export class OllamaEmbeddings implements EmbeddingProvider {
         if (isBge || isE5) {
           truncated = `passage: ${truncated}`;
         }
-        // qwen3-embedding: passages stay raw per HF model card
       }
 
       const response = await fetch(`${this.baseUrl}/api/embeddings`, {
@@ -100,7 +75,6 @@ export class OllamaEmbeddings implements EmbeddingProvider {
       const data = await response.json() as { embedding: number[] };
       embeddings.push(data.embedding);
 
-      // Auto-detect dimensions from first response
       if (!this._dimensionsDetected && data.embedding.length > 0) {
         this.dimensions = data.embedding.length;
         this._dimensionsDetected = true;
@@ -111,9 +85,6 @@ export class OllamaEmbeddings implements EmbeddingProvider {
   }
 }
 
-/**
- * OpenAI embeddings via API
- */
 export class OpenAIEmbeddings implements EmbeddingProvider {
   readonly name = 'openai';
   readonly dimensions: number;
@@ -155,11 +126,86 @@ export class OpenAIEmbeddings implements EmbeddingProvider {
   }
 }
 
-/**
- * Create embedding provider from type string
- */
+export class GeminiEmbeddings implements EmbeddingProvider {
+  readonly name = 'gemini';
+  readonly dimensions = 768;
+  private apiKey: string;
+  private model: string;
+
+  constructor(config: { apiKey?: string; model?: string } = {}) {
+    this.apiKey = config.apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
+    this.model = config.model || 'text-embedding-004';
+    if (!this.apiKey) throw new Error('Gemini API key required. Set GEMINI_API_KEY.');
+  }
+
+  async embed(texts: string[], _type?: EmbedType): Promise<number[][]> {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:batchEmbedContents?key=${this.apiKey}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests: texts.map((text) => ({ model: `models/${this.model}`, content: { parts: [{ text }] } })) }),
+    });
+    if (!response.ok) throw new Error(`Gemini API error: ${await response.text()}`);
+    const data = await response.json() as { embeddings?: Array<{ values?: number[] }> };
+    const vectors = data.embeddings?.map((item) => item.values);
+    if (!vectors || vectors.length !== texts.length || vectors.some((v) => !Array.isArray(v))) {
+      throw new Error('Gemini API error: invalid embedding payload');
+    }
+    return vectors as number[][];
+  }
+}
+
+export class FallbackEmbeddings implements EmbeddingProvider {
+  readonly name: string;
+  readonly dimensions: number;
+
+  constructor(
+    private readonly providers: EmbeddingProvider[],
+    private readonly onFallback: (event: FallbackEvent) => void = defaultFallbackLogger,
+  ) {
+    if (providers.length === 0) throw new Error('FallbackEmbeddings requires at least one provider');
+    this.name = providers.map((provider) => provider.name).join('>');
+    this.dimensions = providers[0].dimensions;
+  }
+
+  async embed(texts: string[], type?: EmbedType): Promise<number[][]> {
+    let lastError: unknown;
+    for (let i = 0; i < this.providers.length; i++) {
+      const provider = this.providers[i];
+      try {
+        return await provider.embed(texts, type);
+      } catch (error) {
+        lastError = error;
+        this.onFallback({ from: provider.name, to: this.providers[i + 1]?.name, error: errorMessage(error) });
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }
+}
+
+function defaultFallbackLogger(event: FallbackEvent): void {
+  if (event.to) console.warn(`[EmbedderFallback] ${event.from} failed: ${event.error}; trying ${event.to}`);
+  else console.warn(`[EmbedderFallback] ${event.from} failed: ${event.error}; no fallback provider left`);
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function createEmbeddingProvider(
   type: EmbeddingProviderType = 'none',
+  model?: string,
+  options: { url?: string; dimensions?: number; fallbackChain?: EmbeddingProviderType[] } = {},
+): EmbeddingProvider {
+  const chain = [type, ...(options.fallbackChain ?? [])].filter((item, index, all) =>
+    item !== 'none' && all.indexOf(item) === index
+  );
+  if (chain.length > 1) return new FallbackEmbeddings(chain.map((item) => createSingleEmbeddingProvider(item, model, options)));
+  return createSingleEmbeddingProvider(type, model, options);
+}
+
+function createSingleEmbeddingProvider(
+  type: EmbeddingProviderType,
   model?: string,
   options: { url?: string; dimensions?: number } = {},
 ): EmbeddingProvider {
@@ -173,6 +219,8 @@ export function createEmbeddingProvider(
       return new RemoteHttpEmbeddings({ model, url: options.url, dimensions: options.dimensions });
     case 'openai':
       return new OpenAIEmbeddings({ model });
+    case 'gemini':
+      return new GeminiEmbeddings({ model });
     case 'cloudflare-ai': {
       // Dynamic import to avoid requiring CF credentials when not used
       const { CloudflareAIEmbeddings } = require('./adapters/cloudflare-vectorize.ts');

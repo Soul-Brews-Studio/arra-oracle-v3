@@ -143,6 +143,9 @@ function embedderFor(config: VectorServerConfig, col: VectorCollectionConfig): E
   if (config.embedder) return { ...config.embedder, model: config.embedder.model ?? col.model };
   const provider = col.provider.toLowerCase();
   if (provider === 'ollama' || provider === 'local') return { backend: 'local', model: col.model };
+  if (provider === 'openai' || provider === 'gemini' || provider === 'cloudflare-ai') {
+    return { backend: provider, model: col.model };
+  }
   if (provider === 'remote') return { backend: 'remote', model: col.model };
   if (provider === 'none') return { backend: 'none' };
   return undefined;

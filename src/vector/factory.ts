@@ -13,28 +13,23 @@ import { QdrantAdapter } from './adapters/qdrant.ts';
 import { CloudflareVectorizeAdapter, CloudflareAIEmbeddings } from './adapters/cloudflare-vectorize.ts';
 import { ProxyVectorAdapter } from './adapters/proxy.ts';
 import { createEmbeddingProvider } from './embeddings.ts';
-import { resolveEmbeddingModel, resolveEmbeddingProviderType } from './embedder-config.ts';
+import { resolveEmbeddingFallbackChain, resolveEmbeddingModel, resolveEmbeddingProviderType } from './embedder-config.ts';
 import { loadVectorConfig, resolveServiceEndpoint, configToModels, fallbackCollectionsFor } from './config.ts';
 
 export interface VectorStoreConfig {
   type?: VectorDBType;
   collectionName?: string;
-  /** ChromaDB data dir, sqlite-vec DB path, or LanceDB directory */
   dataPath?: string;
   pythonVersion?: string;
   embeddingProvider?: EmbeddingProviderType;
   embeddingModel?: string;
   embeddingUrl?: string;
   embeddingDimensions?: number;
-  /** Qdrant URL (default: http://localhost:6333) */
+  embeddingFallbackChain?: EmbeddingProviderType[];
   qdrantUrl?: string;
-  /** Qdrant API key */
   qdrantApiKey?: string;
-  /** Cloudflare account ID */
   cfAccountId?: string;
-  /** Cloudflare API token */
   cfApiToken?: string;
-  /** Endpoint for proxy adapter */
   proxyEndpoint?: string;
 }
 
@@ -45,6 +40,18 @@ export interface EmbeddingModelConfig {
   dataPath?: string;
   embedder?: EmbedderConfig;
   endpoint?: string;
+}
+
+function createConfiguredEmbedder(config: VectorStoreConfig) {
+  return createEmbeddingProvider(
+    resolveEmbeddingProviderType(config.embeddingProvider),
+    resolveEmbeddingModel(config.embeddingModel),
+    {
+      url: config.embeddingUrl,
+      dimensions: config.embeddingDimensions,
+      fallbackChain: resolveEmbeddingFallbackChain(config.embeddingFallbackChain),
+    },
+  );
 }
 
 export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAdapter {
@@ -60,14 +67,7 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
         || process.env.ORACLE_VECTOR_DB_PATH
         || VECTORS_DB_PATH;
 
-      const embeddingType = resolveEmbeddingProviderType(config.embeddingProvider);
-      const embeddingModel = resolveEmbeddingModel(config.embeddingModel);
-
-      const embedder = createEmbeddingProvider(embeddingType, embeddingModel, {
-        url: config.embeddingUrl,
-        dimensions: config.embeddingDimensions,
-      });
-      return new SqliteVecAdapter(collectionName, dbPath, embedder);
+      return new SqliteVecAdapter(collectionName, dbPath, createConfiguredEmbedder(config));
     }
 
     case 'lancedb': {
@@ -75,25 +75,11 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
         || process.env.ORACLE_VECTOR_DB_PATH
         || LANCEDB_DIR;
 
-      const embeddingType = resolveEmbeddingProviderType(config.embeddingProvider);
-      const embeddingModel = resolveEmbeddingModel(config.embeddingModel);
-
-      const embedder = createEmbeddingProvider(embeddingType, embeddingModel, {
-        url: config.embeddingUrl,
-        dimensions: config.embeddingDimensions,
-      });
-      return new LanceDBAdapter(collectionName, dbPath, embedder);
+      return new LanceDBAdapter(collectionName, dbPath, createConfiguredEmbedder(config));
     }
 
     case 'qdrant': {
-      const embeddingType = resolveEmbeddingProviderType(config.embeddingProvider);
-      const embeddingModel = resolveEmbeddingModel(config.embeddingModel);
-
-      const embedder = createEmbeddingProvider(embeddingType, embeddingModel, {
-        url: config.embeddingUrl,
-        dimensions: config.embeddingDimensions,
-      });
-      return new QdrantAdapter(collectionName, embedder, {
+      return new QdrantAdapter(collectionName, createConfiguredEmbedder(config), {
         url: config.qdrantUrl || process.env.QDRANT_URL,
         apiKey: config.qdrantApiKey || process.env.QDRANT_API_KEY,
       });
@@ -108,7 +94,6 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
       const embeddingModel = config.embeddingModel
         || process.env.ORACLE_EMBEDDING_MODEL;
 
-      // Default to Cloudflare AI embeddings (same platform, zero egress)
       const embedder = new CloudflareAIEmbeddings({
         ...cfConfig,
         model: embeddingModel,
@@ -158,7 +143,6 @@ export function getEmbeddingModels(
 
   if (cfg) return configToModels(cfg);
 
-  // Hardcoded fallback — always works even without config file
   return {
     nomic: {
       collection: COLLECTION_NAME,
@@ -204,6 +188,7 @@ export function createVectorStoreForModel(preset: EmbeddingModelConfig): VectorS
     embeddingModel: preset.embedder?.model || preset.model,
     embeddingUrl: preset.embedder?.url,
     embeddingDimensions: preset.embedder?.dimensions,
+    embeddingFallbackChain: preset.embedder?.fallbackChain,
     proxyEndpoint: preset.endpoint,
     ...(preset.dataPath && { dataPath: preset.dataPath }),
   });
