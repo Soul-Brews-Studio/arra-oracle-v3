@@ -1,8 +1,10 @@
 import type { ExportJobView } from './model.ts';
+import { canReadTenantResource } from './tenant.ts';
 
 export type ExportProgressSnapshot = {
   id: string;
   jobId: string;
+  tenantId?: string;
   status: string;
   progress: number;
   updatedAt?: string;
@@ -39,13 +41,15 @@ export function rememberExportProgress(snapshot: ExportProgressSnapshot): void {
 }
 
 export function readRememberedExportProgress(id: string): ExportProgressSnapshot | null {
-  return remembered.get(id) ?? null;
+  const snapshot = remembered.get(id) ?? null;
+  return snapshot && canReadTenantResource(snapshot.tenantId) ? snapshot : null;
 }
 
 export function snapshotFromJob(job: ExportJobView): ExportProgressSnapshot {
   return {
     id: job.id,
     jobId: job.id,
+    tenantId: job.tenantId,
     status: publicStatus(job.status),
     progress: clampProgress(job.progress),
     updatedAt: job.updatedAt,

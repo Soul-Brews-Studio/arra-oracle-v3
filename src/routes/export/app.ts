@@ -9,6 +9,7 @@ import { introspectDrizzleTables } from '../../cli/commands/backup.ts';
 import { createExportStatsRoutes } from './stats.ts';
 import { createExportTestConnectionRoutes } from './test-connection.ts';
 import { rememberExportProgress } from './progress.ts';
+import { canReadTenantResource, currentExportTenantId, tenantScopedOutputDir, tenantWhereFor } from './tenant.ts';
 
 type ExportRecord = Record<string, unknown>;
 type BaseExportFormat = 'json' | 'csv' | 'markdown';
@@ -25,6 +26,7 @@ interface ExportTools {
 
 interface ExportJob {
   jobId: string;
+  tenantId?: string;
   collection: string;
   format: ExportFormat;
   includeGraph: boolean;
@@ -62,7 +64,9 @@ function tableMap(): Map<string, DumpTable> {
 }
 
 function selectRows(connection: QueryConnection, table: DumpTable): ExportRecord[] {
-  return (connection.db as any).select().from(table).all() as ExportRecord[];
+  const query = (connection.db as any).select().from(table);
+  const where = tenantWhereFor(table);
+  return (where ? query.where(where) : query).all() as ExportRecord[];
 }
 
 function safeName(value: string): string {
@@ -195,7 +199,8 @@ export function createExportAppRoutes(deps: ExportAppDeps = {}) {
       const base = formatRows(body.collection, rows, format, tools);
       const content = !isGraph && body.includeGraph ? attachGraph(base, format, relationships) : base;
       const jobId = deps.idGenerator?.() ?? randomUUID();
-      const outputDir = deps.outputDir ?? path.join(ORACLE_DATA_DIR, 'export-app', 'http');
+      const tenantId = currentExportTenantId();
+      const outputDir = tenantScopedOutputDir(deps.outputDir ?? path.join(ORACLE_DATA_DIR, 'export-app', 'http'));
       const filename = `${safeName(body.collection)}-${jobId}.${extensionFor(format, tools)}`;
       const filePath = path.join(outputDir, filename);
       await mkdir(outputDir, { recursive: true });
@@ -205,6 +210,7 @@ export function createExportAppRoutes(deps: ExportAppDeps = {}) {
 
       const job: ExportJob = {
         jobId,
+        tenantId,
         collection: body.collection,
         format,
         includeGraph: Boolean(body.includeGraph),
@@ -217,14 +223,14 @@ export function createExportAppRoutes(deps: ExportAppDeps = {}) {
         createdAt: (deps.now?.() ?? new Date()).toISOString(),
       };
       jobs.set(jobId, job);
-      rememberExportProgress({ id: jobId, jobId, status: 'completed', progress: 100, updatedAt: job.createdAt, downloadUrl, filename, fileSizeEstimate: sizeBytes, sizeBytes });
+      rememberExportProgress({ id: jobId, jobId, tenantId, status: 'completed', progress: 100, updatedAt: job.createdAt, downloadUrl, filename, fileSizeEstimate: sizeBytes, sizeBytes });
       return { ...job, filePath: undefined, status: 'completed', progress: 100, downloadUrl };
     }, {
       body: t.Object({ collection: t.String(), format: t.Optional(t.String()), includeGraph: t.Optional(t.Boolean()) }),
     })
     .get('/export/app/download/:jobId', async ({ params, set }) => {
       const job = jobs.get(params.jobId);
-      if (!job) {
+      if (!job || !canReadTenantResource(job.tenantId)) {
         set.status = 404;
         return { error: `Unknown export job: ${params.jobId}` };
       }

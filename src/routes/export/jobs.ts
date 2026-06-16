@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
 import { ORACLE_DATA_DIR } from '../../config.ts';
+import { runWithTenant } from '../../middleware/tenant.ts';
 import { buildDataExportPayload } from './build.ts';
 import {
   resolveExportFormat,
@@ -11,6 +12,7 @@ import {
   type ExportPayload,
   type ExportRequest,
 } from './model.ts';
+import { canReadTenantResource, currentExportTenantId, tenantScopedOutputDir } from './tenant.ts';
 
 export type ExportBuilder = (
   request: ExportRequest,
@@ -63,9 +65,10 @@ export function createExportJobManager(options: ExportJobManagerOptions = {}) {
         job.progress = clampProgress(value);
         job.updatedAt = now().toISOString();
       });
-      await mkdir(outputDir, { recursive: true });
+      const jobOutputDir = job.tenantId ? tenantScopedOutputDir(outputDir) : outputDir;
+      await mkdir(jobOutputDir, { recursive: true });
       const filename = `oracle-export-${job.id}.${safeExtension(payload.extension)}`;
-      const filePath = path.join(outputDir, filename);
+      const filePath = path.join(jobOutputDir, filename);
       await writeFile(filePath, payload.data, 'utf8');
       job.filePath = filePath;
       job.filename = filename;
@@ -84,11 +87,13 @@ export function createExportJobManager(options: ExportJobManagerOptions = {}) {
   return {
     create(request: ExportRequest = {}): ExportJobView {
       const id = newId();
+      const tenantId = currentExportTenantId();
       const format = resolveExportFormat(request.format);
       const source = resolveExportSource(format, request.source);
       const timestamp = now().toISOString();
       const job: StoredExportJob = {
         id,
+        tenantId,
         status: 'queued',
         format,
         source,
@@ -98,18 +103,22 @@ export function createExportJobManager(options: ExportJobManagerOptions = {}) {
         updatedAt: timestamp,
       };
       jobs.set(id, job);
-      queueMicrotask(() => void run(job, { ...request, format, source }));
+      queueMicrotask(() => void runWithTenant(tenantId, () => run(job, { ...request, format, source })));
       return jobView(job);
     },
 
     get(id: string): ExportJobView | null {
       const job = jobs.get(id);
+      if (job && !canReadTenantResource(job.tenantId)) return null;
       return job ? jobView(job) : null;
     },
 
     async download(id: string): Promise<ExportDownload> {
       const job = jobs.get(id);
       if (!job) return { ok: false, status: 404, body: { error: 'Export job not found', id } };
+      if (!canReadTenantResource(job.tenantId)) {
+        return { ok: false, status: 404, body: { error: 'Export job not found', id } };
+      }
       if (job.status !== 'completed' || !job.filePath) {
         return { ok: false, status: 409, body: { error: 'Export job is not ready', job: jobView(job) } };
       }
