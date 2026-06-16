@@ -1,23 +1,3 @@
-/**
- * arra-indexer CLI — M4 of the indexer-CLI design.
- *
- * Subcommands:
- *   arra-indexer status [--model X] [--status pending|claimed|done|error] [--limit N]
- *   arra-indexer enqueue <doc_id> [--model X]
- *   arra-indexer cancel <job_id>
- *   arra-indexer daemon
- *   arra-indexer help
- *
- * Scoped to direct-DB operations + daemon launch. The bulk operations
- * (scan a directory, backfill all docs for a model) are left for a
- * follow-up — they need filesystem walking + bulk enqueue logic that
- * doesn't fit a 100-LOC PR.
- *
- * Pure dispatch: parseArgs + commandTable. Subcommand handlers take
- * a deps object so tests can wire mocks.
- *
- * Design: ψ/lab/indexer-cli/DESIGN.md (M4).
- */
 
 import type Database from 'bun:sqlite';
 import {
@@ -75,6 +55,8 @@ export interface CliDeps {
   out: (s: string) => void;
   /** Print to stderr. */
   err: (s: string) => void;
+  /** Start daemon; tests inject a short-lived implementation. */
+  startDaemon?: () => Promise<void>;
 }
 
 const HELP_TEXT = `arra-indexer — vector job queue CLI
@@ -83,7 +65,7 @@ Usage:
   arra-indexer status [--model <key>] [--status <state>] [--limit <n>]
   arra-indexer enqueue <doc_id> [--model <key>]
   arra-indexer cancel <job_id>
-  arra-indexer daemon                    # start the worker daemon (M3)
+  arra-indexer daemon                    # start worker + ψ learn watcher daemon
   arra-indexer help
 
 Examples:
@@ -98,8 +80,8 @@ The status / enqueue / cancel commands operate directly on the SQLite
 queue (oracle.db, indexing_jobs table). They do not require the daemon
 to be running.
 
-The daemon command starts the long-running worker process (one worker per
-registered model, listens on http://127.0.0.1:47780 by default).
+The daemon command starts the long-running worker process and watches
+ψ/memory/learnings + ψ/learn for Markdown changes.
 `;
 
 export function cmdHelp(deps: CliDeps): number {
@@ -224,9 +206,8 @@ export async function dispatch(argv: string[], deps: CliDeps): Promise<number> {
   // daemon is special — delegates to the M3 entrypoint, dynamic-imported
   // so the CLI doesn't pull the daemon's heavy deps for status/enqueue/cancel.
   if (args.subcommand === 'daemon') {
-    // daemon.ts has no exports — it runs main() at bottom via import.meta.main.
-    // We just need the side-effect of the import; swallow load errors.
-    await import('./daemon.ts').catch(() => null);
+    const startDaemon = deps.startDaemon ?? (await import('./daemon.ts')).startDaemon;
+    await startDaemon();
     return 0;
   }
   const fn = COMMANDS[args.subcommand] ?? cmdHelp;
