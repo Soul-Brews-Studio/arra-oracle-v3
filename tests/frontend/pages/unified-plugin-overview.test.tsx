@@ -35,5 +35,7 @@ describe('UnifiedPluginSurfaceOverview', () => {
     expect(html).toContain('href="/vector"');
     expect(html).toContain('href="/status"');
     expect(html).toContain('href="/storage"');
+    expect(html).toContain('href="/plugins?surface=mcp"');
+    expect(html).toContain('href="/plugins?surface=server"');
   });
 });

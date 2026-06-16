@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchMcpTools, fetchMenu, fetchSettingsSystem, fetchVectorConfig } from '../api';
 import { apiClient } from '../api/client';
 import { surfacesFor } from '../plugin-surfaces';
+import { pluginInventoryPath } from '../routePaths';
 import type { McpTool, MenuItem, PluginEntry, SettingsSystemResponse, VectorConfigResponse } from '../types';
 import type { HealthResponse } from '../../../src/server/types';
 
@@ -22,6 +23,12 @@ function countBySurface(plugins: PluginEntry[]): Record<string, number> {
     for (const surface of surfaces.length ? surfaces : ['metadata']) counts[surface] = (counts[surface] ?? 0) + 1;
   }
   return counts;
+}
+
+function surfaceCountLinks(counts: Record<string, number>): Array<{ label: string; href: string }> {
+  return Object.entries(counts)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([surface, count]) => ({ label: `${surface} ${count}`, href: pluginInventoryPath({ surface }) }));
 }
 
 function formatPath(value?: string | null): string {
@@ -87,6 +94,7 @@ export function UnifiedPluginSurfaceOverview({ plugins }: { plugins: PluginEntry
 
   const cards = useMemo(() => buildCards(plugins, state), [plugins, state]);
   const counts = useMemo(() => countBySurface(plugins), [plugins]);
+  const countLinks = useMemo(() => surfaceCountLinks(counts), [counts]);
   const servers = useMemo(() => pluginServerRows(plugins), [plugins]);
   const capabilities = useMemo(() => pluginCapabilityRows(plugins), [plugins]);
 
@@ -98,7 +106,11 @@ export function UnifiedPluginSurfaceOverview({ plugins }: { plugins: PluginEntry
           <h3 id="unified-surfaces-title" className="mt-2 text-xl font-semibold text-white">Plugin system map</h3>
           <p className="mt-2 text-sm text-slate-400">Menu, plugin list, MCP tools, vector search, server health, and storage config in one view.</p>
         </div>
-        <p className="text-sm text-slate-500">{Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(' · ') || 'metadata only'}</p>
+        {countLinks.length ? (
+          <div className="flex flex-wrap gap-2 text-sm">
+            {countLinks.map((item) => <a key={item.href} className="focus-ring rounded-full border border-white/10 px-2 py-1 text-slate-300 hover:border-teal-300/40" href={item.href}>{item.label}</a>)}
+          </div>
+        ) : <p className="text-sm text-slate-500">metadata only</p>}
       </div>
       {error ? <p className="mb-3 text-sm text-amber-200">{error}</p> : null}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{cards.map((card) => <SurfaceCard key={card.label} card={card} />)}</div>
