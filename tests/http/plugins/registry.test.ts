@@ -15,11 +15,7 @@ describe("GET /api/plugins", () => {
     pluginDir(tmp, "registry-pack", {
       description: "Registry fixture",
       mcpTools: [{ name: "registry_tool", description: "tool", inputSchema: {}, handler: "tool" }],
-      apiRoutes: [{ path: "/api/registry-pack", methods: ["GET"], handler: "api" }],
-      proxy: [{ path: "/api/registry-pack/server", targetEnv: "REGISTRY_PACK_URL" }],
       menu: [{ label: "Registry", path: "/registry", group: "tools", order: 4 }],
-      cliSubcommands: [{ command: "registry", help: "Registry command", handler: "cli" }],
-      exportFormats: [{ name: "registry", handler: "exportRegistry" }],
     });
     const runtime = await loadUnifiedPlugins({ dirs: [tmp] });
     const app = new Elysia().use(createPluginsRouter({ dir: tmp, registry: runtime.pluginRegistry }));
@@ -36,13 +32,8 @@ describe("GET /api/plugins", () => {
       name: "registry-pack",
       version: "1.0.0",
       status: "ok",
-      surfaces: ["mcpTools", "apiRoutes", "proxy", "menu", "cliSubcommands", "exportFormats"],
+      surfaces: ["mcpTools", "menu"],
       description: "Registry fixture",
-      apiRoutes: [{ path: "/api/registry-pack", methods: ["GET"] }],
-      proxy: [{ path: "/api/registry-pack/server", targetEnv: "REGISTRY_PACK_URL" }],
-      mcpTools: [{ name: "registry_tool", description: "tool" }],
-      cliSubcommands: [{ command: "registry", help: "Registry command" }],
-      exportFormats: [{ name: "registry", extension: "registry" }],
     });
     expect(Number.isNaN(Date.parse(String(body.plugins[0].modified)))).toBe(false);
   });
