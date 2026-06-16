@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fetchCanvasPlugins, type CanvasPluginEntry, type CanvasPluginsResponse } from '../api/canvas-plugins';
+import { fetchCanvasPlugins, type CanvasPluginEntry, type CanvasPluginKind, type CanvasPluginsResponse } from '../api/canvas-plugins';
 import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
 
 type PageState = 'loading' | 'ready' | 'error';
-type CanvasClient = { canvasPlugins: () => Promise<CanvasPluginsResponse> };
-const defaultClient: CanvasClient = { canvasPlugins: () => fetchCanvasPlugins() };
+type CanvasKindFilter = CanvasPluginKind | 'all';
+type CanvasClient = { canvasPlugins: (kind?: CanvasPluginKind) => Promise<CanvasPluginsResponse> };
+const defaultClient: CanvasClient = { canvasPlugins: (kind) => fetchCanvasPlugins(kind) };
+
+const filterOptions: Array<{ kind: CanvasKindFilter; label: string; description: string }> = [
+  { kind: 'all', label: 'All canvas plugins', description: 'Show every standalone canvas target.' },
+  { kind: 'three', label: 'Three scenes', description: 'Show shader and 3D scene mounts.' },
+  { kind: 'react', label: 'React apps', description: 'Show data-backed React canvases.' },
+];
 
 export interface CanvasPluginsPageProps {
   plugins?: CanvasPluginEntry[];
@@ -58,12 +65,13 @@ export function CanvasPluginsPage({ plugins: initialPlugins = [], loading = true
   const [host, setHost] = useState(standaloneHost);
   const [state, setState] = useState<PageState>(loading ? 'loading' : 'ready');
   const [error, setError] = useState('');
+  const [kindFilter, setKindFilter] = useState<CanvasKindFilter>('all');
 
   useEffect(() => {
     let cancelled = false;
     setState('loading');
     setError('');
-    client.canvasPlugins()
+    client.canvasPlugins(kindFilter === 'all' ? undefined : kindFilter)
       .then((response) => {
         if (cancelled) return;
         setPlugins(response.plugins);
@@ -76,7 +84,9 @@ export function CanvasPluginsPage({ plugins: initialPlugins = [], loading = true
         setState(initialPlugins.length ? 'ready' : 'error');
       });
     return () => { cancelled = true; };
-  }, [client, initialPlugins.length, standaloneHost]);
+  }, [client, initialPlugins.length, kindFilter, standaloneHost]);
+
+  const endpointHint = kindFilter === 'all' ? '/api/plugins?kind=canvas' : `/api/canvas/plugins?kind=${kindFilter}`;
 
   const summary = useMemo(() => {
     const react = plugins.filter((plugin) => plugin.kind === 'react').length;
@@ -89,11 +99,26 @@ export function CanvasPluginsPage({ plugins: initialPlugins = [], loading = true
       <header className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Canvas plugins</p>
         <h1 id="canvas-plugins-title" className="mt-2 text-3xl font-semibold text-white">Canvas plugin registry</h1>
-        <p className="mt-2 text-sm text-slate-400">Fetched from /api/plugins?kind=canvas for canvas.buildwithoracle.com standalone rendering.</p>
+        <p className="mt-2 text-sm text-slate-400">Filter the standalone registry by runtime while keeping canvas.buildwithoracle.com targets visible.</p>
+        <p className="mt-2 font-mono text-xs text-slate-500">Registry endpoint: {endpointHint}</p>
         <p className="mt-3 inline-flex rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300">{summary}</p>
+        <div className="mt-4 flex flex-wrap gap-2" aria-label="Canvas plugin runtime filters">
+          {filterOptions.map((option) => (
+            <button
+              key={option.kind}
+              aria-pressed={kindFilter === option.kind}
+              className={`focus-ring rounded-xl border px-3 py-2 text-left text-sm ${kindFilter === option.kind ? 'border-teal-300/40 bg-teal-300/10 text-teal-100' : 'border-white/10 text-slate-300 hover:border-teal-300/30'}`}
+              type="button"
+              onClick={() => setKindFilter(option.kind)}
+            >
+              <span className="block font-semibold">{option.label}</span>
+              <span className="block text-xs opacity-70">{option.description}</span>
+            </button>
+          ))}
+        </div>
       </header>
 
-      {state === 'loading' ? <LoadingPanel title="Loading canvas plugins" detail="Reading /api/plugins?kind=canvas." /> : null}
+      {state === 'loading' ? <LoadingPanel title="Loading canvas plugins" detail={`Reading ${endpointHint}.`} /> : null}
       {state === 'error' ? <ErrorMessage title="Could not load canvas plugins." message={error} /> : null}
       {state !== 'error' && error ? <ErrorMessage title="Canvas plugin warning" message={error} /> : null}
       {state !== 'error' ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{plugins.map((plugin) => <PluginCard key={plugin.id} plugin={plugin} host={host} />)}</div> : null}

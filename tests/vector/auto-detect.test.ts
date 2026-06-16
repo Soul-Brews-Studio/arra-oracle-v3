@@ -51,15 +51,15 @@ test('detects Ollama models and configured remote embedding providers', async ()
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
 
-test('uses env aliases for Ollama base URL and Gemini API key', async () => {
+test('uses env aliases for Ollama host and Gemini API key', async () => {
   const fetcher = mock(async (input: string | URL | Request) => {
-    expect(String(input)).toBe('http://ollama.internal/api/tags');
+    expect(String(input)).toBe('http://ollama.internal:11434/api/tags');
     return Response.json({ models: [] });
   }) as unknown as typeof fetch;
 
   const providers = await detectEmbeddingProviders({
     env: {
-      OLLAMA_BASE_URL: 'http://ollama.internal',
+      OLLAMA_HOST: 'ollama.internal:11434',
       GOOGLE_API_KEY: 'google-gemini-key',
     },
     fetcher,

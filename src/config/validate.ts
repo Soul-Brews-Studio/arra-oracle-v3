@@ -160,7 +160,7 @@ function validateProviderRequirements(env: RuntimeEnv, issues: string[]): void {
     issues.push('Remote embedder requires ORACLE_EMBEDDER_URL or ORACLE_REMOTE_EMBEDDING_URL.');
   }
   if (embedder === 'openai' && !filled(env.OPENAI_API_KEY)) issues.push('OpenAI embedder requires OPENAI_API_KEY.');
-  if (embedder === 'gemini' && !filled(env.GEMINI_API_KEY)) issues.push('Gemini embedder requires GEMINI_API_KEY.');
+  if (embedder === 'gemini' && !filled(env.GEMINI_API_KEY) && !filled(env.GOOGLE_API_KEY)) issues.push('Gemini embedder requires GEMINI_API_KEY or GOOGLE_API_KEY.');
   const cloudflare = embedder === 'cloudflare-ai' || env.ORACLE_VECTOR_DB === 'cloudflare-vectorize';
   if (cloudflare && ((!filled(env.CLOUDFLARE_ACCOUNT_ID) && !filled(env.CF_ACCOUNT_ID)) || (!filled(env.CLOUDFLARE_API_TOKEN) && !filled(env.CF_API_TOKEN)))) {
     issues.push('Cloudflare vector/AI config requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.');

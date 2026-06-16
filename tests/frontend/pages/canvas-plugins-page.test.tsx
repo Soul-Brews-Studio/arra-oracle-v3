@@ -12,8 +12,14 @@ describe('CanvasPluginsPage', () => {
     const html = htmlFor(<CanvasPluginsPage plugins={plugins} loading={false} standaloneHost="canvas.buildwithoracle.com" />);
 
     expect(html).toContain('Canvas plugin registry');
+    expect(html).toContain('Registry endpoint:');
     expect(html).toContain('/api/plugins?kind=canvas');
     expect(html).toContain('2 registered · 1 three · 1 react');
+    expect(html).toContain('aria-label="Canvas plugin runtime filters"');
+    expect(html).toContain('All canvas plugins');
+    expect(html).toContain('Three scenes');
+    expect(html).toContain('React apps');
+    expect(html).toContain('aria-pressed="true"');
     expect(html).toContain('Wave');
     expect(html).toContain('Knowledge Map');
     expect(html).toContain('registered');

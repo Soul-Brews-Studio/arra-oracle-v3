@@ -6,6 +6,8 @@ const originalAttempts = process.env.ORACLE_EMBED_ATTEMPTS;
 const originalDelay = process.env.ORACLE_EMBED_RETRY_DELAY_MS;
 const originalBatchSize = process.env.ORACLE_EMBED_BATCH_SIZE;
 const originalTimeout = process.env.ORACLE_EMBED_TIMEOUT_MS;
+const originalOllamaBaseUrl = process.env.OLLAMA_BASE_URL;
+const originalOllamaHost = process.env.OLLAMA_HOST;
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
@@ -17,6 +19,10 @@ afterEach(() => {
   else process.env.ORACLE_EMBED_BATCH_SIZE = originalBatchSize;
   if (originalTimeout === undefined) delete process.env.ORACLE_EMBED_TIMEOUT_MS;
   else process.env.ORACLE_EMBED_TIMEOUT_MS = originalTimeout;
+  if (originalOllamaBaseUrl === undefined) delete process.env.OLLAMA_BASE_URL;
+  else process.env.OLLAMA_BASE_URL = originalOllamaBaseUrl;
+  if (originalOllamaHost === undefined) delete process.env.OLLAMA_HOST;
+  else process.env.OLLAMA_HOST = originalOllamaHost;
 });
 
 describe('OllamaEmbeddings retry diagnostics (#987)', () => {
@@ -58,6 +64,21 @@ describe('OllamaEmbeddings retry diagnostics (#987)', () => {
       { model: 'bge-m3', input: ['passage: c'] },
     ]);
     expect(embedder.dimensions).toBe(2);
+  });
+
+  it('uses OLLAMA_HOST when OLLAMA_BASE_URL is unset', async () => {
+    delete process.env.OLLAMA_BASE_URL;
+    process.env.OLLAMA_HOST = 'ollama.internal:11434';
+    let requested = '';
+    globalThis.fetch = (async (url) => {
+      requested = String(url);
+      return Response.json({ embeddings: [[1, 2, 3]] });
+    }) as typeof fetch;
+
+    const embedder = new OllamaEmbeddings({ model: 'bge-m3' });
+    await embedder.embed(['hello'], 'passage');
+
+    expect(requested).toBe('http://ollama.internal:11434/api/embed');
   });
 
   it('aborts a slow batch with the configured timeout', async () => {
