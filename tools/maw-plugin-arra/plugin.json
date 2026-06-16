@@ -1,0 +1,15 @@
+{
+  "name": "arra",
+  "version": "0.1.0",
+  "entry": "./index.ts",
+  "sdk": "^1.0.0",
+  "description": "ARRA Oracle CLI bridge for vector export and status commands.",
+  "author": "Soul-Brews-Studio",
+  "cli": {
+    "command": "arra",
+    "help": "maw arra <status|export --collection X --format json|csv|md>"
+  },
+  "weight": 10,
+  "license": "BUSL-1.1",
+  "schemaVersion": 1
+}
