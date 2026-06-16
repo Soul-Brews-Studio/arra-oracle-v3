@@ -61,7 +61,7 @@ This repo uses a root skeleton:
 {
   "name": "arra-oracle-remote-mcp",
   "main": "./src/workers/oracle-mcp.ts",
-  "compatibility_date": "2026-06-16",
+  "compatibility_date": "2026-05-07",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true }
