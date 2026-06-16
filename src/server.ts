@@ -62,6 +62,7 @@ import { canvasRoutes } from './routes/canvas/index.ts';
 import { tenantsRoutes } from './routes/tenants/index.ts';
 import { watcherRoutes } from './routes/watcher/index.ts';
 import { fileWatcherService } from './services/file-watcher.ts';
+import { exportAppRoutes } from './routes/export/app.ts';
 
 let indexerRoutes: any = null;
 try {
@@ -83,10 +84,8 @@ try {
 console.log('[Vector] mode:', VECTOR_URL ? 'proxy → ' + VECTOR_URL : 'local');
 
 try {
-  const bt = sqlite.prepare('PRAGMA busy_timeout').get();
-  console.log(`[DB] busy_timeout = ${JSON.stringify(bt)}`);
+  console.log(`[DB] busy_timeout = ${JSON.stringify(sqlite.prepare('PRAGMA busy_timeout').get())}`);
 } catch {}
-
 configure({ dataDir: ORACLE_DATA_DIR, pidFileName: 'oracle-http.pid' });
 writePidFile({ pid: process.pid, port: Number(PORT), startedAt: new Date().toISOString(), name: 'oracle-http' });
 const scoutAnnouncer = shouldStartScoutAnnouncer() ? new ScoutAnnouncer() : null;
@@ -199,6 +198,7 @@ const apiModules = [
   canvasRoutes,
   tenantsRoutes,
   watcherRoutes,
+  exportAppRoutes,
   ...(indexerRoutes ? [indexerRoutes] : []),
   ...unifiedPlugins.routes,
 ];
@@ -217,7 +217,6 @@ const menuRoutes = createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.m
 const mcpRoutes = createMcpRoutes(unifiedPlugins.mcpTools);
 
 const modules = [...apiModules, mcpRoutes, menuRoutes];
-
 for (const mod of modules) app.use(mod as any);
 app.use(createNotFoundMiddleware(app.routes));
 

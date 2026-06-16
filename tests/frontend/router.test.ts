@@ -66,7 +66,7 @@ describe('frontend router', () => {
     expect(htmlAt('/vector/documents')).toContain('Vector documents');
     expect(htmlAt('/vector/results')).toContain('Vector search results');
     expect(htmlAt('/vector/export')).toContain('Vector export');
-    expect(htmlAt('/vector/settings')).toContain('Vector config and indexing');
+    expect(htmlAt('/vector/settings')).toContain('Configure adapters, embedding models');
   });
 
   test('wraps routed children in the browser router and error boundary shell', () => {
