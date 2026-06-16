@@ -32,6 +32,22 @@ describe('canvas Cloudflare Worker', () => {
     expect(html).toContain('data-studio-home aria-label="Open Oracle Studio home"');
     expect(html).toContain('href="https://studio.buildwithoracle.com/"');
     expect(html).toContain('history.pushState');
+    expect(html).toContain('renderPickerOptions');
+    expect(html).toContain("fetch('/api/plugins?kind=canvas')");
+    expect(html).toContain("link.addEventListener('click'");
+  });
+
+  test('hot-swaps plugins by disposing the active renderer before remounting runtime kind', async () => {
+    const response = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/?plugin=wave'));
+    const html = await response.text();
+
+    expect(html).toContain('function disposeActivePlugin()');
+    expect(html).toContain('function mountThreePlugin(meta)');
+    expect(html).toContain('function renderReactPlugin(meta)');
+    expect(html).toContain("dataset.hotSwapMode='three dispose/mount'");
+    expect(html).toContain("dataset.hotSwapMode='react swap'");
+    expect(html).toContain('activeCleanup=mountPlugin(meta)');
+    expect(html).toContain("history.pushState({plugin},'',pluginHref(meta))");
   });
 
   test('wires react canvas plugins to their Oracle data API', async () => {
