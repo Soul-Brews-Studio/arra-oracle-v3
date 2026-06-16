@@ -23,6 +23,13 @@ describe('config env validation', () => {
       .toThrow(/PORT must be <= 65535/);
   });
 
+  test('rejects unknown LOG_FORMAT values before logger startup', () => {
+    expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', LOG_FORMAT: 'verbose' }, emitOptionalWarnings: false }))
+      .toThrow(/LOG_FORMAT must be one of nginx, json, short/);
+    expect(validateEnv({ env: { HOME: '/tmp/arra-home', LOG_FORMAT: 'JSON' }, emitOptionalWarnings: false }).env.LOG_FORMAT)
+      .toBe('JSON');
+  });
+
   test('rejects directory database paths with a clear message', () => {
     const dir = mkdtempSync(join(tmpdir(), 'arra-config-db-'));
     expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', ORACLE_DB_PATH: dir }, emitOptionalWarnings: false }))

@@ -1,3 +1,8 @@
+import {
+  clearProviderDetectionCache,
+  getDetectedEmbeddingProviders,
+  type ProviderDetectionOptions,
+} from './provider-detection.ts';
 import type { EmbeddingProviderType } from './types.ts';
 
 export type AutoDetectProvider = Extract<
@@ -13,90 +18,31 @@ export interface AutoDetectedEmbeddingProvider {
   models?: string[];
 }
 
-export interface DetectEmbeddingProvidersOptions {
-  env?: Record<string, string | undefined>;
-  fetcher?: typeof fetch;
+export interface DetectEmbeddingProvidersOptions extends ProviderDetectionOptions {
   force?: boolean;
-  ollamaUrl?: string;
-  timeoutMs?: number;
 }
 
-let cachedProviders: AutoDetectedEmbeddingProvider[] | null = null;
+const AUTO_DETECT_PROVIDERS = new Set<EmbeddingProviderType>([
+  'ollama',
+  'openai',
+  'gemini',
+  'cloudflare-ai',
+]);
 
 export async function detectEmbeddingProviders(
   options: DetectEmbeddingProvidersOptions = {},
 ): Promise<AutoDetectedEmbeddingProvider[]> {
-  if (cachedProviders && !options.force) return cloneProviders(cachedProviders);
-
-  const env = options.env ?? process.env;
-  const providers: AutoDetectedEmbeddingProvider[] = [
-    await detectOllama(options),
-    envProvider('openai', hasAnyEnv(env, 'OPENAI_API_KEY'), [
-      'text-embedding-3-small',
-      'text-embedding-3-large',
-    ]),
-    envProvider('gemini', hasAnyEnv(env, 'GEMINI_API_KEY', 'GOOGLE_API_KEY'), ['text-embedding-004']),
-    envProvider('cloudflare-ai', hasCloudflareCredentials(env), ['@cf/baai/bge-m3']),
-  ];
-
-  cachedProviders = providers;
-  return cloneProviders(providers);
+  const { force, ...detectOptions } = options;
+  const result = await getDetectedEmbeddingProviders(Boolean(force), detectOptions);
+  return result.providers
+    .filter((provider) => AUTO_DETECT_PROVIDERS.has(provider.type))
+    .map((provider) => ({
+      provider: provider.type as AutoDetectProvider,
+      status: provider.available ? 'available' : 'unavailable',
+      ...(provider.available && { models: [...provider.models] }),
+    }));
 }
 
 export function clearEmbeddingProviderAutoDetectCache(): void {
-  cachedProviders = null;
-}
-
-async function detectOllama(
-  options: DetectEmbeddingProvidersOptions,
-): Promise<AutoDetectedEmbeddingProvider> {
-  const fetcher = options.fetcher ?? fetch;
-  const baseUrl = options.ollamaUrl ?? options.env?.OLLAMA_BASE_URL ?? 'http://localhost:11434';
-
-  try {
-    const response = await fetcher(`${baseUrl}/api/tags`, {
-      signal: AbortSignal.timeout(options.timeoutMs ?? 1500),
-    });
-    if (!response.ok) return unavailable('ollama');
-
-    const body = await response.json() as { models?: Array<{ name?: string }> };
-    const models = (body.models ?? [])
-      .map((model) => model.name)
-      .filter((name): name is string => Boolean(name?.trim()));
-
-    return { provider: 'ollama', status: 'available', models };
-  } catch {
-    return unavailable('ollama');
-  }
-}
-
-function envProvider(
-  provider: AutoDetectProvider,
-  available: boolean,
-  models: string[],
-): AutoDetectedEmbeddingProvider {
-  if (!available) return unavailable(provider);
-  return { provider, status: 'available', models };
-}
-
-function unavailable(provider: AutoDetectProvider): AutoDetectedEmbeddingProvider {
-  return { provider, status: 'unavailable' };
-}
-
-function hasCloudflareCredentials(env: Record<string, string | undefined>): boolean {
-  return (hasAnyEnv(env, 'CF_ACCOUNT_ID') && hasAnyEnv(env, 'CF_API_TOKEN'))
-    || (hasAnyEnv(env, 'CLOUDFLARE_ACCOUNT_ID') && hasAnyEnv(env, 'CLOUDFLARE_API_TOKEN'));
-}
-
-function hasAnyEnv(env: Record<string, string | undefined>, ...keys: string[]): boolean {
-  return keys.some((key) => Boolean(env[key]?.trim()));
-}
-
-function cloneProviders(
-  providers: AutoDetectedEmbeddingProvider[],
-): AutoDetectedEmbeddingProvider[] {
-  return providers.map((provider) => ({
-    ...provider,
-    models: provider.models ? [...provider.models] : undefined,
-  }));
+  clearProviderDetectionCache();
 }

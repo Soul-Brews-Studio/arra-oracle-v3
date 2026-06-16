@@ -105,5 +105,11 @@ describe('src vector-config command get/set', () => {
       primary: true,
     });
     expect(written.collections['bge-m3'].primary).toBe(false);
+
+    const switched = await run(['switch', 'sqlite-vec', '--enabled', 'true', '--json']);
+    expect(switched.code).toBe(0);
+    const afterSwitch = diskConfig();
+    expect(afterSwitch.collections.phase2).toMatchObject({ adapter: 'sqlite-vec', enabled: true });
+    expect(afterSwitch.collections['bge-m3']).toMatchObject({ adapter: 'sqlite-vec', enabled: true });
   });
 });

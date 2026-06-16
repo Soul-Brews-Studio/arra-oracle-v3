@@ -11,7 +11,8 @@ type ArraPluginConfig = {
 type ArraPluginContext = {
   source: "api" | "mcp" | "cli" | "server" | "init" | "destroy";
   plugin: string;
-  args?: unknown[];
+  args?: unknown[] | Record<string, unknown>;
+  body?: unknown;
   request?: Request;
   config?: ArraPluginConfig;
 };
@@ -26,6 +27,7 @@ type ArraVerb = {
 };
 
 type CliResult = { ok: boolean; output?: string; error?: string };
+type ArraApiResult = { ok: boolean; body?: unknown; error?: string; status?: number };
 
 const VERSION = "1.0.0";
 const MENU_PATH = "/plugins/arra";
@@ -50,7 +52,21 @@ const VERBS: ArraVerb[] = [
 ];
 
 function argv(ctx: ArraPluginContext): string[] {
-  return (ctx.args ?? []).map(String);
+  const args = inputArgv(ctx.args);
+  return args.length ? args : inputArgv(ctx.body);
+}
+
+function inputArgv(input: unknown): string[] {
+  if (Array.isArray(input)) return input.map(String);
+  if (!input || typeof input !== "object") return [];
+  const record = input as Record<string, unknown>;
+  if (Array.isArray(record.args)) return record.args.map(String);
+  const command = record.command ?? record.cmd;
+  if (typeof command !== "string" || !command.trim()) return [];
+  const args = [command.trim()];
+  if (Array.isArray(record.argv)) args.push(...record.argv.map(String));
+  if (record.json === true || record.json === "true" || record.format === "json") args.push("--json");
+  return args;
 }
 
 function commandName(ctx: ArraPluginContext): string {
@@ -132,8 +148,23 @@ async function renderCli(ctx: ArraPluginContext): Promise<CliResult> {
   return renderHelp();
 }
 
-export function arraHttpRoute(ctx: ArraPluginContext) {
-  return { ok: true, body: pluginBody(ctx) };
+function jsonOutput(result: CliResult): unknown | undefined {
+  if (!result.output) return undefined;
+  try {
+    return JSON.parse(result.output);
+  } catch {
+    return undefined;
+  }
+}
+
+export async function arraHttpRoute(ctx: ArraPluginContext): Promise<ArraApiResult> {
+  if (!argv(ctx).length) return { ok: true, body: pluginBody(ctx) };
+  const result = await renderCli(ctx);
+  if (!result.ok) return { ok: false, status: 400, error: result.error };
+  return {
+    ok: true,
+    body: jsonOutput(result) ?? { ok: true, command: commandName(ctx), output: result.output },
+  };
 }
 
 export async function arraCli(ctx: ArraPluginContext) {

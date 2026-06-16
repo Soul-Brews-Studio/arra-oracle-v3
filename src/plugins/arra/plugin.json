@@ -10,7 +10,8 @@
     {
       "path": "/api/plugins/arra",
       "methods": [
-        "GET"
+        "GET",
+        "POST"
       ]
     }
   ],
@@ -18,7 +19,8 @@
     {
       "path": "/api/plugins/arra",
       "methods": [
-        "GET"
+        "GET",
+        "POST"
       ],
       "handler": "arraHttpRoute"
     }

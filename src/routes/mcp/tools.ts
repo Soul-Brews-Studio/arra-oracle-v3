@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia';
 import type { UnifiedRuntime } from '../../plugins/unified-loader.ts';
+import { currentTenantId } from '../../middleware/tenant.ts';
 import { mcpTools, toMcpToolDefinition, type RuntimeMcpToolManifest } from '../../tools/mcp-manifest.ts';
 
 type PluginTool = UnifiedRuntime['mcpTools'][number];
@@ -38,7 +39,8 @@ function pluginTool(tool: PluginTool): PublicTool {
 export function createMcpRoutes(pluginTools: PluginTool[] = []) {
   return new Elysia({ prefix: '/api' }).get('/mcp/tools', () => {
     const tools = [...mcpTools.map(coreTool), ...pluginTools.map(pluginTool)];
-    return { tools, total: tools.length };
+    const tenantId = currentTenantId();
+    return { tools, total: tools.length, ...(tenantId ? { tenant: { id: tenantId, scope: 'tenant_id' } } : {}) };
   }, {
     detail: {
       tags: ['mcp'],

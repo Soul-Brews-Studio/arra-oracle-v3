@@ -26,6 +26,12 @@ test('memoryConfidence is computed at query time from match, freshness, and prov
     score: 0.96,
     ageDays: 0,
     freshness: 1,
+    components: {
+      match: 0.92,
+      freshness: 1,
+      provenance: 1,
+    },
+    warnings: [],
   });
   expect(confidence.reasons).toContain('computed_at_query_time');
   expect(confidence.reasons).toContain('freshness_half_life_139d');
@@ -41,4 +47,25 @@ test('unanchored old memory decays without storing a confidence column', () => {
   expect(stale.freshness).toBeLessThan(0.05);
   expect(stale.reasons).toContain('source_missing');
   expect(stale.reasons).toContain('freshness_half_life_30d');
+  expect(stale.warnings).toEqual(expect.arrayContaining([
+    'missing_source',
+    'missing_tags',
+    'unanchored_memory',
+    'stale_unvalidated',
+  ]));
+});
+
+test('weak semantic matches expose warnings without storing confidence', () => {
+  const confidence = memoryConfidence(memory({
+    source: 'ψ/memory/design-principles-arra-oracle.md',
+  }), { now, mode: 'semantic', semanticScore: 0.31 });
+
+  expect(confidence.label).toBe('medium');
+  expect(confidence.components).toMatchObject({
+    match: 0.31,
+    freshness: 1,
+    provenance: 0.45,
+  });
+  expect(confidence.warnings).toEqual(expect.arrayContaining(['missing_tags', 'low_match_score']));
+  expect(confidence.warnings).not.toContain('stale_unvalidated');
 });

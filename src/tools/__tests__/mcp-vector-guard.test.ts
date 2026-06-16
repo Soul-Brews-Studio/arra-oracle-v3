@@ -12,7 +12,8 @@ process.env.ORACLE_DATA_DIR = path.join(tmp, 'data');
 process.env.ORACLE_DB_PATH = path.join(tmp, 'data', 'oracle.db');
 delete process.env.ORACLE_VECTOR_ENABLED;
 
-const { createDatabase, closeDb } = await import('../../db/index.ts');
+const { createDatabase, closeDb, resetDefaultDatabaseForTests } = await import('../../db/index.ts');
+resetDefaultDatabaseForTests(process.env.ORACLE_DB_PATH);
 const { oracleDocuments } = await import('../../db/schema.ts');
 const { handleSearch } = await import('../search.ts');
 
@@ -53,13 +54,14 @@ function makeCtx() {
 
 afterAll(() => {
   try { closeDb(); } catch {}
-  fs.rmSync(tmp, { recursive: true, force: true });
   if (originalDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
   else process.env.ORACLE_DATA_DIR = originalDataDir;
   if (originalDbPath === undefined) delete process.env.ORACLE_DB_PATH;
   else process.env.ORACLE_DB_PATH = originalDbPath;
   if (originalVectorEnabled === undefined) delete process.env.ORACLE_VECTOR_ENABLED;
   else process.env.ORACLE_VECTOR_ENABLED = originalVectorEnabled;
+  resetDefaultDatabaseForTests(':memory:');
+  fs.rmSync(tmp, { recursive: true, force: true });
 });
 
 describe('MCP muninn_search vector section guard', () => {

@@ -39,5 +39,7 @@ export function exportBundleReadme(input: ExportBundleReadmeInput): string {
     '3. Recompute SHA-256 for files listed in `manifest.json.files`.',
     '4. Inspect Markdown documents before migration or restore work.',
     '',
+    'CLI shortcut: `bun run tools/export-app/index.ts --verify <bundle-dir>`.',
+    '',
   ].join('\n');
 }

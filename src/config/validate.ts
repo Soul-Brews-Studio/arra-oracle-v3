@@ -136,6 +136,7 @@ function validateEnums(env: RuntimeEnv, issues: string[]): void {
   checkEnum(env, issues, ['ORACLE_EMBEDDER', 'ORACLE_EMBEDDER_BACKEND', 'ORACLE_EMBEDDING_PROVIDER', 'EMBEDDER_TYPE'], EMBEDDER_VALUES);
   checkEnum(env, issues, ['ORACLE_VECTOR_DB'], VECTOR_DB_VALUES);
   checkEnum(env, issues, ['VECTOR_FALLBACK'], VECTOR_FALLBACK_VALUES);
+  checkEnum(env, issues, ['LOG_FORMAT'], ['nginx', 'json', 'short'] as const);
 }
 
 function validateDatabaseUrl(env: RuntimeEnv, issues: string[]): void {
@@ -221,7 +222,6 @@ function pathFromDatabaseUrl(value?: string): string {
 }
 
 const homeDir = (env: RuntimeEnv): string => env.HOME || env.USERPROFILE || '';
-
 function optionalWarnings(env: RuntimeEnv): string[] {
   return OPTIONAL_DEFAULTS
     .filter((item) => !item.keys.some((key) => filled(env[key])))

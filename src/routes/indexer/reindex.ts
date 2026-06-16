@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { runOracleReindex, resolveIndexerRepoRoot } from '../../indexer/runner.ts';
 import { indexRetrospectives, indexRetroFile } from '../../indexer/retro-index.ts';
+import { currentTenantId, runWithTenant } from '../../middleware/tenant.ts';
 
 type ReindexResult =
   | Awaited<ReturnType<typeof runOracleReindex>>
@@ -22,7 +23,7 @@ const defaultDeps: ReindexDeps = {
 };
 
 export function createReindexRoute(deps: ReindexDeps = defaultDeps) {
-  let activeJob: { id: string; startedAt: string } | null = null;
+  const activeJobs = new Map<string, { id: string; startedAt: string }>();
 
   return new Elysia().post('/indexer/reindex', async ({ body, set }) => {
     const requested = body ?? {};
@@ -31,6 +32,9 @@ export function createReindexRoute(deps: ReindexDeps = defaultDeps) {
     const append = requested.append === true;
     const repoRoot = deps.resolveRepoRoot(requested.repoRoot);
     const jobId = `reindex-${Date.now()}`;
+    const tenantId = currentTenantId();
+    const jobKey = tenantId ?? '*';
+    const activeJob = activeJobs.get(jobKey) ?? null;
 
     if (activeJob) {
       set.status = 409;
@@ -46,15 +50,15 @@ export function createReindexRoute(deps: ReindexDeps = defaultDeps) {
       return deps.runFull({ repoRoot, append });
     };
 
-    activeJob = { id: jobId, startedAt: new Date().toISOString() };
-    const task = run()
+    activeJobs.set(jobKey, { id: jobId, startedAt: new Date().toISOString() });
+    const task = runWithTenant(tenantId, run)
       .then((result) => ({ jobId, status: 'complete' as const, ...result }))
       .catch((err) => {
         const message = err instanceof Error ? err.message : String(err);
         return { ok: false as const, jobId, status: 'error' as const, repoRoot, error: message };
       })
       .finally(() => {
-        activeJob = null;
+        activeJobs.delete(jobKey);
       });
 
     if (wait) return await task;

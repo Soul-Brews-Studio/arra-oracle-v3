@@ -4,9 +4,12 @@ import { Elysia } from 'elysia';
 import fs from 'fs';
 import path from 'path';
 import { PLUGINS_DIR } from '../../config.ts';
+import { tenantScopedPluginDir } from '../plugins/tenant.ts';
 import { pluginParams } from './model.ts';
 
-const currentPluginsDir = () => process.env.ORACLE_DATA_DIR ? path.join(process.env.ORACLE_DATA_DIR, 'plugins') : PLUGINS_DIR;
+const currentPluginsDir = () => tenantScopedPluginDir(
+  process.env.ORACLE_DATA_DIR ? path.join(process.env.ORACLE_DATA_DIR, 'plugins') : PLUGINS_DIR,
+);
 
 
 export const pluginByNameRoute = new Elysia().get(

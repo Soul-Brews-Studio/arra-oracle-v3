@@ -18,6 +18,7 @@ describe("built-in arra plugin", () => {
     expect(manifest.cli.handler).toBe("arraCli");
     expect(manifest.verbs).toEqual(ARRA_VERBS);
     expect(manifest.httpRoutes[0].path).toBe("/api/plugins/arra");
+    expect(manifest.apiRoutes[0].methods).toEqual(["GET", "POST"]);
     expect(manifest.config).toMatchObject({ dbBackend: "sqlite", embedderBackend: "none" });
     expect(manifest.configSchema.properties.dbBackend.enum).toEqual(["sqlite", "http", "memory", "custom"]);
   });
@@ -54,6 +55,18 @@ describe("built-in arra plugin", () => {
     expect(body.backends.embedder.optional).toBe(true);
     expect(body.backends.embedder.supported).toContain("remote");
     expect(body.verbs.map((verb) => verb.name)).toEqual(ARRA_VERBS);
+
+    const version = await app.handle(new Request("http://local/api/plugins/arra?command=version"));
+    expect(await version.json()).toEqual({ ok: true, command: "version", output: "arra 1.0.0" });
+
+    const commands = await app.handle(new Request("http://local/api/plugins/arra", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ command: "commands", json: true }),
+    }));
+    const commandsBody = await commands.json() as { surface: string; verbs: Array<{ name: string }> };
+    expect(commandsBody.surface).toBe("api");
+    expect(commandsBody.verbs.map((verb) => verb.name)).toEqual(ARRA_VERBS);
   });
 
   test("delegates maw arra health to vector engine details", async () => {
@@ -146,6 +159,10 @@ describe("built-in arra plugin", () => {
       const set = await arraCli({ source: "cli", plugin: "arra", args: ["vector-config", "set", "phase1", "adapter", "qdrant", "--url", "http://localhost:6333"] });
       expect(set.ok).toBe(true);
       expect(calls.at(-1)).toMatchObject({ method: "PUT", path: "/api/v1/vector/config/phase1", body: { adapter: "qdrant", endpoint: "http://localhost:6333" } });
+
+      const added = await arraCli({ source: "cli", plugin: "arra", args: ["vector-config", "add", "qwen3", "--model", "qwen3-embedding", "--primary"] });
+      expect(added.ok).toBe(true);
+      expect(calls.at(-1)).toMatchObject({ method: "POST", path: "/api/v1/vector/config/qwen3", body: { model: "qwen3-embedding", primary: true } });
 
       const blocked = await arraCli({ source: "cli", plugin: "arra", args: ["vector-config", "remove", "phase1"] });
       expect(blocked).toEqual({ ok: false, error: "remove requires --yes" });

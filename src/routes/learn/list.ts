@@ -1,7 +1,8 @@
 import { Elysia } from 'elysia';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, type SQL } from 'drizzle-orm';
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { db, oracleDocuments } from '../../db/index.ts';
+import { currentTenantId } from '../../middleware/tenant.ts';
 
 type LearnDoc = typeof oracleDocuments.$inferSelect;
 
@@ -59,8 +60,11 @@ function learnEntry(row: LearnDoc) {
 }
 
 function listLearnEntries() {
+  const filters: SQL[] = [eq(oracleDocuments.type, 'learning'), isNull(oracleDocuments.supersededAt)];
+  const tenantId = currentTenantId();
+  if (tenantId) filters.push(eq(oracleDocuments.tenantId, tenantId));
   const rows = db.select().from(oracleDocuments)
-    .where(and(eq(oracleDocuments.type, 'learning'), isNull(oracleDocuments.supersededAt)))
+    .where(and(...filters))
     .orderBy(desc(oracleDocuments.updatedAt))
     .all();
   const items = rows.map(learnEntry);

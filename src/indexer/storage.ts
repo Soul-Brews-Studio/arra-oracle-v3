@@ -6,6 +6,7 @@ import { Database } from 'bun:sqlite';
 import { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../db/schema.ts';
 import { oracleDocuments } from '../db/schema.ts';
+import { tenantIdForWrite } from '../middleware/tenant.ts';
 import type { VectorStoreAdapter } from '../vector/types.ts';
 import type { OracleDocument } from '../types.ts';
 
@@ -19,9 +20,10 @@ export async function storeDocuments(
   vectorClient: VectorStoreAdapter | null,
   project: string | null,
   documents: OracleDocument[],
-  opts: { createdBy?: string } = {}
+  opts: { createdBy?: string; tenantId?: string } = {}
 ): Promise<void> {
   const now = Date.now();
+  const tenantId = opts.tenantId ?? tenantIdForWrite();
 
   // Prepare FTS statements. FTS5 virtual tables have no UNIQUE constraint on
   // the id column (it's UNINDEXED), so INSERT OR REPLACE doesn't dedupe —
@@ -50,6 +52,7 @@ export async function storeDocuments(
       db.insert(oracleDocuments)
         .values({
           id: doc.id,
+          tenantId,
           type: doc.type,
           sourceFile: doc.source_file,
           concepts: JSON.stringify(doc.concepts),
@@ -62,6 +65,7 @@ export async function storeDocuments(
         .onConflictDoUpdate({
           target: oracleDocuments.id,
           set: {
+            tenantId,
             type: doc.type,
             sourceFile: doc.source_file,
             concepts: JSON.stringify(doc.concepts),
@@ -86,6 +90,7 @@ export async function storeDocuments(
       contents.push(doc.content);
       metadatas.push({
         type: doc.type,
+        tenant_id: tenantId,
         source_file: doc.source_file,
         concepts: doc.concepts.join(',')
       });

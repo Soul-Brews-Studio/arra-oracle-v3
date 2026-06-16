@@ -101,14 +101,17 @@ function fieldPayload(args: string[]): Record<string, unknown> {
   const rest = clean(args);
   const payload: Record<string, unknown> = {};
   if (rest[0]?.startsWith("--") || rest.some((arg) => arg.startsWith("--"))) {
-    for (let i = 0; i < rest.length; i += 2) {
+    for (let i = 0; i < rest.length; i += 1) {
       const field = rest[i]?.replace(/^--/, "").replace(/^url$/, "endpoint");
-      const value = rest[i + 1];
-      if (!field || !value)
-        throw new Error(
-          "usage: vector-config set <collection> --field <value>",
-        );
-      payload[field] = field === "enabled" ? bool(value) : value;
+      const next = rest[i + 1];
+      if (!field) throw new Error("usage: vector-config set <collection> --field <value>");
+      if (field === "primary" && (next === undefined || next.startsWith("--"))) {
+        payload.primary = true;
+        continue;
+      }
+      if (!next || next.startsWith("--")) throw new Error("usage: vector-config set <collection> --field <value>");
+      payload[field] = field === "enabled" || field === "primary" ? bool(next) : next;
+      i += 1;
     }
     return payload;
   }

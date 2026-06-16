@@ -43,7 +43,7 @@ export function resolveIndexerRepoRoot(explicitRoot?: string | null): string {
 export function createIndexerConfig(repoRoot: string): IndexerConfig {
   return {
     repoRoot,
-    dbPath: DB_PATH,
+    dbPath: process.env.ORACLE_DB_PATH || DB_PATH,
     chromaPath: CHROMADB_DIR,
     sourcePaths: {
       resonance: 'ψ/memory/resonance',

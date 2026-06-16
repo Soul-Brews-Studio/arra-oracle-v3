@@ -67,6 +67,7 @@ connection.
 ```sh
 bun run tools/export-app/index.ts --output ./backup/export-app
 bun run tools/export-app/index.ts --output ./backup/export-app --db ./oracle.db
+bun run tools/export-app/index.ts --output ./backup/docs --collection oracle_documents
 bun run tools/export-app/index.ts --output ./backup/export-app --dry-run
 bun run tools/export-app/index.ts --output ./backup/export-app --progress json
 bun run tools/export-app/index.ts --verify ./backup/export-app
@@ -74,6 +75,8 @@ bun run tools/export-app/index.ts --verify ./backup/export-app
 
 Use `--dry-run` to print collection, row, relationship, and document counts
 without creating files. It is a safe preflight before long-running exports.
+Use `--collection <name>` repeatedly or `--collections a,b` to write only
+selected Drizzle collections when testing a narrow migration path.
 
 The batch output includes:
 
@@ -96,8 +99,9 @@ It also includes `collections.<table>.rowCount` so restore/preflight tooling can
 compare source and destination collection sizes without loading every artifact.
 The generated bundle `README.md` summarizes counts and verification steps for
 offline review before migration.
-Run `--verify <dir>` after copying an export bundle to recompute every
-manifest-listed file size and SHA-256 checksum.
+Run `--verify <bundle-dir>` after export or after copying a bundle to re-read
+`manifest.json`, recompute each listed file's byte count and SHA-256 checksum,
+and fail if a required artifact is missing.
 Progress writes to stderr by default as collection counts, percentages, and row
 counts. Use `--progress json` or `--progress-json` for machine-readable events,
 `--progress silent` or `--quiet` when another wrapper owns progress display.

@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 
-import { createTrace } from '../../trace/handler.ts';
+import { createTenantTrace } from './tenant-scope.ts';
 import { traceCreateBody } from './model.ts';
 import type { CreateTraceInput } from '../../trace/types.ts';
 
@@ -15,7 +15,13 @@ export const traceCreateRoute = new Elysia().post('/api/traces', ({ body, set })
     };
   }
 
-  const result = createTrace(input as CreateTraceInput);
+  let result;
+  try {
+    result = createTenantTrace(input as CreateTraceInput);
+  } catch (error) {
+    set.status = 404;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
   set.status = 201;
   return {
     success: result.success,

@@ -5,6 +5,12 @@ export type MemoryConfidence = {
   label: 'high' | 'medium' | 'low';
   ageDays: number;
   freshness: number;
+  components: {
+    match: number;
+    freshness: number;
+    provenance: number;
+  };
+  warnings: string[];
   reasons: string[];
 };
 
@@ -40,6 +46,12 @@ export function memoryConfidence(
     label: score >= 0.75 ? 'high' : score >= 0.45 ? 'medium' : 'low',
     ageDays: round(ageDays),
     freshness: round(freshness),
+    components: {
+      match: round(match),
+      freshness: round(freshness),
+      provenance: round(provenance),
+    },
+    warnings: warnings(ageDays, match, hasSource, hasTags),
     reasons: reasons(options.mode ?? 'keyword', hasSource, hasTags, halfLife),
   };
 }
@@ -64,6 +76,16 @@ function reasons(mode: ConfidenceMode, hasSource: boolean, hasTags: boolean, hal
     hasTags ? 'tags_present' : 'tags_missing',
     `freshness_half_life_${halfLifeDays}d`,
   ];
+}
+
+function warnings(ageDays: number, match: number, hasSource: boolean, hasTags: boolean): string[] {
+  const list: string[] = [];
+  if (!hasSource) list.push('missing_source');
+  if (!hasTags) list.push('missing_tags');
+  if (!hasSource && !hasTags) list.push('unanchored_memory');
+  if (!hasSource && !hasTags && ageDays >= UNVALIDATED_HALF_LIFE_DAYS) list.push('stale_unvalidated');
+  if (match < 0.45) list.push('low_match_score');
+  return list;
 }
 
 function clamp(value: number): number {

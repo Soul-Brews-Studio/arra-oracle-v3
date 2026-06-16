@@ -1,7 +1,34 @@
-import { describe, expect, mock, test } from 'bun:test';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { beforeAll, describe, expect, mock, test } from 'bun:test';
 import { Elysia } from 'elysia';
-import { createVaultSyncRoute } from '../../../src/routes/vault/sync.ts';
-import type { MigrateResult } from '../../../src/vault/migrate.ts';
+import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant.ts';
+
+type MigrateOptions = { dryRun: boolean; symlink?: boolean; tenantId?: string };
+interface MigrateResult {
+  reposFound: number;
+  filesCopied: number;
+  repos: Array<{ repoPath: string; project: string; fileCount: number }>;
+  skipped: string[];
+  symlinked: string[];
+}
+
+type VaultRouteFactory = (deps: {
+  migrate: (opts: MigrateOptions) => MigrateResult;
+  spawnIndexer: () => void;
+}) => Elysia;
+
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-vault-http-'));
+let createVaultSyncRoute: VaultRouteFactory;
+let projectMatchesTenant: (project: string, tenantId: string) => boolean;
+
+beforeAll(async () => {
+  process.env.ORACLE_DATA_DIR = tempRoot;
+  process.env.ORACLE_DB_PATH = path.join(tempRoot, 'oracle.db');
+  ({ createVaultSyncRoute } = await import('../../../src/routes/vault/sync.ts'));
+  ({ projectMatchesTenant } = await import('../../../src/vault/migrate.ts'));
+});
 
 const emptyMigrate: MigrateResult = {
   reposFound: 0,
@@ -11,9 +38,8 @@ const emptyMigrate: MigrateResult = {
   symlinked: [],
 };
 
-function appWith(migrate: (opts: { dryRun: boolean }) => MigrateResult, spawnIndexer = mock(() => {})) {
-  return new Elysia({ prefix: '/api/vault' })
-    .use(createVaultSyncRoute({ migrate, spawnIndexer }));
+function appWith(migrate: (opts: MigrateOptions) => MigrateResult, spawnIndexer = mock(() => {})) {
+  return new Elysia({ prefix: '/api/vault' }).use(createVaultSyncRoute({ migrate, spawnIndexer }));
 }
 
 function post(app: Elysia, body: unknown) {
@@ -48,6 +74,27 @@ describe('vault sync HTTP route', () => {
     expect(res.status).toBe(200);
     expect(body.reindex).toBe(true);
     expect(spawnIndexer).toHaveBeenCalledTimes(1);
+  });
+
+  test('matches vault projects to tenant ids before migration filtering', () => {
+    expect(projectMatchesTenant('github.com/soul-brews-studio/arra-oracle-v3', 'soul-brews-studio')).toBe(true);
+    expect(projectMatchesTenant('tenant-a', 'tenant-a')).toBe(true);
+    expect(projectMatchesTenant('github.com/tenant-b/oracle', 'tenant-a')).toBe(false);
+  });
+
+  test('passes resolved tenant to migrate and returns tenant scope', async () => {
+    const migrate = mock((opts: MigrateOptions) => ({ ...emptyMigrate, reposFound: opts.tenantId ? 1 : 0 }));
+    const fetcher = createTenantFetch((request) => appWith(migrate).handle(request));
+    const res = await fetcher(new Request('http://local/api/vault/sync', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', [TENANT_HEADER]: 'tenant-a' },
+      body: JSON.stringify({ dryRun: true }),
+    }));
+    const body = await res.json() as Record<string, any>;
+
+    expect(res.status).toBe(200);
+    expect(migrate).toHaveBeenCalledWith({ dryRun: true, tenantId: 'tenant-a' });
+    expect(body.tenant).toEqual({ id: 'tenant-a', scope: 'vault_project' });
   });
 
   test('migrate failures surface as 500 JSON', async () => {

@@ -1,15 +1,23 @@
 import { Elysia } from 'elysia';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db, schedule } from '../../db/index.ts';
+import { currentTenantId } from '../../middleware/tenant.ts';
 import { scheduleIdParam, updateBody } from './model.ts';
 
-export const scheduleUpdateRoute = new Elysia().patch('/api/schedule/:id', async ({ params, body }) => {
+export const scheduleUpdateRoute = new Elysia().patch('/api/schedule/:id', async ({ params, body, set }) => {
   const id = parseInt(params.id);
   const now = Date.now();
-  db.update(schedule)
+  const tenantId = currentTenantId();
+  const where = tenantId ? and(eq(schedule.id, id), eq(schedule.tenantId, tenantId)) : eq(schedule.id, id);
+  const row = db.update(schedule)
     .set({ ...(body as any), updatedAt: now })
-    .where(eq(schedule.id, id))
-    .run();
+    .where(where)
+    .returning({ id: schedule.id })
+    .get();
+  if (!row) {
+    set.status = 404;
+    return { success: false, error: 'Schedule entry not found' };
+  }
   return { success: true, id };
 }, {
   params: scheduleIdParam,

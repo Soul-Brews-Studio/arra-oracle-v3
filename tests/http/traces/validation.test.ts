@@ -1,6 +1,20 @@
-import { describe, expect, test } from 'bun:test';
-import { traceLinkRoute } from '../../../src/routes/traces/link.ts';
-import { traceUnlinkRoute } from '../../../src/routes/traces/unlink.ts';
+import { afterAll, describe, expect, test } from 'bun:test';
+import { mkdirSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+const savedDataDir = process.env.ORACLE_DATA_DIR;
+const savedDbPath = process.env.ORACLE_DB_PATH;
+const root = join(tmpdir(), `arra-trace-validation-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+const dbPath = join(root, 'oracle.db');
+mkdirSync(root, { recursive: true });
+process.env.ORACLE_DATA_DIR = root;
+process.env.ORACLE_DB_PATH = dbPath;
+
+const dbMod = await import('../../../src/db/index.ts');
+dbMod.resetDefaultDatabaseForTests(dbPath);
+const { traceLinkRoute } = await import('../../../src/routes/traces/link.ts');
+const { traceUnlinkRoute } = await import('../../../src/routes/traces/unlink.ts');
 
 function postLink(body: unknown) {
   return traceLinkRoute.handle(new Request('http://local/api/traces/a/link', {
@@ -15,6 +29,18 @@ function deleteLink(query = '') {
     method: 'DELETE',
   }));
 }
+
+function restore(name: string, value: string | undefined) {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}
+
+afterAll(() => {
+  dbMod.closeDb();
+  restore('ORACLE_DATA_DIR', savedDataDir);
+  restore('ORACLE_DB_PATH', savedDbPath);
+  rmSync(root, { recursive: true, force: true });
+});
 
 describe('trace link route input validation', () => {
   test('rejects missing or non-string nextId before link handling', async () => {

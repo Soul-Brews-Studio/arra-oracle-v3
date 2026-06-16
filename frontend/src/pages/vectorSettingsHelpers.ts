@@ -37,6 +37,9 @@ export type VectorConfigHealth = {
 
 export type VectorConfigResponse = {
   source: 'file' | 'defaults';
+  engine: VectorConfigAdapter;
+  enabled: boolean;
+  options: { localEngines: VectorConfigAdapter[] };
   config: VectorServerConfig;
   doc_counts: Record<string, number>;
   health: Record<string, VectorConfigHealth>;
@@ -93,6 +96,9 @@ export function parseVectorConfigResponse(value: unknown): VectorConfigResponse 
       embeddingEndpoint: '',
       embedder: { backend: 'unknown' },
     },
+    engine: 'lancedb' as VectorConfigAdapter,
+    enabled: false,
+    options: { localEngines: ['lancedb', 'qdrant', 'sqlite-vec'] as VectorConfigAdapter[] },
     doc_counts: {},
     health: {},
     checked_at: new Date().toISOString(),
@@ -101,6 +107,10 @@ export function parseVectorConfigResponse(value: unknown): VectorConfigResponse 
   if (!isRecord(value)) return fallback;
   const configValue = isRecord(value.config) ? value.config : {};
   const rawCollections = isRecord(configValue.collections) ? configValue.collections : {};
+  const rawOptions = isRecord(value.options) ? value.options : {};
+  const localEngines = Array.isArray(rawOptions.localEngines)
+    ? rawOptions.localEngines.filter(isAdapter)
+    : fallback.options.localEngines;
   const safeCollections: Record<string, VectorServerCollection> = {};
 
   Object.entries(rawCollections).forEach(([key, item]) => {
@@ -118,6 +128,9 @@ export function parseVectorConfigResponse(value: unknown): VectorConfigResponse 
 
   return {
     source: value.source === 'file' ? 'file' : 'defaults',
+    engine: safeAdapter(value.engine),
+    enabled: value.enabled === true,
+    options: { localEngines },
     config: {
       version: typeof configValue.version === 'string' ? configValue.version : fallback.config.version,
       host: typeof configValue.host === 'string' ? configValue.host : fallback.config.host,

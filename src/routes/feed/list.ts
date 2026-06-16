@@ -1,9 +1,37 @@
 import { Elysia } from 'elysia';
 import fs from 'fs';
 import { FEED_LOG } from '../../config.ts';
+import { currentTenantId, tenantDataPath, TENANT_HEADER } from '../../middleware/tenant.ts';
 import { FeedQuery, type FeedEvent } from './model.ts';
 
 const MAW_JS_URL = process.env.MAW_JS_URL || 'http://localhost:3456';
+
+function parseLocalEvent(line: string, fallbackTenantId?: string): FeedEvent {
+  const parts = line.split(' | ').map(s => s.trim());
+  const hasTenant = parts.length >= 7;
+  const [ts, tenantOrOracle, oracleOrHost, hostOrEvent, eventOrProject, projectOrRest, restValue] = parts;
+  const rest = hasTenant ? restValue : projectOrRest;
+  const [sessionId, ...msgParts] = (rest || '').split(' » ');
+  return {
+    timestamp: ts,
+    tenant_id: hasTenant ? tenantOrOracle : fallbackTenantId,
+    oracle: hasTenant ? oracleOrHost : tenantOrOracle,
+    host: hasTenant ? hostOrEvent : oracleOrHost,
+    event: hasTenant ? eventOrProject : hostOrEvent,
+    project: hasTenant ? projectOrRest : eventOrProject,
+    session_id: sessionId?.trim(),
+    message: msgParts.join(' » ').trim(),
+    source: 'local',
+  };
+}
+
+function tenantForEvent(event: unknown): string | undefined {
+  if (!event || typeof event !== 'object') return undefined;
+  const value = (event as Record<string, unknown>).tenant_id
+    ?? (event as Record<string, unknown>).tenantId
+    ?? (event as Record<string, unknown>).tenant;
+  return typeof value === 'string' ? value : undefined;
+}
 
 export const listFeedRoute = new Elysia().get('/', async ({ query, set }) => {
   try {
@@ -12,42 +40,36 @@ export const listFeedRoute = new Elysia().get('/', async ({ query, set }) => {
     const event = query.event || undefined;
     const since = query.since || undefined;
 
+    const tenantId = currentTenantId();
+    const feedLog = tenantDataPath(FEED_LOG);
     let allEvents: FeedEvent[] = [];
 
-    if (fs.existsSync(FEED_LOG)) {
-      const raw = fs.readFileSync(FEED_LOG, 'utf-8').trim().split('\n').filter(Boolean);
-      const localEvents: FeedEvent[] = raw.map(line => {
-        const [ts, oracleName, host, eventType, project, rest] = line.split(' | ').map(s => s.trim());
-        const [sessionId, ...msgParts] = (rest || '').split(' » ');
-        return {
-          timestamp: ts,
-          oracle: oracleName,
-          host,
-          event: eventType,
-          project,
-          session_id: sessionId?.trim(),
-          message: msgParts.join(' » ').trim(),
-          source: 'local',
-        };
-      });
-      allEvents.push(...localEvents);
+    if (fs.existsSync(feedLog)) {
+      const raw = fs.readFileSync(feedLog, 'utf-8').trim().split('\n').filter(Boolean);
+      allEvents.push(...raw.map(line => parseLocalEvent(line, tenantId)));
     }
 
     try {
-      const mawRes = await fetch(`${MAW_JS_URL}/api/feed?limit=100`, { signal: AbortSignal.timeout(2000) });
+      const mawRes = await fetch(`${MAW_JS_URL}/api/feed?limit=100`, {
+        headers: tenantId ? { [TENANT_HEADER]: tenantId } : undefined,
+        signal: AbortSignal.timeout(2000),
+      });
       if (mawRes.ok) {
         const mawData = await mawRes.json() as any;
         if (mawData.events && Array.isArray(mawData.events)) {
-          const mawEvents: FeedEvent[] = mawData.events.map((e: any) => ({
-            timestamp: e.timestamp || new Date(e.ts).toISOString().replace('T', ' ').slice(0, 19),
-            oracle: e.oracle,
-            host: e.host,
-            event: e.event,
-            project: e.project,
-            session_id: e.sessionId,
-            message: e.message,
-            source: 'maw-js',
-          }));
+          const mawEvents: FeedEvent[] = mawData.events
+            .filter((e: any) => !tenantId || tenantForEvent(e) === tenantId)
+            .map((e: any) => ({
+              timestamp: e.timestamp || new Date(e.ts).toISOString().replace('T', ' ').slice(0, 19),
+              tenant_id: tenantForEvent(e),
+              oracle: e.oracle,
+              host: e.host,
+              event: e.event,
+              project: e.project,
+              session_id: e.sessionId,
+              message: e.message,
+              source: 'maw-js',
+            }));
           allEvents.push(...mawEvents);
         }
       }

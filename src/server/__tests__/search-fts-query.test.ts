@@ -13,7 +13,9 @@ process.env.ORACLE_DATA_DIR = dataDir;
 process.env.ORACLE_DB_PATH = path.join(dataDir, 'oracle.db');
 delete process.env.VECTOR_URL;
 
-const { sqlite } = await import('../../db/index.ts');
+const dbModule = await import('../../db/index.ts');
+dbModule.resetDefaultDatabaseForTests(process.env.ORACLE_DB_PATH);
+const { sqlite } = dbModule;
 const { buildFtsQuery, handleSearch } = await import('../handlers.ts');
 const { sanitizeFtsQuery } = await import('../../tools/search.ts');
 
@@ -57,11 +59,12 @@ describe('FTS query sanitation and recall behavior', () => {
 
 afterAll(() => {
   sqlite.close();
-  fs.rmSync(tmpRoot, { recursive: true, force: true });
   if (originalDataDir !== undefined) process.env.ORACLE_DATA_DIR = originalDataDir;
   else delete process.env.ORACLE_DATA_DIR;
   if (originalDbPath !== undefined) process.env.ORACLE_DB_PATH = originalDbPath;
   else delete process.env.ORACLE_DB_PATH;
   if (originalVectorUrl !== undefined) process.env.VECTOR_URL = originalVectorUrl;
   else delete process.env.VECTOR_URL;
+  dbModule.resetDefaultDatabaseForTests(':memory:');
+  fs.rmSync(tmpRoot, { recursive: true, force: true });
 });

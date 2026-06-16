@@ -73,8 +73,13 @@ describe("arra-cli vector-config", () => {
       async fetch(req) {
         const url = new URL(req.url);
         if (url.pathname === "/api/v1/vector/config") {
-          if (req.method !== "GET") return payload({ error: "method not allowed" }, 405);
-          return payload(state);
+          if (req.method === "GET") return payload(state);
+          if (req.method === "PATCH") {
+            const patch = (await req.json()) as Partial<VectorState["config"]>;
+            state.config = { ...state.config, ...patch };
+            return payload({ success: true, source: state.source, path: "/tmp/vector-server.json", config: state.config });
+          }
+          return payload({ error: "method not allowed" }, 405);
         }
 
         if (url.pathname === "/api/v1/vector/config/reload" && req.method === "POST") {
@@ -180,6 +185,12 @@ describe("arra-cli vector-config", () => {
     expect(disable.code).toBe(0);
     const disabled = await runCli(["vector-config", "get", "phase2"], env);
     expect(tryParseJson(disabled.stdout)?.config?.enabled).toBe(false);
+
+    const switched = await runCli(["vector-config", "switch", "sqlite-vec", "--enabled", "true"], env);
+    expect(switched.code).toBe(0);
+    const switchedPayload = tryParseJson(switched.stdout);
+    expect(switchedPayload?.config?.collections?.phase2?.adapter).toBe("sqlite-vec");
+    expect(switchedPayload?.config?.collections?.phase2?.enabled).toBe(true);
   });
 
   test("supports collection ops", async () => {
