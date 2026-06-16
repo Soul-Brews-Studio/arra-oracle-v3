@@ -1,4 +1,11 @@
 import { Elysia } from 'elysia';
+import {
+  LEGACY_TENANT_HEADER,
+  ORG_HEADER,
+  TENANT_API_KEY_HEADER,
+  TENANT_HEADER,
+  TENANT_TOKEN_HEADER,
+} from './tenant.ts';
 
 const DEFAULT_ORIGINS = [
   'http://localhost:3000',
@@ -13,7 +20,11 @@ const ALLOWED_HEADERS = [
   'x-correlation-id',
   'x-request-id',
   'x-requested-with',
-  'x-tenant-id',
+  TENANT_HEADER.toLowerCase(),
+  TENANT_TOKEN_HEADER.toLowerCase(),
+  TENANT_API_KEY_HEADER.toLowerCase(),
+  ORG_HEADER.toLowerCase(),
+  LEGACY_TENANT_HEADER.toLowerCase(),
 ] as const;
 const MAX_AGE_SECONDS = '86400';
 
@@ -32,10 +43,21 @@ function splitCsv(value: string): string[] {
   return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
+function normalizeOrigin(raw: string): string | null {
+  const value = raw.trim();
+  if (!value || value === '*' || value.toLowerCase() === 'null') return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
 function allowedRequestHeaders(request: Request): string[] | null {
   const requested = request.headers.get('access-control-request-headers');
   if (!requested) return [...ALLOWED_HEADERS];
-  const headers = splitCsv(requested).map((header) => header.toLowerCase());
+  const headers = [...new Set(splitCsv(requested).map((header) => header.toLowerCase()))];
   const allowed = new Set<string>(ALLOWED_HEADERS);
   return headers.every((header) => allowed.has(header)) ? headers : null;
 }
@@ -47,16 +69,17 @@ function allowsRequestMethod(request: Request): boolean {
 }
 
 export function parseCorsOrigins(value = configuredOrigins()): CorsPolicy {
-  const origins = value?.trim() ? splitCsv(value) : [...DEFAULT_ORIGINS];
+  const rawOrigins = value?.trim() ? splitCsv(value) : [...DEFAULT_ORIGINS];
+  const origins = [...new Set(rawOrigins.map(normalizeOrigin).filter((origin): origin is string => !!origin))];
   return {
     wildcard: false,
-    origins: origins.filter((origin) => origin !== '*'),
+    origins,
   };
 }
 
 export function allowedCorsOrigin(origin: string | null | undefined, policy = parseCorsOrigins()): string | null {
-  if (!origin) return null;
-  return policy.origins.includes(origin) ? origin : null;
+  const normalized = origin ? normalizeOrigin(origin) : null;
+  return normalized && policy.origins.includes(normalized) ? normalized : null;
 }
 
 type MutableHeaders = Record<string, string | number | string[]>;

@@ -13,6 +13,8 @@ function app() {
   return new Elysia()
     .use(createApiKeyAuthMiddleware())
     .get('/api/health', () => ({ status: 'ok' }))
+    .get('/api/health/deep', () => ({ status: 'deep-ok' }))
+    .get('/api/healthz', () => ({ status: 'not-health' }))
     .get('/api/search', () => ({ ok: true }))
     .get('/', () => ({ ok: true }));
 }
@@ -53,11 +55,32 @@ describe('ARRA_API_KEY auth middleware', () => {
     expect((await get('/', 'secret')).status).toBe(200);
   });
 
+  test('rejects malformed bearer headers as invalid credentials', async () => {
+    process.env.ARRA_API_KEY = 'secret';
+
+    const res = await app().handle(new Request('http://local/api/search', {
+      headers: { authorization: 'Bearer secret extra' },
+    }));
+
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({
+      error: 'api_key_auth_required',
+      details: { reason: 'invalid' },
+    });
+  });
+
   test('bypasses API key auth for /api/health', async () => {
     process.env.ARRA_API_KEY = 'secret';
 
     const res = await get('/api/health');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: 'ok' });
+  });
+
+  test('bypasses API key auth for health children but not health-like prefixes', async () => {
+    process.env.ARRA_API_KEY = 'secret';
+
+    expect((await get('/api/health/deep')).status).toBe(200);
+    expect((await get('/api/healthz')).status).toBe(401);
   });
 });
