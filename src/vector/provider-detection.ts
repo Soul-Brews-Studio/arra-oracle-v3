@@ -47,8 +47,10 @@ function provider(
 
 async function detectOllama(options: ProviderDetectionOptions): Promise<DetectedEmbeddingProvider> {
   const fetcher = options.fetcher ?? fetch;
-  const base = options.ollamaUrl || options.env?.OLLAMA_BASE_URL || 'http://localhost:11434';
-  const configured = Boolean(options.ollamaUrl || options.env?.OLLAMA_BASE_URL);
+  const base = resolveOllamaUrl(options);
+  const configured = Boolean(
+    options.ollamaUrl?.trim() || options.env?.OLLAMA_BASE_URL?.trim() || options.env?.OLLAMA_HOST?.trim(),
+  );
   try {
     const res = await fetcher(`${base}/api/tags`, { signal: AbortSignal.timeout(options.timeoutMs ?? 1500) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -68,6 +70,15 @@ async function detectOllama(options: ProviderDetectionOptions): Promise<Detected
       error: error instanceof Error ? error.message : String(error),
     });
   }
+}
+
+function resolveOllamaUrl(options: ProviderDetectionOptions): string {
+  const raw = options.ollamaUrl?.trim()
+    || options.env?.OLLAMA_BASE_URL?.trim()
+    || options.env?.OLLAMA_HOST?.trim()
+    || 'http://localhost:11434';
+  const trimmed = raw.replace(/\/+$/, '');
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
 }
 
 export async function detectEmbeddingProviders(

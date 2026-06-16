@@ -23,7 +23,7 @@ export class OllamaEmbeddings implements EmbeddingProvider {
   private batchSize: number;
   private timeoutMs: number;
   constructor(config: { baseUrl?: string; model?: string } = {}) {
-    this.baseUrl = config.baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+    this.baseUrl = resolveOllamaBaseUrl(config.baseUrl, process.env.OLLAMA_BASE_URL, process.env.OLLAMA_HOST);
     this.model = config.model || 'nomic-embed-text';
     this.attempts = positiveInt(process.env.ORACLE_EMBED_ATTEMPTS, 3);
     this.retryDelayMs = positiveInt(process.env.ORACLE_EMBED_RETRY_DELAY_MS, 150);
@@ -115,6 +115,11 @@ function positiveInt(raw: string | undefined, fallback: number): number {
   if (!raw) return fallback;
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+function resolveOllamaBaseUrl(...values: Array<string | undefined>): string {
+  const raw = values.map((value) => value?.trim()).find(Boolean) || 'http://localhost:11434';
+  const trimmed = raw.replace(/\/+$/, '');
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
 }
 function sleep(ms: number): Promise<void> { return new Promise(resolve => setTimeout(resolve, ms)); }
 export class OpenAIEmbeddings implements EmbeddingProvider {

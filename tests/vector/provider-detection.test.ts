@@ -37,12 +37,15 @@ test('provider detection warmup seeds startup cache', async () => {
   clearProviderDetectionCache();
 });
 
-test('provider detection keeps configured Ollama URL visible when probe fails', async () => {
+test('provider detection keeps configured Ollama host visible when probe fails', async () => {
   clearProviderDetectionCache();
-  const fetcher = mock(async () => new Response('down', { status: 503 })) as unknown as typeof fetch;
+  const fetcher = mock(async (input: string | URL | Request) => {
+    expect(String(input)).toBe('http://ollama.internal:11434/api/tags');
+    return new Response('down', { status: 503 });
+  }) as unknown as typeof fetch;
 
   const result = await getDetectedEmbeddingProviders(true, {
-    env: { OLLAMA_BASE_URL: 'http://ollama.internal' },
+    env: { OLLAMA_HOST: 'ollama.internal:11434' },
     fetcher,
   });
 

@@ -50,4 +50,14 @@ describe('config env validation', () => {
     expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', ORACLE_VECTOR_DB: 'proxy' }, emitOptionalWarnings: false }))
       .toThrow(/Proxy vector DB requires ORACLE_PROXY_VECTOR_URL/);
   });
+
+  test('accepts provider env aliases during startup validation', () => {
+    const env = {
+      HOME: '/tmp/arra-home',
+      ORACLE_EMBEDDER: 'gemini',
+      GOOGLE_API_KEY: 'google-gemini-key',
+      OLLAMA_HOST: 'ollama.internal:11434',
+    };
+    expect(validateEnv({ env, emitOptionalWarnings: false }).env.GOOGLE_API_KEY).toBe('google-gemini-key');
+  });
 });
