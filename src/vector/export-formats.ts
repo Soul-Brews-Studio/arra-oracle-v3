@@ -167,6 +167,7 @@ function streamMarkdown(dump: EmbeddingDump): ReadableStream<Uint8Array> {
   });
 }
 
+<<<<<<< HEAD
 function normalizeName(name: string, strict = true): string {
   const normalized = name.trim().toLowerCase();
   if (!/^[a-z0-9-]+$/.test(normalized)) {
@@ -238,10 +239,6 @@ registerExportFormat('markdown', withMeta(streamMarkdown, {
   contentType: 'text/markdown; charset=utf-8',
   extension: 'md',
   label: 'Markdown',
-}));
-registerExportFormat('v2', withMeta(streamV2Compat, {
-  contentType: 'application/json; charset=utf-8',
-  extension: 'v2.json',
 }));
 registerExportFormat('v2', withMeta(streamV2Compat, {
   contentType: 'application/json; charset=utf-8',
