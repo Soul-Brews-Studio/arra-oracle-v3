@@ -4,6 +4,44 @@ import { ErrorMessage, LoadingPanel, Spinner } from './AsyncState';
 import { groupLabel, toolMode } from './toolView';
 import type { McpTool } from '../types';
 
+export type McpToolSourceFilter = 'all' | 'plugin' | 'core';
+
+type McpToolsResponse = {
+  tools: McpTool[];
+  total: number;
+};
+
+function sourceKind(tool: McpTool): Exclude<McpToolSourceFilter, 'all'> {
+  return tool.source === 'plugin' || Boolean(tool.plugin) ? 'plugin' : 'core';
+}
+
+export function mcpToolSourceLabel(tool: McpTool): string {
+  if (sourceKind(tool) === 'plugin') return tool.plugin ? `plugin:${tool.plugin}` : 'plugin';
+  return 'core';
+}
+
+export function mcpToolSourceCounts(tools: McpTool[]): Record<'plugin' | 'core', number> {
+  return tools.reduce((counts, tool) => {
+    counts[sourceKind(tool)] += 1;
+    return counts;
+  }, { plugin: 0, core: 0 });
+}
+
+export function filterMcpTools(tools: McpTool[], query: string, source: McpToolSourceFilter): McpTool[] {
+  const q = query.trim().toLowerCase();
+  return tools.filter((tool) => {
+    if (source !== 'all' && sourceKind(tool) !== source) return false;
+    const text = [
+      tool.name,
+      tool.description,
+      groupLabel(tool),
+      toolMode(tool),
+      mcpToolSourceLabel(tool),
+    ].join(' ').toLowerCase();
+    return !q || text.includes(q);
+  });
+}
+
 function ToolCard({ tool, onOpen }: { tool: McpTool; onOpen?: (tool: McpTool) => void }) {
   return (
     <article className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
@@ -11,6 +49,7 @@ function ToolCard({ tool, onOpen }: { tool: McpTool; onOpen?: (tool: McpTool) =>
         <h3 className="font-mono text-sm text-teal-200">{tool.name}</h3>
         <span className="rounded-full bg-white/5 px-2 py-1 text-xs text-slate-400">{groupLabel(tool)}</span>
         <span className="rounded-full bg-purple-300/10 px-2 py-1 text-xs text-purple-200">{toolMode(tool)}</span>
+        <span className="rounded-full bg-teal-300/10 px-2 py-1 text-xs text-teal-100">{mcpToolSourceLabel(tool)}</span>
       </div>
       <p className="mt-3 text-sm leading-6 text-slate-400">{tool.description || 'No description supplied.'}</p>
       {onOpen ? (
@@ -27,17 +66,26 @@ function ToolCard({ tool, onOpen }: { tool: McpTool; onOpen?: (tool: McpTool) =>
   );
 }
 
-export function McpToolBrowser({ onOpenTool }: { onOpenTool?: (tool: McpTool) => void }) {
-  const [tools, setTools] = useState<McpTool[]>([]);
+export function McpToolBrowser({
+  onOpenTool,
+  initialTools,
+  fetcher = fetchMcpTools,
+}: {
+  onOpenTool?: (tool: McpTool) => void;
+  initialTools?: McpTool[];
+  fetcher?: () => Promise<McpToolsResponse>;
+}) {
+  const [tools, setTools] = useState<McpTool[]>(initialTools ?? []);
   const [filter, setFilter] = useState('');
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [source, setSource] = useState<McpToolSourceFilter>('all');
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>(initialTools ? 'ready' : 'loading');
   const [error, setError] = useState('');
 
   async function load() {
     setState('loading');
     setError('');
     try {
-      const response = await fetchMcpTools();
+      const response = await fetcher();
       setTools(response.tools);
       setState('ready');
     } catch (err) {
@@ -48,16 +96,13 @@ export function McpToolBrowser({ onOpenTool }: { onOpenTool?: (tool: McpTool) =>
   }
 
   useEffect(() => {
-    void load();
+    if (!initialTools) void load();
   }, []);
 
-  const visible = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    if (!q) return tools;
-    return tools.filter((tool) => `${tool.name} ${tool.description} ${groupLabel(tool)}`.toLowerCase().includes(q));
-  }, [filter, tools]);
+  const visible = useMemo(() => filterMcpTools(tools, filter, source), [filter, source, tools]);
 
   const groups = useMemo(() => new Set(tools.map(groupLabel)).size, [tools]);
+  const sourceCounts = useMemo(() => mcpToolSourceCounts(tools), [tools]);
   const loading = state === 'loading';
 
   return (
@@ -79,7 +124,7 @@ export function McpToolBrowser({ onOpenTool }: { onOpenTool?: (tool: McpTool) =>
         </button>
       </div>
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+      <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(12rem,1fr)_12rem_auto] lg:items-center">
         <input
           aria-label="Filter MCP tools"
           className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-600"
@@ -88,7 +133,19 @@ export function McpToolBrowser({ onOpenTool }: { onOpenTool?: (tool: McpTool) =>
           placeholder="Filter tools, groups, descriptions…"
           type="search"
         />
-        <p className="text-sm text-slate-500">{loading ? <Spinner label="Loading tools" /> : `${visible.length}/${tools.length} tools · ${groups} groups`}</p>
+        <select
+          aria-label="Filter MCP tool source"
+          className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-3 text-sm text-slate-100"
+          value={source}
+          onChange={(event) => setSource(event.currentTarget.value as McpToolSourceFilter)}
+        >
+          <option value="all">All sources</option>
+          <option value="plugin">Plugin tools</option>
+          <option value="core">Core tools</option>
+        </select>
+        <p className="text-sm text-slate-500">
+          {loading ? <Spinner label="Loading tools" /> : `${visible.length}/${tools.length} tools · ${groups} groups · ${sourceCounts.plugin} plugin · ${sourceCounts.core} core`}
+        </p>
       </div>
 
       {loading ? <LoadingPanel title="Loading MCP tools…" detail="Fetching /api/mcp/tools." /> : null}
