@@ -70,12 +70,12 @@ function estimateFrom(payload: Record<string, unknown>): number | undefined {
   return numberValue(payload.fileSizeEstimate, payload.estimatedBytes, payload.estimateBytes, payload.sizeBytes, payload.bytes);
 }
 
-function filenameFrom(response: Response, payload: Record<string, unknown>): string {
+function filenameFrom(response: Response, payload: Record<string, unknown>, fallback = 'arra-oracle-export.zip'): string {
   const fromPayload = textValue(payload.filename, payload.fileName, payload.name);
   if (fromPayload) return fromPayload;
   const disposition = response.headers.get('content-disposition') ?? '';
   const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
-  return match?.[1] ? decodeURIComponent(match[1]) : 'arra-oracle-export.zip';
+  return match?.[1] ? decodeURIComponent(match[1]) : fallback;
 }
 
 function statusFrom(payload: Record<string, unknown>): ExportStatus | undefined {
@@ -103,10 +103,10 @@ export function useExport({ fetcher = globalThis.fetch?.bind(globalThis), pollMs
   const [state, setState] = useState<ExportProgressState>(initialState);
   const abortRef = useRef<AbortController | null>(null);
   const urlRef = useRef<string | null>(null);
-  const lastPayloadRef = useRef<ExportRunPayload | undefined>();
+  const lastPayloadRef = useRef<ExportRunPayload | undefined>(undefined);
 
   const revokeDownload = useCallback(() => {
-    if (urlRef.current && globalThis.URL?.revokeObjectURL) URL.revokeObjectURL(urlRef.current);
+    if (urlRef.current && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(urlRef.current);
     urlRef.current = null;
   }, []);
 
@@ -128,14 +128,14 @@ export function useExport({ fetcher = globalThis.fetch?.bind(globalThis), pollMs
       if (!response.ok) throw new Error(`${path} returned ${response.status}`);
       const downloadUrl = textValue(payload.downloadUrl, payload.url, payload.href);
       if (downloadUrl) {
-        setState((current) => ({ ...current, status: 'done', progress: 100, fileSizeEstimate: fileSizeEstimate ?? current.fileSizeEstimate, downloadUrl, filename: filenameFrom(response, payload) }));
+        setState((current) => ({ ...current, status: 'done', progress: 100, fileSizeEstimate: fileSizeEstimate ?? current.fileSizeEstimate, downloadUrl, filename: filenameFrom(response, payload, current.filename) }));
         return;
       }
       const blob = await response.blob();
       revokeDownload();
-      const url = globalThis.URL?.createObjectURL ? URL.createObjectURL(blob) : undefined;
+      const url = typeof URL.createObjectURL === 'function' ? URL.createObjectURL(blob) : undefined;
       urlRef.current = url ?? null;
-      setState((current) => ({ ...current, status: 'done', progress: 100, fileSizeEstimate: blob.size || fileSizeEstimate || current.fileSizeEstimate, downloadUrl: url, filename: filenameFrom(response, payload) }));
+      setState((current) => ({ ...current, status: 'done', progress: 100, fileSizeEstimate: blob.size || fileSizeEstimate || current.fileSizeEstimate, downloadUrl: url, filename: filenameFrom(response, payload, current.filename) }));
       return;
     }
   }, [fetcher, pollMs, revokeDownload]);
@@ -164,6 +164,7 @@ export function useExport({ fetcher = globalThis.fetch?.bind(globalThis), pollMs
         jobId,
         progress: Math.min(100, Math.max(0, progressFrom(body) ?? 0)),
         fileSizeEstimate: estimateFrom(body),
+        filename: textValue(body.filename, body.fileName, body.name),
       });
       await pollDownload(jobId, controller.signal);
     } catch (error) {
