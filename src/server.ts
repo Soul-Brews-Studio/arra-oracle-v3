@@ -23,7 +23,6 @@ import { printStartupBanner } from './lifecycle/banner.ts';
 import { createStartupSelfTest, runStartupSelfTest } from './lifecycle/self-test.ts';
 import { readStartupDbStatus, runtimeMiddleware } from './lifecycle/startup-context.ts';
 import { createRequestLogger } from './middleware/logger.ts';
-import { createRateLimitMiddleware } from './middleware/rate-limit.ts';
 import { createApiVersionHeaderMiddleware, createApiVersionedFetch } from './middleware/api-version.ts';
 import { createSecurityHeadersMiddleware } from './middleware/security-headers.ts';
 import { createRequestTimeoutFetch } from './middleware/timeout.ts';
@@ -121,7 +120,6 @@ const app = new Elysia()
   .use(createSecurityHeadersMiddleware())
   .use(createContentTypeMiddleware())
   .use(createBodyLimitMiddleware())
-  .use(createRateLimitMiddleware())
   .use(createApiKeyAuthMiddleware())
   .use(createMetricsLifecycle())
   .use(createCompressMiddleware())
