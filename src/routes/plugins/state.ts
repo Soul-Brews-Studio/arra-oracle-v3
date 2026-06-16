@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from '
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Elysia, t } from 'elysia';
+import { tenantDataPath } from '../../middleware/tenant.ts';
 import { sanitizePluginName } from './model.ts';
 
 const DEFAULT_PLUGIN_DIRS = [join(homedir(), '.arra', 'plugins'), join(homedir(), '.oracle', 'plugins')];
@@ -14,7 +15,7 @@ type PluginManifest = {
 
 function pluginDirs(): string[] {
   const configured = process.env.ARRA_PLUGIN_DIRS?.split(':').map((item) => item.trim()).filter(Boolean);
-  return configured?.length ? configured : DEFAULT_PLUGIN_DIRS;
+  return (configured?.length ? configured : DEFAULT_PLUGIN_DIRS).map((dir) => tenantDataPath(dir));
 }
 
 function readJson(path: string): PluginManifest | null {
