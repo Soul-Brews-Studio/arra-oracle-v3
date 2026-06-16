@@ -1,8 +1,8 @@
 # Local Development
 
 This repo ships three surfaces: the **MCP / HTTP server** (`src/server.ts`), the
-**CLI** (`cli/`), and the **web app** (`web/`). For full local dev you run all
-three in separate terminals.
+**CLI** (`cli/`), and the **React frontend** (`frontend/`). For full local dev
+you run all three in separate terminals.
 
 ## Prerequisites
 
@@ -53,33 +53,34 @@ Run a search:
 bun run src/cli.ts search "oracle principles"
 ```
 
-## 3. Run the web dev server
+## 3. Run the React frontend
 
-The web app is an Astro project in `web/`. It reads `PUBLIC_BACKEND_URL` at
-build / dev time to know where the HTTP API lives.
+The frontend is in `frontend/`. The dev server proxies `/api` requests to the
+backend (`http://127.0.0.1:47778` by default).
 
 ```bash
-cd web
-PUBLIC_BACKEND_URL=http://localhost:47778 bun run dev
+cd frontend
+bun run dev
 ```
 
-Astro prints the dev URL (usually `http://localhost:4321`).
+Vite prints the dev URL (default `http://localhost:3000`).
 
 ## CORS note
 
-When the web dev server and the MCP server run on different ports, the browser
-enforces CORS. `src/server.ts` reads `CORS_ORIGIN` — set it to your web dev
-origin if requests are blocked:
+When the frontend and the MCP server run on different ports, the browser enforces
+CORS. `src/server.ts` reads `CORS_ORIGIN` — set it to your frontend dev origin
+if requests are blocked:
 
 ```bash
 CORS_ORIGIN=http://localhost:4321 ORACLE_PORT=47778 bun run src/server.ts
 ```
 
-**Fallback:** if you can't touch the server, append `?api=` to the web URL to
-override the backend at runtime from the browser:
+**Fallback:** if you can't touch the server, set `FRONTEND_PROXY_TARGET` on the
+frontend dev command to direct `/api` calls:
 
-```
-http://localhost:4321/?api=http://localhost:47778
+```bash
+cd frontend
+FRONTEND_PROXY_TARGET=http://localhost:47778 bun run dev
 ```
 
 This is wired in `web/src/lib/backend.ts` and wins over `PUBLIC_BACKEND_URL`
