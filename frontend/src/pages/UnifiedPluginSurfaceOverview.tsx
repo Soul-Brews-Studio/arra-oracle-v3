@@ -80,20 +80,21 @@ export function pluginCapabilityLinks(plugins: PluginEntry[]): Array<{ label: st
   ]);
 }
 
-export function pluginServerRows(plugins: PluginEntry[]): Array<{ name: string; status: string; health: string }> {
+export function pluginServerRows(plugins: PluginEntry[]): Array<{ name: string; status: string; health: string; surface: 'server' | 'proxy' }> {
   return plugins
     .filter((plugin) => plugin.server || plugin.proxy?.length)
     .map((plugin) => ({
       name: plugin.name,
       status: plugin.status ?? 'ok',
       health: plugin.server?.healthPath ?? plugin.proxy?.[0]?.path ?? 'proxy route',
+      surface: plugin.server ? 'server' : 'proxy',
     }));
 }
 
 export function pluginServerLinks(plugins: PluginEntry[]): Array<{ label: string; href: string }> {
   return pluginServerRows(plugins).map((server) => ({
     label: `${server.name} · ${server.status} · ${server.health}`,
-    href: pluginInventoryPath({ q: server.name, surface: 'server' }),
+    href: pluginInventoryPath({ q: server.name, surface: server.surface }),
   }));
 }
 

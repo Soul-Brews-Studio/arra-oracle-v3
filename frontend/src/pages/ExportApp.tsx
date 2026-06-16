@@ -87,7 +87,7 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
     try {
       if (!fetcher) throw new Error('fetch is unavailable in this runtime.');
       const proxyPath = oracleV2CollectionsPath(normalized);
-      const proxy = await fetcher(backendApiUrl(DEFAULT_BACKEND_URL, proxyPath), { headers: { accept: 'application/json' } }).catch(() => null);
+      const proxy = await Promise.resolve(fetcher(backendApiUrl(DEFAULT_BACKEND_URL, proxyPath), { headers: { accept: 'application/json' } })).catch(() => null);
       if (proxy?.ok) {
         const next = normalizeExportAppCollections(await readExportPayload(proxy, proxyPath));
         setCollections(next);
