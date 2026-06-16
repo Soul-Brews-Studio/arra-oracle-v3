@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { McpToolDetailPage, toolDetailSource, toolPluginInventoryPath } from '../../../frontend/src/pages/McpToolDetailPage';
+import { McpToolDetailPage, toolBrowserReturnPath, toolDetailSource, toolPluginInventoryPath } from '../../../frontend/src/pages/McpToolDetailPage';
 import type { McpTool } from '../../../frontend/src/types';
 import { htmlFor } from '../_render';
 
@@ -20,6 +20,8 @@ describe('McpToolDetailPage source labels', () => {
     expect(toolDetailSource({ name: 'memory.write', description: '', source: 'core' })).toBe('core');
     expect(toolPluginInventoryPath(pluginTool)).toBe('/plugins?q=echo&surface=mcp');
     expect(toolPluginInventoryPath({ name: 'memory.write', description: '', source: 'core' })).toBeNull();
+    expect(toolBrowserReturnPath(pluginTool)).toBe('/mcp?q=echo&source=plugin');
+    expect(toolBrowserReturnPath({ name: 'memory.write', description: '', source: 'core' })).toBe('/mcp?q=memory.write&source=core');
   });
 
   test('renders ready-state plugin source details from initial tools', () => {
@@ -33,6 +35,7 @@ describe('McpToolDetailPage source labels', () => {
     expect(html).toContain('echo.say');
     expect(html).toContain('plugin:echo');
     expect(html).toContain('href="/plugins?q=echo&amp;surface=mcp"');
+    expect(html).toContain('href="/mcp?q=echo&amp;source=plugin"');
     expect(html).toContain('Input schema');
   });
 });

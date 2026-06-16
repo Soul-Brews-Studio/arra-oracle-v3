@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { fetchMcpTools } from '../api';
 import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
 import { groupLabel, schemaText, toolMode } from '../components/toolView';
-import { pluginInventoryPath } from '../routePaths';
+import { mcpToolsPath, pluginInventoryPath } from '../routePaths';
 import type { McpTool } from '../types';
 
 type PageState = 'loading' | 'ready' | 'error';
@@ -16,6 +16,12 @@ export function toolDetailSource(tool: McpTool): string {
 
 export function toolPluginInventoryPath(tool: McpTool): string | null {
   return tool.plugin ? pluginInventoryPath({ q: tool.plugin, surface: 'mcp' }) : null;
+}
+
+export function toolBrowserReturnPath(tool?: McpTool | null): string {
+  if (!tool) return '/mcp';
+  if (tool.source === 'plugin' || tool.plugin) return mcpToolsPath({ q: tool.plugin ?? tool.name, source: 'plugin' });
+  return mcpToolsPath({ q: tool.name, source: 'core' });
 }
 
 function DetailCard({ label, value, href }: { label: string; value?: string; href?: string | null }) {
@@ -138,7 +144,7 @@ export function McpToolDetailPage({
             <h1 id="tool-detail-title" className="mt-2 text-3xl font-semibold text-white">MCP tool detail</h1>
             <p className="mt-2 text-sm text-slate-400">Inspect MCP tool metadata and input schema.</p>
           </div>
-          <Link className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" to="/mcp">
+          <Link className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" to={toolBrowserReturnPath(tool)}>
             Back to MCP tools
           </Link>
         </div>
