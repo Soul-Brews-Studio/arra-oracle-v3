@@ -1,6 +1,7 @@
 import { expect, mock, test } from 'bun:test';
 import { Elysia } from 'elysia';
 import { createApiVersionedFetch } from '../../../src/middleware/api-version.ts';
+import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant.ts';
 import { createVectorSearchEndpoint } from '../../../src/routes/vector/search.ts';
 import type { VectorQueryResult } from '../../../src/vector/types.ts';
 
@@ -81,6 +82,30 @@ test('GET /api/v1/vector/search accepts JSON metadata filters and distance sort'
   expect(res.status).toBe(200);
   expect(body.sort).toEqual({ field: 'distance', order: 'asc' });
   expect(body.results.map((item) => item.id)).toEqual(['doc-b', 'doc-a']);
+});
+
+test('GET /api/v1/vector/search scopes results by resolved tenant', async () => {
+  const tenantResult: VectorQueryResult = {
+    ids: ['doc-a', 'doc-b'],
+    documents: ['alpha tenant', 'beta tenant'],
+    distances: [0.1, 0.2],
+    metadatas: [
+      { type: 'note', tenant_id: 'tenant-a', source_file: 'notes/a.md' },
+      { type: 'note', tenant_id: 'tenant-b', source_file: 'notes/b.md' },
+    ],
+  };
+  const { fetcher, store } = createFetch(tenantResult);
+  const tenantFetch = createTenantFetch(fetcher);
+  const res = await tenantFetch(new Request(
+    'http://local/api/v1/vector/search?q=oracle&metadata.tenant_id=tenant-b',
+    { headers: { [TENANT_HEADER]: 'tenant-a' } },
+  ));
+  const body = await res.json() as { results: Array<{ id: string }>; filters: { metadata: Record<string, string> } };
+
+  expect(res.status).toBe(200);
+  expect(store.query).toHaveBeenCalledWith('oracle', 50, { tenant_id: 'tenant-a' });
+  expect(body.filters.metadata).toEqual({ tenant_id: 'tenant-a' });
+  expect(body.results.map((item) => item.id)).toEqual(['doc-a']);
 });
 
 test('GET /api/v1/vector/search rejects bad filters and unknown collections', async () => {
