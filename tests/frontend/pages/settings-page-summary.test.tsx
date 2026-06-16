@@ -11,6 +11,6 @@ describe('SettingsPage summary', () => {
     expect(html).toContain('/menu /plugins /vector /mcp /settings');
     expect(html).toContain('Enable vector search');
     expect(html).toContain('Active vector adapters');
-    expect(html).toContain('Get current config, edit model/provider, switch adapters');
+    expect(html).toContain('Get current config, edit model/provider plus service endpoint, switch adapters');
   });
 });

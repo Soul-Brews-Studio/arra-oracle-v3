@@ -6,7 +6,7 @@ import type { SettingsEmbedderCollection, VectorConfigResponse } from '../types'
 const ADAPTERS = ['lancedb', 'qdrant', 'chroma', 'sqlite-vec', 'cloudflare-vectorize', 'proxy', 'turbovec'] as const;
 export const VECTOR_PROVIDERS = ['none', 'ollama', 'gemini', 'openai', 'local', 'remote'] as const;
 type SaveState = Record<string, 'idle' | 'saving' | 'testing' | 'primary'>;
-type Drafts = Record<string, { adapter: string; enabled: boolean; provider: string; model: string }>;
+type Drafts = Record<string, { adapter: string; enabled: boolean; provider: string; model: string; service: string; endpoint: string }>;
 type RuntimeState = { enabled?: boolean; ready?: boolean; primary?: string; reason?: string; recommendedAction?: string | null };
 type PanelResponse = VectorConfigResponse & { enabled?: boolean; engine?: string; state?: RuntimeState };
 
@@ -18,6 +18,17 @@ function statusClass(status: string) {
 
 function collectionEnabled(item: SettingsEmbedderCollection): boolean {
   return item.enabled !== false;
+}
+
+function draftFrom(key: string, item?: SettingsEmbedderCollection): Drafts[string] {
+  return {
+    adapter: item?.adapter ?? 'lancedb',
+    enabled: item ? collectionEnabled(item) : true,
+    provider: item?.provider ?? 'none',
+    model: item?.model ?? key,
+    service: item?.service ?? '',
+    endpoint: item?.endpoint ?? '',
+  };
 }
 
 async function testVectorCollection(key: string): Promise<{ success?: boolean; count?: number; error?: string; status?: string }> {
@@ -43,7 +54,7 @@ export function VectorConfigPanel() {
       setState(next);
       setDrafts(Object.fromEntries(Object.entries(next.config.collections).map(([key, item]) => [
         key,
-        { adapter: item.adapter ?? 'lancedb', enabled: collectionEnabled(item), provider: item.provider, model: item.model },
+        draftFrom(key, item),
       ])));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -63,7 +74,7 @@ export function VectorConfigPanel() {
   const runtime = state?.state;
 
   function updateDraft(key: string, patch: Partial<Drafts[string]>) {
-    setDrafts((current) => ({ ...current, [key]: { ...(current[key] ?? { adapter: 'lancedb', enabled: true, provider: 'none', model: key }), ...patch } }));
+    setDrafts((current) => ({ ...current, [key]: { ...(current[key] ?? draftFrom(key)), ...patch } }));
   }
 
   async function saveAdapter(key: string) {
@@ -73,7 +84,10 @@ export function VectorConfigPanel() {
     setError('');
     setMessage('');
     try {
-      await updateVectorCollection(key, { adapter: draft.adapter, enabled: draft.enabled, provider: draft.provider, model: draft.model });
+      await updateVectorCollection(key, {
+        adapter: draft.adapter, enabled: draft.enabled, provider: draft.provider, model: draft.model,
+        service: draft.service, endpoint: draft.endpoint,
+      });
       await reloadVectorConfig();
       await load();
       setMessage(`Saved ${key}: ${draft.enabled ? `${draft.adapter} · ${draft.provider} · ${draft.model}` : 'disabled'}.`);
@@ -134,7 +148,7 @@ export function VectorConfigPanel() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300">Vector config</p>
           <h3 className="mt-2 text-lg font-semibold text-white">Active vector adapters</h3>
-          <p className="mt-2 text-sm text-slate-400">Get current config, edit model/provider, switch adapters, enable rows, set primary, and test health.</p>
+          <p className="mt-2 text-sm text-slate-400">Get current config, edit model/provider plus service endpoint, switch adapters, enable rows, set primary, and test health.</p>
           <p className="mt-2 text-xs text-slate-500">{summary}</p>
           <p className="mt-2 text-xs text-slate-500">
             Source {state?.source ?? 'loading'} · engine {state?.engine ?? 'loading'} · primary {runtime?.primary ?? 'none'} · {runtime?.ready ? 'ready' : 'not ready'}
@@ -151,10 +165,12 @@ export function VectorConfigPanel() {
 
       <div className="mt-5 grid gap-3">
         {rows.map(([key, item]) => {
-          const draft = drafts[key] ?? { adapter: item.adapter ?? 'lancedb', enabled: collectionEnabled(item), provider: item.provider, model: item.model };
+          const draft = drafts[key] ?? draftFrom(key, item);
           const health = state?.health[key];
           const status = health?.status ?? (draft.enabled ? 'unknown' : 'disabled');
-          const dirty = draft.adapter !== (item.adapter ?? 'lancedb') || draft.enabled !== collectionEnabled(item) || draft.provider !== item.provider || draft.model !== item.model;
+          const dirty = draft.adapter !== (item.adapter ?? 'lancedb') || draft.enabled !== collectionEnabled(item)
+            || draft.provider !== item.provider || draft.model !== item.model
+            || draft.service !== (item.service ?? '') || draft.endpoint !== (item.endpoint ?? '');
           return (
             <article key={key} className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -166,6 +182,7 @@ export function VectorConfigPanel() {
                   </div>
                   <p className="mt-2 text-sm text-slate-100">{item.collection}</p>
                   <p className="mt-1 text-xs text-slate-500">{item.provider} · {item.model} · {state?.doc_counts[key] ?? 0} docs</p>
+                  {item.service || item.endpoint ? <p className="mt-1 text-xs text-slate-500">Service {item.service || 'default'} · {item.endpoint || 'no endpoint'}</p> : null}
                   {health?.error ? <p className="mt-2 text-xs text-rose-300">{health.error}</p> : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -184,6 +201,14 @@ export function VectorConfigPanel() {
                     <select className="mt-1 block rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100" value={draft.provider} onChange={(event) => updateDraft(key, { provider: event.target.value })}>
                       {VECTOR_PROVIDERS.map((provider) => <option key={provider} value={provider}>{provider}</option>)}
                     </select>
+                  </label>
+                  <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Service
+                    <input className="mt-1 block rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100" placeholder="registry key" value={draft.service} onChange={(event) => updateDraft(key, { service: event.target.value })} />
+                  </label>
+                  <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Endpoint
+                    <input className="mt-1 block rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100" placeholder="http://localhost:6333" value={draft.endpoint} onChange={(event) => updateDraft(key, { endpoint: event.target.value })} />
                   </label>
                   <label className="flex items-center gap-2 text-sm text-slate-200">
                     <input type="checkbox" checked={draft.enabled} onChange={(event) => updateDraft(key, { enabled: event.target.checked })} />

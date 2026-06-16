@@ -10,6 +10,8 @@ export type VectorServerCollection = {
   model: string;
   provider: string;
   adapter?: VectorConfigAdapter;
+  service?: string;
+  endpoint?: string;
   primary?: boolean;
   enabled?: boolean;
 };
@@ -32,6 +34,8 @@ export type VectorConfigHealth = {
   collection: string;
   adapter: VectorConfigAdapter;
   model: string;
+  service?: string;
+  endpoint?: string;
   error?: string;
 };
 
@@ -50,6 +54,8 @@ export interface VectorConfigDraft {
   model: string;
   provider: string;
   adapter: VectorConfigAdapter;
+  service: string;
+  endpoint: string;
   enabled: boolean;
 }
 
@@ -59,6 +65,8 @@ export type VectorConfigRow = {
   model: string;
   provider: string;
   adapter: VectorConfigAdapter;
+  service?: string;
+  endpoint?: string;
   primary?: boolean;
   enabled: boolean;
   count?: number;
@@ -121,6 +129,8 @@ export function parseVectorConfigResponse(value: unknown): VectorConfigResponse 
       model: typeof item.model === 'string' ? item.model : key,
       provider: typeof item.provider === 'string' ? item.provider : 'none',
       adapter: safeAdapter(item.adapter),
+      service: typeof item.service === 'string' ? item.service : undefined,
+      endpoint: typeof item.endpoint === 'string' ? item.endpoint : undefined,
       primary: item.primary === true,
       enabled: item.enabled !== false,
     };
@@ -156,6 +166,8 @@ export function toRows(response: VectorConfigResponse): VectorConfigRow[] {
       model: item.model,
       provider: item.provider,
       adapter: item.adapter ?? 'lancedb',
+      service: item.service,
+      endpoint: item.endpoint,
       primary: item.primary,
       enabled: item.enabled !== false,
       count: response.doc_counts?.[key],
