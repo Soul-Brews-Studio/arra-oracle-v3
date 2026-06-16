@@ -95,7 +95,8 @@ function validateIntegers(env: RuntimeEnv, issues: string[]): void {
       continue;
     }
     const parsed = Number(value);
-    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    const allowsEphemeralPort = (PORT_ENV_KEYS as readonly string[]).includes(key) && parsed === 0;
+    if (!Number.isSafeInteger(parsed) || (parsed <= 0 && !allowsEphemeralPort)) {
       issues.push(`${key} must be greater than 0; received "${value}".`);
     }
   }

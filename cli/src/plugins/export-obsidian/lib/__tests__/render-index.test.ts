@@ -11,8 +11,8 @@ const stats: VaultStats = {
     { name: "drizzle", count: 5 },
   ],
   topLinked: [
-    { id: "A", slug: "doc-a", linkCount: 8 },
-    { id: "B", slug: "doc-b", linkCount: 5 },
+    { slug: "doc-a", linkCount: 8 },
+    { slug: "doc-b", linkCount: 5 },
   ],
   generatedAt: new Date("2026-04-19T10:00:00Z"),
 };

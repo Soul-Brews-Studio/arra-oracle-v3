@@ -7,6 +7,7 @@ import { pluginsList } from "./commands/plugins-list.ts";
 import { pluginsCommand } from "./commands/plugins.ts";
 import { pluginsRemove } from "./commands/plugins-remove.ts";
 import { pluginsInfo } from "./commands/plugins-info.ts";
+import { pluginsDisable, pluginsEnable } from "./commands/plugins-toggle.ts";
 import { sessionList } from "./commands/session-list.ts";
 import { sessionShow } from "./commands/session-show.ts";
 import { sessionContext } from "./commands/session-context.ts";
@@ -202,8 +203,10 @@ async function main() {
     if (sub === "info") {
       process.exit(await pluginsInfo(rest));
     }
+    if (sub === "disable") process.exit(await pluginsDisable(rest));
+    if (sub === "enable") process.exit(await pluginsEnable(rest));
     console.error(`\x1b[31m✗\x1b[0m unknown plugin subcommand: ${args[1]}`);
-    console.error("  try: arra-cli plugin list|info|install|remove");
+    console.error("  try: arra-cli plugin list|info|install|remove|enable|disable");
     process.exit(1);
   }
 

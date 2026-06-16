@@ -17,7 +17,7 @@ export const tracesListRoute = new Elysia().get('/api/traces', ({ query }) => {
   query: listQuery,
   detail: {
     tags: ['traces'],
-    menu: { group: 'main', order: 50 },
+    menu: { group: 'main', path: '/traces', order: 50 },
     summary: 'List traces',
   },
 });
