@@ -93,3 +93,30 @@ test('trace HTTP routes stamp and filter records by active tenant', async () => 
   });
   expect(deniedDistill.response.status).toBe(404);
 });
+
+test('tenant trace linking refuses to close a forward cycle', async () => {
+  const first = await tenantJson(tenantA, '/api/traces', {
+    method: 'POST',
+    body: JSON.stringify({ query: `tenant cycle first ${stamp}` }),
+  });
+  const second = await tenantJson(tenantA, '/api/traces', {
+    method: 'POST',
+    body: JSON.stringify({ query: `tenant cycle second ${stamp}` }),
+  });
+  expect(first.response.status).toBe(201);
+  expect(second.response.status).toBe(201);
+  traceIds.push(first.json.trace_id, second.json.trace_id);
+
+  const linked = await tenantJson(tenantA, `/api/traces/${first.json.trace_id}/link`, {
+    method: 'POST',
+    body: JSON.stringify({ nextId: second.json.trace_id }),
+  });
+  expect(linked.response.status).toBe(200);
+
+  const cycle = await tenantJson(tenantA, `/api/traces/${second.json.trace_id}/link`, {
+    method: 'POST',
+    body: JSON.stringify({ nextId: first.json.trace_id }),
+  });
+  expect(cycle.response.status).toBe(400);
+  expect(cycle.json.error).toContain('create a cycle');
+});

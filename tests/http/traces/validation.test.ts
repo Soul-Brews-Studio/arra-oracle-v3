@@ -84,7 +84,7 @@ describe('trace list and chain route hardening', () => {
   });
 
   test('allows distilling status filtering', async () => {
-    const response = await apiRequest('/api/traces?status=distilling&limit=10');
+    const response = await apiRequest('/api/traces?status=distilling&limit=%2010%20&offset=%200%20');
     expect(response.status).toBe(200);
     const body = await response.json() as { traces: Array<{ traceId: string }> };
     expect(body.traces.map((trace) => trace.traceId)).toContain(traceB);
