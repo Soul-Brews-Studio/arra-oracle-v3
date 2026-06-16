@@ -26,11 +26,17 @@ class OracleApiUnavailableError extends Error {
 }
 
 export function resolveOracleApiBase(): string | null {
-  const raw = process.env.ORACLE_HTTP_URL ?? process.env.ORACLE_API ?? process.env.NEO_ARRA_API;
-  if (!raw) return null;
-  const trimmed = raw.trim();
+  const trimmed = configuredApiBase();
   if (!trimmed || EMBEDDED_API_VALUES.has(trimmed.toLowerCase())) return null;
   return trimmed.replace(/\/+$/, '');
+}
+
+function configuredApiBase(): string | null {
+  for (const raw of [process.env.ORACLE_HTTP_URL, process.env.ORACLE_API, process.env.NEO_ARRA_API]) {
+    const trimmed = raw?.trim();
+    if (trimmed) return trimmed;
+  }
+  return null;
 }
 
 function cleanQueryValue(value: unknown): string | undefined {

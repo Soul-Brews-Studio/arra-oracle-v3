@@ -65,6 +65,14 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function emit(deps: WorkerDeps, ev: WorkerEvent): void {
+  try {
+    deps.onEvent?.(ev);
+  } catch {
+    // Observability hooks must not poison queue processing.
+  }
+}
+
 /**
  * Run a worker loop for a single model. Returns when `isShuttingDown()` is true.
  *
@@ -87,12 +95,12 @@ export async function runWorker(
     const job = claimNextJob(deps.db, modelKey);
     if (!job) {
       stats.emptyPolls++;
-      deps.onEvent?.({ type: 'idle', modelKey });
+      emit(deps, { type: 'idle', modelKey });
       await sleep(pollMs);
       continue;
     }
 
-    deps.onEvent?.({ type: 'claimed', job });
+    emit(deps, { type: 'claimed', job });
 
     try {
       const text = deps.getDocText(job.docId);
@@ -101,7 +109,7 @@ export async function runWorker(
         // Plug-play: removing a doc from oracle_documents leaves queue rows
         // safely consumable. The worker absorbs the no-op gracefully.
         markJobDone(deps.db, job.id);
-        deps.onEvent?.({ type: 'doc_missing', job });
+        emit(deps, { type: 'doc_missing', job });
         stats.processed++;
         continue;
       }
@@ -111,7 +119,7 @@ export async function runWorker(
       await deps.upsertVector(job.collection, job.docId, vector);
       markJobDone(deps.db, job.id);
       stats.processed++;
-      deps.onEvent?.({
+      emit(deps, {
         type: 'done',
         job,
         durationMs: Math.round(performance.now() - t0),
@@ -120,7 +128,7 @@ export async function runWorker(
       const msg = err instanceof Error ? err.message : String(err);
       markJobError(deps.db, job.id, msg);
       stats.errors++;
-      deps.onEvent?.({ type: 'error', job, error: msg });
+      emit(deps, { type: 'error', job, error: msg });
     }
   }
 
