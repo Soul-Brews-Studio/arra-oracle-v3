@@ -105,8 +105,12 @@ export async function performGracefulShutdown(config: GracefulShutdownConfig): P
 
   // STEP 2: Close HTTP server first
   if (server) {
-    await closeHttpServer(server);
-    logger.info('SYSTEM', 'HTTP server closed');
+    try {
+      await closeHttpServer(server);
+      logger.info('SYSTEM', 'HTTP server closed');
+    } catch (error) {
+      logger.warn('SYSTEM', 'HTTP server close error', {}, error as Error);
+    }
   }
 
   // STEP 3: Shutdown services in order

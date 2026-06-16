@@ -13,20 +13,32 @@ const SECURITY_CORPUS_EXTENSIONS = ['.md', '.txt', '.yaml', '.yml', '.json', '.r
 const SECURITY_CORPUS_MAX_FILE_BYTES = 200 * 1024;  // 200KB cap per file
 const SECURITY_CORPUS_SKIP_DIRS = ['_meta', '.git', 'node_modules', '__pycache__'];
 
+function skippableFsError(err: unknown): boolean {
+  const code = err && typeof err === 'object' && 'code' in err
+    ? (err as NodeJS.ErrnoException).code
+    : undefined;
+  return code === 'ENOENT' || code === 'ENOTDIR' || code === 'EACCES' || code === 'EPERM';
+}
+
 /**
  * Recursively get all markdown files in a directory
  */
 export function getAllMarkdownFiles(dir: string): string[] {
   const files: string[] = [];
-  const items = fs.readdirSync(dir);
+  let items: string[];
+  try {
+    items = fs.readdirSync(dir);
+  } catch (err) {
+    if (skippableFsError(err)) return files;
+    throw err;
+  }
   for (const item of items) {
     const fullPath = path.join(dir, item);
     let stat: fs.Stats;
     try {
       stat = fs.statSync(fullPath);
     } catch (err) {
-      const code = err && typeof err === 'object' && 'code' in err ? (err as NodeJS.ErrnoException).code : undefined;
-      if (code === 'ENOENT') continue;
+      if (skippableFsError(err)) continue;
       throw err;
     }
     if (stat.isDirectory()) {
@@ -99,7 +111,13 @@ export function collectDocuments(opts: CollectOpts): OracleDocument[] {
  */
 function getSecurityCorpusFiles(dir: string): string[] {
   const files: string[] = [];
-  const items = fs.readdirSync(dir, { withFileTypes: true });
+  let items: fs.Dirent[];
+  try {
+    items = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (err) {
+    if (skippableFsError(err)) return files;
+    throw err;
+  }
   for (const item of items) {
     if (SECURITY_CORPUS_SKIP_DIRS.includes(item.name)) continue;
     const fullPath = path.join(dir, item.name);
