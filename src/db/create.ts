@@ -12,6 +12,10 @@ export interface DatabaseConnection {
 }
 
 export function createDatabase(dbPath?: string): DatabaseConnection {
-  const storage = createStorageBackend({ dbPath: dbPath || DB_PATH });
+  const storage = createStorageBackend({ dbPath: resolveDatabasePath(dbPath) });
   return { sqlite: storage.sqlite, db: storage.db, storage };
+}
+
+export function resolveDatabasePath(dbPath?: string, fallback = DB_PATH): string {
+  return dbPath?.trim() || fallback;
 }

@@ -210,6 +210,24 @@ describe('watcher HTTP routes', () => {
     expect(status.events[0]).toMatchObject({ type: 'started' });
   });
 
+  test('does not enqueue duplicate jobs while a document has active jobs', async () => {
+    const filePath = path.join(repoRoot, 'ψ', 'learn', 'github.com', 'owner', 'repo', 'active.md');
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+
+    await call('/api/v1/watcher/start', { method: 'POST' });
+    fs.writeFileSync(filePath, '# Active\n\n## Finding\n\nInitial indexing queues jobs.', 'utf8');
+    await waitFor(() => count('indexing_jobs') === Object.keys(MODELS).length);
+
+    fs.writeFileSync(filePath, '# Active\n\n## Finding\n\nSecond pass sees active jobs.', 'utf8');
+    service.schedule(filePath);
+    await waitFor(() => service.status().events.some((event) =>
+      event.type === 'indexed' && event.path?.endsWith('/active.md') && event.jobs === 0,
+    ));
+
+    expect(count('oracle_documents')).toBe(1);
+    expect(count('indexing_jobs')).toBe(Object.keys(MODELS).length);
+  });
+
   function count(table: string): number {
     return db.query<{ count: number }, []>(`SELECT COUNT(*) AS count FROM ${table}`).get()?.count ?? 0;
   }

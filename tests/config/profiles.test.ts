@@ -40,6 +40,18 @@ describe('environment config profiles', () => {
     expect(profile.rateLimit.burst).toBe(300);
   });
 
+  test('profile booleans accept padded truthy values', () => {
+    const profile = resolveConfigProfile({
+      HOME: '/tmp/arra-home',
+      ARRA_ENV: 'production',
+      ARRA_VERBOSE_LOGGING: ' yes ',
+      ARRA_RATE_LIMIT_ENABLED: ' on ',
+    });
+
+    expect(profile.verboseLogging).toBe(true);
+    expect(profile.rateLimit.enabled).toBe(true);
+  });
+
   test('validation rejects unknown ARRA_ENV values clearly', () => {
     expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', ARRA_ENV: 'qa' }, emitOptionalWarnings: false }))
       .toThrow(/ARRA_ENV must be one of development, staging, production/);

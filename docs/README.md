@@ -14,6 +14,8 @@ Use this page as the one-hop map for the 2026-06-06/07 alpha docs wave.
 | [issues/memory-systems-ai-agents-1648.md](./issues/memory-systems-ai-agents-1648.md) | Apply the #1648 memory-systems research | provenance-first hybrid memory, confidence, validation, review-gated capture |
 | [MORNING-TAPE-TEMPLATE.md](./MORNING-TAPE-TEMPLATE.md) | Complete Challenge 2 memory bootstrapping | two-minute recovery tape, safety rails, blocked/done reporting |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | Pick the correct repo/branch for PRs | two-repo rule, source PRs to `arra-oracle-v3:alpha` |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | Contributor quickstart for source PRs | branch from `alpha`, scoped tests, PR checklist |
+| [GITHUB-ISSUE-UPDATES.md](./GITHUB-ISSUE-UPDATES.md) | Post polished issue updates | `##` headers, bullets, code blocks, status badges |
 | [CHANGELOG.md](../CHANGELOG.md) | Review what changed in the alpha wave | release notes, tracker issues, source PRs |
 | [TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md) | Find feature knobs and first commands | MCP modes, plugins, CLI targets, vectors, Docker, federation |
 
