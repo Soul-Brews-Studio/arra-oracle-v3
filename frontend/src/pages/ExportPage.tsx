@@ -88,6 +88,10 @@ function backendFetch(backendUrl: string): ExportFetch {
   };
 }
 
+function backendApiUrl(backendUrl: string, path: string): string {
+  return new URL(path, `${normalizeBackendUrl(backendUrl)}/`).toString();
+}
+
 async function readJson(response: Response): Promise<unknown> {
   const body = await response.text();
   return body ? JSON.parse(body) : {};
@@ -103,7 +107,8 @@ export function ExportPage() {
   const [format, setFormat] = useState<ExportFormat>('json');
   const [includeGraph, setIncludeGraph] = useState(true);
   const fetcher = useMemo(() => backendFetch(backendUrl), [backendUrl]);
-  const exportRun = useExport({ fetcher, pollMs: 800 });
+  const progressUrl = useCallback((jobId: string) => backendApiUrl(backendUrl, `/api/v1/export/progress?jobId=${encodeURIComponent(jobId)}`), [backendUrl]);
+  const exportRun = useExport({ fetcher, pollMs: 800, progressUrl });
   const resetExport = exportRun.reset;
 
   const loadCollections = useCallback(async () => {
@@ -149,16 +154,16 @@ export function ExportPage() {
 
   return (
     <div className="grid gap-5">
-      <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="export-page-title">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Export app</p>
-        <h1 id="export-page-title" className="mt-2 text-3xl font-semibold text-white">Export collections</h1>
-        <p className="mt-2 text-sm text-slate-400">Choose a database collection, export format, graph option, then download the generated snapshot.</p>
+      <section className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-slate-950/70 sm:p-6" aria-labelledby="export-page-title">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-600 dark:text-teal-300">Export app</p>
+        <h1 id="export-page-title" className="mt-2 text-3xl font-semibold text-slate-950 dark:text-white">Export collections</h1>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Choose a database collection, export format, graph option, then download the generated snapshot.</p>
       </section>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <BackendSelector value={backendUrl} onChange={(url) => { setBackendUrl(url); resetRun(); }} />
         <button
-          className="focus-ring rounded-2xl border border-teal-300/30 px-5 py-3 text-sm font-semibold text-teal-100 hover:bg-teal-300/10 disabled:cursor-not-allowed disabled:opacity-60"
+          className="focus-ring rounded-2xl border border-teal-600/30 px-5 py-3 text-sm font-semibold text-teal-700 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-teal-300/30 dark:text-teal-100 dark:hover:bg-teal-300/10"
           disabled={state === 'loading'}
           type="button"
           onClick={() => void loadCollections()}
@@ -171,14 +176,14 @@ export function ExportPage() {
       {state === 'error' ? <ErrorMessage title="Could not load export collections." message={error} /> : null}
 
       <div className="grid gap-4 lg:grid-cols-4">
-        <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6 lg:col-span-2" aria-labelledby="export-collection-title">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Collection</p>
-          <h2 id="export-collection-title" className="mt-2 text-2xl font-semibold text-white">Collection picker</h2>
-          <label className="mt-5 grid gap-2 text-sm font-medium text-slate-300">
+        <section className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-slate-950/70 sm:p-6 lg:col-span-2" aria-labelledby="export-collection-title">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-600 dark:text-teal-300">Collection</p>
+          <h2 id="export-collection-title" className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">Collection picker</h2>
+          <label className="mt-5 grid gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
             Collection
             <select
               aria-label="Export collection"
-              className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100"
+              className="focus-ring rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
               disabled={state !== 'ready' || collections.length === 0}
               value={collection}
               onChange={(event) => { setCollection(event.target.value); resetRun(); }}
@@ -190,12 +195,12 @@ export function ExportPage() {
           </label>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6 lg:col-span-2" aria-labelledby="export-format-title">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Format</p>
-          <h2 id="export-format-title" className="mt-2 text-2xl font-semibold text-white">Format picker</h2>
+        <section className="rounded-3xl border border-slate-200 bg-white/80 p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03] sm:p-6 lg:col-span-2" aria-labelledby="export-format-title">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-600 dark:text-teal-300">Format</p>
+          <h2 id="export-format-title" className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">Format picker</h2>
           <div className="mt-5 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Export format">
             {formats.map((item) => (
-              <label key={item} className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-slate-200">
+              <label key={item} className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:bg-slate-950/60 dark:text-slate-200">
                 <input className="h-4 w-4 accent-teal-300" checked={format === item} name="export-format" type="radio" value={item} onChange={() => { setFormat(item); resetRun(); }} />
                 <span className="font-semibold">{formatLabels[item]}</span>
               </label>
@@ -203,18 +208,18 @@ export function ExportPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6 lg:col-span-2" aria-labelledby="export-options-title">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Options</p>
-          <h2 id="export-options-title" className="mt-2 text-2xl font-semibold text-white">Graph relationships</h2>
-          <label className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-slate-200">
+        <section className="rounded-3xl border border-slate-200 bg-white/80 p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03] sm:p-6 lg:col-span-2" aria-labelledby="export-options-title">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-600 dark:text-teal-300">Options</p>
+          <h2 id="export-options-title" className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">Graph relationships</h2>
+          <label className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:bg-slate-950/60 dark:text-slate-200">
             <span className="font-semibold">Include graph relationships in the export file</span>
             <input className="h-5 w-5 accent-teal-300" checked={includeGraph} type="checkbox" onChange={(event) => { setIncludeGraph(event.target.checked); resetRun(); }} />
           </label>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6 lg:col-span-2" aria-labelledby="export-action-title">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Export</p>
-          <h2 id="export-action-title" className="mt-2 text-2xl font-semibold text-white">Run export</h2>
+        <section className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-slate-950/70 sm:p-6 lg:col-span-2" aria-labelledby="export-action-title">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-600 dark:text-teal-300">Export</p>
+          <h2 id="export-action-title" className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">Run export</h2>
           <button
             className="focus-ring mt-5 rounded-xl bg-teal-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={!collection || state !== 'ready' || active}

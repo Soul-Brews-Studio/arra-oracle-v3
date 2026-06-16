@@ -18,6 +18,7 @@ export interface ExportProgressState {
 export interface UseExportOptions {
   fetcher?: ExportFetch;
   pollMs?: number;
+  progressUrl?: (jobId: string) => string | undefined;
 }
 
 export interface UseExportResult extends ExportProgressState {
@@ -99,9 +100,10 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function useExport({ fetcher = globalThis.fetch?.bind(globalThis), pollMs = 1500 }: UseExportOptions = {}): UseExportResult {
+export function useExport({ fetcher = globalThis.fetch?.bind(globalThis), pollMs = 1500, progressUrl }: UseExportOptions = {}): UseExportResult {
   const [state, setState] = useState<ExportProgressState>(initialState);
   const abortRef = useRef<AbortController | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
   const urlRef = useRef<string | null>(null);
   const lastPayloadRef = useRef<ExportRunPayload | undefined>(undefined);
 
@@ -109,6 +111,48 @@ export function useExport({ fetcher = globalThis.fetch?.bind(globalThis), pollMs
     if (urlRef.current && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(urlRef.current);
     urlRef.current = null;
   }, []);
+
+  const closeProgress = useCallback(() => {
+    eventSourceRef.current?.close();
+    eventSourceRef.current = null;
+  }, []);
+
+  const applyProgressPayload = useCallback((payload: Record<string, unknown>) => {
+    const nextProgress = progressFrom(payload);
+    const fileSizeEstimate = estimateFrom(payload);
+    setState((current) => ({
+      ...current,
+      status: statusFrom(payload) ?? current.status,
+      progress: nextProgress === undefined ? current.progress : Math.min(100, Math.max(0, nextProgress)),
+      fileSizeEstimate: fileSizeEstimate ?? current.fileSizeEstimate,
+      downloadUrl: textValue(payload.downloadUrl, payload.url, payload.href) ?? current.downloadUrl,
+      filename: textValue(payload.filename, payload.fileName, payload.name) ?? current.filename,
+      error: textValue(payload.error, payload.message) ?? current.error,
+    }));
+  }, []);
+
+  const connectProgress = useCallback((jobId: string) => {
+    closeProgress();
+    if (!progressUrl || typeof EventSource === 'undefined') return;
+    const url = progressUrl(jobId);
+    if (!url) return;
+    const source = new EventSource(url);
+    eventSourceRef.current = source;
+    const update = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data) as unknown;
+        if (!isRecord(payload)) return;
+        applyProgressPayload(payload);
+        const nextStatus = statusFrom(payload);
+        if (nextStatus === 'done' || nextStatus === 'error') closeProgress();
+      } catch {
+        // Polling stays active as the fallback path when an SSE payload is malformed.
+      }
+    };
+    source.addEventListener('progress', update);
+    source.onmessage = update;
+    source.onerror = () => closeProgress();
+  }, [applyProgressPayload, closeProgress, progressUrl]);
 
   const pollDownload = useCallback(async (jobId: string, signal: AbortSignal) => {
     if (!fetcher) throw new Error('fetch is unavailable');
@@ -143,6 +187,7 @@ export function useExport({ fetcher = globalThis.fetch?.bind(globalThis), pollMs
   const start = useCallback(async (payload: ExportRunPayload = {}) => {
     if (!fetcher) throw new Error('fetch is unavailable');
     abortRef.current?.abort();
+    closeProgress();
     revokeDownload();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -156,7 +201,7 @@ export function useExport({ fetcher = globalThis.fetch?.bind(globalThis), pollMs
         signal: controller.signal,
       });
       const body = await jsonOrEmpty(response);
-      if (!response.ok) throw new Error(`/api/v1/export/app/run returned ${response.status}`);
+      if (!response.ok) throw new Error(textValue(body.error, body.message) ?? `/api/v1/export/app/run returned ${response.status}`);
       const jobId = textValue(body.jobId, body.id);
       if (!jobId) throw new Error('/api/v1/export/app/run did not return a jobId');
       setState({
@@ -166,23 +211,26 @@ export function useExport({ fetcher = globalThis.fetch?.bind(globalThis), pollMs
         fileSizeEstimate: estimateFrom(body),
         filename: textValue(body.filename, body.fileName, body.name),
       });
+      connectProgress(jobId);
       await pollDownload(jobId, controller.signal);
     } catch (error) {
       if (controller.signal.aborted) return;
       setState((current) => ({ ...current, status: 'error', error: errorMessage(error) }));
     }
-  }, [fetcher, pollDownload, revokeDownload]);
+  }, [closeProgress, connectProgress, fetcher, pollDownload, revokeDownload]);
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
+    closeProgress();
     revokeDownload();
     setState(initialState);
-  }, [revokeDownload]);
+  }, [closeProgress, revokeDownload]);
 
   useEffect(() => () => {
     abortRef.current?.abort();
+    closeProgress();
     revokeDownload();
-  }, [revokeDownload]);
+  }, [closeProgress, revokeDownload]);
 
   return {
     ...state,
