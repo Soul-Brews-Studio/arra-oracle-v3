@@ -1,4 +1,4 @@
-import { desc, like, or } from 'drizzle-orm';
+import { desc, inArray, like, or } from 'drizzle-orm';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import { db as defaultDb, oracleMemories } from '../../db/index.ts';
 import type * as schema from '../../db/schema.ts';
@@ -52,6 +52,16 @@ export class MemoryStore {
       : base.orderBy(desc(oracleMemories.createdAt)).limit(safeLimit).all();
     return rows.map(memoryFromRow);
   }
+
+  getByIds(ids: string[]): MemoryRecord[] {
+    if (!ids.length) return [];
+    const rows = this.database.select().from(oracleMemories)
+      .where(inArray(oracleMemories.id, ids))
+      .all();
+    const byId = new Map(rows.map((row) => [row.id, memoryFromRow(row)]));
+    return ids.map((id) => byId.get(id)).filter((row): row is MemoryRecord => Boolean(row));
+  }
+
 }
 
 function cleanTags(tags: string[] = []): string[] {

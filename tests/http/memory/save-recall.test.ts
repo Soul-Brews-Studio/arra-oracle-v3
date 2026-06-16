@@ -3,6 +3,8 @@ import { inArray } from 'drizzle-orm';
 import { createApiVersionedFetch } from '../../../src/middleware/api-version.ts';
 import { db, oracleMemories } from '../../../src/db/index.ts';
 import { createMemoryRoutes } from '../../../src/routes/memory/index.ts';
+import type { MemoryRecord } from '../../../src/routes/memory/store.ts';
+import type { MemoryVectorIndex } from '../../../src/routes/memory/vector.ts';
 
 const savedIds: string[] = [];
 
@@ -10,17 +12,43 @@ afterAll(() => {
   if (savedIds.length) db.delete(oracleMemories).where(inArray(oracleMemories.id, savedIds)).run();
 });
 
-function createFetch() {
-  const app = createMemoryRoutes();
-  return createApiVersionedFetch((request) => app.handle(request));
+class FakeMemoryVectorIndex implements MemoryVectorIndex {
+  readonly memories: MemoryRecord[] = [];
+
+  async index(memory: MemoryRecord) {
+    this.memories.push(memory);
+    return { indexed: true as const };
+  }
+
+  async search(query: string, limit: number) {
+    const q = query.toLowerCase();
+    return this.memories
+      .filter((memory) => [memory.title, memory.content, memory.source, ...(memory.tags ?? [])]
+        .filter(Boolean).join(' ').toLowerCase().includes(q))
+      .slice(0, limit)
+      .map((memory, index) => ({
+        memoryId: memory.id,
+        vectorId: `memory:${memory.id}`,
+        document: memory.content,
+        metadata: { type: 'memory', memoryId: memory.id },
+        distance: index * 0.1,
+        score: 1 - index * 0.1,
+      }));
+  }
+}
+
+function createHarness() {
+  const vectorIndex = new FakeMemoryVectorIndex();
+  const app = createMemoryRoutes(undefined, vectorIndex);
+  return { fetcher: createApiVersionedFetch((request) => app.handle(request)), vectorIndex };
 }
 
 async function json(res: Response) {
   return JSON.parse(await res.text());
 }
 
-test('POST /api/v1/memory/save persists a memory and recall finds it by keyword', async () => {
-  const fetcher = createFetch();
+test('POST /api/v1/memory/save persists a memory, indexes it, and recall finds it by keyword', async () => {
+  const { fetcher, vectorIndex } = createHarness();
   const unique = `launch-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const save = await fetcher(new Request('http://local/api/v1/memory/save', {
     method: 'POST',
@@ -36,8 +64,9 @@ test('POST /api/v1/memory/save persists a memory and recall finds it by keyword'
   savedIds.push(saved.memory.id);
 
   expect(save.status).toBe(200);
-  expect(saved).toMatchObject({ success: true, memory: { title: 'Morning tape', tags: ['continuity', 'oracle'] } });
+  expect(saved).toMatchObject({ success: true, vector: { indexed: true }, memory: { title: 'Morning tape' } });
   expect(saved.memory.id).toStartWith('mem_');
+  expect(vectorIndex.memories[0].id).toBe(saved.memory.id);
 
   const recall = await fetcher(new Request(`http://local/api/v1/memory/recall?q=${unique}&limit=5`));
   const body = await json(recall);
@@ -47,25 +76,27 @@ test('POST /api/v1/memory/save persists a memory and recall finds it by keyword'
   expect(body.items[0]).toMatchObject({ id: saved.memory.id, content: `Read the ${unique} context before coding.` });
 });
 
-test('memory recall searches title, tags, and source fields', async () => {
-  const fetcher = createFetch();
-  const tag = `continuity-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+test('GET /api/v1/memory/search returns vector similarity hits enriched from SQLite', async () => {
+  const { fetcher } = createHarness();
+  const phrase = `semantic-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const save = await fetcher(new Request('http://local/api/v1/memory/save', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ content: 'Context survives restarts.', tags: [tag] }),
+    body: JSON.stringify({ content: `Similarity should find ${phrase}.`, tags: ['vector'] }),
   }));
   const saved = await json(save);
   savedIds.push(saved.memory.id);
 
-  const recall = await fetcher(new Request(`http://local/api/v1/memory/recall?q=${tag}`));
-  const body = await json(recall);
+  const search = await fetcher(new Request(`http://local/api/v1/memory/search?q=${phrase}&limit=3`));
+  const body = await json(search);
 
-  expect(body.items.map((item: { id: string }) => item.id)).toContain(saved.memory.id);
+  expect(search.status).toBe(200);
+  expect(body).toMatchObject({ success: true, query: phrase, total: 1 });
+  expect(body.results[0]).toMatchObject({ id: saved.memory.id, score: 1, vectorId: `memory:${saved.memory.id}` });
 });
 
 test('memory save rejects blank content', async () => {
-  const res = await createFetch()(new Request('http://local/api/v1/memory/save', {
+  const res = await createHarness().fetcher(new Request('http://local/api/v1/memory/save', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ content: '   ' }),

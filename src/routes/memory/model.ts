@@ -11,3 +11,8 @@ export const RecallMemoryQuery = t.Object({
   q: t.Optional(t.String()),
   limit: t.Optional(t.String()),
 });
+
+export const SemanticMemoryQuery = t.Object({
+  q: t.Optional(t.String()),
+  limit: t.Optional(t.String()),
+});
