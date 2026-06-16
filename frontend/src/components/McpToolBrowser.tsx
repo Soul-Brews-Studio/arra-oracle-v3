@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchMcpTools } from '../api';
-import { mcpToolsPath } from '../routePaths';
+import { mcpToolsPath, pluginInventoryPath } from '../routePaths';
 import { ErrorMessage, LoadingPanel, Spinner } from './AsyncState';
 import { groupLabel, toolMode } from './toolView';
 import type { McpTool } from '../types';
@@ -41,6 +41,10 @@ export function mcpToolSourceLabel(tool: McpTool): string {
   return 'core';
 }
 
+export function mcpToolPluginInventoryPath(tool: McpTool): string | null {
+  return sourceKind(tool) === 'plugin' ? pluginInventoryPath({ q: tool.plugin, surface: 'mcp' }) : null;
+}
+
 export function mcpToolSourceCounts(tools: McpTool[]): Record<'plugin' | 'core', number> {
   return tools.reduce((counts, tool) => {
     counts[sourceKind(tool)] += 1;
@@ -63,6 +67,13 @@ export function filterMcpTools(tools: McpTool[], query: string, source: McpToolS
   });
 }
 
+function SourceBadge({ tool }: { tool: McpTool }) {
+  const label = mcpToolSourceLabel(tool);
+  const href = mcpToolPluginInventoryPath(tool);
+  const className = 'rounded-full bg-teal-300/10 px-2 py-1 text-xs text-teal-100';
+  return href ? <a className={`focus-ring ${className}`} href={href}>{label}</a> : <span className={className}>{label}</span>;
+}
+
 function ToolCard({ tool, onOpen }: { tool: McpTool; onOpen?: (tool: McpTool) => void }) {
   return (
     <article className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
@@ -70,7 +81,7 @@ function ToolCard({ tool, onOpen }: { tool: McpTool; onOpen?: (tool: McpTool) =>
         <h3 className="font-mono text-sm text-teal-200">{tool.name}</h3>
         <span className="rounded-full bg-white/5 px-2 py-1 text-xs text-slate-400">{groupLabel(tool)}</span>
         <span className="rounded-full bg-purple-300/10 px-2 py-1 text-xs text-purple-200">{toolMode(tool)}</span>
-        <span className="rounded-full bg-teal-300/10 px-2 py-1 text-xs text-teal-100">{mcpToolSourceLabel(tool)}</span>
+        <SourceBadge tool={tool} />
       </div>
       <p className="mt-3 text-sm leading-6 text-slate-400">{tool.description || 'No description supplied.'}</p>
       {onOpen ? (
