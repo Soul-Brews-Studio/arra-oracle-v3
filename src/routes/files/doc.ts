@@ -1,7 +1,8 @@
 import { Elysia, t } from 'elysia';
 import { sqlite, db, oracleDocuments } from '../../db/index.ts';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { docParams } from './model.ts';
+import { currentTenantId, tenantIdForWrite } from '../../middleware/tenant.ts';
 
 // Body schemas for PATCH/POST.
 const PatchDocBody = t.Object({
@@ -19,21 +20,34 @@ const PostDocBody = t.Object({
   project: t.Optional(t.String()),
 });
 
+function tenantFilter(alias = 'd'): { clause: string; params: string[] } {
+  const tenantId = currentTenantId();
+  return tenantId ? { clause: `AND ${alias}.tenant_id = ?`, params: [tenantId] } : { clause: '', params: [] };
+}
+
+function docWhere(id: string) {
+  const tenantId = currentTenantId();
+  return tenantId
+    ? and(eq(oracleDocuments.id, id), eq(oracleDocuments.tenantId, tenantId))
+    : eq(oracleDocuments.id, id);
+}
+
 export const docRoute = new Elysia()
   .get(
     '/api/doc/:id',
     ({ params, set }) => {
       try {
+        const filter = tenantFilter('d');
         const row = sqlite
           .prepare(
             `
         SELECT d.id, d.type, d.source_file, d.concepts, d.project, f.content
         FROM oracle_documents d
         JOIN oracle_fts f ON d.id = f.id
-        WHERE d.id = ?
+        WHERE d.id = ? ${filter.clause}
       `,
           )
-          .get(params.id) as any;
+          .get(params.id, ...filter.params) as any;
 
         if (!row) {
           set.status = 404;
@@ -66,9 +80,10 @@ export const docRoute = new Elysia()
     '/api/doc/:id',
     ({ params, body, set }) => {
       try {
+        const filter = tenantFilter('d');
         const existing = sqlite
-          .prepare(`SELECT id FROM oracle_documents WHERE id = ?`)
-          .get(params.id) as { id: string } | undefined;
+          .prepare(`SELECT id FROM oracle_documents d WHERE d.id = ? ${filter.clause}`)
+          .get(params.id, ...filter.params) as { id: string } | undefined;
         if (!existing) {
           set.status = 404;
           return { error: 'Document not found' };
@@ -85,10 +100,12 @@ export const docRoute = new Elysia()
           patch.concepts = JSON.stringify(dedup);
         }
 
-        db.update(oracleDocuments).set(patch).where(eq(oracleDocuments.id, params.id)).run();
+        db.update(oracleDocuments).set(patch).where(docWhere(params.id)).run();
 
         if (typeof data.content === 'string') {
-          const conceptsRow = sqlite.prepare(`SELECT concepts FROM oracle_documents WHERE id = ?`).get(params.id) as { concepts: string };
+          const conceptsRow = sqlite
+            .prepare(`SELECT concepts FROM oracle_documents d WHERE d.id = ? ${filter.clause}`)
+            .get(params.id, ...filter.params) as { concepts: string };
           const conceptsArr: string[] = conceptsRow ? JSON.parse(conceptsRow.concepts || '[]') : [];
           sqlite.prepare(`DELETE FROM oracle_fts WHERE id = ?`).run(params.id);
           sqlite
@@ -134,6 +151,7 @@ export const docRoute = new Elysia()
 
         db.insert(oracleDocuments).values({
           id,
+          tenantId: tenantIdForWrite(),
           type: data.type,
           sourceFile: data.source_file ?? `imported/${id}.md`,
           concepts: JSON.stringify(conceptsArr),
