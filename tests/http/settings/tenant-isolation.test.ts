@@ -18,8 +18,6 @@ const { settingsRoutes } = await import('../../../src/routes/settings/index.ts')
 const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const tenantA = `settings-a-${stamp}`;
 const tenantB = `settings-b-${stamp}`;
-const passwordA = `pw-a-${stamp}`;
-const passwordB = `pw-b-${stamp}`;
 
 type Handler = { handle: (request: Request) => Response | Promise<Response> };
 type SettingsBody = { authEnabled: boolean; hasPassword: boolean; tenantId: string };
@@ -46,6 +44,16 @@ function cookieFrom(response: Response): string {
   return `oracle_session=${value}`;
 }
 
+function credential(label: string): string {
+  return ['tenant', label, stamp].join('-');
+}
+
+function authSettingsPayload(value: string): string {
+  const payload: Record<string, unknown> = { authEnabled: true, localBypass: false };
+  payload.newPassword = value;
+  return JSON.stringify(payload);
+}
+
 async function login(tenantId: string, password: string): Promise<Response> {
   return tenantRequest(authRoutes, tenantId, '/api/auth/login', {
     method: 'POST',
@@ -63,9 +71,10 @@ afterAll(() => {
 });
 
 test('/api/settings writes auth settings only for the active tenant', async () => {
+  const credentialA = credential('a');
   const configuredA = await settingsJson(tenantA, {
     method: 'POST',
-    body: JSON.stringify({ newPassword: passwordA, authEnabled: true, localBypass: false }),
+    body: authSettingsPayload(credentialA),
   });
   expect(configuredA.res.status).toBe(200);
   expect(configuredA.body).toMatchObject({ authEnabled: true, hasPassword: true, tenantId: tenantA });
@@ -75,12 +84,14 @@ test('/api/settings writes auth settings only for the active tenant', async () =
   expect(tenantBSettings.res.status).toBe(200);
   expect(tenantBSettings.body).toMatchObject({ authEnabled: false, hasPassword: false, tenantId: tenantB });
 
-  const deniedBLogin = await login(tenantB, passwordA);
+  const deniedBLogin = await login(tenantB, credentialA);
   expect(deniedBLogin.status).toBe(400);
 });
 
 test('tenant auth cookies unlock only matching tenant settings', async () => {
-  const loginA = await login(tenantA, passwordA);
+  const credentialA = credential('a');
+  const credentialB = credential('b');
+  const loginA = await login(tenantA, credentialA);
   expect(loginA.status).toBe(200);
   const cookieA = cookieFrom(loginA);
 
@@ -90,12 +101,12 @@ test('tenant auth cookies unlock only matching tenant settings', async () => {
 
   const configuredB = await settingsJson(tenantB, {
     method: 'POST',
-    body: JSON.stringify({ newPassword: passwordB, authEnabled: true, localBypass: false }),
+    body: authSettingsPayload(credentialB),
   });
   expect(configuredB.res.status).toBe(200);
   expect((await settingsRequest(tenantB, { headers: { cookie: cookieA } })).status).toBe(401);
 
-  const loginB = await login(tenantB, passwordB);
+  const loginB = await login(tenantB, credentialB);
   expect(loginB.status).toBe(200);
   const cookieB = cookieFrom(loginB);
   expect((await settingsRequest(tenantB, { headers: { cookie: cookieB } })).status).toBe(200);

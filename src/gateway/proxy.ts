@@ -5,6 +5,7 @@
  * Returns 502 on connection refused, 504 on timeout.
  */
 import type { ServiceConfig } from './config.ts';
+import { currentTenantId, TENANT_HEADER, tenantIdFor } from '../middleware/tenant.ts';
 import { cloneRetryableBody, retryableRequestBody, retryUpstreamRequest } from '../middleware/retry.ts';
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -21,6 +22,9 @@ export async function proxyToService(
   try {
     const headers = new Headers(request.headers);
     headers.delete('host');
+    const tenantId = currentTenantId() ?? tenantIdFor(request);
+    if (tenantId) headers.set(TENANT_HEADER, tenantId);
+
     const body = await retryableRequestBody(request);
 
     const res = await retryUpstreamRequest(() => fetch(targetUrl, {
