@@ -9,8 +9,13 @@ import fs from 'fs';
 import path from 'path';
 import type { MenuItem } from '../routes/menu/model.ts';
 import { ORACLE_DATA_DIR } from '../config.ts';
+import { tenantDataPath } from '../middleware/tenant.ts';
 
 export const CUSTOM_MENU_FILE = path.join(ORACLE_DATA_DIR, 'custom-menu.json');
+
+export function customMenuFile(): string {
+  return tenantDataPath(CUSTOM_MENU_FILE);
+}
 
 export interface CustomMenuInput {
   path: string;
@@ -22,7 +27,7 @@ export interface CustomMenuInput {
 
 type RawFile = { items?: CustomMenuInput[] };
 
-function readRaw(file = CUSTOM_MENU_FILE): CustomMenuInput[] {
+function readRaw(file = customMenuFile()): CustomMenuInput[] {
   if (!fs.existsSync(file)) return [];
   try {
     const parsed = JSON.parse(fs.readFileSync(file, 'utf-8')) as RawFile | CustomMenuInput[];
@@ -36,7 +41,7 @@ function readRaw(file = CUSTOM_MENU_FILE): CustomMenuInput[] {
   }
 }
 
-function writeRaw(items: CustomMenuInput[], file = CUSTOM_MENU_FILE): void {
+function writeRaw(items: CustomMenuInput[], file = customMenuFile()): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify({ items }, null, 2) + '\n');
 }
@@ -47,7 +52,7 @@ function normalizePath(p: string): string {
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 }
 
-export function listCustomMenuItems(file = CUSTOM_MENU_FILE): MenuItem[] {
+export function listCustomMenuItems(file = customMenuFile()): MenuItem[] {
   return readRaw(file).map((i) => ({
     path: normalizePath(i.path),
     label: i.label,
@@ -60,7 +65,7 @@ export function listCustomMenuItems(file = CUSTOM_MENU_FILE): MenuItem[] {
 
 export function addCustomMenuItem(
   input: CustomMenuInput,
-  file = CUSTOM_MENU_FILE,
+  file = customMenuFile(),
 ): { added: boolean; replaced: boolean; item: MenuItem } {
   const cleaned: CustomMenuInput = {
     path: normalizePath(input.path),
@@ -92,7 +97,7 @@ export function addCustomMenuItem(
 
 export function removeCustomMenuItem(
   rawPath: string,
-  file = CUSTOM_MENU_FILE,
+  file = customMenuFile(),
 ): { removed: boolean; path: string } {
   const target = normalizePath(rawPath);
   const existing = readRaw(file);

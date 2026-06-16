@@ -22,8 +22,8 @@ type VectorPayload = {
 type UpdatePayload = Partial<CollectionEntry>;
 
 const HELP = `arra-cli vector-config <subcommand>\n
-Subcommands:\n  list                                      list known vector collections\n  get <collection-key-or-name>              show config for one collection\n  stats [<collection-key-or-name>]          show doc count for collections\n  set <collection> <field> <value>          set model|provider|adapter|enabled|service|endpoint\n  set <collection> [--model <name>] [--provider <name>] [--adapter <name>] [--enabled <true|false>]\n  add <name> --model <name> [--collection <name>] [--adapter <name>] [--primary]\n  remove <collection> [--yes]               remove a collection config\n  set-primary <collection>                  mark collection as primary\n  reload                                    reload server vector config cache\n  test <collection-key-or-name>             probe adapter for one collection\n
-Examples:\n  arra-cli vector-config list\n  arra-cli vector-config add qwen4 --model qwen4-embedding --adapter lancedb\n  arra-cli vector-config set bge-m3 enabled false\n  arra-cli vector-config set bge-m3 --adapter qdrant --provider remote\n  arra-cli vector-config set-primary bge-m3\n\nOutput format: default JSON; pass --json or --yml for explicit format.`;
+Subcommands:\n  list                                      list known vector collections\n  get <collection-key-or-name>              show config for one collection\n  stats [<collection-key-or-name>]          show doc count for collections\n  set <collection> <field> <value>          set model|provider|adapter|enabled|service|endpoint\n  set <collection> [--model <name>] [--provider <name>] [--adapter <name>] [--enabled <true|false>]\n  switch <adapter> [--enabled <true|false>]    set all collection adapters\n  add <name> --model <name> [--collection <name>] [--adapter <name>] [--primary]\n  remove <collection> [--yes]               remove a collection config\n  set-primary <collection>                  mark collection as primary\n  reload                                    reload server vector config cache\n  test <collection-key-or-name>             probe adapter for one collection\n
+Examples:\n  arra-cli vector-config list\n  arra-cli vector-config add qwen4 --model qwen4-embedding --adapter lancedb\n  arra-cli vector-config set bge-m3 enabled false\n  arra-cli vector-config set bge-m3 --adapter qdrant --provider remote\n  arra-cli vector-config switch sqlite-vec --enabled true\n  arra-cli vector-config set-primary bge-m3\n\nOutput format: default JSON; pass --json or --yml for explicit format.`;
 
 function usage(message: string): never { throw new Error(message); }
 function hasHelpFlag(args: string[]): boolean { return args.includes("--help") || args.includes("-h"); }
@@ -73,6 +73,19 @@ function parseSetPayload(args: string[]): UpdatePayload {
   }
   if (!Object.keys(payload).length) usage("usage: arra-cli vector-config set ... (model|provider|adapter|enabled)");
   return payload;
+}
+
+function parseSwitchPayload(adapter: string | undefined, args: string[], state: VectorPayload): { collections: Record<string, CollectionEntry> } {
+  if (!adapter) usage('usage: arra-cli vector-config switch <adapter>');
+  if (!['lancedb', 'qdrant', 'chroma', 'sqlite-vec'].includes(adapter)) usage('switch adapter must be lancedb, qdrant, chroma, or sqlite-vec');
+  const enabledIndex = args.indexOf('--enabled');
+  const enabled = enabledIndex >= 0 ? parseBoolean(args[enabledIndex + 1]) : undefined;
+  return {
+    collections: Object.fromEntries(Object.entries(state.config.collections).map(([key, collection]) => [
+      key,
+      { ...collection, adapter, ...(enabled !== undefined && { enabled }) },
+    ])),
+  };
 }
 
 function parseAddPayload(args: string[]): UpdatePayload {
@@ -149,6 +162,7 @@ export async function vectorConfigCommand(args: string[]): Promise<number> {
     if (sub === "stats") { emitStats(await fetchPayload(), rest[0], args); return 0; }
     if (sub === "get") { emitOne(await fetchPayload(), requireCollection(rest, "get"), args); return 0; }
     if (sub === "set") return request(`${ENDPOINT}/${encodeURIComponent(requireCollection(rest, "set"))}`, "PUT", args, parseSetPayload(rest.slice(1)));
+    if (sub === "switch" || sub === "backend") return request(ENDPOINT, "PATCH", args, parseSwitchPayload(rest[0], rest.slice(1), await fetchPayload()));
     if (sub === "add") return request(`${ENDPOINT}/${encodeURIComponent(requireCollection(rest, "add"))}`, "POST", args, parseAddPayload(rest.slice(1)));
     if (sub === "remove" || sub === "rm") {
       const collection = requireCollection(rest, "remove");
@@ -159,7 +173,7 @@ export async function vectorConfigCommand(args: string[]): Promise<number> {
     if (sub === "reload") { if (rest.length) usage("usage: arra-cli vector-config reload"); return request(`${ENDPOINT}/reload`, "POST", args); }
     if (sub === "test") return testCollection(await fetchPayload(), requireCollection(rest, "test"), args);
     console.error(`unknown vector-config subcommand: ${sub}`);
-    console.error("try: arra-cli vector-config list|get|stats|set|add|remove|set-primary|reload|test");
+    console.error("try: arra-cli vector-config list|get|stats|set|switch|add|remove|set-primary|reload|test");
     return 1;
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

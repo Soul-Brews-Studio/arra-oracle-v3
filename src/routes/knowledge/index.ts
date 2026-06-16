@@ -1,8 +1,8 @@
 /**
  * Knowledge Routes (Elysia) — composes /api/{learn,handoff,inbox}.
  *
- * Malformed JSON parse failures on /api/learn preserve the historical 500
- * contract through the structured error middleware's learn-path override.
+ * Malformed JSON parse failures on /api/learn preserve the audited
+ * 500 contract from the shared error middleware.
  */
 
 import { Elysia } from 'elysia';

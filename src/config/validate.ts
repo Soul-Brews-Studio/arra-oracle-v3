@@ -95,7 +95,8 @@ function validateIntegers(env: RuntimeEnv, issues: string[]): void {
       continue;
     }
     const parsed = Number(value);
-    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    const allowsEphemeralPort = (PORT_ENV_KEYS as readonly string[]).includes(key) && parsed === 0;
+    if (!Number.isSafeInteger(parsed) || (parsed <= 0 && !allowsEphemeralPort)) {
       issues.push(`${key} must be greater than 0; received "${value}".`);
     }
   }
@@ -135,6 +136,7 @@ function validateEnums(env: RuntimeEnv, issues: string[]): void {
   checkEnum(env, issues, ['ORACLE_EMBEDDER', 'ORACLE_EMBEDDER_BACKEND', 'ORACLE_EMBEDDING_PROVIDER', 'EMBEDDER_TYPE'], EMBEDDER_VALUES);
   checkEnum(env, issues, ['ORACLE_VECTOR_DB'], VECTOR_DB_VALUES);
   checkEnum(env, issues, ['VECTOR_FALLBACK'], VECTOR_FALLBACK_VALUES);
+  checkEnum(env, issues, ['LOG_FORMAT'], ['nginx', 'json', 'short'] as const);
 }
 
 function validateDatabaseUrl(env: RuntimeEnv, issues: string[]): void {
@@ -158,7 +160,7 @@ function validateProviderRequirements(env: RuntimeEnv, issues: string[]): void {
     issues.push('Remote embedder requires ORACLE_EMBEDDER_URL or ORACLE_REMOTE_EMBEDDING_URL.');
   }
   if (embedder === 'openai' && !filled(env.OPENAI_API_KEY)) issues.push('OpenAI embedder requires OPENAI_API_KEY.');
-  if (embedder === 'gemini' && !filled(env.GEMINI_API_KEY)) issues.push('Gemini embedder requires GEMINI_API_KEY.');
+  if (embedder === 'gemini' && !filled(env.GEMINI_API_KEY) && !filled(env.GOOGLE_API_KEY)) issues.push('Gemini embedder requires GEMINI_API_KEY or GOOGLE_API_KEY.');
   const cloudflare = embedder === 'cloudflare-ai' || env.ORACLE_VECTOR_DB === 'cloudflare-vectorize';
   if (cloudflare && ((!filled(env.CLOUDFLARE_ACCOUNT_ID) && !filled(env.CF_ACCOUNT_ID)) || (!filled(env.CLOUDFLARE_API_TOKEN) && !filled(env.CF_API_TOKEN)))) {
     issues.push('Cloudflare vector/AI config requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.');
@@ -220,7 +222,6 @@ function pathFromDatabaseUrl(value?: string): string {
 }
 
 const homeDir = (env: RuntimeEnv): string => env.HOME || env.USERPROFILE || '';
-
 function optionalWarnings(env: RuntimeEnv): string[] {
   return OPTIONAL_DEFAULTS
     .filter((item) => !item.keys.some((key) => filled(env[key])))

@@ -55,3 +55,13 @@ describe('canvas phase 2 HTTP and standalone surfaces', () => {
     expect(JSON.parse(lines[0])).toMatchObject({ port: 47780, host: 'canvas.buildwithoracle.com' });
   });
 });
+
+test('rejects invalid canvas plugin kind filters', async () => {
+  const app = new Elysia().use(canvasRoutes);
+  const plugins = await app.handle(new Request('http://local/api/canvas/plugins?kind=video'));
+  const registry = await app.handle(new Request('http://local/api/canvas/registry?kind=video'));
+
+  expect(plugins.status).toBe(400);
+  expect(registry.status).toBe(400);
+  expect(await plugins.json()).toEqual({ error: 'Invalid canvas plugin kind', kind: 'video', allowed: ['three', 'react'] });
+});

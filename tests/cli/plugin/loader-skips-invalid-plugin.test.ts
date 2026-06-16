@@ -15,4 +15,24 @@ describe("discoverPlugins", () => {
     const result = await discoverPlugins({ unifiedPlugins: [], userPluginDir: join(tmp, "user"), bundledPluginDir: join(tmp, "missing") });
     expect(result.plugins).toEqual([]);
   });
+
+  test("skips plugin entries that escape plugin directory", async () => {
+    const userDir = join(tmp, "escape-user");
+    const dir = join(userDir, "bad-entry");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(userDir, "outside.ts"), "export default () => ({ ok: true });\n");
+    writeFileSync(join(dir, "plugin.json"), JSON.stringify({
+      name: "bad-entry",
+      version: "1.0.0",
+      entry: "../outside.ts",
+      sdk: "^0.0.1",
+    }));
+
+    const result = await discoverPlugins({
+      unifiedPlugins: [],
+      userPluginDir: userDir,
+      bundledPluginDir: join(tmp, "missing-escape"),
+    });
+    expect(result.plugins).toEqual([]);
+  });
 });

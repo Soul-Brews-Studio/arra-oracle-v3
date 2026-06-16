@@ -4,19 +4,37 @@ import { Elysia } from 'elysia';
 import fs from 'fs';
 import path from 'path';
 import { PLUGINS_DIR } from '../../config.ts';
+import { tenantScopedPluginDir } from '../plugins/tenant.ts';
 import { pluginParams } from './model.ts';
+import { pathWithinRoot, safePluginWasmFileName } from './path-security.ts';
 
-const currentPluginsDir = () => process.env.ORACLE_DATA_DIR ? path.join(process.env.ORACLE_DATA_DIR, 'plugins') : PLUGINS_DIR;
+const currentPluginsDir = () => tenantScopedPluginDir(
+  process.env.ORACLE_DATA_DIR ? path.join(process.env.ORACLE_DATA_DIR, 'plugins') : PLUGINS_DIR,
+);
 
 
 export const pluginByNameRoute = new Elysia().get(
   '/api/plugins/:name',
   ({ params, set }) => {
-    const file = params.name.endsWith('.wasm')
-      ? params.name
-      : `${params.name}.wasm`;
-    const filePath = path.join(currentPluginsDir(), file);
+    const file = safePluginWasmFileName(params.name);
+    if (!file) {
+      set.status = 400;
+      return { error: 'Invalid plugin name' };
+    }
+    const pluginsDir = currentPluginsDir();
+    const filePath = path.join(pluginsDir, file);
     if (!fs.existsSync(filePath)) {
+      set.status = 404;
+      return { error: 'Plugin not found' };
+    }
+    try {
+      const realPluginsDir = fs.realpathSync(pluginsDir);
+      const realFilePath = fs.realpathSync(filePath);
+      if (!pathWithinRoot(realPluginsDir, realFilePath)) {
+        set.status = 404;
+        return { error: 'Plugin not found' };
+      }
+    } catch {
       set.status = 404;
       return { error: 'Plugin not found' };
     }

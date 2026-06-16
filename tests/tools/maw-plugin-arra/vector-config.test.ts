@@ -64,8 +64,18 @@ afterEach(() => {
 });
 
 describe('tools maw arra vector-config command', () => {
+  test('renders vector backend config as a table by default', async () => {
+    const { result, calls } = await run(['vector-config']);
+
+    expect(result.ok).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(result.output).toContain('Collection | Adapter | Model | Docs | Status');
+    expect(result.output).toContain('oracle_knowledge_bge_m3 | lancedb | bge-m3 | 42 | ok');
+    expect(result.output).toContain('★ = primary');
+  });
+
   test('lists vector backend config collections as JSON', async () => {
-    const { result, calls } = await run(['vector-config', 'list']);
+    const { result, calls } = await run(['vector-config', 'list', '--json']);
     const body = JSON.parse(result.output ?? '');
 
     expect(result.ok).toBe(true);
@@ -119,5 +129,22 @@ describe('tools maw arra vector-config command', () => {
     expect(result.ok).toBe(true);
     expect(calls[0].url).toBe('http://arra.test/api/v1/vector/config/nomic');
     expect(calls[0].body).toEqual({ enabled: false });
+  });
+
+  test('switches all collection adapters through the config patch API', async () => {
+    const { result, calls } = await run(['vector-config', 'switch', 'sqlite-vec', '--enabled', 'true']);
+
+    expect(result.ok).toBe(true);
+    expect(calls.map((call) => call.url)).toEqual([
+      'http://arra.test/api/v1/vector/config',
+      'http://arra.test/api/v1/vector/config',
+    ]);
+    expect(calls[1].init?.method).toBe('PATCH');
+    expect(calls[1].body).toMatchObject({
+      collections: {
+        'bge-m3': { adapter: 'sqlite-vec', enabled: true },
+        nomic: { adapter: 'sqlite-vec', enabled: true },
+      },
+    });
   });
 });

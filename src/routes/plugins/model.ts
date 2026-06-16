@@ -15,14 +15,9 @@ import {
   type PublicUnifiedServerManifest,
 } from '../../plugins/unified-manifest.ts';
 import { resolveContainedPluginEntry } from '../../plugins/path-containment.ts';
+import { tenantScopedPluginDir } from './tenant.ts';
 
 export const PLUGIN_DIR = join(homedir(), '.oracle', 'plugins');
-
-function pluginDir(): string {
-  const [configured] =
-    process.env.ARRA_PLUGIN_DIRS?.split(':').map((item) => item.trim()).filter(Boolean) ?? [];
-  return configured ?? PLUGIN_DIR;
-}
 
 export const PluginMenuSchema = t.Object({
   label: t.String(),
@@ -70,6 +65,14 @@ type RawPluginManifest = {
 
 export function sanitizePluginName(name: string): string {
   return name.replace(/[^\w.-]/g, '').replace(/\.wasm$/, '');
+}
+
+export function basePluginDir(): string {
+  return process.env.ORACLE_PLUGIN_DIR || PLUGIN_DIR;
+}
+
+export function currentPluginDir(): string {
+  return tenantScopedPluginDir(basePluginDir());
 }
 
 export function readPluginManifest(dir: string): RawPluginManifest | null {
@@ -161,7 +164,7 @@ function containedPluginPath(dir: string, wasmName: string): string | null {
   }
 }
 
-export function readFlatPlugin(file: string, dir = pluginDir()): PluginEntry {
+export function readFlatPlugin(file: string, dir = currentPluginDir()): PluginEntry {
   const st = statSync(join(dir, file));
   return {
     name: file.replace(/\.wasm$/, ''),
@@ -172,17 +175,16 @@ export function readFlatPlugin(file: string, dir = pluginDir()): PluginEntry {
   };
 }
 
-export function resolveWasmPath(name: string): string | null {
-  const dir = pluginDir();
+export function resolveWasmPath(name: string, dir = currentPluginDir()): string | null {
   const nestedManifest = join(dir, name, 'plugin.json');
   if (existsSync(nestedManifest)) {
     try {
       const manifest = JSON.parse(readFileSync(nestedManifest, 'utf8'));
       if (manifest.wasm && typeof manifest.wasm === 'string') {
-        const pluginRoot = join(dir, name);
-        const full = containedPluginPath(pluginRoot, manifest.wasm);
+        const pluginDir = join(dir, name);
+        const full = containedPluginPath(pluginDir, manifest.wasm);
         if (full && existsSync(full)) return full;
-        const base = containedPluginPath(pluginRoot, basename(manifest.wasm));
+        const base = containedPluginPath(pluginDir, basename(manifest.wasm));
         if (base && existsSync(base)) return base;
       }
     } catch {
@@ -194,8 +196,7 @@ export function resolveWasmPath(name: string): string | null {
   return null;
 }
 
-export function scanPlugins(): { plugins: PluginEntry[]; dir: string } {
-  const dir = pluginDir();
+export function scanPlugins(dir = currentPluginDir()): { plugins: PluginEntry[]; dir: string } {
   if (!existsSync(dir)) return { plugins: [], dir };
   const plugins: PluginEntry[] = [];
   for (const entry of readdirSync(dir)) {
@@ -216,8 +217,8 @@ export function scanPlugins(): { plugins: PluginEntry[]; dir: string } {
   return { plugins, dir };
 }
 
-export function getPluginMenuItems(): MenuItem[] {
-  const { plugins } = scanPlugins();
+export function getPluginMenuItems(dir = currentPluginDir()): MenuItem[] {
+  const { plugins } = scanPlugins(dir);
   const items: MenuItem[] = [];
   for (const p of plugins) {
     if (!p.menu) continue;

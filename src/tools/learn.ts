@@ -11,6 +11,7 @@ import { oracleDocuments } from '../db/schema.ts';
 import { detectProject } from '../server/project-detect.ts';
 import { getVectorStoreByModel, getEmbeddingModels } from '../vector/factory.ts';
 import { REPO_ROOT } from '../config.ts';
+import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
 
 // Lazy-loaded on first use — avoids top-level await which causes a TDZ
 // error in consumers that import learnToolDef synchronously (the tools
@@ -122,6 +123,26 @@ export function extractProjectFromSource(source?: string): string | null {
   return null;
 }
 
+export function errorDetails(error: unknown): {
+  name: string;
+  message: string;
+  stack?: string;
+  cause?: unknown;
+} {
+  if (error instanceof Error) {
+    return {
+      name: error.name || 'Error',
+      message: error.message,
+      ...(error.stack && { stack: error.stack }),
+      ...('cause' in error && error.cause !== undefined && { cause: String(error.cause) }),
+    };
+  }
+  return {
+    name: 'NonError',
+    message: String(error),
+  };
+}
+
 // ============================================================================
 // Handler
 // ============================================================================
@@ -164,7 +185,7 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
   }
 
   const now = new Date();
-  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const dateStr = dateSlug(now);
 
   const slug = pattern
     .substring(0, 50)
@@ -208,29 +229,20 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
     throw new Error(`File already exists: ${filename}`);
   }
 
+  const id = `learning_${dateStr}_${slug}`;
   const title = pattern.split('\n')[0].substring(0, 80);
   const conceptsList = coerceConcepts(concepts);
-  const frontmatter = [
-    '---',
-    `title: ${title}`,
-    conceptsList.length > 0 ? `tags: [${conceptsList.join(', ')}]` : 'tags: []',
-    `created: ${dateStr}`,
-    `source: ${source || 'Oracle Learn'}`,
-    ...(project ? [`project: ${project}`] : []),
-    '---',
-    '',
-    `# ${title}`,
-    '',
+  const frontmatter = buildLearningMarkdown({
+    id,
     pattern,
-    '',
-    '---',
-    '*Added via Oracle Learn*',
-    ''
-  ].join('\n');
+    title,
+    concepts: conceptsList,
+    createdAt: now,
+    source,
+    project,
+  });
 
   fs.writeFileSync(filePath, frontmatter, 'utf-8');
-
-  const id = `learning_${dateStr}_${slug}`;
 
   ctx.db.insert(oracleDocuments).values({
     id,
@@ -261,6 +273,7 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
   //     vector-later. Never blocks ingest. Architecture:
   //     ψ/lab/indexer-cli/DESIGN.md.
   let embeddingStatus: 'ok' | 'skipped' | 'failed' | 'enqueued' = 'skipped';
+  let embeddingError: ReturnType<typeof errorDetails> | undefined;
   const enqueue = process.env.ORACLE_INDEXER_ENQUEUE === '1' ? await loadEnqueue() : null;
   if (enqueue) {
     try {
@@ -269,6 +282,7 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
     } catch (err) {
       // Never block ingest on the queue — same posture as the inline path.
       embeddingStatus = 'failed';
+      embeddingError = errorDetails(err);
       console.warn(`[oracle_learn] enqueue failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   } else {
@@ -288,6 +302,7 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
       embeddingStatus = 'ok';
     } catch (err) {
       embeddingStatus = 'failed';
+      embeddingError = errorDetails(err);
       console.warn(`[oracle_learn] vector embedding failed for ${id}: ${err instanceof Error ? err.message : String(err)}`);
       console.warn(`[oracle_learn] document still searchable via FTS5; run 'bun src/scripts/index-model.ts <model>' later to backfill vectors`);
     }
@@ -301,6 +316,7 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
         file: sourceFileRel,
         id,
         embedding: embeddingStatus,
+        ...(embeddingError && { embeddingError }),
         message: `Pattern added to Oracle knowledge base${vaultRoot ? ' (vault)' : ''}${embeddingStatus === 'failed' ? ' — vector embedding failed, see server log' : ''}`
       }, null, 2)
     }]

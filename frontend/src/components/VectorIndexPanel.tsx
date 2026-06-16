@@ -6,6 +6,7 @@ import {
   type VectorIndexStatusResponse,
 } from '../api/client';
 import { ErrorMessage, LoadingPanel, Spinner } from './AsyncState';
+import { VectorIndexCostPanel, type VectorCostEstimate, type VectorCostTracking } from './VectorIndexCostPanel';
 
 type VectorIndexClient = Pick<ApiClient, 'startVectorIndex' | 'vectorIndexModels' | 'vectorIndexStatus'>;
 
@@ -13,6 +14,9 @@ interface VectorIndexPanelProps {
   client?: VectorIndexClient;
   initialModels?: Record<string, VectorIndexCollection>;
   initialStatus?: VectorIndexStatusResponse | null;
+  initialCostEstimate?: VectorCostEstimate | null;
+  initialCostTracking?: VectorCostTracking | null;
+  loadCostEstimate?: () => Promise<VectorCostEstimate>;
 }
 
 export function formatIndexEta(seconds: number): string {
@@ -43,7 +47,28 @@ function statusSummary(status: VectorIndexStatusResponse | null): string {
   if (!status || status.status === 'idle') return 'No active index job.';
   if (status.status === 'completed') return `Completed ${status.model} reindex.`;
   if (status.status === 'error') return `Failed ${status.model} reindex.`;
+  if (status.status === 'stopped') return `Stopped ${status.model} reindex.`;
+  if (status.status === 'stopping') return `Stopping ${status.model} reindex...`;
   return `⏳ Backfilling ${status.model}... ${status.current.toLocaleString()}/${status.total.toLocaleString()} (${progressFor(status)}%)`;
+}
+
+function jobNotice(status: VectorIndexStatusResponse | null): { title: string; detail: string; tone: string } | null {
+  if (!status || status.status === 'idle' || status.status === 'indexing' || status.status === 'stopping') return null;
+  if (status.status === 'completed') return {
+    title: 'Index job complete',
+    detail: `${status.model} indexed ${status.current.toLocaleString()}/${status.total.toLocaleString()} docs. Dashboard vectors are ready.`,
+    tone: 'border-emerald-300/30 bg-emerald-300/10 text-emerald-50',
+  };
+  if (status.status === 'stopped') return {
+    title: 'Index job stopped',
+    detail: status.error ?? `${status.model} stopped at ${status.current.toLocaleString()}/${status.total.toLocaleString()} docs.`,
+    tone: 'border-amber-300/30 bg-amber-300/10 text-amber-50',
+  };
+  return {
+    title: 'Index job failed',
+    detail: status.error ?? `${status.model} failed before completing the vector backfill.`,
+    tone: 'border-rose-300/30 bg-rose-300/10 text-rose-50',
+  };
 }
 
 function modelState(model: VectorIndexCollection): string {
@@ -54,7 +79,14 @@ function vaultState(model: VectorIndexCollection): string {
   return (model.count ?? 0) > 0 ? 'indexed' : 'not indexed';
 }
 
-export function VectorIndexPanel({ client = apiClient, initialModels, initialStatus = null }: VectorIndexPanelProps) {
+export function VectorIndexPanel({
+  client = apiClient,
+  initialModels,
+  initialStatus = null,
+  initialCostEstimate,
+  initialCostTracking,
+  loadCostEstimate,
+}: VectorIndexPanelProps) {
   const [models, setModels] = useState<Record<string, VectorIndexCollection>>(initialModels ?? {});
   const [loading, setLoading] = useState(!initialModels);
   const [status, setStatus] = useState<VectorIndexStatusResponse | null>(initialStatus);
@@ -62,7 +94,8 @@ export function VectorIndexPanel({ client = apiClient, initialModels, initialSta
   const [startingKey, setStartingKey] = useState<string | null>(null);
 
   const modelEntries = useMemo(() => Object.entries(models).sort(([a], [b]) => a.localeCompare(b)), [models]);
-  const indexing = status?.status === 'indexing';
+  const indexing = status?.status === 'indexing' || status?.status === 'stopping';
+  const notice = jobNotice(status);
   const firstModel = modelEntries[0]?.[0];
 
   const refreshStatus = useCallback(async () => {
@@ -136,6 +169,15 @@ export function VectorIndexPanel({ client = apiClient, initialModels, initialSta
         <p className="mt-1 text-sm text-amber-100">Gap indicator: {gapLabel(models, status)}</p>
         {status ? <IndexProgress status={status} /> : null}
       </div>
+
+      {notice ? (
+        <div className={`mb-4 rounded-2xl border p-4 text-sm ${notice.tone}`} role="status" aria-live="polite">
+          <p className="font-semibold">{notice.title}</p>
+          <p className="mt-1 opacity-80">{notice.detail}</p>
+        </div>
+      ) : null}
+
+      <VectorIndexCostPanel indexing={indexing} initialCostEstimate={initialCostEstimate} initialCostTracking={initialCostTracking} loadCostEstimate={loadCostEstimate} />
 
       {loading ? <LoadingPanel title="Loading vector collections…" detail="Fetching /api/v1/vector/index/models." /> : null}
       {error ? <ErrorMessage title="Vector indexing failed." message={error} /> : null}

@@ -6,8 +6,9 @@ describe('buildGlobalSearchResults MCP tool matches', () => {
     const results = buildGlobalSearchResults({
       menu: [],
       plugins: [],
-      tools: [{ name: 'plugin:echo', description: 'Echo an Oracle memory', group: 'plugin' }],
+      tools: [{ name: 'plugin:echo', description: 'Echo an Oracle memory', group: 'plugin', source: 'plugin', plugin: 'echo' }],
     }, 'memory');
     expect(results).toMatchObject([{ surface: 'mcp-tool', title: 'plugin:echo', href: '/mcp/tools/plugin%3Aecho' }]);
+    expect(results[0].detail).toContain('plugin:echo');
   });
 });

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ErrorMessage, Spinner } from '../components/AsyncState';
-import { fetchJson, type VectorConfigRow } from './vectorSettingsHelpers';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
+import { fetchJson, parseVectorConfigResponse, toRows, type VectorConfigRow } from './vectorSettingsHelpers';
 
 type WizardStep = 0 | 1 | 2 | 3;
 type Provider = { type: string; available?: boolean; configured?: boolean; models?: string[]; error?: string; status?: string };
@@ -16,6 +16,7 @@ type CostEstimate = {
   formula: string;
   note: string;
   recommendation: string;
+  fallbackSummary?: string;
 };
 
 export type FirstRunWizardProps = {
@@ -26,6 +27,41 @@ export type FirstRunWizardProps = {
 };
 
 const steps = ['Welcome', 'Provider', 'Vault + index', 'Done'] as const;
+
+export function VectorFirstRunWizardPage() {
+  const [rows, setRows] = useState<VectorConfigRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const refresh = useCallback(async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const body = await fetchJson<unknown>('/api/v1/vector/config');
+      setRows(toRows(parseVectorConfigResponse(body)));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  return (
+    <section className="grid gap-5" aria-labelledby="vector-first-run-title">
+      <header className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-purple-300">Vector onboarding</p>
+        <h1 id="vector-first-run-title" className="mt-2 text-3xl font-semibold text-white">First-run setup wizard</h1>
+        <p className="mt-2 text-sm text-slate-400">Auto-detect providers, review cost, choose the first vault collection, and start indexing.</p>
+      </header>
+
+      <FirstRunWizard rows={rows} onRefresh={refresh} />
+      {loading ? <LoadingPanel title="Loading first-run vector config…" detail="Fetching /api/v1/vector/config." /> : null}
+      {error ? <ErrorMessage title="Could not load first-run vector config." message={error} /> : null}
+    </section>
+  );
+}
 
 function primaryKey(rows: VectorConfigRow[]): string | null {
   return (rows.find((row) => row.primary) ?? rows[0])?.key ?? null;
@@ -106,6 +142,7 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
 
       {step === 1 ? <ProviderList providers={providers} /> : null}
       {step === 2 ? <VaultPlan rows={rows} cost={cost} /> : null}
+      {step === 3 ? <DoneActions /> : null}
       {message ? <p className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-sm text-purple-100">{message}</p> : null}
       {error ? <div className="mt-4"><ErrorMessage title="First-run step failed." message={error} /></div> : null}
 
@@ -114,6 +151,7 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
         {step === 0 ? <button className="focus-ring rounded-xl bg-purple-200 px-3 py-2 text-sm font-semibold text-slate-950" type="button" onClick={() => void reloadHealth()}>{busy ? <Spinner label="Detecting" /> : 'Run auto-detect'}</button> : null}
         {step === 2 ? <button className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50" disabled={busy || !rows.length} type="button" onClick={() => void startIndex()}>{busy ? <Spinner label="Starting" /> : 'Start indexing'}</button> : null}
         <button className="focus-ring rounded-xl border border-purple-200/40 px-3 py-2 text-sm font-semibold text-purple-100 disabled:opacity-50" disabled={step === 3} type="button" onClick={() => setStep((step + 1) as WizardStep)}>Next</button>
+        {step === 3 ? <a className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-slate-950" href="/vector">Continue to dashboard</a> : null}
       </div>
     </section>
   );
@@ -124,6 +162,20 @@ function copyFor(step: WizardStep, firstRun: boolean, provider?: Provider): stri
   if (step === 1) return provider ? `Recommended provider: ${provider.type}. Choose a configured provider before indexing.` : 'No providers reported yet; run auto-detect or configure keys.';
   if (step === 2) return 'Review the primary collection, estimated cost, and recommendation before indexing.';
   return 'Indexing has started. The Index Manager shows live progress and completion state.';
+}
+
+
+function DoneActions() {
+  return (
+    <div className="mt-4 rounded-2xl border border-teal-200/20 bg-teal-200/10 p-4 text-sm text-teal-50/90">
+      <p className="font-semibold text-teal-100">Vector setup is underway</p>
+      <p className="mt-1">Continue to the Vector dashboard for collection health, or open the Index Manager for live progress.</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <a className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-slate-950" href="/vector">Open Vector dashboard</a>
+        <a className="focus-ring rounded-xl border border-teal-200/40 px-3 py-2 text-sm font-semibold text-teal-100" href="/vector/index">Open Index Manager</a>
+      </div>
+    </div>
+  );
 }
 
 function ProviderList({ providers }: { providers: Provider[] }) {
@@ -153,6 +205,7 @@ function CostSummary({ cost }: { cost: CostEstimate }) {
       <p>{cost.docs.toLocaleString()} docs · {cost.tokensPerDoc.toLocaleString()} tokens/doc · {cost.totalTokens.toLocaleString()} tokens total</p>
       <p>{cost.provider} / {cost.model}: <span className="font-semibold text-teal-100">${cost.estimatedUsd.toFixed(4)}</span></p>
       <p className="text-teal-100/70">{cost.formula}</p>
+      {cost.fallbackSummary ? <p className="text-teal-100/70">{cost.fallbackSummary}</p> : null}
       <p><span className="font-semibold text-teal-100">Recommendation:</span> {cost.recommendation}</p>
       <p className="text-teal-100/70">{cost.note}</p>
     </div>

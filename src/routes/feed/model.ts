@@ -23,5 +23,6 @@ export interface FeedEvent {
   project: string;
   session_id: string;
   message: string;
+  tenant_id?: string;
   source: 'local' | 'maw-js';
 }

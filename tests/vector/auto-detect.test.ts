@@ -51,6 +51,28 @@ test('detects Ollama models and configured remote embedding providers', async ()
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
 
+test('uses env aliases for Ollama host and Gemini API key', async () => {
+  const fetcher = mock(async (input: string | URL | Request) => {
+    expect(String(input)).toBe('http://ollama.internal:11434/api/tags');
+    return Response.json({ models: [] });
+  }) as unknown as typeof fetch;
+
+  const providers = await detectEmbeddingProviders({
+    env: {
+      OLLAMA_HOST: 'ollama.internal:11434',
+      GOOGLE_API_KEY: 'google-gemini-key',
+    },
+    fetcher,
+  });
+
+  expect(providers).toContainEqual({ provider: 'ollama', status: 'available', models: [] });
+  expect(providers).toContainEqual({
+    provider: 'gemini',
+    status: 'available',
+    models: ['text-embedding-004'],
+  });
+});
+
 test('marks providers unavailable when probes and env credentials are missing', async () => {
   const fetcher = mock(async () => new Response('down', { status: 503 })) as unknown as typeof fetch;
 

@@ -44,7 +44,7 @@ export interface VectorHealthResponse {
   error?: string;
 }
 
-export type VectorIndexJobStatus = 'idle' | 'indexing' | 'completed' | 'error';
+export type VectorIndexJobStatus = 'idle' | 'indexing' | 'stopping' | 'stopped' | 'completed' | 'error';
 
 export interface VectorIndexStatusResponse {
   jobId: string;

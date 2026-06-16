@@ -6,14 +6,14 @@ import { homedir } from "os";
 import { existsSync, mkdirSync, cpSync, symlinkSync, rmSync } from "fs";
 import { createHash } from "crypto";
 
-const USER_PLUGIN_DIR = join(homedir(), ".neo-arra", "plugins");
+const USER_PLUGIN_DIR = join(homedir(), ".arra", "plugins");
 
 const USAGE = `arra-cli plugin — manage plugins
 
 Usage: arra-cli plugin <subcommand> [args]
 
 Subcommands:
-  init <name>             Scaffold a new plugin in ~/.neo-arra/plugins/<name>/
+  init <name>             Scaffold a new plugin in ~/.arra/plugins/<name>/
   list                    List installed plugins (bundled + user)
   install <path> [--link] Install plugin dir by copy (--link to symlink for dev)
   build [path]            Hash entry file, update plugin.json artifact field

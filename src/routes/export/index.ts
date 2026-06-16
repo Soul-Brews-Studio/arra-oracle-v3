@@ -8,12 +8,34 @@ import { exportCoreRoutes } from './core.ts';
 import { exportAppRoutes } from './app.ts';
 import { exportBatchRoutes } from './batch.ts';
 import { exportImportRoutes } from './import.ts';
+import { createExportProgressResponse, readRememberedExportProgress } from './progress.ts';
 
 export { createExportCoreRoutes, exportCoreRoutes } from './core.ts';
 export { createExportAppRoutes, exportAppRoutes } from './app.ts';
 export { createExportBatchRoutes, exportBatchRoutes } from './batch.ts';
 export { createExportImportRoutes, exportImportRoutes } from './import.ts';
 export { createExportTestConnectionRoutes, exportTestConnectionRoutes } from './test-connection.ts';
+
+function queryText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function progressLookup(manager: ExportJobManager, id: string) {
+  return () => manager.get(id) ?? readRememberedExportProgress(id);
+}
+
+function progressResponse(manager: ExportJobManager, id: string, set: { status?: unknown }) {
+  if (!id) {
+    set.status = 400;
+    return { error: 'jobId query parameter is required' };
+  }
+  const lookup = progressLookup(manager, id);
+  if (!lookup()) {
+    set.status = 404;
+    return { error: 'Export job not found', id };
+  }
+  return createExportProgressResponse(id, lookup);
+}
 
 export function createExportRoutes(manager: ExportJobManager = defaultExportJobManager) {
   return new Elysia({ prefix: '/api' })
@@ -29,6 +51,22 @@ export function createExportRoutes(manager: ExportJobManager = defaultExportJobM
       },
     })
     .use(createExportHistoryRoutes())
+    .get('/export/progress', ({ query, set }) => progressResponse(
+      manager,
+      queryText(query.jobId) || queryText(query.id),
+      set,
+    ), {
+      detail: {
+        tags: ['export'],
+        summary: 'Stream export job progress with Server-Sent Events',
+      },
+    })
+    .get('/export/progress/:jobId', ({ params, set }) => progressResponse(manager, params.jobId, set), {
+      detail: {
+        tags: ['export'],
+        summary: 'SSE stream of export job progress',
+      },
+    })
     .get('/export/:id', ({ params, set }) => {
       const job = manager.get(params.id);
       if (!job) {

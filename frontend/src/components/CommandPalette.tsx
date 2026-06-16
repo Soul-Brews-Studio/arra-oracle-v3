@@ -1,13 +1,28 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-type CommandPaletteAction = {
+export type CommandPaletteAction = {
   id: string;
   label: string;
   description: string;
   href?: string;
   onAction?: () => void;
 };
+
+export function commandPaletteActions(onRefresh: () => void): CommandPaletteAction[] {
+  return [
+    { id: 'menu', label: 'Menu catalog', description: 'Review /api/menu rows and plugin menu sources.', href: '/menu' },
+    { id: 'search', label: 'Search', description: 'Open unified surface search.', href: '/search' },
+    { id: 'plugins', label: 'Plugins', description: 'Review plugins and runtime surfaces.', href: '/plugins' },
+    { id: 'mcp', label: 'MCP tools', description: 'Browse MCP-out tool schemas and plugin source labels.', href: '/mcp' },
+    { id: 'status', label: 'Status', description: 'Review server health from /api/v1/health.', href: '/status' },
+    { id: 'storage', label: 'Storage backend', description: 'Inspect backend config from /api/settings/system.', href: '/storage' },
+    { id: 'vector', label: 'Vector', description: 'Open vector search and indexing surfaces.', href: '/vector' },
+    { id: 'metrics', label: 'Metrics', description: 'Review dashboard metrics and counts.', href: '/metrics' },
+    { id: 'settings', label: 'Settings', description: 'Inspect runtime settings and migration status.', href: '/settings' },
+    { id: 'refresh', label: 'Refresh dashboard data', description: 'Reload menu and plugin data.', onAction: onRefresh },
+  ];
+}
 
 export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
   const navigate = useNavigate();
@@ -17,19 +32,7 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
-  const commands = useMemo<CommandPaletteAction[]>(
-    () => [
-      { id: 'home', label: 'Home', description: 'Open menu dashboard home.', href: '/menu' },
-      { id: 'search', label: 'Search', description: 'Open surface search page.', href: '/search' },
-      { id: 'vector', label: 'Vector', description: 'Open vector search results.', href: '/vector' },
-      { id: 'metrics', label: 'Metrics', description: 'Review dashboard metrics and counts.', href: '/metrics' },
-      { id: 'plugins', label: 'Plugins', description: 'Review plugins and runtime surfaces.', href: '/plugins' },
-      { id: 'status', label: 'Status', description: 'Review server health from /api/v1/health.', href: '/status' },
-      { id: 'settings', label: 'Settings', description: 'Inspect runtime settings and migration status.', href: '/settings' },
-      { id: 'refresh', label: 'Refresh dashboard data', description: 'Reload menu and plugin data.', onAction: onRefresh },
-    ],
-    [onRefresh],
-  );
+  const commands = useMemo<CommandPaletteAction[]>(() => commandPaletteActions(onRefresh), [onRefresh]);
 
   const visibleCommands = useMemo(() => {
     const normalized = query.trim().toLowerCase();

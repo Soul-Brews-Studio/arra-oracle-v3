@@ -3,7 +3,7 @@ import {
   buildMarkdownExportPayload,
   buildVaultJsonExport,
   buildVectorExportPayload,
-} from '../../cli/commands/export.ts';
+} from '../../cli/commands/export-legacy.ts';
 import { exportFormatInfo } from '../../vector/export-formats.ts';
 import type { ExportPayload, ExportRequest } from './model.ts';
 import { resolveExportFormat, resolveExportSource } from './model.ts';

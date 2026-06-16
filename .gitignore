@@ -40,8 +40,8 @@ playwright-report/
 test-results/
 *.pid
 
-# Oracle instance data (per-user, symlink to vault)
-ψ
+# Oracle instance data (per-user vault; never commit)
+ψ/
 
 # Generated report files (use oracle-vault-report repo instead)
 vault-report.html

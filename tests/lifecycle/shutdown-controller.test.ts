@@ -22,6 +22,16 @@ describe('shutdown controller', () => {
     expect(activeRequestCount()).toBe(0);
   });
 
+  test('treats invalid wait durations as immediate timeout instead of hanging', async () => {
+    let release!: () => void;
+    const pending = trackRequest(() => new Promise<void>((resolve) => { release = resolve; }));
+
+    expect(await waitForActiveRequests(Number.NaN, -1)).toBe(false);
+    release();
+    await pending;
+    expect(activeRequestCount()).toBe(0);
+  });
+
   test('returns 503 for new non-health requests while draining', async () => {
     const blocked = drainingResponseFor(new Request('http://local/api/search?q=x'), { draining: true });
     const health = drainingResponseFor(new Request('http://local/api/health'), { draining: true });

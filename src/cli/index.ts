@@ -12,7 +12,7 @@ function printUsage(): void {
   console.error('  serve:  bun run src/cli/index.ts serve <start|stop|status> [--foreground|--background] [--json]');
   console.error('  canvas-plugins: bun run src/cli/index.ts canvas-plugins [--kind three|react] [--id <id>] [--json]');
   console.error('  canvas-serve: bun run src/cli/index.ts canvas-serve [--port N] [--api-base URL]');
-  console.error('  vector-config: bun run src/cli/index.ts vector-config list|get|set [--json]');
+  console.error('  vector-config: bun run src/cli/index.ts vector-config list|get|set|add|remove|set-primary [--json]');
 }
 
 async function main() {

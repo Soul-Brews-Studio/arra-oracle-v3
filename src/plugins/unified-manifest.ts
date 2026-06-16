@@ -158,10 +158,10 @@ export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedP
   assertStringArray(manifest.depends, 'depends');
 
   const apiRoutes = [...asArray(manifest.apiRoutes)];
-  if (manifest.api) apiRoutes.push({ path: manifest.api.path, methods: manifest.api.methods });
+  if (manifest.api) apiRoutes.push({ path: manifest.api.path, methods: manifest.api.methods, handler: 'default' });
 
   const cliSubcommands = [...asArray(manifest.cliSubcommands)];
-  if (manifest.cli) cliSubcommands.push({ command: manifest.cli.command, help: manifest.cli.help, handler: manifest.cli.handler });
+  if (manifest.cli) cliSubcommands.push({ command: manifest.cli.command, help: manifest.cli.help, handler: manifest.cli.handler ?? 'default' });
 
   const menu = [...asArray(manifest.menu)];
   const mcpTools = asArray(manifest.mcpTools);

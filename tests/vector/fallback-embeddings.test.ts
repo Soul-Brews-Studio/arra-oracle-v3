@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { expect, mock, test } from 'bun:test';
 import { FallbackEmbeddings } from '../../src/vector/embeddings.ts';
 import type { EmbeddingProvider } from '../../src/vector/types.ts';
 
@@ -22,4 +22,15 @@ test('fallback embedder tries the next provider and logs the fallback event', as
 
   expect(await embedder.embed(['hello'], 'passage')).toEqual([[1, 2]]);
   expect(events).toEqual([{ from: 'ollama', to: 'openai', error: 'ollama down' }]);
+});
+
+test('fallback embedder resumes from the healthy provider after failover', async () => {
+  const ollama = { name: 'ollama', dimensions: 2, embed: mock(async () => { throw new Error('ollama down'); }) };
+  const gemini = { name: 'gemini', dimensions: 2, embed: mock(async () => [[3, 4]]) };
+  const embedder = new FallbackEmbeddings([ollama, gemini], () => undefined);
+
+  expect(await embedder.embed(['first'], 'passage')).toEqual([[3, 4]]);
+  expect(await embedder.embed(['second'], 'passage')).toEqual([[3, 4]]);
+  expect(ollama.embed).toHaveBeenCalledTimes(1);
+  expect(gemini.embed).toHaveBeenCalledTimes(2);
 });

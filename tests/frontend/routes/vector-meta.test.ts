@@ -8,5 +8,13 @@ describe('vector route metadata', () => {
       title: 'Vector export',
       description: 'Download vector collections in available formats.',
     });
+    expect(routeMeta('/vector/index')).toMatchObject({
+      title: 'Index Manager',
+      description: 'Track vector backfill jobs and reindex collections.',
+    });
+    expect(routeMeta('/vector/first-run')).toMatchObject({
+      title: 'First-run setup',
+      description: 'Auto-detect providers, review cost, and start the first vector index.',
+    });
   });
 });

@@ -36,6 +36,16 @@ describe('canvas subdomain worker app', () => {
     expect(body.plugins[0].standalonePath).toBe('/map');
   });
 
+  test('explains unknown plugin deep-link fallback in rendered HTML', async () => {
+    const response = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/not-a-plugin'));
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain('plugin=wave');
+    expect(html).toContain('data-requested-plugin="not-a-plugin"');
+    expect(html).toContain('Unknown canvas plugin');
+  });
+
   test('serves one local canvas plugin and leaves other api routes proxied', async () => {
     const plugin = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/api/canvas/plugins/wave'));
     expect(await plugin.json()).toMatchObject({ plugin: { id: 'wave', standalonePath: '/?plugin=wave' } });

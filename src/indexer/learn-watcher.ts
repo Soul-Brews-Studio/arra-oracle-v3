@@ -22,6 +22,8 @@ import {
   storeSqliteDocuments,
 } from './learn-doc-source.ts';
 import { isWithinRoot, listDirs, listFiles, safeClearTimeout, safeClose, watchDir } from './watch-utils.ts';
+import { discoverProjectPsiDirs } from './discovery.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 
 export interface LearnWatcherOptions {
   /** sqlite database used by enqueueIndexJob(). */
@@ -56,14 +58,28 @@ function enqueueDocIds(db: Database, models: Record<string, { collection: string
 }
 
 function existingLearningIds(db: Database, sourceFile: string): string[] {
-  return db.query<{ id: string }, [string]>(
-    `SELECT id FROM oracle_documents
-     WHERE source_file = ? AND type = 'learning' AND superseded_at IS NULL`,
-  ).all(sourceFile).map((row) => row.id);
+  const tenantId = currentTenantId();
+  return tenantId
+    ? db.query<{ id: string }, [string, string]>(
+      `SELECT id FROM oracle_documents
+       WHERE source_file = ? AND tenant_id = ? AND type = 'learning' AND superseded_at IS NULL`,
+    ).all(sourceFile, tenantId).map((row) => row.id)
+    : db.query<{ id: string }, [string]>(
+      `SELECT id FROM oracle_documents
+       WHERE source_file = ? AND type = 'learning' AND superseded_at IS NULL`,
+    ).all(sourceFile).map((row) => row.id);
 }
 
 function shouldAutoStore(sourceFile: string): boolean {
   return isPsiLearnSource(sourceFile) || isMemoryLearningSource(sourceFile);
+}
+
+function learnRoots(root: string): string[] {
+  const roots = [path.join(root, MEMORY_LEARN_REL), path.join(root, PSI_LEARN_REL)];
+  for (const psiDir of discoverProjectPsiDirs(root)) {
+    roots.push(path.join(psiDir, 'memory', 'learnings'), path.join(psiDir, 'learn'));
+  }
+  return roots.filter((dir, index, all) => all.indexOf(dir) === index);
 }
 
 /**
@@ -78,8 +94,11 @@ export function startLearnWatcher({
   debounceMs = DEFAULT_DEBOUNCE_MS,
 }: LearnWatcherOptions): StopWatch {
   const root = path.resolve(repoRoot);
-  const roots = [path.join(root, MEMORY_LEARN_REL), path.join(root, PSI_LEARN_REL)]
-    .filter((dir) => fs.existsSync(dir));
+  const roots = learnRoots(root)
+    .filter((dir) => {
+      try { fs.mkdirSync(dir, { recursive: true }); return true; }
+      catch { return false; }
+    });
 
   if (roots.length === 0) return () => {};
 
@@ -100,7 +119,7 @@ export function startLearnWatcher({
 
     let stat: fs.Stats;
     try { stat = fs.statSync(fullPath); } catch { return; }
-    if (stat.isDirectory()) { addWatchers(fullPath); return; }
+    if (stat.isDirectory()) { addWatchers(fullPath); indexTree(fullPath); return; }
     if (!stat.isFile() || !isMarkdownFile(fullPath)) return;
 
     const sourceFile = normalizeSourceFile(root, fullPath);
@@ -120,6 +139,10 @@ export function startLearnWatcher({
     }
     enqueueDocIds(db, models, ids);
   };
+
+  function indexTree(dir: string): void {
+    for (const filePath of listFiles(dir, isMarkdownFile)) indexOrQueue(filePath);
+  }
 
   function addWatchers(dir: string): void {
     for (const childDir of listDirs(dir)) {

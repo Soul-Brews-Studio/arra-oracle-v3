@@ -7,6 +7,10 @@ import { handleCanvasRequest } from '../../../src/workers/canvas/index.ts';
 const HOST = 'https://canvas.buildwithoracle.com';
 const PLUGIN_IDS = listCanvasPlugins().map((plugin) => plugin.id);
 
+function canonicalPath(id: string): string {
+  return id === 'map' || id === 'planets' ? `/${id}` : `/?plugin=${id}`;
+}
+
 async function workerJson(path: string) {
   const res = await handleCanvasRequest(new Request(`${HOST}${path}`));
   return { res, body: await res.json() as Record<string, any> };
@@ -24,7 +28,7 @@ describe('canvas.buildwithoracle.com full integration flow', () => {
       expect(html, id).toContain(`plugin=${id}`);
       expect(html, id).toContain('localStorage.setItem');
       expect(html, id).toContain('indexedDB.open');
-      expect(html, id).toContain("fetch('/api/canvas/registry')");
+      expect(html, id).toContain("fetch('/api/plugins?kind=canvas')");
     }
   });
 
@@ -45,12 +49,17 @@ describe('canvas.buildwithoracle.com full integration flow', () => {
   test('standalone registry route matches worker registry and can serve HTML fallback', async () => {
     const app = createCanvasStandaloneApp({ ORACLE_API_BASE: 'https://oracle.example.test' });
     const route = await app.handle(new Request('http://local/api/canvas/registry'));
+    const metadata = await app.handle(new Request('http://local/api/plugins?kind=canvas'));
     const worker = await handleCanvasRequest(new Request(`${HOST}/api/canvas/registry`));
     const routeBody = await route.json() as { count: number; plugins: Array<{ id: string }> };
+    const metadataBody = await metadata.json() as { kind: string; count: number; plugins: Array<{ id: string; renderer: string }> };
     const workerBody = await worker.json() as { count: number; plugins: Array<{ id: string }> };
 
     expect(route.status).toBe(200);
+    expect(metadata.status).toBe(200);
     expect(routeBody.count).toBe(workerBody.count);
+    expect(metadataBody.kind).toBe('canvas');
+    expect(metadataBody.count).toBe(workerBody.count);
     expect(routeBody.plugins.map((plugin) => plugin.id)).toEqual(PLUGIN_IDS);
 
     const html = await app.handle(new Request('http://local/galaxy'));
@@ -84,6 +93,8 @@ describe('canvas.buildwithoracle.com full integration flow', () => {
       expect(html, id).toContain(`plugin=${id}`);
       expect(html, id).toContain('aria-label="Hot-swap canvas plugin"');
       expect(html, id).toContain('canvas.buildwithoracle.com');
+      expect(html, id).toContain(`rel="canonical" href="${HOST}${canonicalPath(id)}"`);
+      expect(html, id).toContain(`property="og:url" content="${HOST}${canonicalPath(id)}"`);
     }
     const registry = await workerJson('/api/canvas/registry');
     expect(registry.body.standalone).toMatchObject({ host: 'canvas.buildwithoracle.com' });

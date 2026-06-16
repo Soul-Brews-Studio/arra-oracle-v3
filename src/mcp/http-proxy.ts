@@ -1,4 +1,6 @@
 import type { ToolResponse } from '../tools/types.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
+import { mcpTenantHeaders, stripMcpTenantArgs, tenantIdFromMcpArgs } from './tenant.ts';
 
 const EMBEDDED_API_VALUES = new Set(['embedded', 'embed', 'off', 'none', 'false', '0']);
 
@@ -63,9 +65,16 @@ function proxyRequestForTool(toolName: string, args: Record<string, unknown>): P
     case 'oracle_search':
       return { method: 'GET', path: '/api/search', query: { q: args.query, ...queryFrom(args, { type: 'type', limit: 'limit', offset: 'offset', mode: 'mode', project: 'project', cwd: 'cwd', model: 'model' }) } };
     case 'oracle_learn': return { method: 'POST', path: '/api/learn', body: args };
+    case 'oracle_verify': return { method: 'POST', path: '/api/verify', body: args };
     case 'oracle_stats': return { method: 'GET', path: '/api/stats' };
     case 'oracle_read': return { method: 'GET', path: '/api/read', query: queryFrom(args, { file: 'file', id: 'id' }) };
     case 'oracle_list': return { method: 'GET', path: '/api/list', query: { ...queryFrom(args, { type: 'type', limit: 'limit', offset: 'offset' }), group: 'false' } };
+    case 'oracle_concepts': return { method: 'GET', path: '/api/concepts', query: queryFrom(args, { type: 'type', limit: 'limit' }) };
+    case 'oracle_supersede': return { method: 'POST', path: '/api/supersede/document', body: args };
+    case 'oracle_profile': {
+      const id = cleanQueryValue(args.id);
+      return { method: 'GET', path: id ? `/api/oracles/profiles/${encodeURIComponent(id)}` : '/api/oracles/profiles' };
+    }
     case 'oracle_inbox': return { method: 'GET', path: '/api/inbox', query: queryFrom(args, { limit: 'limit', offset: 'offset', type: 'type' }) };
     case 'oracle_handoff': return { method: 'POST', path: '/api/handoff', body: args };
     case 'oracle_thread': return { method: 'POST', path: '/api/thread', body: { message: args.message, thread_id: args.threadId, title: args.title, role: args.role ?? 'claude', model: args.model } };
@@ -77,6 +86,13 @@ function proxyRequestForTool(toolName: string, args: Record<string, unknown>): P
     case 'oracle_thread_update': {
       const threadId = cleanQueryValue(args.threadId);
       return threadId ? { method: 'PATCH', path: `/api/thread/${encodeURIComponent(threadId)}/status`, body: { status: args.status } } : null;
+    }
+    case 'oracle_trace': return { method: 'POST', path: '/api/traces', body: args };
+    case 'oracle_trace_distill': {
+      const traceId = cleanQueryValue(args.traceId);
+      if (!traceId) return null;
+      const { traceId: _traceId, ...body } = args;
+      return { method: 'POST', path: `/api/traces/${encodeURIComponent(traceId)}/distill`, body };
     }
     case 'oracle_trace_list': return { method: 'GET', path: '/api/traces', query: queryFrom(args, { query: 'query', status: 'status', project: 'project', limit: 'limit', offset: 'offset' }) };
     case 'oracle_trace_get': {
@@ -122,14 +138,23 @@ function toToolResponse(payload: unknown, isError = false): ToolResponse {
   };
 }
 
-export async function proxyToolCall(baseUrl: string | null, toolName: string, args: Record<string, unknown>): Promise<ToolResponse | null> {
+function proxyHeaders(hasBody: boolean, tenantId?: string): Record<string, string> | undefined {
+  const headers: Record<string, string> = { ...mcpTenantHeaders(tenantId ?? currentTenantId()) };
+  if (hasBody) headers['content-type'] = 'application/json';
+  const token = process.env.ARRA_API_TOKEN?.trim() || process.env.ARRA_API_KEY?.trim();
+  if (token) headers.authorization = `Bearer ${token}`;
+  return Object.keys(headers).length ? headers : undefined;
+}
+
+export async function proxyToolCall(baseUrl: string | null, toolName: string, args: Record<string, unknown>, tenantId = tenantIdFromMcpArgs(args)): Promise<ToolResponse | null> {
   if (!baseUrl) return null;
-  const proxyRequest = proxyRequestForTool(toolName, args);
+  const cleanArgs = stripMcpTenantArgs(args);
+  const proxyRequest = proxyRequestForTool(toolName, cleanArgs);
   if (!proxyRequest) return null;
   try {
     const response = await oracleApiFetch(baseUrl, appendQuery(proxyRequest.path, proxyRequest.query), {
       method: proxyRequest.method,
-      headers: proxyRequest.body === undefined ? undefined : { 'content-type': 'application/json' },
+      headers: proxyHeaders(proxyRequest.body !== undefined, tenantId),
       body: proxyRequest.body === undefined ? undefined : JSON.stringify(proxyRequest.body),
     });
     return toToolResponse(await readHttpPayload(response), !response.ok);

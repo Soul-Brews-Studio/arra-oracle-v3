@@ -28,11 +28,11 @@ function clearMenu() {
 }
 
 function playgroundSource() {
-  // Mirrors the real route shape — /api/reflect maps to /playground via
-  // API_TO_STUDIO, group='main' order=30 in production.
+  // Mirrors the real route shape — /api/reflect declares its /playground
+  // frontend target directly in detail.menu metadata.
   return new Elysia({ prefix: '/api' })
     .get('/reflect', () => ({}), {
-      detail: { menu: { group: 'main', order: 30 }, summary: 'Playground' },
+      detail: { menu: { group: 'main', path: '/playground', order: 30 }, summary: 'Playground' },
     });
 }
 

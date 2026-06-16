@@ -23,8 +23,11 @@ process.env.ORACLE_VECTOR_HEALTH_TIMEOUT = '500';
 const oldProxy = startProxy('old-proxy', 11);
 const newProxy = startProxy('new-proxy', 22);
 const vectorConfig = await import('../../../src/vector/config.ts');
-const { vectorRoutes } = await import('../../../src/routes/vector/index.ts');
-const app = new Elysia().use(vectorRoutes);
+const { vectorConfigEndpoint } = await import('../../../src/routes/vector/config.ts');
+const { vectorDocumentsEndpoint } = await import('../../../src/routes/vector/documents.ts');
+const app = new Elysia({ prefix: '/api' })
+  .use(vectorDocumentsEndpoint)
+  .use(vectorConfigEndpoint);
 const versionedFetch = createApiVersionedFetch((request) => app.handle(request));
 
 function startProxy(name: string, count: number): ProxyHarness {

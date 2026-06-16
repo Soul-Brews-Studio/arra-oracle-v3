@@ -10,6 +10,7 @@ import { parseLearningFile } from './parser.ts';
 
 export const PSI_LEARN_REL = path.join('ψ', 'learn');
 export const MEMORY_LEARN_REL = path.join('ψ', 'memory', 'learnings');
+const PROJECT_PSI_RE = /^(?:github\.com|gitlab\.com|bitbucket\.org)\/[^/]+\/[^/]+\/(ψ\/.*)$/;
 
 export function normalizeSourceFile(repoRoot: string, filePath: string): string {
   return path.relative(repoRoot, filePath).split(path.sep).join('/');
@@ -20,13 +21,18 @@ export function isMarkdownFile(filePath: string): boolean {
   return lower.endsWith('.md') || lower.endsWith('.markdown');
 }
 
-export function isPsiLearnSource(sourceFile: string): boolean {
+function localPsiPath(sourceFile: string): string {
   const normalized = sourceFile.split(path.sep).join('/');
-  return normalized.startsWith('ψ/learn/') && !normalized.startsWith('ψ/learn/security-corpus/');
+  return normalized.match(PROJECT_PSI_RE)?.[1] ?? normalized;
+}
+
+export function isPsiLearnSource(sourceFile: string): boolean {
+  const local = localPsiPath(sourceFile);
+  return local.startsWith('ψ/learn/') && !local.startsWith('ψ/learn/security-corpus/');
 }
 
 export function isMemoryLearningSource(sourceFile: string): boolean {
-  return sourceFile.split(path.sep).join('/').startsWith('ψ/memory/learnings/');
+  return localPsiPath(sourceFile).startsWith('ψ/memory/learnings/');
 }
 
 export function parsePsiLearnFile(relativePath: string, content: string): OracleDocument[] {
