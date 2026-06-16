@@ -2,29 +2,29 @@
 
 import { exportCommand } from './commands/export.ts';
 import { serveCommand } from './commands/serve.ts';
+import { canvasPluginsCommand } from './commands/canvas-plugins.ts';
+
+function printUsage(): void {
+  console.error('usage: bun run src/cli/index.ts <export|serve|canvas-plugins> ...');
+  console.error('  export: bun run src/cli/index.ts export --format json|markdown [--out <file>]');
+  console.error('  serve:  bun run src/cli/index.ts serve <start|stop|status> [--foreground|--background] [--json]');
+  console.error('  canvas-plugins: bun run src/cli/index.ts canvas-plugins [--kind three|react] [--id <id>] [--json]');
+}
 
 async function main() {
   const args = process.argv.slice(2);
   if (args.length === 0) {
-    console.error('usage: bun run src/cli/index.ts <export|serve> ...');
-    console.error('  export: bun run src/cli/index.ts export --format json|markdown [--out <file>]');
-    console.error('  serve:  bun run src/cli/index.ts serve <start|stop|status> [--foreground|--background] [--json]');
+    printUsage();
     process.exit(1);
   }
 
-  if (args[0] === 'serve') {
-    process.exit(await serveCommand(args));
-  }
+  if (args[0] === 'serve') process.exit(await serveCommand(args));
+  if (args[0] === 'canvas-plugins') process.exit(await canvasPluginsCommand(args));
+  if (args[0] === 'export') process.exit(await exportCommand(args));
 
-  if (args[0] !== 'export') {
-    console.error(`unknown command: ${args[0]}`);
-    console.error('usage: bun run src/cli/index.ts <export|serve> ...');
-    console.error('  export: bun run src/cli/index.ts export --format json|markdown [--out <file>]');
-    console.error('  serve:  bun run src/cli/index.ts serve <start|stop|status> [--foreground|--background] [--json]');
-    process.exit(1);
-  }
-
-  process.exit(await exportCommand(args));
+  console.error(`unknown command: ${args[0]}`);
+  printUsage();
+  process.exit(1);
 }
 
 main().catch((err) => {
