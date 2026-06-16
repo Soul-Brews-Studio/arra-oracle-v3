@@ -1,5 +1,5 @@
 import { findCanvasPlugin, listCanvasPlugins, type CanvasPluginKind } from './plugins.ts';
-import { canvasPluginPath } from './urls.ts';
+import { CANVAS_HOST, DEFAULT_CANVAS_PLUGIN, canvasPluginPath } from './urls.ts';
 
 const kinds = new Set<CanvasPluginKind>(['three', 'react']);
 
@@ -19,8 +19,8 @@ export function canvasRegistry(kind?: CanvasPluginKind) {
     count: plugins.length,
     kind: kind ?? 'all',
     standalone: {
-      host: 'canvas.buildwithoracle.com',
-      defaultPlugin: 'wave',
+      host: CANVAS_HOST,
+      defaultPlugin: DEFAULT_CANVAS_PLUGIN,
       serveCommand: 'bun run src/cli/index.ts canvas-serve --port 47779',
     },
   };

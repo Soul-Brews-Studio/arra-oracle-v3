@@ -1,5 +1,6 @@
 import { canvasPluginMetadataRegistry } from '../../canvas/metadata.ts';
 import { canvasPluginEntry, canvasRegistry, parseCanvasKind } from '../../canvas/registry.ts';
+import { CANVAS_HOST, DEFAULT_CANVAS_PLUGIN } from '../../canvas/urls.ts';
 import { listCanvasPlugins } from '../../canvas/plugins.ts';
 import { normalizePlugin, renderCanvasApp } from './render.ts';
 
@@ -43,7 +44,7 @@ function proxyTarget(request: Request, env: CanvasWorkerEnv): URL {
 
 async function proxyApi(request: Request, env: CanvasWorkerEnv): Promise<Response> {
   const headers = new Headers(request.headers);
-  headers.set('x-oracle-canvas-worker', 'canvas.buildwithoracle.com');
+  headers.set('x-oracle-canvas-worker', CANVAS_HOST);
   headers.delete('host');
   const upstream = await fetch(proxyTarget(request, env), { ...request, headers });
   const responseHeaders = new Headers(upstream.headers);
@@ -57,9 +58,9 @@ function healthResponse(env: CanvasWorkerEnv): Response {
   return Response.json({
     ok: true,
     app: 'ui-canvas-oracle-studio',
-    host: 'canvas.buildwithoracle.com',
+    host: CANVAS_HOST,
     apiBase: apiBase(env),
-    defaultPlugin: 'wave',
+    defaultPlugin: DEFAULT_CANVAS_PLUGIN,
     pluginCount: listCanvasPlugins().length,
   }, { headers: { ...SECURITY_HEADERS, 'Cache-Control': 'no-store' } });
 }

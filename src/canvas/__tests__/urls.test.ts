@@ -1,13 +1,21 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  CANVAS_HOST,
   CANVAS_ORIGIN,
+  DEFAULT_CANVAS_PLUGIN,
   canvasPluginAbsoluteUrl,
   canvasPluginDataPath,
   canvasPluginPath,
 } from '../index.ts';
 
 describe('canvas URL helpers', () => {
+  test('exposes canonical canvas host and default plugin constants', () => {
+    expect(CANVAS_HOST).toBe('canvas.buildwithoracle.com');
+    expect(CANVAS_ORIGIN).toBe(`https://${CANVAS_HOST}`);
+    expect(DEFAULT_CANVAS_PLUGIN).toBe('wave');
+  });
+
   test('maps react plugins to clean standalone paths', () => {
     expect(canvasPluginPath('map')).toBe('/map');
     expect(canvasPluginPath('planets')).toBe('/planets');

@@ -1,13 +1,12 @@
 import { findCanvasPlugin, listCanvasPlugins, type CanvasPluginDescriptor } from '../../canvas/plugins.ts';
-import { CANVAS_ORIGIN, canvasPluginPath } from '../../canvas/urls.ts';
+import { CANVAS_HOST, CANVAS_ORIGIN, DEFAULT_CANVAS_PLUGIN, canvasPluginPath } from '../../canvas/urls.ts';
 
 export type CanvasPlugin = CanvasPluginDescriptor;
 
-const DEFAULT_PLUGIN = 'wave';
 const STUDIO_HOME = 'https://studio.buildwithoracle.com/';
 
 export function normalizePlugin(value: string | null): CanvasPlugin {
-  return findCanvasPlugin(value ?? '') ?? findCanvasPlugin(DEFAULT_PLUGIN)!;
+  return findCanvasPlugin(value ?? '') ?? findCanvasPlugin(DEFAULT_CANVAS_PLUGIN)!;
 }
 
 function titleFor(plugin: CanvasPlugin): string {
@@ -73,10 +72,10 @@ p{margin:.25rem 0 0;color:#94a3b8}.pill{border:1px solid rgb(45 212 191/.4);bord
 </style>
 </head>
 <body data-plugin="${escapeHtml(id)}" data-kind="${escapeHtml(plugin.kind)}" data-api-base="${escapeHtml(apiBase)}">
-<header><div class="top"><div><h1 id="canvas-title">${escapeHtml(title)}</h1><p id="canvas-subtitle">canvas.buildwithoracle.com · plugin=${escapeHtml(id)} · ${escapeHtml(plugin.kind)}</p></div><span class="pill" id="status">loading API</span></div><div class="picker"><label for="plugin-picker">Hot-swap plugin</label><select id="plugin-picker" aria-label="Hot-swap canvas plugin">${pluginOptions(id)}</select><a href="${STUDIO_HOME}" data-studio-home aria-label="Open Oracle Studio home">Studio home</a></div><nav aria-label="Canvas plugins">${pluginLinks(id)}</nav></header>
+<header><div class="top"><div><h1 id="canvas-title">${escapeHtml(title)}</h1><p id="canvas-subtitle">${escapeHtml(CANVAS_HOST)} · plugin=${escapeHtml(id)} · ${escapeHtml(plugin.kind)}</p></div><span class="pill" id="status">loading API</span></div><div class="picker"><label for="plugin-picker">Hot-swap plugin</label><select id="plugin-picker" aria-label="Hot-swap canvas plugin">${pluginOptions(id)}</select><a href="${STUDIO_HOME}" data-studio-home aria-label="Open Oracle Studio home">Studio home</a></div><nav aria-label="Canvas plugins">${pluginLinks(id)}</nav></header>
 <canvas id="oracle-canvas" aria-label="${escapeHtml(id)} canvas visualization"></canvas><p class="error" id="error"></p>
 <script type="module">
-let plugins=${JSON.stringify(plugins)};let plugin=${JSON.stringify(id)};let pluginData={documents:[]};const apiBase=${JSON.stringify(apiBase)};const canvas=document.querySelector('canvas');const ctx=canvas.getContext('2d');
+let plugins=${JSON.stringify(plugins)};let plugin=${JSON.stringify(id)};let pluginData={documents:[]};const apiBase=${JSON.stringify(apiBase)};const canvasHost=${JSON.stringify(CANVAS_HOST)};const canvas=document.querySelector('canvas');const ctx=canvas.getContext('2d');
 const CACHE_KEY='oracle.canvas.registry.v1';const DB_NAME='oracle-canvas-cache';
 const status=document.getElementById('status');const error=document.getElementById('error');const picker=document.getElementById('plugin-picker');const title=document.getElementById('canvas-title');const subtitle=document.getElementById('canvas-subtitle');let t=0;
 function saveLocal(value){try{localStorage.setItem(CACHE_KEY,JSON.stringify({ts:Date.now(),value}))}catch{}}
@@ -93,7 +92,7 @@ function dataCount(){return Array.isArray(pluginData?.documents)?pluginData.docu
 function setPluginData(value){pluginData=value||{documents:[]};document.body.dataset.dataCount=String(dataCount())}
 async function loadPluginData(meta){setPluginData({documents:[]});if(!meta?.apiPath)return;try{const data=await (await fetch(meta.apiPath,{headers:{accept:'application/json'}})).json();setPluginData(data);status.textContent='data '+dataCount()}catch(e){error.textContent='plugin data unavailable: '+String(e)}}
 function resize(){canvas.width=innerWidth*devicePixelRatio;canvas.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)}addEventListener('resize',resize);resize();
-function setPlugin(next,replace=false){const meta=plugins.find((item)=>item.id===next);if(!meta)return;plugin=meta.id;document.body.dataset.plugin=plugin;document.body.dataset.kind=meta.kind;picker.value=plugin;title.textContent='Oracle '+meta.label+' Canvas';subtitle.textContent='canvas.buildwithoracle.com · plugin='+meta.id+' · '+meta.kind;document.querySelectorAll('[data-plugin-link]').forEach((a)=>a.toggleAttribute('aria-current',a.dataset.pluginLink===plugin));loadPluginData(meta);if(!replace)history.pushState({plugin},'',meta.href)}picker.addEventListener('change',()=>setPlugin(picker.value));addEventListener('popstate',()=>{const path=location.pathname.slice(1);const query=new URLSearchParams(location.search).get('plugin');setPlugin(query||path||'wave',true)});function dot(x,y,r,c){ctx.beginPath();ctx.fillStyle=c;ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function setPlugin(next,replace=false){const meta=plugins.find((item)=>item.id===next);if(!meta)return;plugin=meta.id;document.body.dataset.plugin=plugin;document.body.dataset.kind=meta.kind;picker.value=plugin;title.textContent='Oracle '+meta.label+' Canvas';subtitle.textContent=canvasHost+' · plugin='+meta.id+' · '+meta.kind;document.querySelectorAll('[data-plugin-link]').forEach((a)=>a.toggleAttribute('aria-current',a.dataset.pluginLink===plugin));loadPluginData(meta);if(!replace)history.pushState({plugin},'',meta.href)}picker.addEventListener('change',()=>setPlugin(picker.value));addEventListener('popstate',()=>{const path=location.pathname.slice(1);const query=new URLSearchParams(location.search).get('plugin');setPlugin(query||path||'wave',true)});function dot(x,y,r,c){ctx.beginPath();ctx.fillStyle=c;ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
 function star(i){dot((i*97+t*200)%innerWidth,(i*53)%innerHeight,1+(i%4),'#e0f2fe')}
 function draw(){t+=.012;ctx.clearRect(0,0,innerWidth,innerHeight);ctx.fillStyle='#020617';ctx.fillRect(0,0,innerWidth,innerHeight);const n=Math.min(dataCount(),90);if(plugin==='cube'||plugin==='torus'){ctx.strokeStyle=plugin==='cube'?'#5eead4':'#c4b5fd';ctx.lineWidth=4;ctx.strokeRect(innerWidth/2-90,innerHeight/2-90,180,180);ctx.strokeRect(innerWidth/2-45+Math.sin(t)*40,innerHeight/2-45,90,90)}else if(plugin==='galaxy'){for(let i=0;i<120;i++)star(i)}else if(plugin==='solar'||plugin==='planets'){for(let i=0;i<(n||9);i++){const a=t+i*.72;dot(innerWidth/2+Math.cos(a)*(70+i*26),innerHeight/2+Math.sin(a)*(35+i*14),6+i*.7,i%2?'#67e8f9':'#c4b5fd')}}else if(plugin==='map'||plugin==='map3d'||plugin==='graph3d'){for(let i=0;i<(n||45);i++)dot((i*97)%innerWidth,(Math.sin(t+i)*120+innerHeight/2),3,'#2dd4bf');ctx.strokeStyle='#22d3ee66';ctx.strokeRect(innerWidth*.16,innerHeight*.24,innerWidth*.68,innerHeight*.52)}else{ctx.strokeStyle='#5eead4';ctx.lineWidth=3;ctx.beginPath();for(let x=0;x<innerWidth;x+=8){const y=innerHeight/2+Math.sin(x*.018+t*4)*90;ctx[x?'lineTo':'moveTo'](x,y)}ctx.stroke()}requestAnimationFrame(draw)}draw();
 loadPluginData(plugins.find((item)=>item.id===plugin));
