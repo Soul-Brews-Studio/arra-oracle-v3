@@ -52,33 +52,27 @@ function createConfiguredEmbedder(config: VectorStoreConfig) {
   return createEmbeddingProvider(provider, model, options);
 }
 export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAdapter {
-  const type = config.type
-    || (process.env.ORACLE_VECTOR_DB as VectorDBType)
-    || 'lancedb';
-  const collectionName = config.collectionName || COLLECTION_NAME;
+  const type = (clean(config.type) || clean(process.env.ORACLE_VECTOR_DB) || 'lancedb').toLowerCase() as VectorDBType;
+  const collectionName = clean(config.collectionName) || COLLECTION_NAME;
   switch (type) {
     case 'sqlite-vec': {
-      const dbPath = tenantDataPath(config.dataPath
-        || process.env.ORACLE_VECTOR_DB_PATH
-        || VECTORS_DB_PATH);
+      const dbPath = tenantDataPath(clean(config.dataPath) || clean(process.env.ORACLE_VECTOR_DB_PATH) || VECTORS_DB_PATH);
       return new SqliteVecAdapter(collectionName, dbPath, createConfiguredEmbedder(config));
     }
     case 'lancedb': {
-      const dbPath = tenantDataPath(config.dataPath
-        || process.env.ORACLE_VECTOR_DB_PATH
-        || LANCEDB_DIR);
+      const dbPath = tenantDataPath(clean(config.dataPath) || clean(process.env.ORACLE_VECTOR_DB_PATH) || LANCEDB_DIR);
       return new LanceDBAdapter(collectionName, dbPath, createConfiguredEmbedder(config));
     }
     case 'qdrant': {
       return new QdrantAdapter(collectionName, createConfiguredEmbedder(config), {
-        url: config.qdrantUrl || process.env.QDRANT_URL,
-        apiKey: config.qdrantApiKey || process.env.QDRANT_API_KEY,
+        url: clean(config.qdrantUrl) || clean(process.env.QDRANT_URL),
+        apiKey: clean(config.qdrantApiKey) || clean(process.env.QDRANT_API_KEY),
       });
     }
     case 'cloudflare-vectorize': {
       const cfConfig = {
-        accountId: config.cfAccountId || process.env.CF_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID,
-        apiToken: config.cfApiToken || process.env.CF_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN,
+        accountId: clean(config.cfAccountId) || clean(process.env.CF_ACCOUNT_ID) || clean(process.env.CLOUDFLARE_ACCOUNT_ID),
+        apiToken: clean(config.cfApiToken) || clean(process.env.CF_API_TOKEN) || clean(process.env.CLOUDFLARE_API_TOKEN),
       };
       const embeddingModel = config.embeddingModel
         || process.env.ORACLE_EMBEDDING_MODEL;
@@ -89,19 +83,19 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
       return new CloudflareVectorizeAdapter(collectionName, embedder, cfConfig);
     }
     case 'proxy': {
-      const proxyUrl = config.proxyEndpoint || process.env.ORACLE_PROXY_VECTOR_URL;
+      const proxyUrl = clean(config.proxyEndpoint) || clean(process.env.ORACLE_PROXY_VECTOR_URL);
       if (!proxyUrl) {
         throw new Error('proxy vector adapter requires proxyEndpoint or ORACLE_PROXY_VECTOR_URL');
       }
       return new ProxyVectorAdapter(collectionName, proxyUrl);
     }
     case 'turbovec': {
-      return new TurboVecAdapter(collectionName, config.proxyEndpoint);
+      return new TurboVecAdapter(collectionName, clean(config.proxyEndpoint));
     }
     case 'chroma':
     default: {
-      const dataPath = tenantDataPath(config.dataPath || CHROMADB_DIR);
-      const pythonVersion = config.pythonVersion || '3.12';
+      const dataPath = tenantDataPath(clean(config.dataPath) || CHROMADB_DIR);
+      const pythonVersion = clean(config.pythonVersion) || '3.12';
       return new ChromaMcpAdapter(collectionName, dataPath, pythonVersion);
     }
   }
@@ -241,4 +235,9 @@ export async function reloadCachedVectorStores(
     return store;
   }));
   return { reloaded: reloadKeys.length };
+}
+
+function clean(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
 }

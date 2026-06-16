@@ -39,7 +39,8 @@ export interface VectorProxyHealthResponse {
 }
 
 export function buildVectorProxyUrl(endpoint: string, route: VectorProxyRoute | string): string {
-  const safeBase = endpoint.replace(/\/+$/, '');
+  const safeBase = endpoint.trim().replace(/\/+$/, '');
+  if (!safeBase) throw new Error('Vector proxy endpoint is required');
   return `${safeBase}${route.startsWith('/') ? route : `/${route}`}`;
 }
 
