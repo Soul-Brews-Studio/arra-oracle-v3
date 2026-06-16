@@ -150,6 +150,8 @@ bun run export -- --url http://localhost:47778 --collection oracle_documents --f
 
 Useful flags:
 
+- `--output <path>` also accepts `--out <path>` or `-o <path>` for
+  script-friendly exports.
 - `--include-graph` / `--graph` includes relationship graph rows when the
   backend supports them.
 - `--retries <count>` and `--retry-delay-ms <ms>` retry transient network,
