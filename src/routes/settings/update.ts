@@ -1,30 +1,48 @@
 import { Elysia } from 'elysia';
 import { getScopedSetting, setScopedSetting } from '../../db/scoped-settings.ts';
 import { activeTenantId } from '../../middleware/tenant.ts';
+import { passwordMatches, usablePassword } from '../auth/index.ts';
 import { UpdateSettingsBody } from './model.ts';
 
 export const updateSettingsRoute = new Elysia().post('/', async ({ body, set }) => {
-  if (body.newPassword) {
+  const nextPassword = usablePassword(body.newPassword);
+  const currentPassword = usablePassword(body.currentPassword);
+
+  if (body.newPassword !== undefined && !nextPassword) {
+    set.status = 400;
+    return { error: 'Password required' };
+  }
+
+  if (nextPassword && body.removePassword === true) {
+    set.status = 400;
+    return { error: 'Cannot set and remove password in the same request' };
+  }
+
+  if (nextPassword) {
     const existingHash = getScopedSetting('auth_password_hash');
     if (existingHash) {
-      if (!body.currentPassword) {
+      if (!currentPassword) {
         set.status = 400;
         return { error: 'Current password required' };
       }
-      const valid = await Bun.password.verify(body.currentPassword, existingHash);
+      const valid = await passwordMatches(currentPassword, existingHash);
       if (!valid) {
         set.status = 401;
         return { error: 'Current password is incorrect' };
       }
     }
-    const hash = await Bun.password.hash(body.newPassword);
+    const hash = await Bun.password.hash(nextPassword);
     setScopedSetting('auth_password_hash', hash);
   }
 
   if (body.removePassword === true) {
     const existingHash = getScopedSetting('auth_password_hash');
-    if (existingHash && body.currentPassword) {
-      const valid = await Bun.password.verify(body.currentPassword, existingHash);
+    if (existingHash) {
+      if (!currentPassword) {
+        set.status = 400;
+        return { error: 'Current password required' };
+      }
+      const valid = await passwordMatches(currentPassword, existingHash);
       if (!valid) {
         set.status = 401;
         return { error: 'Current password is incorrect' };
