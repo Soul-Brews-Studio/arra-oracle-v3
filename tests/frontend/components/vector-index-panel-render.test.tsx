@@ -27,8 +27,16 @@ describe('VectorIndexPanel', () => {
 
     expect(html).toContain('Index Manager');
     expect(html).toContain('Index jobs and collections');
+    expect(html).toContain('Vault list');
+    expect(html).toContain('Vector Models');
+    expect(html).toContain('75 docs need backfill');
+    expect(html).toContain('Index Now');
+    expect(html).toContain('Backfill Vectors');
+    expect(html).toContain('Add Vault');
     expect(html).toContain('bge-m3');
     expect(html).toContain('oracle_bge_m3');
+    expect(html).toContain('indexed');
+    expect(html).toContain('synced');
     expect(html).toContain('qwen3');
     expect(html).toContain('Reindexing');
     expect(html).toContain('25/100 docs');

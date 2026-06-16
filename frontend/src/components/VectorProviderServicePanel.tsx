@@ -13,6 +13,8 @@ import {
   type VectorService,
 } from '../api/oracle';
 import { ErrorMessage, Spinner } from './AsyncState';
+import { VectorProviderConfigFields } from './VectorProviderConfigFields';
+import { VectorStorageSelector } from './VectorStorageSelector';
 
 type Client = {
   getVectorProviders: typeof getVectorProviders;
@@ -52,6 +54,7 @@ export function VectorProviderServicePanel({ client = defaultClient, initialProv
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const availableCount = useMemo(() => providers.filter((provider) => provider.available).length, [providers]);
+  const selected = providers.find((provider) => provider.type === selectedProvider);
 
   async function load() {
     setError('');
@@ -122,7 +125,8 @@ export function VectorProviderServicePanel({ client = defaultClient, initialProv
       {message ? <p className="mt-4 rounded-2xl border border-white/10 bg-slate-900/70 p-3 text-sm text-teal-100">{message}</p> : null}
 
       <div className="mt-5 grid gap-4 xl:grid-cols-2">
-        <ProviderSelector providers={providers} selectedProvider={selectedProvider} busy={busy} onSelect={setSelectedProvider} onTest={testProvider} />
+        <ProviderSelector providers={providers} selectedProvider={selectedProvider} selected={selected} busy={busy} onSelect={setSelectedProvider} onTest={testProvider} />
+        <VectorStorageSelector services={services} />
         <ServiceRegistry
           busy={busy}
           serviceEndpoint={serviceEndpoint}
@@ -139,9 +143,10 @@ export function VectorProviderServicePanel({ client = defaultClient, initialProv
   );
 }
 
-function ProviderSelector({ providers, selectedProvider, busy, onSelect, onTest }: {
+function ProviderSelector({ providers, selectedProvider, selected, busy, onSelect, onTest }: {
   providers: VectorProvider[];
   selectedProvider: string;
+  selected?: VectorProvider;
   busy: string;
   onSelect: (provider: string) => void;
   onTest: () => void;
@@ -158,6 +163,7 @@ function ProviderSelector({ providers, selectedProvider, busy, onSelect, onTest 
         ))}
         {!providers.length ? <p className="text-sm text-slate-500">Provider detection has not returned results yet.</p> : null}
       </div>
+      <VectorProviderConfigFields provider={selected} />
       <button className="focus-ring mt-3 rounded-xl bg-teal-300 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50" disabled={!selectedProvider || Boolean(busy)} type="button" onClick={onTest}>{busy.startsWith('provider:') ? <Spinner label="Testing" /> : 'Test selected provider'}</button>
     </div>
   );
@@ -181,7 +187,7 @@ function ServiceRegistry({ busy, serviceEndpoint, serviceName, services, onEndpo
         <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Name<input className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100" value={serviceName} onChange={(event) => onName(event.target.value)} /></label>
         <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Endpoint<input className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100" value={serviceEndpoint} onChange={(event) => onEndpoint(event.target.value)} /></label>
       </div>
-      <button className="focus-ring mt-3 rounded-xl bg-purple-300 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50" disabled={!serviceName.trim() || Boolean(busy)} type="button" onClick={onRegister}>{busy === 'register-service' ? <Spinner label="Registering" /> : 'Register service'}</button>
+      <button className="focus-ring mt-3 rounded-xl bg-purple-300 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50" disabled={!serviceName.trim() || Boolean(busy)} type="button" onClick={onRegister}>{busy === 'register-service' ? <Spinner label="Registering" /> : '[+ Register Service]'}</button>
       <div className="mt-4 grid gap-2">
         {services.map((service) => <ServiceRow busy={busy} key={service.name} service={service} onRemove={onRemove} onTest={onTest} />)}
         {!services.length ? <p className="text-sm text-slate-500">No vector services registered.</p> : null}
