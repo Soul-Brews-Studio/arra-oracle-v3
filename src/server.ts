@@ -127,21 +127,6 @@ const app = new Elysia()
   .use(createBodyLimitMiddleware())
   .use(createApiKeyAuthMiddleware())
   .use(createMetricsLifecycle())
-  .use(createResponseFormatMiddleware())
-  .use(createCompressMiddleware())
-  .use(createEtagMiddleware())
-  .onBeforeHandle(({ request, set }) => {
-    const pathname = new URL(request.url).pathname;
-    if (isApiPathProtected(pathname) && !isApiAuthorized(request)) {
-      set.status = 401;
-      return unauthorizedApiResponse();
-    }
-  })
-  .onAfterHandle(({ set }) => {
-    set.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-    set.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
-  })
-  .use(createErrorMiddleware())
   .use(
     swagger({
       provider: 'swagger-ui',
@@ -157,6 +142,21 @@ const app = new Elysia()
       },
     }),
   )
+  .use(createResponseFormatMiddleware())
+  .use(createCompressMiddleware())
+  .use(createEtagMiddleware())
+  .onBeforeHandle(({ request, set }) => {
+    const pathname = new URL(request.url).pathname;
+    if (isApiPathProtected(pathname) && !isApiAuthorized(request)) {
+      set.status = 401;
+      return unauthorizedApiResponse();
+    }
+  })
+  .onAfterHandle(({ set }) => {
+    set.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+    set.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
+  })
+  .use(createErrorMiddleware())
   .use(gatewayPlugin(ORACLE_DATA_DIR, VECTOR_URL || undefined))
   .use(peerRoutes)
   .get('/swagger', () => Response.redirect('/api/docs', 308), { detail: { hide: true } })
