@@ -28,4 +28,14 @@ describe('fetchCanvasPlugins standalone metadata', () => {
       fetchMock.restore();
     }
   });
+
+  test('requests kind-scoped canvas registry endpoints for runtime filters', async () => {
+    const fetchMock = installFetch(() => jsonResponse({ plugins: [], count: 0, kind: 'react' }));
+    try {
+      await fetchCanvasPlugins('react');
+      expect(fetchMock.calls[0]?.input).toBe('/api/canvas/plugins?kind=react');
+    } finally {
+      fetchMock.restore();
+    }
+  });
 });
