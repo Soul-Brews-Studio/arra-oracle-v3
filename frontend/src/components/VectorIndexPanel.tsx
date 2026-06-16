@@ -6,14 +6,26 @@ import {
   type VectorIndexStatusResponse,
 } from '../api/client';
 import { ErrorMessage, LoadingPanel, Spinner } from './AsyncState';
+import { fetchJson } from '../pages/vectorSettingsHelpers';
 
 type VectorIndexClient = Pick<ApiClient, 'startVectorIndex' | 'vectorIndexModels' | 'vectorIndexStatus'>;
+
+type VectorCostEstimate = {
+  formula: string;
+  estimatedUsd: number;
+  provider: string;
+  recommendation?: string;
+};
 
 interface VectorIndexPanelProps {
   client?: VectorIndexClient;
   initialModels?: Record<string, VectorIndexCollection>;
   initialStatus?: VectorIndexStatusResponse | null;
+  initialCostEstimate?: VectorCostEstimate | null;
+  loadCostEstimate?: () => Promise<VectorCostEstimate>;
 }
+
+const loadDefaultCostEstimate = () => fetchJson<VectorCostEstimate>('/api/v1/vector/cost-estimate');
 
 export function formatIndexEta(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return 'calculating';
@@ -30,6 +42,10 @@ function progressFor(status: VectorIndexStatusResponse): number {
 
 function totalVectors(models: Record<string, VectorIndexCollection>): number {
   return Object.values(models).reduce((sum, model) => sum + (model.count ?? 0), 0);
+}
+
+function formatCost(value: number): string {
+  return value === 0 ? 'Free / local' : `$${value.toFixed(4)}`;
 }
 
 function gapLabel(models: Record<string, VectorIndexCollection>, status: VectorIndexStatusResponse | null): string {
@@ -54,10 +70,18 @@ function vaultState(model: VectorIndexCollection): string {
   return (model.count ?? 0) > 0 ? 'indexed' : 'not indexed';
 }
 
-export function VectorIndexPanel({ client = apiClient, initialModels, initialStatus = null }: VectorIndexPanelProps) {
+export function VectorIndexPanel({
+  client = apiClient,
+  initialModels,
+  initialStatus = null,
+  initialCostEstimate,
+  loadCostEstimate = loadDefaultCostEstimate,
+}: VectorIndexPanelProps) {
   const [models, setModels] = useState<Record<string, VectorIndexCollection>>(initialModels ?? {});
   const [loading, setLoading] = useState(!initialModels);
   const [status, setStatus] = useState<VectorIndexStatusResponse | null>(initialStatus);
+  const [costEstimate, setCostEstimate] = useState<VectorCostEstimate | null>(initialCostEstimate ?? null);
+  const [costError, setCostError] = useState('');
   const [error, setError] = useState('');
   const [startingKey, setStartingKey] = useState<string | null>(null);
 
@@ -89,6 +113,15 @@ export function VectorIndexPanel({ client = apiClient, initialModels, initialSta
       .catch((err) => { if (active) setError(err instanceof Error ? err.message : String(err)); });
     return () => { active = false; };
   }, [client]);
+
+  useEffect(() => {
+    if (initialCostEstimate !== undefined) return;
+    let active = true;
+    loadCostEstimate()
+      .then((next) => { if (active) setCostEstimate(next); })
+      .catch((err) => { if (active) setCostError(err instanceof Error ? err.message : String(err)); });
+    return () => { active = false; };
+  }, [initialCostEstimate, loadCostEstimate]);
 
   useEffect(() => {
     if (!indexing || typeof window === 'undefined') return;
@@ -136,6 +169,14 @@ export function VectorIndexPanel({ client = apiClient, initialModels, initialSta
         <p className="mt-1 text-sm text-amber-100">Gap indicator: {gapLabel(models, status)}</p>
         {status ? <IndexProgress status={status} /> : null}
       </div>
+
+      {costEstimate ? (
+        <div className="mb-4 rounded-2xl border border-teal-200/20 bg-teal-200/10 p-4 text-sm text-teal-50/90">
+          <p className="font-semibold text-teal-100">Preflight cost before Index Now</p>
+          <p className="mt-1">{costEstimate.formula} · {costEstimate.provider}: {formatCost(costEstimate.estimatedUsd)}</p>
+          {costEstimate.recommendation ? <p className="mt-1 text-teal-100/75">{costEstimate.recommendation}</p> : null}
+        </div>
+      ) : costError ? <p className="mb-4 text-sm text-amber-100">Cost estimate unavailable: {costError}</p> : null}
 
       {loading ? <LoadingPanel title="Loading vector collections…" detail="Fetching /api/v1/vector/index/models." /> : null}
       {error ? <ErrorMessage title="Vector indexing failed." message={error} /> : null}

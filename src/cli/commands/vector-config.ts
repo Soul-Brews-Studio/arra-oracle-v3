@@ -1,4 +1,5 @@
 import { closeCachedVectorStores } from '../../vector/factory.ts';
+import type { VectorDBType } from '../../vector/types.ts';
 import {
   activeConfig,
   atomicWriteVectorConfig,
@@ -19,6 +20,7 @@ function usage(out: Writer): void {
     '       bun run src/cli/index.ts vector-config get [collection] [--json]',
     '       bun run src/cli/index.ts vector-config set <collection> <field> <value> [--json]',
     '       bun run src/cli/index.ts vector-config set <collection> --adapter <name> [--url <url>]',
+    '       bun run src/cli/index.ts vector-config switch <adapter> [--enabled true|false]',
     '       bun run src/cli/index.ts vector-config test <collection>',
     '       bun run src/cli/index.ts vector-config reload',
   ].join('\n') + '\n');
@@ -110,6 +112,30 @@ async function getCollection(args: string[], jsonOut: boolean, out: Writer): Pro
   return 0;
 }
 
+async function switchBackend(args: string[], jsonOut: boolean, out: Writer): Promise<number> {
+  const requested = args[1];
+  if (!requested) throw new Error('switch requires <adapter>');
+  const adapter = parseValue('adapter', requested) as VectorDBType;
+  if (!['lancedb', 'qdrant', 'chroma', 'sqlite-vec'].includes(adapter)) {
+    throw new Error('switch adapter must be lancedb, qdrant, chroma, or sqlite-vec');
+  }
+  const enabledIndex = args.indexOf('--enabled');
+  const enabledValue = args[enabledIndex + 1];
+  if (enabledIndex >= 0 && (!enabledValue || enabledValue.startsWith('--'))) throw new Error('--enabled value required');
+  const enabled = enabledIndex >= 0 ? parseValue('enabled', enabledValue) as boolean : undefined;
+  const { source, config } = activeConfig();
+  const collections = Object.fromEntries(Object.entries(config.collections).map(([key, current]) => [
+    key,
+    { ...current, adapter, ...(enabled !== undefined && { enabled }) },
+  ]));
+  const next: typeof config = { ...config, collections };
+  const path = atomicWriteVectorConfig(next);
+  await closeCachedVectorStores();
+  if (jsonOut) out(JSON.stringify({ success: true, source, path, adapter, config: next }, null, 2) + '\n');
+  else out(`switched vector backend adapter to ${adapter} across ${Object.keys(collections).length} collections\npath: ${path}\n`);
+  return 0;
+}
+
 async function setField(args: string[], jsonOut: boolean, out: Writer): Promise<number> {
   const [, collection, ...rawUpdates] = args;
   if (!collection) throw new Error('set requires <collection>');
@@ -145,6 +171,7 @@ export async function vectorConfigCommand(args: string[], stdout: Writer = proce
     if (command === 'list') return readState(flag(rest, '--json'), stdout);
     if (command === 'get') return getCollection(cleanArgs(rest), flag(rest, '--json'), stdout);
     if (command === 'set') return setField(cleanArgs(rest), flag(rest, '--json'), stdout);
+    if (command === 'switch' || command === 'backend') return switchBackend(cleanArgs(rest), flag(rest, '--json'), stdout);
     if (command === 'test') return testCollection(cleanArgs(rest), stdout);
     if (command === 'reload') { await closeCachedVectorStores(); stdout('vector config runtime cache reloaded\n'); return 0; }
     throw new Error(`unknown vector-config command: ${command}`);

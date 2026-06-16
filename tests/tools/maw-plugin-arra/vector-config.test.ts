@@ -120,4 +120,21 @@ describe('tools maw arra vector-config command', () => {
     expect(calls[0].url).toBe('http://arra.test/api/v1/vector/config/nomic');
     expect(calls[0].body).toEqual({ enabled: false });
   });
+
+  test('switches all collection adapters through the config patch API', async () => {
+    const { result, calls } = await run(['vector-config', 'switch', 'sqlite-vec', '--enabled', 'true']);
+
+    expect(result.ok).toBe(true);
+    expect(calls.map((call) => call.url)).toEqual([
+      'http://arra.test/api/v1/vector/config',
+      'http://arra.test/api/v1/vector/config',
+    ]);
+    expect(calls[1].init?.method).toBe('PATCH');
+    expect(calls[1].body).toMatchObject({
+      collections: {
+        'bge-m3': { adapter: 'sqlite-vec', enabled: true },
+        nomic: { adapter: 'sqlite-vec', enabled: true },
+      },
+    });
+  });
 });

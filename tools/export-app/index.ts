@@ -69,6 +69,7 @@ export function parseArgs(args: string[]): CliOptions {
     throw new Error(arg.startsWith('-') ? `unknown flag: ${arg}` : `unexpected argument: ${arg}`);
   }
 
+  if (verifyDir && outputDir) throw new Error('--verify cannot be combined with --output');
   if (!outputDir && !verifyDir) throw new Error('missing required --output <dir>');
   return { outputDir: outputDir ?? verifyDir!, dbPath, quiet, progressMode, dryRun, verifyDir, collections };
 }

@@ -99,8 +99,9 @@ It also includes `collections.<table>.rowCount` so restore/preflight tooling can
 compare source and destination collection sizes without loading every artifact.
 The generated bundle `README.md` summarizes counts and verification steps for
 offline review before migration.
-Run `--verify <dir>` after copying an export bundle to recompute every
-manifest-listed file size and SHA-256 checksum.
+Run `--verify <bundle-dir>` after export or after copying a bundle to re-read
+`manifest.json`, recompute each listed file's byte count and SHA-256 checksum,
+and fail if a required artifact is missing.
 Progress writes to stderr by default as collection counts, percentages, and row
 counts. Use `--progress json` or `--progress-json` for machine-readable events,
 `--progress silent` or `--quiet` when another wrapper owns progress display.

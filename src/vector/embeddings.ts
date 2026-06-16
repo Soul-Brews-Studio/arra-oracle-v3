@@ -1,5 +1,6 @@
 import type { EmbeddingProvider, EmbeddingProviderType, EmbedType } from './types.ts';
 import { NoneEmbeddings, RemoteHttpEmbeddings } from './embedding-backends.ts';
+import { EmbeddingFallbackChain } from './fallback-chain.ts';
 export type FallbackEvent = { from: string; to?: string; error: string };
 export type EmbeddingProviderOptions = { url?: string; dimensions?: number; fallbackChain?: EmbeddingProviderType[]; fallback?: EmbeddingProviderType };
 export class ChromaDBInternalEmbeddings implements EmbeddingProvider {
@@ -176,34 +177,26 @@ export class GeminiEmbeddings implements EmbeddingProvider {
 export class FallbackEmbeddings implements EmbeddingProvider {
   readonly name: string;
   readonly dimensions: number;
+  private readonly chain: EmbeddingFallbackChain;
   constructor(
-    private readonly providers: EmbeddingProvider[],
+    providers: EmbeddingProvider[],
     private readonly onFallback: (event: FallbackEvent) => void = defaultFallbackLogger,
   ) {
     if (providers.length === 0) throw new Error('FallbackEmbeddings requires at least one provider');
     this.name = providers.map((provider) => provider.name).join('>');
     this.dimensions = providers[0].dimensions;
+    this.chain = new EmbeddingFallbackChain(providers, {
+      logger: () => undefined,
+      onFallback: this.onFallback,
+    });
   }
   async embed(texts: string[], type?: EmbedType): Promise<number[][]> {
-    let lastError: unknown;
-    for (let i = 0; i < this.providers.length; i++) {
-      const provider = this.providers[i];
-      try {
-        return await provider.embed(texts, type);
-      } catch (error) {
-        lastError = error;
-        this.onFallback({ from: provider.name, to: this.providers[i + 1]?.name, error: errorMessage(error) });
-      }
-    }
-    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+    return this.chain.embed(texts, type);
   }
 }
 function defaultFallbackLogger(event: FallbackEvent): void {
   if (event.to) console.warn(`[EmbedderFallback] ${event.from} failed: ${event.error}; trying ${event.to}`);
   else console.warn(`[EmbedderFallback] ${event.from} failed: ${event.error}; no fallback provider left`);
-}
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 export function createEmbeddingProvider(
   type: EmbeddingProviderType = 'none',

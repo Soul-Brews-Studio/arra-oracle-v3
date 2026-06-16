@@ -6,7 +6,12 @@ import { Elysia } from 'elysia';
 import fs from 'fs';
 import path from 'path';
 import { REPO_ROOT } from '../../config.ts';
+import { tenantDataPath } from '../../middleware/tenant.ts';
 import { InboxQuery } from './model.ts';
+
+const repoRoot = () => process.env.ORACLE_REPO_ROOT || REPO_ROOT;
+const relativePath = (filePath: string) => path.relative(repoRoot(), filePath).split(path.sep).join('/');
+const inboxDir = () => tenantDataPath(path.join(repoRoot(), 'ψ/inbox'));
 
 export const inboxEndpoint = new Elysia().get(
   '/inbox',
@@ -15,11 +20,10 @@ export const inboxEndpoint = new Elysia().get(
     const offset = parseInt(query.offset ?? '0');
     const type = query.type ?? 'all';
 
-    const inboxDir = path.join(REPO_ROOT, 'ψ/inbox');
     const results: Array<{ filename: string; path: string; created: string; preview: string; type: string }> = [];
 
     if (type === 'all' || type === 'handoff') {
-      const handoffDir = path.join(inboxDir, 'handoff');
+      const handoffDir = path.join(inboxDir(), 'handoff');
       if (fs.existsSync(handoffDir)) {
         const files = fs.readdirSync(handoffDir)
           .filter(f => f.endsWith('.md'))
@@ -36,7 +40,7 @@ export const inboxEndpoint = new Elysia().get(
 
           results.push({
             filename: file,
-            path: `ψ/inbox/handoff/${file}`,
+            path: relativePath(filePath),
             created,
             preview: content.substring(0, 500),
             type: 'handoff',

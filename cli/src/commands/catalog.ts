@@ -17,7 +17,7 @@ export const BUILTIN_COMMANDS: CommandSpec[] = [
   { command: "use", help: "set the global default API target" },
   { command: "completions", help: "print shell completion scripts", subcommands: ["bash", "zsh", "fish"], flags: ["--help", "-h"] },
   { command: "huginn", help: "run Huginn capture utilities", subcommands: ["sweep"], flags: ["--sessions-dir", "--repo-root", "--lookback-hours", "--max-files", "--json", "--help", "-h"] },
-  { command: "vector-config", help: "inspect and manage vector embedding collection config", subcommands: ["list", "get", "stats", "set", "reload", "test"], flags: ["--json", "--yml", "--help", "-h", "--model", "--provider", "--adapter", "--enabled"] },
+  { command: "vector-config", help: "inspect and manage vector embedding collection config", subcommands: ["list", "get", "stats", "set", "switch", "reload", "test"], flags: ["--json", "--yml", "--help", "-h", "--model", "--provider", "--adapter", "--enabled"] },
   { command: "migrate", help: "run Drizzle migration generate and push", flags: ["--help", "-h"] },
   { command: "seed", help: "populate development DB sample data", flags: ["--help", "-h"] },
   { command: "backup", help: "dump SQLite DB to timestamped SQL", flags: ["--out-dir", "--help", "-h"] },
