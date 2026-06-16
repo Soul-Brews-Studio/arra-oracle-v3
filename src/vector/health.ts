@@ -28,6 +28,14 @@ export type VectorProviderHealth = {
   detail?: string;
 };
 
+export type VectorStorageHealth = {
+  adapter: string;
+  status: 'green' | 'red';
+  healthy: number;
+  total: number;
+  detail?: string;
+};
+
 export type VectorFreshness = {
   status: 'fresh' | 'empty' | 'stale';
   totalIndexed: number;
@@ -43,6 +51,7 @@ export type VectorBackendHealth = {
   checked_at: string;
   providers?: VectorProviderHealth[];
   freshness?: VectorFreshness;
+  storage?: VectorStorageHealth[];
 };
 
 
@@ -60,7 +69,29 @@ export function attachVectorDashboardHealth(
       detail: provider.error ?? provider.detail,
     })),
     freshness: health.freshness ?? buildVectorFreshness(health.engines),
+    storage: health.storage ?? buildVectorStorageHealth(health.engines),
   };
+}
+
+export function buildVectorStorageHealth(
+  engines: Array<Pick<VectorBackendEngine, 'adapter' | 'ok' | 'error'>>,
+): VectorStorageHealth[] {
+  const byAdapter = new Map<string, { healthy: number; total: number; errors: string[] }>();
+  for (const engine of engines) {
+    const adapter = engine.adapter || 'unknown';
+    const entry = byAdapter.get(adapter) ?? { healthy: 0, total: 0, errors: [] };
+    entry.total += 1;
+    if (engine.ok) entry.healthy += 1;
+    else if (engine.error) entry.errors.push(engine.error);
+    byAdapter.set(adapter, entry);
+  }
+  return Array.from(byAdapter.entries()).map(([adapter, entry]) => ({
+    adapter,
+    healthy: entry.healthy,
+    total: entry.total,
+    status: entry.healthy === entry.total ? 'green' as const : 'red' as const,
+    ...(entry.errors.length && { detail: entry.errors[0] }),
+  }));
 }
 
 export function buildVectorFreshness(
@@ -144,6 +175,7 @@ export async function readVectorBackendHealth(): Promise<VectorBackendHealth> {
     collections: engines,
     checked_at: new Date().toISOString(),
     freshness: buildVectorFreshness(engines, readSourceDocumentStats()),
+    storage: buildVectorStorageHealth(engines),
   };
 }
 
