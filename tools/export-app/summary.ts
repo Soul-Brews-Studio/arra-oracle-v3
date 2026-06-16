@@ -6,12 +6,14 @@ import { createStorageBackend } from '../../src/storage/registry.ts';
 import { graphRelationships } from './graph.ts';
 import { normalizeRecords, type ExportRecord } from './formats.ts';
 import { readOracleV2Documents } from './documents.ts';
+import { selectExportTables, shouldExportDocuments } from './collections.ts';
 
 type ExportTable = ReturnType<typeof introspectDrizzleTables>[number];
 
 export interface ExportPreviewOptions {
   dbPath?: string;
   connection?: DatabaseConnection;
+  collections?: readonly string[];
 }
 
 export interface ExportPreviewCollection {
@@ -31,7 +33,7 @@ export interface ExportPreviewResult {
 export function previewOracleExport(options: ExportPreviewOptions = {}): ExportPreviewResult {
   const close = options.connection ? undefined : openReadonlyConnection(options.dbPath);
   const connection = options.connection ?? close!.connection;
-  const tables = introspectDrizzleTables();
+  const tables = selectExportTables(introspectDrizzleTables(), options.collections);
   const allCollections: Record<string, ExportRecord[]> = {};
   const collections: ExportPreviewCollection[] = [];
   let rowCount = 0;
@@ -49,7 +51,7 @@ export function previewOracleExport(options: ExportPreviewOptions = {}): ExportP
       collectionCount: collections.length,
       rowCount,
       relationshipCount: graphRelationships(allCollections).length,
-      documentCount: readOracleV2Documents(connection).length,
+      documentCount: shouldExportDocuments(options.collections) ? readOracleV2Documents(connection).length : 0,
       collections,
     };
   } finally {

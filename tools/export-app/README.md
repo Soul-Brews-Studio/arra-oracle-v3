@@ -67,6 +67,7 @@ connection.
 ```sh
 bun run tools/export-app/index.ts --output ./backup/export-app
 bun run tools/export-app/index.ts --output ./backup/export-app --db ./oracle.db
+bun run tools/export-app/index.ts --output ./backup/docs --collection oracle_documents
 bun run tools/export-app/index.ts --output ./backup/export-app --dry-run
 bun run tools/export-app/index.ts --output ./backup/export-app --progress json
 bun run tools/export-app/index.ts --verify ./backup/export-app
@@ -74,6 +75,8 @@ bun run tools/export-app/index.ts --verify ./backup/export-app
 
 Use `--dry-run` to print collection, row, relationship, and document counts
 without creating files. It is a safe preflight before long-running exports.
+Use `--collection <name>` repeatedly or `--collections a,b` to write only
+selected Drizzle collections when testing a narrow migration path.
 
 The batch output includes:
 
