@@ -3,16 +3,22 @@ import { and, eq } from 'drizzle-orm';
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import fs from 'fs';
 import path from 'path';
-import { REPO_ROOT } from '../../config.ts';
 import { db, learnLog, oracleDocuments } from '../../db/index.ts';
 import { currentTenantId, tenantIdForWrite } from '../../middleware/tenant.ts';
+import { conceptsFrom, learningContent, slugFor } from './content.ts';
+import {
+  INVALID_LEARNING_ID,
+  INVALID_LEARNING_SOURCE_FILE,
+  learningSourcePath,
+  safeLearningId,
+  safeLearningSourceFile,
+} from './safety.ts';
 type LearnDoc = typeof oracleDocuments.$inferSelect;
 const oracleFts = sqliteTable('oracle_fts', {
   id: text('id'),
   content: text('content'),
   concepts: text('concepts'),
 });
-const repoRoot = () => process.env.ORACLE_REPO_ROOT || REPO_ROOT;
 type LearnCreateBody = {
   pattern?: string;
   concepts?: string[] | string;
@@ -45,52 +51,9 @@ const UpdateBody = t.Object({
   supersededBy: t.Optional(t.Nullable(t.String())),
   supersededReason: t.Optional(t.Nullable(t.String())),
 });
-function cleanConcepts(values: unknown[]): string[] {
-  return values.map(String).map((c) => c.trim()).filter(Boolean);
-}
-function conceptsFrom(value: LearnCreateBody['concepts']): string[] {
-  if (Array.isArray(value)) return cleanConcepts(value);
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value);
-      if (Array.isArray(parsed)) return cleanConcepts(parsed);
-    } catch {}
-    return value.split(',').map((c) => c.trim()).filter(Boolean);
-  }
-  return [];
-}
-function slugFor(pattern: string): string {
-  const slug = pattern
-    .slice(0, 50)
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-  return slug || 'learning';
-}
-function learningContent(pattern: string, concepts: string[], source?: string): string {
-  const title = pattern.split('\n')[0].slice(0, 80);
-  const today = new Date().toISOString().slice(0, 10);
-  return [
-    '---',
-    `title: ${title}`,
-    concepts.length ? `tags: [${concepts.join(', ')}]` : 'tags: []',
-    `created: ${today}`,
-    `source: ${source || 'Oracle Learn'}`,
-    '---',
-    '',
-    `# ${title}`,
-    '',
-    pattern,
-    '',
-    '---',
-    '*Added via Oracle Learn*',
-    '',
-  ].join('\n');
-}
 function writeLearningFile(sourceFile: string, content: string): void {
-  const filePath = path.join(repoRoot(), sourceFile);
+  const filePath = learningSourcePath(sourceFile);
+  if (!filePath) throw new Error(INVALID_LEARNING_SOURCE_FILE);
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, content, 'utf-8');
 }
@@ -124,7 +87,8 @@ function nextIdentity(pattern: string, requestedId?: string, requestedSourceFile
       .from(oracleDocuments)
       .where(where)
       .get();
-    if (!existing && !fs.existsSync(path.join(repoRoot(), sourceFile))) {
+    const filePath = learningSourcePath(sourceFile);
+    if (!existing && filePath && !fs.existsSync(filePath)) {
       return {
         id,
         sourceFile,
@@ -146,9 +110,12 @@ function responseRow(row: LearnDoc) {
 function createLearning(body: LearnCreateBody) {
   const pattern = body.pattern?.trim();
   if (!pattern) return { status: 400, body: { error: 'Missing required field: pattern' } };
+  if (body.id !== undefined && !safeLearningId(body.id)) return { status: 400, body: { error: INVALID_LEARNING_ID } };
+  const requestedSourceFile = body.sourceFile === undefined ? undefined : safeLearningSourceFile(body.sourceFile);
+  if (requestedSourceFile === null) return { status: 400, body: { error: INVALID_LEARNING_SOURCE_FILE } };
   const now = Date.now();
   const concepts = conceptsFrom(body.concepts);
-  const identity = nextIdentity(pattern, body.id, body.sourceFile);
+  const identity = nextIdentity(pattern, body.id, requestedSourceFile);
   if (rowById(identity.id)) return { status: 409, body: { error: 'Learning already exists' } };
   const content = learningContent(pattern, concepts, body.source);
   writeLearningFile(identity.sourceFile, content);
@@ -183,7 +150,11 @@ function updateLearning(id: string, body: LearnUpdateBody) {
   if (!existing) return { status: 404, body: { error: 'Learning not found' } };
   const now = Date.now();
   const set: Partial<LearnDoc> = { updatedAt: now, indexedAt: now };
-  if (body.sourceFile !== undefined) set.sourceFile = body.sourceFile;
+  if (body.sourceFile !== undefined) {
+    const sourceFile = safeLearningSourceFile(body.sourceFile);
+    if (!sourceFile) return { status: 400, body: { error: INVALID_LEARNING_SOURCE_FILE } };
+    set.sourceFile = sourceFile;
+  }
   if (body.concepts !== undefined) set.concepts = JSON.stringify(conceptsFrom(body.concepts));
   if (body.origin !== undefined) set.origin = body.origin;
   if (body.project !== undefined) set.project = body.project?.toLowerCase() ?? null;
