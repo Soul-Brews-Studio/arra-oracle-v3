@@ -1,5 +1,5 @@
-/** GET /api/vector/search - vector search with filters, pagination, and sort. */
 import { Elysia, t } from 'elysia';
+import { currentTenantId } from '../../middleware/tenant.ts';
 import { getEmbeddingModels, getVectorStoreByModel } from '../../vector/factory.ts';
 import type { VectorQueryResult, VectorStoreAdapter } from '../../vector/types.ts';
 import type { SearchResult } from '../../server/types.ts';
@@ -15,9 +15,7 @@ interface VectorSearchDeps {
 
 type SearchHit = SearchResult & { metadata: Record<string, unknown> };
 
-const DEFAULT_COLLECTION = 'bge-m3';
-const MAX_LIMIT = 100;
-const MAX_FETCH = 1_000;
+const DEFAULT_COLLECTION = 'bge-m3', MAX_LIMIT = 100, MAX_FETCH = 1_000;
 const dateKeys = ['created_at', 'createdAt', 'updated_at', 'updatedAt', 'indexed_at', 'indexedAt', 'date'];
 const sortFields = new Set<SortField>(['score', 'distance', 'date', 'id', 'type', 'source_file']);
 const stringQuery = t.Optional(t.String());
@@ -201,6 +199,8 @@ export function createVectorSearchEndpoint(deps: VectorSearchDeps = {}) {
     let metadata: Record<string, unknown>;
     try {
       metadata = metadataFilters(request, query.type);
+      const tenantId = currentTenantId();
+      if (tenantId) metadata.tenant_id = tenantId;
     } catch (error) {
       set.status = 400;
       return { error: 'Invalid metadata filter', message: error instanceof Error ? error.message : String(error) };
