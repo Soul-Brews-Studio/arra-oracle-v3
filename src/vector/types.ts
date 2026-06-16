@@ -44,7 +44,12 @@ export interface VectorStoreAdapter {
   queryById(id: string, nResults?: number): Promise<VectorQueryResult>;
   getStats(): Promise<{ count: number }>;
   getCollectionInfo(): Promise<{ count: number; name: string }>;
-  getAllEmbeddings?(limit?: number): Promise<{ ids: string[]; embeddings: number[][]; metadatas: any[] }>;
+  getAllEmbeddings?(limit?: number): Promise<{
+    ids: string[];
+    embeddings: number[][];
+    metadatas: any[];
+    documents?: string[];
+  }>;
 }
 
 export type EmbedType = 'query' | 'passage';
@@ -60,5 +65,33 @@ export interface EmbeddingProvider {
   embed(texts: string[], type?: EmbedType): Promise<number[][]>;
 }
 
-export type VectorDBType = 'chroma' | 'sqlite-vec' | 'lancedb' | 'qdrant' | 'cloudflare-vectorize';
-export type EmbeddingProviderType = 'chromadb-internal' | 'ollama' | 'openai' | 'cloudflare-ai';
+export type EmbedderBackend = 'none' | 'local' | 'remote' | 'ollama' | 'openai' | 'gemini' | 'cloudflare-ai';
+
+export interface EmbedderConfig {
+  backend?: EmbeddingProviderType;
+  url?: string;
+  model?: string;
+  dimensions?: number;
+  fallbackChain?: EmbeddingProviderType[];
+  default?: EmbeddingProviderType;
+  fallback?: EmbeddingProviderType;
+  fallbackModel?: string;
+}
+
+export type VectorDBType =
+  | 'chroma'
+  | 'sqlite-vec'
+  | 'lancedb'
+  | 'qdrant'
+  | 'cloudflare-vectorize'
+  | 'proxy'
+  | 'turbovec';
+export type EmbeddingProviderType =
+  | 'none'
+  | 'local'
+  | 'remote'
+  | 'chromadb-internal'
+  | 'ollama'
+  | 'openai'
+  | 'gemini'
+  | 'cloudflare-ai';

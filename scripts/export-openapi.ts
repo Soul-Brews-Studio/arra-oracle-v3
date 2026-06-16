@@ -1,28 +1,51 @@
 #!/usr/bin/env bun
 /**
- * Export the Elysia /swagger/json spec to docs/openapi.json.
+ * Export the Elysia /api/docs/json spec to docs/openapi.json.
  *
  * Spawns `bun src/server.ts` on a scratch port, polls until /health
- * responds, fetches /swagger/json, writes the file, then kills the
+ * responds, fetches /api/docs/json, writes the file, then kills the
  * subprocess. Exits non-zero on any failure.
  *
  *   bun scripts/export-openapi.ts
  *   bun scripts/export-openapi.ts --port 48900 --out docs/openapi.json
+ *   bun scripts/export-openapi.ts --spec-path /api/docs/json --out docs/openapi.json
  */
 
 import { spawn } from 'bun';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 
 const args = parseArgs(process.argv.slice(2));
 const PORT = args.port ?? '48900';
 const OUT = resolve(args.out ?? 'docs/openapi.json');
+const SPEC_PATH = args.specPath ?? '/api/openapi.json';
 const BOOT_TIMEOUT_MS = 30_000;
 const POLL_INTERVAL_MS = 200;
 
+const scratch = await mkdtemp(join(tmpdir(), 'arra-openapi-'));
+const homeDir = join(scratch, 'home');
+const dataDir = join(scratch, 'data');
+const repoRoot = join(scratch, 'repo');
+await Promise.all([
+  mkdir(homeDir, { recursive: true }),
+  mkdir(dataDir, { recursive: true }),
+  mkdir(repoRoot, { recursive: true }),
+]);
+
 const child = spawn({
   cmd: ['bun', 'src/server.ts'],
-  env: { ...process.env, ORACLE_PORT: PORT, NODE_ENV: 'development' },
+  env: {
+    ...process.env,
+    HOME: homeDir,
+    ORACLE_PORT: PORT,
+    ORACLE_DATA_DIR: dataDir,
+    ORACLE_DB_PATH: join(dataDir, 'oracle.db'),
+    ORACLE_REPO_ROOT: repoRoot,
+    ARRA_SCOUT_ANNOUNCE: '0',
+    ORACLE_EMBEDDER: 'none',
+    NODE_ENV: 'development',
+  },
   stdout: 'pipe',
   stderr: 'pipe',
 });
@@ -36,6 +59,7 @@ const shutdown = async (code: number): Promise<never> => {
     ]);
     if (!child.killed) child.kill('SIGKILL');
   } catch {}
+  await rm(scratch, { recursive: true }).catch(() => undefined);
   process.exit(code);
 };
 
@@ -45,8 +69,8 @@ process.on('SIGTERM', () => shutdown(143));
 try {
   await waitForServer(`http://127.0.0.1:${PORT}/`, BOOT_TIMEOUT_MS);
 
-  const res = await fetch(`http://127.0.0.1:${PORT}/swagger/json`);
-  if (!res.ok) throw new Error(`fetch /swagger/json failed: ${res.status}`);
+  const res = await fetch(`http://127.0.0.1:${PORT}${SPEC_PATH}`);
+  if (!res.ok) throw new Error(`fetch ${SPEC_PATH} failed: ${res.status}`);
   const spec = await res.json();
 
   validateOpenAPI3(spec);
@@ -66,14 +90,20 @@ try {
   await shutdown(1);
 }
 
-function parseArgs(argv: string[]): { port?: string; out?: string } {
-  const out: { port?: string; out?: string } = {};
+function parseArgs(argv: string[]): { port?: string; out?: string; specPath?: string } {
+  const out: { port?: string; out?: string; specPath?: string } = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--port') out.port = argv[++i];
     else if (a === '--out') out.out = argv[++i];
+    else if (a === '--spec-path') out.specPath = normalizeSpecPath(argv[++i]);
   }
   return out;
+}
+
+function normalizeSpecPath(value: string | undefined): string {
+  if (!value) throw new Error('--spec-path requires a value');
+  return value.startsWith('/') ? value : `/${value}`;
 }
 
 async function waitForServer(url: string, timeoutMs: number): Promise<void> {

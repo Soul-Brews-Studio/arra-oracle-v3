@@ -11,14 +11,19 @@ import { createCustomMenuRoutes } from './custom.ts';
 import { createMenuAdminRoutes } from './admin.ts';
 import { createMenuOrderRoutes } from './admin-order.ts';
 import { createMenuSourceAdminRoutes } from './admin-source.ts';
+import { createMenuSearchEndpoint } from './search.ts';
+import { createMenuCrudRoutes } from './crud.ts';
+import type { MenuItem } from './model.ts';
 
-export function createMenuRoutes() {
+export function createMenuRoutes(pluginItems: MenuItem[] = []) {
   return new Elysia({ prefix: '/api' })
-    .use(createMenuEndpoint())
+    .use(createMenuEndpoint(pluginItems))
+    .use(createMenuSearchEndpoint())
     .use(createCustomMenuRoutes())
     .use(createMenuAdminRoutes())
     .use(createMenuOrderRoutes())
-    .use(createMenuSourceAdminRoutes());
+    .use(createMenuSourceAdminRoutes())
+    .use(createMenuCrudRoutes());
 }
 
 export {
@@ -28,4 +33,8 @@ export {
   scopeMatches,
   API_TO_STUDIO,
 } from './menu.ts';
+export { createMenuListEndpoint } from './list-paginated.ts';
+export { createMenuSearchEndpoint } from './search.ts';
+export { createMenuCrudRoutes } from './crud.ts';
+export { menuItemsFromUnifiedPlugins } from './unified-plugin-menu.ts';
 export type { MenuItem, MenuResponse, Scope } from './model.ts';

@@ -1,7 +1,6 @@
 import { t } from 'elysia';
 
 export const traceIdParam = t.Object({ id: t.String() });
-export const prevIdParam = t.Object({ prevId: t.String() });
 
 export const listQuery = t.Object({
   query: t.Optional(t.String()),
@@ -16,7 +15,9 @@ export const chainQuery = t.Object({
 });
 
 export const unlinkQuery = t.Object({
-  direction: t.Optional(t.String()),
+  direction: t.Optional(t.Union([t.Literal('prev'), t.Literal('next')])),
 });
 
-export const linkBody = t.Unknown();
+export const linkBody = t.Object({
+  nextId: t.String({ minLength: 1 }),
+});

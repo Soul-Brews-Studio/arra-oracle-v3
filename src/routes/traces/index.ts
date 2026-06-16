@@ -5,6 +5,7 @@ import { traceChainRoute } from './chain.ts';
 import { traceLinkRoute } from './link.ts';
 import { traceUnlinkRoute } from './unlink.ts';
 import { traceLinkedChainRoute } from './linked-chain.ts';
+import { traceDistillRoute } from './distill.ts';
 
 export const tracesApi = new Elysia()
   .use(tracesListRoute)
@@ -12,4 +13,5 @@ export const tracesApi = new Elysia()
   .use(traceChainRoute)
   .use(traceLinkRoute)
   .use(traceUnlinkRoute)
-  .use(traceLinkedChainRoute);
+  .use(traceLinkedChainRoute)
+  .use(traceDistillRoute);
