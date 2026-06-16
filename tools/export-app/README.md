@@ -113,6 +113,14 @@ bun run export -- --url http://localhost:47778 \
   --output ./backup/oracle_documents.jsonl
 ```
 
+Format-specific examples:
+
+```sh
+bun run export -- --url http://localhost:47778 --collection oracle_documents --format json --output ./backup/docs.json
+bun run export -- --url http://localhost:47778 --collection oracle_documents --format markdown --output ./backup/docs.md
+bun run export -- --url http://localhost:47778 --collection oracle_documents --format jsonl --output ./backup/docs.jsonl
+```
+
 Useful flags:
 
 - `--include-graph` / `--graph` includes relationship graph rows when the
@@ -121,6 +129,14 @@ Useful flags:
   408, 429, and 5xx failures during export start or artifact download.
 - `--version` / `-v` / `-V` prints the standalone export CLI version.
 - `--help` / `-h` prints the complete flag reference.
+
+Example with graph relationships and retry hardening:
+
+```sh
+bun run export -- --url http://localhost:47778 --collection oracle_documents \
+  --format json --output ./backup/docs-with-graph.json \
+  --graph --retries 3 --retry-delay-ms 500
+```
 
 ## Recommended Flow
 
