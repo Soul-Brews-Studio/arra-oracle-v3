@@ -4,7 +4,8 @@ import os from 'os';
 import path from 'path';
 import type { IndexerConfig } from '../../../src/types.ts';
 import { collectPsiLearn } from '../../../src/indexer/collectors.ts';
-import { createIndexerConfig } from '../../../src/indexer/cli.ts';
+import { createIndexerConfig as createCliIndexerConfig } from '../../../src/indexer/cli.ts';
+import { createIndexerConfig as createRunnerIndexerConfig } from '../../../src/indexer/runner.ts';
 
 let repoRoot = '';
 
@@ -19,6 +20,7 @@ function makeConfig(): IndexerConfig {
       learnings: 'ψ/memory/learnings',
       retrospectives: 'ψ/memory/retrospectives',
       distillations: 'ψ/memory/distillations',
+      learn: 'ψ/learn',
     },
   };
 }
@@ -30,7 +32,14 @@ afterEach(() => {
 
 describe('ψ/learn auto-index source discovery', () => {
   test('CLI indexer config includes ψ/learn in scan paths', () => {
-    const config = createIndexerConfig('/tmp/arra-psi-learn-config-test');
+    const config = createCliIndexerConfig('/tmp/arra-psi-learn-config-test');
+
+    expect(config.sourcePaths.learn).toBe('ψ/learn');
+    expect(Object.values(config.sourcePaths)).toContain('ψ/learn');
+  });
+
+  test('runtime indexer config includes ψ/learn in scan paths', () => {
+    const config = createRunnerIndexerConfig('/tmp/arra-psi-learn-runner-test');
 
     expect(config.sourcePaths.learn).toBe('ψ/learn');
     expect(Object.values(config.sourcePaths)).toContain('ψ/learn');

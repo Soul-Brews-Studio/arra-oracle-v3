@@ -126,7 +126,7 @@ export interface IndexerConfig {
     learnings: string;
     retrospectives: string;
     distillations: string;
-    learn?: string;             // ψ/learn/ — auto-learned repo exploration docs
+    learn: string;              // ψ/learn/ — auto-learned repo exploration docs
     security_corpus?: string;  // Optional: ψ/learn/security-corpus/ — opt-in via ORACLE_INDEX_SECURITY_CORPUS=1
   };
 }

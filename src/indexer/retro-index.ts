@@ -32,6 +32,7 @@ export async function indexRetrospectives(repoRoot: string) {
         learnings: 'ψ/memory/learnings',
         retrospectives: 'ψ/memory/retrospectives',
         distillations: 'ψ/memory/distillations',
+        learn: 'ψ/learn',
       },
     },
     seenContentHashes,
