@@ -1,7 +1,7 @@
 import { Elysia } from 'elysia';
 import { and, eq, gt, sql, type SQL } from 'drizzle-orm';
 import { db, searchLog, learnLog, isDbLockError } from '../../db/index.ts';
-import { SessionStatsQuery } from './model.ts';
+import { normalizeSessionSince, SessionStatsQuery } from './model.ts';
 import { activeTenantId } from '../../middleware/tenant.ts';
 
 type TenantLogTable = { tenantId: unknown };
@@ -11,8 +11,7 @@ function scoped<T extends TenantLogTable>(table: T, condition: SQL): SQL {
 }
 
 export const sessionStatsEndpoint = new Elysia().get('/session/stats', ({ query }) => {
-  const since = query.since;
-  const sinceTime = since !== undefined ? parseInt(since) : Date.now() - 24 * 60 * 60 * 1000;
+  const sinceTime = normalizeSessionSince(query.since);
 
   try {
     const searches = db.select({ count: sql<number>`count(*)` })

@@ -29,6 +29,7 @@ const paths = {
   bHealthy: `ψ/memory/learnings/verify-b-${stamp}.md`,
   bOrphan: `ψ/memory/learnings/verify-b-orphan-${stamp}.md`,
   unindexed: `ψ/memory/learnings/verify-unindexed-${stamp}.md`,
+  brokenLink: `ψ/memory/learnings/verify-broken-${stamp}.md`,
 };
 
 function writeRepoFile(relPath: string, content: string) {
@@ -62,6 +63,12 @@ function seedDoc(id: string, tenantId: string, sourceFile: string) {
 writeRepoFile(paths.aHealthy, '# Tenant A\n');
 writeRepoFile(paths.bHealthy, '# Tenant B\n');
 writeRepoFile(paths.unindexed, '# Unindexed disk-only file\n');
+try {
+  fs.symlinkSync(
+    path.join(repoRoot, 'missing-target.md'),
+    path.join(repoRoot, paths.brokenLink),
+  );
+} catch {}
 seedDoc(`verify-a-${stamp}`, tenantA, paths.aHealthy);
 seedDoc(`verify-b-${stamp}`, tenantB, paths.bHealthy);
 seedDoc(`verify-b-orphan-${stamp}`, tenantB, paths.bOrphan);
@@ -103,6 +110,16 @@ test('POST /api/verify check=false only flags orphaned docs in the active tenant
   expect(body.fixed_orphans).toBe(1);
   expect(orphan?.supersededBy).toBe('_verified_orphan');
   expect(tenantAHealthy?.supersededBy).toBeNull();
+});
+
+test('GET /api/verify skips broken symlinks and safely defaults invalid query filters', async () => {
+  const res = await tenantRequest(tenantA, '/api/verify?type=not-real&check=definitely');
+  const body = await res.json() as { missing: string[]; orphaned: string[]; drifted: string[] };
+
+  expect(res.status).toBe(200);
+  expect(body.missing).not.toContain(paths.brokenLink);
+  expect(body.orphaned).not.toContain(paths.brokenLink);
+  expect(body.drifted).not.toContain(paths.brokenLink);
 });
 
 afterAll(() => {

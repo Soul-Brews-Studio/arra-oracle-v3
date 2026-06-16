@@ -74,6 +74,7 @@ async function assertDbPing(dbPing: StartupSelfTestDependencies['dbPing']): Prom
 
 async function assertHealthEndpoint(healthFetch: StartupSelfTestDependencies['healthFetch']): Promise<void> {
   const response = await healthFetch();
+  if (!(response instanceof Response)) throw new Error('health endpoint returned an invalid response');
   if (!response.ok) throw new Error(`/api/health responded ${response.status}`);
 }
 

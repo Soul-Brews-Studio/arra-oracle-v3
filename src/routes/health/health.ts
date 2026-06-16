@@ -4,6 +4,7 @@ import { MCP_SERVER_NAME } from '../../const.ts';
 import { sqlite } from '../../db/index.ts';
 import { scanPlugins } from '../plugins/model.ts';
 import { readVectorBackendHealth } from '../../vector/health.ts';
+import { getVectorRuntimeStatus } from '../../vector/runtime-status.ts';
 import { mcpTools } from '../../tools/mcp-manifest.ts';
 import type { UnifiedPluginStatus } from '../../plugins/unified-loader.ts';
 import { sandboxLabel } from '../../runtime/sandbox-label.ts';
@@ -53,6 +54,9 @@ const HealthResponseSchema = t.Object({
   uptimeSeconds: t.Optional(t.Number()),
   dbStatus: t.Optional(t.Union([t.Literal('connected'), t.Literal('error')])),
   vectorStatus: t.Optional(t.Union([t.Literal('ok'), t.Literal('degraded'), t.Literal('down')])),
+  vectorMode: t.Optional(t.Union([t.Literal('embedded'), t.Literal('proxied'), t.Literal('disabled')])),
+  vectorUrl: t.Optional(t.String()),
+  vectorDisabledReason: t.Optional(t.String()),
   pluginStatus: t.Optional(t.Union([t.Literal('ok'), t.Literal('degraded')])),
   mcpToolCount: t.Optional(t.Number()),
   pluginCount: t.Optional(t.Number()),
@@ -135,6 +139,20 @@ async function readVectorStatus(check = readVectorBackendHealth): Promise<Vector
   }
 }
 
+async function readPluginStatuses(
+  read?: () => UnifiedPluginStatus[] | Promise<UnifiedPluginStatus[]>,
+): Promise<UnifiedPluginStatus[]> {
+  try {
+    return await read?.() ?? [];
+  } catch (error) {
+    return [{ name: 'plugin-status', status: 'degraded', error: errorMessage(error) }];
+  }
+}
+
+function aggregateStatus(db: DbStatus, pluginStatus: 'ok' | 'degraded') {
+  return db.status === 'connected' && pluginStatus === 'ok' ? 'ok' : 'degraded';
+}
+
 function installedPluginCount(): number {
   try {
     return scanPlugins().plugins.length;
@@ -159,14 +177,15 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
     const uptimeSeconds = Number(options.uptimeSeconds?.() ?? process.uptime());
     const dbStatus = await readDbStatus(options.dbPing);
     const vector = await readVectorStatus(options.vectorHealth);
-    const pluginItems = await options.pluginStatuses?.() ?? [];
+    const pluginItems = await readPluginStatuses(options.pluginStatuses);
     const pluginCount = options.pluginCount ?? (pluginItems.length || installedPluginCount());
     const pluginStatus = pluginItems.some((plugin) => plugin.status === 'degraded') ? 'degraded' : 'ok';
     const toolCount = mcpTools.length + (options.pluginMcpToolCount ?? 0);
+    const vectorRuntime = getVectorRuntimeStatus();
 
     const serviceUptime = Math.round(uptimeSeconds * 1000) / 1000;
     return {
-      status: dbStatus.status === 'connected' ? 'ok' : 'degraded',
+      status: aggregateStatus(dbStatus, pluginStatus),
       server: MCP_SERVER_NAME,
       version: pkg.version,
       port: Number(PORT),
@@ -177,6 +196,7 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
       oracle: dbStatus.status === 'connected' ? 'connected' : 'error',
       dbStatus: dbStatus.status,
       vectorStatus: vector.status,
+      ...vectorRuntime,
       pluginStatus,
       mcpToolCount: toolCount,
       pluginCount,

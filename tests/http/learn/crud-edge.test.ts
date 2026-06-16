@@ -1,14 +1,12 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
 import { eq } from 'drizzle-orm';
-import { mkdirSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
 const savedDataDir = process.env.ORACLE_DATA_DIR;
 const savedDbPath = process.env.ORACLE_DB_PATH;
-const restoreDbPath = savedDbPath
-  ?? join(savedDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
 const savedRepoRoot = process.env.ORACLE_REPO_ROOT;
 const root = join(tmpdir(), `arra-learn-edge-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 const dbPath = join(root, 'oracle.db');
@@ -45,10 +43,10 @@ beforeEach(() => {
 });
 
 afterAll(() => {
+  dbMod.resetDefaultDatabaseForTests(':memory:');
   restoreEnv('ORACLE_DATA_DIR', savedDataDir);
   restoreEnv('ORACLE_DB_PATH', savedDbPath);
   restoreEnv('ORACLE_REPO_ROOT', savedRepoRoot);
-  dbMod.resetDefaultDatabaseForTests(restoreDbPath);
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -87,6 +85,39 @@ describe('POST/DELETE /api/learn edge cases', () => {
     const missingDelete = await call('DELETE', '/api/learn/learning_missing_edge');
     expect(missingDelete.status).toBe(404);
     expect(missingDelete.json.error).toBe('Learning not found');
+  });
+
+  test('rejects unsafe ids and sourceFile traversal without writing outside repo', async () => {
+    const badId = await call('POST', '/api/learn', {
+      id: '../escape',
+      pattern: 'Unsafe id should not become a file path',
+    });
+    expect(badId.status).toBe(400);
+    expect(badId.json.error).toBe('Invalid learning id');
+
+    const traversal = await call('POST', '/api/learn', {
+      pattern: 'Unsafe source paths should be rejected',
+      sourceFile: '../outside.md',
+    });
+    expect(traversal.status).toBe(400);
+    expect(traversal.json.error).toBe('Invalid learning sourceFile');
+    expect(existsSync(join(root, 'outside.md'))).toBe(false);
+
+    const created = await call('POST', '/api/learn', {
+      id: 'learning_safe_source',
+      pattern: 'Safe learning source',
+      sourceFile: 'ψ/memory/learnings/safe-source.md',
+    });
+    expect(created.status).toBe(200);
+
+    const update = await call('PUT', '/api/learn/learning_safe_source', {
+      sourceFile: '../../outside.md',
+    });
+    expect(update.status).toBe(400);
+    expect(update.json.error).toBe('Invalid learning sourceFile');
+
+    const read = await call('GET', '/api/learn/learning_safe_source');
+    expect(read.json.sourceFile).toBe('ψ/memory/learnings/safe-source.md');
   });
 });
 

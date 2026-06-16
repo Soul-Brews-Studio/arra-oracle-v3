@@ -41,15 +41,21 @@ export function createVaultSyncRoute(deps: SyncDeps = defaultDeps) {
         const result = deps.migrate(migrateOpts);
 
         let reindexSpawned = false;
+        let reindexError: string | undefined;
         if (reindex && !dryRun && result.filesCopied > 0) {
-          deps.spawnIndexer();
-          reindexSpawned = true;
+          try {
+            deps.spawnIndexer();
+            reindexSpawned = true;
+          } catch (err) {
+            reindexError = err instanceof Error ? err.message : String(err);
+          }
         }
 
         return {
           ok: true,
           dryRun,
           reindex: reindexSpawned,
+          reindexError,
           tenant: tenantId ? { id: tenantId, scope: 'vault_project' } : undefined,
           migrate: result,
         };

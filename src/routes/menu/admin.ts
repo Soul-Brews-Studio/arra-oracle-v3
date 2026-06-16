@@ -11,6 +11,7 @@ import { ScopeSchema } from './model.ts';
 import { softDeleteWhere } from '../../storage/soft-delete.ts';
 import { AccessSchema, GroupSchema, buildTree, toResponse, type MenuRow } from './admin-model.ts';
 import { menuOwnedWhere, menuTenantIdForWrite, menuVisibleWhere } from '../../menu/tenant.ts';
+import { parseMenuIdParam } from './ids.ts';
 
 export function createMenuAdminRoutes() {
   return new Elysia()
@@ -112,8 +113,8 @@ export function createMenuAdminRoutes() {
     .patch(
       '/menu/items/:id',
       ({ params, body, set }) => {
-        const id = Number(params.id);
-        if (!Number.isFinite(id)) {
+        const id = parseMenuIdParam(params.id);
+        if (id == null) {
           set.status = 400;
           return { error: 'invalid id' };
         }
@@ -168,8 +169,8 @@ export function createMenuAdminRoutes() {
     .delete(
       '/menu/items/:id',
       ({ params, set }) => {
-        const id = Number(params.id);
-        if (!Number.isFinite(id)) {
+        const id = parseMenuIdParam(params.id);
+        if (id == null) {
           set.status = 400;
           return { error: 'invalid id' };
         }

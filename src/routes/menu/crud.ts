@@ -5,11 +5,7 @@ import { softDeleteWhere } from '../../storage/soft-delete.ts';
 import { ScopeSchema } from './model.ts';
 import { AccessSchema, GroupSchema, toResponse, type MenuRow } from './admin-model.ts';
 import { menuOwnedWhere, menuTenantIdForWrite } from '../../menu/tenant.ts';
-
-function idParam(value: string): number | null {
-  const id = Number(value);
-  return Number.isFinite(id) ? id : null;
-}
+import { parseMenuIdParam } from './ids.ts';
 
 function insertMenuItem(body: MenuCreateBody) {
   const now = new Date();
@@ -85,7 +81,7 @@ export function createMenuCrudRoutes() {
       }
     }, { body: CreateBody, detail: { tags: ['menu'], summary: 'Create a menu item' } })
     .put('/menu/:id', ({ params, body, set }) => {
-      const id = idParam(params.id);
+      const id = parseMenuIdParam(params.id);
       if (id == null) {
         set.status = 400;
         return { error: 'invalid id' };
@@ -98,7 +94,7 @@ export function createMenuCrudRoutes() {
       return toResponse(updated);
     }, { params: t.Object({ id: t.String() }), body: UpdateBody, detail: { tags: ['menu'], summary: 'Update a menu item' } })
     .delete('/menu/:id', ({ params, set }) => {
-      const id = idParam(params.id);
+      const id = parseMenuIdParam(params.id);
       if (id == null) {
         set.status = 400;
         return { error: 'invalid id' };

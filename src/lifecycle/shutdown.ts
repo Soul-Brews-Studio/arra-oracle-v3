@@ -27,6 +27,10 @@ function envMs(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
+function safeMs(value: number): number {
+  return Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
 export function isDraining(): boolean {
   return draining;
 }
@@ -45,6 +49,8 @@ export async function trackRequest<T>(handler: () => T | Promise<T>): Promise<T>
 }
 
 export async function waitForActiveRequests(timeoutMs = 10_000, minDrainMs = 250): Promise<boolean> {
+  timeoutMs = safeMs(timeoutMs);
+  minDrainMs = safeMs(minDrainMs);
   const deadline = Date.now() + timeoutMs;
   if (minDrainMs > 0) await sleep(minDrainMs);
   while (activeRequests > 0) {
