@@ -15,6 +15,7 @@ type VectorCostEstimate = {
   estimatedUsd: number;
   provider: string;
   recommendation?: string;
+  fallbackSummary?: string;
 };
 
 interface VectorIndexPanelProps {
@@ -174,6 +175,7 @@ export function VectorIndexPanel({
         <div className="mb-4 rounded-2xl border border-teal-200/20 bg-teal-200/10 p-4 text-sm text-teal-50/90">
           <p className="font-semibold text-teal-100">Preflight cost before Index Now</p>
           <p className="mt-1">{costEstimate.formula} · {costEstimate.provider}: {formatCost(costEstimate.estimatedUsd)}</p>
+          {costEstimate.fallbackSummary ? <p className="mt-1 text-teal-100/75">{costEstimate.fallbackSummary}</p> : null}
           {costEstimate.recommendation ? <p className="mt-1 text-teal-100/75">{costEstimate.recommendation}</p> : null}
         </div>
       ) : costError ? <p className="mb-4 text-sm text-amber-100">Cost estimate unavailable: {costError}</p> : null}

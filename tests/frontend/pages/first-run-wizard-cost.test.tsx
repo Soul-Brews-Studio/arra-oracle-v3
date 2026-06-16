@@ -25,6 +25,7 @@ const cost = {
   formula: '34,822 docs × 800 tokens/doc = 27,857,600 tokens',
   note: 'Gemini text-embedding-004 is free within current public pricing; verify quotas before bulk indexing.',
   recommendation: 'Use Gemini free tier for this medium corpus, with Ollama fallback for retries.',
+  fallbackSummary: 'Fallback chain gemini → ollama stays free/local for this estimate.',
 };
 
 describe('FirstRunWizard cost review step', () => {
@@ -35,6 +36,7 @@ describe('FirstRunWizard cost review step', () => {
     expect(html).toContain('gemini / text-embedding-004');
     expect(html).toContain('Recommendation:');
     expect(html).toContain('Use Gemini free tier');
+    expect(html).toContain('Fallback chain gemini');
     expect(html).toContain('Start indexing');
   });
 });

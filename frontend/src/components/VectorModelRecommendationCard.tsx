@@ -20,6 +20,7 @@ type CostEstimate = ProviderCost & {
   note: string;
   recommendation: string;
   availableProviders?: string[];
+  fallbackSummary?: string;
   providerEstimates?: Record<string, ProviderCost>;
   trackingEndpoint?: string;
 };
@@ -79,6 +80,7 @@ export function VectorModelRecommendationCard({ defaultProvider = 'openai', init
             <p className="mt-2">{estimate.recommendation}</p>
             <p className="mt-2 text-cyan-100/75">{estimate.formula}</p>
             <p className="mt-2 text-cyan-100/75">{providerSummary(estimate.availableProviders)}</p>
+            {estimate.fallbackSummary ? <p className="mt-2 text-cyan-100/75">{estimate.fallbackSummary}</p> : null}
             {estimate.trackingEndpoint ? <p className="mt-2 text-cyan-100/70">Live usage: {estimate.trackingEndpoint}</p> : null}
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">

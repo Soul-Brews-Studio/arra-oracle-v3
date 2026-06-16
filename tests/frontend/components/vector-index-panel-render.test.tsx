@@ -22,6 +22,7 @@ describe('VectorIndexPanel', () => {
           formula: '100 docs × ~500 tokens/doc ≈ 50K tokens',
           provider: 'openai',
           estimatedUsd: 0.001,
+          fallbackSummary: 'Fallback chain ollama → openai worst-case remote spend: $0.0010.',
           recommendation: 'Any configured embedding model should work.',
         }}
         initialModels={{
@@ -39,6 +40,7 @@ describe('VectorIndexPanel', () => {
     expect(html).toContain('Preflight cost before Index Now');
     expect(html).toContain('100 docs × ~500 tokens/doc ≈ 50K tokens');
     expect(html).toContain('$0.0010');
+    expect(html).toContain('Fallback chain ollama');
     expect(html).toContain('Index Now');
     expect(html).toContain('Backfill Vectors');
     expect(html).toContain('Add Vault');

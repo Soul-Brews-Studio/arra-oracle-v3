@@ -16,6 +16,7 @@ type CostEstimate = {
   formula: string;
   note: string;
   recommendation: string;
+  fallbackSummary?: string;
 };
 
 export type FirstRunWizardProps = {
@@ -153,6 +154,7 @@ function CostSummary({ cost }: { cost: CostEstimate }) {
       <p>{cost.docs.toLocaleString()} docs · {cost.tokensPerDoc.toLocaleString()} tokens/doc · {cost.totalTokens.toLocaleString()} tokens total</p>
       <p>{cost.provider} / {cost.model}: <span className="font-semibold text-teal-100">${cost.estimatedUsd.toFixed(4)}</span></p>
       <p className="text-teal-100/70">{cost.formula}</p>
+      {cost.fallbackSummary ? <p className="text-teal-100/70">{cost.fallbackSummary}</p> : null}
       <p><span className="font-semibold text-teal-100">Recommendation:</span> {cost.recommendation}</p>
       <p className="text-teal-100/70">{cost.note}</p>
     </div>
