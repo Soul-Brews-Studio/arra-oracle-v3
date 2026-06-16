@@ -3,15 +3,19 @@ import { apiClient, type ApiClient } from '../api/client';
 import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
 import { EmptyState } from '../components/EmptyState';
 import type { MenuItem } from '../types';
+import { menuFiltersFromSearch, type MenuFilters } from './menuFilters';
 
 type PageState = 'loading' | 'ready' | 'error';
 type MenuClient = Pick<ApiClient, 'menu'>;
-type MenuFilters = { group: string; source: string };
-
 export interface MenuPageProps {
   items?: MenuItem[];
   loading?: boolean;
   client?: MenuClient;
+  initialSearch?: string;
+}
+
+function browserSearch(): string {
+  return typeof window === 'undefined' ? '' : window.location.search;
 }
 
 function menuKey(item: MenuItem): string {
@@ -160,13 +164,14 @@ function MenuFiltersCard({
   );
 }
 
-export function MenuPage({ items: initialItems = [], loading, client = apiClient }: MenuPageProps) {
+export function MenuPage({ items: initialItems = [], loading, client = apiClient, initialSearch }: MenuPageProps) {
+  const filterDefaults = menuFiltersFromSearch(initialSearch ?? browserSearch());
   const [items, setItems] = useState<MenuItem[]>(initialItems);
   const [state, setState] = useState<PageState>(() =>
     loading || (loading === undefined && !initialItems.length) ? 'loading' : 'ready'
   );
   const [error, setError] = useState('');
-  const [filters, setFilters] = useState<MenuFilters>({ group: 'all', source: 'all' });
+  const [filters, setFilters] = useState<MenuFilters>(filterDefaults);
 
   async function loadMenu() {
     setState('loading');

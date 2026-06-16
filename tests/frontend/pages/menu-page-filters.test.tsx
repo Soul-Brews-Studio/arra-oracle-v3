@@ -5,6 +5,7 @@ import {
   MenuPage,
   menuSource,
 } from '../../../frontend/src/pages/MenuPage';
+import { menuFiltersFromSearch } from '../../../frontend/src/pages/menuFilters';
 import type { MenuItem } from '../../../frontend/src/types';
 import { htmlFor } from '../_render';
 
@@ -27,6 +28,16 @@ describe('MenuPage filters', () => {
     const visible = filterMenuItems(items, { group: 'tools', source: 'plugin:echo' });
     expect(visible.map((item) => item.label)).toEqual(['Echo']);
     expect(filterMenuItems(items, { group: 'admin', source: 'plugin:echo' })).toEqual([]);
+  });
+
+  test('hydrates menu filters from shareable route search params', () => {
+    expect(menuFiltersFromSearch('?group=tools&source=plugin%3Aecho')).toEqual({ group: 'tools', source: 'plugin:echo' });
+    expect(menuFiltersFromSearch('?group=&source=')).toEqual({ group: 'all', source: 'all' });
+
+    const html = htmlFor(<MenuPage items={items} loading={false} initialSearch="?group=tools&source=plugin%3Aecho" />);
+    expect(html).toContain('1/3 items');
+    expect(html).toContain('value="tools" selected');
+    expect(html).toContain('value="plugin:echo" selected');
   });
 
   test('renders menu filter controls with plugin sources', () => {
