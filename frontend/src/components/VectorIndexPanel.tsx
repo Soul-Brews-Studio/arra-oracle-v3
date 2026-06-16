@@ -47,7 +47,28 @@ function statusSummary(status: VectorIndexStatusResponse | null): string {
   if (!status || status.status === 'idle') return 'No active index job.';
   if (status.status === 'completed') return `Completed ${status.model} reindex.`;
   if (status.status === 'error') return `Failed ${status.model} reindex.`;
+  if (status.status === 'stopped') return `Stopped ${status.model} reindex.`;
+  if (status.status === 'stopping') return `Stopping ${status.model} reindex...`;
   return `⏳ Backfilling ${status.model}... ${status.current.toLocaleString()}/${status.total.toLocaleString()} (${progressFor(status)}%)`;
+}
+
+function jobNotice(status: VectorIndexStatusResponse | null): { title: string; detail: string; tone: string } | null {
+  if (!status || status.status === 'idle' || status.status === 'indexing' || status.status === 'stopping') return null;
+  if (status.status === 'completed') return {
+    title: 'Index job complete',
+    detail: `${status.model} indexed ${status.current.toLocaleString()}/${status.total.toLocaleString()} docs. Dashboard vectors are ready.`,
+    tone: 'border-emerald-300/30 bg-emerald-300/10 text-emerald-50',
+  };
+  if (status.status === 'stopped') return {
+    title: 'Index job stopped',
+    detail: status.error ?? `${status.model} stopped at ${status.current.toLocaleString()}/${status.total.toLocaleString()} docs.`,
+    tone: 'border-amber-300/30 bg-amber-300/10 text-amber-50',
+  };
+  return {
+    title: 'Index job failed',
+    detail: status.error ?? `${status.model} failed before completing the vector backfill.`,
+    tone: 'border-rose-300/30 bg-rose-300/10 text-rose-50',
+  };
 }
 
 function modelState(model: VectorIndexCollection): string {
@@ -73,7 +94,8 @@ export function VectorIndexPanel({
   const [startingKey, setStartingKey] = useState<string | null>(null);
 
   const modelEntries = useMemo(() => Object.entries(models).sort(([a], [b]) => a.localeCompare(b)), [models]);
-  const indexing = status?.status === 'indexing';
+  const indexing = status?.status === 'indexing' || status?.status === 'stopping';
+  const notice = jobNotice(status);
   const firstModel = modelEntries[0]?.[0];
 
   const refreshStatus = useCallback(async () => {
@@ -147,6 +169,13 @@ export function VectorIndexPanel({
         <p className="mt-1 text-sm text-amber-100">Gap indicator: {gapLabel(models, status)}</p>
         {status ? <IndexProgress status={status} /> : null}
       </div>
+
+      {notice ? (
+        <div className={`mb-4 rounded-2xl border p-4 text-sm ${notice.tone}`} role="status" aria-live="polite">
+          <p className="font-semibold">{notice.title}</p>
+          <p className="mt-1 opacity-80">{notice.detail}</p>
+        </div>
+      ) : null}
 
       <VectorIndexCostPanel indexing={indexing} initialCostEstimate={initialCostEstimate} initialCostTracking={initialCostTracking} loadCostEstimate={loadCostEstimate} />
 

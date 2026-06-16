@@ -72,6 +72,23 @@ describe('VectorIndexPanel', () => {
     expect(html).toContain('ETA 1m 35s');
   });
 
+
+  test('renders a completion notification after indexing finishes', () => {
+    const html = htmlFor(
+      <VectorIndexPanel
+        initialStatus={{ ...status, status: 'completed', current: 100, total: 100, completedAt: 1781560100000 }}
+        initialModels={{ 'bge-m3': { collection: 'oracle_bge_m3', model: 'BAAI/bge-m3', adapter: 'lancedb', count: 100 } }}
+        initialCostEstimate={null}
+        initialCostTracking={null}
+      />,
+    );
+
+    expect(html).toContain('Completed bge-m3 reindex.');
+    expect(html).toContain('Index job complete');
+    expect(html).toContain('bge-m3 indexed 100/100 docs. Dashboard vectors are ready.');
+    expect(html).toContain('role="status"');
+  });
+
   test('formats ETA values for compact status labels', () => {
     expect(formatIndexEta(0)).toBe('calculating');
     expect(formatIndexEta(18)).toBe('18s');
