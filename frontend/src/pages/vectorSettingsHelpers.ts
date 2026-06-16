@@ -1,6 +1,6 @@
 import { apiUrl } from '../api/oracle';
 
-export const ADAPTER_OPTIONS = ['chroma', 'sqlite-vec', 'lancedb', 'qdrant', 'cloudflare-vectorize'] as const;
+export const ADAPTER_OPTIONS = ['chroma', 'sqlite-vec', 'lancedb', 'qdrant', 'cloudflare-vectorize', 'proxy'] as const;
 export type VectorConfigAdapter = (typeof ADAPTER_OPTIONS)[number];
 
 export type LoadState = 'loading' | 'ready' | 'error';

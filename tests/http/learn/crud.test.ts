@@ -67,7 +67,10 @@ describe('POST/GET/PUT/DELETE /api/learn', () => {
     }));
     expect(res.status).toBe(400);
     expect(res.headers.get('content-type')).toContain('application/json');
-    expect(await res.json()).toMatchObject({ success: false, error: 'Bad Request', code: 400 });
+    const body = await res.json();
+    expect(body).toMatchObject({ success: false, error: 'Bad Request', code: 400 });
+    expect(body.details.message).toBe('Bad Request');
+    expect(typeof body.details.correlationId).toBe('string');
   });
 
   test('rejects malformed JSON on versioned route with 400 contract', async () => {
@@ -78,7 +81,10 @@ describe('POST/GET/PUT/DELETE /api/learn', () => {
     }));
     expect(res.status).toBe(400);
     expect(res.headers.get('content-type')).toContain('application/json');
-    expect(await res.json()).toMatchObject({ success: false, error: 'Bad Request', code: 400 });
+    const body = await res.json();
+    expect(body).toMatchObject({ success: false, error: 'Bad Request', code: 400 });
+    expect(body.details.message).toBe('Bad Request');
+    expect(typeof body.details.correlationId).toBe('string');
   });
 
   test('creates, reads, updates, and soft-deletes a learning through Drizzle rows', async () => {

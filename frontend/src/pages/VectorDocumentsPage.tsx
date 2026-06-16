@@ -116,7 +116,7 @@ export function VectorDocumentsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchJson('/api/vector/index/models', controller.signal)
+    fetchJson('/api/v1/vector/index/models', controller.signal)
       .then((data) => {
         const next = normalizeVectorCollections(data);
         setCollections(next);
@@ -132,7 +132,7 @@ export function VectorDocumentsPage() {
     const qs = new URLSearchParams({ collection, page: String(page), limit: String(PAGE_LIMIT) });
     setState('loading');
     setError('');
-    fetchJson(`/api/vector/documents?${qs}`, controller.signal)
+    fetchJson(`/api/v1/vector/documents?${qs}`, controller.signal)
       .then((data) => {
         const next = normalizeVectorDocuments(data, page, PAGE_LIMIT);
         setDocuments(next.documents);

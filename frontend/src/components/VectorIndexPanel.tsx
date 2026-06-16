@@ -97,7 +97,7 @@ export function VectorIndexPanel({ client = apiClient, initialModels, initialSta
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-purple-300">Index Manager</p>
           <h2 id="vector-index-title" className="mt-2 text-2xl font-semibold text-white">Index jobs and collections</h2>
-          <p className="mt-2 text-sm text-slate-400">Start, poll, and audit embedding rebuilds through /api/vector/index/start.</p>
+          <p className="mt-2 text-sm text-slate-400">Start, poll, and audit embedding rebuilds through /api/v1/vector/index/start.</p>
         </div>
         <button
           className="focus-ring rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-200 hover:border-purple-300/40"
@@ -113,7 +113,7 @@ export function VectorIndexPanel({ client = apiClient, initialModels, initialSta
         {status ? <IndexProgress status={status} /> : null}
       </div>
 
-      {loading ? <LoadingPanel title="Loading vector collections…" detail="Fetching /api/vector/index/models." /> : null}
+      {loading ? <LoadingPanel title="Loading vector collections…" detail="Fetching /api/v1/vector/index/models." /> : null}
       {error ? <ErrorMessage title="Vector indexing failed." message={error} /> : null}
       {!loading && !modelEntries.length ? <p className="text-sm text-slate-500">No vector collections reported.</p> : null}
 

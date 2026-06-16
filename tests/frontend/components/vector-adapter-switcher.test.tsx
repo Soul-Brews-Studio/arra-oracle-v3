@@ -19,23 +19,25 @@ const rows: VectorConfigRow[] = [
     collection: 'oracle_qwen3',
     model: 'Qwen3',
     provider: 'ollama',
-    adapter: 'qdrant',
+    adapter: 'proxy',
     count: 40,
-    health: { ok: false, status: 'down', collection: 'oracle_qwen3', adapter: 'qdrant', model: 'Qwen3' },
+    health: { ok: false, status: 'down', collection: 'oracle_qwen3', adapter: 'proxy', model: 'Qwen3' },
   },
 ];
 
 describe('VectorAdapterSwitcher', () => {
-  test('renders current adapter status and LanceDB/Qdrant actions', () => {
+  test('renders current adapter status and all adapter actions', () => {
     const html = htmlFor(<VectorAdapterSwitcher rows={rows} onRefresh={() => undefined} />);
 
     expect(html).toContain('Adapter switcher');
-    expect(html).toContain('LanceDB / Qdrant backend');
+    expect(html).toContain('Vector backend adapter');
     expect(html).toContain('Current adapter');
     expect(html).toContain('mixed');
-    expect(html).toContain('Use LanceDB');
-    expect(html).toContain('Use Qdrant');
-    expect(html).toContain('2 collections · lancedb 1 · qdrant 1 · 1/2 healthy');
+    expect(html).toContain('Use lancedb');
+    expect(html).toContain('Use qdrant');
+    expect(html).toContain('Use proxy');
+    expect(html).toContain('Use cloudflare-vectorize');
+    expect(html).toContain('2 collections · lancedb 1 · proxy 1 · 1/2 healthy');
   });
 
   test('summarizes empty and single-adapter states', () => {

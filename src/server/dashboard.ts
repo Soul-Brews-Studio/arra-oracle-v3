@@ -4,35 +4,48 @@
  * Refactored to use Drizzle ORM for type-safe queries.
  */
 
-import { sql, gt, and, gte, lt, desc } from 'drizzle-orm';
+import { sql, gt, and, gte, lt, desc, eq, type SQL } from 'drizzle-orm';
 import { db, oracleDocuments, searchLog, learnLog } from '../db/index.ts';
 import type { DashboardSummary, DashboardActivity, DashboardGrowth } from './types.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
+
+
+type TenantTable = { tenantId: unknown };
+
+function scoped<T extends TenantTable>(table: T, condition?: SQL): SQL | undefined {
+  const tenantId = currentTenantId();
+  const tenantFilter = tenantId ? eq(table.tenantId as never, tenantId) : undefined;
+  return tenantFilter && condition ? and(condition, tenantFilter) : tenantFilter ?? condition;
+}
 
 /**
  * Dashboard summary - aggregated stats for the dashboard
  */
 export function handleDashboardSummary(): DashboardSummary {
   // Document counts
-  const totalDocsResult = db.select({ count: sql<number>`count(*)` })
-    .from(oracleDocuments)
-    .get();
+  const docScope = scoped(oracleDocuments);
+  const totalDocsQuery = db.select({ count: sql<number>`count(*)` }).from(oracleDocuments);
+  const totalDocsResult = (docScope ? totalDocsQuery.where(docScope) : totalDocsQuery).get();
   const totalDocs = totalDocsResult?.count || 0;
 
-  const byTypeResults = db.select({
+  const byTypeQuery = db.select({
     type: oracleDocuments.type,
     count: sql<number>`count(*)`
   })
     .from(oracleDocuments)
+    .$dynamic();
+  const byTypeResults = (docScope ? byTypeQuery.where(docScope) : byTypeQuery)
     .groupBy(oracleDocuments.type)
     .all();
 
   // Concept counts - need to parse JSON concepts from all documents
+  const conceptsFilter = and(
+    sql`${oracleDocuments.concepts} IS NOT NULL`,
+    sql`${oracleDocuments.concepts} != '[]'`
+  );
   const conceptsResult = db.select({ concepts: oracleDocuments.concepts })
     .from(oracleDocuments)
-    .where(and(
-      sql`${oracleDocuments.concepts} IS NOT NULL`,
-      sql`${oracleDocuments.concepts} != '[]'`
-    ))
+    .where(scoped(oracleDocuments, conceptsFilter))
     .all();
 
   const conceptCounts = new Map<string, number>();
@@ -61,7 +74,7 @@ export function handleDashboardSummary(): DashboardSummary {
   try {
     const searchResult = db.select({ count: sql<number>`count(*)` })
       .from(searchLog)
-      .where(gt(searchLog.createdAt, sevenDaysAgo))
+      .where(scoped(searchLog, gt(searchLog.createdAt, sevenDaysAgo)))
       .get();
     searches7d = searchResult?.count || 0;
   } catch {}
@@ -69,15 +82,14 @@ export function handleDashboardSummary(): DashboardSummary {
   try {
     const learnResult = db.select({ count: sql<number>`count(*)` })
       .from(learnLog)
-      .where(gt(learnLog.createdAt, sevenDaysAgo))
+      .where(scoped(learnLog, gt(learnLog.createdAt, sevenDaysAgo)))
       .get();
     learnings7d = learnResult?.count || 0;
   } catch {}
 
   // Health status
-  const lastIndexedResult = db.select({ lastIndexed: sql<number | null>`max(${oracleDocuments.indexedAt})` })
-    .from(oracleDocuments)
-    .get();
+  const lastIndexedQuery = db.select({ lastIndexed: sql<number | null>`max(${oracleDocuments.indexedAt})` }).from(oracleDocuments);
+  const lastIndexedResult = (docScope ? lastIndexedQuery.where(docScope) : lastIndexedQuery).get();
 
   return {
     documents: {
@@ -118,7 +130,7 @@ export function handleDashboardActivity(days: number = 7): DashboardActivity {
       createdAt: searchLog.createdAt
     })
       .from(searchLog)
-      .where(gt(searchLog.createdAt, since))
+      .where(scoped(searchLog, gt(searchLog.createdAt, since)))
       .orderBy(desc(searchLog.createdAt))
       .limit(20)
       .all();
@@ -143,7 +155,7 @@ export function handleDashboardActivity(days: number = 7): DashboardActivity {
       createdAt: learnLog.createdAt
     })
       .from(learnLog)
-      .where(gt(learnLog.createdAt, since))
+      .where(scoped(learnLog, gt(learnLog.createdAt, since)))
       .orderBy(desc(learnLog.createdAt))
       .limit(20)
       .all();
@@ -182,10 +194,10 @@ export function handleDashboardGrowth(period: string = 'week'): DashboardGrowth 
     // Documents created that day
     const docsResult = db.select({ count: sql<number>`count(*)` })
       .from(oracleDocuments)
-      .where(and(
+      .where(scoped(oracleDocuments, and(
         gte(oracleDocuments.createdAt, dayStart),
         lt(oracleDocuments.createdAt, dayEnd)
-      ))
+      )))
       .get();
 
     // Searches that day
@@ -193,10 +205,10 @@ export function handleDashboardGrowth(period: string = 'week'): DashboardGrowth 
     try {
       const searchResult = db.select({ count: sql<number>`count(*)` })
         .from(searchLog)
-        .where(and(
+        .where(scoped(searchLog, and(
           gte(searchLog.createdAt, dayStart),
           lt(searchLog.createdAt, dayEnd)
-        ))
+        )))
         .get();
       searchCount = searchResult?.count || 0;
     } catch {}

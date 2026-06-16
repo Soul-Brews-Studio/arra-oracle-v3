@@ -228,3 +228,19 @@ export async function closeCachedVectorStores(): Promise<void> {
     console.warn(`[VectorRegistry] Failed to close ${store.name}:`, e instanceof Error ? e.message : String(e))
   )));
 }
+
+export async function reloadCachedVectorStores(
+  models = getEmbeddingModels(),
+  connectStore: (store: VectorStoreAdapter) => Promise<void> = (store) => store.connect(),
+): Promise<{ reloaded: number }> {
+  const keys = [...modelStoreCache.keys()];
+  await closeCachedVectorStores();
+  const reloadKeys = keys.filter((key) => key in models);
+  await Promise.all(reloadKeys.map(async (key) => {
+    const store = getVectorStoreByModel(key, models, connectStore);
+    const pending = connectPromises.get(key);
+    if (pending) await pending;
+    return store;
+  }));
+  return { reloaded: reloadKeys.length };
+}

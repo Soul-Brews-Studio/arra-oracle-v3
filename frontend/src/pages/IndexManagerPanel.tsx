@@ -87,7 +87,7 @@ export function IndexManagerPanel({ client = apiClient }: { client?: VectorIndex
         {status ? <IndexProgress status={status} /> : null}
       </div>
 
-      {loading ? <LoadingPanel title="Loading vector collections…" detail="Fetching /api/vector/index/models." /> : null}
+      {loading ? <LoadingPanel title="Loading vector collections…" detail="Fetching /api/v1/vector/index/models." /> : null}
       {error ? <ErrorMessage title="Vector indexing failed." message={error} /> : null}
       <div className="grid gap-3 md:grid-cols-2">
         {modelEntries.map(([key, model]) => (

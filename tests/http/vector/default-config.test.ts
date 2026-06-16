@@ -25,6 +25,10 @@ function restore(key: string, value: string | undefined): void {
 test('default vector config uses zero-config Ollama with detected remote fallbacks', () => {
   process.env.OPENAI_API_KEY = 'sk-test';
   process.env.GOOGLE_API_KEY = 'gemini-test';
+  delete process.env.CF_ACCOUNT_ID;
+  delete process.env.CF_API_TOKEN;
+  delete process.env.CLOUDFLARE_ACCOUNT_ID;
+  delete process.env.CLOUDFLARE_API_TOKEN;
 
   const models = configToModels(generateDefaultConfig());
 

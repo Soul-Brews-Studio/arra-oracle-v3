@@ -4,6 +4,7 @@ export const API_VERSION = 'v1';
 export const API_VERSION_HEADER = 'X-API-Version';
 const API_PREFIX = '/api';
 const VERSIONED_PREFIX = `${API_PREFIX}/${API_VERSION}`;
+const INFRASTRUCTURE_PREFIXES = ['/api/health'];
 const publicPaths = new WeakMap<Request, string>();
 
 type FetchHandler = (request: Request) => Response | Promise<Response>;
@@ -22,6 +23,10 @@ function isVersionedApiPath(pathname: string): boolean {
   return pathname === VERSIONED_PREFIX || pathname.startsWith(`${VERSIONED_PREFIX}/`);
 }
 
+function isInfrastructurePath(pathname: string): boolean {
+  return INFRASTRUCTURE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
 export function apiRequestPath(request: Request): string {
   return publicPaths.get(request) ?? new URL(request.url).pathname;
 }
@@ -31,6 +36,7 @@ function versionedLocation(request: Request): string | null {
   if (
     !isApiPath(url.pathname)
     || isVersionedApiPath(url.pathname)
+    || isInfrastructurePath(url.pathname)
   ) return null;
   const suffix = url.pathname.slice(API_PREFIX.length);
   url.pathname = `${VERSIONED_PREFIX}${suffix}`;

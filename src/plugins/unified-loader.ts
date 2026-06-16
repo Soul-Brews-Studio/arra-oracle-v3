@@ -1,5 +1,4 @@
 import { existsSync, readdirSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Elysia } from 'elysia';
@@ -11,9 +10,9 @@ import { createUnifiedProxyRoute } from './proxy-surface.ts';
 import { unifiedPluginServerRoutes, type UnifiedPluginServer } from './unified-server.ts';
 import { resolveContainedPluginEntry } from './path-containment.ts';
 import { registerPluginExportFormats } from './export-format-init.ts';
+import { defaultUnifiedPluginDirs } from './plugin-dirs.ts';
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.ARRA_PLUGIN_TIMEOUT_MS ?? 5000);
-const DEFAULT_DIRS = [join(homedir(), '.arra', 'plugins'), join(homedir(), '.oracle', 'plugins')];
 
 type ElysiaApp = Elysia<any, any, any, any, any, any, any>;
 type JsonRecord = Record<string, unknown>;
@@ -66,9 +65,6 @@ interface InvokeResult {
   error?: string;
 }
 
-function uniqueDirs(dirs: string[]): string[] { return [...new Set(dirs.filter(Boolean))]; }
-export function defaultUnifiedPluginDirs(extra: string[] = []): string[] { return uniqueDirs([...extra, ...DEFAULT_DIRS]); }
-
 function warn(options: UnifiedLoaderOptions, message: string): void {
   options.warn?.(`[unified-plugin] ${message}`);
 }
@@ -92,7 +88,7 @@ export async function discoverUnifiedPluginManifests(
 ): Promise<LoadedUnifiedPlugin[]> {
   const found: LoadedUnifiedPlugin[] = [];
   const seen = new Set<string>();
-  for (const baseDir of uniqueDirs(options.dirs ?? DEFAULT_DIRS)) {
+  for (const baseDir of options.dirs ?? defaultUnifiedPluginDirs()) {
     if (!existsSync(baseDir)) continue;
     for (const entry of readdirSync(baseDir, { withFileTypes: true })) {
       if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
@@ -247,3 +243,4 @@ export async function loadUnifiedPlugins(options: UnifiedLoaderOptions = {}): Pr
 }
 
 export { seedUnifiedPluginMenuItems } from './unified-menu-seeder.ts';
+export { defaultUnifiedPluginDirs } from './plugin-dirs.ts';
