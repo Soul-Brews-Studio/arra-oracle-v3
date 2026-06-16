@@ -14,6 +14,7 @@ import { VectorSearchPage } from './pages/VectorSearchPage';
 import { VectorDocumentsPage } from './pages/VectorDocumentsPage';
 import { VectorSearchResultsPage } from './pages/VectorSearchResultsPage';
 import { VectorExportPage } from './pages/VectorExportPage';
+import { VectorSettingsPage } from './pages/VectorSettingsPage';
 import type { LoadState, MenuItem, PluginEntry } from './types';
 import type { MetricsSnapshot } from '../../src/server/types';
 
@@ -28,6 +29,7 @@ export const frontendRoutes = [
   '/vector/documents',
   '/vector/results',
   '/vector/export',
+  '/vector/settings',
 ] as const;
 export type FrontendRoute = typeof frontendRoutes[number];
 
@@ -79,6 +81,7 @@ export function DashboardRoutes({
       <Route path="/vector/documents" element={<VectorDocumentsPage />} />
       <Route path="/vector/results" element={<VectorSearchResultsPage />} />
       <Route path="/vector/export" element={<VectorExportPage />} />
+      <Route path="/vector/settings" element={<VectorSettingsPage />} />
       <Route path="/mcp" element={<McpPage />} />
       <Route path="/mcp/tools/:name" element={<McpToolDetailPage />} />
       <Route

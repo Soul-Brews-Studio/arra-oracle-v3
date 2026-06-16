@@ -54,6 +54,7 @@ export function AppShell({
     { to: '/vector', label: 'Vector Dashboard', description: 'Collection health and indexing', end: true },
     { to: '/vector/documents', label: 'Document Browser', description: 'Browse indexed vector documents' },
     { to: '/vector/search', label: 'Vector Search', description: 'Semantic preview by collection' },
+    { to: '/vector/settings', label: 'Vector settings', description: 'Collection config and index controls' },
     { to: '/vector/export', label: 'Export', description: 'Download vector collections' },
     { to: '/learn', label: 'Learn', description: 'Create and edit learnings' },
     { to: '/metrics', label: 'Metrics', description: 'Runtime counters from /api/v1/metrics' },

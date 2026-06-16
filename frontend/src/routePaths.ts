@@ -31,3 +31,7 @@ export function vectorDocumentsPath(): string {
 export function vectorExportPagePath(): string {
   return '/vector/export';
 }
+
+export function vectorSettingsPath(): string {
+  return '/vector/settings';
+}
