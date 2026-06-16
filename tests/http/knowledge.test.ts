@@ -78,6 +78,7 @@ describe("HTTP Contract — search / knowledge / supersede", () => {
       const res = await fetch(`${BASE_URL}/api/learn`, { method: "POST", headers: JSON_HEADERS, body: "{not json" });
       const body = await res.json();
       expect(res.status).toBe(400);
+      expect(res.status).not.toBe(500);
       expect(res.headers.get("content-type")).toContain("application/json");
       expect(body).toMatchObject({ success: false, error: "Bad Request", code: 400 });
     });

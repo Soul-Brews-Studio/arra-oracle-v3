@@ -54,7 +54,8 @@ export function createMemoryRoutes(
       try {
         const hits = await vectorIndex.search(query.q, limit);
         const records = store.getByIds(hits.map((hit) => hit.memoryId));
-        return { success: true, query: query.q, total: hits.length, confidence: MEMORY_CONFIDENCE_STRATEGY, results: mergeHits(hits, records) };
+        const results = mergeHits(hits, records);
+        return { success: true, query: query.q, total: results.length, confidence: MEMORY_CONFIDENCE_STRATEGY, results };
       } catch (error) {
         set.status = 503;
         return { success: false, error: error instanceof Error ? error.message : 'memory vector search failed', results: [] };
