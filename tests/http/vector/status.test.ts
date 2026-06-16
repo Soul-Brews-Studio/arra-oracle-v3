@@ -14,12 +14,16 @@ function createFetch() {
   const app = new Elysia({ prefix: '/api' })
     .use(createVectorHealthEndpoint({
       proxy: null,
+      detectProviders: async () => ({ providers: [
+        { type: 'ollama', available: true },
+        { type: 'openai', available: false, detail: 'missing OPENAI_API_KEY' },
+      ] }),
       vectorHealth: async () => ({
         status: 'ok',
         checked_at: '2026-06-16T00:00:00.000Z',
         engines: [
-          { key: 'bge-m3', model: 'bge-m3', collection: 'oracle_bge', ok: true },
-          { key: 'qdrant', model: 'qdrant-embed', collection: 'oracle_qdrant', ok: true },
+          { key: 'bge-m3', model: 'bge-m3', collection: 'oracle_bge', count: 12, ok: true },
+          { key: 'qdrant', model: 'qdrant-embed', collection: 'oracle_qdrant', count: 3, ok: true },
         ],
       }),
     }))
@@ -46,9 +50,14 @@ test('GET /api/v1/vector/status and /api/v1/vector/models return vector status s
     status: 'ok',
     checked_at: '2026-06-16T00:00:00.000Z',
     engines: [
-      { key: 'bge-m3', model: 'bge-m3', collection: 'oracle_bge', ok: true },
-      { key: 'qdrant', model: 'qdrant-embed', collection: 'oracle_qdrant', ok: true },
+      { key: 'bge-m3', model: 'bge-m3', collection: 'oracle_bge', count: 12, ok: true },
+      { key: 'qdrant', model: 'qdrant-embed', collection: 'oracle_qdrant', count: 3, ok: true },
     ],
+    providers: [
+      { type: 'ollama', available: true, status: 'green' },
+      { type: 'openai', available: false, status: 'red', detail: 'missing OPENAI_API_KEY' },
+    ],
+    freshness: { status: 'fresh', totalIndexed: 15 },
   });
 
   const modelsRes = await fetcher(new Request('http://local/api/v1/vector/models'));

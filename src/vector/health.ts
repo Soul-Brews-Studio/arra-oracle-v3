@@ -10,11 +10,48 @@ export type VectorBackendEngine = {
   error?: string;
 };
 
+export type VectorProviderHealth = {
+  type: string;
+  status: 'green' | 'red';
+  available: boolean;
+  detail?: string;
+};
+
+export type VectorFreshness = {
+  status: 'fresh' | 'empty';
+  totalIndexed: number;
+  docsPending?: number;
+  lastIndexed?: string;
+};
+
 export type VectorBackendHealth = {
   status: 'ok' | 'degraded' | 'down';
   engines: VectorBackendEngine[];
   checked_at: string;
+  providers?: VectorProviderHealth[];
+  freshness?: VectorFreshness;
 };
+
+
+export function attachVectorDashboardHealth(
+  health: VectorBackendHealth,
+  providers: Array<{ type: string; available: boolean; error?: string; detail?: string }> = [],
+): VectorBackendHealth {
+  const totalIndexed = health.engines.reduce((sum, engine) => sum + (engine.count || 0), 0);
+  return {
+    ...health,
+    providers: providers.map((provider) => ({
+      type: provider.type,
+      available: provider.available,
+      status: provider.available ? 'green' : 'red',
+      detail: provider.error ?? provider.detail,
+    })),
+    freshness: {
+      status: totalIndexed > 0 ? 'fresh' : 'empty',
+      totalIndexed,
+    },
+  };
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
