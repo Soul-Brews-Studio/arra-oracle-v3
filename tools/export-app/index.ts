@@ -1,6 +1,7 @@
-import { exportOracleData } from './exporter.ts';
 import { existsSync, statSync } from 'node:fs';
 import { DB_PATH } from '../../src/config.ts';
+import { exportOracleData } from './exporter.ts';
+import { previewOracleExport } from './summary.ts';
 
 type Writer = (message: string) => void;
 
@@ -9,6 +10,7 @@ interface CliOptions {
   dbPath?: string;
   quiet: boolean;
   progressJson: boolean;
+  dryRun: boolean;
 }
 
 function flagValue(args: string[], index: number, flag: string): string {
@@ -30,6 +32,7 @@ export function parseArgs(args: string[]): CliOptions {
   let dbPath: string | undefined;
   let quiet = false;
   let progressJson = false;
+  let dryRun = false;
 
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
@@ -41,12 +44,13 @@ export function parseArgs(args: string[]): CliOptions {
     if (arg === '--db') { dbPath = flagValue(args, i, arg); i += 1; continue; }
     if (arg === '--quiet' || arg === '--no-progress') { quiet = true; continue; }
     if (arg === '--progress-json') { progressJson = true; continue; }
+    if (arg === '--dry-run') { dryRun = true; continue; }
     if (arg === '--help' || arg === '-h') continue;
     throw new Error(arg.startsWith('-') ? `unknown flag: ${arg}` : `unexpected argument: ${arg}`);
   }
 
   if (!outputDir) throw new Error('missing required --output <dir>');
-  return { outputDir, dbPath, quiet, progressJson };
+  return { outputDir, dbPath, quiet, progressJson, dryRun };
 }
 
 function requireFile(path: string): void {
@@ -76,6 +80,7 @@ function printHelp(write: Writer): void {
     'Flags:',
     '  --output, -o <dir>   destination backup directory',
     '  --db <path>          SQLite database path (defaults to ORACLE_DB_PATH)',
+    '  --dry-run            print collection counts without writing files',
     '  --quiet              suppress progress output',
     '  --no-progress        alias for --quiet',
     '  --progress-json      emit progress as JSON lines on stderr',
@@ -92,6 +97,10 @@ export async function runExportApp(args: string[], stdout: Writer = process.stdo
     }
     const options = parseArgs(args);
     validateCliOptions(options);
+    if (options.dryRun) {
+      stdout(`${JSON.stringify({ success: true, dryRun: true, ...previewOracleExport({ dbPath: options.dbPath }) }, null, 2)}\n`);
+      return 0;
+    }
     const progress = options.quiet
       ? () => {}
       : options.progressJson
