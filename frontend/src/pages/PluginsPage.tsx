@@ -8,6 +8,7 @@ import type { PluginEntry } from '../types';
 const EMPTY_PLUGINS: PluginEntry[] = [];
 
 type Tone = 'ok' | 'warn' | 'bad' | 'idle';
+type RouteRow = { kind: string; path: string; methods?: string[]; detail?: string };
 
 export interface PluginsPageProps {
   plugins?: PluginEntry[];
@@ -27,6 +28,35 @@ export function pluginAdminSummary(plugins: PluginEntry[], enabledState: PluginE
   const enabled = plugins.filter((plugin) => isPluginEnabled(plugin, enabledState)).length;
   const disabled = plugins.length - enabled;
   return `${enabled} enabled · ${disabled} disabled · ${plugins.length} registered`;
+}
+
+function methodsLabel(methods?: string[]): string {
+  return methods?.length ? methods.join('|') : 'ALL';
+}
+
+function serverRoute(plugin: PluginEntry): RouteRow | null {
+  if (!plugin.server) return null;
+  const health = plugin.server.healthPath ?? '/health';
+  return {
+    kind: 'server',
+    path: `/api/plugins/${plugin.name}/server${health.startsWith('/') ? health : `/${health}`}`,
+    detail: `${plugin.server.command} ${(plugin.server.args ?? []).join(' ')}`.trim(),
+  };
+}
+
+export function pluginRouteRows(plugin: PluginEntry): RouteRow[] {
+  const rows: RouteRow[] = [];
+  if (plugin.menu?.path) rows.push({ kind: 'menu', path: plugin.menu.path, detail: plugin.menu.label });
+  rows.push(...(plugin.apiRoutes ?? []).map((route) => ({ kind: 'api', path: route.path, methods: route.methods })));
+  rows.push(...(plugin.proxy ?? []).map((proxy) => ({
+    kind: 'proxy',
+    path: proxy.path,
+    methods: proxy.methods,
+    detail: proxy.targetEnv,
+  })));
+  const server = serverRoute(plugin);
+  if (server) rows.push(server);
+  return rows;
 }
 
 function toneClass(tone: Tone): string {
@@ -73,9 +103,30 @@ function Detail({ label, value, detail }: { label: string; value: string; detail
   );
 }
 
+function RouteList({ routes }: { routes: RouteRow[] }) {
+  if (!routes.length) {
+    return <p className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-slate-500">No HTTP or menu routes advertised by the backend.</p>;
+  }
+  return (
+    <ul className="mt-3 grid gap-2 text-sm">
+      {routes.map((route) => (
+        <li key={`${route.kind}:${route.path}`} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Pill>{route.kind}</Pill>
+            <span className="font-mono text-slate-100">{methodsLabel(route.methods)}</span>
+            <span className="break-all font-mono text-slate-300">{route.path}</span>
+          </div>
+          {route.detail ? <p className="mt-1 text-xs text-slate-500">{route.detail}</p> : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function PluginCard({ plugin, enabled }: { plugin: PluginEntry; enabled: boolean }) {
   const health = healthForPlugin(plugin, enabled);
   const surfaces = surfacesFor(plugin);
+  const routes = pluginRouteRows(plugin);
   const status = enabled ? 'active' : 'inactive';
 
   return (
@@ -99,6 +150,11 @@ function PluginCard({ plugin, enabled }: { plugin: PluginEntry; enabled: boolean
 
       <div className="mt-5 flex flex-wrap gap-2">
         {surfaces.length ? surfaces.map((surface) => <Pill key={surface}>{surface}</Pill>) : <Pill>metadata</Pill>}
+      </div>
+
+      <div className="mt-5">
+        <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Routes</h3>
+        <RouteList routes={routes} />
       </div>
     </article>
   );

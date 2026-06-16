@@ -142,6 +142,20 @@ export interface PluginEntryResponse {
     healthPath?: string;
     autostart?: boolean;
   };
+  apiRoutes?: Array<{ path: string; methods?: string[] }>;
+  proxy?: Array<{ path: string; targetEnv: string; stripPrefix?: boolean; methods?: string[] }>;
+  mcpTools?: Array<{
+    name: string;
+    description: string;
+    inputSchema?: unknown;
+    group?: string;
+    readOnly?: boolean;
+    enabledByDefault?: boolean;
+    source?: 'core' | 'plugin';
+    plugin?: string;
+  }>;
+  cliSubcommands?: Array<{ command: string; help: string }>;
+  exportFormats?: Array<{ extension: string; name?: string }>;
 }
 
 export interface PluginsResponse {
