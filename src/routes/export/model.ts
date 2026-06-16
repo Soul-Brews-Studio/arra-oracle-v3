@@ -61,3 +61,17 @@ export function resolveExportFormat(format?: ExportFormat): ExportFormat {
 export function resolveExportSource(format: ExportFormat, source?: ExportSource): ExportSource {
   return source ?? (format === 'json' ? 'vault' : 'vector');
 }
+
+export const exportHistoryRunBody = t.Object({
+  collection: t.String({ minLength: 1 }),
+  format: t.String({ minLength: 1 }),
+  status: t.Optional(t.String({ minLength: 1 })),
+});
+
+export interface ExportHistoryJob {
+  id: string;
+  collection: string;
+  format: string;
+  timestamp: number;
+  status: string;
+}
