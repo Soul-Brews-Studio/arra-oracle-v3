@@ -11,6 +11,7 @@ import { unifiedPluginServerRoutes, type UnifiedPluginServer } from './unified-s
 import { isContainedPluginPath, resolveContainedPluginEntry } from './path-containment.ts';
 import { registerPluginExportFormats } from './export-format-init.ts';
 import { defaultUnifiedPluginDirs } from './plugin-dirs.ts';
+import { isPluginInvokeFailure, pluginFailureMessage, responseFromPluginResult, withPluginTimeout } from './plugin-result.ts';
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.ARRA_PLUGIN_TIMEOUT_MS ?? 5000);
 
@@ -54,14 +55,6 @@ interface InvokeContext {
   body?: unknown;
 }
 
-interface InvokeResult {
-  ok?: boolean;
-  body?: unknown;
-  output?: string;
-  status?: number;
-  headers?: Record<string, string>;
-  error?: string;
-}
 
 function warn(options: UnifiedLoaderOptions, message: string): void {
   options.warn?.(`[unified-plugin] ${message}`);
@@ -88,7 +81,14 @@ export async function discoverUnifiedPluginManifests(
   const seen = new Set<string>();
   for (const baseDir of options.dirs ?? defaultUnifiedPluginDirs()) {
     if (!existsSync(baseDir)) continue;
-    for (const entry of readdirSync(baseDir, { withFileTypes: true })) {
+    let entries: Array<{ name: string; isDirectory(): boolean; isSymbolicLink(): boolean }>;
+    try {
+      entries = readdirSync(baseDir, { withFileTypes: true });
+    } catch (error) {
+      warn(options, `skipped ${baseDir}: ${error instanceof Error ? error.message : String(error)}`);
+      continue;
+    }
+    for (const entry of entries) {
       if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
       const pluginDir = join(baseDir, entry.name);
       if (!isContainedPluginPath(baseDir, pluginDir)) { warn(options, `skipped ${pluginDir}: plugin directory symlink escapes plugin root`); continue; }
@@ -110,31 +110,9 @@ async function invoke(plugin: LoadedUnifiedPlugin, handler: string | undefined, 
     const mod = await import(pathToFileURL(plugin.entryPath).href);
     const fn = handler === 'default' ? mod.default : (mod[handler] ?? mod.default);
     if (typeof fn !== 'function') throw new Error(`handler not found: ${handler}`);
-    return await Promise.race([
-      Promise.resolve(fn({ ...ctx, config: plugin.manifest.config ?? {} })),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('handler timed out')), timeoutMs)),
-    ]);
+    return await withPluginTimeout(() => fn({ ...ctx, config: plugin.manifest.config ?? {} }), timeoutMs);
   });
   return result.ok ? result.value : { ok: false, error: result.error };
-}
-
-function responseFrom(result: unknown): unknown {
-  if (result instanceof Response) return result;
-  const record = (result && typeof result === 'object') ? result as InvokeResult : null;
-  if (!record) return result ?? { ok: true };
-  if (record.ok === false) {
-    return Response.json(
-      { ok: false, error: record.error ?? 'plugin failed' },
-      { status: record.status ?? 500, headers: record.headers },
-    );
-  }
-  if (record.body !== undefined) return record.body;
-  if (record.output !== undefined) return { ok: true, output: record.output };
-  return record;
-}
-
-function invokeFailed(result: unknown): result is InvokeResult & { ok: false } {
-  return !!result && typeof result === 'object' && (result as InvokeResult).ok === false;
 }
 
 function apiRoute(plugin: LoadedUnifiedPlugin, route: UnifiedApiRouteManifest, timeoutMs: number): ElysiaApp {
@@ -150,7 +128,7 @@ function apiRoute(plugin: LoadedUnifiedPlugin, route: UnifiedApiRouteManifest, t
         query,
         body,
       }, timeoutMs);
-      return responseFrom(result);
+      return responseFromPluginResult(result);
     });
   }
   return app;
@@ -200,8 +178,8 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
       source,
       plugin: plugin.manifest.name,
     }, timeoutMs);
-    if (invokeFailed(result)) {
-      const error = result.error ?? 'plugin failed';
+    if (isPluginInvokeFailure(result)) {
+      const error = pluginFailureMessage(result.error);
       pluginStatus.set(plugin.manifest.name, { name: plugin.manifest.name, status: 'degraded', error });
       warn(options, `${plugin.manifest.name}.${source} failed: ${error}`);
     } else {
