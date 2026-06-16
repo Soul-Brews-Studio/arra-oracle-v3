@@ -47,6 +47,23 @@ describe('canvas Cloudflare Worker', () => {
     expect(await response.text()).toContain('plugin=wave');
   });
 
+
+  test('serves worker-native health for custom domain monitoring', async () => {
+    globalThis.fetch = (async () => { throw new Error('health should not proxy'); }) as typeof fetch;
+
+    const response = await handleCanvasRequest(
+      new Request('https://canvas.buildwithoracle.com/__health'),
+      { ORACLE_API_BASE: 'https://oracle.example.test' },
+    );
+    const body = await response.json() as Record<string, unknown>;
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(body).toMatchObject({ ok: true, app: 'ui-canvas-oracle-studio', apiBase: 'https://oracle.example.test' });
+    expect(Number(body.pluginCount)).toBeGreaterThanOrEqual(9);
+  });
+
   test('handles api preflight without upstream fetch', async () => {
     const response = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/api/health', { method: 'OPTIONS' }));
     expect(response.status).toBe(204);

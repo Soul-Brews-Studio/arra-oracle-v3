@@ -10,6 +10,7 @@ describe('canvas subdomain worker app', () => {
 
       expect(response.status, plugin).toBe(200);
       expect(response.headers.get('content-type'), plugin).toContain('text/html');
+      expect(response.headers.get('x-content-type-options'), plugin).toBe('nosniff');
       expect(html, plugin).toContain(`plugin=${plugin}`);
       expect(html, plugin).toContain('canvas.buildwithoracle.com');
     }
