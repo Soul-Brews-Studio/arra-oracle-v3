@@ -3,7 +3,7 @@ import path from 'path';
 import { REPO_ROOT } from '../../config.ts';
 import { db, oracleDocuments, sqlite } from '../../db/index.ts';
 import { buildLearningMarkdown } from '../../learn/markdown.ts';
-import { activeTenantId, DEFAULT_TENANT_ID, tenantIdForWrite } from '../../middleware/tenant.ts';
+import { DEFAULT_TENANT_ID, tenantIdForWrite } from '../../middleware/tenant.ts';
 import { logLearning } from '../../server/logging.ts';
 
 const SUMMARY_ROOT = 'ψ/memory/session-summaries';
@@ -16,11 +16,9 @@ function safeSegment(value: string, limit: number): string {
   return value.replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, limit);
 }
 
-function summaryIdentity(sessionId: string): { id: string; filename: string; sourceFile: string } {
+function summaryIdentity(sessionId: string, tenantId: string): { id: string; filename: string; sourceFile: string } {
   const safeSession = safeSegment(sessionId, 120);
   if (!safeSession) throw new Error('Invalid session id');
-
-  const tenantId = activeTenantId();
   if (tenantId === DEFAULT_TENANT_ID) {
     return {
       id: `session-summary_${safeSession}`,
@@ -41,8 +39,9 @@ export function persistSessionSummary(
   sessionId: string,
   summary: string,
   oracle?: string,
-): { ok: true; source_file: string; learning_id: string } {
-  const identity = summaryIdentity(sessionId);
+): { ok: true; source_file: string; learning_id: string; tenant_id: string } {
+  const tenantId = tenantIdForWrite();
+  const identity = summaryIdentity(sessionId, tenantId);
   const now = new Date();
   const safeSession = safeSegment(sessionId, 120);
   const concepts = ['session-summary', `session-${safeSession}`];
@@ -69,7 +68,7 @@ export function persistSessionSummary(
 
   db.insert(oracleDocuments).values({
     id: identity.id,
-    tenantId: tenantIdForWrite(),
+    tenantId,
     type: 'learning',
     sourceFile: identity.sourceFile,
     concepts: JSON.stringify(concepts),
@@ -84,5 +83,5 @@ export function persistSessionSummary(
     .run(identity.id, content, concepts.join(' '));
   logLearning(identity.id, summary, oracle ? `session-summary from ${oracle}` : 'session-summary', concepts);
 
-  return { ok: true, source_file: identity.sourceFile, learning_id: identity.id };
+  return { ok: true, source_file: identity.sourceFile, learning_id: identity.id, tenant_id: tenantId };
 }
