@@ -62,6 +62,7 @@ describe('PluginsPage admin view', () => {
     expect(html).toContain('Showing 1 of 4 plugins');
     expect(html).toContain('echo');
     expect(html).toContain('value="mcp" selected');
+    expect(html).toContain('href="/plugins?surface=mcp"');
   });
 
   test('renders a no-match state for filtered plugin inventory', () => {

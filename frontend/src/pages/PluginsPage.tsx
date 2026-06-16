@@ -4,6 +4,7 @@ import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
 import { isPluginEnabled, PluginList, type PluginEnabledState } from '../components/PluginList';
 import { PLUGINS_ENDPOINT, usePlugins, type PluginFetch } from '../hooks/usePlugins';
 import { countPluginSurfaces } from '../plugin-surfaces';
+import { pluginInventoryPath } from '../routePaths';
 import {
   enabledStateForPlugins,
   filteredPluginsFor,
@@ -153,7 +154,7 @@ export function PluginsPage({
               <h2 id="plugin-filters-title" className="mt-1 text-lg font-semibold text-white">Find plugin surfaces</h2>
               <p className="mt-1 text-sm text-slate-400">Showing {visiblePlugins.length} of {plugins.length} plugins · {summary}</p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-[minmax(12rem,1fr)_10rem_10rem_auto]">
+            <div className="grid gap-2 sm:grid-cols-[minmax(12rem,1fr)_10rem_10rem_auto_auto]">
               <label className="grid gap-1 text-sm font-medium text-slate-300">
                 Search plugins
                 <input
@@ -197,6 +198,9 @@ export function PluginsPage({
               >
                 Clear filters
               </button>
+              <a className="focus-ring self-end rounded-xl border border-teal-300/20 px-3 py-2 text-sm font-semibold text-teal-100 hover:border-teal-300/50" href={pluginInventoryPath({ q: query, visibility, surface })}>
+                Share view
+              </a>
             </div>
           </div>
         </section>
