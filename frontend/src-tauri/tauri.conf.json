@@ -37,6 +37,10 @@
       "icons/128x128.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "license": "BUSL-1.1",
+    "copyright": "Copyright © 2026 Soul Brews Studio",
+    "shortDescription": "Desktop shell for ARRA Oracle memory, search, and vector operations.",
+    "longDescription": "ARRA Oracle is the MCP memory and search layer for the Oracle family, providing semantic search, vector indexing visibility, and local operator workflows."
   }
 }
