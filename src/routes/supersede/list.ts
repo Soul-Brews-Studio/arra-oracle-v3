@@ -72,7 +72,7 @@ export const supersedeListEndpoint = new Elysia().get(
     query: SupersedeQuery,
     detail: {
       tags: ['supersede'],
-      menu: { group: 'tools', order: 60 },
+      menu: { group: 'tools', path: '/superseded', order: 60 },
       summary: 'List superseded documents',
     },
   },

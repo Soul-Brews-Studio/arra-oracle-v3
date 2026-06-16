@@ -74,13 +74,37 @@ if (!fs.existsSync(ORACLE_DATA_DIR)) {
 }
 
 // Vector layer routing (#1071 phase 1.2)
-//   VECTOR_URL       — if set, vector calls proxy to this base URL (e.g. http://vector.local:8080)
-//                      if empty, the local vector adapter is used (backward compat).
+//   VECTOR_URL       — if set, vector calls proxy to this base URL. The vector
+//                      server itself ignores inherited VECTOR_URL to avoid loops.
 //   VECTOR_FALLBACK  — what to do when proxy is unreachable. 'fts5' = serve FTS5-only
 //                      results with vectorAvailable: false. (Future: 'cache', 'fail'.)
 //   VECTOR_DB_URL    — target for vector-server.json proxy manifests such as
 //                      /api/vector-db → sidecar vector DB passthrough.
 //   ORACLE_EMBEDDER  — 'none' (default), 'local', or 'remote'. Remote uses
 //                      ORACLE_EMBEDDER_URL and falls back to FTS5 on failure.
-export const VECTOR_URL = process.env.VECTOR_URL || '';
+export function isVectorServerEntrypoint(argv1: string | undefined): boolean {
+  return /(^|[/\\])vector-server\.(ts|js|mjs)$/.test(argv1 || '');
+}
+
+export function resolveVectorUrl(
+  env: Record<string, string | undefined> = process.env,
+  argv: string[] = process.argv,
+): string {
+  if (env.ORACLE_VECTOR_SERVER === '1' || isVectorServerEntrypoint(argv[1])) return '';
+  if (env.VECTOR_URL?.trim()) return env.VECTOR_URL.trim();
+
+  try {
+    const dataDir = env.ORACLE_DATA_DIR || process.env.ORACLE_DATA_DIR || ORACLE_DATA_DIR;
+    const raw = fs.readFileSync(path.join(dataDir, 'vector-server.json'), 'utf-8');
+    const config = JSON.parse(raw) as { vectorProxyUrl?: unknown; vectorUrl?: unknown };
+    const fromConfig = typeof config.vectorProxyUrl === 'string'
+      ? config.vectorProxyUrl
+      : typeof config.vectorUrl === 'string' ? config.vectorUrl : '';
+    return fromConfig.trim();
+  } catch {
+    return '';
+  }
+}
+
+export const VECTOR_URL = resolveVectorUrl();
 export const VECTOR_FALLBACK = process.env.VECTOR_FALLBACK || 'fts5';

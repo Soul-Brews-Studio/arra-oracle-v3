@@ -8,7 +8,7 @@ import {
   type LoadedUnifiedPlugin,
 } from "../../../src/plugins/unified-loader.ts";
 
-const USER_PLUGIN_DIR = join(homedir(), ".neo-arra", "plugins");
+const USER_PLUGIN_DIR = join(homedir(), ".arra", "plugins");
 const BUNDLED_PLUGIN_DIR = join(import.meta.dir, "..", "plugins");
 
 export interface DiscoverResult {

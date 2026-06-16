@@ -1,28 +1,31 @@
 import type { EmbeddingProvider, EmbeddingProviderType, EmbedType } from './types.ts';
 import { NoneEmbeddings, RemoteHttpEmbeddings } from './embedding-backends.ts';
-
 export type FallbackEvent = { from: string; to?: string; error: string };
 export type EmbeddingProviderOptions = { url?: string; dimensions?: number; fallbackChain?: EmbeddingProviderType[]; fallback?: EmbeddingProviderType };
-
 export class ChromaDBInternalEmbeddings implements EmbeddingProvider {
   readonly name = 'chromadb-internal';
   readonly dimensions = 384; // all-MiniLM-L6-v2 default
-
   async embed(_texts: string[], _type?: EmbedType): Promise<number[][]> {
     throw new Error('ChromaDB handles embeddings internally. Use addDocuments() directly.');
   }
 }
-
 export class OllamaEmbeddings implements EmbeddingProvider {
   readonly name = 'ollama';
   dimensions: number;
   private baseUrl: string;
   private model: string;
   private _dimensionsDetected = false;
-
+  private attempts: number;
+  private retryDelayMs: number;
+  private batchSize: number;
+  private timeoutMs: number;
   constructor(config: { baseUrl?: string; model?: string } = {}) {
     this.baseUrl = config.baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     this.model = config.model || 'nomic-embed-text';
+    this.attempts = positiveInt(process.env.ORACLE_EMBED_ATTEMPTS, 3);
+    this.retryDelayMs = positiveInt(process.env.ORACLE_EMBED_RETRY_DELAY_MS, 150);
+    this.batchSize = positiveInt(process.env.ORACLE_EMBED_BATCH_SIZE, 50);
+    this.timeoutMs = positiveInt(process.env.ORACLE_EMBED_TIMEOUT_MS, 30_000);
     const KNOWN_DIMS: Record<string, number> = {
       'nomic-embed-text': 768,
       'qwen3-embedding': 1024,
@@ -40,68 +43,90 @@ export class OllamaEmbeddings implements EmbeddingProvider {
     };
     this.dimensions = KNOWN_DIMS[this.model] || 768;
   }
-
   async embed(texts: string[], type?: EmbedType): Promise<number[][]> {
+    const prepared = texts.map(text => this.prepareText(text, type));
     const embeddings: number[][] = [];
-
-    for (const text of texts) {
-      let truncated = text.length > 2000 ? text.slice(0, 2000) : text;
-      const isQwen3 = this.model.includes('qwen3-embedding');
-      const isE5 = this.model.includes('multilingual-e5') || this.model.includes('/e5-');
-      const isBge = this.model.includes('bge');
-
-      if (type === 'query') {
-        if (isQwen3) {
-          truncated = `Instruct: Given a search query, retrieve relevant passages that answer the query\nQuery: ${truncated}`;
-        } else if (isBge || isE5) {
-          truncated = `query: ${truncated}`;
-        }
-      } else if (type === 'passage') {
-        if (isBge || isE5) {
-          truncated = `passage: ${truncated}`;
-        }
-      }
-
-      const response = await fetch(`${this.baseUrl}/api/embeddings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: this.model, prompt: truncated }),
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Ollama API error: ${error}`);
-      }
-
-      const data = await response.json() as { embedding: number[] };
-      embeddings.push(data.embedding);
-
-      if (!this._dimensionsDetected && data.embedding.length > 0) {
-        this.dimensions = data.embedding.length;
+    for (let i = 0; i < prepared.length; i += this.batchSize) {
+      const batch = prepared.slice(i, i + this.batchSize);
+      const data = await this.embedBatchWithRetry(batch);
+      embeddings.push(...data.embeddings);
+      if (!this._dimensionsDetected && data.embeddings[0]?.length > 0) {
+        this.dimensions = data.embeddings[0].length;
         this._dimensionsDetected = true;
       }
     }
-
     return embeddings;
   }
+  private prepareText(text: string, type?: EmbedType): string {
+    let truncated = text.length > 2000 ? text.slice(0, 2000) : text;
+    const isQwen3 = this.model.includes('qwen3-embedding');
+    const isE5 = this.model.includes('multilingual-e5') || this.model.includes('/e5-');
+    const isBge = this.model.includes('bge');
+    if (type === 'query') {
+      if (isQwen3) {
+        truncated = `Instruct: Given a search query, retrieve relevant passages that answer the query\nQuery: ${truncated}`;
+      } else if (isBge || isE5) {
+        truncated = `query: ${truncated}`;
+      }
+    } else if (type === 'passage') {
+      if (isBge || isE5) {
+        truncated = `passage: ${truncated}`;
+      }
+    }
+    return truncated;
+  }
+  private async embedBatchWithRetry(input: string[]): Promise<{ embeddings: number[][] }> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= this.attempts; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+      try {
+        const response = await fetch(`${this.baseUrl}/api/embed`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: this.model, input }),
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(`Ollama API error (${response.status}): ${error}`);
+        }
+        const data = await response.json() as { embeddings?: number[][]; embedding?: number[] };
+        const embeddings = data.embeddings ?? (data.embedding ? [data.embedding] : undefined);
+        if (!embeddings || embeddings.length !== input.length) {
+          throw new Error(`Ollama returned ${embeddings?.length ?? 0} embeddings for ${input.length} inputs`);
+        }
+        return { embeddings };
+      } catch (err) {
+        lastError = err;
+        if (attempt < this.attempts) await sleep(this.retryDelayMs * attempt);
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+    const message = lastError instanceof Error ? lastError.message : String(lastError);
+    throw new Error(`Ollama embedding failed after ${this.attempts} attempts: ${message}`, { cause: lastError });
+  }
 }
-
+function positiveInt(raw: string | undefined, fallback: number): number {
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+function sleep(ms: number): Promise<void> { return new Promise(resolve => setTimeout(resolve, ms)); }
 export class OpenAIEmbeddings implements EmbeddingProvider {
   readonly name = 'openai';
   readonly dimensions: number;
   private apiKey: string;
   private model: string;
-
   constructor(config: { apiKey?: string; model?: string } = {}) {
     this.apiKey = config.apiKey || process.env.OPENAI_API_KEY || '';
     this.model = config.model || 'text-embedding-3-small';
     this.dimensions = this.model === 'text-embedding-3-large' ? 3072 : 1536;
-
     if (!this.apiKey) {
       throw new Error('OpenAI API key required. Set OPENAI_API_KEY.');
     }
   }
-
   async embed(texts: string[], _type?: EmbedType): Promise<number[][]> {
     const response = await fetch('https://api.openai.com/v1/embeddings', {
       method: 'POST',
@@ -111,34 +136,28 @@ export class OpenAIEmbeddings implements EmbeddingProvider {
       },
       body: JSON.stringify({ input: texts, model: this.model }),
     });
-
     if (!response.ok) {
       const error = await response.text();
       throw new Error(`OpenAI API error: ${error}`);
     }
-
     const data = await response.json() as {
       data: { embedding: number[]; index: number }[];
     };
-
     return data.data
       .sort((a, b) => a.index - b.index)
       .map(d => d.embedding);
   }
 }
-
 export class GeminiEmbeddings implements EmbeddingProvider {
   readonly name = 'gemini';
   readonly dimensions = 768;
   private apiKey: string;
   private model: string;
-
   constructor(config: { apiKey?: string; model?: string } = {}) {
     this.apiKey = config.apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
     this.model = config.model || 'text-embedding-004';
     if (!this.apiKey) throw new Error('Gemini API key required. Set GEMINI_API_KEY.');
   }
-
   async embed(texts: string[], _type?: EmbedType): Promise<number[][]> {
     return Promise.all(texts.map(async (text) => {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:embedContent?key=${this.apiKey}`;
@@ -154,11 +173,9 @@ export class GeminiEmbeddings implements EmbeddingProvider {
     }));
   }
 }
-
 export class FallbackEmbeddings implements EmbeddingProvider {
   readonly name: string;
   readonly dimensions: number;
-
   constructor(
     private readonly providers: EmbeddingProvider[],
     private readonly onFallback: (event: FallbackEvent) => void = defaultFallbackLogger,
@@ -167,7 +184,6 @@ export class FallbackEmbeddings implements EmbeddingProvider {
     this.name = providers.map((provider) => provider.name).join('>');
     this.dimensions = providers[0].dimensions;
   }
-
   async embed(texts: string[], type?: EmbedType): Promise<number[][]> {
     let lastError: unknown;
     for (let i = 0; i < this.providers.length; i++) {
@@ -182,16 +198,13 @@ export class FallbackEmbeddings implements EmbeddingProvider {
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 }
-
 function defaultFallbackLogger(event: FallbackEvent): void {
   if (event.to) console.warn(`[EmbedderFallback] ${event.from} failed: ${event.error}; trying ${event.to}`);
   else console.warn(`[EmbedderFallback] ${event.from} failed: ${event.error}; no fallback provider left`);
 }
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
-
 export function createEmbeddingProvider(
   type: EmbeddingProviderType = 'none',
   model?: string,
@@ -204,7 +217,6 @@ export function createEmbeddingProvider(
   if (chain.length > 1) return new FallbackEmbeddings(chain.map((item) => createSingleEmbeddingProvider(item, model, options)));
   return createSingleEmbeddingProvider(type, model, options);
 }
-
 function createSingleEmbeddingProvider(
   type: EmbeddingProviderType,
   model?: string,
@@ -223,7 +235,6 @@ function createSingleEmbeddingProvider(
     case 'gemini':
       return new GeminiEmbeddings({ model });
     case 'cloudflare-ai': {
-      // Dynamic import to avoid requiring CF credentials when not used
       const { CloudflareAIEmbeddings } = require('./adapters/cloudflare-vectorize.ts');
       return new CloudflareAIEmbeddings({
         model,

@@ -243,5 +243,8 @@ export async function loadUnifiedPlugins(options: UnifiedLoaderOptions = {}): Pr
   }
 }
 
-export { seedUnifiedPluginMenuItems } from './unified-menu-seeder.ts';
+export type UnifiedPluginMenuSeedItem = UnifiedMenuManifest & { plugin: string };
+export async function seedUnifiedPluginMenuItems(items: UnifiedPluginMenuSeedItem[]): Promise<void> {
+  return (await import('./unified-menu-seeder.ts')).seedUnifiedPluginMenuItems(items);
+}
 export { defaultUnifiedPluginDirs } from './plugin-dirs.ts';

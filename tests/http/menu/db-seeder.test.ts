@@ -25,18 +25,18 @@ function clearMenu() {
 function sampleSource() {
   return new Elysia({ prefix: '/api' })
     .get('/search', () => ({}), {
-      detail: { menu: { group: 'main', order: 10 }, summary: 'Search' },
+      detail: { menu: { group: 'main', path: '/search', order: 10 }, summary: 'Search' },
     })
     .get('/traces', () => ({}), {
-      detail: { menu: { group: 'main', order: 40 }, summary: 'Traces' },
+      detail: { menu: { group: 'main', path: '/traces', order: 40 }, summary: 'Traces' },
     })
     .get('/map', () => ({}), {
-      detail: { menu: { group: 'tools', order: 20 }, summary: 'Map' },
+      detail: { menu: { group: 'tools', path: '/map', order: 20 }, summary: 'Map' },
     });
 }
 
 describe('collectRouteMenuRows', () => {
-  test('maps api paths to studio paths + menu meta', () => {
+  test('uses route-declared frontend paths + menu meta', () => {
     const rows = collectRouteMenuRows([sampleSource()]);
     expect(rows).toEqual([
       { path: '/search', label: 'Search', groupKey: 'main', position: 10, access: 'public', icon: null, studio: null },
@@ -45,10 +45,10 @@ describe('collectRouteMenuRows', () => {
     ]);
   });
 
-  test('skips routes without detail.menu', () => {
+  test('skips routes without detail.menu.path', () => {
     const sub = new Elysia({ prefix: '/api' })
       .get('/search', () => ({}), {
-        detail: { menu: { group: 'main', order: 1 }, summary: 'Search' },
+        detail: { menu: { group: 'main', path: '/search', order: 1 }, summary: 'Search' },
       })
       .get('/health', () => ({}), { detail: { summary: 'Health' } });
     expect(collectRouteMenuRows([sub])).toHaveLength(1);
@@ -115,7 +115,7 @@ describe('seedMenuItems', () => {
 
     const changed = new Elysia({ prefix: '/api' })
       .get('/search', () => ({}), {
-        detail: { menu: { group: 'tools', order: 99, label: 'Find' }, summary: 'Search' },
+        detail: { menu: { group: 'tools', path: '/search', order: 99, label: 'Find' }, summary: 'Search' },
       });
     const result = seedMenuItems([changed]);
     expect(result.updated).toBe(1);
@@ -141,7 +141,7 @@ describe('seedMenuItems', () => {
 
     const changed = new Elysia({ prefix: '/api' })
       .get('/search', () => ({}), {
-        detail: { menu: { group: 'main', order: 10, label: 'Route Search' }, summary: 'Search' },
+        detail: { menu: { group: 'main', path: '/search', order: 10, label: 'Route Search' }, summary: 'Search' },
       });
     const result = seedMenuItems([changed]);
     expect(result.preserved).toBe(1);

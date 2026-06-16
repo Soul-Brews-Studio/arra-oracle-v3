@@ -1,10 +1,11 @@
 import { Elysia, t } from 'elysia';
 import { reloadCachedVectorStores } from '../../vector/factory.ts';
-import { configToModels, type VectorServerConfig } from '../../vector/config.ts';
+import { LOCAL_VECTOR_ENGINES, activeVectorEngine, applyVectorConfigUpdate, configToModels, type VectorConfigUpdate, type VectorServerConfig } from '../../vector/config.ts';
 import {
   activeConfig,
   atomicWriteVectorConfig,
   inspectCollection,
+  vectorConfigState,
   normalizedCreate,
   normalizedUpdate,
   resolveCollection,
@@ -46,59 +47,65 @@ const createSchema = t.Object({
 });
 
 const configPatchKeys = new Set([
-  'version',
-  'host',
-  'port',
-  'collections',
-  'dataPath',
-  'embedder',
-  'embeddingEndpoint',
-  'fanout',
-  'storage',
-  'proxy',
+  'version', 'host', 'port', 'collections', 'dataPath', 'engine',
+  'embedder', 'embeddingEndpoint', 'enabled', 'fanout', 'storage', 'proxy', 'vectorProxyUrl',
 ]);
 
 const configPatchSchema = t.Object({
-  version: t.Optional(t.Union([
-    t.Literal('1'),
-    t.Literal('1.0'),
-    t.Literal('2'),
-    t.Literal('2.0'),
-    t.Literal('legacy'),
-  ])),
+  version: t.Optional(t.Union([t.Literal('1'), t.Literal('1.0'), t.Literal('2'), t.Literal('2.0'), t.Literal('legacy')])),
   host: t.Optional(t.String()),
   port: t.Optional(t.Number()),
   collections: t.Optional(t.Record(t.String(), t.Unknown())),
   dataPath: t.Optional(t.String()),
+  engine: t.Optional(t.Union([t.Literal('lancedb'), t.Literal('qdrant'), t.Literal('sqlite-vec')])),
   embedder: t.Optional(t.Any()),
   embeddingEndpoint: t.Optional(t.String()),
+  enabled: t.Optional(t.Boolean()),
   fanout: t.Optional(t.Any()),
   storage: t.Optional(t.Record(t.String(), t.Unknown())),
   proxy: t.Optional(t.Array(t.Unknown())),
+  vectorProxyUrl: t.Optional(t.String()),
 }, { additionalProperties: true });
+
+async function readCollectionHealth(config: VectorServerConfig) {
+  return Promise.all(Object.entries(config.collections).map(([key, col]) => inspectCollection(key, col, config)));
+}
+
+function configResponse(
+  source: 'file' | 'defaults',
+  config: VectorServerConfig,
+  collections: Awaited<ReturnType<typeof readCollectionHealth>>,
+) {
+  const engine = activeVectorEngine(config);
+  return {
+    source,
+    enabled: config.enabled === true,
+    engine,
+    state: vectorConfigState(config, collections),
+    options: {
+      localEngines: LOCAL_VECTOR_ENGINES,
+      embeddingProviders: ['ollama', 'openai', 'cloudflare-ai', 'chromadb-internal'],
+    },
+    config,
+    collections,
+    doc_counts: Object.fromEntries(collections.map((col) => [col.key, col.count])),
+    health: Object.fromEntries(collections.map((col) => [col.key, {
+      ok: col.ok,
+      status: col.status,
+      collection: col.collection,
+      adapter: col.adapter,
+      model: col.model,
+      enabled: col.enabled,
+      ...(col.error && { error: col.error }),
+    }])),
+    checked_at: new Date().toISOString(),
+  };
+}
 
 export const vectorConfigEndpoint = new Elysia()
   .get('/vector/config', async () => {
     const { source, config } = activeConfig();
-    const collections = await Promise.all(
-      Object.entries(config.collections).map(([key, col]) => inspectCollection(key, col, config)),
-    );
-    return {
-      source,
-      config,
-      collections,
-      doc_counts: Object.fromEntries(collections.map((col) => [col.key, col.count])),
-      health: Object.fromEntries(collections.map((col) => [col.key, {
-        ok: col.ok,
-        status: col.status,
-        collection: col.collection,
-        adapter: col.adapter,
-        model: col.model,
-        enabled: col.enabled,
-        ...(col.error && { error: col.error }),
-      }])),
-      checked_at: new Date().toISOString(),
-    };
+    return configResponse(source, config, await readCollectionHealth(config));
   }, { detail: { tags: ['vector'], summary: 'Vector server config with collection health' } })
   .post('/vector/config/reload', async () => {
     const { source, config } = activeConfig();
@@ -115,11 +122,15 @@ export const vectorConfigEndpoint = new Elysia()
       set.status = 422;
       return { error: `Unknown vector config patch field: ${unknownKeys[0]}` };
     }
-    const { source, config } = activeConfig();
-    const next = { ...config, ...(body as Partial<VectorServerConfig>) };
+    const { config } = activeConfig();
+    const patch = body as Partial<VectorServerConfig> & VectorConfigUpdate;
+    const next = patch.engine !== undefined || patch.vectorProxyUrl !== undefined
+      ? applyVectorConfigUpdate(config, patch)
+      : { ...config, ...patch };
     const path = atomicWriteVectorConfig(next);
     await reloadCachedVectorStores(configToModels(next));
-    return { success: true, reloaded: true, source, path, config: next };
+    const collections = await readCollectionHealth(next);
+    return { success: true, reloaded: true, path, ...configResponse('file', next, collections) };
   }, {
     body: configPatchSchema,
     detail: { tags: ['vector'], summary: 'Patch vector config and hot-reload adapters' },
@@ -132,7 +143,10 @@ export const vectorConfigEndpoint = new Elysia()
       return { error: `Unknown vector collection: ${params.collection}` };
     }
     const [key, col] = resolved;
-    const health = await inspectCollection(key, col, config);
+    const health = await inspectCollection(key, col, config, {
+      allowMissingLocalIndex: true,
+      ignoreGlobalDisabled: true,
+    });
     if (!health.ok) set.status = health.status === 'disabled' ? 400 : 503;
     return { success: health.ok, ...health };
   }, {

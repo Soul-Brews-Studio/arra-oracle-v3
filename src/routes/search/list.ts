@@ -19,7 +19,7 @@ export const listEndpoint = new Elysia().get(
     query: ListQuery,
     detail: {
       tags: ['search'],
-      menu: { group: 'main', order: 20 },
+      menu: { group: 'main', path: '/feed', order: 20 },
       summary: 'List oracle documents',
     },
   },
