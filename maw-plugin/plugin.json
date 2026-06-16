@@ -70,5 +70,9 @@
       "order": 10,
       "icon": "search"
     }
-  ]
+  ],
+  "artifact": {
+    "path": "./index.ts",
+    "sha256": "980cf804f039423f3bf24ccc345b6f3273c6d4e4497ca64dfb8dcb042b5100f0"
+  }
 }
