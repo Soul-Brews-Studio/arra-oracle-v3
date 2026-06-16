@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-arra-oracle-v3 exposes 27 MCP tools across configurable groups, Oracle profiles, and standalone tools.
+arra-oracle-v3 exposes 27 MCP tools across configurable groups, Oracle profiles, bridge tools, and standalone tools.
 
 ## Tool Groups
 
@@ -13,7 +13,9 @@ Groups can be enabled/disabled via `arra.config.json` (repo-local) or `~/.arra-o
     "knowledge": true,
     "session": true,
     "forum": true,
-    "trace": true
+    "oracle": true,
+    "trace": true,
+    "standalone": true
   }
 }
 ```
@@ -70,20 +72,25 @@ Groups can be enabled/disabled via `arra.config.json` (repo-local) or `~/.arra-o
 | `oracle_trace_chain` | Get full linked chain for a trace. |
 | `oracle_trace_distill` | Distill a trace into a Thor/Stormforge awakening and optionally promote it to learning memory. |
 
-## Standalone (5 tools)
+## Standalone (2 tools)
 
 | Tool | Description |
 |------|-------------|
 | `oracle_reflect` | Get a random principle or learning for reflection. |
 | `oracle_verify` | Verify integrity: compare `ψ/` files on disk vs DB index. Detect missing/orphaned docs. |
-| `oracle_schedule_add` | Add appointment to shared schedule (per-human, cross-project). |
-| `oracle_schedule_list` | List upcoming schedule entries. |
+
+## Guide + bridge (3 tools)
+
+| Tool | Description |
+|------|-------------|
 | `____IMPORTANT` | Meta-documentation tool — workflow guide shown in tool list. |
+| `oracle_mcp_list_tools` | List tools exposed by configured external MCP servers. |
+| `oracle_mcp_call` | Call a tool exposed by a configured external MCP server. |
 
 ## Read-Only Mode
 
 When `ORACLE_READ_ONLY=true` or `--read-only`, write tools are disabled:
-- `oracle_learn`, `oracle_research_note`, `oracle_thread`, `oracle_thread_update`, `oracle_trace`, `oracle_trace_distill`, `oracle_supersede`, `oracle_handoff`
+- `oracle_learn`, `oracle_research_note`, `oracle_thread`, `oracle_thread_update`, `oracle_trace`, `oracle_trace_distill`, `oracle_supersede`, `oracle_handoff`, `oracle_mcp_call`
 
 ## Installation
 

@@ -6,6 +6,7 @@ export const allToolGroups: ToolGroupConfig = {
   knowledge: true,
   session: true,
   forum: true,
+  oracle: true,
   trace: true,
   standalone: true,
 };
