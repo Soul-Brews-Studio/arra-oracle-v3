@@ -17,10 +17,10 @@ function stubBackend(name: string): StorageBackend {
   };
 }
 
-test('registry trims registered and explicitly selected backend names', () => {
-  registerStorageBackend('  trim-stub  ', () => stubBackend('trim-stub'));
+test('registry trims and case-folds registered and explicitly selected backend names', () => {
+  registerStorageBackend('  Trim-Stub  ', () => stubBackend('trim-stub'));
 
-  expect(createStorageBackend({ backend: '\ttrim-stub\n' }).name).toBe('trim-stub');
+  expect(createStorageBackend({ backend: '\tTRIM-stub\n' }).name).toBe('trim-stub');
 });
 
 test('registry rejects blank backend names before falling back', () => {
