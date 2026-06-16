@@ -25,6 +25,14 @@ export {
   type PairedAtomicOperation,
   type RunnableAtomicStatement,
 } from './atomic-ops.ts';
+export {
+  createDb,
+  detectDbRuntime,
+  type CreateDbEnv,
+  type CreateDbOptions,
+  type DbConnection,
+  type DbRuntime,
+} from './factory.ts';
 
 export { initializeDrizzleSqlite } from '../storage/drizzle-sqlite.ts';
 
