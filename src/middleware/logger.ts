@@ -73,8 +73,8 @@ function responseStatus(responseValue: unknown, setStatus?: number | string): nu
   return 200;
 }
 
-function requestLogFormat(): RequestLogFormat {
-  const requested = process.env.LOG_FORMAT as RequestLogFormat | undefined;
+export function requestLogFormat(envValue = process.env.LOG_FORMAT): RequestLogFormat {
+  const requested = envValue?.trim().toLowerCase() as RequestLogFormat | undefined;
   return requested && logFormats.has(requested) ? requested : 'nginx';
 }
 
