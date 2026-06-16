@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { fetchMcpTools } from '../api';
 import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
 import { groupLabel, schemaText, toolMode } from '../components/toolView';
+import { pluginInventoryPath } from '../routePaths';
 import type { McpTool } from '../types';
 
 type PageState = 'loading' | 'ready' | 'error';
@@ -13,11 +14,17 @@ export function toolDetailSource(tool: McpTool): string {
   return tool.source ?? 'core';
 }
 
-function DetailCard({ label, value }: { label: string; value?: string }) {
+export function toolPluginInventoryPath(tool: McpTool): string | null {
+  return tool.plugin ? pluginInventoryPath({ q: tool.plugin, surface: 'mcp' }) : null;
+}
+
+function DetailCard({ label, value, href }: { label: string; value?: string; href?: string | null }) {
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
       <dt className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</dt>
-      <dd className="mt-1 break-all font-mono text-sm text-slate-200">{value || '—'}</dd>
+      <dd className="mt-1 break-all font-mono text-sm text-slate-200">
+        {href && value ? <a className="focus-ring text-teal-100 hover:text-teal-200" href={href}>{value}</a> : value || '—'}
+      </dd>
     </div>
   );
 }
@@ -32,7 +39,7 @@ function ToolSummaryCard({ tool }: { tool: McpTool }) {
         <DetailCard label="Group" value={groupLabel(tool)} />
         <DetailCard label="Mode" value={toolMode(tool)} />
         <DetailCard label="Source" value={toolDetailSource(tool)} />
-        <DetailCard label="Plugin" value={tool.plugin} />
+        <DetailCard label="Plugin" value={tool.plugin} href={toolPluginInventoryPath(tool)} />
       </dl>
     </section>
   );
