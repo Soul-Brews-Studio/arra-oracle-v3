@@ -13,6 +13,17 @@ export function getTenantTrace(traceId: string): TraceRecord | null {
   return row ? getTrace(traceId) : null;
 }
 
+function hasTenantForwardPath(fromTraceId: string, toTraceId: string): boolean {
+  const seen = new Set<string>();
+  let current = getTenantTrace(fromTraceId);
+  while (current && !seen.has(current.traceId)) {
+    if (current.traceId === toTraceId) return true;
+    seen.add(current.traceId);
+    current = current.nextTraceId ? getTenantTrace(current.nextTraceId) : null;
+  }
+  return false;
+}
+
 export function createTenantTrace(input: CreateTraceInput): CreateTraceResult {
   if (input.parentTraceId && !getTenantTrace(input.parentTraceId)) throw new Error(`Parent trace not found: ${input.parentTraceId}`);
   const result = createTrace(input);
@@ -116,6 +127,7 @@ export function linkTenantTraces(prevTraceId: string, nextTraceId: string) {
   if (!nextTrace) return { success: false, message: `Next trace not found: ${nextTraceId}` };
   if (prevTrace.nextTraceId) return { success: false, message: `Trace ${prevTraceId} already has a next link` };
   if (nextTrace.prevTraceId) return { success: false, message: `Trace ${nextTraceId} already has a prev link` };
+  if (hasTenantForwardPath(nextTraceId, prevTraceId)) return { success: false, message: `Cannot link ${prevTraceId} → ${nextTraceId}: it would create a cycle` };
   const now = Date.now();
   db.update(traceLog).set({ nextTraceId, updatedAt: now }).where(tenantTraceWhere(prevTraceId)).run();
   db.update(traceLog).set({ prevTraceId, updatedAt: now }).where(tenantTraceWhere(nextTraceId)).run();
