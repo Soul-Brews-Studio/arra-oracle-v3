@@ -4,11 +4,14 @@ import { BackendSelector, DEFAULT_BACKEND_URL, normalizeBackendUrl } from '../co
 import { ExportProgress } from '../components/export/ExportProgress';
 import {
   backendApiUrl,
+  exportResponseError,
   exportAppFormats,
   exportProgressUrl,
   legacyDirectExportLink,
+  messageFromPayload,
   normalizeExportAppCollections,
   progressPatchFromExportPayload,
+  readExportPayload,
   resolveDownloadLink,
   type ExportAppFormat,
   type ExportDownloadLink,
@@ -25,11 +28,6 @@ type ExportAppProps = {
   fetcher?: Fetcher;
   autoLoad?: boolean;
 };
-
-async function jsonPayload(response: Response): Promise<unknown> {
-  const text = await response.text();
-  return text ? JSON.parse(text) : {};
-}
 
 function collectionLabel(collection: LegacyExportCollection): string {
   const count = typeof collection.count === 'number' ? ` · ${collection.count.toLocaleString()} rows` : '';
@@ -94,7 +92,6 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
   }
 
   async function loadCollections(targetUrl = backendUrl) {
-    if (!fetcher) throw new Error('fetch is unavailable in this runtime.');
     const normalized = normalizeBackendUrl(targetUrl);
     setBackendUrl(normalized);
     setLoadState('loading');
@@ -104,11 +101,13 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
     closeProgress();
     setProgress({ status: 'idle', jobId: null, progress: 0 });
     try {
+      if (!fetcher) throw new Error('fetch is unavailable in this runtime.');
+      const path = '/api/v1/export/app/collections';
       const response = await fetcher(backendApiUrl(normalized, '/api/v1/export/app/collections'), {
         headers: { accept: 'application/json' },
       });
-      if (!response.ok) throw new Error(`/api/v1/export/app/collections returned ${response.status}`);
-      const next = normalizeExportAppCollections(await jsonPayload(response));
+      if (!response.ok) throw new Error(await exportResponseError(response, path));
+      const next = normalizeExportAppCollections(await readExportPayload(response, path));
       setCollections(next);
       setCollection((current) => next.find((item) => item.id === current)?.id ?? next[0]?.id ?? '');
       setLoadState('ready');
@@ -121,7 +120,11 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
   }
 
   async function triggerExport() {
-    if (!fetcher || !selected) return;
+    if (!fetcher || !selected) {
+      setError(!fetcher ? 'fetch is unavailable in this runtime.' : 'Load a collection before starting export.');
+      setExportState('error');
+      return;
+    }
     setExportState('exporting');
     setError('');
     setDownload(null);
@@ -130,6 +133,7 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
     const normalized = normalizeBackendUrl(backendUrl);
     const payload = { collection: selected.id, format, includeGraph: true, includeMetadata: true };
     try {
+      const path = '/api/v1/export/app/run';
       const response = await fetcher(backendApiUrl(normalized, '/api/v1/export/app/run'), {
         method: 'POST',
         headers: { accept: 'application/json', 'content-type': 'application/json' },
@@ -142,8 +146,11 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
         setExportState('ready');
         return;
       }
-      const body = await jsonPayload(response);
-      if (!response.ok) throw new Error(progressPatchFromExportPayload(body).error ?? `/api/v1/export/app/run returned ${response.status}`);
+      const body = await readExportPayload(response, path);
+      if (!response.ok) {
+        const detail = progressPatchFromExportPayload(body).error ?? messageFromPayload(body);
+        throw new Error(`${path} returned ${response.status}${detail ? `: ${detail}` : ''}`);
+      }
       const link = resolveDownloadLink(normalized, body, selected.id, format);
       if (!link) throw new Error('Export response did not include a download URL or job id.');
       const patch = progressPatchFromExportPayload(body);
@@ -166,10 +173,7 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
     }
   }
 
-  useEffect(() => {
-    if (autoLoad) void loadCollections(backendUrl);
-  }, [autoLoad]);
-
+  useEffect(() => { if (autoLoad) void loadCollections(backendUrl); }, [autoLoad]);
   useEffect(() => () => closeProgress(), []);
 
   return (
@@ -195,7 +199,13 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
       </section>
 
       {loadState === 'loading' ? <LoadingPanel title="Loading export collections" detail="Calling /api/v1/export/app/collections on the selected backend." /> : null}
-      {loadState === 'error' ? <ErrorMessage title="Could not load legacy backend collections." message={error} /> : null}
+      {loadState === 'error' ? (
+        <ErrorMessage
+          title="Could not load legacy backend collections."
+          message={error}
+          action={<button className="focus-ring rounded-lg border border-red-200/30 px-3 py-2 font-semibold text-red-50 hover:bg-red-200/10" type="button" onClick={() => void loadCollections()}>Retry loading collections</button>}
+        />
+      ) : null}
       {exportState === 'error' ? <ErrorMessage title="Could not start export." message={error} /> : null}
 
       <section className="grid gap-4 lg:grid-cols-2">
@@ -211,6 +221,9 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
           <ul className="mt-4 grid max-h-72 gap-2 overflow-auto" aria-label="Legacy export collections">
             {collections.map((item) => <li key={item.id} className="rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">{collectionLabel(item)}</li>)}
           </ul>
+          {loadState === 'ready' && !collections.length ? (
+            <p className="mt-4 rounded-xl border border-dashed border-white/10 p-4 text-sm text-slate-500">No collections are available from this backend. Check the URL, then reload collections.</p>
+          ) : null}
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="format-title">

@@ -119,3 +119,27 @@ test('CLI exports document markdown and JSON from --db without starting the serv
   expect(readFileSync(join(outputDir, 'documents', 'markdown', 'psi_learn_new.md'), 'utf8'))
     .toContain('New export body');
 });
+
+test('CLI can emit machine-readable JSON progress lines', async () => {
+  const dbPath = join(root, 'cli-json-progress.db');
+  const outputDir = join(root, 'cli-json-progress-export');
+  const connection = createDatabase(dbPath);
+  seed(connection);
+  connection.storage.close();
+
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const code = await runExportApp(
+    ['--output', outputDir, '--db', dbPath, '--progress', 'json'],
+    (message) => stdout.push(message),
+    (message) => stderr.push(message),
+  );
+
+  const progress = stderr.join('').trim().split('\n').map((line) => JSON.parse(line));
+  expect(code).toBe(0);
+  expect(JSON.parse(stdout.join('')).success).toBe(true);
+  expect(progress).toContainEqual(expect.objectContaining({
+    event: 'progress',
+    message: expect.stringContaining('oracle_documents'),
+  }));
+});

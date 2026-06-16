@@ -16,6 +16,7 @@ import {
 } from './formats.ts';
 import { graphRelationships } from './graph.ts';
 import { exportOracleV2Documents } from './documents.ts';
+import { EXPORT_MANIFEST_SCHEMA } from './schema.ts';
 
 type ExportTable = Parameters<typeof getTableName>[0];
 type Progress = (message: string) => void;
@@ -44,6 +45,7 @@ export interface ExportMarkdownResult {
 
 export { graphRelationships, type GraphRelationship } from './graph.ts';
 export { exportOracleV2Documents, readOracleV2Documents } from './documents.ts';
+export { EXPORT_MANIFEST_SCHEMA } from './schema.ts';
 
 export function schemaTables(): ExportTable[] {
   return (Object.values(schema).filter(isTable) as ExportTable[])
@@ -77,6 +79,7 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
     const documentExport = await exportOracleV2Documents({ ...options, outputDir, connection, progress });
     await writeCollectionFiles(outputDir, 'relationships', relationships);
     await writeJson(path.join(outputDir, 'all-collections.json'), { exportedAt, collections: allCollections });
+    await writeJson(path.join(outputDir, 'manifest.schema.json'), EXPORT_MANIFEST_SCHEMA);
     await writeJson(path.join(outputDir, 'manifest.json'), {
       exportedAt,
       dbPath: options.dbPath ?? DB_PATH,
