@@ -63,3 +63,9 @@ agents/
 
 # volt-oracle per-machine tooling artifacts (not source of truth)
 .volt/
+
+# macOS metadata
+.DS_Store
+
+# Playwright MCP session artifacts
+.playwright-mcp/

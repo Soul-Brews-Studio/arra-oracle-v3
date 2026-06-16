@@ -1,26 +1,23 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-
 import { Elysia } from 'elysia';
-
-import {
-  normalizeUnifiedPluginManifest,
-  type NormalizedUnifiedPluginManifest,
-  type UnifiedApiRouteManifest,
-  type UnifiedCliSubcommandManifest,
-  type UnifiedMcpToolManifest,
-  type UnifiedMenuManifest,
-} from './unified-manifest.ts';
+import { normalizeUnifiedPluginManifest, type NormalizedUnifiedPluginManifest, type UnifiedApiRouteManifest, type UnifiedCliSubcommandManifest, type UnifiedMcpToolManifest, type UnifiedMenuManifest } from './unified-manifest.ts';
+import { sortPluginsByDependencies } from './dependency-resolver.ts';
+import { pluginRegistryFromLoadedPlugins, type LoadedPluginRegistryEntry } from './registry.ts';
+import { runPluginWithErrorContainment } from './error-containment.ts';
 import { createUnifiedProxyRoute } from './proxy-surface.ts';
 import { unifiedPluginServerRoutes, type UnifiedPluginServer } from './unified-server.ts';
+import { resolveContainedPluginEntry } from './path-containment.ts';
+import { registerPluginExportFormats } from './export-format-init.ts';
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.ARRA_PLUGIN_TIMEOUT_MS ?? 5000);
 const DEFAULT_DIRS = [join(homedir(), '.arra', 'plugins'), join(homedir(), '.oracle', 'plugins')];
 
 type ElysiaApp = Elysia<any, any, any, any, any, any, any>;
 type JsonRecord = Record<string, unknown>;
+type LifecycleSource = 'init' | 'destroy';
 
 export interface LoadedUnifiedPlugin {
   manifest: NormalizedUnifiedPluginManifest;
@@ -34,6 +31,8 @@ export interface UnifiedLoaderOptions {
   timeoutMs?: number;
 }
 
+export type UnifiedPluginStatus = { name: string; status: 'ok' | 'degraded'; error?: string };
+
 export interface UnifiedRuntime {
   pluginCount?: number;
   routes: ElysiaApp[];
@@ -42,11 +41,14 @@ export interface UnifiedRuntime {
   cliSubcommands: Array<UnifiedCliSubcommandManifest & { plugin: string }>;
   servers: UnifiedPluginServer[];
   callMcpTool: (name: string, args?: unknown) => Promise<unknown>;
+  pluginStatuses: () => UnifiedPluginStatus[];
+  pluginRegistry: () => LoadedPluginRegistryEntry[];
+  init: () => Promise<void>;
   stop: () => Promise<void>;
 }
 
 interface InvokeContext {
-  source: 'api' | 'mcp' | 'cli' | 'server';
+  source: 'api' | 'mcp' | 'cli' | 'server' | LifecycleSource;
   plugin: string;
   args?: unknown[];
   request?: Request;
@@ -64,9 +66,8 @@ interface InvokeResult {
   error?: string;
 }
 
-function uniqueDirs(dirs: string[]): string[] {
-  return [...new Set(dirs.filter(Boolean))];
-}
+function uniqueDirs(dirs: string[]): string[] { return [...new Set(dirs.filter(Boolean))]; }
+export function defaultUnifiedPluginDirs(extra: string[] = []): string[] { return uniqueDirs([...extra, ...DEFAULT_DIRS]); }
 
 function warn(options: UnifiedLoaderOptions, message: string): void {
   options.warn?.(`[unified-plugin] ${message}`);
@@ -79,7 +80,7 @@ async function readPluginDir(dir: string, options: UnifiedLoaderOptions): Promis
     const raw = await Bun.file(path).json();
     const manifest = normalizeUnifiedPluginManifest(raw);
     if (manifest.enabled === false) return null;
-    return { manifest, dir, entryPath: resolve(dir, manifest.entry) };
+    return { manifest, dir, entryPath: resolveContainedPluginEntry(dir, manifest.entry) };
   } catch (error) {
     warn(options, `skipped ${dir}: ${error instanceof Error ? error.message : String(error)}`);
     return null;
@@ -106,17 +107,19 @@ export async function discoverUnifiedPluginManifests(
 
 async function invoke(plugin: LoadedUnifiedPlugin, handler: string | undefined, ctx: InvokeContext, timeoutMs: number) {
   if (!handler) return { ok: true, plugin: plugin.manifest.name, source: ctx.source };
-  try {
+  const result = await runPluginWithErrorContainment({
+    plugin: plugin.manifest.name,
+    phase: ctx.source === 'init' || ctx.source === 'destroy' ? ctx.source : 'runtime',
+  }, async () => {
     const mod = await import(pathToFileURL(plugin.entryPath).href);
     const fn = handler === 'default' ? mod.default : (mod[handler] ?? mod.default);
-    if (typeof fn !== 'function') return { ok: false, error: `handler not found: ${handler}` };
+    if (typeof fn !== 'function') throw new Error(`handler not found: ${handler}`);
     return await Promise.race([
-      Promise.resolve(fn(ctx)),
+      Promise.resolve(fn({ ...ctx, config: plugin.manifest.config ?? {} })),
       new Promise((_, reject) => setTimeout(() => reject(new Error('handler timed out')), timeoutMs)),
     ]);
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
-  }
+  });
+  return result.ok ? result.value : { ok: false, error: result.error };
 }
 
 function responseFrom(result: unknown): unknown {
@@ -132,6 +135,10 @@ function responseFrom(result: unknown): unknown {
   if (record.body !== undefined) return record.body;
   if (record.output !== undefined) return { ok: true, output: record.output };
   return record;
+}
+
+function invokeFailed(result: unknown): result is InvokeResult & { ok: false } {
+  return !!result && typeof result === 'object' && (result as InvokeResult).ok === false;
 }
 
 function apiRoute(plugin: LoadedUnifiedPlugin, route: UnifiedApiRouteManifest, timeoutMs: number): ElysiaApp {
@@ -160,8 +167,11 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
   const cliSubcommands: UnifiedRuntime['cliSubcommands'] = [];
   const servers: UnifiedRuntime['servers'] = [];
   const mcpInvokers = new Map<string, { plugin: LoadedUnifiedPlugin; tool: UnifiedMcpToolManifest }>();
+  const initialized = new Set<string>();
+  const pluginStatus = new Map<string, UnifiedPluginStatus>();
 
   for (const plugin of plugins) {
+    pluginStatus.set(plugin.manifest.name, { name: plugin.manifest.name, status: 'ok' });
     for (const tool of plugin.manifest.mcpTools) {
       mcpTools.push({ ...tool, plugin: plugin.manifest.name });
       mcpInvokers.set(tool.name, { plugin, tool });
@@ -188,12 +198,48 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
     if (!hit) return { ok: false, error: `MCP tool not found: ${name}` };
     return invoke(hit.plugin, hit.tool.handler, { source: 'mcp', plugin: hit.plugin.manifest.name, args: [args], body: args }, timeoutMs);
   };
-  return { pluginCount: plugins.length, routes, mcpTools, menu, cliSubcommands, servers, callMcpTool, stop: async () => {} };
+  const invokeLifecycle = async (source: LifecycleSource, plugin: LoadedUnifiedPlugin) => {
+    const result = await invoke(plugin, plugin.manifest.lifecycle?.[source], {
+      source,
+      plugin: plugin.manifest.name,
+    }, timeoutMs);
+    if (invokeFailed(result)) {
+      const error = result.error ?? 'plugin failed';
+      pluginStatus.set(plugin.manifest.name, { name: plugin.manifest.name, status: 'degraded', error });
+      warn(options, `${plugin.manifest.name}.${source} failed: ${error}`);
+    } else {
+      pluginStatus.set(plugin.manifest.name, { name: plugin.manifest.name, status: 'ok' });
+      if (source === 'init') initialized.add(plugin.manifest.name);
+    }
+  };
+  const init = async () => {
+    for (const plugin of plugins) {
+      if (plugin.manifest.exportFormats.length) {
+        const error = await registerPluginExportFormats(plugin, timeoutMs);
+        if (error) { pluginStatus.set(plugin.manifest.name, { name: plugin.manifest.name, status: 'degraded', error }); continue; }
+      }
+      if (!plugin.manifest.lifecycle?.init || initialized.has(plugin.manifest.name)) continue;
+      await invokeLifecycle('init', plugin);
+    }
+  };
+  const stop = async () => {
+    for (const plugin of [...plugins].reverse()) {
+      if (!plugin.manifest.lifecycle?.destroy) continue;
+      if (plugin.manifest.lifecycle.init && !initialized.has(plugin.manifest.name)) continue;
+      await invokeLifecycle('destroy', plugin);
+    }
+    initialized.clear();
+  };
+  const pluginStatuses = () => plugins.map((plugin) => pluginStatus.get(plugin.manifest.name)
+    ?? { name: plugin.manifest.name, status: 'ok' as const });
+  const pluginRegistry = () => pluginRegistryFromLoadedPlugins(plugins, pluginStatuses());
+  return { pluginCount: plugins.length, routes, mcpTools, menu, cliSubcommands, servers, callMcpTool, pluginStatuses, pluginRegistry, init, stop };
 }
 
 export async function loadUnifiedPlugins(options: UnifiedLoaderOptions = {}): Promise<UnifiedRuntime> {
   try {
-    return runtimeFrom(await discoverUnifiedPluginManifests(options), options);
+    const plugins = await discoverUnifiedPluginManifests(options);
+    return runtimeFrom(sortPluginsByDependencies(plugins, { warn: options.warn }), options);
   } catch (error) {
     warn(options, `loader disabled: ${error instanceof Error ? error.message : String(error)}`);
     return runtimeFrom([], options);

@@ -63,9 +63,11 @@ describe("HTTP Contract — Core Routes", () => {
     console.log("Server ready");
   }, 30_000);
 
-  afterAll(() => {
+  afterAll(async () => {
     if (serverProcess) {
       serverProcess.kill();
+      await serverProcess.exited;
+      await Bun.sleep(500);
       console.log("Server stopped");
     }
   });

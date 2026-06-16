@@ -16,13 +16,8 @@ import { doctorCommand } from "./commands/doctor.ts";
 import { completionsCommand } from "./commands/completions.ts";
 import { peersCommand } from "./commands/peers.ts";
 import { huginnCommand } from "./commands/huginn.ts";
-import {
-  CLI_VERSION,
-  builtinHelpFor,
-  hasHelpFlag,
-  renderCommandHelp,
-  renderRootHelp,
-} from "../../src/cli/help.ts";
+import { vectorConfigCommand } from "./commands/vector-config.ts";
+import { CLI_VERSION, builtinHelpFor, hasHelpFlag, renderCommandHelp, renderRootHelp } from "../../src/cli/help.ts";
 
 async function loadAll() {
   const { plugins, bundled, user } = await discoverPlugins();
@@ -116,6 +111,23 @@ async function main() {
     process.exit(await huginnCommand(args.slice(1)));
   }
 
+  if (cmd === "vector-config") {
+    if (hasHelpFlag(args.slice(1))) return printScopedBuiltinHelp(cmd, args.slice(1));
+    process.exit(await vectorConfigCommand(args.slice(1)));
+  }
+
+  if (cmd === "changelog") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    const { changelogCommand } = await import("../../src/cli/commands/changelog.ts");
+    process.exit(await changelogCommand(args.slice(1)));
+  }
+
+  if (cmd === "release") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    const { releaseCommand } = await import("../../src/cli/commands/release.ts");
+    process.exit(await releaseCommand(args.slice(1)));
+  }
+
   if (cmd === "export") {
     const { exportCommand } = await import("../../src/cli/commands/export.ts");
     process.exit(await exportCommand(args.slice(1)));
@@ -124,6 +136,24 @@ async function main() {
   if (cmd === "import") {
     const { importCommand } = await import("../../src/cli/commands/import.ts");
     process.exit(await importCommand(args.slice(1)));
+  }
+
+  if (cmd === "migrate") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    const { migrateCommand } = await import("../../src/cli/commands/migrate.ts");
+    process.exit(await migrateCommand(args.slice(1)));
+  }
+
+  if (cmd === "seed") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    const { seedCommand } = await import("../../src/cli/commands/seed.ts");
+    process.exit(await seedCommand(args.slice(1)));
+  }
+
+  if (cmd === "backup") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    const { backupCommand } = await import("../../src/cli/commands/backup.ts");
+    process.exit(await backupCommand(args.slice(1)));
   }
 
   if (cmd === "use") {

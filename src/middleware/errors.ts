@@ -1,11 +1,28 @@
 import { Elysia } from 'elysia';
+import { REQUEST_ID_HEADER, RESPONSE_TIME_HEADER, requestIdFor, responseTimeFor } from './correlation.ts';
+
+export type ApiErrorResponse = {
+  success: false;
+  error: string;
+  code: number;
+  details?: unknown;
+};
 
 export type StructuredErrorResponse = {
+  success: false;
   error: string;
   message: string;
   statusCode: number;
   correlationId: string;
 };
+
+export function apiErrorResponse<const T extends string, const C extends number, D>(
+  error: T,
+  code: C,
+  details: D,
+): { success: false; error: T; code: C; details: D } {
+  return { success: false, error, code, details };
+}
 
 export class HttpError extends Error {
   constructor(
@@ -38,6 +55,7 @@ export class UnprocessableEntityError extends HttpError {
 
 function statusLabel(statusCode: number): string {
   if (statusCode === 400) return 'Bad Request';
+  if (statusCode === 401) return 'Unauthorized';
   if (statusCode === 404) return 'Not Found';
   if (statusCode === 422) return 'Unprocessable Entity';
   if (statusCode === 503) return 'Service Unavailable';
@@ -68,21 +86,26 @@ function knownStatus(code: string, error: unknown): number {
   return 500;
 }
 
-function correlationId(request: Request): string {
-  return request.headers.get('x-correlation-id') || crypto.randomUUID();
+type ErrorLogger = (entry: { requestId: string; statusCode: number; code: string; message: string }) => void;
+
+function defaultErrorLogger(entry: { requestId: string; statusCode: number; code: string; message: string }) {
+  if (entry.statusCode < 500) return;
+  console.error(`[HTTP:${entry.requestId}] ${entry.statusCode} ${entry.code}: ${entry.message}`);
 }
 
-export function createErrorMiddleware() {
+export function createErrorMiddleware(logger: ErrorLogger = defaultErrorLogger) {
   return new Elysia({ name: 'structured-errors' }).onError({ as: 'global' }, ({ code, error, request, set }) => {
     const statusCode = knownStatus(String(code), error);
-    const id = correlationId(request);
+    const id = requestIdFor(request);
+    const message = statusCode === 404 && code === 'NOT_FOUND' ? 'Route not found' : errorMessage(error);
     set.status = statusCode;
+    set.headers[REQUEST_ID_HEADER] = id;
+    set.headers[RESPONSE_TIME_HEADER] = responseTimeFor(request);
     set.headers['x-correlation-id'] = id;
-    return {
-      error: error instanceof HttpError ? error.error : statusLabel(statusCode),
-      message: statusCode === 404 && code === 'NOT_FOUND' ? 'Route not found' : errorMessage(error),
-      statusCode,
+    logger({ requestId: id, statusCode, code: String(code), message });
+    return apiErrorResponse(error instanceof HttpError ? error.error : statusLabel(statusCode), statusCode, {
+      message,
       correlationId: id,
-    } satisfies StructuredErrorResponse;
+    }) satisfies ApiErrorResponse;
   });
 }

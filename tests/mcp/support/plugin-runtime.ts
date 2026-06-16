@@ -8,6 +8,8 @@ export function runtimeReturning(result: unknown, tool: Record<string, unknown> 
     cliSubcommands: [],
     servers: [],
     callMcpTool: async () => result,
+    pluginStatuses: () => [],
+    init: async () => {},
     stop: async () => {},
   } as UnifiedRuntime;
 }

@@ -31,19 +31,50 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
     ]);
   }
 
+  if (pathname === '/vector/search') {
+    const query = new URLSearchParams(search).get('q')?.trim();
+    return base('Vector search preview', 'Vector', query ? `Preview semantic matches for “${query}”.` : 'Preview semantic matches by collection.', [
+      { label: 'Vector dashboard', to: '/vector' },
+      { label: 'Preview' },
+    ]);
+  }
+
+  if (pathname === '/vector/documents') {
+    return base('Vector documents', 'Vector', 'Browse indexed document content and metadata by collection.', [
+      { label: 'Vector dashboard', to: '/vector' },
+      { label: 'Documents' },
+    ]);
+  }
+
   if (pathname === '/vector/results') {
     const query = new URLSearchParams(search).get('q')?.trim();
     return base('Vector search results', 'Vector', query ? `Semantic matches for “${query}”.` : 'Full-page vector search results.', [
-      { label: 'Vector search', to: '/vector' },
+      { label: 'Vector dashboard', to: '/vector' },
       { label: query ? `Results: ${query}` : 'Results' },
     ]);
   }
 
+  if (pathname === '/vector/export') {
+    return base('Vector export', 'Vector', 'Download vector collections in available formats.', [
+      { label: 'Vector dashboard', to: '/vector' },
+      { label: 'Export' },
+    ]);
+  }
+
+  if (pathname === '/vector/settings') {
+    return base('Vector settings', 'Vector', 'Manage vector collection config and index jobs.', [
+      { label: 'Vector dashboard', to: '/vector' },
+      { label: 'Settings' },
+    ]);
+  }
+
   if (pathname === '/plugins') return base('Plugin list', 'Plugins', 'Registered plugins and exposed runtime surfaces.', [{ label: 'Plugins' }]);
+  if (pathname === '/canvas/plugins') return base('Canvas plugins', 'Canvas', 'Canvas plugin registry and standalone status.', [{ label: 'Canvas plugins' }]);
+  if (pathname === '/metrics') return base('Runtime metrics', 'Metrics', 'Runtime counters from /api/v1/metrics.', [{ label: 'Metrics' }]);
   if (pathname === '/search') return base('Search', 'Search', 'Search menu, plugin, and MCP tool surfaces.', [{ label: 'Search' }]);
-  if (pathname === '/vector') return base('Vector search', 'Vector', 'Semantic search against Oracle memory.', [{ label: 'Vector search' }]);
-  if (pathname === '/metrics') return base('Runtime metrics', 'Metrics', 'Menu, plugin, and surface counts.', [{ label: 'Metrics' }]);
+  if (pathname === '/learn') return base('Learn entries', 'Learn', 'Capture and edit Oracle learnings.', [{ label: 'Learn' }]);
+  if (pathname === '/vector') return base('Vector dashboard', 'Vector', 'Collection health, search, and export status.', [{ label: 'Vector dashboard' }]);
   if (pathname === '/mcp') return base('MCP tools', 'MCP', 'Browse available MCP tool schemas and groups.', [{ label: 'MCP tools' }]);
-  if (pathname === '/settings') return base('Runtime settings', 'Settings', 'Storage, embedder, and migration status.', [{ label: 'Settings' }]);
+  if (pathname === '/settings') return base('Runtime settings', 'Settings', 'Storage, embedder, and DB status.', [{ label: 'Settings' }]);
   return base('Menu viewer', 'Menu', 'Navigation rows from /api/menu.', [{ label: 'Menu' }]);
 }

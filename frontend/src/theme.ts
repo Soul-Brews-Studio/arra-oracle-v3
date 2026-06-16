@@ -28,6 +28,12 @@ export function applyTheme(theme: ThemeMode) {
   root.style.colorScheme = theme;
 }
 
+export function loadTheme(): ThemeMode {
+  const theme = readStoredTheme();
+  applyTheme(theme);
+  return theme;
+}
+
 export function saveTheme(theme: ThemeMode) {
   try {
     browserWindow()?.localStorage.setItem(THEME_KEY, theme);

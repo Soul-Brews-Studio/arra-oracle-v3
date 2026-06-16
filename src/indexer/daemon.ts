@@ -15,10 +15,11 @@
 
 import Database from 'bun:sqlite';
 import { Elysia } from 'elysia';
-import { DB_PATH } from '../config.ts';
+import { DB_PATH, REPO_ROOT } from '../config.ts';
 import { createVectorStoreForModel, getEmbeddingModels } from '../vector/factory.ts';
 import { runWorker, type WorkerEvent } from './worker.ts';
 import { daemonApiPlugin, makeEventBus } from '../routes/indexer-daemon/index.ts';
+import { startLearnWatcher, type StopWatch } from './learn-watcher.ts';
 
 const PORT = parseInt(process.env.INDEXER_PORT || '47779', 10);
 const HOST = process.env.INDEXER_HOST || '127.0.0.1';
@@ -31,6 +32,7 @@ export async function startDaemon(): Promise<void> {
   const models = getEmbeddingModels();
   const eventBus = makeEventBus<WorkerEvent>();
   let shuttingDown = false;
+  let stopLearnWatcher: StopWatch | undefined;
 
   // Resolve doc text via the FTS5 mirror table — same content oracle_learn writes.
   const getDocText = (docId: string): string | null => {
@@ -112,9 +114,17 @@ export async function startDaemon(): Promise<void> {
   console.log(`[arra-indexer] listening on http://${HOST}:${PORT}`);
   console.log(`[arra-indexer] models: ${Object.keys(models).join(', ')}`);
 
+  stopLearnWatcher = startLearnWatcher({
+    db,
+    models,
+    repoRoot: REPO_ROOT,
+  });
+
   const shutdown = async (signal: string) => {
     console.log(`[arra-indexer] ${signal} — draining…`);
     shuttingDown = true;
+    stopLearnWatcher?.();
+    stopLearnWatcher = undefined;
     await app.stop();
     // Workers exit on next loop tick. Give them up to 5s of in-flight grace.
     const timeout = new Promise((resolve) => setTimeout(resolve, 5000));

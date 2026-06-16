@@ -1,36 +1,40 @@
-/**
- * Arra Oracle HTTP Server — Elysia (bun-native).
- *
- * Composes 15 route modules from src/routes/. Every module is its own
- * Elysia sub-app, nested one file per endpoint.
- */
-
 import { Elysia } from 'elysia';
+import { join } from 'node:path';
 import { swagger } from '@elysiajs/swagger';
 import { eq } from 'drizzle-orm';
-
-import {
-  configure,
-  writePidFile,
-  removePidFile,
-} from './process-manager/index.ts';
-
+import { configure, writePidFile, removePidFile } from './process-manager/index.ts';
 import { PORT, ORACLE_DATA_DIR, VECTOR_URL } from './config.ts';
 import { ScoutAnnouncer, shouldStartScoutAnnouncer } from './peer/scout-announcer.ts';
 import { MCP_SERVER_NAME } from './const.ts';
-import { db, sqlite, closeDb, indexingStatus } from './db/index.ts';
+import { db, sqlite, closeDb, indexingStatus, settings } from './db/index.ts';
 import { isApiAuthorized, isApiPathProtected, unauthorizedApiResponse } from './server/api-token-auth.ts';
 import { seedMenuItems, type HasRoutes as SeedHasRoutes } from './db/seeders/menu-seeder.ts';
-import { createCorsMiddleware, createPrivateNetworkPreflightMiddleware } from './server/cors.ts';
+import { createCorsMiddleware, createPrivateNetworkPreflightMiddleware } from './middleware/cors.ts';
+import { createContentTypeMiddleware } from './middleware/content-type.ts';
 import { createApiKeyAuthMiddleware } from './middleware/auth.ts';
-import { loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
+import { createCorrelationMiddleware } from './middleware/correlation.ts';
+import { defaultUnifiedPluginDirs, loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
 import { startUnifiedPluginServers } from './plugins/unified-server.ts';
 import { closeCachedVectorStores } from './vector/factory.ts';
-import { isDraining, registerGracefulShutdown, trackRequest } from './lifecycle/shutdown.ts';
+import { drainingResponseFor, isDraining, registerGracefulShutdown, runShutdownSteps, trackRequest } from './lifecycle/shutdown.ts';
 import { createErrorMiddleware } from './middleware/errors.ts';
-import { createRateLimitMiddleware } from './middleware/rate-limit.ts';
-
-// Elysia sub-apps — one per cluster
+import { validateStartupEnv } from './config/validate.ts';
+import { printStartupBanner } from './lifecycle/banner.ts';
+import { createStartupSelfTest, runStartupSelfTest } from './lifecycle/self-test.ts';
+import { readStartupDbStatus, runtimeMiddleware } from './lifecycle/startup-context.ts';
+import { createRequestLoggingMiddleware } from './middleware/request-logger.ts';
+import { createApiVersionHeaderMiddleware, createApiVersionedFetch } from './middleware/api-version.ts';
+import { createSecurityHeadersMiddleware } from './middleware/security-headers.ts';
+import { createRequestTimeoutFetch } from './middleware/timeout.ts';
+import { createBodyLimitMiddleware } from './middleware/body-limit.ts';
+import { createRateLimiterMiddleware } from './middleware/rate-limiter.ts';
+import { createResponseFormatMiddleware } from './middleware/response-format.ts';
+import { createNotFoundMiddleware } from './middleware/not-found.ts';
+import { createEtagMiddleware } from './middleware/etag.ts';
+import { createCompressMiddleware } from './middleware/compress.ts';
+import { createRequestDedupFetch } from './middleware/dedup.ts';
+import { createDbContextFetch } from './middleware/db-context.ts';
+import { createTenantFetch, createTenantMiddleware } from './middleware/tenant.ts';
 import { authRoutes } from './routes/auth/index.ts';
 import { settingsRoutes } from './routes/settings/index.ts';
 import { feedRoutes } from './routes/feed/index.ts';
@@ -44,15 +48,18 @@ import { forumApi } from './routes/forum/index.ts';
 import { tracesApi } from './routes/traces/index.ts';
 import { scheduleApi } from './routes/schedule/index.ts';
 import { filesRouter } from './routes/files/index.ts';
-import { pluginsRouter } from './routes/plugins/index.ts';
+import { createPluginsRouter } from './routes/plugins/index.ts';
 import { oraclenetRoutes } from './routes/oraclenet/index.ts';
 import { sessionsRoutes } from './routes/sessions/index.ts';
 import { vaultRoutes } from './routes/vault/index.ts';
 import { createMenuRoutes, menuItemsFromUnifiedPlugins } from './routes/menu/index.ts';
 import { peerRoutes } from './routes/peer/index.ts';
 import { createMcpRoutes } from './routes/mcp/index.ts';
+import { createMetricsLifecycle, metricsRoutes } from './routes/metrics/index.ts';
+import { memoryRoutes } from './routes/memory/index.ts';
+import { canvasRoutes } from './routes/canvas/index.ts';
+import { tenantsRoutes } from './routes/tenants/index.ts';
 
-// Indexer routes are optional — MCP server works without them
 let indexerRoutes: any = null;
 try {
   indexerRoutes = (await import('./routes/indexer/index.ts')).indexerRoutes;
@@ -60,9 +67,9 @@ try {
   console.log('[Indexer] Routes not loaded — indexer is optional');
 }
 import { gatewayPlugin } from './gateway/index.ts';
-
 import pkg from '../package.json' with { type: 'json' };
 
+const startupConfig = validateStartupEnv();
 try {
   db.update(indexingStatus).set({ isIndexing: 0 }).where(eq(indexingStatus.id, 1)).run();
   console.log('🔮 Reset indexing status on startup');
@@ -84,48 +91,48 @@ writePidFile({
   startedAt: new Date().toISOString(),
   name: 'oracle-http',
 });
-
 const scoutAnnouncer = shouldStartScoutAnnouncer() ? new ScoutAnnouncer() : null;
 scoutAnnouncer?.start();
 
-const unifiedPlugins = await loadUnifiedPlugins({ warn: (message) => console.warn(message) });
+const unifiedPlugins = await loadUnifiedPlugins({
+  dirs: defaultUnifiedPluginDirs([join(import.meta.dir, 'plugins')]),
+  warn: (message) => console.warn(message),
+});
+await unifiedPlugins.init();
 const unifiedServers = await startUnifiedPluginServers(unifiedPlugins.servers);
-
 registerGracefulShutdown({
   close: async () => {
     console.log('\n🔮 Shutting down gracefully...');
-    scoutAnnouncer?.stop();
-    await unifiedServers.stop();
-    await closeCachedVectorStores();
-    closeDb();
-    removePidFile();
+    await runShutdownSteps([
+      { name: 'scout-announcer', run: () => scoutAnnouncer?.stop() },
+      { name: 'unified-plugins', run: () => unifiedPlugins.stop() },
+      { name: 'unified-plugin-servers', run: () => unifiedServers.stop() },
+      { name: 'vector-stores', run: () => closeCachedVectorStores() },
+      { name: 'database', run: () => closeDb() },
+      { name: 'pid-file', run: () => removePidFile() },
+    ], console.warn);
     console.log('👋 Arra Oracle HTTP Server stopped.');
   },
 });
-
 const app = new Elysia()
+  .use(createRequestLoggingMiddleware())
+  .use(createCorrelationMiddleware())
+  .use(createTenantMiddleware())
   .use(createPrivateNetworkPreflightMiddleware())
   .use(createCorsMiddleware())
-  .use(createRateLimitMiddleware())
+  .use(createApiVersionHeaderMiddleware())
+  .use(createSecurityHeadersMiddleware())
+  .use(createContentTypeMiddleware())
+  .use(createBodyLimitMiddleware())
   .use(createApiKeyAuthMiddleware())
-  .onBeforeHandle(({ request, set }) => {
-    const pathname = new URL(request.url).pathname;
-    if (isApiPathProtected(pathname) && !isApiAuthorized(request)) {
-      set.status = 401;
-      return unauthorizedApiResponse();
-    }
-  })
-  .onAfterHandle(({ set }) => {
-    set.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-    set.headers['X-Content-Type-Options'] = 'nosniff';
-    set.headers['X-Frame-Options'] = 'DENY';
-    set.headers['X-XSS-Protection'] = '1; mode=block';
-    set.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
-  })
-  .use(createErrorMiddleware())
+  .use(createRateLimiterMiddleware())
+  .use(createMetricsLifecycle())
   .use(
     swagger({
-      path: '/swagger',
+      provider: 'swagger-ui',
+      path: '/api/docs',
+      specPath: '/api/docs/json',
+      swaggerOptions: { url: '/api/docs/json' } as any,
       documentation: {
         info: {
           title: 'Arra Oracle API',
@@ -135,19 +142,38 @@ const app = new Elysia()
       },
     }),
   )
+  .use(createResponseFormatMiddleware())
+  .use(createCompressMiddleware())
+  .use(createEtagMiddleware())
+  .onBeforeHandle(({ request, set }) => {
+    const pathname = new URL(request.url).pathname;
+    if (isApiPathProtected(pathname) && !isApiAuthorized(request)) {
+      set.status = 401;
+      return unauthorizedApiResponse();
+    }
+  })
+  .onAfterHandle(({ set }) => {
+    set.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+    set.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
+  })
+  .use(createErrorMiddleware())
   .use(gatewayPlugin(ORACLE_DATA_DIR, VECTOR_URL || undefined))
   .use(peerRoutes)
+  .get('/swagger', () => Response.redirect('/api/docs', 308), { detail: { hide: true } })
+  .get('/swagger/json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
+  .get('/api/openapi.json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
   .get('/', () => ({
     server: MCP_SERVER_NAME,
     version: pkg.version,
     status: 'ok',
-    docs: '/swagger',
-    api: '/api',
+    docs: '/api/docs',
+    api: '/api/v1',
   }));
 
 const healthRoutes = createHealthRoutes({
   pluginCount: unifiedPlugins.pluginCount,
   pluginMcpToolCount: unifiedPlugins.mcpTools.length,
+  pluginStatuses: unifiedPlugins.pluginStatuses,
   isDraining,
 });
 
@@ -165,10 +191,14 @@ const apiModules = [
   tracesApi,
   scheduleApi,
   filesRouter,
-  pluginsRouter,
+  createPluginsRouter({ registry: unifiedPlugins.pluginRegistry }),
   oraclenetRoutes,
   sessionsRoutes,
   vaultRoutes,
+  metricsRoutes,
+  memoryRoutes,
+  canvasRoutes,
+  tenantsRoutes,
   ...(indexerRoutes ? [indexerRoutes] : []),
   ...unifiedPlugins.routes,
 ];
@@ -189,16 +219,32 @@ const mcpRoutes = createMcpRoutes(unifiedPlugins.mcpTools);
 const modules = [...apiModules, mcpRoutes, menuRoutes];
 
 for (const mod of modules) app.use(mod as any);
+app.use(createNotFoundMiddleware(app.routes));
 
-console.log(`
-🔮 Arra Oracle HTTP Server running! (Elysia)
+const dbStatus = () => readStartupDbStatus(() => db.select({ key: settings.key }).from(settings).limit(1).all());
+const middleware = runtimeMiddleware({
+  rateLimitTokensPerWindow: startupConfig.profile.rateLimit.tokensPerWindow,
+  gatewayEnabled: Boolean(VECTOR_URL) || process.env.ORACLE_GATEWAY_HOT_RELOAD !== '0',
+});
 
-   URL:     http://localhost:${PORT}
-   Swagger: http://localhost:${PORT}/swagger
-   Version: ${pkg.version}
-`);
+printStartupBanner({
+  version: pkg.version,
+  port: Number(PORT),
+  profile: startupConfig.profile.env,
+  middleware,
+  dbStatus: dbStatus(),
+});
+await runStartupSelfTest({
+  checks: createStartupSelfTest({
+    dbPing: dbStatus,
+    healthFetch: () => app.fetch(new Request(`http://127.0.0.1:${PORT}/api/health`)),
+  }),
+});
+const serverFetch = createRequestTimeoutFetch(
+  createRequestDedupFetch(createApiVersionedFetch(createTenantFetch(createDbContextFetch((request: Request) => app.fetch(request))))),
+);
 
 export default {
   port: Number(PORT),
-  fetch: (request: Request) => trackRequest(() => app.fetch(request)),
+  fetch: (request: Request) => drainingResponseFor(request) ?? trackRequest(() => serverFetch(request)),
 };

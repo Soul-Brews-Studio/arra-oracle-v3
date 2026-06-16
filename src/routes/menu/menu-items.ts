@@ -1,4 +1,4 @@
-import { asc } from 'drizzle-orm';
+import { asc, isNull } from 'drizzle-orm';
 import { db, menuItems } from '../../db/index.ts';
 import { getFrontendMenuItems } from '../../menu/index.ts';
 import { getPluginMenuItems } from '../plugins/model.ts';
@@ -11,6 +11,7 @@ export const API_TO_STUDIO: ReadonlyArray<readonly [string, string]> = [
   ['/api/list', '/feed'],
   ['/api/reflect', '/playground'],
   ['/api/threads', '/'],
+  ['/api/learn', '/learn'],
   ['/api/traces', '/traces'],
   ['/api/schedule', '/schedule'],
   ['/api/plugins', '/plugins'],
@@ -82,6 +83,7 @@ export function readApiMenuItemsFromDb(host?: string, scope?: Scope): MenuItem[]
   const rows = db
     .select()
     .from(menuItems)
+    .where(isNull(menuItems.deletedAt))
     .orderBy(asc(menuItems.position))
     .all();
 

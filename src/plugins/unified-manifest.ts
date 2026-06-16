@@ -1,4 +1,6 @@
 import type { ServerPluginTier } from '../server/plugin/types.ts';
+import { validatePluginConfig, type JsonSchema } from './config-schema.ts';
+import { validateExportFormatManifests, type UnifiedExportFormatManifest } from './export-format-manifest.ts';
 
 export type UnifiedPluginSurface =
   | 'mcpTools'
@@ -6,10 +8,10 @@ export type UnifiedPluginSurface =
   | 'proxy'
   | 'server'
   | 'menu'
-  | 'cliSubcommands';
+  | 'cliSubcommands'
+  | 'exportFormats';
 
 export type UnifiedHttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'HEAD' | 'ALL';
-export type UnifiedPluginRenderer = 'Three' | 'React';
 
 export interface UnifiedMcpToolManifest {
   name: string;
@@ -58,6 +60,13 @@ export interface UnifiedCliSubcommandManifest {
   handler?: string;
 }
 
+export interface UnifiedLifecycleManifest {
+  init?: string;
+  destroy?: string;
+  start?: boolean;
+  stop?: boolean;
+}
+
 export interface UnifiedPluginManifest {
   name: string;
   version: string;
@@ -66,27 +75,32 @@ export interface UnifiedPluginManifest {
   tier?: ServerPluginTier;
   enabled?: boolean;
   description?: string;
+  depends?: string[];
+  config?: unknown;
+  configSchema?: JsonSchema;
   mcpTools?: UnifiedMcpToolManifest[];
   apiRoutes?: UnifiedApiRouteManifest[];
   proxy?: UnifiedProxyManifest[];
   server?: UnifiedServerManifest;
   menu?: UnifiedMenuManifest[];
   cliSubcommands?: UnifiedCliSubcommandManifest[];
+  exportFormats?: UnifiedExportFormatManifest[];
 
-  /** Legacy compatibility aliases used by existing ServerPlugin/CLI manifests. */
   api?: { path: string; methods?: UnifiedHttpMethod[] };
-  lifecycle?: { start?: boolean; stop?: boolean };
+  lifecycle?: UnifiedLifecycleManifest;
   seedMenu?: boolean;
-  cli?: { command: string; help: string };
+  cli?: { command: string; help: string; handler?: string };
 }
 
 export interface NormalizedUnifiedPluginManifest extends Omit<UnifiedPluginManifest, 'api' | 'cli' | 'seedMenu'> {
   sdk: string;
+  depends: string[];
   apiRoutes: UnifiedApiRouteManifest[];
   mcpTools: UnifiedMcpToolManifest[];
   proxy: UnifiedProxyManifest[];
   menu: UnifiedMenuManifest[];
   cliSubcommands: UnifiedCliSubcommandManifest[];
+  exportFormats: UnifiedExportFormatManifest[];
 }
 
 const NAME_RE = /^[a-z0-9-]+$/;
@@ -141,16 +155,18 @@ export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedP
     throw new Error(`manifest.version must be semver, got: ${JSON.stringify(manifest.version)}`);
   }
   if (!manifest.entry || typeof manifest.entry !== 'string') throw new Error('manifest.entry must be a string path');
+  assertStringArray(manifest.depends, 'depends');
 
   const apiRoutes = [...asArray(manifest.apiRoutes)];
   if (manifest.api) apiRoutes.push({ path: manifest.api.path, methods: manifest.api.methods });
 
   const cliSubcommands = [...asArray(manifest.cliSubcommands)];
-  if (manifest.cli) cliSubcommands.push({ command: manifest.cli.command, help: manifest.cli.help });
+  if (manifest.cli) cliSubcommands.push({ command: manifest.cli.command, help: manifest.cli.help, handler: manifest.cli.handler });
 
   const menu = [...asArray(manifest.menu)];
   const mcpTools = asArray(manifest.mcpTools);
   const proxy = asArray(manifest.proxy);
+  const exportFormats = asArray(manifest.exportFormats);
 
   for (const tool of mcpTools) {
     if (!TOOL_RE.test(tool.name)) throw new Error(`mcpTools.name must match ${TOOL_RE}, got: ${JSON.stringify(tool.name)}`);
@@ -186,15 +202,27 @@ export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedP
     if (!command.command || typeof command.command !== 'string') throw new Error('cliSubcommands.command must be a string');
     if (!command.help || typeof command.help !== 'string') throw new Error('cliSubcommands.help must be a string');
   }
+  validateExportFormatManifests(exportFormats);
+  if (manifest.configSchema !== undefined) validatePluginConfig(manifest.config ?? {}, manifest.configSchema, manifest.name);
+
+  if (manifest.lifecycle) {
+    const { init, destroy, start, stop } = manifest.lifecycle;
+    if (init !== undefined && typeof init !== 'string') throw new Error('lifecycle.init must be a string');
+    if (destroy !== undefined && typeof destroy !== 'string') throw new Error('lifecycle.destroy must be a string');
+    if (start !== undefined && typeof start !== 'boolean') throw new Error('lifecycle.start must be a boolean');
+    if (stop !== undefined && typeof stop !== 'boolean') throw new Error('lifecycle.stop must be a boolean');
+  }
 
   return {
     ...manifest,
     sdk: manifest.sdk ?? '^0.0.1',
+    depends: manifest.depends ?? [],
     apiRoutes,
     mcpTools,
     proxy,
     menu,
     cliSubcommands,
+    exportFormats,
   };
 }
 
@@ -206,6 +234,7 @@ export function manifestSurfaces(manifest: NormalizedUnifiedPluginManifest): Uni
   if (manifest.server) surfaces.push('server');
   if (manifest.menu.length) surfaces.push('menu');
   if (manifest.cliSubcommands.length) surfaces.push('cliSubcommands');
+  if (manifest.exportFormats.length) surfaces.push('exportFormats');
   return surfaces;
 }
 
@@ -213,14 +242,7 @@ export function mcpToolNamesForToggle(manifest: NormalizedUnifiedPluginManifest)
   return manifest.mcpTools.map((tool) => tool.name);
 }
 
-export function publicUnifiedServerManifest(
-  server?: UnifiedServerManifest,
-): PublicUnifiedServerManifest | undefined {
+export function publicUnifiedServerManifest(server?: UnifiedServerManifest): PublicUnifiedServerManifest | undefined {
   if (!server) return undefined;
-  return {
-    command: server.command,
-    args: server.args,
-    healthPath: server.healthPath,
-    autostart: server.autostart,
-  };
+  return { command: server.command, args: server.args, healthPath: server.healthPath, autostart: server.autostart };
 }

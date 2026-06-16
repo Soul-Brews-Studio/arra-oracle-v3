@@ -8,6 +8,7 @@ import { StatCard } from './StatCard';
 import { CommandPalette } from './CommandPalette';
 import { ThemeToggle } from './ThemeToggle';
 import { GlobalSearch } from './GlobalSearch';
+import type { MetricsSnapshot } from '../../../src/server/types';
 
 type AppShellProps = {
   children: ReactNode;
@@ -16,6 +17,8 @@ type AppShellProps = {
   menuCount: number;
   pluginCount: number;
   surfaceCount: number;
+  metrics?: MetricsSnapshot | null;
+  metricsLoading?: boolean;
   updatedAt: string;
   onRefresh: () => void;
 };
@@ -27,6 +30,8 @@ export function AppShell({
   menuCount,
   pluginCount,
   surfaceCount,
+  metrics = null,
+  metricsLoading = false,
   updatedAt,
   onRefresh,
 }: AppShellProps) {
@@ -43,12 +48,25 @@ export function AppShell({
   }, [location.pathname, location.search]);
 
   const navItems: NavItem[] = [
-    { to: '/menu', label: 'Menu', description: 'Navigation rows from /api/menu', badge: loading ? '…' : menuCount },
+    { to: '/', label: 'Menu', description: 'Navigation rows from /api/menu', badge: loading ? '…' : menuCount },
     { to: '/plugins', label: 'Plugins', description: 'Registered plugins and surfaces', badge: loading ? '…' : pluginCount },
-    { to: '/vector', label: 'Vector', description: 'Semantic search over memory' },
+    { to: '/canvas/plugins', label: 'Canvas Plugins', description: 'Canvas registry from /api/canvas/plugins' },
+    { to: '/search', label: 'Search', description: 'Full-text menu search' },
+    { to: '/vector', label: 'Vector Dashboard', description: 'Collection health and indexing', end: true },
+    { to: '/vector/documents', label: 'Document Browser', description: 'Browse indexed vector documents' },
+    { to: '/vector/search', label: 'Vector Search', description: 'Semantic preview by collection' },
+    { to: '/vector/settings', label: 'Vector settings', description: 'Collection config and index controls' },
+    { to: '/vector/export', label: 'Export', description: 'Download vector collections' },
+    { to: '/learn', label: 'Learn', description: 'Create and edit learnings' },
+    { to: '/metrics', label: 'Metrics', description: 'Runtime counters from /api/v1/metrics' },
     { to: '/mcp', label: 'MCP', description: 'Tool schemas and groups' },
     { to: '/settings', label: 'Settings', description: 'Storage, embedder, and DB status' },
   ];
+  const requestValue = metricsLoading ? <Spinner label="Loading metrics" /> : metrics?.requestCount ?? '—';
+  const responseValue = metricsLoading ? <Spinner label="Loading metrics" /> : `${metrics?.avgResponseMs ?? 0} ms`;
+  const metricsDetail = metrics
+    ? `${metrics.activeConnections} active · uptime ${Math.round(metrics.uptime)}s`
+    : 'from /api/v1/metrics';
   const retry = (
     <button
       aria-label="Retry loading backend dashboard data"
@@ -79,7 +97,6 @@ export function AppShell({
               <div className="grid gap-3 sm:flex sm:items-center sm:justify-end">
                 <ThemeToggle />
                 <button
-                  aria-label="Refresh menu and plugin dashboard data"
                   className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={loading}
                   type="button"
@@ -91,10 +108,12 @@ export function AppShell({
             </div>
           </header>
 
-          <section className="grid gap-3 sm:grid-cols-3 sm:gap-4" aria-label="Summary">
+          <section className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-5" aria-label="Summary">
             <StatCard label="Menu items" value={loading ? <Spinner label="Loading" /> : menuCount} detail="from /api/menu" />
             <StatCard label="Plugins" value={loading ? <Spinner label="Loading" /> : pluginCount} detail="from /api/plugins" />
             <StatCard label="Surfaces" value={loading ? <Spinner label="Loading" /> : surfaceCount} detail={`updated ${updatedAt}`} />
+            <StatCard label="Requests" value={requestValue} detail={metricsDetail} />
+            <StatCard label="Avg response" value={responseValue} detail="real-time backend latency" />
           </section>
 
           {error ? <ErrorMessage title="Could not load backend data." message={error} action={retry} /> : null}
