@@ -3,6 +3,7 @@ import {
   filterMcpTools,
   McpToolBrowser,
   mcpToolFiltersFromSearch,
+  mcpToolPluginInventoryPath,
   mcpToolSourceCounts,
   mcpToolSourceLabel,
 } from '../../../frontend/src/components/McpToolBrowser';
@@ -18,6 +19,8 @@ describe('McpToolBrowser source filters', () => {
   test('labels and counts plugin versus core MCP tools', () => {
     expect(mcpToolSourceLabel(tools[0])).toBe('plugin:echo');
     expect(mcpToolSourceLabel(tools[1])).toBe('core');
+    expect(mcpToolPluginInventoryPath(tools[0])).toBe('/plugins?q=echo&surface=mcp');
+    expect(mcpToolPluginInventoryPath(tools[1])).toBeNull();
     expect(mcpToolSourceCounts(tools)).toEqual({ plugin: 1, core: 1 });
   });
 
@@ -45,6 +48,7 @@ describe('McpToolBrowser source filters', () => {
     expect(html).toContain('aria-label="Filter MCP tool source"');
     expect(html).toContain('1 plugin · 1 core');
     expect(html).toContain('plugin:echo');
+    expect(html).toContain('href="/plugins?q=echo&amp;surface=mcp"');
     expect(html).toContain('core');
   });
 });
