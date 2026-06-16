@@ -94,3 +94,35 @@ test('GET /api/v1/vector/costs returns usage, rates, and time windows', async ()
   });
   expect(body.breakdown.monthly.inputTokens).toBe(300_000);
 });
+
+test('POST /api/v1/vector/costs/usage records live indexing usage', async () => {
+  const estimator = new CostEstimator({ now: () => now, rates: { openai: 0.1 } });
+  const fetch = fetcher(estimator);
+  const res = await fetch(new Request('http://local/api/v1/vector/costs/usage', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      provider: 'openai',
+      inputTokens: 125_000,
+      apiCalls: 3,
+    }),
+  }));
+  const body = await res.json() as Record<string, any>;
+
+  expect(res.status).toBe(201);
+  expect(body.event).toMatchObject({
+    provider: 'openai',
+    inputTokens: 125_000,
+    apiCalls: 3,
+    timestamp: now.toISOString(),
+  });
+  expect(body.breakdown.daily).toMatchObject({
+    inputTokens: 125_000,
+    apiCalls: 3,
+    estimatedUsd: 0.0125,
+  });
+
+  const usage = await (await fetch(new Request('http://local/api/v1/vector/costs'))).json() as Record<string, any>;
+  expect(usage.usage).toHaveLength(1);
+  expect(usage.usage[0].inputTokens).toBe(125_000);
+});
