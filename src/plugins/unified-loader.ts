@@ -66,9 +66,8 @@ interface InvokeResult {
   error?: string;
 }
 
-function uniqueDirs(dirs: string[]): string[] {
-  return [...new Set(dirs.filter(Boolean))];
-}
+function uniqueDirs(dirs: string[]): string[] { return [...new Set(dirs.filter(Boolean))]; }
+export function defaultUnifiedPluginDirs(extra: string[] = []): string[] { return uniqueDirs([...extra, ...DEFAULT_DIRS]); }
 
 function warn(options: UnifiedLoaderOptions, message: string): void {
   options.warn?.(`[unified-plugin] ${message}`);

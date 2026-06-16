@@ -1,0 +1,41 @@
+{
+  "name": "arra",
+  "version": "1.0.0",
+  "entry": "./index.ts",
+  "sdk": "^0.1.0",
+  "enabled": true,
+  "description": "ARRA Oracle V3 maw-js plugin surface for CLI, menu, and HTTP discovery.",
+  "verbs": [
+    "help",
+    "version",
+    "menu",
+    "status"
+  ],
+  "httpRoutes": [
+    {
+      "path": "/api/plugins/arra",
+      "methods": ["GET"]
+    }
+  ],
+  "apiRoutes": [
+    {
+      "path": "/api/plugins/arra",
+      "methods": ["GET"],
+      "handler": "arraHttpRoute"
+    }
+  ],
+  "menu": [
+    {
+      "label": "ARRA Oracle",
+      "path": "/plugins/arra",
+      "group": "tools",
+      "order": 30,
+      "icon": "🔮"
+    }
+  ],
+  "cli": {
+    "command": "arra",
+    "help": "maw arra <help|version|menu|status>",
+    "handler": "arraCli"
+  }
+}

@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia';
+import { join } from 'node:path';
 import { swagger } from '@elysiajs/swagger';
 import { eq } from 'drizzle-orm';
 
@@ -13,7 +14,7 @@ import { createCorsMiddleware, createPrivateNetworkPreflightMiddleware } from '.
 import { createContentTypeMiddleware } from './middleware/content-type.ts';
 import { createApiKeyAuthMiddleware } from './middleware/auth.ts';
 import { createCorrelationMiddleware } from './middleware/correlation.ts';
-import { loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
+import { defaultUnifiedPluginDirs, loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
 import { startUnifiedPluginServers } from './plugins/unified-server.ts';
 import { closeCachedVectorStores } from './vector/factory.ts';
 import { isDraining, registerGracefulShutdown, trackRequest } from './lifecycle/shutdown.ts';
@@ -94,7 +95,10 @@ writePidFile({
 const scoutAnnouncer = shouldStartScoutAnnouncer() ? new ScoutAnnouncer() : null;
 scoutAnnouncer?.start();
 
-const unifiedPlugins = await loadUnifiedPlugins({ warn: (message) => console.warn(message) });
+const unifiedPlugins = await loadUnifiedPlugins({
+  dirs: defaultUnifiedPluginDirs([join(import.meta.dir, 'plugins')]),
+  warn: (message) => console.warn(message),
+});
 await unifiedPlugins.init();
 const unifiedServers = await startUnifiedPluginServers(unifiedPlugins.servers);
 
