@@ -64,8 +64,18 @@ afterEach(() => {
 });
 
 describe('tools maw arra vector-config command', () => {
+  test('renders vector backend config as a table by default', async () => {
+    const { result, calls } = await run(['vector-config']);
+
+    expect(result.ok).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(result.output).toContain('Collection | Adapter | Model | Docs | Status');
+    expect(result.output).toContain('oracle_knowledge_bge_m3 | lancedb | bge-m3 | 42 | ok');
+    expect(result.output).toContain('★ = primary');
+  });
+
   test('lists vector backend config collections as JSON', async () => {
-    const { result, calls } = await run(['vector-config', 'list']);
+    const { result, calls } = await run(['vector-config', 'list', '--json']);
     const body = JSON.parse(result.output ?? '');
 
     expect(result.ok).toBe(true);
