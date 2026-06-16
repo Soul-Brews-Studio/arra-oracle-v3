@@ -4,6 +4,7 @@ import type { SearchResponse } from '../../server/types.ts';
 
 type SearchRouteResponse = SearchResponse & { mode: string; warning?: string; vectorAvailable: boolean };
 type ListRow = Record<string, any>;
+const FTS_TOKEN_LIMIT = 8;
 
 function normalizeRank(rank: number): number {
   return Math.min(1, Math.max(0, 1 / (1 + Math.abs(rank))));
@@ -13,37 +14,51 @@ function parseConcepts(value: string | null | undefined): string[] {
   try { return JSON.parse(value || '[]') as string[]; } catch { return []; }
 }
 
-function sanitizeFtsQuery(query: string): string {
-  return query
+function buildTenantFtsQuery(query: string): string {
+  const tokens = query
     .replace(/<[^>]*>/g, ' ')
-    .replace(/[?*+\-()^~"':;<>{}[\]\\/]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .normalize('NFKC')
+    .match(/[\p{L}\p{N}_]+/gu)
+    ?.map((token) => token.trim())
+    .filter(Boolean)
+    .slice(0, FTS_TOKEN_LIMIT) ?? [];
+
+  return Array.from(new Set(tokens))
+    .map((token) => `"${token.replace(/"/g, '""')}"`)
+    .join(' OR ');
+}
+
+function runFtsGet<T>(stmt: { get: (...args: any[]) => T }, args: unknown[]): T | null {
+  try { return stmt.get(...args); } catch { return null; }
+}
+
+function runFtsAll<T>(stmt: { all: (...args: any[]) => T[] }, args: unknown[]): T[] {
+  try { return stmt.all(...args); } catch { return []; }
 }
 
 export function handleTenantSearch(query: string, type = 'all', limit = 10, offset = 0): SearchRouteResponse | null {
   const tenantId = currentTenantId();
   if (!tenantId) return null;
 
-  const safeQuery = sanitizeFtsQuery(query);
+  const safeQuery = buildTenantFtsQuery(query);
   if (!safeQuery) return { results: [], total: 0, limit, offset, query, mode: 'fts', vectorAvailable: false };
 
   const typeClause = type === 'all' ? '' : 'AND d.type = ?';
   const params = type === 'all' ? [safeQuery, tenantId] : [safeQuery, type, tenantId];
-  const count = sqlite.prepare(`
+  const count = runFtsGet(sqlite.prepare(`
     SELECT COUNT(*) as total
     FROM oracle_fts f
     JOIN oracle_documents d ON f.id = d.id
     WHERE oracle_fts MATCH ? ${typeClause} AND d.tenant_id = ?
-  `).get(...params) as { total: number };
-  const rows = sqlite.prepare(`
+  `), params) as { total: number } | null;
+  const rows = runFtsAll(sqlite.prepare(`
     SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
     FROM oracle_fts f
     JOIN oracle_documents d ON f.id = d.id
     WHERE oracle_fts MATCH ? ${typeClause} AND d.tenant_id = ?
     ORDER BY rank
     LIMIT ? OFFSET ?
-  `).all(...params, limit, offset) as ListRow[];
+  `), [...params, limit, offset]) as ListRow[];
 
   return {
     results: rows.map((row) => ({
@@ -56,7 +71,7 @@ export function handleTenantSearch(query: string, type = 'all', limit = 10, offs
       source: 'fts' as const,
       score: normalizeRank(row.score),
     })),
-    total: count.total,
+    total: count?.total ?? 0,
     offset,
     limit,
     query,
