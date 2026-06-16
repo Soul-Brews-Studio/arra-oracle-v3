@@ -26,6 +26,45 @@ Recommendation: keep ARRA's vector/FTS search core, add stronger memory lifecycl
 
 ## What the research says
 
+## 2026-06-16 verification pass
+
+The existing doc covered the issue findings and ARRA recommendations. This pass
+verified the claims against primary/upstream sources and filled two gaps:
+explicit source URLs, and a boundary for when graph/tiered memory should be
+considered.
+
+Verified sources:
+
+- Official MCP memory server source:
+  <https://github.com/modelcontextprotocol/servers/blob/main/src/memory/index.ts>
+  confirms a local knowledge-graph server with basic substring-style node search,
+  so ARRA should expose its stronger store through MCP instead of cloning that
+  backend.
+- MCP memory package page:
+  <https://www.npmjs.com/package/@modelcontextprotocol/server-memory> confirms
+  the official package is intentionally a basic persistent-memory implementation.
+- Agent memory survey:
+  <https://arxiv.org/abs/2603.07670> frames agent memory as a write-manage-read
+  loop and surveys retrieval stores, compression, reflection, hierarchical
+  context, and learned management through early 2026.
+- LangMem upstream docs:
+  <https://langchain-ai.github.io/langmem/> and
+  <https://langchain-ai.github.io/langmem/background_quickstart/> confirm the
+  open-source SDK and background extraction/consolidation pattern.
+- Memex MCP docs:
+  <https://mcpservers.org/servers/stifler7/memex> support query-time confidence
+  as a useful pattern, but the evidence remains supplemental because it is not a
+  broad production benchmark.
+- A-Mem paper page:
+  <https://openreview.net/forum?id=FiM0M8gcct> supports graph-like dynamic
+  indexing as a promising advanced direction, not a prerequisite baseline.
+
+Completeness verdict: the document is complete enough for ARRA planning if it
+keeps retrieval-first memory as the default, treats LangMem/A-Mem-style systems
+as later interoperability or graph layers, and avoids adopting vendor marketing
+claims without independent benchmarks.
+
+
 ### Official MCP memory is not enough
 
 Issue #1648 confirms the official `@modelcontextprotocol/server-memory` stores entities, relations, and atomic observations in a local JSONL knowledge graph. Its search is substring matching, not embeddings or hybrid retrieval. That makes it useful as a protocol example, but not as a storage/search architecture for ARRA.
