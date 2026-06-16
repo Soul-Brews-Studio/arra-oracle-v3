@@ -48,4 +48,25 @@ describe("export CLI remote engine", () => {
     ]);
     expect((calls[0]!.init!.headers as Record<string, string>).authorization).toBe("Bearer secret");
   });
+
+  test("sends includeGraph when the graph CLI flag is present", async () => {
+    const output = tempFile("oracle_documents.json");
+    let body: unknown;
+    const fetcher = async (_input: string, init?: RequestInit): Promise<Response> => {
+      body = JSON.parse(String(init?.body));
+      return Response.json({ content: { ok: true } });
+    };
+
+    const message = await runRemoteExportCommand([
+      "--url=http://oracle.test",
+      "--collection", "oracle_documents",
+      "--format", "json",
+      "--output", output,
+      "--graph",
+    ], { fetch: fetcher });
+
+    expect(message).toContain("exported oracle_documents (json)");
+    expect(body).toEqual({ collection: "oracle_documents", format: "json", includeGraph: true });
+    expect(readFileSync(output, "utf8")).toBe('{\n  "ok": true\n}\n');
+  });
 });

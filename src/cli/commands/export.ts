@@ -20,6 +20,7 @@ export interface RemoteExportOptions {
   collection?: string;
   format?: string;
   output?: string;
+  includeGraph: boolean;
   help: boolean;
 }
 
@@ -41,6 +42,8 @@ function printHelp(): void {
     "  --collection <name>  export collection name, e.g. oracle_documents",
     "  --format <format>    markdown, json, or jsonl",
     "  --output <path>      destination file path",
+    "  --include-graph      include relationship graph rows when supported",
+    "  --graph              alias for --include-graph",
     "  --help, -h           show this help",
     "",
   ].join("\n"));
@@ -70,6 +73,7 @@ export function parseRemoteExportOptions(args: string[]): RemoteExportOptions {
     collection: readValue(args, "--collection"),
     format: readValue(args, "--format"),
     output: readValue(args, "--output"),
+    includeGraph: args.includes("--include-graph") || args.includes("--graph"),
     help: args.includes("--help") || args.includes("-h"),
   };
 }
@@ -148,7 +152,11 @@ export async function runRemoteExportCommand(args: string[], deps: RemoteExportD
   const response = await fetcher(apiUrl(options.url, RUN_PATH), {
     method: "POST",
     headers: { "content-type": "application/json", ...authHeaders(env) },
-    body: JSON.stringify({ collection: options.collection, format: options.format }),
+    body: JSON.stringify({
+      collection: options.collection,
+      format: options.format,
+      ...(options.includeGraph ? { includeGraph: true } : {}),
+    }),
   });
   await ensureOk(response, `POST ${RUN_PATH}`);
 
