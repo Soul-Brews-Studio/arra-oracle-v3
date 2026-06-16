@@ -7,5 +7,5 @@ test('GET /api/health reports draining state before dependency checks', async ()
   const body = await res.json() as Record<string, unknown>;
 
   expect(res.status).toBe(503);
-  expect(body).toMatchObject({ status: 'draining', draining: true });
+  expect(body).toMatchObject({ status: 'draining', sandbox: 'dev', draining: true });
 });

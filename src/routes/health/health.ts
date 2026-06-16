@@ -6,6 +6,7 @@ import { scanPlugins } from '../plugins/model.ts';
 import { readVectorBackendHealth } from '../../vector/health.ts';
 import { mcpTools } from '../../tools/mcp-manifest.ts';
 import type { UnifiedPluginStatus } from '../../plugins/unified-loader.ts';
+import { sandboxLabel } from '../../runtime/sandbox-label.ts';
 import pkg from '../../../package.json' with { type: 'json' };
 
 type VectorHealth = Awaited<ReturnType<typeof readVectorBackendHealth>>;
@@ -47,6 +48,7 @@ const HealthResponseSchema = t.Object({
   server: t.String(),
   version: t.String(),
   port: t.Optional(t.Number()),
+  sandbox: t.Optional(t.String()),
   oracle: t.Optional(t.Union([t.Literal('connected'), t.Literal('degraded')])),
   uptimeSeconds: t.Optional(t.Number()),
   dbStatus: t.Optional(t.Union([t.Literal('connected'), t.Literal('error')])),
@@ -149,6 +151,7 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
         status: 'draining',
         server: MCP_SERVER_NAME,
         version: pkg.version,
+        sandbox: sandboxLabel(),
         draining: true,
       };
     }
@@ -167,6 +170,7 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
       server: MCP_SERVER_NAME,
       version: pkg.version,
       port: Number(PORT),
+      sandbox: sandboxLabel(),
       uptime: serviceUptime,
       uptimeSeconds: serviceUptime,
       db: dbStatus.status,
