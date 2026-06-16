@@ -42,6 +42,7 @@ describe("arra-cli help output", () => {
     const menu = await cliHelp(["menu", "--help"]);
     const plugins = await cliHelp(["plugins", "--help"]);
     const doctor = await cliHelp(["doctor", "--help"]);
+    const vectorConfig = await cliHelp(["vector-config", "--help"]);
     const config = await cliHelp(["-h", "config"]);
     const menuAdd = await cliHelp(["menu", "add", "--help"]);
     const sessionShow = await cliHelp(["session", "show", "--help"]);
@@ -53,6 +54,8 @@ describe("arra-cli help output", () => {
     expect(plugins).toContain("enable <name>");
     expect(doctor).toContain("Usage: arra-cli doctor [--json]");
     expect(doctor).toContain("arra-cli doctor --json");
+    expect(vectorConfig).toContain("Usage: arra-cli vector-config <subcommand>");
+    expect(vectorConfig).toContain("set <collection> <field> <value>");
     expect(config).toContain("Usage: arra-cli config [show|path|use <name>]");
     expect(config).toContain("arra-cli config use cafe");
     expect(menuAdd).toContain("Usage: arra-cli menu add --path /p --label L");

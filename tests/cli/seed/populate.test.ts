@@ -4,6 +4,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { inArray } from 'drizzle-orm';
 
+const savedDataDir = process.env.ORACLE_DATA_DIR;
+const savedRepoRoot = process.env.ORACLE_REPO_ROOT;
+const savedDbPath = process.env.ORACLE_DB_PATH;
+
+function restoreDbPath() {
+  return savedDbPath
+    ?? join(savedDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
+}
+
 const importRoot = mkdtempSync(join(tmpdir(), 'arra-seed-import-'));
 process.env.ORACLE_DATA_DIR = join(importRoot, 'data');
 process.env.ORACLE_REPO_ROOT = importRoot;
@@ -12,11 +21,11 @@ const dbModule = await import('../../../src/db/index.ts');
 const seedModule = await import('../../../src/cli/commands/seed.ts');
 
 const {
-  closeDb,
   createDatabase,
   learnLog,
   menuItems,
   oracleDocuments,
+  resetDefaultDatabaseForTests,
 } = dbModule;
 const {
   SAMPLE_LEARN_ENTRIES,
@@ -33,7 +42,11 @@ afterEach(() => {
 });
 
 afterAll(() => {
-  closeDb();
+  if (savedDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
+  else process.env.ORACLE_DATA_DIR = savedDataDir;
+  if (savedRepoRoot === undefined) delete process.env.ORACLE_REPO_ROOT;
+  else process.env.ORACLE_REPO_ROOT = savedRepoRoot;
+  resetDefaultDatabaseForTests(restoreDbPath());
   rmSync(importRoot, { recursive: true, force: true });
 });
 

@@ -1,20 +1,43 @@
 import type { ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { LoadingPanel } from './components/AsyncState';
-import { StatCard } from './components/StatCard';
 import { McpPage } from './pages/McpPage';
+import { MetricsPage } from './pages/MetricsPage';
 import { McpToolDetailPage } from './pages/McpToolDetailPage';
+import { ExportPage } from './pages/ExportPage';
+import { LearnPage } from './pages/LearnPage';
 import { MenuPage } from './pages/MenuPage';
 import { PluginsPage } from './pages/PluginsPage';
+import { CanvasPluginsPage } from './pages/CanvasPluginsPage';
 import { SearchPage } from './pages/SearchPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { StatusPage } from './pages/StatusPage';
 import { VectorPage } from './pages/VectorPage';
+import { VectorSearchPage } from './pages/VectorSearchPage';
+import { VectorDocumentsPage } from './pages/VectorDocumentsPage';
 import { VectorSearchResultsPage } from './pages/VectorSearchResultsPage';
+import { VectorExportPage } from './pages/VectorExportPage';
+import { VectorSettingsPage } from './pages/VectorSettingsPage';
 import type { LoadState, MenuItem, PluginEntry } from './types';
 import type { MetricsSnapshot } from '../../src/server/types';
 
-export const frontendRoutes = ['/', '/plugins', '/metrics', '/search'] as const;
+export const frontendRoutes = [
+  '/',
+  '/menu',
+  '/plugins',
+  '/status',
+  '/canvas/plugins',
+  '/metrics',
+  '/search',
+  '/export',
+  '/learn',
+  '/vector',
+  '/vector/search',
+  '/vector/documents',
+  '/vector/results',
+  '/vector/export',
+  '/vector/settings',
+] as const;
 export type FrontendRoute = typeof frontendRoutes[number];
 
 export type DashboardRouteStates = Record<'menu' | 'plugins' | 'metrics', LoadState>;
@@ -41,25 +64,6 @@ export function AppRouter({ children }: { children: ReactNode }) {
   );
 }
 
-function MetricsPage({ metrics, loading }: { metrics: MetricsSnapshot | null; loading: boolean }) {
-  return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="metrics-page-title">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Metrics</p>
-      <h2 id="metrics-page-title" className="mt-2 mb-4 text-2xl font-semibold text-white">Backend metrics</h2>
-      {loading ? <LoadingPanel title="Loading metrics…" detail="Fetching /api/metrics from the Elysia backend." /> : null}
-      {!loading && !metrics ? <p className="text-sm text-slate-400">No metrics snapshot is available yet.</p> : null}
-      {metrics ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Requests" value={metrics.requestCount} detail="tracked by Elysia lifecycle" />
-          <StatCard label="Avg response" value={`${metrics.avgResponseMs} ms`} detail="mean response time" />
-          <StatCard label="Active" value={metrics.activeConnections} detail="active HTTP requests" />
-          <StatCard label="Uptime" value={`${Math.round(metrics.uptime)}s`} detail={`since ${metrics.lastRestart}`} />
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
 export function DashboardRoutes({
   menu,
   plugins,
@@ -69,19 +73,25 @@ export function DashboardRoutes({
   updatedAt,
   onRefresh,
 }: DashboardRoutesProps) {
-  const menuPage = <MenuPage items={menu} loading={isRouteLoading(states.menu)} />;
+  const menuPage = <MenuPage />;
   const pluginPage = <PluginsPage plugins={plugins} loading={isRouteLoading(states.plugins)} />;
-  const metricsPage = <MetricsPage metrics={metrics} loading={isRouteLoading(states.metrics)} />;
-
   return (
     <Routes>
       <Route index element={menuPage} />
       <Route path="/plugins" element={pluginPage} />
-      <Route path="/metrics" element={metricsPage} />
+      <Route path="/status" element={<StatusPage />} />
+      <Route path="/canvas/plugins" element={<CanvasPluginsPage />} />
+      <Route path="/metrics" element={<MetricsPage metrics={metrics} loading={isRouteLoading(states.metrics)} />} />
       <Route path="/search" element={<SearchPage />} />
+      <Route path="/export" element={<ExportPage />} />
+      <Route path="/learn" element={<LearnPage />} />
       <Route path="/menu" element={menuPage} />
       <Route path="/vector" element={<VectorPage />} />
+      <Route path="/vector/search" element={<VectorSearchPage />} />
+      <Route path="/vector/documents" element={<VectorDocumentsPage />} />
       <Route path="/vector/results" element={<VectorSearchResultsPage />} />
+      <Route path="/vector/export" element={<VectorExportPage />} />
+      <Route path="/vector/settings" element={<VectorSettingsPage />} />
       <Route path="/mcp" element={<McpPage />} />
       <Route path="/mcp/tools/:name" element={<McpToolDetailPage />} />
       <Route

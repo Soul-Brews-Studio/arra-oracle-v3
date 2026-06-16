@@ -23,7 +23,8 @@ export function formatStartupBanner(options: StartupBannerOptions): string {
     `Version:    ${options.version}`,
     `Port:       ${options.port}`,
     `Profile:    ${options.profile}`,
-    `Middleware: ${middlewareSummary(options.middleware)}`,
+    `Middleware:`,
+    ...middlewareLines(options.middleware),
     `Database:   ${options.dbStatus}`,
     `Swagger:    ${docsPath}`,
   ].join('\n');
@@ -34,9 +35,9 @@ export function printStartupBanner(options: StartupBannerOptions): void {
   log(formatStartupBanner(options));
 }
 
-function middlewareSummary(items: readonly (string | BannerMiddleware)[]): string {
-  if (items.length === 0) return 'none';
-  return items.map(formatMiddleware).join(', ');
+function middlewareLines(items: readonly (string | BannerMiddleware)[]): string[] {
+  if (items.length === 0) return ['  (none)'];
+  return items.map(item => `  - ${formatMiddleware(item)}`);
 }
 
 function formatMiddleware(item: string | BannerMiddleware): string {

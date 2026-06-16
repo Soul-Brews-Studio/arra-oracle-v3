@@ -35,11 +35,19 @@ describe('ARRA_API_KEY auth middleware', () => {
 
     const missing = await get('/api/search');
     expect(missing.status).toBe(401);
-    expect(await missing.json()).toMatchObject({ error: 'api_key_auth_required', reason: 'missing' });
+    expect(await missing.json()).toMatchObject({
+      error: 'api_key_auth_required',
+      code: 401,
+      details: { reason: 'missing' },
+    });
 
     const invalid = await get('/api/search', 'wrong');
     expect(invalid.status).toBe(401);
-    expect(await invalid.json()).toMatchObject({ error: 'api_key_auth_required', reason: 'invalid' });
+    expect(await invalid.json()).toMatchObject({
+      error: 'api_key_auth_required',
+      code: 401,
+      details: { reason: 'invalid' },
+    });
 
     expect((await get('/api/search', 'secret')).status).toBe(200);
     expect((await get('/', 'secret')).status).toBe(200);

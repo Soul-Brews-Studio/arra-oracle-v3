@@ -1,23 +1,18 @@
 import { existsSync, readdirSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-
 import { Elysia } from 'elysia';
-
-import {
-  normalizeUnifiedPluginManifest, type NormalizedUnifiedPluginManifest,
-  type UnifiedApiRouteManifest, type UnifiedCliSubcommandManifest,
-  type UnifiedMcpToolManifest, type UnifiedMenuManifest,
-} from './unified-manifest.ts';
+import { normalizeUnifiedPluginManifest, type NormalizedUnifiedPluginManifest, type UnifiedApiRouteManifest, type UnifiedCliSubcommandManifest, type UnifiedMcpToolManifest, type UnifiedMenuManifest } from './unified-manifest.ts';
 import { sortPluginsByDependencies } from './dependency-resolver.ts';
 import { pluginRegistryFromLoadedPlugins, type LoadedPluginRegistryEntry } from './registry.ts';
-import { runPluginSandbox } from './sandbox.ts';
+import { runPluginWithErrorContainment } from './error-containment.ts';
 import { createUnifiedProxyRoute } from './proxy-surface.ts';
 import { unifiedPluginServerRoutes, type UnifiedPluginServer } from './unified-server.ts';
+import { resolveContainedPluginEntry } from './path-containment.ts';
+import { registerPluginExportFormats } from './export-format-init.ts';
+import { defaultUnifiedPluginDirs } from './plugin-dirs.ts';
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.ARRA_PLUGIN_TIMEOUT_MS ?? 5000);
-const DEFAULT_DIRS = [join(homedir(), '.arra', 'plugins'), join(homedir(), '.oracle', 'plugins')];
 
 type ElysiaApp = Elysia<any, any, any, any, any, any, any>;
 type JsonRecord = Record<string, unknown>;
@@ -70,10 +65,6 @@ interface InvokeResult {
   error?: string;
 }
 
-function uniqueDirs(dirs: string[]): string[] {
-  return [...new Set(dirs.filter(Boolean))];
-}
-
 function warn(options: UnifiedLoaderOptions, message: string): void {
   options.warn?.(`[unified-plugin] ${message}`);
 }
@@ -85,7 +76,7 @@ async function readPluginDir(dir: string, options: UnifiedLoaderOptions): Promis
     const raw = await Bun.file(path).json();
     const manifest = normalizeUnifiedPluginManifest(raw);
     if (manifest.enabled === false) return null;
-    return { manifest, dir, entryPath: resolve(dir, manifest.entry) };
+    return { manifest, dir, entryPath: resolveContainedPluginEntry(dir, manifest.entry) };
   } catch (error) {
     warn(options, `skipped ${dir}: ${error instanceof Error ? error.message : String(error)}`);
     return null;
@@ -97,7 +88,7 @@ export async function discoverUnifiedPluginManifests(
 ): Promise<LoadedUnifiedPlugin[]> {
   const found: LoadedUnifiedPlugin[] = [];
   const seen = new Set<string>();
-  for (const baseDir of uniqueDirs(options.dirs ?? DEFAULT_DIRS)) {
+  for (const baseDir of options.dirs ?? defaultUnifiedPluginDirs()) {
     if (!existsSync(baseDir)) continue;
     for (const entry of readdirSync(baseDir, { withFileTypes: true })) {
       if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
@@ -112,7 +103,7 @@ export async function discoverUnifiedPluginManifests(
 
 async function invoke(plugin: LoadedUnifiedPlugin, handler: string | undefined, ctx: InvokeContext, timeoutMs: number) {
   if (!handler) return { ok: true, plugin: plugin.manifest.name, source: ctx.source };
-  const result = await runPluginSandbox({
+  const result = await runPluginWithErrorContainment({
     plugin: plugin.manifest.name,
     phase: ctx.source === 'init' || ctx.source === 'destroy' ? ctx.source : 'runtime',
   }, async () => {
@@ -219,6 +210,10 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
   };
   const init = async () => {
     for (const plugin of plugins) {
+      if (plugin.manifest.exportFormats.length) {
+        const error = await registerPluginExportFormats(plugin, timeoutMs);
+        if (error) { pluginStatus.set(plugin.manifest.name, { name: plugin.manifest.name, status: 'degraded', error }); continue; }
+      }
       if (!plugin.manifest.lifecycle?.init || initialized.has(plugin.manifest.name)) continue;
       await invokeLifecycle('init', plugin);
     }
@@ -248,3 +243,4 @@ export async function loadUnifiedPlugins(options: UnifiedLoaderOptions = {}): Pr
 }
 
 export { seedUnifiedPluginMenuItems } from './unified-menu-seeder.ts';
+export { defaultUnifiedPluginDirs } from './plugin-dirs.ts';

@@ -59,6 +59,7 @@ export function createMenuEndpoint(pluginItems: MenuItem[] = []) {
 }
 
 export { MenuItemSchema };
+export { menuItemsFromUnifiedPlugins } from './unified-plugin-menu.ts';
 export {
   API_TO_STUDIO,
   buildMenuItems,
@@ -67,4 +68,3 @@ export {
   readApiMenuItemsFromDb,
   scopeMatches,
 } from './menu-items.ts';
-export { menuItemsFromUnifiedPlugins } from './unified-plugin-menu.ts';

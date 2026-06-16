@@ -1,16 +1,15 @@
-/**
- * HTTP Contract Tests — search, knowledge (learn/handoff/inbox), supersede.
- * Covers src/routes/{search,knowledge,supersede}.ts. Seeds via POST /api/learn,
- * reuses an already-running server on BASE_URL or spawns src/server.ts.
- */
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import type { Subprocess } from "bun";
+import fs from "fs";
+import os from "os";
 import path from "path";
 
-const BASE_URL = "http://localhost:47778";
+const PORT = 47791;
+const BASE_URL = `http://localhost:${PORT}`;
 const JSON_HEADERS = { "Content-Type": "application/json" };
 const SEED_TAG = `yellow-http-test-${Date.now()}`;
 let serverProcess: Subprocess | null = null;
+let dataDir = "";
 
 const isUp = async () => {
   try { return (await fetch(`${BASE_URL}/api/health`)).ok; } catch { return false; }
@@ -33,14 +32,29 @@ async function seedLearn(pattern: string, concepts: string[] = []) {
 describe("HTTP Contract — search / knowledge / supersede", () => {
   beforeAll(async () => {
     if (await isUp()) return;
+    dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "knowledge-http-"));
     serverProcess = Bun.spawn(["bun", "run", "src/server.ts"], {
       cwd: path.resolve(import.meta.dir, "../.."),
       stdout: "pipe", stderr: "pipe",
-      env: { ...process.env, ORACLE_CHROMA_TIMEOUT: "3000" },
+      env: {
+        ...process.env,
+        ORACLE_CHROMA_TIMEOUT: "3000",
+        ORACLE_DATA_DIR: dataDir,
+        ORACLE_DB_PATH: path.join(dataDir, "oracle.db"),
+        ORACLE_REPO_ROOT: dataDir,
+        ORACLE_PORT: String(PORT),
+      },
     });
     if (!(await waitUp())) throw new Error("Server failed to start within 15s");
   }, 30_000);
-  afterAll(() => { if (serverProcess) serverProcess.kill(); });
+  afterAll(async () => {
+    if (serverProcess) {
+      serverProcess.kill();
+      await serverProcess.exited;
+      await Bun.sleep(500);
+    }
+    if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true });
+  });
 
   describe("POST /api/learn", () => {
     test("creates a learning doc", async () => {
@@ -60,9 +74,12 @@ describe("HTTP Contract — search / knowledge / supersede", () => {
       expect((await res.json()).error).toMatch(/pattern/i);
     });
 
-    test("rejects malformed JSON body", async () => {
+    test("rejects malformed JSON body as 400", async () => {
       const res = await fetch(`${BASE_URL}/api/learn`, { method: "POST", headers: JSON_HEADERS, body: "{not json" });
-      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(res.status).toBe(400);
+      expect(res.headers.get("content-type")).toContain("application/json");
+      expect(body).toMatchObject({ success: false, error: "Bad Request", code: 400 });
     });
   });
 

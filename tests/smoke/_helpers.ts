@@ -74,7 +74,7 @@ export function writeOraclePlugin(home: string): void {
       version: '0.1.0',
       entry: './index.ts',
       description: 'Smoke fixture plugin',
-      menu: [{ label: 'Smoke Orbit', path: '/smoke-orbit', group: 'tools', order: 123 }],
+      menu: { label: 'Smoke Orbit', path: '/smoke-orbit', group: 'tools', order: 123 },
       server: { command: 'bun', args: ['index.ts'], healthPath: '/health', autostart: false },
     }, null, 2),
   );
@@ -157,9 +157,7 @@ export function startVectorStub(responder: VectorResponder): VectorStub {
     fetch(request) {
       const url = new URL(request.url);
       requests.push(url);
-      if (url.pathname === '/api/search' || url.pathname === '/api/vector/search') {
-        return Response.json(responder(url));
-      }
+      if (url.pathname === '/api/search') return Response.json(responder(url));
       if (url.pathname === '/api/vector/health') {
         return Response.json({ status: 'ok', engines: [], checked_at: new Date().toISOString() });
       }

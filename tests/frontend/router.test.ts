@@ -14,6 +14,7 @@ const routeProps: DashboardRoutesProps = {
     avgResponseMs: 3.2,
     activeConnections: 1,
     lastRestart: '2026-06-16T00:00:00.000Z',
+    memoryUsage: { rss: 67108864, heapTotal: 33554432, heapUsed: 16777216, external: 1024, arrayBuffers: 0 },
   },
   surfaceCount: 1,
   updatedAt: '11:11',
@@ -30,15 +31,42 @@ function htmlAt(path: string): string {
 
 describe('frontend router', () => {
   test('declares the public dashboard route set', () => {
-    expect([...frontendRoutes]).toEqual(['/', '/plugins', '/metrics', '/search']);
+    expect([...frontendRoutes]).toEqual([
+      '/',
+      '/menu',
+      '/plugins',
+      '/status',
+      '/canvas/plugins',
+      '/metrics',
+      '/search',
+      '/export',
+      '/learn',
+      '/vector',
+      '/vector/search',
+      '/vector/documents',
+      '/vector/results',
+      '/vector/export',
+      '/vector/settings',
+    ]);
   });
 
-  test('routes root, plugins, metrics, and search surfaces', () => {
-    expect(htmlAt('/')).toContain('Menu viewer');
+  test('routes root, plugins, metrics, search, and learn surfaces', () => {
+    expect(htmlAt('/')).toContain('Menu catalog');
     expect(htmlAt('/plugins')).toContain('Registered plugins');
-    expect(htmlAt('/metrics')).toContain('Backend metrics');
+    expect(htmlAt('/status')).toContain('GET /api/v1/health');
+    expect(htmlAt('/canvas/plugins')).toContain('Canvas plugin registry');
+    expect(htmlAt('/metrics')).toContain('Metrics dashboard');
     expect(htmlAt('/metrics')).toContain('42');
+    expect(htmlAt('/metrics')).toContain('Memory usage');
     expect(htmlAt('/search')).toContain('Full-text menu search');
+    expect(htmlAt('/export')).toContain('Export collections');
+    expect(htmlAt('/learn')).toContain('Learn entries');
+    expect(htmlAt('/vector')).toContain('Vector dashboard');
+    expect(htmlAt('/vector/search')).toContain('Vector search preview');
+    expect(htmlAt('/vector/documents')).toContain('Vector documents');
+    expect(htmlAt('/vector/results')).toContain('Vector search results');
+    expect(htmlAt('/vector/export')).toContain('Vector export');
+    expect(htmlAt('/vector/settings')).toContain('Configure adapters, embedding models');
   });
 
   test('wraps routed children in the browser router and error boundary shell', () => {

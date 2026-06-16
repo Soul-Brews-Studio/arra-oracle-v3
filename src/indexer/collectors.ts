@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import type { OracleDocument, IndexerConfig } from '../types.ts';
 import { parseResonanceFile, parseLearningFile, parseRetroFile, parseSecurityCorpusFile } from './parser.ts';
+import { isPsiLearnSource, parsePsiLearnFile } from './learn-doc-source.ts';
 import { discoverProjectPsiDirs } from './discovery.ts';
 
 const SECURITY_CORPUS_EXTENSIONS = ['.md', '.txt', '.yaml', '.yml', '.json', '.rst'];
@@ -114,10 +115,39 @@ function getSecurityCorpusFiles(dir: string): string[] {
 }
 
 /**
- * Collect security-corpus documents from ψ/learn/security-corpus/.
- * OPT-IN: only runs when config.sourcePaths.security_corpus is set.
- * Reference: ψ/memory/learnings/2026-04-26_arra-v3-indexer-extension.md
+ * Collect repo exploration documents from ψ/learn/.
+ * Defaults on so /learn output is part of the standard indexer scan.
+ * ψ/learn/security-corpus remains excluded unless collectSecurityCorpus runs.
  */
+export function collectPsiLearn(opts: {
+  config: IndexerConfig;
+  seenContentHashes: Set<string>;
+}): OracleDocument[] {
+  const { config, seenContentHashes } = opts;
+  const documents: OracleDocument[] = [];
+  const subPath = config.sourcePaths.learn ?? 'ψ/learn';
+
+  const sourcePath = path.join(config.repoRoot, subPath);
+  if (!fs.existsSync(sourcePath)) return documents;
+
+  const files = getAllMarkdownFiles(sourcePath);
+  let skippedDupes = 0;
+  for (const filePath of files) {
+    const relPath = path.relative(config.repoRoot, filePath).split(path.sep).join('/');
+    if (!isPsiLearnSource(relPath)) continue;
+
+    const content = fs.readFileSync(filePath, 'utf-8');
+    if (!content.trim()) continue;
+    const contentHash = Bun.hash(content).toString(36);
+    if (seenContentHashes.has(contentHash)) { skippedDupes++; continue; }
+    seenContentHashes.add(contentHash);
+    documents.push(...parsePsiLearnFile(relPath, content));
+  }
+
+  console.log(`Indexed ${documents.length} ψ/learn documents from ${files.length} files (skipped ${skippedDupes} duplicates)`);
+  return documents;
+}
+
 export function collectSecurityCorpus(opts: {
   config: IndexerConfig;
   seenContentHashes: Set<string>;

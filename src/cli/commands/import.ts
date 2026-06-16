@@ -65,6 +65,7 @@ function parseDocument(value: unknown): OracleDocumentInsert {
   const row = asRecord(value, "document");
   return {
     id: requiredString(row, "id"),
+    tenantId: optionalString(row, "tenantId") ?? "default",
     type: requiredString(row, "type"),
     sourceFile: requiredString(row, "sourceFile"),
     concepts: requiredString(row, "concepts"),
@@ -90,6 +91,7 @@ export function parseVaultJsonExport(input: string): OracleDocumentInsert[] {
 
 function updateSet(row: OracleDocumentInsert): Omit<OracleDocumentRow, "id"> {
   return {
+    tenantId: row.tenantId ?? "default",
     type: row.type,
     sourceFile: row.sourceFile,
     concepts: row.concepts,
