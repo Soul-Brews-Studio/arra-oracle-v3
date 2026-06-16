@@ -1,4 +1,5 @@
 import { ensureVectorStoreConnected } from '../../vector/factory.ts';
+import { currentTenantId } from '../../middleware/tenant.ts';
 import type { VectorDocument, VectorQueryResult, VectorStoreAdapter } from '../../vector/types.ts';
 import type { MemoryRecord } from './store.ts';
 
@@ -37,8 +38,10 @@ export class VectorMemoryIndex implements MemoryVectorIndex {
     const clean = query.trim();
     if (!clean) throw new Error('memory search query is required');
     const store = await this.resolveStore();
-    const result = await store.query(clean, limit, { type: 'memory' });
-    return hitsFrom(result);
+    const tenantId = currentTenantId();
+    const where = tenantId ? { type: 'memory', tenant_id: tenantId } : { type: 'memory' };
+    const result = await store.query(clean, limit, where);
+    return hitsFrom(result).filter((hit) => matchesTenant(hit, tenantId));
   }
 }
 
@@ -49,6 +52,7 @@ function memoryDocument(memory: MemoryRecord): VectorDocument {
     metadata: {
       type: 'memory',
       memoryId: memory.id,
+      tenant_id: memory.tenantId ?? 'default',
       title: memory.title ?? '',
       source: memory.source ?? '',
       tags: (memory.tags ?? []).join(','),
@@ -70,6 +74,12 @@ function hitsFrom(result: VectorQueryResult): MemoryVectorHit[] {
       score: Math.max(0, 1 - distance),
     };
   });
+}
+
+function matchesTenant(hit: MemoryVectorHit, tenantId: string | undefined): boolean {
+  if (!tenantId) return true;
+  const value = hit.metadata.tenant_id ?? hit.metadata.tenantId ?? hit.metadata.tenant;
+  return value === tenantId;
 }
 
 function vectorId(memoryId: string): string {

@@ -44,6 +44,7 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
 // Challenge 2 memory system persistence (#1457)
 export const oracleMemories = sqliteTable('oracle_memories', {
   id: text('id').primaryKey(),
+  tenantId: text('tenant_id').default('default').notNull(),
   content: text('content').notNull(),
   title: text('title'),
   tags: text('tags').default('[]').notNull(),
@@ -54,8 +55,8 @@ export const oracleMemories = sqliteTable('oracle_memories', {
   index('idx_memory_created').on(table.createdAt),
   index('idx_memory_title').on(table.title),
   index('idx_memory_source').on(table.source),
+  index('idx_memory_tenant_created').on(table.tenantId, table.createdAt),
 ]);
-
 // Indexing status tracking
 export const indexingStatus = sqliteTable('indexing_status', {
   id: integer('id').primaryKey(),

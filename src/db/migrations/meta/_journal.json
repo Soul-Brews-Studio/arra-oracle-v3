@@ -183,6 +183,13 @@
       "when": 1781624768517,
       "tag": "0025_export_jobs_tenant",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1781628166154,
+      "tag": "0026_oracle_memories_tenant",
+      "breakpoints": true
     }
   ]
 }

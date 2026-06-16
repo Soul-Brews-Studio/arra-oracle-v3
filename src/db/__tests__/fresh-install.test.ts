@@ -79,6 +79,7 @@ describe("fresh install (#1111)", () => {
 		expect(names).toContain("idx_documents_tenant_type_active_updated");
 		expect(names).toContain("idx_search_tenant_created");
 		expect(names).toContain("idx_thread_tenant_status_updated");
+		expect(names).toContain("idx_memory_tenant_created");
 		expect(names).toContain("idx_menu_path_studio");
 
 		sqlite.close();
