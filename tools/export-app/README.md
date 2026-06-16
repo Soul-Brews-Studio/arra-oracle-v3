@@ -67,6 +67,7 @@ The batch output includes:
 
 - `documents/markdown/<source-or-id>.md`
 - `documents/json/<source-or-id>.json`
+- `documents/documents.csv`
 - `documents/index.json`
 - `collections/<collection>.json`
 - `collections/<collection>.csv`
