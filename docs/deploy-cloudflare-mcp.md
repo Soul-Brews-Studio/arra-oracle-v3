@@ -76,6 +76,54 @@ Use the #2167 Wrangler config as source of truth. The likely minimum is:
 If auth is enabled, wrap `/mcp` with Cloudflare's OAuth provider or Access and
 keep tool authorization tenant-aware.
 
+## OAuth setup for shared tenants
+
+For #2193 team/school deployments, do not publish one shared `/mcp` endpoint
+with caller-supplied tenant IDs as the only boundary. Put OAuth in front of the
+Worker, resolve the authenticated user to a tenant, and forward that tenant to
+the Arra Oracle backend as `x-oracle-tenant-id`.
+
+Recommended rollout:
+
+1. Keep the Phase 1 proxy private or token-protected until OAuth is wired.
+2. Add Cloudflare's OAuth Provider Library around `OracleMCP.serve('/mcp')`.
+   Cloudflare supports Access, a third-party provider such as GitHub/Google, or
+   a bring-your-own provider such as Auth0/WorkOS.
+3. Define the auth context shape on `McpAgent`, then read `this.props` inside
+   tool handlers. Map claims such as email domain, group, or org/team ID to an
+   internal `tenantId`.
+4. Ignore any user-supplied `tenantId` once OAuth is enabled. Forward only the
+   trusted tenant from auth context:
+
+```ts
+type AuthContext = { claims: { sub: string; email?: string }; tenantId: string };
+
+export class OracleMCP extends McpAgent<Env, unknown, AuthContext> {
+  async init() {
+    this.server.tool('muninn_search', { query: z.string() }, async ({ query }) =>
+      oracleProxyTool(this.env, {
+        path: '/api/search',
+        query: { q: query },
+        tenantId: this.props.tenantId,
+      }));
+  }
+}
+```
+
+5. In the backend, keep using the existing multi-tenant HTTP isolation: every
+   proxied tool request must include `x-oracle-tenant-id`, and backend routes
+   must scope reads/writes by that tenant.
+6. Store secrets with `wrangler secret put`, not in `wrangler.jsonc`:
+
+```bash
+cd workers/mcp
+npx wrangler secret put ARRA_API_TOKEN
+```
+
+For local previews, use a test tenant and a non-production backend URL. Do not
+let demo OAuth clients reach production data until tenant mapping and audit logs
+are verified.
+
 ## Manual Wrangler deploy fallback
 
 Use this when the button is not ready or you need to test a branch preview:
@@ -117,7 +165,7 @@ https://<worker-name>.<account>.workers.dev/mcp
 Then select **List Tools**. If OAuth/Access is enabled, complete the auth flow
 and reconnect.
 
-## Connect Claude
+## Client connection: Claude Desktop + mcp-remote
 
 Claude Desktop can connect through the `mcp-remote` local proxy. Open Claude
 Desktop settings, edit the Developer MCP config, and add:
@@ -136,9 +184,33 @@ Desktop settings, edit the Developer MCP config, and add:
 }
 ```
 
-Save, restart Claude Desktop, and complete the browser auth flow if the Worker
-requires OAuth/Access. If your Claude client supports remote MCP URLs directly,
-use the same `/mcp` URL as the server URL.
+Save and restart Claude Desktop. If the Worker requires OAuth/Access,
+`mcp-remote` opens the browser authorization flow; sign in, grant access, and
+then reconnect if Claude does not list tools immediately.
+
+For token-protected private previews before OAuth lands, pass a temporary header
+instead of making the endpoint public:
+
+```json
+{
+  "mcpServers": {
+    "arra-oracle-cloudflare-preview": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://<worker-name>.<account>.workers.dev/mcp",
+        "--header",
+        "Authorization: Bearer <preview-token>"
+      ]
+    }
+  }
+}
+```
+
+If your Claude client supports remote MCP URLs directly, use the same `/mcp` URL
+as the server URL. OAuth-capable clients should redirect to the Worker
+authorization endpoints and store their own MCP access token; stdio-only clients
+should keep using `mcp-remote`.
 
 ## Troubleshooting
 
@@ -158,4 +230,6 @@ use the same `/mcp` URL as the server URL.
 - Cloudflare Deploy buttons: <https://developers.cloudflare.com/workers/platform/deploy-buttons/>
 - Cloudflare remote MCP guide: <https://developers.cloudflare.com/agents/model-context-protocol/guides/remote-mcp-server/>
 - Cloudflare `McpAgent` API: <https://developers.cloudflare.com/agents/model-context-protocol/apis/agent-api/>
+- Cloudflare MCP authorization: <https://developers.cloudflare.com/agents/model-context-protocol/protocol/authorization/>
 - Testing remote MCP clients: <https://developers.cloudflare.com/agents/model-context-protocol/guides/test-remote-mcp-server/>
+- `mcp-remote` package: <https://www.npmjs.com/package/mcp-remote>
