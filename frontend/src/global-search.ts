@@ -55,17 +55,32 @@ function menuResult(item: MenuItem): GlobalSearchResult {
   };
 }
 
-function pluginResult(plugin: PluginEntry): GlobalSearchResult {
+function pluginSearchSurface(plugin: PluginEntry, query: string, surfaces: string[]): string | undefined {
+  const q = query.toLowerCase();
+  if (plugin.mcpTools?.some((tool) => tool.name.toLowerCase().includes(q))) return 'mcp';
+  if (plugin.apiRoutes?.some((route) => route.path.toLowerCase().includes(q))) return 'apiRoutes';
+  if (plugin.proxy?.some((proxy) => proxy.path.toLowerCase().includes(q))) return 'proxy';
+  const aliases: Record<string, string[]> = {
+    mcp: ['mcp', 'tool', 'tools'],
+    apiRoutes: ['api', 'route', 'routes'],
+    cliSubcommands: ['cli', 'command', 'commands'],
+    exportFormats: ['export', 'format', 'formats'],
+  };
+  return surfaces.find((surface) => surface.toLowerCase() === q || aliases[surface]?.includes(q));
+}
+
+function pluginResult(plugin: PluginEntry, query: string): GlobalSearchResult {
   const surfaces = surfacesFor(plugin);
   const server = plugin.server ? `${plugin.server.command} ${(plugin.server.args ?? []).join(' ')}` : '';
   const tools = plugin.mcpTools?.map((tool) => tool.name).join(' ') ?? '';
   const detail = plugin.description || `Plugin manifest${plugin.version ? ` · ${plugin.version}` : ''}`;
+  const surface = pluginSearchSurface(plugin, query, surfaces);
   return {
     id: `plugin:${plugin.name}`,
     surface: 'plugin',
     title: plugin.name,
     detail: surfaces.length ? `${detail} · ${surfaces.join(', ')}` : detail,
-    href: pluginInventoryPath({ q: plugin.name }),
+    href: pluginInventoryPath({ q: plugin.name, surface }),
     keywords: [plugin.file, plugin.version, plugin.menu?.label, server, tools, surfaces.join(' ')].map(text).join(' '),
   };
 }
@@ -91,7 +106,7 @@ export function buildGlobalSearchResults(sources: GlobalSearchSources, query: st
   if (!q) return [];
   return [
     ...sources.menu.map(menuResult),
-    ...sources.plugins.map(pluginResult),
+    ...sources.plugins.map((plugin) => pluginResult(plugin, q)),
     ...sources.tools.map(toolResult),
   ].filter((result) => haystack(result).includes(q)).slice(0, 12);
 }
