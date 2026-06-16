@@ -23,6 +23,9 @@ Protected routes may require API token/session auth; tenant-aware routes honor `
 | GET | `/api/health` | None. | Aggregate `{ status, uptime, version, db, vectorStatus, pluginStatus }` |
 | GET | `/api/stats` | Optional `X-Oracle-Tenant`. | Document, vector, vault, tenant-scoped counts. |
 | GET | `/api/oracles` | Optional tenant header. | Oracle identities/projects summary. |
+| GET | `/api/oracles/profiles` | None. | Code-backed Oracle profile registry. |
+| GET | `/api/oracles/profiles/:slug` | Profile slug/id. | Oracle profile detail or 404. |
+| GET | `/api/oracles/thor` | None. | Thor Oracle Stormforge profile alias. |
 | GET | `/api/metrics` | None. | Runtime metrics snapshot. |
 | GET | `/api/dashboard` | Query filters optional. | Dashboard summary cards. |
 | GET | `/api/dashboard/summary` | Query filters optional. | Same summary alias. |
@@ -156,7 +159,7 @@ Protected routes may require API token/session auth; tenant-aware routes honor `
 | GET | `/api/traces/:id/linked-chain` | `id` path. | Linked trace chain. |
 | POST | `/api/traces/:id/link` | Link body. | Link result. |
 | DELETE | `/api/traces/:id/link` | Link selector. | Unlink result. |
-| POST | `/api/traces/:id/distill` | Distill request body. | Distillation result. |
+| POST | `/api/traces/:id/distill` | Distill body; optional `finding`/`metadata`. | Distillation result. |
 | GET | `/api/schedule` | Date/query filters optional. | Schedule entries. |
 | POST | `/api/schedule` | Schedule item body. | Created event. |
 | PATCH | `/api/schedule/:id` | Partial event body. | Updated event. |

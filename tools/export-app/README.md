@@ -87,11 +87,14 @@ The batch output includes:
 - `all-collections.json`
 - `manifest.json`
 - `manifest.schema.json`
+- `README.md`
 
 `manifest.json` includes a `files` inventory with each artifact path, byte
 count, and SHA-256 checksum so operators can verify the bundle before migration.
 It also includes `collections.<table>.rowCount` so restore/preflight tooling can
 compare source and destination collection sizes without loading every artifact.
+The generated bundle `README.md` summarizes counts and verification steps for
+offline review before migration.
 Progress writes to stderr by default as collection counts, percentages, and row
 counts. Use `--progress json` or `--progress-json` for machine-readable events,
 `--progress silent` or `--quiet` when another wrapper owns progress display.

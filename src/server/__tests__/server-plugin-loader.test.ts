@@ -11,6 +11,7 @@ import {
   loadServerPlugins,
   serverPluginRoutes,
 } from '../plugin/loader.ts';
+import { discoverUnifiedManifestPlugins } from '../plugin/unified.ts';
 import type { ServerPlugin } from '../plugin/types.ts';
 
 const tmp = mkdtempSync(join(tmpdir(), 'arra-server-plugin-loader-'));
@@ -124,5 +125,31 @@ describe('server plugin loader', () => {
       plugin: 'plugin-api-example',
       mountedBy: 'server-plugin-api-manifest',
     });
+  });
+
+  test('skips unified manifest entries that escape plugin directory', async () => {
+    const userDir = join(tmp, 'unified-server-escape');
+    const pluginDir = join(userDir, 'bad-entry');
+    mkdirSync(pluginDir, { recursive: true });
+    writeFileSync(join(userDir, 'outside.ts'), 'export default () => ({ ok: true });\n');
+    writeFileSync(join(pluginDir, 'plugin.json'), JSON.stringify({
+      name: 'bad-entry',
+      version: '1.0.0',
+      entry: '../outside.ts',
+      sdk: '^0.0.1',
+      api: { path: '/api/bad-entry', methods: ['GET'] },
+    }));
+
+    const warn = console.warn;
+    console.warn = () => {};
+    try {
+      const plugins = await discoverUnifiedManifestPlugins({
+        userDir,
+        bundledDir: join(tmp, 'missing-bundled-server'),
+      });
+      expect(plugins).toEqual([]);
+    } finally {
+      console.warn = warn;
+    }
   });
 });

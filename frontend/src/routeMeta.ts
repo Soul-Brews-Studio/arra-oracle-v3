@@ -46,6 +46,13 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
     ]);
   }
 
+  if (pathname === '/vector/index') {
+    return base('Index Manager', 'Vector', 'Track vector backfill jobs and reindex collections.', [
+      { label: 'Vector dashboard', to: '/vector' },
+      { label: 'Index Manager' },
+    ]);
+  }
+
   if (pathname === '/vector/results') {
     const query = new URLSearchParams(search).get('q')?.trim();
     return base('Vector search results', 'Vector', query ? `Semantic matches for “${query}”.` : 'Full-page vector search results.', [

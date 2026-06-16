@@ -1,4 +1,4 @@
-import { join, resolve } from "path";
+import { join } from "path";
 import { homedir } from "os";
 import { existsSync, readdirSync } from "fs";
 import { parseManifest, validateManifest } from "./manifest.ts";
@@ -7,6 +7,7 @@ import {
   discoverUnifiedPluginManifests,
   type LoadedUnifiedPlugin,
 } from "../../../src/plugins/unified-loader.ts";
+import { resolveContainedPluginEntry } from "../../../src/plugins/path-containment.ts";
 
 const USER_PLUGIN_DIR = join(homedir(), ".arra", "plugins");
 const BUNDLED_PLUGIN_DIR = join(import.meta.dir, "..", "plugins");
@@ -30,7 +31,7 @@ async function loadPluginDir(dir: string): Promise<LoadedPlugin | null> {
     const raw = await Bun.file(manifestPath).json();
     const manifest = parseManifest(raw);
     validateManifest(manifest);
-    const entryPath = resolve(dir, manifest.entry);
+    const entryPath = resolveContainedPluginEntry(dir, manifest.entry);
     return { manifest, dir, entryPath };
   } catch {
     return null;

@@ -18,6 +18,7 @@ import { graphRelationships } from './graph.ts';
 import { exportOracleV2Documents } from './documents.ts';
 import { EXPORT_MANIFEST_SCHEMA } from './schema.ts';
 import { exportFileInventory } from './inventory.ts';
+import { exportBundleReadme } from './bundle-readme.ts';
 
 type ExportTable = Parameters<typeof getTableName>[0];
 type Progress = (message: string, event?: ExportProgressEvent) => void;
@@ -89,6 +90,15 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
     await writeCollectionFiles(outputDir, 'relationships', relationships);
     await writeJson(path.join(outputDir, 'all-collections.json'), { exportedAt, collections: allCollections });
     await writeJson(path.join(outputDir, 'manifest.schema.json'), EXPORT_MANIFEST_SCHEMA);
+    await writeFile(path.join(outputDir, 'README.md'), exportBundleReadme({
+      exportedAt,
+      dbPath: options.dbPath ?? DB_PATH,
+      formats: EXPORT_FORMATS,
+      collectionCount: tables.length,
+      rowCount,
+      relationshipCount: relationships.length,
+      documentCount: documentExport.documentCount,
+    }), 'utf8');
     const files = await exportFileInventory(outputDir, { exclude: ['manifest.json'] });
     await writeJson(path.join(outputDir, 'manifest.json'), {
       exportedAt,

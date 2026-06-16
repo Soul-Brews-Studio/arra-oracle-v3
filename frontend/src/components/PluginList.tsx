@@ -28,6 +28,42 @@ export function togglePluginEnabled(state: PluginEnabledState, name: string): Pl
   return { ...state, [name]: !(state[name] ?? true) };
 }
 
+type SurfaceRow = { label: string; value: string };
+
+function routeLabel(methods: string[] | undefined, path: string): string {
+  return `${methods?.length ? methods.join('|') : 'ANY'} ${path}`;
+}
+
+export function pluginSurfaceRows(plugin: PluginEntry): SurfaceRow[] {
+  const rows: SurfaceRow[] = [];
+  if (plugin.menu) rows.push({ label: 'Menu entry', value: [plugin.menu.label, plugin.menu.path].filter(Boolean).join(' · ') });
+  if (plugin.server) {
+    rows.push({
+      label: 'Server',
+      value: `${plugin.server.command} ${(plugin.server.args ?? []).join(' ')} · ${plugin.server.healthPath ?? '/health'}`,
+    });
+  }
+  if (plugin.mcpTools?.length) {
+    rows.push({ label: 'MCP tools', value: plugin.mcpTools.map((tool) => tool.name).join(', ') });
+  }
+  if (plugin.apiRoutes?.length) {
+    rows.push({ label: 'API routes', value: plugin.apiRoutes.map((route) => routeLabel(route.methods, route.path)).join(', ') });
+  }
+  if (plugin.proxy?.length) {
+    rows.push({
+      label: 'Proxy routes',
+      value: plugin.proxy.map((proxy) => `${routeLabel(proxy.methods, proxy.path)} → $${proxy.targetEnv}`).join(', '),
+    });
+  }
+  if (plugin.cliSubcommands?.length) {
+    rows.push({ label: 'CLI subcommands', value: plugin.cliSubcommands.map((command) => command.command).join(', ') });
+  }
+  if (plugin.exportFormats?.length) {
+    rows.push({ label: 'Export formats', value: plugin.exportFormats.map((format) => `.${format.extension}`).join(', ') });
+  }
+  return rows;
+}
+
 export function PluginList({
   plugins,
   enabledState = {},
@@ -46,6 +82,7 @@ export function PluginList({
         const enabled = isPluginEnabled(plugin, enabledState);
         const status = pluginStatusLabel(plugin, enabled);
         const health = pluginHealthLabel(plugin, enabled);
+        const surfaceRows = pluginSurfaceRows(plugin);
         return (
           <article key={plugin.name} className="rounded-2xl border border-white/10 bg-slate-950/60 p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -98,42 +135,16 @@ export function PluginList({
                   <dd className="text-amber-200">{plugin.error}</dd>
                 </div>
               ) : null}
-              {plugin.server ? (
+              {surfaceRows.length ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-slate-500">Server</dt>
-                  <dd className="font-mono text-slate-200">
-                    {plugin.server.command} {(plugin.server.args ?? []).join(' ')} · {plugin.server.healthPath ?? '/health'}
+                  <dt className="text-slate-500">Surface details</dt>
+                  <dd className="mt-2 grid gap-2">
+                    {surfaceRows.map((row) => (
+                      <span key={`${row.label}:${row.value}`} className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 font-mono text-xs text-slate-200">
+                        <span className="font-sans text-slate-500">{row.label}: </span>{row.value}
+                      </span>
+                    ))}
                   </dd>
-                </div>
-              ) : null}
-              {plugin.mcpTools?.length ? (
-                <div className="sm:col-span-2">
-                  <dt className="text-slate-500">MCP tools</dt>
-                  <dd className="font-mono text-slate-200">{plugin.mcpTools.length}</dd>
-                </div>
-              ) : null}
-              {plugin.apiRoutes?.length ? (
-                <div className="sm:col-span-2">
-                  <dt className="text-slate-500">API routes</dt>
-                  <dd className="font-mono text-slate-200">{plugin.apiRoutes.length}</dd>
-                </div>
-              ) : null}
-              {plugin.proxy?.length ? (
-                <div className="sm:col-span-2">
-                  <dt className="text-slate-500">Proxy routes</dt>
-                  <dd className="font-mono text-slate-200">{plugin.proxy.length}</dd>
-                </div>
-              ) : null}
-              {plugin.cliSubcommands?.length ? (
-                <div className="sm:col-span-2">
-                  <dt className="text-slate-500">CLI subcommands</dt>
-                  <dd className="font-mono text-slate-200">{plugin.cliSubcommands.length}</dd>
-                </div>
-              ) : null}
-              {plugin.exportFormats?.length ? (
-                <div className="sm:col-span-2">
-                  <dt className="text-slate-500">Export formats</dt>
-                  <dd className="font-mono text-slate-200">{plugin.exportFormats.length}</dd>
                 </div>
               ) : null}
             </dl>

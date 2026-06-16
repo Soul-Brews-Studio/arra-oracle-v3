@@ -69,6 +69,10 @@ function proxyRequestForTool(toolName: string, args: Record<string, unknown>): P
     case 'oracle_list': return { method: 'GET', path: '/api/list', query: { ...queryFrom(args, { type: 'type', limit: 'limit', offset: 'offset' }), group: 'false' } };
     case 'oracle_concepts': return { method: 'GET', path: '/api/concepts', query: queryFrom(args, { type: 'type', limit: 'limit' }) };
     case 'oracle_supersede': return { method: 'POST', path: '/api/supersede/document', body: args };
+    case 'oracle_profile': {
+      const id = cleanQueryValue(args.id);
+      return { method: 'GET', path: id ? `/api/oracles/profiles/${encodeURIComponent(id)}` : '/api/oracles/profiles' };
+    }
     case 'oracle_inbox': return { method: 'GET', path: '/api/inbox', query: queryFrom(args, { limit: 'limit', offset: 'offset', type: 'type' }) };
     case 'oracle_handoff': return { method: 'POST', path: '/api/handoff', body: args };
     case 'oracle_thread': return { method: 'POST', path: '/api/thread', body: { message: args.message, thread_id: args.threadId, title: args.title, role: args.role ?? 'claude', model: args.model } };
@@ -82,6 +86,12 @@ function proxyRequestForTool(toolName: string, args: Record<string, unknown>): P
       return threadId ? { method: 'PATCH', path: `/api/thread/${encodeURIComponent(threadId)}/status`, body: { status: args.status } } : null;
     }
     case 'oracle_trace': return { method: 'POST', path: '/api/traces', body: args };
+    case 'oracle_trace_distill': {
+      const traceId = cleanQueryValue(args.traceId);
+      if (!traceId) return null;
+      const { traceId: _traceId, ...body } = args;
+      return { method: 'POST', path: `/api/traces/${encodeURIComponent(traceId)}/distill`, body };
+    }
     case 'oracle_trace_list': return { method: 'GET', path: '/api/traces', query: queryFrom(args, { query: 'query', status: 'status', project: 'project', limit: 'limit', offset: 'offset' }) };
     case 'oracle_trace_get': {
       const traceId = cleanQueryValue(args.traceId);

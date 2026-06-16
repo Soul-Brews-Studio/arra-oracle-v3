@@ -74,6 +74,8 @@ test('POST /api/v1/memory/save persists a memory, indexes it, and recall finds i
   expect(recall.status).toBe(200);
   expect(body).toMatchObject({ query: unique, total: 1 });
   expect(body.items[0]).toMatchObject({ id: saved.memory.id, content: `Read the ${unique} context before coding.` });
+  expect(body.confidence).toMatchObject({ stored: false, strategy: 'query-time-confidence' });
+  expect(body.items[0].confidence).toMatchObject({ label: 'high' });
 });
 
 test('GET /api/v1/memory/search returns vector similarity hits enriched from SQLite', async () => {
@@ -93,6 +95,8 @@ test('GET /api/v1/memory/search returns vector similarity hits enriched from SQL
   expect(search.status).toBe(200);
   expect(body).toMatchObject({ success: true, query: phrase, total: 1 });
   expect(body.results[0]).toMatchObject({ id: saved.memory.id, score: 1, vectorId: `memory:${saved.memory.id}` });
+  expect(body.confidence).toMatchObject({ stored: false, strategy: 'query-time-confidence' });
+  expect(body.results[0].confidence.reasons).toContain('semantic_match');
 });
 
 test('memory save rejects blank content', async () => {

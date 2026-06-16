@@ -34,6 +34,7 @@ export interface HealthStatus {
   error?: string;
   name?: string;
   version?: string;
+  protocol?: string;
 }
 
 export interface VectorServiceRegistryClient {
@@ -51,16 +52,21 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
-async function readProxyHealth(response: Response): Promise<Partial<HealthStatus>> {
+async function readProxyHealth(response: Response, expectedProtocol?: string): Promise<Partial<HealthStatus>> {
   const body = record(await response.json().catch(() => ({})));
   const proxyOk = body.status === 'ok';
+  const protocol = typeof body.protocol === 'string' ? body.protocol : undefined;
+  const protocolError = expectedProtocol && protocol !== expectedProtocol
+    ? `protocol mismatch: expected ${expectedProtocol}, got ${protocol ?? 'missing'}`
+    : undefined;
   return {
-    status: response.ok && proxyOk ? 'up' : 'down',
+    status: response.ok && proxyOk && !protocolError ? 'up' : 'down',
     name: typeof body.name === 'string' ? body.name : undefined,
     version: typeof body.version === 'string' ? body.version : undefined,
-    error: response.ok && !proxyOk
+    protocol,
+    error: protocolError ?? (response.ok && !proxyOk
       ? `health status ${String(body.status ?? 'missing')}`
-      : response.ok ? undefined : `HTTP ${response.status}`,
+      : response.ok ? undefined : `HTTP ${response.status}`),
   };
 }
 
@@ -195,12 +201,15 @@ export class VectorServiceRegistry implements VectorServiceRegistryClient {
         if (!endpoint) {
           throw new Error('missing endpoint');
         }
+        const expectedProtocol = typeof service.capabilities?.protocol === 'string'
+          ? service.capabilities.protocol
+          : undefined;
         const healthUrl = buildVectorProxyUrl(endpoint, VECTOR_PROXY_ROUTES.health);
         const response = await fetch(healthUrl, {
           method: 'GET',
           signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
         });
-        const proxyHealth = await readProxyHealth(response);
+        const proxyHealth = await readProxyHealth(response, expectedProtocol);
         results.set(service.name, {
           status: proxyHealth.status ?? 'unknown',
           checkedAt: new Date().toISOString(),
@@ -208,6 +217,7 @@ export class VectorServiceRegistry implements VectorServiceRegistryClient {
           error: proxyHealth.error,
           name: proxyHealth.name,
           version: proxyHealth.version,
+          protocol: proxyHealth.protocol,
         });
       } catch (error) {
         results.set(service.name, {
