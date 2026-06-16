@@ -6,7 +6,12 @@ import { Elysia } from 'elysia';
 import fs from 'fs';
 import path from 'path';
 import { REPO_ROOT } from '../../config.ts';
+import { tenantDataPath } from '../../middleware/tenant.ts';
 import { HandoffBody } from './model.ts';
+
+const repoRoot = () => process.env.ORACLE_REPO_ROOT || REPO_ROOT;
+const relativePath = (filePath: string) => path.relative(repoRoot(), filePath).split(path.sep).join('/');
+const inboxDir = () => tenantDataPath(path.join(repoRoot(), 'ψ/inbox'));
 
 export const handoffEndpoint = new Elysia().post(
   '/handoff',
@@ -31,7 +36,7 @@ export const handoffEndpoint = new Elysia().post(
         .replace(/^-|-$/g, '') || 'handoff';
 
       const filename = `${dateStr}_${timeStr}_${slug}.md`;
-      const dirPath = path.join(REPO_ROOT, 'ψ/inbox/handoff');
+      const dirPath = path.join(inboxDir(), 'handoff');
       const filePath = path.join(dirPath, filename);
 
       fs.mkdirSync(dirPath, { recursive: true });
@@ -40,7 +45,7 @@ export const handoffEndpoint = new Elysia().post(
       set.status = 201;
       return {
         success: true,
-        file: `ψ/inbox/handoff/${filename}`,
+        file: relativePath(filePath),
         message: 'Handoff written.',
       };
     } catch (error) {
