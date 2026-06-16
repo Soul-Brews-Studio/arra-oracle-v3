@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "build": "bun scripts/build.ts",
+    "smoke:install": "bun scripts/install-smoke.ts",
     "typecheck": "bunx tsc --noEmit -p tsconfig.json",
     "test": "bun test ../../tests/tools/maw-plugin-arra/"
   },
@@ -13,6 +14,7 @@
     "index.ts",
     "plugin.json",
     "scripts/build.ts",
+    "scripts/install-smoke.ts",
     "tsconfig.json"
   ]
 }
