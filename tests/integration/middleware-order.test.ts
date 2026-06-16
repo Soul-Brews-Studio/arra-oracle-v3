@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { startSmokeServer, type SmokeServer } from '../smoke/_helpers.ts';
 
 const RESPONSE_TIME_RE = /^\d+\.\dms$/;
+const ALLOWED_ORIGIN = 'http://localhost:3000';
 
 let server: SmokeServer | null = null;
 
@@ -18,7 +19,7 @@ test('HTTP middleware emits ordered response and preflight headers', async () =>
   const baseUrl = server!.baseUrl;
 
   const health = await fetch(`${baseUrl}/api/v1/health`, {
-    headers: { origin: 'https://studio.example' },
+    headers: { origin: ALLOWED_ORIGIN },
   });
 
   expect(health.status).toBe(200);
@@ -31,14 +32,14 @@ test('HTTP middleware emits ordered response and preflight headers', async () =>
   const preflight = await fetch(`${baseUrl}/api/v1/health`, {
     method: 'OPTIONS',
     headers: {
-      origin: 'https://studio.example',
+      origin: ALLOWED_ORIGIN,
       'access-control-request-method': 'GET',
       'access-control-request-headers': 'content-type',
     },
   });
 
   expect(preflight.status).toBe(204);
-  expect(preflight.headers.get('Access-Control-Allow-Origin')).toBe('*');
+  expect(preflight.headers.get('Access-Control-Allow-Origin')).toBe(ALLOWED_ORIGIN);
   expect(preflight.headers.get('Access-Control-Allow-Methods')).toContain('GET');
   expect(preflight.headers.get('Access-Control-Allow-Headers')).toBe('content-type');
   expect(preflight.headers.get('Access-Control-Max-Age')).toBe('86400');
