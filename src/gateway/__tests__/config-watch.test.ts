@@ -71,6 +71,31 @@ describe('watchGatewayConfig', () => {
     }
   });
 
+  it('keeps last good config on malformed JSON even when VECTOR_URL is set', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-gateway-watch-'));
+    const file = path.join(dir, 'oracle-gateway.json');
+    const cfg: GatewayConfig = {
+      services: { v: { url: 'http://localhost:1', timeout: 1000 } },
+      routes: [{ match: '/api/search', service: 'v', fallback: 'fts5' }],
+    };
+    const calls: Array<GatewayConfig | null> = [];
+    const stop = watchGatewayConfig(dir, (next) => calls.push(next), 'http://vector.local');
+    try {
+      fs.writeFileSync(file, JSON.stringify(cfg));
+      await wait(450);
+      const count = calls.length;
+      expect(count).toBeGreaterThanOrEqual(1);
+
+      fs.writeFileSync(file, '{ not valid json');
+      await wait(450);
+      expect(calls.length).toBe(count);
+      expect(calls[calls.length - 1]?.services.v.url).toBe('http://localhost:1');
+    } finally {
+      stop();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('fires onChange(null) when the config file is deleted', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-gateway-watch-'));
     const file = path.join(dir, 'oracle-gateway.json');

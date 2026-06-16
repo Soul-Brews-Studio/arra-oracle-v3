@@ -42,9 +42,14 @@ export function parsePsiLearnFile(relativePath: string, content: string): Oracle
 
   return parseLearningFile(basename, content, sourceFile).map((doc) => ({
     ...doc,
-    id: doc.id.replace(/^learning_/, `learning_psi_learn_${pathHash}_`),
+    id: psiLearnDocId(pathHash, doc.id),
     source_file: sourceFile,
   }));
+}
+
+function psiLearnDocId(pathHash: string, id: string): string {
+  const suffix = id.replace(/^learning_/, '').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^[._-]+|[._-]+$/g, '');
+  return `learning_psi_learn_${pathHash}_${suffix || 'doc'}`;
 }
 
 export function readLearningDocuments(repoRoot: string, filePath: string): OracleDocument[] {

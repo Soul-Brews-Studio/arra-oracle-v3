@@ -20,6 +20,22 @@ interface AuthGuardOptions {
   allowlist?: string[];
 }
 
+const DEFAULT_HEADER = 'x-oracle-token';
+const HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+function configuredHeader(value: unknown): string {
+  const header = typeof value === 'string' ? value.trim() : '';
+  return header && HEADER_NAME.test(header) ? header : DEFAULT_HEADER;
+}
+
+function allowlistRoots(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+  return values
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+}
+
 function unauthorized(reason: string): Response {
   return new Response(JSON.stringify({ error: 'unauthorized', reason }), {
     status: 401,
@@ -34,10 +50,10 @@ registerHook({
     const opts =
       (ctx.meta.hook_options as Record<string, AuthGuardOptions> | undefined)?.['auth-guard'] ??
       {};
-    const headerName = opts.header ?? 'x-oracle-token';
+    const headerName = configuredHeader(opts.header);
 
     const pathname = new URL(ctx.request.url).pathname;
-    for (const prefix of opts.allowlist ?? []) {
+    for (const prefix of allowlistRoots(opts.allowlist)) {
       if (pathname === prefix || pathname.startsWith(prefix + '/')) return;
     }
 

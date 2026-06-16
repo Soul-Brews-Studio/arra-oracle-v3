@@ -105,7 +105,7 @@ export function resolveConfigProfile(env: NodeJS.ProcessEnv = process.env): Conf
 
 function boolFrom(value: string | undefined, fallback: boolean): boolean {
   if (!filled(value)) return fallback;
-  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
 }
 
 function intFrom(value: string | undefined, fallback: number): number {

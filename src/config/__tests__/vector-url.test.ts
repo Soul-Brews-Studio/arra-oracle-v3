@@ -48,6 +48,19 @@ describe('VECTOR_URL routing guard', () => {
     }
   });
 
+  test('durable vector config trims ORACLE_DATA_DIR before reading config', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-vector-url-config-'));
+    try {
+      fs.writeFileSync(
+        path.join(tmp, 'vector-server.json'),
+        JSON.stringify({ vectorProxyUrl: 'https://vectors.example.test' }),
+      );
+      expect(resolveVectorUrl({ ORACLE_DATA_DIR: ` ${tmp} ` }, ['bun', 'src/server.ts'])).toBe('https://vectors.example.test');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   test('env VECTOR_URL overrides durable vectorProxyUrl config', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-vector-url-config-'));
     try {
