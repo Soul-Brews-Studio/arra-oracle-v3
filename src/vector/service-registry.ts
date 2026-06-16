@@ -1,10 +1,3 @@
-/**
- * Service registry for external vector services.
- *
- * Keeps runtime-registered services in-memory and syncs them to
- * vector-server.json under `storage.services`.
- */
-
 import {
   configPath,
   generateDefaultConfig,
@@ -15,7 +8,7 @@ import {
   type VectorStorageConfig,
   type VectorStorageService,
 } from './config.ts';
-import { VECTOR_PROXY_ROUTES, buildVectorProxyUrl } from './proxy-protocol.ts';
+import { VECTOR_PROXY_PROTOCOL_VERSION, VECTOR_PROXY_ROUTES, buildVectorProxyUrl } from './proxy-protocol.ts';
 
 export type RegisteredServiceType = 'builtin' | 'proxy';
 export { buildVectorProxyUrl as vectorServiceUrl } from './proxy-protocol.ts';
@@ -34,6 +27,8 @@ export interface HealthStatus {
   error?: string;
   name?: string;
   version?: string;
+  protocol?: string;
+  compatible?: boolean;
 }
 
 export interface VectorServiceRegistryClient {
@@ -53,13 +48,17 @@ function record(value: unknown): Record<string, unknown> {
 
 async function readProxyHealth(response: Response): Promise<Partial<HealthStatus>> {
   const body = record(await response.json().catch(() => ({})));
-  const proxyOk = body.status === 'ok';
+  const protocol = typeof body.protocol === 'string' ? body.protocol : undefined;
+  const compatible = !protocol || protocol === VECTOR_PROXY_PROTOCOL_VERSION;
+  const proxyOk = body.status === 'ok' && compatible;
   return {
     status: response.ok && proxyOk ? 'up' : 'down',
     name: typeof body.name === 'string' ? body.name : undefined,
     version: typeof body.version === 'string' ? body.version : undefined,
+    protocol,
+    compatible,
     error: response.ok && !proxyOk
-      ? `health status ${String(body.status ?? 'missing')}`
+      ? compatible ? `health status ${String(body.status ?? 'missing')}` : `unsupported proxy protocol ${protocol}`
       : response.ok ? undefined : `HTTP ${response.status}`,
   };
 }
@@ -123,7 +122,8 @@ function syncConfig(
   config: VectorServerConfig,
   services: Map<string, RegisteredVectorService>,
 ): VectorServerConfig {
-  const next = { ...config, storage: normalizeStorage(config, services) };
+  const version: VectorServerConfig['version'] = config.version.startsWith('2') ? config.version : '2.0';
+  const next = { ...config, version, storage: normalizeStorage(config, services) };
   writeVectorConfig(next, activeConfigPath());
   return next;
 }
@@ -131,14 +131,25 @@ function syncConfig(
 function validateService(service: RegisteredVectorService): RegisteredVectorService {
   const name = service.name?.trim();
   if (!name) throw new Error('service name is required');
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(name)) {
+    throw new Error(`invalid service name: ${name}`);
+  }
   if (!service.type) throw new Error(`service ${name} missing type`);
-  if (service.type === 'proxy' && !service.endpoint) {
-    throw new Error(`proxy service ${name} requires endpoint`);
+  if (service.type !== 'builtin' && service.type !== 'proxy') throw new Error(`unsupported service type: ${String(service.type)}`);
+  const endpoint = service.endpoint?.trim().replace(/\/+$/, '');
+  if (service.type === 'proxy') {
+    if (!endpoint) throw new Error(`proxy service ${name} requires endpoint`);
+    try {
+      const protocol = new URL(endpoint).protocol;
+      if (protocol !== 'http:' && protocol !== 'https:') throw new Error('bad protocol');
+    } catch {
+      throw new Error(`proxy service ${name} requires http(s) endpoint`);
+    }
   }
   return {
     name,
     type: service.type,
-    endpoint: service.endpoint,
+    endpoint,
     capabilities: service.capabilities,
   };
 }
@@ -208,6 +219,8 @@ export class VectorServiceRegistry implements VectorServiceRegistryClient {
           error: proxyHealth.error,
           name: proxyHealth.name,
           version: proxyHealth.version,
+          protocol: proxyHealth.protocol,
+          compatible: proxyHealth.compatible,
         });
       } catch (error) {
         results.set(service.name, {
