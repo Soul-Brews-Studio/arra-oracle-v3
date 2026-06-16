@@ -69,9 +69,22 @@ export function vectorSettingsPath(): string {
   return '/vector/settings';
 }
 
+const CANVAS_STANDALONE_ORIGIN = 'https://canvas.buildwithoracle.com';
+const CLEAN_CANVAS_PLUGINS = new Set(['map', 'planets']);
+
 export function canvasAppPath(plugin = 'wave'): string {
   const id = plugin.trim();
   return id ? `/canvas?${new URLSearchParams({ plugin: id })}` : '/canvas';
+}
+
+export function canvasStandalonePath(plugin = 'wave'): string {
+  const id = plugin.trim() || 'wave';
+  if (CLEAN_CANVAS_PLUGINS.has(id)) return `/${id}`;
+  return `/?${new URLSearchParams({ plugin: id })}`;
+}
+
+export function canvasStandaloneUrl(plugin = 'wave', origin = CANVAS_STANDALONE_ORIGIN): string {
+  return new URL(canvasStandalonePath(plugin), origin).toString();
 }
 
 export function canvasPluginsPath(): string {

@@ -1,22 +1,15 @@
 import { useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
+import { canvasStandaloneUrl } from '../routePaths';
 
-const CANVAS_HOST = 'https://canvas.buildwithoracle.com';
-const DEFAULT_PLUGIN = 'wave';
-
-function canvasPath(plugin: string): string {
-  const id = plugin.trim() || DEFAULT_PLUGIN;
-  return id === 'map' || id === 'planets' ? `/${id}` : `/?${new URLSearchParams({ plugin: id })}`;
-}
-
-export function canvasStandaloneUrl(search: string): string {
+function standaloneTarget(search: string): string {
   const params = new URLSearchParams(search);
-  return new URL(canvasPath(params.get('plugin') ?? DEFAULT_PLUGIN), CANVAS_HOST).toString();
+  return canvasStandaloneUrl(params.get('plugin') ?? undefined);
 }
 
 export function CanvasAliasPage() {
   const location = useLocation();
-  const target = useMemo(() => canvasStandaloneUrl(location.search), [location.search]);
+  const target = useMemo(() => standaloneTarget(location.search), [location.search]);
 
   useEffect(() => {
     if (import.meta.env.DEV) {
