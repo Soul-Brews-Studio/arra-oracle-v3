@@ -39,9 +39,15 @@ describe('canvas Cloudflare Worker', () => {
     const html = await response.text();
 
     expect(html).toContain('oracle.canvas.registry.v1');
+    expect(html).toContain('localStorage.getItem');
     expect(html).toContain('localStorage.setItem');
     expect(html).toContain('indexedDB.open');
+    expect(html).toContain("objectStore('kv').get");
+    expect(html).toContain('normalizeRegistry');
+    expect(html).toContain('registry cache ready');
+    expect(html).toContain('registry updated');
     expect(html).toContain("fetch('/api/canvas/registry')");
+    expect(html).toContain('loadRegistry()');
   });
 
   test('falls back to wave for unknown plugins', async () => {
