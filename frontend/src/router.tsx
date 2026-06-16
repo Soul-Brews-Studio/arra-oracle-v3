@@ -21,6 +21,7 @@ import type { MetricsSnapshot } from '../../src/server/types';
 
 export const frontendRoutes = [
   '/',
+  '/menu',
   '/plugins',
   '/canvas/plugins',
   '/metrics',
@@ -68,7 +69,7 @@ export function DashboardRoutes({
   updatedAt,
   onRefresh,
 }: DashboardRoutesProps) {
-  const menuPage = <MenuPage items={menu} loading={isRouteLoading(states.menu)} />;
+  const menuPage = <MenuPage />;
   const pluginPage = <PluginsPage plugins={plugins} loading={isRouteLoading(states.plugins)} />;
   return (
     <Routes>

@@ -5,7 +5,7 @@ import { htmlFor } from '../_render';
 describe('MenuPage loading state', () => {
   test('shows a loading panel while menu rows load', () => {
     const html = htmlFor(<MenuPage items={[]} loading={true} />);
-    expect(html).toContain('Menu viewer');
-    expect(html).toContain('Loading menu items…');
+    expect(html).toContain('Menu catalog');
+    expect(html).toContain('Loading menu items...');
   });
 });
