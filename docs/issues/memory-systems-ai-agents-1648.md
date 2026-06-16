@@ -94,4 +94,5 @@ knowledge corpus.
 - `ψ/memory/ai-memory-systems-claims-ledger.md`
 - `ψ/memory/ai-memory-product-patterns-2026.md`
 - `ψ/memory/ai-agent-memory-recommendations-1648.md`
+- `ψ/memory/memory-confidence-contract-1648.md`
 - `docs/HUGINN-MUNINN.md`
