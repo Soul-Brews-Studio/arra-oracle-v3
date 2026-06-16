@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchMcpTools } from '../api';
+import { mcpToolsPath } from '../routePaths';
 import { ErrorMessage, LoadingPanel, Spinner } from './AsyncState';
 import { groupLabel, toolMode } from './toolView';
 import type { McpTool } from '../types';
@@ -173,6 +174,11 @@ export function McpToolBrowser({
         <p className="text-sm text-slate-500">
           {loading ? <Spinner label="Loading tools" /> : `${visible.length}/${tools.length} tools · ${groups} groups · ${sourceCounts.plugin} plugin · ${sourceCounts.core} core`}
         </p>
+      </div>
+      <div className="mb-4 flex justify-end">
+        <a className="focus-ring rounded-xl border border-teal-300/20 px-3 py-2 text-sm font-semibold text-teal-100 hover:border-teal-300/50" href={mcpToolsPath({ q: filter, source })}>
+          Share tool view
+        </a>
       </div>
 
       {loading ? <LoadingPanel title="Loading MCP tools…" detail="Fetching /api/mcp/tools." /> : null}

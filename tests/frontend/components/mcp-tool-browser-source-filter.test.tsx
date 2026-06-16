@@ -37,6 +37,7 @@ describe('McpToolBrowser source filters', () => {
     expect(html).toContain('value="plugin" selected');
     expect(html).toContain('1/2 tools');
     expect(html).toContain('echo.say');
+    expect(html).toContain('href="/mcp?q=echo&amp;source=plugin"');
   });
 
   test('renders the source selector and source badges from initial tools', () => {

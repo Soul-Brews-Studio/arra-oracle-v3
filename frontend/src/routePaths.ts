@@ -2,6 +2,14 @@ export function mcpToolPath(name: string): string {
   return `/mcp/tools/${encodeURIComponent(name)}`;
 }
 
+export function mcpToolsPath(filters: { q?: string; source?: string } = {}): string {
+  const params = new URLSearchParams();
+  if (filters.q?.trim()) params.set('q', filters.q.trim());
+  if (filters.source && filters.source !== 'all') params.set('source', filters.source);
+  const query = params.toString();
+  return query ? `/mcp?${query}` : '/mcp';
+}
+
 export function menuSearchPath(query: string): string {
   const q = query.trim();
   if (!q) return '/search';
