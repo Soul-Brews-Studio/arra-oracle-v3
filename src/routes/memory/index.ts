@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { MemoryCloseoutBody, MorningTapeQuery, RecallMemoryQuery, SaveMemoryBody, SemanticMemoryQuery } from './model.ts';
+import { MemoryCloseoutBody, MorningTapeQuery, RecallMemoryQuery, SaveMemoryBody, SemanticMemoryQuery, parseMemoryLimit } from './model.ts';
 import { createMemoryFanoutEndpoint } from './fanout.ts';
 import { memoryStore, type MemoryInput, type MemoryRecord, type MemoryStore } from './store.ts';
 import { memoryVectorIndex, type MemoryVectorHit, type MemoryVectorIndex } from './vector.ts';
@@ -41,7 +41,7 @@ export function createMemoryRoutes(
     })
     .use(createMemoryFanoutEndpoint())
     .get('/memory/morning-tape', ({ query }) => {
-      const limit = Math.min(25, Math.max(1, parseInt(query.limit ?? '8')));
+      const limit = parseMemoryLimit(query.limit, 8, 25);
       const tape = buildMorningTape(store.recall('', limit));
       if (query.format === 'markdown' || query.format === 'md') {
         return new Response(tape.markdown, { headers: { 'content-type': 'text/markdown; charset=utf-8' } });
@@ -52,7 +52,7 @@ export function createMemoryRoutes(
       detail: { tags: ['memory'], menu: { group: 'hidden' }, summary: 'Render a two-minute morning recovery tape from persisted memories' },
     })
     .get('/memory/recall', ({ query }) => {
-      const limit = Math.min(50, Math.max(1, parseInt(query.limit ?? '10')));
+      const limit = parseMemoryLimit(query.limit);
       const items = store.recall(query.q ?? '', limit);
       return { query: query.q ?? '', total: items.length, confidence: MEMORY_CONFIDENCE_STRATEGY, items: items.map(withKeywordConfidence) };
     }, {
@@ -64,7 +64,7 @@ export function createMemoryRoutes(
         set.status = 400;
         return { success: false, error: 'Missing query parameter: q', results: [] };
       }
-      const limit = Math.min(50, Math.max(1, parseInt(query.limit ?? '10')));
+      const limit = parseMemoryLimit(query.limit);
       try {
         const hits = await vectorIndex.search(query.q, limit);
         const records = store.getByIds(hits.map((hit) => hit.memoryId));
