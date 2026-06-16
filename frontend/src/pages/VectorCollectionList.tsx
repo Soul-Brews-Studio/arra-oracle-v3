@@ -53,8 +53,8 @@ export function VectorCollectionList({
 
       <div className="mt-4 grid gap-3">
         {rows.map((row) => {
-          const draft = drafts[row.key] ?? { model: row.model, provider: row.provider, adapter: row.adapter };
-          const dirty = draft.model !== row.model || draft.provider !== row.provider || draft.adapter !== row.adapter;
+          const draft = drafts[row.key] ?? { model: row.model, provider: row.provider, adapter: row.adapter, enabled: row.enabled };
+          const dirty = draft.model !== row.model || draft.provider !== row.provider || draft.adapter !== row.adapter || draft.enabled !== row.enabled;
           return (
             <article key={row.key} className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
               <div className="mb-3 flex items-start justify-between gap-3">
@@ -63,12 +63,12 @@ export function VectorCollectionList({
                     <h3 className="text-base font-semibold text-teal-200">{row.collection}</h3>
                     <PrimaryBadge primary={row.primary} />
                   </div>
-                  <p className="mt-1 text-sm text-slate-400">{row.key} · {row.count ?? 0} docs · {row.adapter}</p>
+                  <p className="mt-1 text-sm text-slate-400">{row.key} · {row.count ?? 0} docs · {row.adapter} · {row.enabled ? 'enabled' : 'disabled'}</p>
                 </div>
                 <CollectionStatus row={row} />
               </div>
 
-              <div className="grid gap-2 sm:grid-cols-3">
+              <div className="grid gap-2 sm:grid-cols-4">
                 <label className="grid gap-2 text-sm text-slate-300">Model
                   <input className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm text-slate-100" value={draft.model} onChange={(event) => onDraft(row.key, { model: event.target.value })} />
                 </label>
@@ -78,6 +78,11 @@ export function VectorCollectionList({
                 <label className="grid gap-2 text-sm text-slate-300">Adapter
                   <select className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm text-slate-100" value={draft.adapter} onChange={(event) => onDraft(row.key, { adapter: event.target.value as VectorConfigAdapter })}>
                     {ADAPTER_OPTIONS.map((value) => <option key={value} value={value}>{value}</option>)}
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm text-slate-300">Enabled
+                  <select className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm text-slate-100" value={String(draft.enabled)} onChange={(event) => onDraft(row.key, { enabled: event.target.value === 'true' })}>
+                    <option value="true">true</option><option value="false">false</option>
                   </select>
                 </label>
               </div>

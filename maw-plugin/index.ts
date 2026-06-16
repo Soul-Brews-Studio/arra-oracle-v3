@@ -2,7 +2,6 @@ import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { apiArgsToCliArgs } from './api.ts';
 import { runServe, type ServeDeps } from './serve.ts';
-
 type InvokeContext = { source?: string; args?: string[] | Record<string, unknown>; writer?: (...args: unknown[]) => void };
 type InvokeResult = { ok: boolean; output?: string; error?: string };
 type Requester = (path: string, init?: RequestInit) => Promise<unknown>;
@@ -126,30 +125,31 @@ function formatSearch(data: any, p: Parsed): string {
   for (const [i, r] of results.slice(0, 8).entries()) lines.push(`${i + 1}. ${r.id ?? r.source_file ?? 'doc'} ${r.type ? `[${r.type}] ` : ''}score=${r.score ?? 'n/a'}\n   ${one(r.content ?? r.snippet ?? r.text ?? '')}`);
   return lines.join('\n');
 }
-function formatHealth(data: any): string { return [`arra health: ${data?.status ?? 'unknown'}`, data?.vectorMode && `vectorMode: ${data.vectorMode}`, data?.version && `version: ${data.version}`].filter(Boolean).join('\n'); }
+function formatHealth(data: any): string { const engines = Array.isArray(data?.vector?.engines) ? data.vector.engines : []; return [`arra health: ${data?.status ?? 'unknown'}`, data?.vectorMode && `vectorMode: ${data.vectorMode}`, data?.version && `version: ${data.version}`, data?.vectorStatus && `vectorStatus: ${data.vectorStatus}`, ...engines.map((e: any) => `vector ${e.key ?? e.collection}: ${e.ok === false ? 'down' : 'ok'} ${e.adapter ?? ''} ${e.model ?? ''} docs=${e.count ?? 0}${e.error ? ` error=${one(e.error, 90)}` : ''}`)].filter(Boolean).join('\n'); }
 function formatStats(data: any): string { return ['arra stats', data?.total_documents !== undefined && `docs: ${data.total_documents}`, data?.total_docs !== undefined && `docs: ${data.total_docs}`, data?.vector && `vector: ${one(JSON.stringify(data.vector), 180)}`].filter(Boolean).join('\n'); }
 function formatRows(label: string, keys: string[]) { return (data: any) => { const rows = keys.map(k => data?.[k]).find(Array.isArray) ?? []; const total = data?.total ?? data?.chain_length ?? rows.length; return Array.isArray(rows) ? [`arra ${label}: ${total} item${Number(total) === 1 ? '' : 's'}`, ...rows.slice(0, 8).map((r: any) => `- ${r.id ?? r.trace_id ?? r.path ?? r.filename ?? r.name ?? '?'} ${one(r.title ?? r.query ?? r.content ?? r.preview ?? r.label ?? '')}`)].join('\n') : `arra ${label}: ${preview(data)}`; }; }
 function formatOk(label: string) { return (data: any) => [`arra ${label}: ${data?.success === false ? 'failed' : 'ok'}`, data?.id && `id: ${data.id}`, data?.trace_id && `trace_id: ${data.trace_id}`, data?.thread_id && `thread_id: ${data.thread_id}`, data?.message && one(data.message), data?.error && `error: ${one(data.error)}`].filter(Boolean).join('\n') || `arra ${label}: ${preview(data)}`; }
 function formatVectorConfig(data: any): string {
-  const models = data?.models?.models && typeof data.models.models === 'object' ? data.models.models : {}, engines = Array.isArray(data?.health?.engines) ? data.health.engines : [], lines = ['Collection | Adapter | Model | Docs | Status'];
-  for (const [key, raw] of Object.entries(models)) {
-    const m = raw as any, engine = engines.find((e: any) => e.key === key || e.collection === m.collection || e.model === m.model);
-    lines.push(`${m.collection ?? key} | ${m.adapter ?? 'lancedb'} | ${m.model ?? key} | ${m.count ?? m.docs ?? 0} | ${engine ? (engine.ok === false ? 'down' : 'ok') : (data?.health?.status ?? 'unknown')}`);
+  const collections = data?.config?.collections && typeof data.config.collections === 'object' ? data.config.collections : {}, health = data?.health && typeof data.health === 'object' ? data.health : {}, lines = ['Collection | Adapter | Model | Enabled | Docs | Status'];
+  for (const [key, raw] of Object.entries(collections)) {
+    const c = raw as any, h = (health as any)[key] ?? {};
+    lines.push(`${key} | ${c.adapter ?? 'lancedb'} | ${c.model ?? key} | ${c.enabled !== false} | ${data?.doc_counts?.[key] ?? h.count ?? 0} | ${h.status ?? (h.ok === false ? 'down' : 'unknown')}`);
   }
-  if (lines.length === 1) lines.push('(none) | - | - | 0 | ' + (data?.health?.status ?? 'unknown'));
+  if (lines.length === 1) lines.push('(none) | - | - | true | 0 | unknown');
   return lines.join('\n');
 }
 function formatVectorConfigWrite(data: any) { return ['arra vector-config: ' + (data?.success === false ? 'failed' : 'ok'), data?.collection && `collection: ${data.collection}`, data?.adapter && `adapter: ${data.adapter}`, data?.count !== undefined && `count: ${data.count}`, data?.error && `error: ${one(data.error)}`].filter(Boolean).join('\n'); }
-const VC_HELP = 'vector-config [--json] | vector-config set <collection> adapter <lancedb|qdrant|sqlite-vec|chroma> | vector-config reload | vector-config test <collection>';
+const VC_HELP = 'vector-config [--json] | vector-config set <collection> adapter <lancedb|qdrant|sqlite-vec|chroma> | vector-config set <collection> enabled <true|false> | vector-config reload | vector-config test <collection>';
 function buildVectorConfig(p: Parsed): { method: Method; built: Built } | undefined {
-  const action = key(p.pos[0] || ''), collection = p.pos[1], adapter = p.pos[3];
+  const action = key(p.pos[0] || ''), collection = p.pos[1], field = key(p.pos[2] || ''), value = p.pos[3];
   if (!action) return undefined;
   if (action === 'reload') return { method: 'POST', built: route('/api/v1/vector/config/reload') };
   if (!collection) throw new Error('collection required');
   if (action === 'test') return { method: 'POST', built: route(`/api/v1/vector/config/${enc(collection)}/test`) };
-  if (action !== 'set' || key(p.pos[2] || '') !== 'adapter') throw new Error(VC_HELP);
-  if (!['lancedb', 'qdrant', 'sqlite-vec', 'chroma'].includes(adapter)) throw new Error('adapter must be lancedb, qdrant, sqlite-vec, or chroma');
-  return { method: 'PUT', built: route(`/api/v1/vector/config/${enc(collection)}`, undefined, { adapter }) };
+  if (action !== 'set') throw new Error(VC_HELP);
+  if (field === 'adapter') { if (!['lancedb', 'qdrant', 'sqlite-vec', 'chroma'].includes(value)) throw new Error('adapter must be lancedb, qdrant, sqlite-vec, or chroma'); return { method: 'PUT', built: route(`/api/v1/vector/config/${enc(collection)}`, undefined, { adapter: value }) }; }
+  if (field === 'enabled') { if (!['true', 'false'].includes(value)) throw new Error('enabled must be true or false'); return { method: 'PUT', built: route(`/api/v1/vector/config/${enc(collection)}`, undefined, { enabled: value === 'true' }) }; }
+  throw new Error(VC_HELP);
 }
 async function runVectorConfig(parsed: Parsed, request: Requester): Promise<InvokeResult> {
   try {
@@ -159,7 +159,7 @@ async function runVectorConfig(parsed: Parsed, request: Requester): Promise<Invo
       if (write.built.body) init.body = JSON.stringify(write.built.body);
       return { ok: true, output: formatVectorConfigWrite(await request(qs(write.built.path, write.built.query), init)) };
     }
-    const init: RequestInit = { method: 'GET' }, data = { models: await request('/api/vector/index/models', init), health: await request('/api/vector/health', init) };
+    const data = await request('/api/v1/vector/config', { method: 'GET' });
     return { ok: true, output: b(parsed, 'json') ? JSON.stringify(data, null, 2) : formatVectorConfig(data) };
   } catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
 }

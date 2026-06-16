@@ -27,7 +27,7 @@ export function VectorSettingsPage() {
       const nextRows = toRows(normalized);
       setConfig(normalized);
       setRows(nextRows);
-      setDrafts(Object.fromEntries(nextRows.map((row) => [row.key, { model: row.model, provider: row.provider, adapter: row.adapter }])));
+      setDrafts(Object.fromEntries(nextRows.map((row) => [row.key, { model: row.model, provider: row.provider, adapter: row.adapter, enabled: row.enabled }])));
       setState('ready');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -45,14 +45,14 @@ export function VectorSettingsPage() {
   }, [rows, config]);
 
   function updateDraft(key: string, next: Partial<VectorConfigDraft>) {
-    setDrafts((current) => ({ ...current, [key]: { ...(current[key] ?? { model: '', provider: '', adapter: 'lancedb' }), ...next } }));
+    setDrafts((current) => ({ ...current, [key]: { ...(current[key] ?? { model: '', provider: '', adapter: 'lancedb', enabled: true }), ...next } }));
   }
 
   async function saveCollection(key: string) {
     const row = rows.find((item) => item.key === key);
     const draft = drafts[key];
     if (!row || !draft) return;
-    const payload = Object.fromEntries(Object.entries({ model: draft.model.trim(), provider: draft.provider.trim(), adapter: draft.adapter }).filter(([name, value]) => value !== row[name as keyof VectorConfigRow]));
+    const payload = Object.fromEntries(Object.entries({ model: draft.model.trim(), provider: draft.provider.trim(), adapter: draft.adapter, enabled: draft.enabled }).filter(([name, value]) => value !== row[name as keyof VectorConfigRow]));
     if (!Object.keys(payload).length) return setActionMessage((current) => ({ ...current, [key]: 'No changes to save.' }));
     setSaving((current) => ({ ...current, [key]: true }));
     try {

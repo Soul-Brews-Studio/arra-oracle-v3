@@ -75,6 +75,7 @@ describe('maw arra plugin', () => {
     expect(help.output).toContain('vector');
     expect(help.output).toContain('vector-config [--json]');
     expect(help.output).toContain('vector-config reload');
+    expect(help.output).toContain('enabled <true|false>');
     expect(help.output).toContain('trace_chain');
     expect(help.output).toContain('thread_update');
     expect(help.output).toContain('serve [--stop|--status] [--port N]');
@@ -183,6 +184,7 @@ describe('maw arra plugin', () => {
       [['vector_index', '--model', 'nomic'], 'POST', '/api/vector/index/start', { model: 'nomic' }],
       [['vector_stop'], 'POST', '/api/vector/index/stop', undefined],
       [['vector-config', 'set', 'bge-m3', 'adapter', 'qdrant'], 'PUT', '/api/v1/vector/config/bge-m3', { adapter: 'qdrant' }],
+      [['vector-config', 'set', 'bge-m3', 'enabled', 'false'], 'PUT', '/api/v1/vector/config/bge-m3', { enabled: false }],
       [['vector-config', 'reload'], 'POST', '/api/v1/vector/config/reload', undefined],
       [['vector-config', 'test', 'bge-m3'], 'POST', '/api/v1/vector/config/bge-m3/test', undefined],
       [['verify', '--check', 'false', '--type', 'learning'], 'POST', '/api/verify', { check: false, type: 'learning' }],
@@ -210,8 +212,9 @@ describe('maw arra plugin', () => {
   });
 
   test('formats compact health and search output', async () => {
-    const health = await runArra(['health'], async () => ({ status: 'ok', vectorMode: 'proxied' }));
+    const health = await runArra(['health'], async () => ({ status: 'ok', vectorMode: 'proxied', vectorStatus: 'ok', vector: { engines: [{ key: 'bge-m3', adapter: 'lancedb', model: 'bge-m3', ok: true, count: 12 }] } }));
     expect(health.output).toContain('vectorMode: proxied');
+    expect(health.output).toContain('vector bge-m3: ok lancedb bge-m3 docs=12');
 
     const search = await runArra(['search', 'hello'], async () => ({ total: 1, results: [{ id: 'doc1', type: 'learning', content: 'hello memory', score: 0.9 }] }));
     expect(search.output).toContain('arra search: 1 result');
