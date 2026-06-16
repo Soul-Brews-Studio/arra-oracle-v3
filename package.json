@@ -30,6 +30,34 @@
   "publishConfig": {
     "access": "public"
   },
+  "cloudflare": {
+    "bindings": {
+      "AI": {
+        "description": "Workers AI binding for edge embeddings. The vector adapter defaults to `@cf/baai/bge-m3` unless `ORACLE_EMBEDDING_MODEL` is changed."
+      },
+      "ORACLE_DB": {
+        "description": "Cloudflare D1 database for Oracle documents, config, logs, jobs, and Vectorize document/metadata hydration."
+      },
+      "ORACLE_VECTORIZE": {
+        "description": "Cloudflare Vectorize index for semantic search. Use dimensions that match the active embedding model."
+      },
+      "ORACLE_STATE": {
+        "description": "Optional KV namespace for lightweight Worker state, deploy metadata, OAuth state, or caches."
+      },
+      "ARRA_API_TOKEN": {
+        "description": "Optional bearer token for protected Oracle HTTP/MCP writes. Generate a random value such as `openssl rand -hex 32`."
+      },
+      "ORACLE_MCP_PATH": {
+        "description": "Remote MCP mount path. Keep `/mcp` unless your Worker route needs a different Streamable HTTP endpoint."
+      },
+      "ORACLE_STORAGE_BACKEND": {
+        "description": "Storage backend selector for Workers deploys. Use `d1` on Cloudflare; local SQLite is not Workers-compatible."
+      },
+      "ORACLE_VECTOR_BACKEND": {
+        "description": "Vector backend selector for Workers deploys. Use `cloudflare-vectorize` to avoid local SQLite/vector files at the edge."
+      }
+    }
+  },
   "scripts": {
     "dev": "bun src/index.ts",
     "server": "bun src/server.ts",

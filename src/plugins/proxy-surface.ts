@@ -26,7 +26,7 @@ export async function proxyRequestForManifest(
     return json({ ok: false, error: 'method not allowed' }, 405, { allow: allowed.join(', ') });
   }
 
-  const targetBase = env[manifest.targetEnv]?.replace(/\/+$/, '');
+  const targetBase = targetBaseFrom(env[manifest.targetEnv]);
   if (!targetBase) {
     return json({ ok: false, error: `${manifest.targetEnv} is unset`, targetEnv: manifest.targetEnv }, 502);
   }
@@ -35,6 +35,21 @@ export async function proxyRequestForManifest(
     ? (url.pathname.slice(normalize(manifest.path).length) || '/')
     : url.pathname;
   return forward(request, `${targetBase}${targetPath.startsWith('/') ? targetPath : `/${targetPath}`}${url.search}`);
+}
+
+function targetBaseFrom(raw: string | undefined): string | null {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    url.search = '';
+    url.hash = '';
+    url.pathname = url.pathname.replace(/\/+$/, '');
+    return url.toString().replace(/\/+$/, '');
+  } catch {
+    return null;
+  }
 }
 
 function pathMatches(pathname: string, manifestPath: string): boolean {
