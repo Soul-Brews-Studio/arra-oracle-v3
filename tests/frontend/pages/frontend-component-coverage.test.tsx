@@ -22,8 +22,8 @@ describe('frontend component coverage', () => {
     }]} loading={false} />);
 
     expect(html).toContain('1 enabled · 0 disabled · 1 registered');
-    expect(html).toContain('Installed plugin status');
-    expect(html).toContain('active');
+    expect(html).toContain('Unified plugin surfaces');
+    expect(html).toContain('ok');
     expect(html).toContain('2.0.0');
     expect(html).toContain('apiRoutes');
     expect(html).toContain('proxy');
