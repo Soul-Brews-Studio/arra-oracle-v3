@@ -41,7 +41,16 @@ export interface VectorServiceRegistry {
 
 const HEALTH_TIMEOUT_MS = 5_000;
 
-let currentConfig: VectorServerConfig = loadVectorConfig() ?? generateDefaultConfig();
+function activeConfigPath(): string {
+  const dataDir = process.env.ORACLE_DATA_DIR;
+  return dataDir ? configPath(dataDir) : configPath();
+}
+
+function loadActiveConfig(): VectorServerConfig | null {
+  return loadVectorConfig(activeConfigPath());
+}
+
+let currentConfig: VectorServerConfig = loadActiveConfig() ?? generateDefaultConfig();
 let registry = seedFromConfig(currentConfig);
 
 function seedFromConfig(config: VectorServerConfig): Map<string, RegisteredVectorService> {
@@ -92,11 +101,11 @@ function syncConfig(services: Map<string, RegisteredVectorService>): void {
     currentConfig.storage = { default: 'lancedb', services: {} };
   }
   currentConfig.storage = normalizeStorage(services);
-  writeVectorConfig(currentConfig, configPath());
+  writeVectorConfig(currentConfig, activeConfigPath());
 }
 
 function ensureConfigRefreshed(): void {
-  const latest = loadVectorConfig() ?? currentConfig;
+  const latest = loadActiveConfig() ?? currentConfig;
   if (latest) {
     currentConfig = latest;
     registry = seedFromConfig(latest);
