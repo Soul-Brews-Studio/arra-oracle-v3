@@ -141,7 +141,13 @@ export function writeVectorConfig(config: VectorServerConfig, fp = configPath())
 }
 
 function embedderFor(config: VectorServerConfig, col: VectorCollectionConfig): EmbedderConfig | undefined {
-  if (config.embedder) return { ...config.embedder, model: config.embedder.model ?? col.model };
+  if (config.embedder) {
+    return {
+      ...config.embedder,
+      backend: config.embedder.backend ?? config.embedder.default ?? 'none',
+      model: config.embedder.model ?? col.model,
+    };
+  }
   const provider = col.provider.toLowerCase();
   if (provider === 'ollama' || provider === 'local') return { backend: 'local', model: col.model };
   if (provider === 'openai' || provider === 'gemini' || provider === 'cloudflare-ai') {

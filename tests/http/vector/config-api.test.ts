@@ -137,6 +137,15 @@ test('GET and PUT /api/v1/vector/config expose and update vector-server.json', a
   expect(removeRes.body.removed).toBe('phase2');
   expect(removeRes.body.config.collections.phase2).toBeUndefined();
 
+const patchRes = await call('/api/v1/vector/config', {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ embedder: { default: 'ollama', fallback: 'openai' } }),
+  });
+  expect(patchRes.status).toBe(200);
+  expect(patchRes.body).toMatchObject({ success: true, reloaded: true, source: 'file' });
+  expect(patchRes.body.config.embedder).toMatchObject({ default: 'ollama', fallback: 'openai' });
+
   const reloadRes = await call('/api/v1/vector/config/reload', { method: 'POST' });
   expect(reloadRes.status).toBe(200);
   expect(reloadRes.body).toMatchObject({ success: true, reloaded: true, source: 'file' });

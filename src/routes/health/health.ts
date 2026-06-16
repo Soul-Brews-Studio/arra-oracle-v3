@@ -1,4 +1,4 @@
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { DB_PATH, PORT } from '../../config.ts';
 import { MCP_SERVER_NAME } from '../../const.ts';
 import { sqlite } from '../../db/index.ts';
@@ -11,6 +11,61 @@ import pkg from '../../../package.json' with { type: 'json' };
 type VectorHealth = Awaited<ReturnType<typeof readVectorBackendHealth>>;
 type DbStatus = { status: 'connected' } | { status: 'error'; error: string };
 type DbPing = () => DbStatus | Promise<DbStatus>;
+
+const HealthVectorSchema = t.Object({
+  status: t.Union([t.Literal('ok'), t.Literal('degraded'), t.Literal('down')]),
+  checked_at: t.String(),
+  engines: t.Array(t.Object({
+    key: t.String(),
+    model: t.String(),
+    collection: t.String(),
+    ok: t.Boolean(),
+    error: t.Optional(t.String()),
+  })),
+  error: t.Optional(t.String()),
+});
+
+const HealthResponseSchema = t.Object({
+  status: t.Union([t.Literal('ok'), t.Literal('degraded'), t.Literal('draining')]),
+  server: t.String(),
+  version: t.String(),
+  port: t.Optional(t.Number()),
+  oracle: t.Optional(t.Union([t.Literal('connected'), t.Literal('degraded')])),
+  uptimeSeconds: t.Optional(t.Number()),
+  dbStatus: t.Optional(t.Union([t.Literal('connected'), t.Literal('error')])),
+  vectorStatus: t.Optional(t.Union([t.Literal('ok'), t.Literal('degraded'), t.Literal('down')])),
+  pluginStatus: t.Optional(t.Union([t.Literal('ok'), t.Literal('degraded')])),
+  mcpToolCount: t.Optional(t.Number()),
+  pluginCount: t.Optional(t.Number()),
+  uptime: t.Optional(t.Object({
+    seconds: t.Number(),
+  })),
+  uptimeSecondsBreakdown: t.Optional(t.Object({
+    seconds: t.Number(),
+  })),
+  db: t.Optional(t.Object({
+    status: t.Union([t.Literal('connected'), t.Literal('error')]),
+    path: t.String(),
+    error: t.Optional(t.String()),
+  })),
+  dbCheck: t.Optional(t.Object({
+    status: t.Union([t.Literal('connected'), t.Literal('error')]),
+    path: t.Optional(t.String()),
+    error: t.Optional(t.String()),
+  })),
+  vector: t.Optional(HealthVectorSchema),
+  mcp: t.Optional(t.Object({ toolCount: t.Number() })),
+  plugins: t.Optional(t.Object({
+    count: t.Number(),
+    status: t.Union([t.Literal('ok'), t.Literal('degraded')]),
+    items: t.Array(t.Object({
+      name: t.String(),
+      status: t.Union([t.Literal('ok'), t.Literal('degraded')]),
+      error: t.Optional(t.String()),
+    })),
+  })),
+  draining: t.Optional(t.Boolean()),
+});
 
 export interface HealthEndpointOptions {
   pluginCount?: number;
@@ -109,6 +164,7 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
     detail: {
       tags: ['health'],
       menu: { group: 'hidden' },
+      description: 'Returns aggregate health status for process, database, vector index, and plugin systems.',
       summary: 'Server liveness, dependencies, and runtime counts',
     },
   });

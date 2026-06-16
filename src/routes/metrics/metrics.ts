@@ -1,4 +1,4 @@
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 
 export interface MemoryUsageSnapshot {
   rss: number;
@@ -29,6 +29,23 @@ export interface MetricsTracker {
   end(request: Request): void;
   snapshot(): MetricsSnapshot;
 }
+
+const MemoryUsageSchema = t.Object({
+  rss: t.Number(),
+  heapTotal: t.Number(),
+  heapUsed: t.Number(),
+  external: t.Number(),
+  arrayBuffers: t.Number(),
+});
+
+const MetricsResponseSchema = t.Object({
+  uptime: t.Number(),
+  requestCount: t.Number(),
+  avgResponseMs: t.Number(),
+  activeConnections: t.Number(),
+  lastRestart: t.String(),
+  memoryUsage: MemoryUsageSchema,
+});
 
 function round(value: number): number {
   return Math.round(value * 1000) / 1000;
@@ -98,9 +115,11 @@ export function createMetricsLifecycle(tracker: MetricsTracker = serverMetrics) 
 
 export function createMetricsRoutes(tracker: MetricsTracker = serverMetrics) {
   return new Elysia({ prefix: '/api' }).get('/metrics', () => tracker.snapshot(), {
+    response: MetricsResponseSchema,
     detail: {
       tags: ['metrics'],
       menu: { group: 'hidden' },
+      description: 'Returns runtime process metrics for operations telemetry and diagnostics.',
       summary: 'Runtime process metrics',
     },
   });

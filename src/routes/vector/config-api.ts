@@ -70,6 +70,16 @@ export const vectorConfigApiEndpoint = new Elysia()
     const { source, config } = activeConfig();
     return { success: true, reloaded: true, source, config };
   }, { detail: { tags: ['vector'], summary: 'Reload vector config and clear cached vector stores' } })
+  .patch('/vector/config', async ({ body }) => {
+    const { source, config } = activeConfig();
+    const next = { ...config, ...(body as Partial<VectorServerConfig>) };
+    const path = atomicWriteVectorConfig(next);
+    await closeCachedVectorStores();
+    return { success: true, reloaded: true, source, path, config: next };
+  }, {
+    body: t.Any(),
+    detail: { tags: ['vector'], summary: 'Patch vector config and hot-reload adapters' },
+  })
   .post('/vector/config/:collection/test', async ({ params, set }) => {
     const { config } = activeConfig();
     const resolved = resolveCollection(config, params.collection);
@@ -85,7 +95,7 @@ export const vectorConfigApiEndpoint = new Elysia()
     params: t.Object({ collection: t.String({ minLength: 1 }) }),
     detail: { tags: ['vector'], summary: 'Test one vector collection adapter' },
   })
-  .post('/vector/config/:collection', ({ params, body, set }) => {
+  .post('/vector/config/:collection', async ({ params, body, set }) => {
     const { source, config } = activeConfig();
     if (config.collections[params.collection]) {
       set.status = 409;
@@ -102,13 +112,14 @@ export const vectorConfigApiEndpoint = new Elysia()
     };
     const next = created.primary ? withPrimary(nextBase, params.collection) : nextBase;
     const path = atomicWriteVectorConfig(next);
-    return { success: true, source, path, collection: params.collection, config: next };
+    await closeCachedVectorStores();
+    return { success: true, reloaded: true, source, path, collection: params.collection, config: next };
   }, {
     params: t.Object({ collection: t.String({ minLength: 1 }) }),
     body: createSchema,
     detail: { tags: ['vector'], summary: 'Add a vector collection config' },
   })
-  .post('/vector/config/:collection/primary', ({ params, set }) => {
+  .post('/vector/config/:collection/primary', async ({ params, set }) => {
     const { source, config } = activeConfig();
     const resolved = resolveCollection(config, params.collection);
     if (!resolved) {
@@ -118,12 +129,13 @@ export const vectorConfigApiEndpoint = new Elysia()
     const [key] = resolved;
     const next = withPrimary(config, key);
     const path = atomicWriteVectorConfig(next);
-    return { success: true, source, path, collection: key, config: next };
+    await closeCachedVectorStores();
+    return { success: true, reloaded: true, source, path, collection: key, config: next };
   }, {
     params: t.Object({ collection: t.String({ minLength: 1 }) }),
     detail: { tags: ['vector'], summary: 'Set primary vector collection' },
   })
-  .delete('/vector/config/:collection', ({ params, set }) => {
+  .delete('/vector/config/:collection', async ({ params, set }) => {
     const { source, config } = activeConfig();
     const resolved = resolveCollection(config, params.collection);
     if (!resolved) {
@@ -133,12 +145,13 @@ export const vectorConfigApiEndpoint = new Elysia()
     const [key] = resolved;
     const next = withoutCollection(config, key);
     const path = atomicWriteVectorConfig(next);
-    return { success: true, source, path, removed: key, config: next };
+    await closeCachedVectorStores();
+    return { success: true, reloaded: true, source, path, removed: key, config: next };
   }, {
     params: t.Object({ collection: t.String({ minLength: 1 }) }),
     detail: { tags: ['vector'], summary: 'Remove a vector collection config' },
   })
-  .put('/vector/config/:collection', ({ params, body, set }) => {
+  .put('/vector/config/:collection', async ({ params, body, set }) => {
     const update = normalizedUpdate(body);
     if ('error' in update) {
       set.status = 400;
@@ -157,7 +170,8 @@ export const vectorConfigApiEndpoint = new Elysia()
     };
     const next = update.primary ? withPrimary(nextBase, key) : nextBase;
     const path = atomicWriteVectorConfig(next);
-    return { success: true, source, path, collection: key, config: next };
+    await closeCachedVectorStores();
+    return { success: true, reloaded: true, source, path, collection: key, config: next };
   }, {
     params: t.Object({ collection: t.String({ minLength: 1 }) }),
     body: updateSchema,

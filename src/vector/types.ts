@@ -68,11 +68,14 @@ export interface EmbeddingProvider {
 export type EmbedderBackend = 'none' | 'local' | 'remote' | 'ollama' | 'openai' | 'gemini' | 'cloudflare-ai';
 
 export interface EmbedderConfig {
-  backend: EmbedderBackend;
+  backend?: EmbeddingProviderType;
   url?: string;
   model?: string;
   dimensions?: number;
   fallbackChain?: EmbeddingProviderType[];
+  default?: EmbeddingProviderType;
+  fallback?: EmbeddingProviderType;
+  fallbackModel?: string;
 }
 
 export type VectorDBType =

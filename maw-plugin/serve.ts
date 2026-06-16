@@ -25,6 +25,14 @@ function flag(parsed: Parsed, name: string): string | undefined {
   return value === undefined || value === false ? undefined : value === true ? 'true' : String(value);
 }
 
+function serveAction(parsed: Parsed): 'start' | 'stop' | 'status' {
+  const action = parsed.pos[0]?.toLowerCase();
+  if (flag(parsed, 'status') || action === 'status') return 'status';
+  if (flag(parsed, 'stop') || action === 'stop') return 'stop';
+  if (!action || action === 'start') return 'start';
+  throw new Error('serve action must be start, stop, or status');
+}
+
 function parsePort(parsed: Parsed, env: Record<string, string | undefined>): string {
   const port = flag(parsed, 'port') || env.ORACLE_PORT || env.PORT || DEFAULT_PORT;
   if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
@@ -97,12 +105,14 @@ export async function runServe(parsed: Parsed, runner: Runner, env: Record<strin
     const kill = deps.kill ?? ((pid, signal) => process.kill(pid, signal));
     const sleep = deps.sleep ?? ((ms) => new Promise<void>(resolve => setTimeout(resolve, ms)));
 
-    if (flag(parsed, 'status')) {
+    const action = serveAction(parsed);
+
+    if (action === 'status') {
       const pidState = currentPid ? `${isAlive(currentPid) ? 'alive' : 'dead'} pid=${currentPid}` : 'missing pid';
       return { ok: true, output: `arra serve: ${pidState}\nhealth: ${await health(port, deps.fetch ?? fetch)}` };
     }
 
-    if (flag(parsed, 'stop')) {
+    if (action === 'stop') {
       if (!currentPid) return { ok: true, output: `arra serve: stopped (no ${path})` };
       const stopped = await stopPid(currentPid, { isAlive, kill, sleep });
       if (stopped && existsSync(path)) unlinkSync(path);

@@ -60,7 +60,6 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
     || 'lancedb';
 
   const collectionName = config.collectionName || COLLECTION_NAME;
-
   switch (type) {
     case 'sqlite-vec': {
       const dbPath = config.dataPath
@@ -69,7 +68,6 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
 
       return new SqliteVecAdapter(collectionName, dbPath, createConfiguredEmbedder(config));
     }
-
     case 'lancedb': {
       const dbPath = config.dataPath
         || process.env.ORACLE_VECTOR_DB_PATH
@@ -77,14 +75,12 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
 
       return new LanceDBAdapter(collectionName, dbPath, createConfiguredEmbedder(config));
     }
-
     case 'qdrant': {
       return new QdrantAdapter(collectionName, createConfiguredEmbedder(config), {
         url: config.qdrantUrl || process.env.QDRANT_URL,
         apiKey: config.qdrantApiKey || process.env.QDRANT_API_KEY,
       });
     }
-
     case 'cloudflare-vectorize': {
       const cfConfig = {
         accountId: config.cfAccountId || process.env.CLOUDFLARE_ACCOUNT_ID,
@@ -101,7 +97,6 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
 
       return new CloudflareVectorizeAdapter(collectionName, embedder, cfConfig);
     }
-
     case 'proxy': {
       const proxyUrl = config.proxyEndpoint || process.env.ORACLE_PROXY_VECTOR_URL;
       if (!proxyUrl) {
@@ -109,7 +104,6 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
       }
       return new ProxyVectorAdapter(collectionName, proxyUrl);
     }
-
     case 'chroma':
     default: {
       const dataPath = config.dataPath || CHROMADB_DIR;
@@ -164,7 +158,6 @@ export function getEmbeddingModels(
     },
   };
 }
-
 export const EMBEDDING_MODELS = new Proxy({} as Record<string, EmbeddingModelConfig>, {
   get(_, prop: string) { return getEmbeddingModels()[prop]; },
   has(_, prop: string) { return prop in getEmbeddingModels(); },
@@ -177,9 +170,7 @@ export const EMBEDDING_MODELS = new Proxy({} as Record<string, EmbeddingModelCon
 });
 
 const modelStoreCache = new Map<string, VectorStoreAdapter>();
-
 const connectPromises = new Map<string, Promise<void>>();
-
 export function createVectorStoreForModel(preset: EmbeddingModelConfig): VectorStoreAdapter {
   return createVectorStore({
     type: preset.adapter || 'lancedb',
@@ -188,7 +179,8 @@ export function createVectorStoreForModel(preset: EmbeddingModelConfig): VectorS
     embeddingModel: preset.embedder?.model || preset.model,
     embeddingUrl: preset.embedder?.url,
     embeddingDimensions: preset.embedder?.dimensions,
-    embeddingFallbackChain: preset.embedder?.fallbackChain,
+    embeddingFallbackChain: preset.embedder?.fallbackChain
+      ?? (preset.embedder?.fallback ? [preset.embedder.fallback] : undefined),
     proxyEndpoint: preset.endpoint,
     ...(preset.dataPath && { dataPath: preset.dataPath }),
   });

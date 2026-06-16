@@ -35,6 +35,7 @@ test('request logger emits structured JSON and redacts Authorization headers', a
     }));
     expect(response.status).toBe(201);
     expect(response.headers.get('x-correlation-id')).toBe('test-correlation-id');
+    expect(response.headers.get('x-sandbox-label')).toBe('dev');
 
     const raw = await waitForLog(lines);
     expect(raw).not.toContain('secret-token');
