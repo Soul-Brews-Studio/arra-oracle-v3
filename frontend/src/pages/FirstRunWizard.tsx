@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ErrorMessage, Spinner } from '../components/AsyncState';
-import { fetchJson, type VectorConfigRow } from './vectorSettingsHelpers';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
+import { fetchJson, parseVectorConfigResponse, toRows, type VectorConfigRow } from './vectorSettingsHelpers';
 
 type WizardStep = 0 | 1 | 2 | 3;
 type Provider = { type: string; available?: boolean; configured?: boolean; models?: string[]; error?: string; status?: string };
@@ -27,6 +27,41 @@ export type FirstRunWizardProps = {
 };
 
 const steps = ['Welcome', 'Provider', 'Vault + index', 'Done'] as const;
+
+export function VectorFirstRunWizardPage() {
+  const [rows, setRows] = useState<VectorConfigRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const refresh = useCallback(async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const body = await fetchJson<unknown>('/api/v1/vector/config');
+      setRows(toRows(parseVectorConfigResponse(body)));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  return (
+    <section className="grid gap-5" aria-labelledby="vector-first-run-title">
+      <header className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-purple-300">Vector onboarding</p>
+        <h1 id="vector-first-run-title" className="mt-2 text-3xl font-semibold text-white">First-run setup wizard</h1>
+        <p className="mt-2 text-sm text-slate-400">Auto-detect providers, review cost, choose the first vault collection, and start indexing.</p>
+      </header>
+
+      <FirstRunWizard rows={rows} onRefresh={refresh} />
+      {loading ? <LoadingPanel title="Loading first-run vector config…" detail="Fetching /api/v1/vector/config." /> : null}
+      {error ? <ErrorMessage title="Could not load first-run vector config." message={error} /> : null}
+    </section>
+  );
+}
 
 function primaryKey(rows: VectorConfigRow[]): string | null {
   return (rows.find((row) => row.primary) ?? rows[0])?.key ?? null;

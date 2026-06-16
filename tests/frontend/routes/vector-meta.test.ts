@@ -12,5 +12,9 @@ describe('vector route metadata', () => {
       title: 'Index Manager',
       description: 'Track vector backfill jobs and reindex collections.',
     });
+    expect(routeMeta('/vector/first-run')).toMatchObject({
+      title: 'First-run setup',
+      description: 'Auto-detect providers, review cost, and start the first vector index.',
+    });
   });
 });
