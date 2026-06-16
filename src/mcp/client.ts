@@ -32,6 +32,16 @@ function assertServerConfig(server: ExternalMcpServerConfig): void {
     throw new Error('args must be an array of strings');
   }
   if (server.cwd !== undefined && typeof server.cwd !== 'string') throw new Error('cwd must be a string');
+  if (server.env !== undefined && (!isStringRecord(server.env))) {
+    throw new Error('env must be an object with string values');
+  }
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return !!value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.values(value).every((entry) => typeof entry === 'string');
 }
 
 async function withClient<T>(server: ExternalMcpServerConfig, run: (client: Client) => Promise<T>): Promise<T> {
@@ -64,8 +74,12 @@ export async function listExternalMcpTools(server: ExternalMcpServerConfig): Pro
 }
 
 export async function callExternalMcpTool(input: ExternalMcpCallInput) {
+  assertServerConfig(input);
   if (typeof input.toolName !== 'string' || !input.toolName.trim()) {
     throw new Error('toolName must be a non-empty string');
+  }
+  if (input.toolArgs !== undefined && !isStringRecordLike(input.toolArgs)) {
+    throw new Error('toolArgs must be an object');
   }
   return await withClient(input, async (client) => {
     return await client.callTool({
@@ -73,4 +87,8 @@ export async function callExternalMcpTool(input: ExternalMcpCallInput) {
       arguments: input.toolArgs ?? {},
     });
   });
+}
+
+function isStringRecordLike(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
