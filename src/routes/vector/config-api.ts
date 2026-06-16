@@ -1,6 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { reloadCachedVectorStores } from '../../vector/factory.ts';
-import type { VectorServerConfig } from '../../vector/config.ts';
+import { configToModels, type VectorServerConfig } from '../../vector/config.ts';
 import {
   activeConfig,
   atomicWriteVectorConfig,
@@ -98,8 +98,8 @@ export const vectorConfigApiEndpoint = new Elysia()
     };
   }, { detail: { tags: ['vector'], summary: 'Vector server config with collection health' } })
   .post('/vector/config/reload', async () => {
-    await reloadCachedVectorStores();
     const { source, config } = activeConfig();
+    await reloadCachedVectorStores(configToModels(config));
     return { success: true, reloaded: true, source, config };
   }, { detail: { tags: ['vector'], summary: 'Reload vector config and reconnect cached vector stores' } })
   .patch('/vector/config', async ({ body, set }) => {
@@ -115,7 +115,7 @@ export const vectorConfigApiEndpoint = new Elysia()
     const { source, config } = activeConfig();
     const next = { ...config, ...(body as Partial<VectorServerConfig>) };
     const path = atomicWriteVectorConfig(next);
-    await reloadCachedVectorStores();
+    await reloadCachedVectorStores(configToModels(next));
     return { success: true, reloaded: true, source, path, config: next };
   }, {
     body: configPatchSchema,
@@ -153,7 +153,7 @@ export const vectorConfigApiEndpoint = new Elysia()
     };
     const next = created.primary ? withPrimary(nextBase, params.collection) : nextBase;
     const path = atomicWriteVectorConfig(next);
-    await reloadCachedVectorStores();
+    await reloadCachedVectorStores(configToModels(next));
     return { success: true, reloaded: true, source, path, collection: params.collection, config: next };
   }, {
     params: t.Object({ collection: t.String({ minLength: 1 }) }),
@@ -170,7 +170,7 @@ export const vectorConfigApiEndpoint = new Elysia()
     const [key] = resolved;
     const next = withPrimary(config, key);
     const path = atomicWriteVectorConfig(next);
-    await reloadCachedVectorStores();
+    await reloadCachedVectorStores(configToModels(next));
     return { success: true, reloaded: true, source, path, collection: key, config: next };
   }, {
     params: t.Object({ collection: t.String({ minLength: 1 }) }),
@@ -186,7 +186,7 @@ export const vectorConfigApiEndpoint = new Elysia()
     const [key] = resolved;
     const next = withoutCollection(config, key);
     const path = atomicWriteVectorConfig(next);
-    await reloadCachedVectorStores();
+    await reloadCachedVectorStores(configToModels(next));
     return { success: true, reloaded: true, source, path, removed: key, config: next };
   }, {
     params: t.Object({ collection: t.String({ minLength: 1 }) }),
@@ -211,7 +211,7 @@ export const vectorConfigApiEndpoint = new Elysia()
     };
     const next = update.primary ? withPrimary(nextBase, key) : nextBase;
     const path = atomicWriteVectorConfig(next);
-    await reloadCachedVectorStores();
+    await reloadCachedVectorStores(configToModels(next));
     return { success: true, reloaded: true, source, path, collection: key, config: next };
   }, {
     params: t.Object({ collection: t.String({ minLength: 1 }) }),
