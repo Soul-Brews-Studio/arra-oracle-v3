@@ -8,15 +8,13 @@ import { pluginRegistryFromLoadedPlugins, type LoadedPluginRegistryEntry } from 
 import { runPluginWithErrorContainment } from './error-containment.ts';
 import { createUnifiedProxyRoute } from './proxy-surface.ts';
 import { unifiedPluginServerRoutes, type UnifiedPluginServer } from './unified-server.ts';
-import { resolveContainedPluginEntry } from './path-containment.ts';
+import { isContainedPluginPath, resolveContainedPluginEntry } from './path-containment.ts';
 import { registerPluginExportFormats } from './export-format-init.ts';
 import { defaultUnifiedPluginDirs } from './plugin-dirs.ts';
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.ARRA_PLUGIN_TIMEOUT_MS ?? 5000);
 
-type ElysiaApp = Elysia<any, any, any, any, any, any, any>;
-type JsonRecord = Record<string, unknown>;
-type LifecycleSource = 'init' | 'destroy';
+type ElysiaApp = Elysia<any, any, any, any, any, any, any>; type JsonRecord = Record<string, unknown>; type LifecycleSource = 'init' | 'destroy';
 
 export interface LoadedUnifiedPlugin {
   manifest: NormalizedUnifiedPluginManifest;
@@ -92,7 +90,9 @@ export async function discoverUnifiedPluginManifests(
     if (!existsSync(baseDir)) continue;
     for (const entry of readdirSync(baseDir, { withFileTypes: true })) {
       if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
-      const loaded = await readPluginDir(join(baseDir, entry.name), options);
+      const pluginDir = join(baseDir, entry.name);
+      if (!isContainedPluginPath(baseDir, pluginDir)) { warn(options, `skipped ${pluginDir}: plugin directory symlink escapes plugin root`); continue; }
+      const loaded = await readPluginDir(pluginDir, options);
       if (!loaded || seen.has(loaded.manifest.name)) continue;
       seen.add(loaded.manifest.name);
       found.push(loaded);
