@@ -45,10 +45,10 @@ function docsLabel(docCount?: number): string {
 
 function Stat({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.04]">
       <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</dt>
-      <dd className="mt-2 text-2xl font-semibold text-white">{value}</dd>
-      <dd className="mt-1 text-sm text-slate-400">{detail}</dd>
+      <dd className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{value}</dd>
+      <dd className="mt-1 text-sm text-slate-600 dark:text-slate-400">{detail}</dd>
     </div>
   );
 }
@@ -67,11 +67,11 @@ export function ExportSummary({
   const docValue = `${docs.count.toLocaleString()}${docs.unknown ? '+' : ''}`;
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="export-summary-title">
+    <section className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm dark:border-white/10 dark:bg-slate-950/70 sm:p-6" aria-labelledby="export-summary-title">
       <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Before export</p>
-        <h2 id="export-summary-title" className="mt-2 text-2xl font-semibold text-white">{title}</h2>
-        <p className="mt-1 text-sm text-slate-400">Review collection counts, output format, and estimated payload size.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-600 dark:text-teal-300">Before export</p>
+        <h2 id="export-summary-title" className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{title}</h2>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Review collection counts, output format, and estimated payload size.</p>
       </div>
 
       <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -81,25 +81,25 @@ export function ExportSummary({
         <Stat label="Estimated size" value={formatBytes(size)} detail={relationshipCount === undefined ? 'Graph relationships included' : `${relationshipCount.toLocaleString()} graph relationships`} />
       </dl>
 
-      <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
+      <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10">
         <table className="w-full border-collapse text-left text-sm">
-          <thead className="bg-white/[0.04] text-xs uppercase tracking-[0.16em] text-slate-500">
+          <thead className="bg-slate-50 text-xs uppercase tracking-[0.16em] text-slate-500 dark:bg-white/[0.04]">
             <tr>
               <th className="px-4 py-3 font-semibold">Collection</th>
               <th className="px-4 py-3 font-semibold">Docs</th>
               <th className="px-4 py-3 font-semibold">Estimate</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/10 text-slate-300">
+          <tbody className="divide-y divide-slate-200 text-slate-700 dark:divide-white/10 dark:text-slate-300">
             {visibleCollections.length ? visibleCollections.map((collection) => (
               <tr key={collection.name}>
-                <td className="px-4 py-3 font-medium text-slate-100">{collection.name}</td>
+                <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{collection.name}</td>
                 <td className="px-4 py-3">{docsLabel(collection.docCount)}</td>
                 <td className="px-4 py-3">{formatBytes(collection.estimatedBytes)}</td>
               </tr>
             )) : (
               <tr>
-                <td className="px-4 py-4 text-slate-400" colSpan={3}>No collections selected.</td>
+                <td className="px-4 py-4 text-slate-500 dark:text-slate-400" colSpan={3}>No collections selected.</td>
               </tr>
             )}
           </tbody>

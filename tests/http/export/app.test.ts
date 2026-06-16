@@ -15,6 +15,7 @@ const dbModule = await import('../../../src/db/index.ts');
 const { Elysia } = await import('elysia');
 const { createApiVersionedFetch } = await import('../../../src/middleware/api-version.ts');
 const { createExportAppRoutes } = await import('../../../src/routes/export/app.ts');
+const { createExportProgressResponse, readRememberedExportProgress } = await import('../../../src/routes/export/progress.ts');
 
 const { createDatabase, oracleDocuments, supersedeLog, traceLog, resetDefaultDatabaseForTests } = dbModule;
 const connection = createDatabase(dbPath);
@@ -48,12 +49,21 @@ function seed() {
 
 let job = 0;
 seed();
-const app = new Elysia({ prefix: '/api' }).use(createExportAppRoutes({
-  connection,
-  outputDir,
-  idGenerator: () => `job-${++job}`,
-  now: () => new Date('2026-01-02T03:04:05.006Z'),
-}));
+const app = new Elysia({ prefix: '/api' })
+  .get('/export/progress', ({ query, set }) => {
+    const jobId = typeof query.jobId === 'string' ? query.jobId : '';
+    if (!readRememberedExportProgress(jobId)) {
+      set.status = 404;
+      return { error: 'Export job not found', id: jobId };
+    }
+    return createExportProgressResponse(jobId, () => readRememberedExportProgress(jobId));
+  })
+  .use(createExportAppRoutes({
+    connection,
+    outputDir,
+    idGenerator: () => `job-${++job}`,
+    now: () => new Date('2026-01-02T03:04:05.006Z'),
+  }));
 const fetcher = createApiVersionedFetch((request) => app.handle(request));
 
 async function postRun(body: Record<string, unknown>) {
@@ -105,7 +115,11 @@ describe('export app HTTP routes', () => {
     });
     expect(body.relationshipCount).toBeGreaterThanOrEqual(4);
     expect('filePath' in body).toBe(false);
+    expect(body.progress).toBe(100);
     expect(existsSync(join(outputDir, 'oracle_documents-job-1.json'))).toBe(true);
+
+    const progress = await fetcher(new Request('http://local/api/v1/export/progress?jobId=job-1'));
+    expect(await progress.text()).toContain('"downloadUrl":"/api/v1/export/app/download/job-1"');
 
     const download = await fetcher(new Request(`http://local${body.downloadUrl}`));
     const payload = await download.json() as Record<string, any>;
