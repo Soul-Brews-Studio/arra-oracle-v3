@@ -30,10 +30,10 @@ describe('frontend API client', () => {
         limit: 5,
         query: 'oracle memory',
       },
-      '/api/vector/index/models': {
+      '/api/v1/vector/index/models': {
         models: { 'bge-m3': { collection: 'oracle_bge_m3', model: 'bge-m3', adapter: 'lancedb', count: 12 } },
       },
-      '/api/vector/index/status': {
+      '/api/v1/vector/index/status': {
         jobId: 'vidx-1',
         model: 'bge-m3',
         status: 'indexing',
@@ -71,8 +71,8 @@ describe('frontend API client', () => {
       '/api/menu',
       '/api/menu/search?q=vector',
       '/api/v1/vector/search?q=oracle+memory&limit=5&type=docs',
-      '/api/vector/index/models',
-      '/api/vector/index/status',
+      '/api/v1/vector/index/models',
+      '/api/v1/vector/index/status',
       '/api/plugins',
     ]);
     for (const call of calls) {
@@ -98,7 +98,7 @@ describe('frontend API client', () => {
     const headers = new Headers(calls[0]?.init?.headers);
     expect(headers.get('x-client')).toBe('studio');
     expect(headers.get('content-type')).toBe('application/json');
-    expect(String(calls[1]?.input)).toBe('http://localhost:47778/api/vector/index/start');
+    expect(String(calls[1]?.input)).toBe('http://localhost:47778/api/v1/vector/index/start');
     expect(calls[1]?.init?.method).toBe('POST');
     expect(calls[1]?.init?.body).toBe(JSON.stringify({ model: 'qwen3' }));
   });

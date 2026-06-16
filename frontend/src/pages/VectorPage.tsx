@@ -150,12 +150,12 @@ export function VectorPage({
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Vector status</p>
             <h1 id="vector-status-title" className="mt-2 text-3xl font-semibold text-white">Vector dashboard</h1>
-            <p className="mt-2 text-sm text-slate-400">Collection health from /api/vector/index/models and /api/vector/health.</p>
+            <p className="mt-2 text-sm text-slate-400">Collection health from /api/v1/vector/index/models and /api/v1/vector/health.</p>
           </div>
           <p className="rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300">{summary}</p>
         </div>
 
-        {isLoading ? <LoadingPanel title="Loading vector status…" detail="Fetching /api/vector/index/models and /api/vector/health." /> : null}
+        {isLoading ? <LoadingPanel title="Loading vector status…" detail="Fetching /api/v1/vector/index/models and /api/v1/vector/health." /> : null}
         {state === 'error' ? <ErrorMessage title="Could not load vector status." message={error} /> : null}
         {downloadError ? <div className="mb-4"><ErrorMessage title="Vector export failed." message={downloadError} /></div> : null}
       </section>

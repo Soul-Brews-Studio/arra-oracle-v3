@@ -66,7 +66,7 @@ export function VectorFirstRunWizard({ rows, onRefresh }: WizardProps) {
     setBusy(true);
     setError('');
     try {
-      await fetchJson('/api/vector/index/start', { method: 'POST', body: JSON.stringify({ model }) });
+      await fetchJson('/api/v1/vector/index/start', { method: 'POST', body: JSON.stringify({ model }) });
       setMessage(`Started first index for ${model}. Watch progress in the Index Manager.`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));

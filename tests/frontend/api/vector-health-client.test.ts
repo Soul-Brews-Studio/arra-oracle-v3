@@ -16,6 +16,6 @@ describe('ApiClient vectorHealth', () => {
     });
 
     await expect(client.vectorHealth()).resolves.toMatchObject({ status: 'ok', engines: [{ key: 'bge', ok: true }] });
-    expect(String(calls[0]?.input)).toBe('/api/vector/health');
+    expect(String(calls[0]?.input)).toBe('/api/v1/vector/health');
   });
 });

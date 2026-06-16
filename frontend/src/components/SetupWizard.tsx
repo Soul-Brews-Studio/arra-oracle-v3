@@ -94,7 +94,7 @@ export function SetupWizard({ children }: { children: ReactNode }) {
       );
     setBusy(true);
     try {
-      await fetch(apiUrl("/api/vector/index/start"), {
+      await fetch(apiUrl("/api/v1/vector/index/start"), {
         method: "POST",
         headers: {
           accept: "application/json",

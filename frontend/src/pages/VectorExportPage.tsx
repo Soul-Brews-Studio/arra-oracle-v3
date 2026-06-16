@@ -117,7 +117,7 @@ export function VectorExportPage({
         <p className="mt-2 text-sm text-slate-400">Download vector collections from /api/v1/vector/export in any available format.</p>
       </div>
 
-      {state === 'loading' ? <LoadingPanel title="Loading vector collections…" detail="Fetching /api/vector/index/models." /> : null}
+      {state === 'loading' ? <LoadingPanel title="Loading vector collections…" detail="Fetching /api/v1/vector/index/models." /> : null}
       {state === 'error' ? <ErrorMessage title="Could not load vector export options." message={error} /> : null}
 
       <div className="mt-5 grid gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
