@@ -48,6 +48,7 @@ Protected routes may require API token/session auth; tenant-aware routes honor `
 | POST | `/api/handoff` | Handoff JSON payload. | Persisted handoff result. |
 | GET | `/api/inbox` | None. | Inbox/knowledge messages. |
 | POST | `/api/memory/save` | `{ content, title?, tags?, source? }` | `{ success, memory, vector }` |
+| POST | `/api/memory/closeout` | `{ summary, title?, next?, blockers?, artifacts?, tags? }` | Challenge 2 close-out memory plus vector index result. |
 | GET | `/api/memory/recall` | `q?, limit?` | `{ query, total, items }` keyword memories. |
 | GET | `/api/memory/search` | `q` required; `limit?` | `{ success, query, total, results }` vector-enriched memories. |
 | GET | `/api/memory/morning-tape` | `limit?, format=json|markdown|md` | Morning tape JSON or `text/markdown`. |
