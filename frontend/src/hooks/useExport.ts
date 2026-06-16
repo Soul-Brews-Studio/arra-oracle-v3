@@ -103,10 +103,11 @@ export function useExport({ fetcher = globalThis.fetch?.bind(globalThis), pollMs
   const [state, setState] = useState<ExportProgressState>(initialState);
   const abortRef = useRef<AbortController | null>(null);
   const urlRef = useRef<string | null>(null);
-  const lastPayloadRef = useRef<ExportRunPayload | undefined>();
+  const lastPayloadRef = useRef<ExportRunPayload | undefined>(undefined);
 
   const revokeDownload = useCallback(() => {
-    if (urlRef.current && globalThis.URL?.revokeObjectURL) URL.revokeObjectURL(urlRef.current);
+    const urlApi = globalThis.URL as (typeof URL & { revokeObjectURL?: (url: string) => void }) | undefined;
+    if (urlRef.current) urlApi?.revokeObjectURL?.(urlRef.current);
     urlRef.current = null;
   }, []);
 
@@ -133,7 +134,8 @@ export function useExport({ fetcher = globalThis.fetch?.bind(globalThis), pollMs
       }
       const blob = await response.blob();
       revokeDownload();
-      const url = globalThis.URL?.createObjectURL ? URL.createObjectURL(blob) : undefined;
+      const urlApi = globalThis.URL as (typeof URL & { createObjectURL?: (blob: Blob) => string }) | undefined;
+      const url = urlApi?.createObjectURL?.(blob);
       urlRef.current = url ?? null;
       setState((current) => ({ ...current, status: 'done', progress: 100, fileSizeEstimate: blob.size || fileSizeEstimate || current.fileSizeEstimate, downloadUrl: url, filename: filenameFrom(response, payload) }));
       return;
