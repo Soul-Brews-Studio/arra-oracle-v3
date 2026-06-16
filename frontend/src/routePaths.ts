@@ -69,6 +69,11 @@ export function vectorSettingsPath(): string {
   return '/vector/settings';
 }
 
+export function canvasAppPath(plugin = 'wave'): string {
+  const id = plugin.trim();
+  return id ? `/canvas?${new URLSearchParams({ plugin: id })}` : '/canvas';
+}
+
 export function canvasPluginsPath(): string {
   return '/canvas/plugins';
 }

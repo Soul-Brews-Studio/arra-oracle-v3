@@ -77,6 +77,7 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
 
   if (pathname === '/plugins') return base('Plugin list', 'Plugins', 'Registered plugins and exposed runtime surfaces.', [{ label: 'Plugins' }]);
   if (pathname === '/status') return base('Server status', 'Status', 'Server health from /api/v1/health.', [{ label: 'Status' }]);
+  if (pathname === '/canvas') return base('Canvas app', 'Canvas', 'Studio alias for canvas.buildwithoracle.com.', [{ label: 'Canvas app' }]);
   if (pathname === '/canvas/plugins') return base('Canvas plugins', 'Canvas', 'Canvas plugin registry and standalone status.', [{ label: 'Canvas plugins' }]);
   if (pathname === '/metrics') return base('Runtime metrics', 'Metrics', 'Runtime counters from /api/v1/metrics.', [{ label: 'Metrics' }]);
   if (pathname === '/search') return base('Search', 'Search', 'Search menu, plugin, and MCP tool surfaces.', [{ label: 'Search' }]);

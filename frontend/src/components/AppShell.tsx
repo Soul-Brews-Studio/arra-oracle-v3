@@ -52,6 +52,7 @@ export function AppShell({
     { to: '/', label: 'Menu', description: 'Navigation rows from /api/menu', badge: loading ? '…' : menuCount },
     { to: '/plugins', label: 'Plugins', description: 'Registered plugins and surfaces', badge: loading ? '…' : pluginCount },
     { to: '/status', label: 'Status', description: 'Server health from /api/v1/health' },
+    { to: '/canvas?plugin=wave', label: 'Canvas App', description: 'Studio alias for canvas.buildwithoracle.com' },
     { to: '/canvas/plugins', label: 'Canvas Plugins', description: 'Canvas registry from /api/canvas/plugins' },
     { to: '/search', label: 'Search', description: 'Full-text menu search' },
     { to: '/export', label: 'Export App', description: 'Legacy v2 JSON/Markdown backups' },

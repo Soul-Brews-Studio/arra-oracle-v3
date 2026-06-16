@@ -36,6 +36,7 @@ describe('frontend router', () => {
       '/menu',
       '/plugins',
       '/status',
+      '/canvas',
       '/canvas/plugins',
       '/metrics',
       '/search',
@@ -58,6 +59,8 @@ describe('frontend router', () => {
     expect(htmlAt('/')).toContain('Menu catalog');
     expect(htmlAt('/plugins')).toContain('Registered plugins');
     expect(htmlAt('/status')).toContain('GET /api/v1/health');
+    expect(htmlAt('/canvas?plugin=map')).toContain('https://canvas.buildwithoracle.com/map');
+    expect(htmlAt('/canvas?plugin=wave')).toContain('Studio canvas alias');
     expect(htmlAt('/canvas/plugins')).toContain('Canvas plugin registry');
     expect(htmlAt('/metrics')).toContain('Metrics dashboard');
     expect(htmlAt('/metrics')).toContain('42');
