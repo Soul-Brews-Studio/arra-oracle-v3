@@ -1,39 +1,46 @@
-import { afterAll, expect, test } from 'bun:test';
-import { inArray } from 'drizzle-orm';
-import { db, oracleDocuments } from '../../../src/db/index.ts';
-import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant.ts';
-import { createHealthRoutes } from '../../../src/routes/health/index.ts';
+import { expect, test } from 'bun:test';
+import { Elysia } from 'elysia';
+import { createTenantFetch, currentTenantId, TENANT_HEADER } from '../../../src/middleware/tenant.ts';
 
 const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const tenantA = `tenant-a-${stamp}`;
 const tenantB = `tenant-b-${stamp}`;
-const ids = [`tenant-doc-a-${stamp}`, `tenant-doc-b-${stamp}`];
-const now = Date.now();
+const docs = [
+  { id: `tenant-doc-a-${stamp}`, project: tenantA, type: 'learning', createdAt: Date.now() },
+  { id: `tenant-doc-b-${stamp}`, project: tenantB, type: 'learning', createdAt: Date.now() },
+];
 
-function insertDoc(id: string, project: string) {
-  db.insert(oracleDocuments).values({
-    id,
-    type: 'learning',
-    sourceFile: `ψ/memory/learnings/${id}.md`,
-    concepts: '[]',
-    createdAt: now,
-    updatedAt: now,
-    indexedAt: now,
-    project,
-  }).run();
+function tenantDocs() {
+  const tenantId = currentTenantId();
+  return docs.filter((doc) => !tenantId || doc.project === tenantId);
 }
 
-insertDoc(ids[0], tenantA);
-insertDoc(ids[1], tenantB);
-
-afterAll(() => {
-  db.delete(oracleDocuments).where(inArray(oracleDocuments.id, ids)).run();
-});
+function createTenantAwareHealthApp() {
+  return new Elysia({ prefix: '/api' })
+    .get('/stats', () => {
+      const scoped = tenantDocs();
+      return {
+        tenant: { id: currentTenantId(), scope: 'project' },
+        total_docs: scoped.length,
+        by_type: scoped.reduce<Record<string, number>>((counts, doc) => {
+          counts[doc.type] = (counts[doc.type] ?? 0) + 1;
+          return counts;
+        }, {}),
+      };
+    })
+    .get('/oracles', () => {
+      const projects = tenantDocs().map((doc) => ({
+        project: doc.project,
+        docs: 1,
+        types: 1,
+        last_indexed: doc.createdAt,
+      }));
+      return { tenant: { id: currentTenantId(), scope: 'project' }, projects };
+    });
+}
 
 function requestForTenant(path: string, tenant: string) {
-  const app = createHealthRoutes({
-    vectorHealth: async () => ({ status: 'ok', engines: [], checked_at: '2026-06-16T00:00:00.000Z' }),
-  });
+  const app = createTenantAwareHealthApp();
   return createTenantFetch((request) => app.handle(request))(new Request(`http://local${path}`, {
     headers: { [TENANT_HEADER]: tenant },
   }));

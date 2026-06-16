@@ -10,7 +10,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { randomUUID } from "crypto";
 
-const PORT = 47791;
+const PORT = 47_900 + Math.floor(Math.random() * 1_000);
 const BASE_URL = `http://localhost:${PORT}`;
 const SERVER_CWD = import.meta.dir.replace(/\/tests\/http\/traces$/, "");
 
@@ -27,8 +27,8 @@ beforeAll(async () => {
   dbPath = join(tmpDir, "oracle.db");
   serverProcess = Bun.spawn(["bun", "run", "src/server.ts"], {
     cwd: SERVER_CWD,
-    stdout: "pipe",
-    stderr: "pipe",
+    stdout: "ignore",
+    stderr: "ignore",
     env: {
       ...process.env,
       ORACLE_CHROMA_TIMEOUT: "3000",

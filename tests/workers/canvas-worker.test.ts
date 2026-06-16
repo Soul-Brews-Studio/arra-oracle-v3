@@ -11,11 +11,13 @@ describe('canvas Cloudflare Worker', () => {
   test('renders selected canvas plugins from query and path', async () => {
     const wave = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/?plugin=wave'));
     const planets = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/planets'));
+    const cube = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/cube'));
 
     expect(wave.status).toBe(200);
     expect(wave.headers.get('content-type')).toContain('text/html');
     expect(await wave.text()).toContain('plugin=wave');
     expect(await planets.text()).toContain('plugin=planets');
+    expect(await cube.text()).toContain('plugin=cube');
   });
 
   test('falls back to wave for unknown plugins', async () => {

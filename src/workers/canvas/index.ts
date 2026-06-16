@@ -37,7 +37,7 @@ async function proxyApi(request: Request, env: CanvasWorkerEnv): Promise<Respons
 }
 
 function pluginFrom(url: URL) {
-  const pathPlugin = url.pathname === '/map' || url.pathname === '/planets' ? url.pathname.slice(1) : null;
+  const pathPlugin = url.pathname.length > 1 ? url.pathname.slice(1).split('/')[0] : null;
   return normalizePlugin(url.searchParams.get('plugin') ?? pathPlugin);
 }
 
