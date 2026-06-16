@@ -11,9 +11,11 @@ export { buildMarkdownExportPayload, buildVaultJsonExport, buildVectorExportPayl
 
 const RUN_PATH = "/api/v1/export/app/run";
 const FORMATS = new Set(["markdown", "json", "jsonl"]);
+const DEFAULT_RETRY_DELAY_MS = 250;
 
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 type FilePayload = string | Uint8Array;
+type RetryOptions = Pick<RemoteExportOptions, "retries" | "retryDelayMs">;
 
 export interface RemoteExportOptions {
   url?: string;
@@ -21,6 +23,8 @@ export interface RemoteExportOptions {
   format?: string;
   output?: string;
   includeGraph: boolean;
+  retries: number;
+  retryDelayMs: number;
   help: boolean;
 }
 
@@ -44,6 +48,8 @@ function printHelp(): void {
     "  --output <path>      destination file path",
     "  --include-graph      include relationship graph rows when supported",
     "  --graph              alias for --include-graph",
+    "  --retries <count>    retry transient HTTP/network failures",
+    "  --retry-delay-ms <n> delay between retry attempts (default 250)",
     "  --help, -h           show this help",
     "",
   ].join("\n"));
@@ -62,6 +68,13 @@ function readValue(args: string[], flag: string): string | undefined {
   return value;
 }
 
+function readNonNegativeInt(args: string[], flag: string, fallback: number): number {
+  const value = readValue(args, flag);
+  if (value === undefined) return fallback;
+  if (!/^\d+$/.test(value)) throw new Error(`${flag} must be a non-negative integer`);
+  return Number(value);
+}
+
 function hasNewExportFlag(args: string[]): boolean {
   return args.some((arg) => arg === "--url" || arg.startsWith("--url=")
     || arg === "--output" || arg.startsWith("--output="));
@@ -74,6 +87,8 @@ export function parseRemoteExportOptions(args: string[]): RemoteExportOptions {
     format: readValue(args, "--format"),
     output: readValue(args, "--output"),
     includeGraph: args.includes("--include-graph") || args.includes("--graph"),
+    retries: readNonNegativeInt(args, "--retries", 0),
+    retryDelayMs: readNonNegativeInt(args, "--retry-delay-ms", DEFAULT_RETRY_DELAY_MS),
     help: args.includes("--help") || args.includes("-h"),
   };
 }
@@ -112,6 +127,28 @@ async function ensureOk(response: Response, action: string): Promise<void> {
   if (!response.ok) throw new Error(`${action} failed: HTTP ${response.status} ${await errorText(response)}`);
 }
 
+function retryableStatus(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+async function fetchWithRetry(
+  fetcher: Fetcher,
+  input: string,
+  init: RequestInit | undefined,
+  options: RetryOptions,
+): Promise<Response> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const response = await fetcher(input, init);
+      if (attempt >= options.retries || !retryableStatus(response.status)) return response;
+      try { await response.body?.cancel(); } catch {}
+    } catch (error) {
+      if (attempt >= options.retries) throw error;
+    }
+    if (options.retryDelayMs > 0) await Bun.sleep(options.retryDelayMs);
+  }
+}
+
 function downloadUrl(data: Record<string, unknown>): string | undefined {
   for (const key of ["downloadUrl", "download_url", "resultUrl", "result_url", "url", "href", "path"]) {
     const value = data[key];
@@ -127,7 +164,7 @@ function inlinePayload(data: Record<string, unknown>): FilePayload | undefined {
   }
 }
 
-async function resultPayload(response: Response, base: string, fetcher: Fetcher): Promise<FilePayload> {
+async function resultPayload(response: Response, base: string, fetcher: Fetcher, retry: RetryOptions): Promise<FilePayload> {
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) return new Uint8Array(await response.arrayBuffer());
 
@@ -137,7 +174,7 @@ async function resultPayload(response: Response, base: string, fetcher: Fetcher)
 
   const url = downloadUrl(data);
   if (!url) throw new Error("export response did not include a download URL or content");
-  const download = await fetcher(apiUrl(base, url));
+  const download = await fetchWithRetry(fetcher, apiUrl(base, url), undefined, retry);
   await ensureOk(download, `GET ${url}`);
   return new Uint8Array(await download.arrayBuffer());
 }
@@ -149,7 +186,7 @@ export async function runRemoteExportCommand(args: string[], deps: RemoteExportD
 
   const env = deps.env ?? process.env;
   const fetcher = deps.fetch ?? fetch;
-  const response = await fetcher(apiUrl(options.url, RUN_PATH), {
+  const response = await fetchWithRetry(fetcher, apiUrl(options.url, RUN_PATH), {
     method: "POST",
     headers: { "content-type": "application/json", ...authHeaders(env) },
     body: JSON.stringify({
@@ -157,10 +194,10 @@ export async function runRemoteExportCommand(args: string[], deps: RemoteExportD
       format: options.format,
       ...(options.includeGraph ? { includeGraph: true } : {}),
     }),
-  });
+  }, options);
   await ensureOk(response, `POST ${RUN_PATH}`);
 
-  const payload = await resultPayload(response, options.url, fetcher);
+  const payload = await resultPayload(response, options.url, fetcher, options);
   await (deps.mkdir ?? mkdir)(dirname(options.output), { recursive: true });
   await (deps.writeFile ?? nodeWriteFile)(options.output, payload);
   return `exported ${options.collection} (${options.format}) -> ${options.output}`;
