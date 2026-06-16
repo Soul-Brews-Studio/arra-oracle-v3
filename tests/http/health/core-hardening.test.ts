@@ -4,12 +4,30 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApiVersionHeaderMiddleware, createApiVersionedFetch } from '../../../src/middleware/api-version.ts';
-import { createRequestLogger } from '../../../src/middleware/logger.ts';
+import { createRequestLogger, formatRequestLog, type RequestLogEntry } from '../../../src/middleware/logger.ts';
 import { loadUnifiedPlugins } from '../../../src/plugins/unified-loader.ts';
 import { createHealthRoutes } from '../../../src/routes/health/index.ts';
 
 const tmp = mkdtempSync(join(tmpdir(), 'arra-core-hardening-'));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
+
+
+const sampleLog: RequestLogEntry = {
+  event: 'http_request',
+  method: 'GET',
+  path: '/api/health',
+  status: 200,
+  durationMs: 12.5,
+  correlationId: 'abcdef123456',
+  headers: {},
+  sandbox: 'dev',
+};
+
+test('request logger formats nginx, short, and json records', () => {
+  expect(formatRequestLog(sampleLog, 'nginx')).toBe('GET /api/health 200 12.5ms [abcdef12] [dev]');
+  expect(formatRequestLog(sampleLog, 'short')).toBe('200 GET /api/health 13ms');
+  expect(JSON.parse(formatRequestLog(sampleLog, 'json'))).toMatchObject(sampleLog);
+});
 
 function pluginDir(name: string, entry: string) {
   const dir = join(tmp, name);
