@@ -6,6 +6,7 @@ import type { MenuItem } from '../types';
 
 type PageState = 'loading' | 'ready' | 'error';
 type MenuClient = Pick<ApiClient, 'menu'>;
+type MenuFilters = { group: string; source: string };
 
 export interface MenuPageProps {
   items?: MenuItem[];
@@ -17,17 +18,32 @@ function menuKey(item: MenuItem): string {
   return `${item.source ?? 'api'}:${item.sourceName ?? 'core'}:${item.path}:${item.label}`;
 }
 
-function menuSource(item: MenuItem): string {
+export function menuSource(item: MenuItem): string {
   if (item.sourceName) return `${item.source ?? 'source'}:${item.sourceName}`;
   return item.source ?? 'api';
 }
 
-function sortMenuItems(items: MenuItem[]): MenuItem[] {
+export function sortMenuItems(items: MenuItem[]): MenuItem[] {
   return [...items].sort((a, b) =>
     a.group.localeCompare(b.group) ||
     (a.order ?? 999) - (b.order ?? 999) ||
     a.label.localeCompare(b.label)
   );
+}
+
+export function menuFilterOptions(items: MenuItem[]): { groups: string[]; sources: string[] } {
+  return {
+    groups: [...new Set(items.map((item) => item.group))].sort(),
+    sources: [...new Set(items.map(menuSource))].sort(),
+  };
+}
+
+export function filterMenuItems(items: MenuItem[], filters: MenuFilters): MenuItem[] {
+  return items.filter((item) => {
+    const groupMatch = filters.group === 'all' || item.group === filters.group;
+    const sourceMatch = filters.source === 'all' || menuSource(item) === filters.source;
+    return groupMatch && sourceMatch;
+  });
 }
 
 function MenuTypeBadge({ type }: { type: string }) {
@@ -38,8 +54,8 @@ function MenuTypeBadge({ type }: { type: string }) {
   );
 }
 
-function MenuRows({ items }: { items: MenuItem[] }) {
-  if (!items.length) return <EmptyState text="No menu items returned from /api/menu." />;
+function MenuRows({ items, emptyText = 'No menu items returned from /api/menu.' }: { items: MenuItem[]; emptyText?: string }) {
+  if (!items.length) return <EmptyState text={emptyText} />;
 
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/50">
@@ -93,12 +109,64 @@ function MenuRows({ items }: { items: MenuItem[] }) {
   );
 }
 
+function MenuFiltersCard({
+  groups,
+  sources,
+  filters,
+  total,
+  visible,
+  onGroup,
+  onSource,
+  onClear,
+}: {
+  groups: string[];
+  sources: string[];
+  filters: MenuFilters;
+  total: number;
+  visible: number;
+  onGroup: (value: string) => void;
+  onSource: (value: string) => void;
+  onClear: () => void;
+}) {
+  const hasFilters = filters.group !== 'all' || filters.source !== 'all';
+  return (
+    <section className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4" aria-label="Menu filters">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">Source filters</p>
+          <p className="mt-1 text-sm text-slate-400">Showing {visible} of {total} items across {sources.length} menu sources.</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-[10rem_minmax(12rem,1fr)_auto]">
+          <label className="grid gap-1 text-sm font-medium text-slate-300">
+            Group
+            <select className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-100" aria-label="Filter menu group" value={filters.group} onChange={(event) => onGroup(event.currentTarget.value)}>
+              <option value="all">All groups</option>
+              {groups.map((group) => <option key={group} value={group}>{group}</option>)}
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm font-medium text-slate-300">
+            Source
+            <select className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-100" aria-label="Filter menu source" value={filters.source} onChange={(event) => onSource(event.currentTarget.value)}>
+              <option value="all">All sources</option>
+              {sources.map((source) => <option key={source} value={source}>{source}</option>)}
+            </select>
+          </label>
+          <button className="focus-ring self-end rounded-xl border border-white/10 px-3 py-2 text-sm font-semibold text-slate-200 hover:border-teal-300/40 disabled:opacity-40" disabled={!hasFilters} type="button" onClick={onClear}>
+            Clear
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function MenuPage({ items: initialItems = [], loading, client = apiClient }: MenuPageProps) {
   const [items, setItems] = useState<MenuItem[]>(initialItems);
   const [state, setState] = useState<PageState>(() =>
     loading || (loading === undefined && !initialItems.length) ? 'loading' : 'ready'
   );
   const [error, setError] = useState('');
+  const [filters, setFilters] = useState<MenuFilters>({ group: 'all', source: 'all' });
 
   async function loadMenu() {
     setState('loading');
@@ -118,6 +186,10 @@ export function MenuPage({ items: initialItems = [], loading, client = apiClient
   }, [client]);
 
   const sortedItems = useMemo(() => sortMenuItems(items), [items]);
+  const filterOptions = useMemo(() => menuFilterOptions(sortedItems), [sortedItems]);
+  const visibleItems = useMemo(() => filterMenuItems(sortedItems, filters), [filters, sortedItems]);
+  const clearFilters = () => setFilters({ group: 'all', source: 'all' });
+  const emptyText = sortedItems.length ? 'No menu items match the selected group/source filters.' : undefined;
 
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="menu-page-title">
@@ -128,10 +200,22 @@ export function MenuPage({ items: initialItems = [], loading, client = apiClient
           <p className="mt-2 text-sm text-slate-400">All frontend menu rows from GET /api/menu.</p>
         </div>
         <p className="rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300">
-          {state === 'ready' ? `${sortedItems.length} items` : 'Loading items'}
+          {state === 'ready' ? `${visibleItems.length}/${sortedItems.length} items` : 'Loading items'}
         </p>
       </div>
 
+      {state === 'ready' && sortedItems.length ? (
+        <MenuFiltersCard
+          groups={filterOptions.groups}
+          sources={filterOptions.sources}
+          filters={filters}
+          total={sortedItems.length}
+          visible={visibleItems.length}
+          onGroup={(group) => setFilters((current) => ({ ...current, group }))}
+          onSource={(source) => setFilters((current) => ({ ...current, source }))}
+          onClear={clearFilters}
+        />
+      ) : null}
       {state === 'loading' ? <LoadingPanel title="Loading menu items..." detail="Fetching /api/menu from the Elysia backend." /> : null}
       {state === 'error' ? (
         <ErrorMessage
@@ -144,7 +228,7 @@ export function MenuPage({ items: initialItems = [], loading, client = apiClient
           }
         />
       ) : null}
-      {state === 'ready' ? <MenuRows items={sortedItems} /> : null}
+      {state === 'ready' ? <MenuRows items={visibleItems} emptyText={emptyText} /> : null}
     </section>
   );
 }
