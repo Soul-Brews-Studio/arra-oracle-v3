@@ -2,8 +2,11 @@ import { describe, expect, test } from 'bun:test';
 import { ExportApp } from '../../../frontend/src/pages/ExportApp';
 import {
   backendApiUrl,
+  exportResponseError,
   legacyDirectExportLink,
+  messageFromPayload,
   normalizeExportAppCollections,
+  readExportPayload,
   resolveDownloadLink,
 } from '../../../frontend/src/pages/exportAppHelpers';
 import { htmlFor } from '../_render';
@@ -33,6 +36,17 @@ describe('ExportApp legacy v2 UI', () => {
       .toBe('oracle_documents.csv');
     expect(legacyDirectExportLink('localhost:47778', 'oracle_documents', 'markdown').url)
       .toContain('/api/v1/export/app?collection=oracle_documents&format=markdown');
+    expect(legacyDirectExportLink('localhost:47778', 'oracle_documents', 'csv').filename)
+      .toBe('oracle_documents.csv');
+  });
+
+  test('extracts backend error payloads and invalid JSON failures', async () => {
+    const unavailable = new Response(JSON.stringify({ error: 'database offline' }), { status: 503 });
+    expect(await exportResponseError(unavailable, '/api/v1/export/app/run'))
+      .toBe('/api/v1/export/app/run returned 503: database offline');
+    expect(messageFromPayload({ data: { message: 'nested failure' } })).toBe('nested failure');
+    await expect(readExportPayload(new Response('{bad'), '/api/v1/export/app/collections'))
+      .rejects.toThrow('/api/v1/export/app/collections returned invalid JSON');
   });
 
   test('renders configurable backend and JSON/CSV/Markdown export controls', () => {

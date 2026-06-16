@@ -138,3 +138,30 @@ export function progressPatchFromExportPayload(payload: unknown): Partial<Export
     error: stringField(job, ['error', 'message']) || undefined,
   };
 }
+
+export async function readExportPayload(response: Response, path: string): Promise<unknown> {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`${path} returned invalid JSON`);
+  }
+}
+
+export function messageFromPayload(payload: unknown): string {
+  if (!isRecord(payload)) return '';
+  const direct = text(payload.error, payload.message, payload.detail);
+  if (direct) return direct;
+  const nested = payload.data;
+  return isRecord(nested) ? text(nested.error, nested.message, nested.detail) : '';
+}
+
+export async function exportResponseError(response: Response, path: string): Promise<string> {
+  try {
+    const detail = messageFromPayload(await readExportPayload(response, path));
+    return `${path} returned ${response.status}${detail ? `: ${detail}` : ''}`;
+  } catch (error) {
+    return error instanceof Error ? error.message : `${path} returned ${response.status}`;
+  }
+}
