@@ -42,6 +42,17 @@ function buildCards(plugins: PluginEntry[], state: SurfaceState): Card[] {
   ];
 }
 
+
+export function pluginCapabilityRows(plugins: PluginEntry[]): string[] {
+  return plugins.flatMap((plugin) => [
+    ...(plugin.apiRoutes ?? []).map((route) => `${plugin.name} api ${route.methods?.join('|') ?? 'ALL'} ${route.path}`),
+    ...(plugin.mcpTools ?? []).map((tool) => `${plugin.name} mcp ${tool.name}${tool.readOnly ? ' read-only' : ''}`),
+    ...(plugin.cliSubcommands ?? []).map((command) => `${plugin.name} cli ${command.command}`),
+    ...(plugin.exportFormats ?? []).map((format) => `${plugin.name} export ${format.extension}`),
+    ...(plugin.proxy ?? []).map((proxy) => `${plugin.name} proxy ${proxy.path}`),
+  ]);
+}
+
 export function pluginServerRows(plugins: PluginEntry[]): Array<{ name: string; status: string; health: string }> {
   return plugins
     .filter((plugin) => plugin.server || plugin.proxy?.length)
@@ -77,6 +88,7 @@ export function UnifiedPluginSurfaceOverview({ plugins }: { plugins: PluginEntry
   const cards = useMemo(() => buildCards(plugins, state), [plugins, state]);
   const counts = useMemo(() => countBySurface(plugins), [plugins]);
   const servers = useMemo(() => pluginServerRows(plugins), [plugins]);
+  const capabilities = useMemo(() => pluginCapabilityRows(plugins), [plugins]);
 
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="unified-surfaces-title">
@@ -90,10 +102,11 @@ export function UnifiedPluginSurfaceOverview({ plugins }: { plugins: PluginEntry
       </div>
       {error ? <p className="mb-3 text-sm text-amber-200">{error}</p> : null}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{cards.map((card) => <SurfaceCard key={card.label} card={card} />)}</div>
-      <div className="mt-4 grid gap-3 xl:grid-cols-4">
+      <div className="mt-4 grid gap-3 xl:grid-cols-5">
         <SurfaceList title="Menu items" items={state.menu.slice(0, 5).map((item) => `${item.label} → ${item.path}`)} empty="No /api/menu items loaded yet." />
         <SurfaceList title="MCP tools" items={state.tools.slice(0, 5).map((tool) => `${tool.name}${tool.plugin ? ` · ${tool.plugin}` : ''}`)} empty="No /api/mcp/tools entries loaded yet." />
         <SurfaceList title="Plugin servers" items={servers.map((server) => `${server.name} · ${server.status} · ${server.health}`)} empty="No plugin server or proxy surfaces." />
+        <SurfaceList title="Capabilities" items={capabilities.slice(0, 6)} empty="No API, CLI, proxy, export, or MCP capabilities." />
         <SurfaceList title="Storage" items={[state.settings ? `${state.settings.storage.activeBackend} · ${formatPath(state.settings.storage.dbPath)}` : 'Storage config not loaded yet.']} empty="Storage config not loaded yet." />
       </div>
     </section>
