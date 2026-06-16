@@ -9,6 +9,7 @@ This research is split into three reviewable files:
 - `ψ/memory/ai-memory-systems-research.md` — ARRA architecture synthesis and roadmap.
 - `ψ/memory/ai-memory-systems-claims-ledger.md` — confirmed/refuted claim ledger from #1648.
 - `ψ/memory/ai-memory-product-patterns-2026.md` — product-by-product memory pattern filing.
+- `ψ/memory/ai-agent-memory-recommendations-1648.md` — implementation-ready recommendations.
 
 ## Executive summary
 
