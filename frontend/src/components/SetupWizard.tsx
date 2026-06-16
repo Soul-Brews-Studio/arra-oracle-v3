@@ -189,6 +189,14 @@ export function SetupWizard({ children }: { children: ReactNode }) {
           >
             Next
           </button>
+          {step === 3 ? (
+            <a
+              className="focus-ring rounded-xl bg-teal-200 px-4 py-2 text-sm font-semibold text-slate-950"
+              href="/vector"
+            >
+              Continue to dashboard
+            </a>
+          ) : null}
           <a
             className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200"
             href="/vector/settings"
