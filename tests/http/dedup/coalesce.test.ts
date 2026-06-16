@@ -122,6 +122,38 @@ describe('request deduplication middleware', () => {
     expect(hits.count).toBe(3);
   });
 
+  test('keeps HEAD and GET keys separate for the same URL', async () => {
+    const block = gate();
+    let hits = 0;
+    const fetchDedup = createRequestDedupFetch(async (req) => {
+      hits += 1;
+      await block.promise;
+      return new Response(req.method, { headers: { 'x-method': req.method } });
+    });
+
+    const get = fetchDedup(request('/same'));
+    const head = fetchDedup(request('/same', { method: 'HEAD' }));
+    await waitFor(() => hits === 2);
+    block.release();
+    const [getRes, headRes] = await Promise.all([get, head]);
+
+    expect(hits).toBe(2);
+    expect(getRes.headers.get('x-method')).toBe('GET');
+    expect(headRes.headers.get('x-method')).toBe('HEAD');
+  });
+
+  test('allows a custom key function to opt out of coalescing', async () => {
+    let hits = 0;
+    const res = await handleRequestDedup(
+      request('/custom'),
+      () => Response.json({ hit: ++hits }),
+      { key: () => null, store: new Map() },
+    );
+
+    expect(await json(res)).toEqual({ hit: 1 });
+    expect(hits).toBe(1);
+  });
+
   test('keeps tenant selector variants isolated', async () => {
     const block = gate();
     const hits = { count: 0 };

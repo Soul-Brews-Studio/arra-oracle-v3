@@ -151,8 +151,12 @@ export async function getWorkerStatus(
       return { running: true, healthy: false };
     }
 
-    const readinessResponse = await fetch(`${opts.baseUrl}:${port}${opts.readinessPath}`);
-    return { running: true, healthy: readinessResponse.ok };
+    try {
+      const readinessResponse = await fetch(`${opts.baseUrl}:${port}${opts.readinessPath}`);
+      return { running: true, healthy: readinessResponse.ok };
+    } catch {
+      return { running: true, healthy: false };
+    }
   } catch {
     return { running: false, healthy: false };
   }

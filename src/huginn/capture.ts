@@ -75,6 +75,10 @@ function readState(statePath: string): CaptureState {
   }
 }
 
+function isReadableFile(filePath: string): boolean {
+  try { return fs.statSync(filePath).isFile(); } catch { return false; }
+}
+
 function writeState(statePath: string, state: CaptureState): void {
   fs.mkdirSync(path.dirname(statePath), { recursive: true });
   const tmp = `${statePath}.${process.pid}.${Date.now()}.tmp`;
@@ -133,8 +137,9 @@ function normalizeMaxItems(value: number): number {
 }
 
 export function mineSessionJsonl(transcriptPath: string, maxItems = 12): { moments: HuginnMoment[]; hash: string; sourceText: string } {
-  if (!fs.existsSync(transcriptPath)) return { moments: [], hash: '', sourceText: '' };
-  const raw = fs.readFileSync(transcriptPath, 'utf-8');
+  if (!isReadableFile(transcriptPath)) return { moments: [], hash: '', sourceText: '' };
+  let raw = '';
+  try { raw = fs.readFileSync(transcriptPath, 'utf-8'); } catch { return { moments: [], hash: '', sourceText: '' }; }
   const selected: HuginnMoment[] = [];
   const seen = new Set<string>();
   const limit = normalizeMaxItems(maxItems);
@@ -176,7 +181,7 @@ export function formatLearning(sessionId: string, moments: HuginnMoment[], trans
 
 export async function captureSession(options: HuginnCaptureOptions): Promise<HuginnCaptureResult> {
   const sessionId = stableSessionId(options.transcriptPath, options.sessionId);
-  if (!fs.existsSync(options.transcriptPath)) return { ok: true, skipped: 'missing-transcript', sessionId, moments: [] };
+  if (!isReadableFile(options.transcriptPath)) return { ok: true, skipped: 'missing-transcript', sessionId, moments: [] };
 
   const mined = mineSessionJsonl(options.transcriptPath, options.maxItems ?? 12);
   if (mined.moments.length === 0) return { ok: true, skipped: 'empty', sessionId, hash: mined.hash, moments: [] };

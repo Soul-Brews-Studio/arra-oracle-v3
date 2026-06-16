@@ -34,8 +34,8 @@ export class QdrantAdapter implements VectorStoreAdapter {
   ) {
     this.collectionName = collectionName;
     this.embedder = embedder;
-    this.url = config.url || process.env.QDRANT_URL || 'http://localhost:6333';
-    this.apiKey = config.apiKey || process.env.QDRANT_API_KEY;
+    this.url = clean(config.url) || clean(process.env.QDRANT_URL) || 'http://localhost:6333';
+    this.apiKey = clean(config.apiKey) || clean(process.env.QDRANT_API_KEY);
   }
 
   async connect(): Promise<void> {
@@ -95,6 +95,7 @@ export class QdrantAdapter implements VectorStoreAdapter {
     let fresh: number[][] = [];
     if (needEmbed.length > 0) {
       fresh = await this.embedder.embed(needEmbed.map(i => docs[i].document), 'passage');
+      assertEmbeddingCount('Qdrant', fresh.length, needEmbed.length);
     }
     let freshIdx = 0;
 
@@ -207,4 +208,13 @@ export class QdrantAdapter implements VectorStoreAdapter {
   private pointId(id: string): string {
     return qdrantPointId(id);
   }
+}
+
+function assertEmbeddingCount(adapter: string, actual: number, expected: number): void {
+  if (actual !== expected) throw new Error(`${adapter} embedder returned ${actual} vectors for ${expected} documents`);
+}
+
+function clean(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
 }

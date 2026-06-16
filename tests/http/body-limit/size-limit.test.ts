@@ -49,9 +49,25 @@ describe('request body size limit middleware', () => {
     expect(await res.json()).toMatchObject({ error: 'Payload Too Large', limitKb: 1 });
   });
 
+  test('falls back to streaming size checks for malformed Content-Length', async () => {
+    const res = await postBody(1, 'x'.repeat(1025), { 'content-length': 'not-a-number' });
+
+    expect(res.status).toBe(413);
+    expect(await res.json()).toMatchObject({ error: 'Payload Too Large', limitKb: 1 });
+  });
+
+  test('falls back to the default limit for invalid explicit options', async () => {
+    const res = await postBody(0, 'x'.repeat(2048));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ size: 2048 });
+  });
+
   test('uses ARRA_MAX_BODY_KB when configured and otherwise defaults to 1024KB', () => {
     expect(maxBodyKbFromEnv({})).toBe(1024);
     expect(maxBodyKbFromEnv({ ARRA_MAX_BODY_KB: '2' })).toBe(2);
+    expect(maxBodyKbFromEnv({ ARRA_MAX_BODY_KB: '-1' })).toBe(1024);
+    expect(maxBodyKbFromEnv({ ARRA_MAX_BODY_KB: '1.5' })).toBe(1024);
     expect(maxBodyKbFromEnv({ ARRA_MAX_BODY_KB: 'nope' })).toBe(1024);
   });
 });

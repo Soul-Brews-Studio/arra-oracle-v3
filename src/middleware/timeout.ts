@@ -6,6 +6,10 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 type FetchHandler = (request: Request) => Response | Promise<Response>;
 
 export function requestTimeoutMsFromEnv(value = process.env.ARRA_REQUEST_TIMEOUT_MS): number {
+  return safeTimeoutMs(value);
+}
+
+function safeTimeoutMs(value: unknown): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_TIMEOUT_MS;
 }
@@ -40,6 +44,7 @@ export async function handleRequestTimeout(
   next: FetchHandler,
   timeoutMs = requestTimeoutMsFromEnv(),
 ): Promise<Response> {
+  const effectiveTimeoutMs = safeTimeoutMs(timeoutMs);
   const controller = new AbortController();
   const timedRequest = requestWithSignal(request, controller.signal);
   const response = Promise.resolve(next(timedRequest));
@@ -49,8 +54,8 @@ export async function handleRequestTimeout(
   const timeout = new Promise<Response>((resolve) => {
     timer = setTimeout(() => {
       controller.abort(new Error('request timeout'));
-      resolve(timeoutResponse(request, timeoutMs));
-    }, timeoutMs);
+      resolve(timeoutResponse(request, effectiveTimeoutMs));
+    }, effectiveTimeoutMs);
   });
 
   try {
