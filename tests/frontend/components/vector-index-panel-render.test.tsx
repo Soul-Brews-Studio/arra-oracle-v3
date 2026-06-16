@@ -25,6 +25,18 @@ describe('VectorIndexPanel', () => {
           fallbackSummary: 'Fallback chain ollama → openai worst-case remote spend: $0.0010.',
           recommendation: 'Any configured embedding model should work.',
         }}
+        initialCostTracking={{
+          breakdown: {
+            daily: {
+              inputTokens: 250000,
+              apiCalls: 4,
+              estimatedUsd: 0.025,
+              providers: {
+                openai: { provider: 'openai', inputTokens: 250000, apiCalls: 4, estimatedUsd: 0.025 },
+              },
+            },
+          },
+        }}
         initialModels={{
           'bge-m3': { collection: 'oracle_bge_m3', model: 'BAAI/bge-m3', adapter: 'lancedb', count: 100 },
           qwen3: { collection: 'oracle_qwen3', model: 'Qwen3', adapter: 'lancedb', count: 80 },
@@ -41,6 +53,11 @@ describe('VectorIndexPanel', () => {
     expect(html).toContain('100 docs × ~500 tokens/doc ≈ 50K tokens');
     expect(html).toContain('$0.0010');
     expect(html).toContain('Fallback chain ollama');
+    expect(html).toContain('Live cost tracking');
+    expect(html).toContain('250,000 tokens');
+    expect(html).toContain('4 API calls');
+    expect(html).toContain('$0.0250');
+    expect(html).toContain('openai: 250,000 tokens');
     expect(html).toContain('Index Now');
     expect(html).toContain('Backfill Vectors');
     expect(html).toContain('Add Vault');
