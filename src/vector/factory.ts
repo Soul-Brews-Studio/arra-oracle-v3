@@ -7,6 +7,7 @@ import { LanceDBAdapter } from './adapters/lancedb.ts';
 import { QdrantAdapter } from './adapters/qdrant.ts';
 import { CloudflareVectorizeAdapter, CloudflareAIEmbeddings } from './adapters/cloudflare-vectorize.ts';
 import { ProxyVectorAdapter } from './adapters/proxy.ts';
+import { TurboVecAdapter } from './adapters/turbovec.ts';
 import { createEmbeddingProvider, FallbackEmbeddings } from './embeddings.ts';
 import { GeminiEmbeddings } from './providers/gemini.ts';
 import { resolveEmbeddingFallbackChain, resolveEmbeddingModel, resolveEmbeddingProviderType } from './embedder-config.ts';
@@ -106,6 +107,9 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
         throw new Error('proxy vector adapter requires proxyEndpoint or ORACLE_PROXY_VECTOR_URL');
       }
       return new ProxyVectorAdapter(collectionName, proxyUrl);
+    }
+    case 'turbovec': {
+      return new TurboVecAdapter(collectionName, config.proxyEndpoint);
     }
     case 'chroma':
     default: {

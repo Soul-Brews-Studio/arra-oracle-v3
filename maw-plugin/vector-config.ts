@@ -26,8 +26,8 @@ function collectionName(p: Parsed): string {
 function adapter(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const normalized = key(value) === 'cloudflare' ? 'cloudflare-vectorize' : value;
-  if (!['lancedb', 'qdrant', 'sqlite-vec', 'chroma', 'cloudflare-vectorize', 'proxy'].includes(normalized)) {
-    throw new Error('adapter must be lancedb, qdrant, sqlite-vec, chroma, cloudflare-vectorize, or proxy');
+  if (!['lancedb', 'qdrant', 'sqlite-vec', 'chroma', 'cloudflare-vectorize', 'proxy', 'turbovec'].includes(normalized)) {
+    throw new Error('adapter must be lancedb, qdrant, sqlite-vec, chroma, cloudflare-vectorize, proxy, or turbovec');
   }
   return normalized;
 }

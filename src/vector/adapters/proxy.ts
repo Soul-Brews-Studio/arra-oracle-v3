@@ -53,7 +53,7 @@ function toQueryUrl(base: string, path: string): string {
 }
 
 export class ProxyVectorAdapter implements VectorStoreAdapter {
-  readonly name = 'proxy';
+  readonly name: string = 'proxy';
 
   constructor(
     private readonly collectionName: string,

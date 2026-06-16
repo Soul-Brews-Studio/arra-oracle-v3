@@ -84,7 +84,8 @@ export type VectorDBType =
   | 'lancedb'
   | 'qdrant'
   | 'cloudflare-vectorize'
-  | 'proxy';
+  | 'proxy'
+  | 'turbovec';
 export type EmbeddingProviderType =
   | 'none'
   | 'local'

@@ -19,6 +19,7 @@ const adapterSchema = t.Union([
   t.Literal('qdrant'),
   t.Literal('cloudflare-vectorize'),
   t.Literal('proxy'),
+  t.Literal('turbovec'),
 ]);
 
 const updateSchema = t.Object({
