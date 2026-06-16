@@ -147,6 +147,20 @@ describe('export app HTTP routes', () => {
     expect(csv).toContain('"doc-new"');
   });
 
+  test('serves direct Markdown export downloads for fallback links', async () => {
+    const res = await fetcher(new Request(
+      'http://local/api/v1/export/app?collection=oracle_documents&format=markdown&includeGraph=true',
+    ));
+    const markdown = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/markdown');
+    expect(res.headers.get('content-disposition')).toBe('attachment; filename="oracle_documents.md"');
+    expect(markdown).toContain('# oracle_documents');
+    expect(markdown).toContain('doc-old');
+    expect(markdown).toContain('# graph_relationships');
+  });
+
   test('rejects unknown collections', async () => {
     const res = await postRun({ collection: 'missing_collection', format: 'json' });
     const body = await res.json() as { error: string };

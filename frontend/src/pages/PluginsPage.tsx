@@ -3,19 +3,22 @@ import { setPluginEnabled } from '../api/plugin-admin';
 import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
 import { isPluginEnabled, PluginList, type PluginEnabledState } from '../components/PluginList';
 import { PLUGINS_ENDPOINT, usePlugins, type PluginFetch } from '../hooks/usePlugins';
-import { countPluginSurfaces } from '../plugin-surfaces';
+import { countPluginSurfaces, surfacesFor } from '../plugin-surfaces';
 import { UnifiedPluginSurfaceOverview } from './UnifiedPluginSurfaceOverview';
 import type { PluginEntry } from '../types';
 
 const EMPTY_PLUGINS: PluginEntry[] = [];
 
 type Tone = 'ok' | 'warn' | 'bad' | 'idle';
+export type PluginVisibilityFilter = 'all' | 'enabled' | 'disabled' | 'unhealthy';
 
 export interface PluginsPageProps {
   plugins?: PluginEntry[];
   loading?: boolean;
   endpoint?: string;
   fetcher?: PluginFetch;
+  initialQuery?: string;
+  initialVisibility?: PluginVisibilityFilter;
 }
 
 export function enabledStateForPlugins(plugins: PluginEntry[]): PluginEnabledState {
@@ -29,6 +32,49 @@ export function pluginAdminSummary(plugins: PluginEntry[], enabledState: PluginE
   const enabled = plugins.filter((plugin) => isPluginEnabled(plugin, enabledState)).length;
   const disabled = plugins.length - enabled;
   return `${enabled} enabled · ${disabled} disabled · ${plugins.length} registered`;
+}
+
+
+function queryText(plugin: PluginEntry): string {
+  return [
+    plugin.name,
+    plugin.description,
+    plugin.status,
+    plugin.error,
+    plugin.version,
+    plugin.file,
+    plugin.server?.command,
+    plugin.server?.healthPath,
+    plugin.menu?.label,
+    ...surfacesFor(plugin),
+    ...(plugin.mcpTools ?? []).map((tool) => tool.name),
+    ...(plugin.apiRoutes ?? []).map((route) => route.path),
+    ...(plugin.proxy ?? []).map((proxy) => proxy.path),
+    ...(plugin.cliSubcommands ?? []).map((command) => command.command),
+    ...(plugin.exportFormats ?? []).map((format) => format.extension),
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function pluginMatchesVisibility(plugin: PluginEntry, enabledState: PluginEnabledState, filter: PluginVisibilityFilter): boolean {
+  const enabled = isPluginEnabled(plugin, enabledState);
+  const health = healthForPlugin(plugin, enabled).tone;
+  if (filter === 'enabled') return enabled;
+  if (filter === 'disabled') return !enabled;
+  if (filter === 'unhealthy') return health === 'bad' || health === 'warn';
+  return true;
+}
+
+export function filteredPluginsFor(
+  plugins: PluginEntry[],
+  enabledState: PluginEnabledState,
+  query: string,
+  visibility: PluginVisibilityFilter,
+): PluginEntry[] {
+  const needle = query.trim().toLowerCase();
+  return plugins.filter((plugin) => {
+    const queryMatch = !needle || queryText(plugin).includes(needle);
+    return queryMatch && pluginMatchesVisibility(plugin, enabledState, visibility);
+  });
 }
 
 function toneClass(tone: Tone): string {
@@ -66,14 +112,20 @@ export function PluginsPage({
   loading = false,
   endpoint = PLUGINS_ENDPOINT,
   fetcher,
+  initialQuery = '',
+  initialVisibility = 'all',
 }: PluginsPageProps) {
   const initialLoading = loading || initialPlugins.length === 0;
   const { plugins, loading: fetching, error, reload } = usePlugins({ initialPlugins, initialLoading, endpoint, fetcher });
   const [overrides, setOverrides] = useState<PluginEnabledState>({});
+  const [query, setQuery] = useState(initialQuery);
+  const [visibility, setVisibility] = useState<PluginVisibilityFilter>(initialVisibility);
   const [adminError, setAdminError] = useState('');
   const [adminMessage, setAdminMessage] = useState('');
   const enabledState = useMemo(() => ({ ...enabledStateForPlugins(plugins), ...overrides }), [plugins, overrides]);
   const summary = useMemo(() => pluginAdminSummary(plugins, enabledState), [plugins, enabledState]);
+  const visiblePlugins = useMemo(() => filteredPluginsFor(plugins, enabledState, query, visibility), [plugins, enabledState, query, visibility]);
+  const hasFilters = query.trim().length > 0 || visibility !== 'all';
   const metrics = useMemo(() => {
     const active = plugins.filter((plugin) => isPluginEnabled(plugin, enabledState)).length;
     const unhealthy = plugins.filter((plugin) => healthForPlugin(plugin, isPluginEnabled(plugin, enabledState)).tone === 'bad').length;
@@ -131,7 +183,56 @@ export function PluginsPage({
       {showInventory ? <UnifiedPluginSurfaceOverview plugins={plugins} /> : null}
 
       {plugins.length ? (
-        <PluginList plugins={plugins} enabledState={enabledState} onToggle={(name) => void togglePlugin(name)} />
+        <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-4" aria-labelledby="plugin-filters-title">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">Inventory filters</p>
+              <h2 id="plugin-filters-title" className="mt-1 text-lg font-semibold text-white">Find plugin surfaces</h2>
+              <p className="mt-1 text-sm text-slate-400">Showing {visiblePlugins.length} of {plugins.length} plugins · {summary}</p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-[minmax(12rem,1fr)_12rem_auto]">
+              <label className="grid gap-1 text-sm font-medium text-slate-300">
+                Search plugins
+                <input
+                  className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-100"
+                  placeholder="name, route, MCP tool, surface"
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.currentTarget.value)}
+                />
+              </label>
+              <label className="grid gap-1 text-sm font-medium text-slate-300">
+                Visibility
+                <select
+                  className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-100"
+                  value={visibility}
+                  onChange={(event) => setVisibility(event.currentTarget.value as PluginVisibilityFilter)}
+                >
+                  <option value="all">All plugins</option>
+                  <option value="enabled">Enabled</option>
+                  <option value="disabled">Disabled</option>
+                  <option value="unhealthy">Needs attention</option>
+                </select>
+              </label>
+              <button
+                className="focus-ring self-end rounded-xl border border-white/10 px-3 py-2 text-sm font-semibold text-slate-200 hover:border-teal-300/40 disabled:opacity-40"
+                disabled={!hasFilters}
+                type="button"
+                onClick={() => { setQuery(''); setVisibility('all'); }}
+              >
+                Clear filters
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {visiblePlugins.length ? (
+        <PluginList plugins={visiblePlugins} enabledState={enabledState} onToggle={(name) => void togglePlugin(name)} />
+      ) : plugins.length && showInventory ? (
+        <p className="rounded-lg border border-white/10 bg-slate-950/70 p-5 text-sm text-slate-400">
+          No plugins match the current filters. Clear filters or reload plugin manifests.
+        </p>
       ) : showInventory ? (
         <p className="rounded-lg border border-white/10 bg-slate-950/70 p-5 text-sm text-slate-400">
           No installed plugins returned by {endpoint}.

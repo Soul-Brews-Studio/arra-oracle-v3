@@ -181,7 +181,7 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
       <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="export-app-title">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Legacy Oracle v2</p>
         <h1 id="export-app-title" className="mt-2 text-3xl font-semibold text-white">Export app</h1>
-        <p className="mt-2 text-sm text-slate-400">Connect to an old Oracle v2 backend, list collections, and prepare JSON, CSV, or Markdown backups before migration.</p>
+        <p className="mt-2 text-sm text-slate-400">Connect to an old Oracle v2 backend, list collections, and prepare JSON, JSONL, CSV, or Markdown backups before migration.</p>
       </section>
 
       <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="backend-title">
