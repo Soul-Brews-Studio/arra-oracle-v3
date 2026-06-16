@@ -28,7 +28,7 @@ describe('canvas.buildwithoracle.com full integration flow', () => {
       expect(html, id).toContain(`plugin=${id}`);
       expect(html, id).toContain('localStorage.setItem');
       expect(html, id).toContain('indexedDB.open');
-      expect(html, id).toContain("fetch('/api/canvas/registry')");
+      expect(html, id).toContain("fetch('/api/plugins?kind=canvas')");
     }
   });
 
@@ -49,12 +49,17 @@ describe('canvas.buildwithoracle.com full integration flow', () => {
   test('standalone registry route matches worker registry and can serve HTML fallback', async () => {
     const app = createCanvasStandaloneApp({ ORACLE_API_BASE: 'https://oracle.example.test' });
     const route = await app.handle(new Request('http://local/api/canvas/registry'));
+    const metadata = await app.handle(new Request('http://local/api/plugins?kind=canvas'));
     const worker = await handleCanvasRequest(new Request(`${HOST}/api/canvas/registry`));
     const routeBody = await route.json() as { count: number; plugins: Array<{ id: string }> };
+    const metadataBody = await metadata.json() as { kind: string; count: number; plugins: Array<{ id: string; renderer: string }> };
     const workerBody = await worker.json() as { count: number; plugins: Array<{ id: string }> };
 
     expect(route.status).toBe(200);
+    expect(metadata.status).toBe(200);
     expect(routeBody.count).toBe(workerBody.count);
+    expect(metadataBody.kind).toBe('canvas');
+    expect(metadataBody.count).toBe(workerBody.count);
     expect(routeBody.plugins.map((plugin) => plugin.id)).toEqual(PLUGIN_IDS);
 
     const html = await app.handle(new Request('http://local/galaxy'));

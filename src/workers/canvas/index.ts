@@ -1,3 +1,4 @@
+import { canvasPluginMetadataRegistry } from '../../canvas/metadata.ts';
 import { canvasPluginEntry, canvasRegistry, parseCanvasKind } from '../../canvas/registry.ts';
 import { listCanvasPlugins } from '../../canvas/plugins.ts';
 import { normalizePlugin, renderCanvasApp } from './render.ts';
@@ -64,10 +65,13 @@ function healthResponse(env: CanvasWorkerEnv): Response {
 }
 
 function registryResponse(url: URL): Response | null {
-  if (url.pathname === '/api/canvas/plugins' || url.pathname === '/api/canvas/registry') {
+  if (url.pathname === '/api/plugins' && url.searchParams.get('kind') === 'canvas') {
+    return Response.json(canvasPluginMetadataRegistry(), { headers: REGISTRY_HEADERS });
+  }
+  if (url.pathname === '/api/canvas/plugins' || url.pathname === '/api/canvas/registry' || url.pathname === '/api/plugins/canvas') {
     return Response.json(canvasRegistry(parseCanvasKind(url.searchParams.get('kind'))), { headers: REGISTRY_HEADERS });
   }
-  const match = url.pathname.match(/^\/api\/canvas\/plugins\/([^/]+)$/);
+  const match = url.pathname.match(/^\/api\/(?:canvas\/plugins|plugins\/canvas)\/([^/]+)$/);
   if (!match) return null;
   const entry = canvasPluginEntry(decodeURIComponent(match[1]));
   if (!entry) return Response.json({ error: 'canvas plugin not found', id: match[1] }, { status: 404, headers: REGISTRY_HEADERS });
@@ -82,7 +86,7 @@ function pluginFrom(url: URL) {
 export async function handleCanvasRequest(request: Request, env: CanvasWorkerEnv = {}): Promise<Response> {
   const url = new URL(request.url);
   if (url.pathname === '/__health' || url.pathname === '/healthz') return healthResponse(env);
-  if (url.pathname.startsWith('/api/canvas/') && request.method === 'GET') {
+  if (request.method === 'GET') {
     const registry = registryResponse(url);
     if (registry) return registry;
   }

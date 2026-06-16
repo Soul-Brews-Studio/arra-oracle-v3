@@ -1,6 +1,5 @@
 import { Elysia, t } from 'elysia';
-import { listCanvasPluginMetadata } from '../../canvas/metadata.ts';
-import { canvasRegistry } from '../../canvas/registry.ts';
+import { canvasPluginMetadataRegistry } from '../../canvas/metadata.ts';
 import type { LoadedPluginRegistryEntry } from '../../plugins/registry.ts';
 import { basePluginDir, scanPlugins } from './model.ts';
 import { readPluginEnabled } from './state.ts';
@@ -11,14 +10,9 @@ export interface PluginsRegistryRouteOptions {
   registry?: () => LoadedPluginRegistryEntry[];
 }
 
-function canvasMetadataRegistry() {
-  const metadata = listCanvasPluginMetadata();
-  return { ...metadata, count: metadata.plugins.length, standalone: canvasRegistry().standalone };
-}
-
 export function createPluginsRegistryRoute(options: PluginsRegistryRouteOptions = {}) {
   return new Elysia().get('/api/plugins', ({ query }) => {
-    if (query.kind === 'canvas') return canvasMetadataRegistry();
+    if (query.kind === 'canvas') return canvasPluginMetadataRegistry();
     const dir = tenantScopedPluginDir(options.dir ?? basePluginDir());
     if (!options.registry || hasTenantPluginScope()) return scanPlugins(dir);
     const plugins = options.registry().map((plugin) => ({

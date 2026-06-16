@@ -57,7 +57,7 @@ describe('canvas Cloudflare Worker', () => {
     expect(html).toContain('normalizeRegistry');
     expect(html).toContain('registry cache ready');
     expect(html).toContain('registry updated');
-    expect(html).toContain("fetch('/api/canvas/registry')");
+    expect(html).toContain("fetch('/api/plugins?kind=canvas')");
     expect(html).toContain('loadRegistry()');
   });
 
@@ -96,10 +96,15 @@ describe('canvas Cloudflare Worker', () => {
 
     const response = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/api/canvas/registry'));
     const body = await response.json() as { count: number; standalone: { host: string } };
+    const metadata = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/api/plugins?kind=canvas'));
+    const metadataBody = await metadata.json() as { kind: string; plugins: Array<{ id: string; renderer: string }> };
 
     expect(response.status).toBe(200);
     expect(body.count).toBeGreaterThanOrEqual(3);
     expect(body.standalone.host).toBe('canvas.buildwithoracle.com');
+    expect(metadata.status).toBe(200);
+    expect(metadataBody.kind).toBe('canvas');
+    expect(metadataBody.plugins).toContainEqual(expect.objectContaining({ id: 'wave', renderer: 'Three' }));
   });
 
   test('proxies api requests to configured oracle backend without caching', async () => {
