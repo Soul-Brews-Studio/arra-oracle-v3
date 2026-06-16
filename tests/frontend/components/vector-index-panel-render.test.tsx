@@ -18,6 +18,25 @@ describe('VectorIndexPanel', () => {
     const html = htmlFor(
       <VectorIndexPanel
         initialStatus={status}
+        initialCostEstimate={{
+          formula: '100 docs × ~500 tokens/doc ≈ 50K tokens',
+          provider: 'openai',
+          estimatedUsd: 0.001,
+          fallbackSummary: 'Fallback chain ollama → openai worst-case remote spend: $0.0010.',
+          recommendation: 'Any configured embedding model should work.',
+        }}
+        initialCostTracking={{
+          breakdown: {
+            daily: {
+              inputTokens: 250000,
+              apiCalls: 4,
+              estimatedUsd: 0.025,
+              providers: {
+                openai: { provider: 'openai', inputTokens: 250000, apiCalls: 4, estimatedUsd: 0.025 },
+              },
+            },
+          },
+        }}
         initialModels={{
           'bge-m3': { collection: 'oracle_bge_m3', model: 'BAAI/bge-m3', adapter: 'lancedb', count: 100 },
           qwen3: { collection: 'oracle_qwen3', model: 'Qwen3', adapter: 'lancedb', count: 80 },
@@ -27,13 +46,47 @@ describe('VectorIndexPanel', () => {
 
     expect(html).toContain('Index Manager');
     expect(html).toContain('Index jobs and collections');
+    expect(html).toContain('Vault list');
+    expect(html).toContain('Vector Models');
+    expect(html).toContain('75 docs need backfill');
+    expect(html).toContain('Preflight cost before Index Now');
+    expect(html).toContain('100 docs × ~500 tokens/doc ≈ 50K tokens');
+    expect(html).toContain('$0.0010');
+    expect(html).toContain('Fallback chain ollama');
+    expect(html).toContain('Live cost tracking');
+    expect(html).toContain('250,000 tokens');
+    expect(html).toContain('4 API calls');
+    expect(html).toContain('$0.0250');
+    expect(html).toContain('openai: 250,000 tokens');
+    expect(html).toContain('Index Now');
+    expect(html).toContain('Backfill Vectors');
+    expect(html).toContain('Add Vault');
     expect(html).toContain('bge-m3');
     expect(html).toContain('oracle_bge_m3');
+    expect(html).toContain('indexed');
+    expect(html).toContain('synced');
     expect(html).toContain('qwen3');
     expect(html).toContain('Reindexing');
     expect(html).toContain('25/100 docs');
     expect(html).toContain('12.5 docs/sec');
     expect(html).toContain('ETA 1m 35s');
+  });
+
+
+  test('renders a completion notification after indexing finishes', () => {
+    const html = htmlFor(
+      <VectorIndexPanel
+        initialStatus={{ ...status, status: 'completed', current: 100, total: 100, completedAt: 1781560100000 }}
+        initialModels={{ 'bge-m3': { collection: 'oracle_bge_m3', model: 'BAAI/bge-m3', adapter: 'lancedb', count: 100 } }}
+        initialCostEstimate={null}
+        initialCostTracking={null}
+      />,
+    );
+
+    expect(html).toContain('Completed bge-m3 reindex.');
+    expect(html).toContain('Index job complete');
+    expect(html).toContain('bge-m3 indexed 100/100 docs. Dashboard vectors are ready.');
+    expect(html).toContain('role="status"');
   });
 
   test('formats ETA values for compact status labels', () => {

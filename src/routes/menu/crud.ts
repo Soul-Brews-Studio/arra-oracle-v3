@@ -1,20 +1,18 @@
 import { Elysia, t } from 'elysia';
 import { eq } from 'drizzle-orm';
 import { db, menuItems } from '../../db/index.ts';
-import { softDeleteMenuItemById } from '../../storage/soft-delete.ts';
+import { softDeleteWhere } from '../../storage/soft-delete.ts';
 import { ScopeSchema } from './model.ts';
 import { AccessSchema, GroupSchema, toResponse, type MenuRow } from './admin-model.ts';
-
-function idParam(value: string): number | null {
-  const id = Number(value);
-  return Number.isFinite(id) ? id : null;
-}
+import { menuOwnedWhere, menuTenantIdForWrite } from '../../menu/tenant.ts';
+import { parseMenuIdParam } from './ids.ts';
 
 function insertMenuItem(body: MenuCreateBody) {
   const now = new Date();
   return db
     .insert(menuItems)
     .values({
+      tenantId: menuTenantIdForWrite(),
       path: body.path,
       label: body.label,
       groupKey: body.groupKey ?? 'main',
@@ -83,12 +81,12 @@ export function createMenuCrudRoutes() {
       }
     }, { body: CreateBody, detail: { tags: ['menu'], summary: 'Create a menu item' } })
     .put('/menu/:id', ({ params, body, set }) => {
-      const id = idParam(params.id);
+      const id = parseMenuIdParam(params.id);
       if (id == null) {
         set.status = 400;
         return { error: 'invalid id' };
       }
-      const updated = db.update(menuItems).set(updatePatch(body)).where(eq(menuItems.id, id)).returning().get();
+      const updated = db.update(menuItems).set(updatePatch(body)).where(menuOwnedWhere(eq(menuItems.id, id))).returning().get();
       if (!updated) {
         set.status = 404;
         return { error: 'not found' };
@@ -96,12 +94,16 @@ export function createMenuCrudRoutes() {
       return toResponse(updated);
     }, { params: t.Object({ id: t.String() }), body: UpdateBody, detail: { tags: ['menu'], summary: 'Update a menu item' } })
     .delete('/menu/:id', ({ params, set }) => {
-      const id = idParam(params.id);
+      const id = parseMenuIdParam(params.id);
       if (id == null) {
         set.status = 400;
         return { error: 'invalid id' };
       }
-      const updated = softDeleteMenuItemById(db, id).rows[0];
+      const deletedAt = new Date();
+      const updated = softDeleteWhere(db, menuItems, menuOwnedWhere(eq(menuItems.id, id))!, {
+        deletedAt,
+        set: { enabled: false, touchedAt: deletedAt },
+      }).rows[0];
       if (!updated) {
         set.status = 404;
         return { error: 'not found' };

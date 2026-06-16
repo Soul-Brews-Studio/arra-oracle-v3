@@ -1,9 +1,9 @@
 /**
  * Built-in hook: rate-limit
  *
- * Per-key token bucket. The key is read from a request header (default
- * x-forwarded-for) — fall back to "anonymous" when the header is missing
- * so the bucket still meters traffic, just bucketed globally.
+ * Per-tenant, per-key token bucket. The key is read from a request header
+ * (default x-forwarded-for) — fall back to "anonymous" when the header is
+ * missing so the bucket still meters traffic, just bucketed by tenant.
  *
  * Options (via ctx.meta.hook_options['rate-limit']):
  *   header?: string             // header to read for the key (default x-forwarded-for)
@@ -18,6 +18,7 @@
  * variant can come later.
  */
 import { registerHook, type GatewayContext } from '../hooks.ts';
+import { currentTenantId, tenantIdFor } from '../../middleware/tenant.ts';
 
 interface RateLimitOptions {
   header?: string;
@@ -53,6 +54,11 @@ function extractKey(request: Request, header: string): string {
   return raw.split(',')[0].trim() || 'anonymous';
 }
 
+function tenantBucketKey(request: Request, clientKey: string): string {
+  const tenantId = currentTenantId() ?? tenantIdFor(request) ?? 'default';
+  return `tenant:${tenantId}|client:${clientKey}`;
+}
+
 function refill(bucket: Bucket, ratePerMs: number, max: number, now: number): void {
   const elapsed = now - bucket.lastRefill;
   if (elapsed <= 0) return;
@@ -77,7 +83,7 @@ registerHook({
 
     const ratePerMs = tokensPerWindow / windowMs;
     const now = Date.now();
-    const key = extractKey(ctx.request, headerName);
+    const key = tenantBucketKey(ctx.request, extractKey(ctx.request, headerName));
 
     let bucket = buckets.get(key);
     if (!bucket) {

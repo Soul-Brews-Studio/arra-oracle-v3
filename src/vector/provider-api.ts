@@ -1,4 +1,7 @@
-import { createEmbeddingProvider as defaultCreateProvider } from './embeddings.ts';
+import {
+  createEmbeddingProvider as defaultCreateProvider,
+  type EmbeddingProviderOptions,
+} from './embeddings.ts';
 import {
   clearProviderDetectionCache,
   getDetectedEmbeddingProviders,
@@ -13,8 +16,13 @@ export type ProviderStatus = 'available' | 'unavailable';
 export type CreateEmbeddingProvider = (
   type?: EmbeddingProviderType,
   model?: string,
-  options?: { url?: string; dimensions?: number },
+  options?: ProviderCreateOptions,
 ) => EmbeddingProvider;
+
+export type ProviderCreateOptions = Pick<
+  EmbeddingProviderOptions,
+  'url' | 'dimensions' | 'fallback' | 'fallbackChain'
+>;
 
 export interface ProviderApiOptions extends ProviderDetectionOptions {
   createProvider?: CreateEmbeddingProvider;
@@ -35,11 +43,9 @@ export interface ProviderListResult {
   providers: ProviderInfo[];
 }
 
-export interface ProviderTestRequest {
+export interface ProviderTestRequest extends ProviderCreateOptions {
   provider: EmbeddingProviderType;
   model?: string;
-  url?: string;
-  dimensions?: number;
   text?: string;
 }
 
@@ -71,6 +77,8 @@ export function createEmbeddingProviderApi(defaults: ProviderApiOptions = {}): E
       return createProvider(request.provider, request.model, {
         url: request.url,
         dimensions: request.dimensions,
+        fallback: request.fallback,
+        fallbackChain: request.fallbackChain,
       });
     },
 

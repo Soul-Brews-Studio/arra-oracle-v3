@@ -5,6 +5,12 @@ import {
   handleRequestDedup,
   requestDedupKey,
 } from '../../../src/middleware/dedup.ts';
+import {
+  LEGACY_TENANT_HEADER,
+  ORG_HEADER,
+  TENANT_API_KEY_HEADER,
+  TENANT_HEADER,
+} from '../../../src/middleware/tenant.ts';
 
 type Gate = { promise: Promise<void>; release: () => void };
 
@@ -114,6 +120,25 @@ describe('request deduplication middleware', () => {
     await Promise.all([plain, gzip, authorized]);
 
     expect(hits.count).toBe(3);
+  });
+
+  test('keeps tenant selector variants isolated', async () => {
+    const block = gate();
+    const hits = { count: 0 };
+    const app = slowApp(block, hits);
+    const fetchDedup = createRequestDedupFetch((req) => app.handle(req));
+
+    const tenantA = fetchDedup(request('/slow?item=tenant', { headers: { [TENANT_HEADER]: 'tenant-a' } }));
+    const tenantB = fetchDedup(request('/slow?item=tenant', { headers: { [TENANT_HEADER]: 'tenant-b' } }));
+    const legacyTenant = fetchDedup(request('/slow?item=tenant', { headers: { [LEGACY_TENANT_HEADER]: 'tenant-a' } }));
+    const orgTenant = fetchDedup(request('/slow?item=tenant', { headers: { [ORG_HEADER]: 'tenant-a' } }));
+    const apiKeyTenant = fetchDedup(request('/slow?item=tenant', { headers: { [TENANT_API_KEY_HEADER]: 'tenant-key' } }));
+    await waitFor(() => hits.count === 5);
+
+    block.release();
+    await Promise.all([tenantA, tenantB, legacyTenant, orgTenant, apiKeyTenant]);
+
+    expect(hits.count).toBe(5);
   });
 
   test('coalesces HEAD responses without materializing a body', async () => {

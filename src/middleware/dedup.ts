@@ -1,3 +1,11 @@
+import {
+  LEGACY_TENANT_HEADER,
+  ORG_HEADER,
+  TENANT_API_KEY_HEADER,
+  TENANT_HEADER,
+  TENANT_TOKEN_HEADER,
+} from './tenant.ts';
+
 type FetchHandler = (request: Request) => Response | Promise<Response>;
 type DedupKey = string | null;
 type DedupKeyFn = (request: Request) => DedupKey;
@@ -15,11 +23,23 @@ export type RequestDedupOptions = {
 };
 
 const COALESCED_METHODS = new Set(['GET', 'HEAD']);
-const VARIANT_HEADERS = ['accept', 'accept-encoding', 'accept-language', 'authorization', 'cookie', 'range'];
+const VARIANT_HEADERS = [
+  'accept',
+  'accept-encoding',
+  'accept-language',
+  'authorization',
+  'cookie',
+  'range',
+  TENANT_HEADER,
+  LEGACY_TENANT_HEADER,
+  ORG_HEADER,
+  TENANT_TOKEN_HEADER,
+  TENANT_API_KEY_HEADER,
+];
 const defaultStore = new Map<string, Promise<ResponseSnapshot>>();
 
 function variantScope(request: Request): string {
-  return VARIANT_HEADERS.map((name) => `${name}:${request.headers.get(name) ?? ''}`).join('\n');
+  return VARIANT_HEADERS.map((name) => `${name.toLowerCase()}:${request.headers.get(name) ?? ''}`).join('\n');
 }
 
 export function requestDedupKey(request: Request): DedupKey {

@@ -2,7 +2,7 @@ import { Elysia } from 'elysia';
 import type { SearchResult } from '../../server/types.ts';
 import { ensureVectorStoreConnected, getEmbeddingModels, type EmbeddingModelConfig } from '../../vector/factory.ts';
 import type { VectorQueryResult, VectorStoreAdapter } from '../../vector/types.ts';
-import { MemoryFanoutQuery } from './model.ts';
+import { MemoryFanoutQuery, parseMemoryLimit } from './model.ts';
 
 type QueryStore = Pick<VectorStoreAdapter, 'query'>;
 
@@ -20,10 +20,6 @@ const RRF_K = 60;
 
 function sanitize(q: string): string {
   return q.replace(/<[^>]*>/g, '').replace(/[\x00-\x1f]/g, '').trim();
-}
-
-function parseLimit(raw: string | undefined): number {
-  return Math.min(50, Math.max(1, parseInt(raw ?? '10')));
 }
 
 function estimateTokens(text: string): number {
@@ -106,7 +102,7 @@ export function createMemoryFanoutEndpoint(deps: MemoryFanoutDeps = {}) {
 
     const models = listModels();
     const collections = Object.keys(models);
-    const limit = parseLimit(query.limit);
+    const limit = parseMemoryLimit(query.limit);
     const errors: Record<string, string> = {};
     const byCollection: Record<string, SearchResult[]> = {};
 

@@ -55,7 +55,11 @@ test('EmbeddingFallbackChain falls back in order with exponential backoff', asyn
   expect(openai.embed).toHaveBeenCalledTimes(1);
   expect(gemini.embed).toHaveBeenCalledTimes(1);
   expect(sleeps).toEqual([10, 30]);
-  expect(logs).toEqual(["[EmbeddingFallbackChain] provider 'gemini' succeeded"]);
+  expect(logs).toEqual([
+    "[EmbeddingFallbackChain] provider 'ollama' failed (ollama down); falling back to 'openai'",
+    "[EmbeddingFallbackChain] provider 'openai' failed (openai quota); falling back to 'gemini'",
+    "[EmbeddingFallbackChain] provider 'gemini' succeeded",
+  ]);
   expect(chain.getStats()).toMatchObject({
     attempts: 1,
     failures: 2,

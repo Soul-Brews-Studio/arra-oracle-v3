@@ -3,6 +3,8 @@
  * Issue #17: feat: Trace Log — Make discoveries traceable and diggable
  */
 
+import type { StormforgeFinding } from '../oracles/model.ts';
+
 // Dig Point Types
 export interface FoundFile {
   path: string;
@@ -68,6 +70,8 @@ export interface DistillTraceInput {
   theme?: string;
   concepts?: string[];
   source?: string;
+  finding?: StormforgeFinding;
+  metadata?: Record<string, unknown>;
 }
 
 // Output Types

@@ -4,8 +4,9 @@
  * Knowledge base statistics and health status.
  */
 
-import { sql, and, ne, isNotNull } from 'drizzle-orm';
+import { sql, and, eq, ne, isNotNull } from 'drizzle-orm';
 import { oracleDocuments } from '../db/schema.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 import type { ToolContext, ToolResponse, OracleStatsInput } from './types.ts';
 
 export const statsToolDef = {
@@ -19,11 +20,12 @@ export const statsToolDef = {
 };
 
 export async function handleStats(ctx: ToolContext, _input: OracleStatsInput): Promise<ToolResponse> {
-  const typeCounts = ctx.db.select({
-    type: oracleDocuments.type,
-    count: sql<number>`count(*)`,
-  })
+  const tenantId = currentTenantId();
+  const tenantWhere = tenantId ? eq(oracleDocuments.tenantId, tenantId) : undefined;
+  const typeCountQuery = ctx.db.select({ type: oracleDocuments.type, count: sql<number>`count(*)` })
     .from(oracleDocuments)
+    .$dynamic();
+  const typeCounts = (tenantWhere ? typeCountQuery.where(tenantWhere) : typeCountQuery)
     .groupBy(oracleDocuments.type)
     .all();
 
@@ -34,17 +36,28 @@ export async function handleStats(ctx: ToolContext, _input: OracleStatsInput): P
     totalDocs += row.count;
   }
 
-  const ftsCount = ctx.sqlite.prepare('SELECT COUNT(*) as count FROM oracle_fts').get() as { count: number };
+  const ftsCount = tenantId
+    ? ctx.sqlite.prepare(`
+        SELECT COUNT(*) as count
+        FROM oracle_fts f
+        JOIN oracle_documents d ON f.id = d.id
+        WHERE d.tenant_id = ?
+      `).get(tenantId) as { count: number }
+    : ctx.sqlite.prepare('SELECT COUNT(*) as count FROM oracle_fts').get() as { count: number };
 
-  const lastIndexed = ctx.db.select({
+  const lastIndexedQuery = ctx.db.select({
     lastIndexed: sql<number | null>`MAX(indexed_at)`,
-  }).from(oracleDocuments).get();
+  }).from(oracleDocuments).$dynamic();
+  const lastIndexed = (tenantWhere ? lastIndexedQuery.where(tenantWhere) : lastIndexedQuery).get();
 
+  const conceptWhere = tenantWhere
+    ? and(isNotNull(oracleDocuments.concepts), ne(oracleDocuments.concepts, '[]'), tenantWhere)
+    : and(isNotNull(oracleDocuments.concepts), ne(oracleDocuments.concepts, '[]'));
   const conceptsResult = ctx.db.select({
     concepts: oracleDocuments.concepts,
   })
     .from(oracleDocuments)
-    .where(and(isNotNull(oracleDocuments.concepts), ne(oracleDocuments.concepts, '[]')))
+    .where(conceptWhere)
     .all();
 
   const uniqueConcepts = new Set<string>();
@@ -73,6 +86,7 @@ export async function handleStats(ctx: ToolContext, _input: OracleStatsInput): P
         vector_status: ctx.vectorStatus,
         fts_status: ftsCount.count > 0 ? 'healthy' : 'empty',
         version: ctx.version,
+        ...(tenantId ? { tenant: { id: tenantId, scope: 'tenant_id' } } : {}),
       }, null, 2)
     }]
   };

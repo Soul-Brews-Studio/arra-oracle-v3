@@ -15,17 +15,13 @@ const exporterModule = await import('../../../tools/export-app/exporter.ts');
 const { createDatabase, resetDefaultDatabaseForTests } = dbModule;
 const { exportOracleData, EXPORT_MANIFEST_SCHEMA } = exporterModule;
 
-function restoreDbPath(): string {
-  return savedDbPath
-    ?? join(savedDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
-}
 
 afterAll(() => {
   if (savedDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
   else process.env.ORACLE_DATA_DIR = savedDataDir;
   if (savedDbPath === undefined) delete process.env.ORACLE_DB_PATH;
   else process.env.ORACLE_DB_PATH = savedDbPath;
-  resetDefaultDatabaseForTests(restoreDbPath());
+  resetDefaultDatabaseForTests(':memory:');
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -49,4 +45,13 @@ test('writes a manifest JSON schema with required export fields', async () => {
   expect(schema).toEqual(EXPORT_MANIFEST_SCHEMA);
   expect(schema.required).toEqual(Object.keys(manifest));
   expect(schema.properties.formats.items.enum).toEqual(['json', 'csv', 'markdown']);
+  expect(manifest.collections.oracle_documents).toEqual({ rowCount: 0 });
+  expect(schema.properties.collections.additionalProperties.required).toEqual(['rowCount']);
+  expect(manifest.files).toContainEqual(expect.objectContaining({
+    path: 'manifest.schema.json',
+    bytes: expect.any(Number),
+    sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+  }));
+  expect(manifest.files.some((file: { path: string }) => file.path === 'manifest.json')).toBe(false);
+  expect(schema.properties.files.items.properties.sha256.pattern).toBe('^[a-f0-9]{64}$');
 });

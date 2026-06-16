@@ -7,6 +7,15 @@ export const SaveMemoryBody = t.Object({
   source: t.Optional(t.String()),
 });
 
+export const MemoryCloseoutBody = t.Object({
+  summary: t.String(),
+  title: t.Optional(t.String()),
+  next: t.Optional(t.String()),
+  blockers: t.Optional(t.Array(t.String())),
+  artifacts: t.Optional(t.Array(t.String())),
+  tags: t.Optional(t.Array(t.String())),
+});
+
 export const RecallMemoryQuery = t.Object({
   q: t.Optional(t.String()),
   limit: t.Optional(t.String()),
@@ -26,3 +35,10 @@ export const MemoryFanoutQuery = t.Object({
   q: t.Optional(t.String()),
   limit: t.Optional(t.String()),
 });
+
+
+export function parseMemoryLimit(raw: unknown, fallback = 10, max = 50): number {
+  const parsed = typeof raw === 'number' ? raw : Number.parseInt(String(raw ?? fallback), 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(1, Math.trunc(parsed)));
+}

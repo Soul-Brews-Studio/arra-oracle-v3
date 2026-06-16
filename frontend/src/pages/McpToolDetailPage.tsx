@@ -3,15 +3,34 @@ import { Link, useParams } from 'react-router-dom';
 import { fetchMcpTools } from '../api';
 import { ErrorMessage, LoadingPanel } from '../components/AsyncState';
 import { groupLabel, schemaText, toolMode } from '../components/toolView';
+import { mcpToolsPath, pluginInventoryPath } from '../routePaths';
 import type { McpTool } from '../types';
 
 type PageState = 'loading' | 'ready' | 'error';
+type ToolFetcher = () => Promise<{ tools: McpTool[] }>;
 
-function DetailCard({ label, value }: { label: string; value?: string }) {
+export function toolDetailSource(tool: McpTool): string {
+  if (tool.source === 'plugin' || tool.plugin) return tool.plugin ? `plugin:${tool.plugin}` : 'plugin';
+  return tool.source ?? 'core';
+}
+
+export function toolPluginInventoryPath(tool: McpTool): string | null {
+  return tool.plugin ? pluginInventoryPath({ q: tool.plugin, surface: 'mcp' }) : null;
+}
+
+export function toolBrowserReturnPath(tool?: McpTool | null): string {
+  if (!tool) return '/mcp';
+  if (tool.source === 'plugin' || tool.plugin) return mcpToolsPath({ q: tool.plugin ?? tool.name, source: 'plugin' });
+  return mcpToolsPath({ q: tool.name, source: 'core' });
+}
+
+function DetailCard({ label, value, href }: { label: string; value?: string; href?: string | null }) {
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
       <dt className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</dt>
-      <dd className="mt-1 break-all font-mono text-sm text-slate-200">{value || '—'}</dd>
+      <dd className="mt-1 break-all font-mono text-sm text-slate-200">
+        {href && value ? <a className="focus-ring text-teal-100 hover:text-teal-200" href={href}>{value}</a> : value || '—'}
+      </dd>
     </div>
   );
 }
@@ -25,8 +44,8 @@ function ToolSummaryCard({ tool }: { tool: McpTool }) {
       <dl className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
         <DetailCard label="Group" value={groupLabel(tool)} />
         <DetailCard label="Mode" value={toolMode(tool)} />
-        <DetailCard label="Source" value={tool.source ?? 'core'} />
-        <DetailCard label="Plugin" value={tool.plugin} />
+        <DetailCard label="Source" value={toolDetailSource(tool)} />
+        <DetailCard label="Plugin" value={tool.plugin} href={toolPluginInventoryPath(tool)} />
       </dl>
     </section>
   );
@@ -76,17 +95,24 @@ function routeName(value?: string): string {
   }
 }
 
-export function McpToolDetailPage() {
+export function McpToolDetailPage({
+  initialTools,
+  fetcher = fetchMcpTools,
+}: {
+  initialTools?: McpTool[];
+  fetcher?: ToolFetcher;
+} = {}) {
   const toolName = routeName(useParams().name);
-  const [tools, setTools] = useState<McpTool[]>([]);
-  const [state, setState] = useState<PageState>('loading');
+  const [tools, setTools] = useState<McpTool[]>(initialTools ?? []);
+  const [state, setState] = useState<PageState>(initialTools ? 'ready' : 'loading');
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (initialTools) return;
     let active = true;
     setState('loading');
     setError('');
-    fetchMcpTools()
+    fetcher()
       .then((response) => {
         if (!active) return;
         setTools(response.tools);
@@ -100,11 +126,11 @@ export function McpToolDetailPage() {
     return () => {
       active = false;
     };
-  }, [toolName]);
+  }, [fetcher, initialTools, toolName]);
 
   const tool = useMemo(() => tools.find((entry) => entry.name === toolName), [toolName, tools]);
   const refresh = () => {
-    fetchMcpTools()
+    fetcher()
       .then((response) => setTools(response.tools))
       .catch(() => undefined);
   };
@@ -118,7 +144,7 @@ export function McpToolDetailPage() {
             <h1 id="tool-detail-title" className="mt-2 text-3xl font-semibold text-white">MCP tool detail</h1>
             <p className="mt-2 text-sm text-slate-400">Inspect MCP tool metadata and input schema.</p>
           </div>
-          <Link className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" to="/mcp">
+          <Link className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" to={toolBrowserReturnPath(tool)}>
             Back to MCP tools
           </Link>
         </div>

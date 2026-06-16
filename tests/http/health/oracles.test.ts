@@ -105,3 +105,29 @@ test('GET /api/oracles/thor exposes the dev-research Stormforge profile', async 
   expect(capabilities).toContain('stormforge-development');
   expect(capabilities).toContain('system-thinking');
 });
+
+
+test('GET /api/oracles/profiles lists Thor from the registry', async () => {
+  const app = createHealthRoutes({
+    vectorHealth: async () => ({ status: 'ok', engines: [], checked_at: '2026-06-16T00:00:00.000Z' }),
+  });
+  const res = await app.handle(new Request('http://local/api/oracles/profiles'));
+  const body = await res.json() as Record<string, any>;
+
+  expect(res.status).toBe(200);
+  expect(body.total).toBeGreaterThanOrEqual(1);
+  expect(body.profiles.map((profile: { slug: string }) => profile.slug)).toContain('thor');
+  expect(body.profiles[0].defaultConcepts).toContain('thor-oracle');
+});
+
+test('GET /api/oracles/profiles/:slug reads Thor by slug or id', async () => {
+  const app = createHealthRoutes({
+    vectorHealth: async () => ({ status: 'ok', engines: [], checked_at: '2026-06-16T00:00:00.000Z' }),
+  });
+  const res = await app.handle(new Request('http://local/api/oracles/profiles/thor-oracle'));
+  const body = await res.json() as Record<string, any>;
+
+  expect(res.status).toBe(200);
+  expect(body.slug).toBe('thor');
+  expect(body.defaultConcepts).toEqual(expect.arrayContaining(['stormforge', 'dev-research']));
+});

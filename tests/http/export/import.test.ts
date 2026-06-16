@@ -82,6 +82,69 @@ test('POST /api/v1/export/import accepts JSON export arrays with vectors', async
   ]]);
 });
 
+test('POST /api/v1/export/import accepts a single JSON document export', async () => {
+  const { store, batches } = createStore();
+  const { fetcher } = createFetch(store);
+  const exportedDoc = {
+    version: 1,
+    id: 'doc-json-1',
+    source: 'psi/restore/json.md',
+    content: 'single JSON document body',
+    concepts: ['json', 'restore'],
+    metadata: { type: 'learning', source_file: 'psi/restore/json.md' },
+  };
+
+  const res = await fetcher(new Request('http://local/api/v1/export/import', {
+    method: 'POST',
+    body: multipart(new Blob([JSON.stringify(exportedDoc)], { type: 'application/json' }), 'doc-json-1.json'),
+  }));
+
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ success: true, collection: 'bge-m3', format: 'json', imported: 1, skipped: 0 });
+  expect(batches[0]?.[0]).toMatchObject({
+    id: 'doc-json-1',
+    document: 'single JSON document body',
+    metadata: { type: 'learning', source_file: 'psi/restore/json.md', source: 'psi/restore/json.md' },
+  });
+});
+
+test('POST /api/v1/export/import accepts Markdown document uploads', async () => {
+  const { store, batches } = createStore();
+  const { fetcher } = createFetch(store);
+  const markdown = [
+    '---',
+    'id: "doc-md-1"',
+    'source_file: "psi/restore/doc-md-1.md"',
+    'type: "learning"',
+    'concepts:',
+    '  - restore',
+    '  - markdown',
+    '---',
+    '',
+    '# Restored Markdown',
+    '',
+    'Markdown restore body.',
+  ].join('\n');
+
+  const res = await fetcher(new Request('http://local/api/v1/export/import', {
+    method: 'POST',
+    body: multipart(new Blob([markdown], { type: 'text/markdown' }), 'doc-md-1.md'),
+  }));
+
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ success: true, collection: 'bge-m3', format: 'markdown', imported: 1, skipped: 0 });
+  expect(batches[0]?.[0]).toMatchObject({
+    id: 'doc-md-1',
+    document: '# Restored Markdown\n\nMarkdown restore body.',
+    metadata: {
+      import_format: 'markdown',
+      source_file: 'psi/restore/doc-md-1.md',
+      type: 'learning',
+      concepts: '["restore","markdown"]',
+    },
+  });
+});
+
 test('POST /api/v1/export/import rejects unknown vector collections', async () => {
   const { store, batches } = createStore();
   const { fetcher } = createFetch(store, ['bge-m3']);
@@ -96,4 +159,27 @@ test('POST /api/v1/export/import rejects unknown vector collections', async () =
   expect(await res.json()).toEqual({ error: 'Unknown vector collection: missing' });
   expect(batches).toEqual([]);
   expect(store.addDocuments).not.toHaveBeenCalled();
+});
+
+test('POST /api/v1/export/import normalizes invalid chunk sizes', async () => {
+  const { store, batches } = createStore();
+  const app = new Elysia({ prefix: '/api' }).use(createExportImportRoutes({
+    getModels: () => ({ 'bge-m3': {} }),
+    getStore: () => store,
+    chunkSize: 0,
+  }));
+  const fetcher = createApiVersionedFetch((request) => app.handle(request));
+  const rows = [
+    { id: 'chunk-1', document: 'alpha' },
+    { id: 'chunk-2', document: 'bravo' },
+  ];
+
+  const res = await fetcher(new Request('http://local/api/v1/export/import', {
+    method: 'POST',
+    body: multipart(new Blob([JSON.stringify(rows)], { type: 'application/json' }), 'export.json'),
+  }));
+
+  expect(res.status).toBe(200);
+  expect(await res.json()).toMatchObject({ success: true, imported: 2 });
+  expect(batches.map((batch) => batch.map((doc) => doc.id))).toEqual([['chunk-1', 'chunk-2']]);
 });

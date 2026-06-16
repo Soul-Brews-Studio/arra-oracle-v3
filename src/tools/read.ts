@@ -8,6 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { ToolContext, ToolResponse, OracleReadInput } from './types.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 
 let getVaultPsiRootFn: typeof import('../vault/handler.ts').getVaultPsiRoot | null = null;
 async function loadGetVaultPsiRoot(): Promise<typeof import('../vault/handler.ts').getVaultPsiRoot> {
@@ -51,6 +52,21 @@ function detectGhqRoot(repoRoot: string): string {
 }
 
 /** Extract ghq-style project prefix from a source_file path */
+
+function projectMatchesTenant(project: string, tenantId: string): boolean {
+  const normalizedProject = project.trim().toLowerCase();
+  const tenant = tenantId.trim().toLowerCase();
+  if (!tenant || normalizedProject === tenant) return true;
+  return normalizedProject.split(/[\/]+/).filter(Boolean).includes(tenant);
+}
+
+function notFound(idOrFile: string): ToolResponse {
+  return {
+    content: [{ type: 'text', text: JSON.stringify({ error: `Document not found: ${idOrFile}` }) }],
+    isError: true,
+  };
+}
+
 function extractProject(filePath: string): { project: string; remainder: string } | null {
   const match = filePath.match(/^(github\.com\/[^/]+\/[^/]+)\/(.*)/);
   if (match) return { project: match[1], remainder: match[2] };
@@ -115,21 +131,24 @@ export async function handleRead(ctx: ToolContext, input: OracleReadInput): Prom
 
   let sourceFile = file;
   let project: string | null = null;
+  const tenantId = currentTenantId();
 
   // ID lookup: resolve source_file from DB
   if (id) {
-    const row = ctx.sqlite.prepare(
-      'SELECT source_file, project FROM oracle_documents WHERE id = ?'
-    ).get(id) as { source_file: string; project: string | null } | null;
+    const row = tenantId
+      ? ctx.sqlite.prepare('SELECT source_file, project FROM oracle_documents WHERE id = ? AND tenant_id = ?')
+        .get(id, tenantId) as { source_file: string; project: string | null } | null
+      : ctx.sqlite.prepare('SELECT source_file, project FROM oracle_documents WHERE id = ?')
+        .get(id) as { source_file: string; project: string | null } | null;
 
-    if (!row) {
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ error: `Document not found: ${id}` }) }],
-        isError: true,
-      };
-    }
+    if (!row) return notFound(id);
     sourceFile = sourceFile || row.source_file;
     project = row.project;
+  }
+
+  const sourceProject = project ?? (sourceFile ? extractProject(sourceFile)?.project ?? null : null);
+  if (tenantId && sourceProject && !projectMatchesTenant(sourceProject, tenantId)) {
+    return notFound(id || sourceFile || 'file');
   }
 
   const ghqRoot = detectGhqRoot(ctx.repoRoot);

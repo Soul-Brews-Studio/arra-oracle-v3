@@ -11,6 +11,10 @@ export type Surface =
   | 'exportFormats';
 
 function add(surfaceSet: Set<Surface>, surface: unknown): void {
+  if (surface === 'mcpTools') {
+    surfaceSet.add('mcp');
+    return;
+  }
   if (surface === 'wasm' || surface === 'menu' || surface === 'server' || surface === 'mcp' || surface === 'apiRoutes' || surface === 'proxy' || surface === 'cliSubcommands' || surface === 'exportFormats') {
     surfaceSet.add(surface);
   }

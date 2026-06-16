@@ -4,6 +4,7 @@ import { getFrontendMenuItems } from '../../menu/index.ts';
 import { getPluginMenuItems } from '../plugins/model.ts';
 import type { MenuExtras } from './menu.ts';
 import type { MenuItem, MenuMeta, Scope } from './model.ts';
+import { menuVisibleWhere } from '../../menu/tenant.ts';
 
 export const API_TO_STUDIO: ReadonlyArray<readonly [string, string]> = [
   ['/api/supersede', '/superseded'],
@@ -83,7 +84,7 @@ export function readApiMenuItemsFromDb(host?: string, scope?: Scope): MenuItem[]
   const rows = db
     .select()
     .from(menuItems)
-    .where(isNull(menuItems.deletedAt))
+    .where(menuVisibleWhere(isNull(menuItems.deletedAt)))
     .orderBy(asc(menuItems.position))
     .all();
 

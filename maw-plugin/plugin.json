@@ -1,6 +1,7 @@
 {
   "name": "arra",
   "version": "1.0.0",
+  "target": "js",
   "entry": "./index.ts",
   "sdk": "^1.0.0",
   "description": "Unified maw-js plugin for ARRA Oracle CLI, API, and menu surfaces.",
@@ -9,7 +10,7 @@
     "aliases": [
       "or"
     ],
-    "help": "maw arra <backup|canvas-plugins|canvas-serve|changelog|completions|config|doctor|export|export-obsidian|huginn|import|import-obsidian|migrate|peers|plugin|release|seed|session|use|vault|frontend|ui|open|serve|server|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|vector-config|vector_index|vector_status|vector_stop|vector_models|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|supersede_list|supersede_chain|thread|thread_read|thread_update|threads|schedule|schedule_add|vault_sync|mcp_tools|verify>"
+    "help": "maw arra <commands|backup|canvas-plugins|canvas-serve|changelog|completions|config|doctor|export|export-obsidian|huginn|import|import-obsidian|migrate|peers|plugin|release|seed|session|use|vault|frontend|ui|open|serve|server|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|vector-config|vector_index|vector_status|vector_stop|vector_models|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|supersede_list|supersede_chain|thread|thread_read|thread_update|threads|schedule|schedule_add|vault_sync|mcp_tools|mcp-call|verify>"
   },
   "capabilities": [
     "net:http",
@@ -18,7 +19,7 @@
   ],
   "weight": 50,
   "schemaVersion": 1,
-  "help": "maw arra <backup|canvas-plugins|canvas-serve|changelog|completions|config|doctor|export|export-obsidian|huginn|import|import-obsidian|migrate|peers|plugin|release|seed|session|use|vault|frontend|ui|open|serve|server|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|vector-config|vector_index|vector_status|vector_stop|vector_models|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|supersede_list|supersede_chain|thread|thread_read|thread_update|threads|schedule|schedule_add|vault_sync|mcp_tools|verify>",
+  "help": "maw arra <commands|backup|canvas-plugins|canvas-serve|changelog|completions|config|doctor|export|export-obsidian|huginn|import|import-obsidian|migrate|peers|plugin|release|seed|session|use|vault|frontend|ui|open|serve|server|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|vector-config|vector_index|vector_status|vector_stop|vector_models|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|supersede_list|supersede_chain|thread|thread_read|thread_update|threads|schedule|schedule_add|vault_sync|mcp_tools|mcp-call|verify>",
   "api": {
     "path": "/api/arra",
     "methods": [
@@ -29,7 +30,8 @@
   "config": {
     "dbBackend": "http",
     "embedderBackend": "none",
-    "apiBase": "http://localhost:47778"
+    "apiBase": "http://localhost:47778",
+    "mcpServerUrl": ""
   },
   "configSchema": {
     "type": "object",
@@ -51,6 +53,9 @@
       },
       "remoteEmbedderUrl": {
         "type": "string"
+      },
+      "mcpServerUrl": {
+        "type": "string"
       }
     },
     "additionalProperties": true
@@ -69,6 +74,71 @@
       "group": "main",
       "order": 10,
       "icon": "search"
+    }
+  ],
+  "artifact": {
+    "path": "./index.ts",
+    "sha256": "615c401bd7c31aabc710d3fab246b0dfc0260db72727dbff07e20187b94a0703"
+  },
+  "mcpTools": [
+    {
+      "name": "oracle_arra_read",
+      "description": "Run read-only ARRA Oracle commands through the shared maw plugin command core.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "enum": [
+              "commands",
+              "search",
+              "stats",
+              "plugins",
+              "settings",
+              "feed",
+              "menu",
+              "vector",
+              "vector_status",
+              "vector_models",
+              "health",
+              "trace_list",
+              "trace_get",
+              "trace_chain",
+              "concepts",
+              "inbox",
+              "list",
+              "read",
+              "reflect",
+              "supersede_list",
+              "supersede_chain",
+              "threads",
+              "thread_read",
+              "schedule",
+              "mcp_tools"
+            ]
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "query": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "additionalProperties": true
+      },
+      "handler": "default",
+      "group": "oracle",
+      "readOnly": true,
+      "enabledByDefault": true
     }
   ]
 }

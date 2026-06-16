@@ -43,12 +43,16 @@ describe('unified plugin loader', () => {
       server: { command: 'bun', args: ['--version'], autostart: false },
       menu: [{ label: 'Surface Pack', path: '/surface-pack', group: 'tools', order: 42 }],
       cliSubcommands: [{ command: 'surface-pack', help: 'surface cli', handler: 'cli' }],
+      exportFormats: [{ name: 'surface-pack', handler: 'exporter' }],
     }, `
       export function api(ctx) {
         return { ok: true, body: { plugin: ctx.plugin, method: ctx.request.method, body: ctx.body } };
       }
       export function tool(ctx) {
         return { ok: true, body: { plugin: ctx.plugin, source: ctx.source, args: ctx.args } };
+      }
+      export function exporter() {
+        return { data: 'surface-pack' };
       }
     `);
 
@@ -62,6 +66,16 @@ describe('unified plugin loader', () => {
     expect(runtime.cliSubcommands.map((cmd) => cmd.command)).toEqual(['surface-pack']);
     expect(runtime.servers.map((server) => server.plugin)).toEqual(['surface-pack']);
     expect(runtime.routes).toHaveLength(3);
+    const registryEntry = runtime.pluginRegistry().find((plugin) => plugin.name === 'surface-pack');
+    expect(registryEntry).toMatchObject({
+      surfaces: ['mcpTools', 'apiRoutes', 'proxy', 'server', 'menu', 'cliSubcommands', 'exportFormats'],
+      mcpTools: [{ name: 'oracle_surface_pack', source: 'plugin', plugin: 'surface-pack' }],
+      apiRoutes: [{ path: '/api/surface-pack', methods: ['POST'] }],
+      proxy: [{ path: '/api/surface-proxy', targetEnv: 'SURFACE_PROXY_URL' }],
+      cliSubcommands: [{ command: 'surface-pack', help: 'surface cli' }],
+      exportFormats: [{ name: 'surface-pack', extension: 'surface-pack' }],
+    });
+    expect(registryEntry?.mcpTools[0]).not.toHaveProperty('handler');
 
     const app = new Elysia();
     for (const route of runtime.routes) app.use(route as any);

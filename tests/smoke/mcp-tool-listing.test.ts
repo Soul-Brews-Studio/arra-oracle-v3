@@ -5,7 +5,7 @@ import { createSmokeEnv, logSmoke, REPO_ROOT } from './_helpers.ts';
 async function listMcpTools(env: Record<string, string>): Promise<{ code: number; stdout: string; stderr: string }> {
   const script = `
     const { OracleMCPServer } = await import('./src/mcp/server.ts');
-    const groups = { search: true, knowledge: true, session: true, forum: true, trace: true, standalone: true };
+    const groups = { search: true, knowledge: true, session: true, forum: true, oracle: true, trace: true, standalone: true };
     const server = new OracleMCPServer({ toolGroups: groups });
     const raw = server.server._requestHandlers.get('tools/list');
     const result = await raw({ method: 'tools/list', params: {} });

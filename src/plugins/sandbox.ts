@@ -1,6 +1,7 @@
 /**
- * @deprecated Use error-containment.ts. This module is NOT a sandbox or
- * security boundary; it only preserves the legacy import path.
+ * @deprecated Use error-containment.ts.
+ * Legacy compatibility module for plugin error containment only; it does not
+ * create process isolation, VM boundaries, or any security boundary.
  */
 export {
   runPluginWithErrorContainment as runPluginSandbox,

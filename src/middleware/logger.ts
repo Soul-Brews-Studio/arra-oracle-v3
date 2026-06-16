@@ -31,16 +31,18 @@ export type RequestLogEntry = {
   sandbox: string;
 };
 
-export type RequestLogFormat = 'json' | 'nginx' | 'short';
+export const REQUEST_LOG_FORMATS = ['nginx', 'json', 'short'] as const;
+export type RequestLogFormat = (typeof REQUEST_LOG_FORMATS)[number];
 
 export type RequestLoggerOptions = {
   log?: (entry: RequestLogEntry) => void;
+  logFormat?: RequestLogFormat;
   now?: () => number;
 };
 
 const REDACTED = '[REDACTED]';
 const sensitiveHeaders = new Set(['authorization', 'proxy-authorization']);
-const logFormats = new Set<RequestLogFormat>(['json', 'nginx', 'short']);
+const logFormats = new Set<RequestLogFormat>(REQUEST_LOG_FORMATS);
 
 function nowMs(): number {
   return performance.now();
@@ -73,9 +75,13 @@ function responseStatus(responseValue: unknown, setStatus?: number | string): nu
   return 200;
 }
 
-function requestLogFormat(): RequestLogFormat {
-  const requested = process.env.LOG_FORMAT as RequestLogFormat | undefined;
+export function requestLogFormat(envValue = process.env.LOG_FORMAT): RequestLogFormat {
+  const requested = envValue?.trim().toLowerCase() as RequestLogFormat | undefined;
   return requested && logFormats.has(requested) ? requested : 'nginx';
+}
+
+export function startupRequestLogFormat(env = process.env): RequestLogFormat {
+  return requestLogFormat(env.LOG_FORMAT);
 }
 
 function formatDurationMs(durationMs: number): string {
@@ -113,7 +119,7 @@ export function formatRequestLog(entry: RequestLogEntry, format: RequestLogForma
 export function createRequestLogger(options: RequestLoggerOptions = {}) {
   const metaByRequest = new WeakMap<Request, RequestMeta>();
   const now = options.now ?? nowMs;
-  const format = requestLogFormat();
+  const format = options.logFormat ?? startupRequestLogFormat();
   const log = options.log ?? ((entry: RequestLogEntry) => console.log(formatRequestLog(entry, format)));
 
   return {

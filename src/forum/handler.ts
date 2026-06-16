@@ -70,8 +70,10 @@ export function getThread(threadId: number): ForumThread | null {
   return row ? toForumThread(row) : null;
 }
 
-export function updateThreadStatus(threadId: number, status: ThreadStatus): void {
+export function updateThreadStatus(threadId: number, status: ThreadStatus): boolean {
+  if (!getThread(threadId)) return false;
   db.update(forumThreads).set({ status, updatedAt: Date.now() }).where(threadWhere(threadId)).run();
+  return true;
 }
 
 export function listThreads(options: {
@@ -104,6 +106,7 @@ export function addMessage(
   content: string,
   options: { author?: string; principlesFound?: number; patternsFound?: number; searchQuery?: string } = {},
 ): ForumMessage {
+  if (!getThread(threadId)) throw new Error(`Thread ${threadId} not found`);
   const now = Date.now();
   const result = db.insert(forumMessages).values({
     threadId,
@@ -130,6 +133,7 @@ export function addMessage(
 }
 
 export function getMessages(threadId: number): ForumMessage[] {
+  if (!getThread(threadId)) return [];
   return db.select()
     .from(forumMessages)
     .where(eq(forumMessages.threadId, threadId))

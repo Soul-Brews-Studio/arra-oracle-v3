@@ -184,6 +184,8 @@ export interface SettingsEmbedderCollection {
   model: string;
   provider: string;
   adapter?: string;
+  service?: string;
+  endpoint?: string;
   enabled?: boolean;
   primary?: boolean;
 }
@@ -220,6 +222,8 @@ export interface VectorConfigHealth {
   collection: string;
   adapter?: string;
   model?: string;
+  service?: string;
+  endpoint?: string;
   enabled?: boolean;
   error?: string;
 }

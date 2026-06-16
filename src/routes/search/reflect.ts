@@ -4,11 +4,12 @@
 
 import { Elysia } from 'elysia';
 import { handleReflect } from '../../server/handlers.ts';
+import { handleTenantReflect } from './tenant-search.ts';
 
-export const reflectEndpoint = new Elysia().get('/reflect', () => handleReflect(), {
+export const reflectEndpoint = new Elysia().get('/reflect', () => handleTenantReflect() ?? handleReflect(), {
   detail: {
     tags: ['search'],
-    menu: { group: 'main', order: 30 },
+    menu: { group: 'main', path: '/playground', order: 30 },
     summary: 'Oracle self-reflection snapshot',
   },
 });

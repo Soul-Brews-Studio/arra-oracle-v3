@@ -169,6 +169,48 @@
       "when": 1781597100000,
       "tag": "0023_query_optimization_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1781620651217,
+      "tag": "0024_export_job_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1781624768517,
+      "tag": "0025_export_jobs_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1781628166154,
+      "tag": "0026_oracle_memories_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1781631000000,
+      "tag": "0027_schedule_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1781664000000,
+      "tag": "0028_menu_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1781670000000,
+      "tag": "0029_plugin_metadata",
+      "breakpoints": true
     }
   ]
 }

@@ -1,9 +1,12 @@
 import { Elysia } from 'elysia';
-import { MorningTapeQuery, RecallMemoryQuery, SaveMemoryBody, SemanticMemoryQuery } from './model.ts';
+import { MemoryCloseoutBody, MorningTapeQuery, RecallMemoryQuery, SaveMemoryBody, SemanticMemoryQuery, parseMemoryLimit } from './model.ts';
 import { createMemoryFanoutEndpoint } from './fanout.ts';
 import { memoryStore, type MemoryInput, type MemoryRecord, type MemoryStore } from './store.ts';
 import { memoryVectorIndex, type MemoryVectorHit, type MemoryVectorIndex } from './vector.ts';
 import { buildMorningTape } from './morning-tape.ts';
+import { MEMORY_CONFIDENCE_STRATEGY, memoryConfidence } from './confidence.ts';
+import { formatCloseoutMemory, type MemoryCloseoutInput } from './closeout.ts';
+import { currentTenantId } from '../../middleware/tenant.ts';
 
 export function createMemoryRoutes(
   store: MemoryStore = memoryStore,
@@ -23,9 +26,22 @@ export function createMemoryRoutes(
       body: SaveMemoryBody,
       detail: { tags: ['memory'], menu: { group: 'hidden' }, summary: 'Save a persisted memory' },
     })
+    .post('/memory/closeout', async ({ body, set }) => {
+      try {
+        const memory = store.save(formatCloseoutMemory(body as MemoryCloseoutInput));
+        const vector = await vectorIndex.index(memory);
+        return { success: true, memory, vector };
+      } catch (error) {
+        set.status = 400;
+        return { success: false, error: error instanceof Error ? error.message : 'failed to close out memory' };
+      }
+    }, {
+      body: MemoryCloseoutBody,
+      detail: { tags: ['memory'], menu: { group: 'hidden' }, summary: 'Persist a Challenge 2 session close-out memory' },
+    })
     .use(createMemoryFanoutEndpoint())
     .get('/memory/morning-tape', ({ query }) => {
-      const limit = Math.min(25, Math.max(1, parseInt(query.limit ?? '8')));
+      const limit = parseMemoryLimit(query.limit, 8, 25);
       const tape = buildMorningTape(store.recall('', limit));
       if (query.format === 'markdown' || query.format === 'md') {
         return new Response(tape.markdown, { headers: { 'content-type': 'text/markdown; charset=utf-8' } });
@@ -36,9 +52,9 @@ export function createMemoryRoutes(
       detail: { tags: ['memory'], menu: { group: 'hidden' }, summary: 'Render a two-minute morning recovery tape from persisted memories' },
     })
     .get('/memory/recall', ({ query }) => {
-      const limit = Math.min(50, Math.max(1, parseInt(query.limit ?? '10')));
+      const limit = parseMemoryLimit(query.limit);
       const items = store.recall(query.q ?? '', limit);
-      return { query: query.q ?? '', total: items.length, items };
+      return { query: query.q ?? '', total: items.length, confidence: MEMORY_CONFIDENCE_STRATEGY, items: items.map(withKeywordConfidence) };
     }, {
       query: RecallMemoryQuery,
       detail: { tags: ['memory'], menu: { group: 'hidden' }, summary: 'Recall persisted memories by keyword' },
@@ -48,11 +64,12 @@ export function createMemoryRoutes(
         set.status = 400;
         return { success: false, error: 'Missing query parameter: q', results: [] };
       }
-      const limit = Math.min(50, Math.max(1, parseInt(query.limit ?? '10')));
+      const limit = parseMemoryLimit(query.limit);
       try {
         const hits = await vectorIndex.search(query.q, limit);
         const records = store.getByIds(hits.map((hit) => hit.memoryId));
-        return { success: true, query: query.q, total: hits.length, results: mergeHits(hits, records) };
+        const results = mergeHits(hits, records);
+        return { success: true, query: query.q, total: results.length, confidence: MEMORY_CONFIDENCE_STRATEGY, results };
       } catch (error) {
         set.status = 503;
         return { success: false, error: error instanceof Error ? error.message : 'memory vector search failed', results: [] };
@@ -65,12 +82,42 @@ export function createMemoryRoutes(
 
 function mergeHits(hits: MemoryVectorHit[], records: MemoryRecord[]) {
   const byId = new Map(records.map((record) => [record.id, record]));
-  return hits.map((hit) => ({
-    ...(byId.get(hit.memoryId) ?? { id: hit.memoryId, content: hit.document }),
-    score: hit.score,
-    distance: hit.distance,
-    vectorId: hit.vectorId,
-  }));
+  const tenantId = currentTenantId();
+  return hits.flatMap((hit) => {
+    const record = byId.get(hit.memoryId);
+    if (tenantId && !record) return [];
+    const hitTenantId = hitTenant(hit);
+    if (tenantId && hitTenantId && hitTenantId !== tenantId) return [];
+    const memory = memoryForHit(hit, record);
+    return [{
+      ...memory,
+      score: hit.score,
+      distance: hit.distance,
+      vectorId: hit.vectorId,
+      confidence: memoryConfidence(memory, { mode: 'semantic', semanticScore: hit.score }),
+    }];
+  });
+}
+
+function hitTenant(hit: MemoryVectorHit): string | undefined {
+  const value = hit.metadata.tenant_id ?? hit.metadata.tenantId ?? hit.metadata.tenant;
+  return typeof value === 'string' ? value : undefined;
+}
+
+function withKeywordConfidence(memory: MemoryRecord) {
+  return { ...memory, confidence: memoryConfidence(memory, { mode: 'keyword' }) };
+}
+
+function memoryForHit(hit: MemoryVectorHit, record?: MemoryRecord): MemoryRecord {
+  if (record) return record;
+  const createdAt = typeof hit.metadata.createdAt === 'string' ? hit.metadata.createdAt : new Date().toISOString();
+  return {
+    id: hit.memoryId,
+    content: hit.document,
+    tags: [],
+    createdAt,
+    updatedAt: createdAt,
+  };
 }
 
 export const memoryRoutes = createMemoryRoutes();

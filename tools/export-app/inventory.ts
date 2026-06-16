@@ -1,43 +1,44 @@
-import { readdir, stat, writeFile } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
-export interface ExportInventoryFile {
+export interface ExportFileInventoryEntry {
   path: string;
-  size: number;
+  bytes: number;
+  sha256: string;
 }
 
-export interface ExportInventory {
-  version: 1;
-  generatedAt: string;
-  fileCount: number;
-  files: ExportInventoryFile[];
+export async function exportFileInventory(
+  rootDir: string,
+  options: { exclude?: Iterable<string> } = {},
+): Promise<ExportFileInventoryEntry[]> {
+  const root = path.resolve(rootDir);
+  const exclude = new Set(options.exclude ?? []);
+  const entries: ExportFileInventoryEntry[] = [];
+
+  await walk(root, '');
+  return entries.sort((a, b) => a.path.localeCompare(b.path));
+
+  async function walk(dir: string, relativeDir: string): Promise<void> {
+    const names = await readdir(dir);
+    for (const name of names) {
+      const relativePath = slash(relativeDir ? path.join(relativeDir, name) : name);
+      if (exclude.has(relativePath)) continue;
+
+      const fullPath = path.join(dir, name);
+      const info = await stat(fullPath);
+      if (info.isDirectory()) {
+        await walk(fullPath, relativePath);
+      } else if (info.isFile()) {
+        entries.push({ path: relativePath, bytes: info.size, sha256: await sha256File(fullPath) });
+      }
+    }
+  }
 }
 
-export async function writeExportInventory(
-  outputDir: string,
-  now: () => Date = () => new Date(),
-): Promise<ExportInventory> {
-  const files = await listFiles(outputDir);
-  const inventory = {
-    version: 1 as const,
-    generatedAt: now().toISOString(),
-    fileCount: files.length,
-    files,
-  };
-  await writeFile(path.join(outputDir, 'inventory.json'), `${JSON.stringify(inventory, null, 2)}\n`, 'utf8');
-  return inventory;
-}
-
-async function listFiles(root: string, dir = root): Promise<ExportInventoryFile[]> {
-  const entries = await readdir(dir, { withFileTypes: true });
-  const files = await Promise.all(entries.map(async (entry) => {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) return listFiles(root, fullPath);
-    if (!entry.isFile() || path.relative(root, fullPath) === 'inventory.json') return [];
-    const info = await stat(fullPath);
-    return [{ path: slash(path.relative(root, fullPath)), size: info.size }];
-  }));
-  return files.flat().sort((a, b) => a.path.localeCompare(b.path));
+async function sha256File(file: string): Promise<string> {
+  const bytes = await readFile(file);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function slash(value: string): string {

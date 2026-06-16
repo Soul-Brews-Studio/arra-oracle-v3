@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { ORACLE_DATA_DIR, REPO_ROOT } from '../config.ts';
 import { captureSession, defaultStatePath, type HuginnCaptureResult } from './capture.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 
 export interface HuginnSweepOptions {
   sessionDirs?: string[];
@@ -104,7 +105,10 @@ async function defaultIndexMarkdown(filePath: string, sourceFile: string): Promi
   ]);
   const { sqlite, db } = createDatabase();
   try {
-    const exists = sqlite.prepare('SELECT id FROM oracle_documents WHERE source_file = ? LIMIT 1').get(sourceFile);
+    const tenantId = currentTenantId();
+    const exists = tenantId
+      ? sqlite.prepare('SELECT id FROM oracle_documents WHERE source_file = ? AND tenant_id = ? LIMIT 1').get(sourceFile, tenantId)
+      : sqlite.prepare('SELECT id FROM oracle_documents WHERE source_file = ? LIMIT 1').get(sourceFile);
     if (exists) return;
     const content = fs.readFileSync(filePath, 'utf-8');
     const docs = parseLearningFile(path.basename(filePath), content, sourceFile);
@@ -124,7 +128,10 @@ async function markdownIndexed(sourceFile: string): Promise<boolean> {
   const { createDatabase } = await import('../db/index.ts');
   const { sqlite } = createDatabase();
   try {
-    return Boolean(sqlite.prepare('SELECT id FROM oracle_documents WHERE source_file = ? LIMIT 1').get(sourceFile));
+    const tenantId = currentTenantId();
+    return Boolean(tenantId
+      ? sqlite.prepare('SELECT id FROM oracle_documents WHERE source_file = ? AND tenant_id = ? LIMIT 1').get(sourceFile, tenantId)
+      : sqlite.prepare('SELECT id FROM oracle_documents WHERE source_file = ? LIMIT 1').get(sourceFile));
   } finally {
     sqlite.close();
   }

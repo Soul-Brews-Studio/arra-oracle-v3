@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia';
 import { canvasRoutes } from '../routes/canvas/index.ts';
+import { CANVAS_HOST } from './urls.ts';
 import { handleCanvasRequest, type CanvasWorkerEnv } from '../workers/canvas/index.ts';
 
 export interface CanvasServeOptions {
@@ -37,7 +38,7 @@ export function parseCanvasServeOptions(args: string[], env: Record<string, stri
 export function canvasServeSummary(options: CanvasServeOptions) {
   return {
     url: `http://localhost:${options.port}`,
-    host: 'canvas.buildwithoracle.com',
+    host: CANVAS_HOST,
     port: options.port,
     apiBase: options.apiBase ?? 'https://studio.buildwithoracle.com',
   };

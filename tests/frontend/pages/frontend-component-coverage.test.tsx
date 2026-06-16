@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { CanvasPluginsPage } from '../../../frontend/src/pages/CanvasPluginsPage';
 import { PluginsPage } from '../../../frontend/src/pages/PluginsPage';
-import { VectorHealthDashboardCard } from '../../../frontend/src/pages/vector-dashboard-cards';
+import { VectorHealthDashboardCard } from '../../../frontend/src/pages/vector-health-dashboard-card';
 import { htmlFor } from '../_render';
 
 describe('frontend component coverage', () => {
@@ -22,8 +22,8 @@ describe('frontend component coverage', () => {
     }]} loading={false} />);
 
     expect(html).toContain('1 enabled · 0 disabled · 1 registered');
-    expect(html).toContain('Installed plugin status');
-    expect(html).toContain('active');
+    expect(html).toContain('Unified plugin surfaces');
+    expect(html).toContain('ok');
     expect(html).toContain('2.0.0');
     expect(html).toContain('apiRoutes');
     expect(html).toContain('proxy');
@@ -36,12 +36,28 @@ describe('frontend component coverage', () => {
         { type: 'ollama', status: 'green', available: true, detail: 'local' },
         { type: 'openai', status: 'red', available: false, detail: 'missing key' },
       ]}
-      freshness={{ status: 'fresh', totalIndexed: 1532, docsPending: 0, lastIndexed: '2026-06-16T00:00:00Z' }}
+      services={[
+        { name: 'lancedb', type: 'builtin', status: 'green', available: true, health: { status: 'up' } },
+        { name: 'turbovec', type: 'proxy', endpoint: 'http://127.0.0.1:8787', status: 'red', available: false, health: { status: 'down', error: 'timeout' } },
+      ]}
+      storage={[
+        { adapter: 'lancedb', status: 'green', healthy: 2, total: 2 },
+        { adapter: 'qdrant', status: 'red', healthy: 0, total: 1, detail: 'down' },
+      ]}
+      freshness={{ status: 'stale', totalIndexed: 1532, sourceDocs: 1600, docsPending: 68, lastIndexed: '2026-06-16T00:00:00Z' }}
     />);
 
     expect(html).toContain('Vector health dashboard');
     expect(html).toContain('1/2 providers available');
-    expect(html).toContain('fresh · 1,532 indexed');
+    expect(html).toContain('1/2 services up');
+    expect(html).toContain('1/2 storage backends healthy');
+    expect(html).toContain('lancedb: up');
+    expect(html).toContain('turbovec: down · timeout');
+    expect(html).toContain('lancedb: 2/2');
+    expect(html).toContain('qdrant: 0/1');
+    expect(html).toContain('stale · 1,532 indexed');
+    expect(html).toContain('68 pending of 1,600 source docs');
+    expect(html).toContain('2026-06-16T00:00:00Z');
     expect(html).toContain('ollama: green');
     expect(html).toContain('openai: red');
   });

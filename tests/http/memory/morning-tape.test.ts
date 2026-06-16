@@ -36,8 +36,11 @@ test('buildMorningTape renders a two-minute recovery document', () => {
   const tape = buildMorningTape([memory], new Date('2026-06-16T00:01:00.000Z'));
 
   expect(tape.readTimeMinutes).toBe(2);
+  expect(tape.ready).toBe(true);
+  expect(tape.checks.every((check) => check.passed)).toBe(true);
   expect(tape.memoryCount).toBe(1);
   expect(tape.markdown).toContain('# MORNING-TAPE');
+  expect(tape.markdown).toContain('## Boot self-check');
   expect(tape.markdown).toContain('Boot rule [continuity]: Read git status');
 });
 
@@ -58,6 +61,12 @@ test('GET /api/v1/memory/morning-tape includes recent persisted memories', async
 
   expect(response.status).toBe(200);
   expect(body).toMatchObject({ readTimeMinutes: 2 });
+  expect(body.checks.map((check: { id: string }) => check.id)).toEqual([
+    'read-time',
+    'wake-protocol',
+    'fresh-memory',
+    'verification-oath',
+  ]);
   expect(body.markdown).toContain(unique);
   expect(body.sections.map((section: { title: string }) => section.title)).toContain('Fresh memory');
 });
@@ -80,6 +89,6 @@ test('GET /api/v1/memory/morning-tape can return direct Markdown for boot readin
   expect(response.status).toBe(200);
   expect(response.headers.get('content-type')).toContain('text/markdown');
   expect(markdown).toStartWith('# MORNING-TAPE');
+  expect(markdown).toContain('Boot readiness: ready');
   expect(markdown).toContain(unique);
 });
-

@@ -1,16 +1,21 @@
 import { expect, mock, test } from 'bun:test';
 import { Elysia } from 'elysia';
 import { createApiVersionedFetch } from '../../../src/middleware/api-version.ts';
+import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant.ts';
 import { createVectorSearchEndpoint } from '../../../src/routes/vector/search.ts';
 import type { VectorQueryResult } from '../../../src/vector/types.ts';
 
-function createFetch(result: VectorQueryResult, collections = ['bge-m3', 'qwen3']) {
+function createFetch(
+  result: VectorQueryResult,
+  collections = ['bge-m3', 'qwen3'],
+  queryImpl: () => Promise<VectorQueryResult> = async () => result,
+) {
   const requested: string[] = [];
   const store = {
     connect: mock(async () => {}),
     ensureCollection: mock(async () => {}),
-    query: mock(async () => result),
-    getStats: mock(async () => ({ count: result.ids.length })),
+    query: mock(queryImpl),
+    close: mock(async () => {}),
   };
   const app = new Elysia({ prefix: '/api' }).use(createVectorSearchEndpoint({
     getModels: () => Object.fromEntries(collections.map((name) => [name, {}])),
@@ -56,6 +61,7 @@ test('GET /api/v1/vector/search filters selected collection before paginating so
   expect(res.status).toBe(200);
   expect(requested).toEqual(['qwen3']);
   expect(store.query).toHaveBeenCalledWith('oracle', 5, { origin: 'human', type: 'note' });
+  expect(store.close).toHaveBeenCalledTimes(1);
   expect(body.total).toBe(3);
   expect(body.offset).toBe(1);
   expect(body.limit).toBe(1);
@@ -81,6 +87,40 @@ test('GET /api/v1/vector/search accepts JSON metadata filters and distance sort'
   expect(res.status).toBe(200);
   expect(body.sort).toEqual({ field: 'distance', order: 'asc' });
   expect(body.results.map((item) => item.id)).toEqual(['doc-b', 'doc-a']);
+});
+
+test('GET /api/v1/vector/search scopes results by resolved tenant', async () => {
+  const tenantResult: VectorQueryResult = {
+    ids: ['doc-a', 'doc-b'],
+    documents: ['alpha tenant', 'beta tenant'],
+    distances: [0.1, 0.2],
+    metadatas: [
+      { type: 'note', tenant_id: 'tenant-a', source_file: 'notes/a.md' },
+      { type: 'note', tenant_id: 'tenant-b', source_file: 'notes/b.md' },
+    ],
+  };
+  const { fetcher, store } = createFetch(tenantResult);
+  const tenantFetch = createTenantFetch(fetcher);
+  const res = await tenantFetch(new Request(
+    'http://local/api/v1/vector/search?q=oracle&metadata.tenant_id=tenant-b',
+    { headers: { [TENANT_HEADER]: 'tenant-a' } },
+  ));
+  const body = await res.json() as { results: Array<{ id: string }>; filters: { metadata: Record<string, string> } };
+
+  expect(res.status).toBe(200);
+  expect(store.query).toHaveBeenCalledWith('oracle', 50, { tenant_id: 'tenant-a' });
+  expect(body.filters.metadata).toEqual({ tenant_id: 'tenant-a' });
+  expect(body.results.map((item) => item.id)).toEqual(['doc-a']);
+});
+
+test('GET /api/v1/vector/search closes stores when vector query fails', async () => {
+  const { fetcher, store } = createFetch(result, ['bge-m3'], async () => { throw new Error('adapter down'); });
+  const res = await fetcher(new Request('http://local/api/v1/vector/search?q=oracle'));
+  const body = await res.json() as Record<string, unknown>;
+
+  expect(res.status).toBe(400);
+  expect(body).toMatchObject({ results: [], total: 0, error: 'Vector search failed', message: 'adapter down' });
+  expect(store.close).toHaveBeenCalledTimes(1);
 });
 
 test('GET /api/v1/vector/search rejects bad filters and unknown collections', async () => {

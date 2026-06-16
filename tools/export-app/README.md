@@ -37,6 +37,14 @@ content while JSON keeps the full database metadata.
 The vector HTTP exporter advertises formats from
 `GET /api/v1/vector/export/formats`. The local batch exporter writes collection
 files under `collections/` and a top-level relationship export.
+When `/api/export/run` is pointed at a legacy Oracle v2 backend with
+`oracleV2Url`, `format: "json"` writes the metadata dump and
+`format: "markdown"` writes a readable document vault file, and
+`format: "csv"` writes a spreadsheet review artifact.
+The Tauri/React export screen uses the local backend as a proxy so a raw Oracle
+v2 server only needs `/api/collections` and `/api/documents`.
+The direct fallback download path is
+`/api/v1/export/app?collection=oracle_documents&format=markdown`.
 
 ## Graph Export
 
@@ -61,7 +69,21 @@ connection.
 ```sh
 bun run tools/export-app/index.ts --output ./backup/export-app
 bun run tools/export-app/index.ts --output ./backup/export-app --db ./oracle.db
+bun run tools/export-app/index.ts --output ./backup/docs --collection oracle_documents
+bun run tools/export-app/index.ts --output ./backup/export-app --dry-run
+bun run tools/export-app/index.ts --output ./backup/export-app --progress json
+bun run tools/export-app/index.ts --verify ./backup/export-app
+bun run tools/export-app/index.ts --output ./backup/export-app --allow-nonempty-output
 ```
+
+Use `--dry-run` to print collection, row, relationship, and document counts
+without creating files. It is a safe preflight before long-running exports.
+Use `--collection <name>` repeatedly or `--collections a,b` to write only
+selected Drizzle collections when testing a narrow migration path.
+By default, batch export refuses to write into a non-empty output directory so
+old artifacts cannot be mistaken for a fresh backup. Use
+`--allow-nonempty-output` only when a wrapper has already cleaned or isolated
+the bundle path.
 
 The batch output includes:
 
@@ -75,7 +97,21 @@ The batch output includes:
 - `relationships.<ext>`
 - `all-collections.json`
 - `manifest.json`
-- `inventory.json`
+- `manifest.schema.json`
+- `README.md`
+
+`manifest.json` includes a `files` inventory with each artifact path, byte
+count, and SHA-256 checksum so operators can verify the bundle before migration.
+It also includes `collections.<table>.rowCount` so restore/preflight tooling can
+compare source and destination collection sizes without loading every artifact.
+The generated bundle `README.md` summarizes counts and verification steps for
+offline review before migration.
+Run `--verify <bundle-dir>` after export or after copying a bundle to re-read
+`manifest.json`, recompute each listed file's byte count and SHA-256 checksum,
+and fail if a required artifact is missing.
+Progress writes to stderr by default as collection counts, percentages, and row
+counts. Use `--progress json` or `--progress-json` for machine-readable events,
+`--progress silent` or `--quiet` when another wrapper owns progress display.
 
 ## CLI Usage
 
@@ -92,6 +128,45 @@ maw arra export --source vector --collection bge-m3 --format csv --out bge-m3.cs
 and delegates to the repo CLI. Set `ORACLE_API` for backend-connected UI/API
 commands; set `ORACLE_ROOT` when the local CLI should run from a specific clone.
 
+### Standalone Remote CLI
+
+Use the repo-local `bun run export` command when you need a portable export from
+an Oracle v2-compatible HTTP backend without going through `maw`:
+
+```sh
+bun run export -- --url http://localhost:47778 \
+  --collection oracle_documents \
+  --format jsonl \
+  --output ./backup/oracle_documents.jsonl
+```
+
+Format-specific examples:
+
+```sh
+bun run export -- --url http://localhost:47778 --collection oracle_documents --format json --output ./backup/docs.json
+bun run export -- --url http://localhost:47778 --collection oracle_documents --format markdown --output ./backup/docs.md
+bun run export -- --url http://localhost:47778 --collection oracle_documents --format jsonl --output ./backup/docs.jsonl
+```
+
+Useful flags:
+
+- `--output <path>` also accepts `--out <path>` or `-o <path>` for
+  script-friendly exports.
+- `--include-graph` / `--graph` includes relationship graph rows when the
+  backend supports them.
+- `--retries <count>` and `--retry-delay-ms <ms>` retry transient network,
+  408, 429, and 5xx failures during export start or artifact download.
+- `--version` / `-v` / `-V` prints the standalone export CLI version.
+- `--help` / `-h` prints the complete flag reference.
+
+Example with graph relationships and retry hardening:
+
+```sh
+bun run export -- --url http://localhost:47778 --collection oracle_documents \
+  --format json --output ./backup/docs-with-graph.json \
+  --graph --retries 3 --retry-delay-ms 500
+```
+
 ## Recommended Flow
 
 1. Point the UI or `maw arra` at the backend with `ORACLE_API`.
@@ -99,3 +174,23 @@ commands; set `ORACLE_ROOT` when the local CLI should run from a specific clone.
 3. Review collection counts and estimated size in the UI.
 4. Preview graph relationships when exporting a full bundle.
 5. Run `maw arra export` for one collection or batch mode for full snapshots.
+
+## UI Loading And Error States
+
+The React export app is intentionally safe to use before a migration:
+
+- **Loading collections** calls `GET /api/v1/export/app/collections` on the
+  selected backend when the local Oracle v2 proxy is unavailable. Direct Oracle
+  v2 collection probes call `/api/v1/export/oracle-v2/collections?baseUrl=...`
+  through the local Tauri backend.
+- **Backend errors** display the backend `error`, `message`, or nested
+  `data.message` value when one is returned; invalid JSON is reported as a
+  response-shape problem so operators do not mistake it for an empty export.
+- **Empty collection lists** show a no-data state instead of enabling an export
+  button against an unknown collection.
+- **Older Oracle v2 backends** that do not implement `POST
+  /api/v1/export/app/run` fall back to the direct download URL with the selected
+  collection, format, graph, and metadata query parameters.
+
+If the UI cannot reach the backend, verify the backend URL, check CORS/proxy
+configuration, then retry loading collections before starting migration work.

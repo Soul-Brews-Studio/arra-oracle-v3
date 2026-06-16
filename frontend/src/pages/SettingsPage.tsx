@@ -2,6 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { fetchSettingsSystem } from '../api';
 import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
 import { VectorConfigPanel } from '../components/VectorConfigPanel';
+import { VectorProviderServicePanel } from '../components/VectorProviderServicePanel';
+import { VectorSearchToggle } from '../components/VectorSearchToggle';
 import type { SettingsSystemResponse } from '../types';
 
 type SettingsPageProps = {
@@ -107,12 +109,22 @@ export function SettingsPage({ menuCount, pluginCount, surfaceCount, updatedAt, 
       {loading && !settings ? <LoadingPanel title="Loading settings…" detail="Fetching /api/settings/system." /> : null}
       {error ? <ErrorMessage title="Could not load runtime settings." message={error} /> : null}
 
+      <section className="grid gap-5 xl:grid-cols-2" aria-label="Vector backend configuration">
+        <div className="xl:col-span-2">
+          <VectorSearchToggle />
+        </div>
+
+        <div className="xl:col-span-2">
+          <VectorProviderServicePanel />
+        </div>
+
+        <div className="xl:col-span-2">
+          <VectorConfigPanel />
+        </div>
+      </section>
+
       {settings ? (
         <section className="grid gap-5 xl:grid-cols-2">
-          <div className="xl:col-span-2">
-            <VectorConfigPanel />
-          </div>
-
           <SectionCard title="Storage backend">
             <div className="grid gap-3 sm:grid-cols-2">
               <SettingPair

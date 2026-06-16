@@ -1,6 +1,6 @@
 import { apiUrl } from '../api/oracle';
 
-export const ADAPTER_OPTIONS = ['chroma', 'sqlite-vec', 'lancedb', 'qdrant', 'cloudflare-vectorize', 'proxy'] as const;
+export const ADAPTER_OPTIONS = ['chroma', 'sqlite-vec', 'lancedb', 'qdrant', 'cloudflare-vectorize', 'proxy', 'turbovec'] as const;
 export type VectorConfigAdapter = (typeof ADAPTER_OPTIONS)[number];
 
 export type LoadState = 'loading' | 'ready' | 'error';
@@ -10,6 +10,8 @@ export type VectorServerCollection = {
   model: string;
   provider: string;
   adapter?: VectorConfigAdapter;
+  service?: string;
+  endpoint?: string;
   primary?: boolean;
   enabled?: boolean;
 };
@@ -32,11 +34,16 @@ export type VectorConfigHealth = {
   collection: string;
   adapter: VectorConfigAdapter;
   model: string;
+  service?: string;
+  endpoint?: string;
   error?: string;
 };
 
 export type VectorConfigResponse = {
   source: 'file' | 'defaults';
+  engine: VectorConfigAdapter;
+  enabled: boolean;
+  options: { localEngines: VectorConfigAdapter[] };
   config: VectorServerConfig;
   doc_counts: Record<string, number>;
   health: Record<string, VectorConfigHealth>;
@@ -47,6 +54,8 @@ export interface VectorConfigDraft {
   model: string;
   provider: string;
   adapter: VectorConfigAdapter;
+  service: string;
+  endpoint: string;
   enabled: boolean;
 }
 
@@ -56,6 +65,8 @@ export type VectorConfigRow = {
   model: string;
   provider: string;
   adapter: VectorConfigAdapter;
+  service?: string;
+  endpoint?: string;
   primary?: boolean;
   enabled: boolean;
   count?: number;
@@ -93,6 +104,9 @@ export function parseVectorConfigResponse(value: unknown): VectorConfigResponse 
       embeddingEndpoint: '',
       embedder: { backend: 'unknown' },
     },
+    engine: 'lancedb' as VectorConfigAdapter,
+    enabled: false,
+    options: { localEngines: ['lancedb', 'qdrant', 'sqlite-vec'] as VectorConfigAdapter[] },
     doc_counts: {},
     health: {},
     checked_at: new Date().toISOString(),
@@ -101,6 +115,10 @@ export function parseVectorConfigResponse(value: unknown): VectorConfigResponse 
   if (!isRecord(value)) return fallback;
   const configValue = isRecord(value.config) ? value.config : {};
   const rawCollections = isRecord(configValue.collections) ? configValue.collections : {};
+  const rawOptions = isRecord(value.options) ? value.options : {};
+  const localEngines = Array.isArray(rawOptions.localEngines)
+    ? rawOptions.localEngines.filter(isAdapter)
+    : fallback.options.localEngines;
   const safeCollections: Record<string, VectorServerCollection> = {};
 
   Object.entries(rawCollections).forEach(([key, item]) => {
@@ -111,6 +129,8 @@ export function parseVectorConfigResponse(value: unknown): VectorConfigResponse 
       model: typeof item.model === 'string' ? item.model : key,
       provider: typeof item.provider === 'string' ? item.provider : 'none',
       adapter: safeAdapter(item.adapter),
+      service: typeof item.service === 'string' ? item.service : undefined,
+      endpoint: typeof item.endpoint === 'string' ? item.endpoint : undefined,
       primary: item.primary === true,
       enabled: item.enabled !== false,
     };
@@ -118,6 +138,9 @@ export function parseVectorConfigResponse(value: unknown): VectorConfigResponse 
 
   return {
     source: value.source === 'file' ? 'file' : 'defaults',
+    engine: safeAdapter(value.engine),
+    enabled: value.enabled === true,
+    options: { localEngines },
     config: {
       version: typeof configValue.version === 'string' ? configValue.version : fallback.config.version,
       host: typeof configValue.host === 'string' ? configValue.host : fallback.config.host,
@@ -143,6 +166,8 @@ export function toRows(response: VectorConfigResponse): VectorConfigRow[] {
       model: item.model,
       provider: item.provider,
       adapter: item.adapter ?? 'lancedb',
+      service: item.service,
+      endpoint: item.endpoint,
       primary: item.primary,
       enabled: item.enabled !== false,
       count: response.doc_counts?.[key],

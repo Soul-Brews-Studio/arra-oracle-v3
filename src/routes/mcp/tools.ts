@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia';
 import type { UnifiedRuntime } from '../../plugins/unified-loader.ts';
+import { currentTenantId } from '../../middleware/tenant.ts';
 import { mcpTools, toMcpToolDefinition, type RuntimeMcpToolManifest } from '../../tools/mcp-manifest.ts';
 
 type PluginTool = UnifiedRuntime['mcpTools'][number];
@@ -22,6 +23,17 @@ function coreTool(tool: RuntimeMcpToolManifest): PublicTool {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isValidPluginTool(tool: PluginTool): boolean {
+  return typeof tool.name === 'string' && tool.name.length > 0
+    && typeof tool.description === 'string' && tool.description.length > 0
+    && isRecord(tool.inputSchema)
+    && typeof tool.plugin === 'string' && tool.plugin.length > 0;
+}
+
 function pluginTool(tool: PluginTool): PublicTool {
   return {
     name: tool.name,
@@ -37,8 +49,9 @@ function pluginTool(tool: PluginTool): PublicTool {
 
 export function createMcpRoutes(pluginTools: PluginTool[] = []) {
   return new Elysia({ prefix: '/api' }).get('/mcp/tools', () => {
-    const tools = [...mcpTools.map(coreTool), ...pluginTools.map(pluginTool)];
-    return { tools, total: tools.length };
+    const tools = [...mcpTools.map(coreTool), ...pluginTools.filter(isValidPluginTool).map(pluginTool)];
+    const tenantId = currentTenantId();
+    return { tools, total: tools.length, ...(tenantId ? { tenant: { id: tenantId, scope: 'tenant_id' } } : {}) };
   }, {
     detail: {
       tags: ['mcp'],

@@ -17,10 +17,20 @@ import {
 import { graphRelationships } from './graph.ts';
 import { exportOracleV2Documents } from './documents.ts';
 import { EXPORT_MANIFEST_SCHEMA } from './schema.ts';
-import { writeExportInventory } from './inventory.ts';
+import { exportFileInventory } from './inventory.ts';
+import { exportBundleReadme } from './bundle-readme.ts';
+import { selectExportTables, shouldExportDocuments } from './collections.ts';
 
 type ExportTable = Parameters<typeof getTableName>[0];
-type Progress = (message: string) => void;
+type Progress = (message: string, event?: ExportProgressEvent) => void;
+
+export interface ExportProgressEvent {
+  current: number;
+  total: number;
+  percent: number;
+  collection: string;
+  rows: number;
+}
 
 export interface ExportAppOptions {
   outputDir: string;
@@ -28,6 +38,7 @@ export interface ExportAppOptions {
   connection?: DatabaseConnection;
   progress?: Progress;
   now?: () => Date;
+  collections?: readonly string[];
 }
 
 export interface ExportOracleDataResult {
@@ -56,7 +67,7 @@ export function schemaTables(): ExportTable[] {
 export async function exportOracleData(options: ExportAppOptions): Promise<ExportOracleDataResult> {
   const close = options.connection ? undefined : openReadonlyConnection(options.dbPath);
   const connection = options.connection ?? close!.connection;
-  const tables = introspectDrizzleTables();
+  const tables = selectExportTables(introspectDrizzleTables(), options.collections);
   const outputDir = path.resolve(options.outputDir);
   const collectionsDir = path.join(outputDir, 'collections');
   const progress = options.progress ?? ((message) => console.error(message));
@@ -72,16 +83,18 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
       const rows = normalizeRecords(selectRows(connection, table));
       allCollections[name] = rows;
       rowCount += rows.length;
-      progress(`[${i + 1}/${tables.length}] ${name}: ${rows.length} rows`);
+      reportProgress(progress, { current: i + 1, total: tables.length, collection: name, rows: rows.length });
       await writeCollectionFiles(collectionsDir, name, rows);
     }
 
     const relationships = graphRelationships(allCollections);
-    const documentExport = await exportOracleV2Documents({ ...options, outputDir, connection, progress });
+    const documentExport = shouldExportDocuments(options.collections)
+      ? await exportOracleV2Documents({ ...options, outputDir, connection, progress })
+      : { documentCount: 0 };
     await writeCollectionFiles(outputDir, 'relationships', relationships);
     await writeJson(path.join(outputDir, 'all-collections.json'), { exportedAt, collections: allCollections });
     await writeJson(path.join(outputDir, 'manifest.schema.json'), EXPORT_MANIFEST_SCHEMA);
-    await writeJson(path.join(outputDir, 'manifest.json'), {
+    await writeFile(path.join(outputDir, 'README.md'), exportBundleReadme({
       exportedAt,
       dbPath: options.dbPath ?? DB_PATH,
       formats: EXPORT_FORMATS,
@@ -89,8 +102,19 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
       rowCount,
       relationshipCount: relationships.length,
       documentCount: documentExport.documentCount,
+    }), 'utf8');
+    const files = await exportFileInventory(outputDir, { exclude: ['manifest.json'] });
+    await writeJson(path.join(outputDir, 'manifest.json'), {
+      exportedAt,
+      dbPath: options.dbPath ?? DB_PATH,
+      formats: EXPORT_FORMATS,
+      files,
+      collectionCount: tables.length,
+      collections: collectionManifest(allCollections),
+      rowCount,
+      relationshipCount: relationships.length,
+      documentCount: documentExport.documentCount,
     });
-    await writeExportInventory(outputDir, options.now);
     return {
       outputDir,
       collectionCount: tables.length,
@@ -106,7 +130,7 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
 export async function exportMarkdownData(options: ExportAppOptions): Promise<ExportMarkdownResult> {
   const close = options.connection ? undefined : openReadonlyConnection(options.dbPath);
   const connection = options.connection ?? close!.connection;
-  const tables = schemaTables();
+  const tables = selectExportTables(schemaTables(), options.collections);
   const outputDir = path.resolve(options.outputDir);
   const progress = options.progress ?? ((message) => console.error(message));
   let fileCount = 0;
@@ -117,7 +141,7 @@ export async function exportMarkdownData(options: ExportAppOptions): Promise<Exp
       const table = tables[i]!;
       const name = getTableName(table);
       const rows = selectRows(connection, table).map(normalizeRecord);
-      progress(`[${i + 1}/${tables.length}] ${name}: ${rows.length} rows`);
+      reportProgress(progress, { current: i + 1, total: tables.length, collection: name, rows: rows.length });
       fileCount += await writeCollectionMarkdown(outputDir, name, rows);
     }
     return { outputDir, collectionCount: tables.length, fileCount };
@@ -133,6 +157,15 @@ function openReadonlyConnection(dbPath = DB_PATH): { connection: DatabaseConnect
 
 function selectRows(connection: DatabaseConnection, table: ExportTable): ExportRecord[] {
   return (connection.db as any).select().from(table).all() as ExportRecord[];
+}
+
+function reportProgress(progress: Progress, event: Omit<ExportProgressEvent, 'percent'>): void {
+  const percent = Math.round((event.current / event.total) * 100);
+  progress(`[${event.current}/${event.total}] ${percent}% ${event.collection}: ${event.rows} rows`, { ...event, percent });
+}
+
+function collectionManifest(collections: Record<string, ExportRecord[]>): Record<string, { rowCount: number }> {
+  return Object.fromEntries(Object.entries(collections).map(([name, rows]) => [name, { rowCount: rows.length }]));
 }
 
 async function writeCollectionFiles(baseDir: string, name: string, rows: ExportRecord[]): Promise<void> {

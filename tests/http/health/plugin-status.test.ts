@@ -37,3 +37,22 @@ test('GET /api/health reports loaded plugin lifecycle status', async () => {
   ]);
   await runtime.stop();
 });
+
+test('GET /api/health degrades instead of failing when plugin status read throws', async () => {
+  const app = createHealthRoutes({
+    uptimeSeconds: () => 1,
+    vectorHealth: async () => ({ status: 'ok', engines: [], checked_at: '2026-06-16T00:00:00.000Z' }),
+    pluginStatuses: () => { throw new Error('plugin registry unavailable'); },
+  });
+  const res = await app.handle(new Request('http://local/api/health'));
+  const body = await res.json() as Record<string, any>;
+
+  expect(res.status).toBe(200);
+  expect(body.status).toBe('degraded');
+  expect(body.pluginStatus).toBe('degraded');
+  expect(body.plugins).toMatchObject({
+    count: 1,
+    status: 'degraded',
+    items: [{ name: 'plugin-status', status: 'degraded', error: 'plugin registry unavailable' }],
+  });
+});

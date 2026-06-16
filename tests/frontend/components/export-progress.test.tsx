@@ -16,6 +16,9 @@ describe('ExportProgress', () => {
 
     expect(html).toContain('Exporting 42%');
     expect(html).toContain('role="status"');
+    expect(html).toContain('role="progressbar"');
+    expect(html).toContain('aria-live="polite"');
+    expect(html).toContain('dark:bg-slate-950');
     expect(html).toContain('1.5 KB');
     expect(html).toContain('exp-1');
   });
@@ -29,5 +32,14 @@ describe('ExportProgress', () => {
     expect(failed).toContain('Export failed.');
     expect(failed).toContain('disk full');
     expect(failed).toContain('Retry');
+  });
+
+  test('does not render a dead download link before the URL is ready', () => {
+    const html = htmlFor(<ExportProgress state={{ ...running, status: 'done', progress: 100, filename: 'export.zip' }} />);
+
+    expect(html).toContain('Preparing download');
+    expect(html).toContain('disabled=""');
+    expect(html).not.toContain('href=');
+    expect(html).toContain('aria-valuetext="Export ready"');
   });
 });

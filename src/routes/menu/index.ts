@@ -31,7 +31,6 @@ export {
   menuItemsFromRoutes,
   readApiMenuItemsFromDb,
   scopeMatches,
-  API_TO_STUDIO,
 } from './menu.ts';
 export { createMenuListEndpoint } from './list-paginated.ts';
 export { createMenuSearchEndpoint } from './search.ts';
