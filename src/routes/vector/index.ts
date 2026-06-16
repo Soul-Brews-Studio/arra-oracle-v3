@@ -9,7 +9,7 @@
  *   GET /api/map3d           — 3D PCA projection from real embeddings
  *   GET /api/vector/stats    — per-engine collection counts
  *   GET /api/vector/health   — adapter liveness probe
- *   GET /api/vector/export   — export collection docs as JSON or CSV
+ *   GET /api/vector/export   — export collection docs as JSON, JSONL, CSV, or Markdown
  *   GET /api/vector/documents — browse indexed vector documents
  *   GET /api/v1/vector/config — config + per-collection health/counts
  *   PUT /api/v1/vector/config/:collection — update collection adapter/model/provider
