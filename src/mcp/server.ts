@@ -16,6 +16,8 @@ import { loadUnifiedPlugins, type UnifiedRuntime } from '../plugins/unified-load
 import { resolveToolName } from './aliases.ts';
 import { proxyToolCall, resolveOracleApiBase } from './http-proxy.ts';
 import { pluginMcpToolsFrom } from './plugin-tools.ts';
+import { runWithTenant } from '../middleware/tenant.ts';
+import { stripMcpTenantArgs, tenantIdFromMcpArgs } from './tenant.ts';
 
 function errorResponse(text: string): ToolResponse {
   return { content: [{ type: 'text', text }], isError: true };
@@ -202,12 +204,14 @@ export class OracleMCPServer {
         return errorResponse(`Error: Tool "${toolName}" is disabled in read-only mode. This Oracle instance is configured for read-only access.`);
       }
       try {
-        const args = request.params.arguments && typeof request.params.arguments === 'object'
+        const rawArgs = request.params.arguments && typeof request.params.arguments === 'object'
           ? request.params.arguments as Record<string, unknown>
           : {};
-        const proxied = await proxyToolCall(this.oracleApiBase, toolName, args);
+        const tenantId = tenantIdFromMcpArgs(rawArgs);
+        const args = stripMcpTenantArgs(rawArgs);
+        const proxied = await proxyToolCall(this.oracleApiBase, toolName, args, tenantId);
         if (proxied) return proxied;
-        return await tool.handler(args, { version: this.version, getToolCtx: () => this.getToolCtx() });
+        return await runWithTenant(tenantId, () => tool.handler(args, { version: this.version, getToolCtx: () => this.getToolCtx() }));
       } catch (error) {
         return errorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
       }

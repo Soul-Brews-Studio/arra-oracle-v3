@@ -13,6 +13,7 @@ const estimate = {
   note: 'Estimate only.',
   recommendation: 'Gemini free tier is recommended before paid remote embedding.',
   availableProviders: ['gemini', 'ollama'],
+  fallbackSummary: 'Fallback chain ollama → gemini → openai worst-case remote spend: $0.3482.',
   providerEstimates: {
     openai: { model: 'text-embedding-3-small', estimatedUsd: 0.3482 },
     gemini: { model: 'text-embedding-004', estimatedUsd: 0 },
@@ -29,6 +30,7 @@ describe('VectorModelRecommendationCard', () => {
     expect(html).toContain('Gemini free tier is recommended');
     expect(html).toContain('34,822 docs × ~500 tokens/doc ≈ 17.4M tokens');
     expect(html).toContain('gemini, ollama available');
+    expect(html).toContain('Fallback chain ollama');
     expect(html).toContain('openai');
     expect(html).toContain('$0.3482');
     expect(html).toContain('gemini');

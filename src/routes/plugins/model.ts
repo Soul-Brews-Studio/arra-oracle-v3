@@ -15,7 +15,7 @@ import {
   type PublicUnifiedServerManifest,
 } from '../../plugins/unified-manifest.ts';
 import { resolveContainedPluginEntry } from '../../plugins/path-containment.ts';
-import { tenantDataPath } from '../../middleware/tenant.ts';
+import { tenantScopedPluginDir } from './tenant.ts';
 
 export const PLUGIN_DIR = join(homedir(), '.oracle', 'plugins');
 
@@ -67,12 +67,12 @@ export function sanitizePluginName(name: string): string {
   return name.replace(/[^\w.-]/g, '').replace(/\.wasm$/, '');
 }
 
-export function currentPluginDir(): string {
-  return scopedPluginDir(process.env.ORACLE_PLUGIN_DIR || PLUGIN_DIR);
+export function basePluginDir(): string {
+  return process.env.ORACLE_PLUGIN_DIR || PLUGIN_DIR;
 }
 
-export function scopedPluginDir(dir: string): string {
-  return tenantDataPath(dir);
+export function currentPluginDir(): string {
+  return tenantScopedPluginDir(basePluginDir());
 }
 
 export function readPluginManifest(dir: string): RawPluginManifest | null {

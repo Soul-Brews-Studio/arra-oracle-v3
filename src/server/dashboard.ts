@@ -7,15 +7,14 @@
 import { sql, gt, and, gte, lt, desc, eq, type SQL } from 'drizzle-orm';
 import { db, oracleDocuments, searchLog, learnLog } from '../db/index.ts';
 import type { DashboardSummary, DashboardActivity, DashboardGrowth } from './types.ts';
-import { currentTenantId } from '../middleware/tenant.ts';
+import { activeTenantId } from '../middleware/tenant.ts';
 
 
 type TenantTable = { tenantId: unknown };
 
-function scoped<T extends TenantTable>(table: T, condition?: SQL): SQL | undefined {
-  const tenantId = currentTenantId();
-  const tenantFilter = tenantId ? eq(table.tenantId as never, tenantId) : undefined;
-  return tenantFilter && condition ? and(condition, tenantFilter) : tenantFilter ?? condition;
+function scoped<T extends TenantTable>(table: T, condition?: SQL): SQL {
+  const tenantFilter = eq(table.tenantId as never, activeTenantId());
+  return condition ? and(condition, tenantFilter)! : tenantFilter;
 }
 
 /**

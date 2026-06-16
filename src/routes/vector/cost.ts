@@ -3,6 +3,7 @@ import { getDetectedEmbeddingProviders } from '../../vector/provider-detection.t
 import {
   estimateEmbeddingCost,
   estimateEmbeddingCosts,
+  estimateFallbackChainCost,
   isCostProvider,
   recommendEmbeddingModel,
   type CostProvider,
@@ -48,6 +49,32 @@ function comparisonProviders(selected: CostProvider, available: string[]): CostP
   return providers;
 }
 
+type ModelEntry = [string, EmbeddingModelConfig];
+
+function defaultCostProvider(entries: ModelEntry[]): CostProvider {
+  for (const [, model] of entries) {
+    const provider = model.embedder?.backend ?? model.embedder?.default ?? model.provider;
+    if (provider && isCostProvider(provider)) return provider;
+  }
+  return 'openai';
+}
+
+function parseFallbackChain(selected: CostProvider, raw: string | undefined, entries: ModelEntry[]): CostProvider[] {
+  const providers: CostProvider[] = [selected];
+  if (raw !== undefined) for (const item of raw.split(',')) addProvider(providers, item);
+  else for (const [, model] of entries) {
+    addProvider(providers, model.embedder?.backend ?? model.embedder?.default ?? model.provider);
+    for (const provider of model.embedder?.fallbackChain ?? []) addProvider(providers, provider);
+    addProvider(providers, model.embedder?.fallback);
+  }
+  return providers;
+}
+
+function addProvider(providers: CostProvider[], value: string | undefined): void {
+  const provider = value?.trim();
+  if (provider && isCostProvider(provider) && !providers.includes(provider)) providers.push(provider);
+}
+
 export function createVectorCostEndpoint(options: VectorCostEndpointOptions = {}) {
   return new Elysia().get('/vector/cost-estimate', async ({ query }) => {
     const models = options.getModels?.() ?? getEmbeddingModels();
@@ -55,7 +82,7 @@ export function createVectorCostEndpoint(options: VectorCostEndpointOptions = {}
     const requested = query.collection ? entries.filter(([key]) => key === query.collection) : entries;
     const counts = await Promise.all(requested.map(async ([key, model]) => options.getCount?.(key, model) ?? defaultCount(key, model)));
     const docs = query.docs ? parsePositiveInt(query.docs, 0) : counts.reduce((sum, count) => sum + count, 0);
-    const provider = (query.provider ?? 'openai') as CostProvider;
+    const provider = (query.provider as CostProvider | undefined) ?? defaultCostProvider(requested);
     const input = {
       docs,
       provider,
@@ -66,12 +93,17 @@ export function createVectorCostEndpoint(options: VectorCostEndpointOptions = {}
     const detected = await (options.detectProviders?.() ?? getDetectedEmbeddingProviders(false));
     const availableProviders = detected.providers.filter((item) => item.available).map((item) => item.type);
     const providerEstimates = estimateEmbeddingCosts(input, comparisonProviders(provider, availableProviders));
+    const fallbackCost = estimateFallbackChainCost(input, parseFallbackChain(provider, query.fallbackChain ?? query.fallback, requested));
     return {
       ...estimate,
       collection: query.collection ?? 'all',
       collections: requested.map(([key], index) => ({ key, docs: counts[index] })),
       availableProviders,
       providerEstimates,
+      fallbackChain: fallbackCost.providers,
+      fallbackChainEstimates: Object.fromEntries(fallbackCost.estimates.map((item) => [item.provider, item])),
+      fallbackWorstCaseUsd: fallbackCost.worstCaseUsd,
+      fallbackSummary: fallbackCost.summary,
       recommendation: recommendEmbeddingModel(docs, availableProviders),
       trackingEndpoint: '/api/v1/vector/costs',
     };
@@ -82,6 +114,8 @@ export function createVectorCostEndpoint(options: VectorCostEndpointOptions = {}
       provider: t.Optional(providerSchema),
       model: t.Optional(t.String()),
       collection: t.Optional(t.String()),
+      fallback: t.Optional(t.String()),
+      fallbackChain: t.Optional(t.String()),
     }),
     detail: { tags: ['vector'], summary: 'Estimate embedding cost before remote indexing' },
   });

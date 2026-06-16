@@ -2,14 +2,12 @@ import { Elysia } from 'elysia';
 import { and, eq, gt, sql, type SQL } from 'drizzle-orm';
 import { db, searchLog, learnLog, isDbLockError } from '../../db/index.ts';
 import { SessionStatsQuery } from './model.ts';
-import { currentTenantId } from '../../middleware/tenant.ts';
+import { activeTenantId } from '../../middleware/tenant.ts';
 
 type TenantLogTable = { tenantId: unknown };
 
 function scoped<T extends TenantLogTable>(table: T, condition: SQL): SQL {
-  const tenantId = currentTenantId();
-  const tenantFilter = tenantId ? eq(table.tenantId as never, tenantId) : undefined;
-  return tenantFilter ? and(condition, tenantFilter)! : condition;
+  return and(condition, eq(table.tenantId as never, activeTenantId()))!;
 }
 
 export const sessionStatsEndpoint = new Elysia().get('/session/stats', ({ query }) => {

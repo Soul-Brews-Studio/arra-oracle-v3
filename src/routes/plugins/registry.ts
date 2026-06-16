@@ -1,8 +1,8 @@
 import { Elysia } from 'elysia';
 import type { LoadedPluginRegistryEntry } from '../../plugins/registry.ts';
-import { currentTenantId } from '../../middleware/tenant.ts';
-import { currentPluginDir, scanPlugins, scopedPluginDir } from './model.ts';
+import { basePluginDir, scanPlugins } from './model.ts';
 import { readPluginEnabled } from './state.ts';
+import { hasTenantPluginScope, tenantScopedPluginDir } from './tenant.ts';
 
 export interface PluginsRegistryRouteOptions {
   dir?: string;
@@ -11,8 +11,8 @@ export interface PluginsRegistryRouteOptions {
 
 export function createPluginsRegistryRoute(options: PluginsRegistryRouteOptions = {}) {
   return new Elysia().get('/api/plugins', () => {
-    const dir = options.dir ? scopedPluginDir(options.dir) : currentPluginDir();
-    if (!options.registry || currentTenantId()) return scanPlugins(dir);
+    const dir = tenantScopedPluginDir(options.dir ?? basePluginDir());
+    if (!options.registry || hasTenantPluginScope()) return scanPlugins(dir);
     const plugins = options.registry().map((plugin) => ({
       ...plugin,
       enabled: readPluginEnabled(plugin.name) ?? plugin.enabled ?? true,
