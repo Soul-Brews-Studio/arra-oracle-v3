@@ -14,16 +14,27 @@ function safeTimeoutMs(value: number | undefined): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_TIMEOUT_MS;
 }
 
+function normalizeServiceUrl(value: unknown): string {
+  const targetBase = typeof value === 'string' ? value.trim().replace(/\/+$/, '') : '';
+  if (!targetBase) throw new Error('service url is required');
+  const parsed = new URL(targetBase);
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error('service url must use http or https');
+  }
+  return targetBase;
+}
+
 export async function proxyToService(
   request: Request,
   service: ServiceConfig,
 ): Promise<Response> {
   const incomingUrl = new URL(request.url);
-  const targetBase = service.url.trim().replace(/\/+$/, '');
-  const targetUrl = `${targetBase}${incomingUrl.pathname}${incomingUrl.search}`;
+  let targetBase = '<invalid>';
   const timeoutMs = safeTimeoutMs(service.timeout);
 
   try {
+    targetBase = normalizeServiceUrl(service.url);
+    const targetUrl = `${targetBase}${incomingUrl.pathname}${incomingUrl.search}`;
     const headers = new Headers(request.headers);
     headers.delete('host');
     const tenantId = currentTenantId() ?? tenantIdFor(request);

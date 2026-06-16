@@ -31,6 +31,11 @@ function safeMs(value: number): number {
   return Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
+function safeRetryAfterSeconds(value: number | undefined): number {
+  if (value === undefined) return 5;
+  return Number.isFinite(value) && value >= 0 ? Math.ceil(value) : 5;
+}
+
 export function isDraining(): boolean {
   return draining;
 }
@@ -70,7 +75,7 @@ export function drainingResponseFor(
   if (healthPaths.includes(pathname)) return null;
   return Response.json(
     { error: 'server is draining', status: 'draining', draining: true },
-    { status: 503, headers: { 'Retry-After': String(options.retryAfterSeconds ?? 5) } },
+    { status: 503, headers: { 'Retry-After': String(safeRetryAfterSeconds(options.retryAfterSeconds)) } },
   );
 }
 

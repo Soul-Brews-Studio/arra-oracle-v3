@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { eq, inArray } from 'drizzle-orm';
-import { mkdirSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -18,6 +18,7 @@ process.env.ORACLE_REPO_ROOT = root;
 const dbMod = await import('../../../src/db/index.ts');
 dbMod.resetDefaultDatabaseForTests(dbPath);
 const { sessionsRoutes } = await import('../../../src/routes/sessions/index.ts');
+const { persistSessionSummary } = await import('../../../src/routes/sessions/store.ts');
 const { MAX_SUMMARY_CHARS } = await import('../../../src/routes/sessions/model.ts');
 const { createTenantFetch, DEFAULT_TENANT_ID, TENANT_HEADER } = await import('../../../src/middleware/tenant.ts');
 
@@ -125,5 +126,40 @@ describe('session summary HTTP route', () => {
       .where(eq(dbMod.oracleDocuments.id, body.learning_id))
       .get();
     expect(row?.createdBy).toBe('session_summary');
+  });
+
+  test('store normalizes session id, oracle, and summary text', () => {
+    const result = persistSessionSummary(
+      ' ../codex session/// ',
+      '\n  Stored first line.  \n\nDetails kept.  \n',
+      ' codex bot ',
+    );
+    const content = readFileSync(join(root, result.source_file), 'utf8');
+    const row = dbMod.db.select({ concepts: dbMod.oracleDocuments.concepts })
+      .from(dbMod.oracleDocuments)
+      .where(eq(dbMod.oracleDocuments.id, result.learning_id))
+      .get();
+
+    expect(result.source_file).toBe('ψ/memory/session-summaries/codex-session.md');
+    expect(result.learning_id).toBe('session-summary_codex-session');
+    expect(content).toContain('title: Stored first line.');
+    expect(content).toContain('source: session-summary from codex bot');
+    expect(content).toContain('Stored first line.');
+    expect(content).not.toContain('  Stored first line.');
+    expect(JSON.parse(row?.concepts ?? '[]')).toContain('oracle-codex-bot');
+  });
+
+  test('store rejects invalid session ids and blank or oversized summaries', () => {
+    expect(() => persistSessionSummary('////', 'valid summary')).toThrow('Invalid session id');
+    expect(() => persistSessionSummary('blank-direct', ' \n\t ')).toThrow('Invalid summary');
+    expect(() => persistSessionSummary('oversized-direct', 'x'.repeat(MAX_SUMMARY_CHARS + 1))).toThrow('Summary too long');
+
+    const blankFile = join(root, 'ψ/memory/session-summaries/blank-direct.md');
+    const row = dbMod.db.select().from(dbMod.oracleDocuments)
+      .where(eq(dbMod.oracleDocuments.id, 'session-summary_blank-direct'))
+      .get();
+
+    expect(existsSync(blankFile)).toBe(false);
+    expect(row).toBeUndefined();
   });
 });

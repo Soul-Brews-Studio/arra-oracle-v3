@@ -15,6 +15,38 @@ type SupersedeRunResult = {
   isError?: boolean;
 };
 
+function cleanRequiredId(value: unknown, field: 'oldId' | 'newId'): SupersedeRunResult | string {
+  if (typeof value !== 'string') {
+    return {
+      payload: {
+        success: false,
+        error: `arra_supersede requires field '${field}' (non-empty string).`,
+        received: value === undefined ? 'undefined' : typeof value,
+        usage: "arra_supersede({ oldId: 'learning_X', newId: 'learning_Y' })",
+      },
+      isError: true,
+    };
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return {
+      payload: {
+        success: false,
+        error: `arra_supersede requires field '${field}' (non-empty string).`,
+        received: 'empty string',
+        usage: "arra_supersede({ oldId: 'learning_X', newId: 'learning_Y' })",
+      },
+      isError: true,
+    };
+  }
+  return trimmed;
+}
+
+function cleanOptionalString(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  return value.trim() || null;
+}
+
 export const supersedeToolDef = {
   name: 'oracle_supersede',
   description: 'Mark an old learning/document as superseded by a newer one. Aligns with "Nothing is Deleted" - old doc preserved but marked outdated.',
@@ -51,30 +83,14 @@ export function runSupersede(db: ToolContext['db'], input: OracleSupersededInput
     };
   }
 
-  const { oldId, newId, reason } = input as { oldId?: unknown; newId?: unknown; reason?: unknown };
-  if (typeof oldId !== 'string' || oldId.length === 0) {
-    return {
-      payload: {
-        success: false,
-        error: "arra_supersede requires field 'oldId' (non-empty string).",
-        received: oldId === undefined ? 'undefined' : typeof oldId,
-        usage: "arra_supersede({ oldId: 'learning_X', newId: 'learning_Y' })",
-      },
-      isError: true,
-    };
-  }
-
-  if (typeof newId !== 'string' || newId.length === 0) {
-    return {
-      payload: {
-        success: false,
-        error: "arra_supersede requires field 'newId' (non-empty string).",
-        received: newId === undefined ? 'undefined' : typeof newId,
-        usage: "arra_supersede({ oldId: 'learning_X', newId: 'learning_Y' })",
-      },
-      isError: true,
-    };
-  }
+  const args = input as { oldId?: unknown; newId?: unknown; reason?: unknown };
+  const oldIdResult = cleanRequiredId(args.oldId, 'oldId');
+  if (typeof oldIdResult !== 'string') return oldIdResult;
+  const newIdResult = cleanRequiredId(args.newId, 'newId');
+  if (typeof newIdResult !== 'string') return newIdResult;
+  const oldId = oldIdResult;
+  const newId = newIdResult;
+  const reason = cleanOptionalString(args.reason);
 
   if (oldId === newId) {
     return {
@@ -109,7 +125,7 @@ export function runSupersede(db: ToolContext['db'], input: OracleSupersededInput
     .set({
       supersededBy: newId,
       supersededAt: now,
-      supersededReason: typeof reason === 'string' ? reason : null,
+      supersededReason: reason,
     })
     .where(docWhere(oldId))
     .run();
@@ -123,7 +139,7 @@ export function runSupersede(db: ToolContext['db'], input: OracleSupersededInput
       old_type: oldDoc.type,
       new_id: newId,
       new_type: newDoc.type,
-      reason: reason || null,
+      reason,
       superseded_at: new Date(now).toISOString(),
       message: `"${oldId}" is now marked as superseded by "${newId}". It will still appear in search results (P-001 Nothing is Deleted), now flagged with "superseded_by", "superseded_at", and "superseded_reason" fields so callers can follow the replacement pointer.`,
     },

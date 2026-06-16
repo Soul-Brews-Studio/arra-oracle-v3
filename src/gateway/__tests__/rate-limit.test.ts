@@ -161,4 +161,10 @@ describe('rate-limit hook', () => {
     expect(await run(ctxFor('12.12.12.12', blank))).toBeUndefined();
     expect((await run(ctxFor('12.12.12.12', blank)) as Response).status).toBe(429);
   });
+
+  it('falls back from non-finite numeric options instead of disabling itself', async () => {
+    const opts = { tokens_per_window: Number.POSITIVE_INFINITY, window_ms: Number.NaN, burst: 1 };
+    expect(await run(ctxFor('13.13.13.13', opts))).toBeUndefined();
+    expect((await run(ctxFor('13.13.13.13', opts)) as Response).status).toBe(429);
+  });
 });
