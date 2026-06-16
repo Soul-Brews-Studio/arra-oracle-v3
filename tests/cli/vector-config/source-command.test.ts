@@ -112,4 +112,28 @@ describe('src vector-config command get/set', () => {
     expect(afterSwitch.collections.phase2).toMatchObject({ adapter: 'sqlite-vec', enabled: true });
     expect(afterSwitch.collections['bge-m3']).toMatchObject({ adapter: 'sqlite-vec', enabled: true });
   });
+
+  test('adds, promotes, and removes collections on disk', async () => {
+    const add = await run(['add', 'phase3', '--model', 'embed-v3', '--adapter', 'lancedb', '--primary', '--json']);
+    expect(add.code).toBe(0);
+    expect(JSON.parse(add.stdout)).toMatchObject({ success: true, collection: 'phase3' });
+    expect(diskConfig().collections.phase3).toMatchObject({ model: 'embed-v3', primary: true });
+    expect(diskConfig().collections['bge-m3'].primary).toBe(false);
+
+    const primary = await run(['set-primary', 'bge-m3', '--json']);
+    expect(primary.code).toBe(0);
+    expect(JSON.parse(primary.stdout)).toMatchObject({ success: true, collection: 'bge-m3' });
+    expect(diskConfig().collections['bge-m3'].primary).toBe(true);
+    expect(diskConfig().collections.phase3.primary).toBe(false);
+
+    const blocked = await run(['remove', 'phase3']);
+    expect(blocked.code).toBe(1);
+    expect(blocked.stderr).toContain('remove requires --yes');
+    expect(diskConfig().collections.phase3).toBeDefined();
+
+    const removed = await run(['remove', 'phase3', '--yes', '--json']);
+    expect(removed.code).toBe(0);
+    expect(JSON.parse(removed.stdout)).toMatchObject({ success: true, removed: 'phase3' });
+    expect(diskConfig().collections.phase3).toBeUndefined();
+  });
 });
