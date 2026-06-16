@@ -31,6 +31,17 @@ describe('canvas Cloudflare Worker', () => {
     expect(html).toContain('history.pushState');
   });
 
+
+  test('renders localStorage and IndexedDB registry cache hooks', async () => {
+    const response = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/?plugin=wave'));
+    const html = await response.text();
+
+    expect(html).toContain('oracle.canvas.registry.v1');
+    expect(html).toContain('localStorage.setItem');
+    expect(html).toContain('indexedDB.open');
+    expect(html).toContain("fetch('/api/canvas/registry')");
+  });
+
   test('falls back to wave for unknown plugins', async () => {
     const response = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/?plugin=unknown'));
     expect(await response.text()).toContain('plugin=wave');
