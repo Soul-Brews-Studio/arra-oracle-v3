@@ -96,5 +96,6 @@ test('GET /api/v1/vector/export/formats lists registered export formats', async 
     { format: 'json', label: 'JSON', mimeType: 'application/json; charset=utf-8', extension: 'json' },
     { format: 'jsonl', label: 'JSONL', mimeType: 'application/x-ndjson; charset=utf-8', extension: 'jsonl' },
     { format: 'markdown', label: 'Markdown', mimeType: 'text/markdown; charset=utf-8', extension: 'md' },
+    { format: 'v2', label: 'V2', mimeType: 'application/json; charset=utf-8', extension: 'v2.json' },
   ]);
 });

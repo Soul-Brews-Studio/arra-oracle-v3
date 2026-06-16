@@ -32,13 +32,14 @@ function createFetch() {
 
 test('GET /api/v1/vector/export/formats lists available export formats', async () => {
   const res = await createFetch()(new Request('http://local/api/v1/vector/export/formats'));
-  const formats = await res.json() as string[];
+  const body = await res.json() as { formats: Array<{ format: string }> };
 
   expect(res.status).toBe(200);
-  expect(Array.isArray(formats)).toBe(true);
-  expect(formats).toContain('json');
-  expect(formats).toContain('csv');
-  expect(formats).toContain('jsonl');
+  expect(Array.isArray(body.formats)).toBe(true);
+  expect(body.formats.map((item) => item.format)).toContain('json');
+  expect(body.formats.map((item) => item.format)).toContain('csv');
+  expect(body.formats.map((item) => item.format)).toContain('jsonl');
+  expect(body.formats.map((item) => item.format)).toContain('v2');
 });
 
 test('GET /api/v1/vector/export supports jsonl format', async () => {
