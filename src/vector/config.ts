@@ -14,6 +14,7 @@ import { ORACLE_DATA_DIR, LANCEDB_DIR } from '../config.ts';
 import { COLLECTION_NAME } from '../const.ts';
 import type { UnifiedProxyManifest } from '../plugins/unified-manifest.ts';
 import type { EmbedderConfig, VectorDBType } from './types.ts';
+import { zeroConfigEmbedder } from './default-embedder.ts';
 
 export const VECTOR_CONFIG_FILE = 'vector-server.json';
 
@@ -79,25 +80,27 @@ export function generateDefaultConfig(): VectorServerConfig {
       'bge-m3': {
         collection: 'oracle_knowledge_bge_m3',
         model: 'bge-m3',
-        provider: 'none',
+        provider: 'ollama',
         adapter: 'lancedb',
         primary: true,
+        embedder: zeroConfigEmbedder('bge-m3'),
       },
       nomic: {
         collection: COLLECTION_NAME,
         model: 'nomic-embed-text',
-        provider: 'none',
+        provider: 'ollama',
         adapter: 'lancedb',
+        embedder: zeroConfigEmbedder('nomic-embed-text'),
       },
       qwen3: {
         collection: 'oracle_knowledge_qwen3',
         model: 'qwen3-embedding',
-        provider: 'none',
+        provider: 'ollama',
         adapter: 'lancedb',
+        embedder: zeroConfigEmbedder('qwen3-embedding'),
       },
     },
     dataPath: LANCEDB_DIR,
-    embedder: { backend: 'none' },
     embeddingEndpoint: '',
     storage: {
       default: 'lancedb',
