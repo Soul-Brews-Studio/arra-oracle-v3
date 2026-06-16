@@ -1,8 +1,9 @@
 import { Elysia } from 'elysia';
-import { RecallMemoryQuery, SaveMemoryBody, SemanticMemoryQuery } from './model.ts';
+import { MorningTapeQuery, RecallMemoryQuery, SaveMemoryBody, SemanticMemoryQuery } from './model.ts';
 import { createMemoryFanoutEndpoint } from './fanout.ts';
 import { memoryStore, type MemoryInput, type MemoryRecord, type MemoryStore } from './store.ts';
 import { memoryVectorIndex, type MemoryVectorHit, type MemoryVectorIndex } from './vector.ts';
+import { buildMorningTape } from './morning-tape.ts';
 
 export function createMemoryRoutes(
   store: MemoryStore = memoryStore,
@@ -23,6 +24,13 @@ export function createMemoryRoutes(
       detail: { tags: ['memory'], menu: { group: 'hidden' }, summary: 'Save a persisted memory' },
     })
     .use(createMemoryFanoutEndpoint())
+    .get('/memory/morning-tape', ({ query }) => {
+      const limit = Math.min(25, Math.max(1, parseInt(query.limit ?? '8')));
+      return buildMorningTape(store.recall('', limit));
+    }, {
+      query: MorningTapeQuery,
+      detail: { tags: ['memory'], menu: { group: 'hidden' }, summary: 'Render a two-minute morning recovery tape from persisted memories' },
+    })
     .get('/memory/recall', ({ query }) => {
       const limit = Math.min(50, Math.max(1, parseInt(query.limit ?? '10')));
       const items = store.recall(query.q ?? '', limit);
