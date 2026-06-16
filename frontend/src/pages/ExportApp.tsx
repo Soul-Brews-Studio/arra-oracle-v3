@@ -1,16 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
 import { BackendSelector, DEFAULT_BACKEND_URL, normalizeBackendUrl } from '../components/export/BackendSelector';
+import { ExportProgress } from '../components/export/ExportProgress';
 import {
   backendApiUrl,
+  exportResponseError,
   exportAppFormats,
+  exportProgressUrl,
   legacyDirectExportLink,
+  messageFromPayload,
   normalizeExportAppCollections,
+  progressPatchFromExportPayload,
+  readExportPayload,
   resolveDownloadLink,
   type ExportAppFormat,
   type ExportDownloadLink,
   type LegacyExportCollection,
 } from './exportAppHelpers';
+import type { ExportProgressState } from '../hooks/useExport';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 type ExportState = 'idle' | 'exporting' | 'ready' | 'error';
@@ -21,11 +28,6 @@ type ExportAppProps = {
   fetcher?: Fetcher;
   autoLoad?: boolean;
 };
-
-async function jsonPayload(response: Response): Promise<unknown> {
-  const text = await response.text();
-  return text ? JSON.parse(text) : {};
-}
 
 function collectionLabel(collection: LegacyExportCollection): string {
   const count = typeof collection.count === 'number' ? ` · ${collection.count.toLocaleString()} rows` : '';
@@ -61,26 +63,51 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
   const [collection, setCollection] = useState('');
   const [format, setFormat] = useState<ExportAppFormat>('json');
   const [download, setDownload] = useState<ExportDownloadLink | null>(null);
+  const [progress, setProgress] = useState<ExportProgressState>({ status: 'idle', jobId: null, progress: 0 });
+  const progressSource = useRef<EventSource | null>(null);
 
   const selected = useMemo(
     () => collections.find((item) => item.id === collection) ?? collections[0],
     [collection, collections],
   );
 
+  function closeProgress() {
+    progressSource.current?.close();
+    progressSource.current = null;
+  }
+
+  function connectProgress(targetUrl: string, jobId: string) {
+    closeProgress();
+    if (typeof EventSource === 'undefined') return;
+    const source = new EventSource(exportProgressUrl(targetUrl, jobId));
+    progressSource.current = source;
+    const update = (event: MessageEvent) => {
+      const patch = progressPatchFromExportPayload(JSON.parse(event.data));
+      setProgress((current) => ({ ...current, ...patch, progress: patch.progress ?? current.progress }));
+      if (patch.status === 'done' || patch.status === 'error') closeProgress();
+    };
+    source.addEventListener('progress', update);
+    source.onmessage = update;
+    source.onerror = () => closeProgress();
+  }
+
   async function loadCollections(targetUrl = backendUrl) {
-    if (!fetcher) throw new Error('fetch is unavailable in this runtime.');
     const normalized = normalizeBackendUrl(targetUrl);
     setBackendUrl(normalized);
     setLoadState('loading');
     setExportState('idle');
     setError('');
     setDownload(null);
+    closeProgress();
+    setProgress({ status: 'idle', jobId: null, progress: 0 });
     try {
+      if (!fetcher) throw new Error('fetch is unavailable in this runtime.');
+      const path = '/api/v1/export/app/collections';
       const response = await fetcher(backendApiUrl(normalized, '/api/v1/export/app/collections'), {
         headers: { accept: 'application/json' },
       });
-      if (!response.ok) throw new Error(`/api/v1/export/app/collections returned ${response.status}`);
-      const next = normalizeExportAppCollections(await jsonPayload(response));
+      if (!response.ok) throw new Error(await exportResponseError(response, path));
+      const next = normalizeExportAppCollections(await readExportPayload(response, path));
       setCollections(next);
       setCollection((current) => next.find((item) => item.id === current)?.id ?? next[0]?.id ?? '');
       setLoadState('ready');
@@ -93,45 +120,68 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
   }
 
   async function triggerExport() {
-    if (!fetcher || !selected) return;
+    if (!fetcher || !selected) {
+      setError(!fetcher ? 'fetch is unavailable in this runtime.' : 'Load a collection before starting export.');
+      setExportState('error');
+      return;
+    }
     setExportState('exporting');
     setError('');
     setDownload(null);
+    closeProgress();
+    setProgress({ status: 'starting', jobId: null, progress: 0 });
     const normalized = normalizeBackendUrl(backendUrl);
     const payload = { collection: selected.id, format, includeGraph: true, includeMetadata: true };
     try {
+      const path = '/api/v1/export/app/run';
       const response = await fetcher(backendApiUrl(normalized, '/api/v1/export/app/run'), {
         method: 'POST',
         headers: { accept: 'application/json', 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
       if (isLegacyFallback(response.status)) {
-        setDownload(legacyDirectExportLink(normalized, selected.id, format));
+        const link = legacyDirectExportLink(normalized, selected.id, format);
+        setDownload(link);
+        setProgress({ status: 'done', jobId: null, progress: 100, downloadUrl: link.url, filename: link.filename });
         setExportState('ready');
         return;
       }
-      const body = await jsonPayload(response);
-      if (!response.ok) throw new Error(`/api/v1/export/app/run returned ${response.status}`);
+      const body = await readExportPayload(response, path);
+      if (!response.ok) {
+        const detail = progressPatchFromExportPayload(body).error ?? messageFromPayload(body);
+        throw new Error(`${path} returned ${response.status}${detail ? `: ${detail}` : ''}`);
+      }
       const link = resolveDownloadLink(normalized, body, selected.id, format);
       if (!link) throw new Error('Export response did not include a download URL or job id.');
+      const patch = progressPatchFromExportPayload(body);
       setDownload(link);
+      setProgress((current) => ({
+        ...current,
+        ...patch,
+        status: patch.status ?? 'done',
+        progress: patch.progress ?? 100,
+        downloadUrl: link.url,
+        filename: link.filename,
+      }));
+      if (patch.jobId) connectProgress(normalized, patch.jobId);
       setExportState('ready');
     } catch (err) {
-      setError(errorMessage(err));
+      const message = errorMessage(err);
+      setError(message);
+      setProgress((current) => ({ ...current, status: 'error', error: message }));
       setExportState('error');
     }
   }
 
-  useEffect(() => {
-    if (autoLoad) void loadCollections(backendUrl);
-  }, [autoLoad]);
+  useEffect(() => { if (autoLoad) void loadCollections(backendUrl); }, [autoLoad]);
+  useEffect(() => () => closeProgress(), []);
 
   return (
     <div className="grid gap-5">
       <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="export-app-title">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Legacy Oracle v2</p>
         <h1 id="export-app-title" className="mt-2 text-3xl font-semibold text-white">Export app</h1>
-        <p className="mt-2 text-sm text-slate-400">Connect to an old Oracle v2 backend, list collections, and prepare JSON or Markdown backups before migration.</p>
+        <p className="mt-2 text-sm text-slate-400">Connect to an old Oracle v2 backend, list collections, and prepare JSON, JSONL, CSV, or Markdown backups before migration.</p>
       </section>
 
       <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="backend-title">
@@ -149,7 +199,13 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
       </section>
 
       {loadState === 'loading' ? <LoadingPanel title="Loading export collections" detail="Calling /api/v1/export/app/collections on the selected backend." /> : null}
-      {loadState === 'error' ? <ErrorMessage title="Could not load legacy backend collections." message={error} /> : null}
+      {loadState === 'error' ? (
+        <ErrorMessage
+          title="Could not load legacy backend collections."
+          message={error}
+          action={<button className="focus-ring rounded-lg border border-red-200/30 px-3 py-2 font-semibold text-red-50 hover:bg-red-200/10" type="button" onClick={() => void loadCollections()}>Retry loading collections</button>}
+        />
+      ) : null}
       {exportState === 'error' ? <ErrorMessage title="Could not start export." message={error} /> : null}
 
       <section className="grid gap-4 lg:grid-cols-2">
@@ -165,6 +221,9 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
           <ul className="mt-4 grid max-h-72 gap-2 overflow-auto" aria-label="Legacy export collections">
             {collections.map((item) => <li key={item.id} className="rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">{collectionLabel(item)}</li>)}
           </ul>
+          {loadState === 'ready' && !collections.length ? (
+            <p className="mt-4 rounded-xl border border-dashed border-white/10 p-4 text-sm text-slate-500">No collections are available from this backend. Check the URL, then reload collections.</p>
+          ) : null}
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="format-title">
@@ -184,6 +243,7 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
           <div className="mt-4"><DownloadCard link={download} /></div>
         </div>
       </section>
+      <ExportProgress state={progress} title="Export progress" onRetry={() => void triggerExport()} />
     </div>
   );
 }

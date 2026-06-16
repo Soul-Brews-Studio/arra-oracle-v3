@@ -1,13 +1,14 @@
 /** Export Data App routes — core dumps, app helpers, and async artifacts. */
 
 import { Elysia } from 'elysia';
-import { exportCreateBody, normalizeExportRequest, type ExportJobView } from './model.ts';
+import { exportCreateBody, normalizeExportRequest } from './model.ts';
 import { defaultExportJobManager, type ExportJobManager } from './jobs.ts';
 import { createExportHistoryRoutes } from './history.ts';
 import { exportCoreRoutes } from './core.ts';
 import { exportAppRoutes } from './app.ts';
 import { exportBatchRoutes } from './batch.ts';
 import { exportImportRoutes } from './import.ts';
+import { createExportProgressResponse, readRememberedExportProgress } from './progress.ts';
 
 export { createExportCoreRoutes, exportCoreRoutes } from './core.ts';
 export { createExportAppRoutes, exportAppRoutes } from './app.ts';
@@ -15,55 +16,25 @@ export { createExportBatchRoutes, exportBatchRoutes } from './batch.ts';
 export { createExportImportRoutes, exportImportRoutes } from './import.ts';
 export { createExportTestConnectionRoutes, exportTestConnectionRoutes } from './test-connection.ts';
 
-type ProgressStatus = 'queued' | 'running' | 'done' | 'error';
-
-const encoder = new TextEncoder();
-const PROGRESS_POLL_MS = 250;
-
-function publicStatus(status: ExportJobView['status']): ProgressStatus {
-  if (status === 'completed') return 'done';
-  if (status === 'failed') return 'error';
-  return status;
+function queryText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
-function progressPayload(job: ExportJobView) {
-  return {
-    jobId: job.id,
-    status: publicStatus(job.status),
-    progress: job.progress,
-    ...(job.error ? { error: job.error } : {}),
-  };
+function progressLookup(manager: ExportJobManager, id: string) {
+  return () => manager.get(id) ?? readRememberedExportProgress(id);
 }
 
-function progressEvent(job: ExportJobView): Uint8Array {
-  return encoder.encode(`event: progress\ndata: ${JSON.stringify(progressPayload(job))}\n\n`);
-}
-
-function createProgressStream(manager: ExportJobManager, id: string): ReadableStream<Uint8Array> {
-  let timer: ReturnType<typeof setInterval> | undefined;
-  const clearTimer = () => {
-    if (timer) clearInterval(timer);
-    timer = undefined;
-  };
-  return new ReadableStream({
-    start(controller) {
-      const stop = () => {
-        clearTimer();
-        controller.close();
-      };
-      const send = () => {
-        const job = manager.get(id);
-        if (!job) return stop();
-        controller.enqueue(progressEvent(job));
-        if (job.status === 'completed' || job.status === 'failed') stop();
-      };
-
-      send();
-      if (manager.get(id)?.status === 'completed' || manager.get(id)?.status === 'failed') return;
-      timer = setInterval(send, PROGRESS_POLL_MS);
-    },
-    cancel: clearTimer,
-  });
+function progressResponse(manager: ExportJobManager, id: string, set: { status?: unknown }) {
+  if (!id) {
+    set.status = 400;
+    return { error: 'jobId query parameter is required' };
+  }
+  const lookup = progressLookup(manager, id);
+  if (!lookup()) {
+    set.status = 404;
+    return { error: 'Export job not found', id };
+  }
+  return createExportProgressResponse(id, lookup);
 }
 
 export function createExportRoutes(manager: ExportJobManager = defaultExportJobManager) {
@@ -80,21 +51,17 @@ export function createExportRoutes(manager: ExportJobManager = defaultExportJobM
       },
     })
     .use(createExportHistoryRoutes())
-    .get('/export/progress/:jobId', ({ params, set }) => {
-      const job = manager.get(params.jobId);
-      if (!job) {
-        set.status = 404;
-        return { error: 'Export job not found', id: params.jobId };
-      }
-      return new Response(createProgressStream(manager, params.jobId), {
-        headers: {
-          'Content-Type': 'text/event-stream; charset=utf-8',
-          'Cache-Control': 'no-cache, no-transform',
-          Connection: 'keep-alive',
-          'X-Accel-Buffering': 'no',
-        },
-      });
-    }, {
+    .get('/export/progress', ({ query, set }) => progressResponse(
+      manager,
+      queryText(query.jobId) || queryText(query.id),
+      set,
+    ), {
+      detail: {
+        tags: ['export'],
+        summary: 'Stream export job progress with Server-Sent Events',
+      },
+    })
+    .get('/export/progress/:jobId', ({ params, set }) => progressResponse(manager, params.jobId, set), {
       detail: {
         tags: ['export'],
         summary: 'SSE stream of export job progress',

@@ -8,6 +8,8 @@ import { db as defaultDb, type DatabaseConnection } from '../../db/index.ts';
 import { introspectDrizzleTables } from '../../cli/commands/backup.ts';
 import { createExportStatsRoutes } from './stats.ts';
 import { createExportTestConnectionRoutes } from './test-connection.ts';
+import { rememberExportProgress } from './progress.ts';
+import { canReadTenantResource, currentExportTenantId, tenantScopedOutputDir, tenantWhereFor } from './tenant.ts';
 
 type ExportRecord = Record<string, unknown>;
 type BaseExportFormat = 'json' | 'csv' | 'markdown';
@@ -24,6 +26,7 @@ interface ExportTools {
 
 interface ExportJob {
   jobId: string;
+  tenantId?: string;
   collection: string;
   format: ExportFormat;
   includeGraph: boolean;
@@ -32,6 +35,7 @@ interface ExportJob {
   mimeType: string;
   rowCount: number;
   relationshipCount: number;
+  sizeBytes: number;
   createdAt: string;
 }
 
@@ -60,7 +64,9 @@ function tableMap(): Map<string, DumpTable> {
 }
 
 function selectRows(connection: QueryConnection, table: DumpTable): ExportRecord[] {
-  return (connection.db as any).select().from(table).all() as ExportRecord[];
+  const query = (connection.db as any).select().from(table);
+  const where = tenantWhereFor(table);
+  return (where ? query.where(where) : query).all() as ExportRecord[];
 }
 
 function safeName(value: string): string {
@@ -77,6 +83,8 @@ function mimeType(format: ExportFormat): string {
 function isExportFormat(value: unknown): value is ExportFormat {
   return typeof value === 'string' && APP_EXPORT_FORMATS.includes(value as ExportFormat);
 }
+
+function truthy(value: unknown): boolean { return value === true || value === 'true' || value === '1'; }
 
 function extensionFor(format: ExportFormat, tools: ExportTools): string {
   return format === 'jsonl' ? 'jsonl' : tools.extensionFor(format);
@@ -96,10 +104,7 @@ function csvCell(value: unknown): string {
 }
 
 async function allCollections(connection: QueryConnection, tools: ExportTools): Promise<Record<string, ExportRecord[]>> {
-  return Object.fromEntries([...tableMap()].map(([name, table]) => [
-    name,
-    tools.normalizeRecords(selectRows(connection, table)),
-  ]));
+  return Object.fromEntries([...tableMap()].map(([name, table]) => [name, tools.normalizeRecords(selectRows(connection, table))]));
 }
 
 function attachGraph(content: string, format: ExportFormat, relationships: ExportRecord[]): string {
@@ -129,11 +134,43 @@ export function createExportAppRoutes(deps: ExportAppDeps = {}) {
   return new Elysia()
     .get('/export/app/collections', async () => {
       const connection = connectionFrom(deps);
-      const collections = [...tableMap()].map(([name, table]) => ({
-        name,
-        rowCount: selectRows(connection, table).length,
-      }));
+      const collections = [...tableMap()].map(([name, table]) => ({ name, rowCount: selectRows(connection, table).length }));
       return { collections, formats: APP_EXPORT_FORMATS, graph: { collection: 'relationships' } };
+    })
+    .get('/export/app', async ({ query, set }) => {
+      const tools = await loadExportTools();
+      const format = query.format ?? 'json';
+      if (!isExportFormat(format)) {
+        set.status = 400;
+        return { error: 'Invalid format', format, formats: APP_EXPORT_FORMATS };
+      }
+
+      const connection = connectionFrom(deps);
+      const tables = tableMap();
+      const isGraph = query.collection === 'relationships';
+      const table = tables.get(query.collection);
+      if (!isGraph && !table) {
+        set.status = 404;
+        return { error: `Unknown export collection: ${query.collection}` };
+      }
+
+      const includeGraph = truthy(query.includeGraph);
+      const collections = includeGraph || isGraph ? await allCollections(connection, tools) : {};
+      const relationships = includeGraph || isGraph ? tools.graphRelationships(collections) : [];
+      const rows = isGraph ? relationships : tools.normalizeRecords(selectRows(connection, table!));
+      if (!isGraph && rows.length === 0) {
+        set.status = 404;
+        return { error: 'Collection is empty', collection: query.collection };
+      }
+
+      const base = formatRows(query.collection, rows, format, tools);
+      const content = !isGraph && includeGraph ? attachGraph(base, format, relationships) : base;
+      const filename = `${safeName(query.collection)}.${extensionFor(format, tools)}`;
+      return new Response(content, {
+        headers: { 'Content-Type': mimeType(format), 'Content-Disposition': `attachment; filename="${filename}"` },
+      });
+    }, {
+      query: t.Object({ collection: t.String(), format: t.Optional(t.String()), includeGraph: t.Optional(t.String()), includeMetadata: t.Optional(t.String()) }),
     })
     .post('/export/app/run', async ({ body, set }) => {
       const tools = await loadExportTools();
@@ -162,14 +199,18 @@ export function createExportAppRoutes(deps: ExportAppDeps = {}) {
       const base = formatRows(body.collection, rows, format, tools);
       const content = !isGraph && body.includeGraph ? attachGraph(base, format, relationships) : base;
       const jobId = deps.idGenerator?.() ?? randomUUID();
-      const outputDir = deps.outputDir ?? path.join(ORACLE_DATA_DIR, 'export-app', 'http');
+      const tenantId = currentExportTenantId();
+      const outputDir = tenantScopedOutputDir(deps.outputDir ?? path.join(ORACLE_DATA_DIR, 'export-app', 'http'));
       const filename = `${safeName(body.collection)}-${jobId}.${extensionFor(format, tools)}`;
       const filePath = path.join(outputDir, filename);
       await mkdir(outputDir, { recursive: true });
       await writeFile(filePath, content, 'utf8');
+      const sizeBytes = new TextEncoder().encode(content).byteLength;
+      const downloadUrl = `/api/v1/export/app/download/${jobId}`;
 
       const job: ExportJob = {
         jobId,
+        tenantId,
         collection: body.collection,
         format,
         includeGraph: Boolean(body.includeGraph),
@@ -178,28 +219,23 @@ export function createExportAppRoutes(deps: ExportAppDeps = {}) {
         mimeType: mimeType(format),
         rowCount: rows.length,
         relationshipCount: relationships.length,
+        sizeBytes,
         createdAt: (deps.now?.() ?? new Date()).toISOString(),
       };
       jobs.set(jobId, job);
-      return { ...job, filePath: undefined, downloadUrl: `/api/v1/export/app/download/${jobId}` };
+      rememberExportProgress({ id: jobId, jobId, tenantId, status: 'completed', progress: 100, updatedAt: job.createdAt, downloadUrl, filename, fileSizeEstimate: sizeBytes, sizeBytes });
+      return { ...job, filePath: undefined, status: 'completed', progress: 100, downloadUrl };
     }, {
-      body: t.Object({
-        collection: t.String(),
-        format: t.Optional(t.String()),
-        includeGraph: t.Optional(t.Boolean()),
-      }),
+      body: t.Object({ collection: t.String(), format: t.Optional(t.String()), includeGraph: t.Optional(t.Boolean()) }),
     })
     .get('/export/app/download/:jobId', async ({ params, set }) => {
       const job = jobs.get(params.jobId);
-      if (!job) {
+      if (!job || !canReadTenantResource(job.tenantId)) {
         set.status = 404;
         return { error: `Unknown export job: ${params.jobId}` };
       }
       return new Response(await readFile(job.filePath), {
-        headers: {
-          'Content-Type': job.mimeType,
-          'Content-Disposition': `attachment; filename="${job.filename}"`,
-        },
+        headers: { 'Content-Type': job.mimeType, 'Content-Disposition': `attachment; filename="${job.filename}"` },
       });
     }, { params: t.Object({ jobId: t.String() }) });
 }

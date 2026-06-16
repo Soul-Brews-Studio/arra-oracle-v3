@@ -21,6 +21,7 @@ export interface ExportPayload {
 
 export interface ExportJobView {
   id: string;
+  tenantId?: string;
   status: ExportJobStatus;
   format: ExportFormat;
   source: ExportSource;
@@ -72,6 +73,7 @@ export const exportHistoryRunBody = t.Object({
 
 export interface ExportHistoryJob {
   id: string;
+  tenantId: string;
   collection: string;
   format: string;
   timestamp: number;

@@ -40,6 +40,15 @@ export interface VectorStoreAdapter {
   ensureCollection(): Promise<void>;
   deleteCollection(): Promise<void>;
   addDocuments(docs: VectorDocument[]): Promise<void>;
+  /**
+   * Replace collection contents without dropping/recreating the table.
+   *
+   * This is optional because not every backend has an efficient whole-table
+   * replace primitive. Callers that hold long-lived handles (MCP/server) rely
+   * on this for reindex paths: drop/recreate invalidates LanceDB table handles
+   * in sibling processes and can produce silent vector-store corruption (#987).
+   */
+  replaceDocuments?(docs: VectorDocument[]): Promise<void>;
   query(text: string, limit?: number, where?: Record<string, any>): Promise<VectorQueryResult>;
   queryById(id: string, nResults?: number): Promise<VectorQueryResult>;
   getStats(): Promise<{ count: number }>;

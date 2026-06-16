@@ -212,8 +212,8 @@ export function scanPlugins(dir = currentPluginDir()): { plugins: PluginEntry[];
   return { plugins, dir };
 }
 
-export function getPluginMenuItems(): MenuItem[] {
-  const { plugins } = scanPlugins();
+export function getPluginMenuItems(dir = currentPluginDir()): MenuItem[] {
+  const { plugins } = scanPlugins(dir);
   const items: MenuItem[] = [];
   for (const p of plugins) {
     if (!p.menu) continue;

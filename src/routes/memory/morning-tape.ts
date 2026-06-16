@@ -5,15 +5,25 @@ export type MorningTapeSection = {
   bullets: string[];
 };
 
+export type MorningTapeCheck = {
+  id: string;
+  label: string;
+  passed: boolean;
+  detail: string;
+};
+
 export type MorningTape = {
   generatedAt: string;
   readTimeMinutes: number;
   memoryCount: number;
+  ready: boolean;
+  checks: MorningTapeCheck[];
   sections: MorningTapeSection[];
   markdown: string;
 };
 
 const DEFAULT_READ_TIME_MINUTES = 2;
+const REQUIRED_SECTIONS = ['Wake protocol', 'Fresh memory', 'Verification oath'];
 
 export function buildMorningTape(memories: MemoryRecord[], generatedAt = new Date()): MorningTape {
   const sections = [
@@ -38,8 +48,35 @@ export function buildMorningTape(memories: MemoryRecord[], generatedAt = new Dat
       ],
     },
   ];
-  const tape = { generatedAt: generatedAt.toISOString(), readTimeMinutes: DEFAULT_READ_TIME_MINUTES, memoryCount: memories.length, sections };
+  const draft = {
+    generatedAt: generatedAt.toISOString(),
+    readTimeMinutes: DEFAULT_READ_TIME_MINUTES,
+    memoryCount: memories.length,
+    sections,
+  };
+  const checks = bootChecks(draft);
+  const tape = { ...draft, ready: checks.every((check) => check.passed), checks };
   return { ...tape, markdown: toMarkdown(tape) };
+}
+
+function bootChecks(tape: Omit<MorningTape, 'markdown' | 'ready' | 'checks'>): MorningTapeCheck[] {
+  return [
+    {
+      id: 'read-time',
+      label: 'Two-minute read target',
+      passed: tape.readTimeMinutes <= 2,
+      detail: `${tape.readTimeMinutes} minute target`,
+    },
+    ...REQUIRED_SECTIONS.map((title) => {
+      const section = tape.sections.find((item) => item.title === title);
+      return {
+        id: title.toLowerCase().replace(/\s+/g, '-'),
+        label: `${title} section`,
+        passed: Boolean(section?.bullets.length),
+        detail: section ? `${section.bullets.length} bullets` : 'missing',
+      };
+    }),
+  ];
 }
 
 function memoryBullet(memory: MemoryRecord): string {
@@ -60,6 +97,11 @@ function toMarkdown(tape: Omit<MorningTape, 'markdown'>): string {
     `Generated: ${tape.generatedAt}`,
     `Target read time: ${tape.readTimeMinutes} minutes`,
     `Persisted memories included: ${tape.memoryCount}`,
+    `Boot readiness: ${tape.ready ? 'ready' : 'needs attention'}`,
+    '',
+    '## Boot self-check',
+    '',
+    ...tape.checks.map((check) => `- ${check.passed ? '✅' : '⚠️'} ${check.label}: ${check.detail}`),
     '',
   ];
   for (const section of tape.sections) {

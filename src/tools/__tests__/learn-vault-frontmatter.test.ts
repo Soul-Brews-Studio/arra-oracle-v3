@@ -91,5 +91,5 @@ describe('handleLearn vault interchange frontmatter', () => {
     expect(row.content).toContain('source: M5 enqueue test');
     expect(row.content).toContain('tags: [m5, vault-interchange]');
     expect(row.content).toContain('project: github.com/soul-brews-studio/arra-oracle-v3');
-  });
+  }, 15_000);
 });

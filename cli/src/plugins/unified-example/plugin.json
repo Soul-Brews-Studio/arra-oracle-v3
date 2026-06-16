@@ -1,0 +1,22 @@
+{
+  "name": "unified-example",
+  "version": "1.0.0",
+  "entry": "./index.ts",
+  "sdk": "^0.0.1",
+  "tier": "extra",
+  "enabled": false,
+  "seedMenu": false,
+  "description": "Example unified plugin: CLI command, HTTP route, and lifecycle from one handler",
+  "cli": {
+    "command": "unified-example",
+    "help": "arra-cli unified-example — sample unified plugin"
+  },
+  "api": {
+    "path": "/api/unified-example",
+    "methods": ["GET", "POST"]
+  },
+  "lifecycle": {
+    "start": true,
+    "stop": true
+  }
+}

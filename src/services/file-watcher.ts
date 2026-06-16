@@ -13,7 +13,7 @@ import {
   readPsiLearnDocuments,
   storeSqliteDocuments,
 } from '../indexer/learn-doc-source.ts';
-import { isWithinRoot, listDirs, safeClearTimeout, safeClose, watchDir } from '../indexer/watch-utils.ts';
+import { isWithinRoot, listDirs, listFiles, safeClearTimeout, safeClose, watchDir } from '../indexer/watch-utils.ts';
 
 type ModelRegistry = Record<string, { collection: string }>;
 type WatcherEventType = 'started' | 'stopped' | 'scheduled' | 'indexed' | 'skipped' | 'error';
@@ -136,6 +136,7 @@ export class FileWatcherService {
     const stat = fs.statSync(filePath);
     if (stat.isDirectory()) {
       this.addWatchers(filePath);
+      this.indexMarkdownTree(filePath);
       return;
     }
 
@@ -153,6 +154,10 @@ export class FileWatcherService {
       this.record('error', `failed to re-index ${sourceFile}: ${errorText(error)}`, sourceFile);
       this.logger.warn(`[file-watcher] failed to re-index ${sourceFile}:`, error);
     }
+  }
+
+  private indexMarkdownTree(dir: string): void {
+    for (const filePath of listFiles(dir, isMarkdownFile)) this.reindexPath(filePath);
   }
 
   private enqueue(ids: string[]): number {

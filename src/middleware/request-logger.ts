@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Elysia } from 'elysia';
+import { formatRequestLog, requestLogFormat, type RequestLogFormat } from './logger.ts';
 import { SANDBOX_LABEL_HEADER, sandboxLabel } from '../runtime/sandbox-label.ts';
 
 export type StructuredRequestLogEntry = {
@@ -24,6 +25,7 @@ type LogSink = (entry: StructuredRequestLogEntry) => void;
 
 type RequestLoggingOptions = {
   log?: LogSink;
+  logFormat?: RequestLogFormat;
   now?: () => number;
   timestamp?: () => string;
 };
@@ -74,7 +76,8 @@ export function createRequestLoggingMiddleware(options: RequestLoggingOptions = 
   const meta = new WeakMap<Request, RequestMeta>();
   const now = options.now ?? nowMs;
   const timestamp = options.timestamp ?? isoTimestamp;
-  const log = options.log ?? ((entry: StructuredRequestLogEntry) => console.log(JSON.stringify(entry)));
+  const format = options.logFormat ?? requestLogFormat();
+  const log = options.log ?? ((entry: StructuredRequestLogEntry) => console.log(formatRequestLog(entry, format)));
 
   return new Elysia({ name: 'structured-request-logger' })
     .onRequest(({ request, set }) => {

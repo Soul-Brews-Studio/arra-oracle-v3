@@ -1,29 +1,70 @@
 import { exportOracleData } from './exporter.ts';
+import { existsSync, statSync } from 'node:fs';
+import { DB_PATH } from '../../src/config.ts';
 
 type Writer = (message: string) => void;
 
 interface CliOptions {
   outputDir: string;
   dbPath?: string;
+  quiet: boolean;
+  progressJson: boolean;
 }
 
-function readValue(args: string[], flag: string): string | undefined {
-  const index = args.indexOf(flag);
-  if (index >= 0) {
-    const value = args[index + 1];
-    if (!value || value.startsWith('-')) throw new Error(`missing value for ${flag}`);
-    return value;
-  }
+function flagValue(args: string[], index: number, flag: string): string {
+  const value = args[index + 1];
+  if (!value || value.startsWith('-')) throw new Error(`missing value for ${flag}`);
+  return value;
+}
+
+function assignedValue(arg: string, flag: string): string | undefined {
   const prefix = `${flag}=`;
-  const value = args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+  if (!arg.startsWith(prefix)) return undefined;
+  const value = arg.slice(prefix.length);
   if (value === '') throw new Error(`missing value for ${flag}`);
   return value;
 }
 
 export function parseArgs(args: string[]): CliOptions {
-  const outputDir = readValue(args, '--output') ?? readValue(args, '-o');
+  let outputDir: string | undefined;
+  let dbPath: string | undefined;
+  let quiet = false;
+  let progressJson = false;
+
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i]!;
+    const outputAssigned = assignedValue(arg, '--output');
+    const dbAssigned = assignedValue(arg, '--db');
+    if (outputAssigned !== undefined) { outputDir = outputAssigned; continue; }
+    if (dbAssigned !== undefined) { dbPath = dbAssigned; continue; }
+    if (arg === '--output' || arg === '-o') { outputDir = flagValue(args, i, arg); i += 1; continue; }
+    if (arg === '--db') { dbPath = flagValue(args, i, arg); i += 1; continue; }
+    if (arg === '--quiet' || arg === '--no-progress') { quiet = true; continue; }
+    if (arg === '--progress-json') { progressJson = true; continue; }
+    if (arg === '--help' || arg === '-h') continue;
+    throw new Error(arg.startsWith('-') ? `unknown flag: ${arg}` : `unexpected argument: ${arg}`);
+  }
+
   if (!outputDir) throw new Error('missing required --output <dir>');
-  return { outputDir, dbPath: readValue(args, '--db') };
+  return { outputDir, dbPath, quiet, progressJson };
+}
+
+function requireFile(path: string): void {
+  if (!existsSync(path)) {
+    throw new Error(`database file not found: ${path}. Pass --db <path> for an existing Oracle database.`);
+  }
+  if (!statSync(path).isFile()) throw new Error(`database path is not a file: ${path}`);
+}
+
+function requireOutputTarget(path: string): void {
+  if (existsSync(path) && !statSync(path).isDirectory()) {
+    throw new Error(`output path exists but is not a directory: ${path}`);
+  }
+}
+
+export function validateCliOptions(options: CliOptions): void {
+  requireFile(options.dbPath ?? DB_PATH);
+  requireOutputTarget(options.outputDir);
 }
 
 function printHelp(write: Writer): void {
@@ -35,6 +76,9 @@ function printHelp(write: Writer): void {
     'Flags:',
     '  --output, -o <dir>   destination backup directory',
     '  --db <path>          SQLite database path (defaults to ORACLE_DB_PATH)',
+    '  --quiet              suppress progress output',
+    '  --no-progress        alias for --quiet',
+    '  --progress-json      emit progress as JSON lines on stderr',
     '  --help, -h           show this help',
     '',
   ].join('\n'));
@@ -47,7 +91,17 @@ export async function runExportApp(args: string[], stdout: Writer = process.stdo
       return 0;
     }
     const options = parseArgs(args);
-    const result = await exportOracleData({ ...options, progress: (message) => stderr(`${message}\n`) });
+    validateCliOptions(options);
+    const progress = options.quiet
+      ? () => {}
+      : options.progressJson
+        ? (message: string) => stderr(`${JSON.stringify({ event: 'export_progress', message })}\n`)
+        : (message: string) => stderr(`${message}\n`);
+    const result = await exportOracleData({
+      outputDir: options.outputDir,
+      dbPath: options.dbPath,
+      progress,
+    });
     stdout(`${JSON.stringify({ success: true, ...result }, null, 2)}\n`);
     return 0;
   } catch (error) {

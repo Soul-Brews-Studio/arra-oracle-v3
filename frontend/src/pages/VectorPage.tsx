@@ -19,12 +19,13 @@ import {
   type VectorCollectionCard,
   type VectorFreshnessCard,
   type VectorProviderHealthCard,
+  type VectorStorageHealthCard,
 } from './vector-dashboard-cards';
 
 type PageState = 'loading' | 'ready' | 'error';
 type VectorStatusClient = Pick<ApiClient, 'vectorIndexModels' | 'vectorHealth'>;
 type DownloadByCollection = Record<string, VectorExportFormat | undefined>;
-type VectorDashboardHealth = VectorHealthResponse & { providers?: VectorProviderHealthCard[]; freshness?: VectorFreshnessCard };
+type VectorDashboardHealth = VectorHealthResponse & { providers?: VectorProviderHealthCard[]; freshness?: VectorFreshnessCard; storage?: VectorStorageHealthCard[] };
 
 export interface VectorPageProps {
   modelsResponse?: VectorIndexModelsResponse | null;
@@ -171,7 +172,7 @@ export function VectorPage({
 
         <div className="grid gap-4">
           <VectorStatsCard cards={cards} />
-          <VectorHealthDashboardCard providers={dashboardHealth?.providers} freshness={dashboardHealth?.freshness} />
+          <VectorHealthDashboardCard providers={dashboardHealth?.providers} storage={dashboardHealth?.storage} freshness={dashboardHealth?.freshness} />
           <QuickExportCard cards={cards} formats={formats} downloads={downloads} onExport={onExport} />
           <VectorIndexPanel />
         </div>

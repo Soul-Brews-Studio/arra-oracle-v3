@@ -1,6 +1,7 @@
 import { normalizeBackendUrl } from '../components/export/BackendSelector';
+import type { ExportProgressState } from '../hooks/useExport';
 
-export type ExportAppFormat = 'json' | 'markdown';
+export type ExportAppFormat = 'json' | 'jsonl' | 'csv' | 'markdown';
 
 export type LegacyExportCollection = {
   id: string;
@@ -18,6 +19,8 @@ type RawCollection = Record<string, unknown>;
 
 export const exportAppFormats: Array<{ value: ExportAppFormat; label: string; detail: string }> = [
   { value: 'json', label: 'JSON', detail: 'Full metadata dump for restore tooling.' },
+  { value: 'jsonl', label: 'JSONL', detail: 'Line-delimited records for streaming restore jobs.' },
+  { value: 'csv', label: 'CSV', detail: 'Tabular backup for spreadsheet review and audits.' },
   { value: 'markdown', label: 'Markdown', detail: 'Readable vault-style backup files.' },
 ];
 
@@ -69,7 +72,7 @@ export function normalizeExportAppCollections(payload: unknown): LegacyExportCol
 
 function filenameFrom(format: ExportAppFormat, collection: string): string {
   const safe = collection.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'oracle-export';
-  return `${safe}.${format === 'markdown' ? 'md' : 'json'}`;
+  return `${safe}.${format === 'markdown' ? 'md' : format}`;
 }
 
 function nestedJob(payload: Record<string, unknown>): Record<string, unknown> {
@@ -113,4 +116,53 @@ export function legacyDirectExportLink(
     url: backendApiUrl(backendUrl, `/api/v1/export/app?${query.toString()}`),
     filename: filenameFrom(format, collection),
   };
+}
+
+export function exportProgressUrl(backendUrl: string, jobId: string): string {
+  return backendApiUrl(backendUrl, `/api/v1/export/progress?jobId=${encodeURIComponent(jobId)}`);
+}
+
+export function progressPatchFromExportPayload(payload: unknown): Partial<ExportProgressState> {
+  const job = nestedJob(isRecord(payload) ? payload : {});
+  const rawStatus = stringField(job, ['status', 'state']).toLowerCase();
+  const progress = numberValue(job.progress, job.percent, job.progressPercent);
+  const status = rawStatus === 'completed' || rawStatus === 'done' ? 'done'
+    : rawStatus === 'failed' || rawStatus === 'error' ? 'error'
+      : rawStatus ? 'running' : undefined;
+  return {
+    ...(status ? { status } : {}),
+    jobId: stringField(job, ['jobId', 'id']) || null,
+    progress: progress === undefined ? undefined : Math.max(0, Math.min(100, progress <= 1 ? progress * 100 : progress)),
+    fileSizeEstimate: numberValue(job.fileSizeEstimate, job.sizeBytes, job.bytes),
+    downloadUrl: stringField(job, ['downloadUrl', 'download_url', 'url', 'href']) || undefined,
+    filename: stringField(job, ['filename', 'fileName', 'name']) || undefined,
+    error: stringField(job, ['error', 'message']) || undefined,
+  };
+}
+
+export async function readExportPayload(response: Response, path: string): Promise<unknown> {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`${path} returned invalid JSON`);
+  }
+}
+
+export function messageFromPayload(payload: unknown): string {
+  if (!isRecord(payload)) return '';
+  const direct = text(payload.error, payload.message, payload.detail);
+  if (direct) return direct;
+  const nested = payload.data;
+  return isRecord(nested) ? text(nested.error, nested.message, nested.detail) : '';
+}
+
+export async function exportResponseError(response: Response, path: string): Promise<string> {
+  try {
+    const detail = messageFromPayload(await readExportPayload(response, path));
+    return `${path} returned ${response.status}${detail ? `: ${detail}` : ''}`;
+  } catch (error) {
+    return error instanceof Error ? error.message : `${path} returned ${response.status}`;
+  }
 }

@@ -54,6 +54,7 @@ describe('export history endpoints', () => {
 
     expect(created.status).toBe(201);
     expect(created.json.job).toMatchObject({
+      tenantId: 'default',
       collection: 'oracle_documents',
       format: 'json',
       status: 'completed',
@@ -68,6 +69,7 @@ describe('export history endpoints', () => {
   test('GET /api/export/history returns last 50 jobs newest first', async () => {
     dbMod.db.insert(dbMod.exportJobs).values(Array.from({ length: 55 }, (_, i) => ({
       id: `job-${i}`,
+      tenantId: 'default',
       collection: `collection-${i}`,
       format: 'json',
       timestamp: 1_000 + i,
