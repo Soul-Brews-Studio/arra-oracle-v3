@@ -70,4 +70,24 @@ describe('PluginsPage admin view', () => {
     expect(html).toContain('Showing 0 of 4 plugins');
     expect(html).toContain('No plugins match the current filters.');
   });
+
+  test('keeps malformed plugin surface fields renderable as metadata', () => {
+    const malformed = {
+      name: 'odd-plugin',
+      file: '',
+      size: 0,
+      modified: 'now',
+      surfaces: 'mcpTools',
+      mcpTools: { name: 'bad_shape' },
+      apiRoutes: { path: '/bad' },
+    } as unknown as PluginEntry;
+
+    expect(pluginSurfaceFilterOptions([malformed])).toEqual(['metadata']);
+    expect(filteredPluginsFor([malformed], enabledStateForPlugins([malformed]), 'bad_shape', 'all')).toEqual([]);
+
+    const html = htmlFor(<PluginsPage plugins={[malformed]} loading={false} />);
+    expect(html).toContain('odd-plugin');
+    expect(html).toContain('metadata');
+    expect(html).toContain('1 enabled · 0 disabled · 1 registered');
+  });
 });

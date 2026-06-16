@@ -7,11 +7,12 @@
  * Philosophy: "Nothing is Deleted" — orphans are flagged, not removed.
  */
 
-import fs from 'fs';
 import path from 'path';
 import { and, eq } from 'drizzle-orm';
 import { db, oracleDocuments } from '../db/index.ts';
 import { currentTenantId } from '../middleware/tenant.ts';
+import { walkMarkdownFiles } from './files.ts';
+import { normalizeSourceFile } from './paths.ts';
 
 export interface VerifyResult {
   counts: {
@@ -27,43 +28,6 @@ export interface VerifyResult {
   untracked: string[];
   recommendation: string;
   fixedOrphans?: number;
-}
-
-interface FileInfo {
-  relativePath: string;
-  mtimeMs: number;
-}
-
-function walkMarkdownFiles(dir: string, baseDir: string): FileInfo[] {
-  const files: FileInfo[] = [];
-  if (!fs.existsSync(dir)) return files;
-
-  let items: string[] = [];
-  try {
-    items = fs.readdirSync(dir);
-  } catch {
-    return files;
-  }
-
-  for (const item of items) {
-    const fullPath = path.join(dir, item);
-    let stat: fs.Stats;
-    try {
-      stat = fs.lstatSync(fullPath);
-    } catch {
-      continue;
-    }
-    if (stat.isSymbolicLink()) continue;
-    if (stat.isDirectory()) {
-      files.push(...walkMarkdownFiles(fullPath, baseDir));
-    } else if (stat.isFile() && item.endsWith('.md')) {
-      files.push({
-        relativePath: path.relative(baseDir, fullPath),
-        mtimeMs: stat.mtimeMs,
-      });
-    }
-  }
-  return files;
 }
 
 export function verifyKnowledgeBase(opts: {
@@ -92,7 +56,8 @@ export function verifyKnowledgeBase(opts: {
   }
 
   // 2. Query DB for all indexed documents
-  const typeFilter = type && type !== 'all' ? type : undefined;
+  const normalizedType = type?.trim();
+  const typeFilter = normalizedType && normalizedType !== 'all' ? normalizedType : undefined;
   const fields = {
     id: oracleDocuments.id,
     sourceFile: oracleDocuments.sourceFile,
@@ -124,7 +89,9 @@ export function verifyKnowledgeBase(opts: {
   // Multiple DB entries can point to the same source file (chunked docs)
   const dbFileMap = new Map<string, { indexedAt: number; ids: string[] }>();
   for (const row of dbRows) {
-    const existing = dbFileMap.get(row.sourceFile);
+    const sourceFile = normalizeSourceFile(row.sourceFile, repoRoot);
+    if (!sourceFile) continue;
+    const existing = dbFileMap.get(sourceFile);
     if (existing) {
       existing.ids.push(row.id);
       // Use the latest indexedAt
@@ -132,7 +99,7 @@ export function verifyKnowledgeBase(opts: {
         existing.indexedAt = row.indexedAt;
       }
     } else {
-      dbFileMap.set(row.sourceFile, { indexedAt: row.indexedAt, ids: [row.id] });
+      dbFileMap.set(sourceFile, { indexedAt: row.indexedAt, ids: [row.id] });
     }
   }
 

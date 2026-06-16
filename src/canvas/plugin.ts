@@ -52,8 +52,8 @@ export type CanvasPlugin<Props extends Record<string, unknown> = Record<string, 
 export function isCanvasPlugin(value: unknown): value is CanvasPlugin {
   if (!value || typeof value !== 'object') return false;
   const plugin = value as Partial<CanvasPlugin>;
-  if (typeof plugin.id !== 'string' || plugin.id.length === 0) return false;
-  if (typeof plugin.label !== 'string' || plugin.label.length === 0) return false;
+  if (typeof plugin.id !== 'string' || plugin.id.trim().length === 0) return false;
+  if (typeof plugin.label !== 'string' || plugin.label.trim().length === 0) return false;
   if (plugin.kind === 'three') return typeof plugin.mount === 'function';
   if (plugin.kind === 'react') return typeof plugin.renderer === 'function';
   return false;
