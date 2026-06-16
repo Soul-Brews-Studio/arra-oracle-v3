@@ -39,3 +39,9 @@ test('HTTP proxy forwards validated tenant context to Oracle API calls', async (
     headers: { [TENANT_HEADER.toLowerCase()]: 'tenant-mcp-a' },
   });
 });
+
+test('HTTP proxy rejects invalid tenant context before proxying', async () => {
+  await expect(runWithTenant('bad tenant', () => (
+    proxyToolCall('http://127.0.0.1:1', 'oracle_search', { query: 'x' })
+  ))).rejects.toThrow('invalid tenant id');
+});

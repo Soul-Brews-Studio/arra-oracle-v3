@@ -80,6 +80,16 @@ test('generic soft delete helpers filter and restore deleted rows', () => {
   expect(visibleAfterRestore).toHaveLength(1);
 });
 
+test('generic soft delete helpers ignore invalid row ids', () => {
+  const storage = createBackend();
+  const deletedAt = new Date(1700000020000);
+
+  const deleted = softDeleteById(storage.db, softDeleteMenuItems, Number.NaN, { deletedAt });
+  const restored = restoreById(storage.db, softDeleteMenuItems, -1, deletedAt);
+
+  expect(deleted).toEqual({ rows: [], count: 0, deletedAt });
+  expect(restored).toBeUndefined();
+});
 
 test('menu schema exposes deletedAt and parent metadata for Drizzle migrations', () => {
   const fkSymbol = Object.getOwnPropertySymbols(menuItems)
