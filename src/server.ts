@@ -203,7 +203,6 @@ const apiModules = [
   ...(indexerRoutes ? [indexerRoutes] : []),
   ...unifiedPlugins.routes,
 ];
-
 try {
   const result = seedMenuItems(apiModules as unknown as SeedHasRoutes[]);
   await seedUnifiedPluginMenuItems(unifiedPlugins.menu);

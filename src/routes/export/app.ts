@@ -8,14 +8,14 @@ import { db as defaultDb, type DatabaseConnection } from '../../db/index.ts';
 import { introspectDrizzleTables } from '../../cli/commands/backup.ts';
 
 type ExportRecord = Record<string, unknown>;
-type ExportFormat = 'json' | 'csv' | 'markdown';
+type BaseExportFormat = 'json' | 'csv' | 'markdown';
+type ExportFormat = BaseExportFormat | 'jsonl';
 type DumpTable = ReturnType<typeof introspectDrizzleTables>[number];
 type QueryConnection = Pick<DatabaseConnection, 'db'>;
 
 interface ExportTools {
-  EXPORT_FORMATS: readonly ExportFormat[];
-  extensionFor(format: ExportFormat): string;
-  formatCollection(name: string, rows: ExportRecord[], format: ExportFormat): string;
+  extensionFor(format: BaseExportFormat): string;
+  formatCollection(name: string, rows: ExportRecord[], format: BaseExportFormat): string;
   normalizeRecords(rows: ExportRecord[]): ExportRecord[];
   graphRelationships(collections: Record<string, ExportRecord[]>): ExportRecord[];
 }
@@ -40,6 +40,7 @@ export interface ExportAppDeps {
   idGenerator?: () => string;
 }
 
+const APP_EXPORT_FORMATS = ['json', 'csv', 'markdown', 'jsonl'] as const;
 const formatsUrl = new URL('../../../tools/export-app/formats.ts', import.meta.url).href;
 const graphUrl = new URL('../../../tools/export-app/graph.ts', import.meta.url).href;
 
@@ -67,7 +68,24 @@ function safeName(value: string): string {
 function mimeType(format: ExportFormat): string {
   if (format === 'csv') return 'text/csv; charset=utf-8';
   if (format === 'markdown') return 'text/markdown; charset=utf-8';
+  if (format === 'jsonl') return 'application/x-ndjson; charset=utf-8';
   return 'application/json; charset=utf-8';
+}
+
+function isExportFormat(value: unknown): value is ExportFormat {
+  return typeof value === 'string' && APP_EXPORT_FORMATS.includes(value as ExportFormat);
+}
+
+function extensionFor(format: ExportFormat, tools: ExportTools): string {
+  return format === 'jsonl' ? 'jsonl' : tools.extensionFor(format);
+}
+
+function formatJsonl(rows: ExportRecord[]): string {
+  return rows.map((row) => JSON.stringify(row)).join('\n') + '\n';
+}
+
+function formatRows(name: string, rows: ExportRecord[], format: ExportFormat, tools: ExportTools): string {
+  return format === 'jsonl' ? formatJsonl(rows) : tools.formatCollection(name, rows, format);
 }
 
 function csvCell(value: unknown): string {
@@ -89,6 +107,10 @@ function attachGraph(content: string, format: ExportFormat, relationships: Expor
     payload.graph = { relationshipCount: relationships.length, relationships };
     return `${JSON.stringify(payload, null, 2)}\n`;
   }
+  if (format === 'jsonl') {
+    const graphRows = relationships.map((row) => JSON.stringify({ collection: 'relationships', ...row }));
+    return `${content}${graphRows.join('\n')}\n`;
+  }
   if (format === 'markdown') {
     const lines = ['# graph_relationships', '', `Rows: ${relationships.length}`, ''];
     relationships.forEach((row, index) => lines.push(`## relationship-${index + 1}`, '', `- **type**: ${row.type}`, `- **from**: ${row.from}`, `- **to**: ${row.to}`, `- **metadata**: \`${JSON.stringify(row.metadata ?? {})}\``, ''));
@@ -109,15 +131,14 @@ export function createExportAppRoutes(deps: ExportAppDeps = {}) {
         name,
         rowCount: selectRows(connection, table).length,
       }));
-      const tools = await loadExportTools();
-      return { collections, formats: tools.EXPORT_FORMATS, graph: { collection: 'relationships' } };
+      return { collections, formats: APP_EXPORT_FORMATS, graph: { collection: 'relationships' } };
     })
     .post('/export/app/run', async ({ body, set }) => {
       const tools = await loadExportTools();
-      const format = (body.format ?? 'json') as ExportFormat;
-      if (!tools.EXPORT_FORMATS.includes(format)) {
+      const format = body.format ?? 'json';
+      if (!isExportFormat(format)) {
         set.status = 400;
-        return { error: `Unsupported export format: ${format}`, formats: tools.EXPORT_FORMATS };
+        return { error: 'Invalid format', format, formats: APP_EXPORT_FORMATS };
       }
 
       const connection = connectionFrom(deps);
@@ -132,11 +153,15 @@ export function createExportAppRoutes(deps: ExportAppDeps = {}) {
       const collections = body.includeGraph || isGraph ? await allCollections(connection, tools) : {};
       const relationships = body.includeGraph || isGraph ? tools.graphRelationships(collections) : [];
       const rows = isGraph ? relationships : tools.normalizeRecords(selectRows(connection, table!));
-      const base = tools.formatCollection(body.collection, rows, format);
+      if (!isGraph && rows.length === 0) {
+        set.status = 404;
+        return { error: 'Collection is empty', collection: body.collection };
+      }
+      const base = formatRows(body.collection, rows, format, tools);
       const content = !isGraph && body.includeGraph ? attachGraph(base, format, relationships) : base;
       const jobId = deps.idGenerator?.() ?? randomUUID();
       const outputDir = deps.outputDir ?? path.join(ORACLE_DATA_DIR, 'export-app', 'http');
-      const filename = `${safeName(body.collection)}-${jobId}.${tools.extensionFor(format)}`;
+      const filename = `${safeName(body.collection)}-${jobId}.${extensionFor(format, tools)}`;
       const filePath = path.join(outputDir, filename);
       await mkdir(outputDir, { recursive: true });
       await writeFile(filePath, content, 'utf8');
@@ -158,7 +183,7 @@ export function createExportAppRoutes(deps: ExportAppDeps = {}) {
     }, {
       body: t.Object({
         collection: t.String(),
-        format: t.Optional(t.Union([t.Literal('json'), t.Literal('csv'), t.Literal('markdown')])),
+        format: t.Optional(t.String()),
         includeGraph: t.Optional(t.Boolean()),
       }),
     })

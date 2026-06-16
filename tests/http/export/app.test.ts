@@ -85,7 +85,7 @@ describe('export app HTTP routes', () => {
 
     expect(res.status).toBe(200);
     expect(body.collections).toContainEqual(expect.objectContaining({ name: 'oracle_documents', rowCount: 2 }));
-    expect(body.formats).toEqual(['json', 'csv', 'markdown']);
+    expect(body.formats).toEqual(['json', 'csv', 'markdown', 'jsonl']);
     expect(body.graph).toEqual({ collection: 'relationships' });
   });
 
