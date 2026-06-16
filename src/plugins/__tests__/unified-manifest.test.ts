@@ -28,8 +28,8 @@ describe('unified plugin manifest schema', () => {
       cli: { command: 'legacy-bridge', help: 'legacy bridge command' },
     });
 
-    expect(manifest.apiRoutes).toEqual([{ path: '/api/legacy-bridge', methods: ['GET'] }]);
-    expect(manifest.cliSubcommands).toEqual([{ command: 'legacy-bridge', help: 'legacy bridge command' }]);
+    expect(manifest.apiRoutes).toEqual([{ path: '/api/legacy-bridge', methods: ['GET'], handler: 'default' }]);
+    expect(manifest.cliSubcommands).toEqual([{ command: 'legacy-bridge', help: 'legacy bridge command', handler: 'default' }]);
     expect(manifestSurfaces(manifest)).toEqual(['apiRoutes', 'cliSubcommands']);
   });
 

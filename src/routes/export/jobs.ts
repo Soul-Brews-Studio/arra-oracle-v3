@@ -98,7 +98,7 @@ export function createExportJobManager(options: ExportJobManagerOptions = {}) {
         updatedAt: timestamp,
       };
       jobs.set(id, job);
-      void run(job, { ...request, format, source });
+      queueMicrotask(() => void run(job, { ...request, format, source }));
       return jobView(job);
     },
 
