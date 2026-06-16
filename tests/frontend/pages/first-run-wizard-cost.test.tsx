@@ -39,4 +39,14 @@ describe('FirstRunWizard cost review step', () => {
     expect(html).toContain('Fallback chain gemini');
     expect(html).toContain('Start indexing');
   });
+
+  test('shows dashboard and index manager links on the done step', () => {
+    const html = htmlFor(<FirstRunWizard rows={rows} onRefresh={() => {}} initialStep={3} initialCost={cost} />);
+    expect(html).toContain('Vector setup is underway');
+    expect(html).toContain('Continue to dashboard');
+    expect(html).toContain('href="/vector"');
+    expect(html).toContain('Open Index Manager');
+    expect(html).toContain('href="/vector/index"');
+  });
+
 });

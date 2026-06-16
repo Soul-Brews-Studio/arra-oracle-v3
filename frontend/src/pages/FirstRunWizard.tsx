@@ -107,6 +107,7 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
 
       {step === 1 ? <ProviderList providers={providers} /> : null}
       {step === 2 ? <VaultPlan rows={rows} cost={cost} /> : null}
+      {step === 3 ? <DoneActions /> : null}
       {message ? <p className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-sm text-purple-100">{message}</p> : null}
       {error ? <div className="mt-4"><ErrorMessage title="First-run step failed." message={error} /></div> : null}
 
@@ -115,6 +116,7 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
         {step === 0 ? <button className="focus-ring rounded-xl bg-purple-200 px-3 py-2 text-sm font-semibold text-slate-950" type="button" onClick={() => void reloadHealth()}>{busy ? <Spinner label="Detecting" /> : 'Run auto-detect'}</button> : null}
         {step === 2 ? <button className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50" disabled={busy || !rows.length} type="button" onClick={() => void startIndex()}>{busy ? <Spinner label="Starting" /> : 'Start indexing'}</button> : null}
         <button className="focus-ring rounded-xl border border-purple-200/40 px-3 py-2 text-sm font-semibold text-purple-100 disabled:opacity-50" disabled={step === 3} type="button" onClick={() => setStep((step + 1) as WizardStep)}>Next</button>
+        {step === 3 ? <a className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-slate-950" href="/vector">Continue to dashboard</a> : null}
       </div>
     </section>
   );
@@ -125,6 +127,20 @@ function copyFor(step: WizardStep, firstRun: boolean, provider?: Provider): stri
   if (step === 1) return provider ? `Recommended provider: ${provider.type}. Choose a configured provider before indexing.` : 'No providers reported yet; run auto-detect or configure keys.';
   if (step === 2) return 'Review the primary collection, estimated cost, and recommendation before indexing.';
   return 'Indexing has started. The Index Manager shows live progress and completion state.';
+}
+
+
+function DoneActions() {
+  return (
+    <div className="mt-4 rounded-2xl border border-teal-200/20 bg-teal-200/10 p-4 text-sm text-teal-50/90">
+      <p className="font-semibold text-teal-100">Vector setup is underway</p>
+      <p className="mt-1">Continue to the Vector dashboard for collection health, or open the Index Manager for live progress.</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <a className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-slate-950" href="/vector">Open Vector dashboard</a>
+        <a className="focus-ring rounded-xl border border-teal-200/40 px-3 py-2 text-sm font-semibold text-teal-100" href="/vector/index">Open Index Manager</a>
+      </div>
+    </div>
+  );
 }
 
 function ProviderList({ providers }: { providers: Provider[] }) {
