@@ -33,19 +33,30 @@ function normalizeQuery(value: unknown): Record<string, string> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const query: Record<string, string> = {};
   for (const [key, raw] of Object.entries(value)) {
-    if (typeof raw === 'string') query[key] = raw;
+    const cleanKey = key.trim();
+    const cleanValue = typeof raw === 'string' ? raw.trim() : '';
+    if (cleanKey && cleanValue) query[cleanKey] = cleanValue;
   }
   return Object.keys(query).length ? query : undefined;
 }
 
+function normalizeOptionalText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
 function setOptionalFields(item: MenuItem, raw: Record<string, unknown>): void {
-  if (typeof raw.icon === 'string' && raw.icon.trim()) item.icon = raw.icon.trim();
-  if (typeof raw.parentId === 'string') item.parentId = raw.parentId;
+  const icon = normalizeOptionalText(raw.icon);
+  const parentId = normalizeOptionalText(raw.parentId);
+  const studio = normalizeOptionalText(raw.studio);
+  const sourceName = normalizeOptionalText(raw.sourceName);
+
+  if (icon) item.icon = icon;
+  if (parentId) item.parentId = parentId;
   else if (raw.parentId === null) item.parentId = null;
-  if (typeof raw.studio === 'string') item.studio = raw.studio;
+  if (studio) item.studio = studio;
   else if (raw.studio === null) item.studio = null;
   if (raw.access === 'public' || raw.access === 'auth') item.access = raw.access;
-  if (typeof raw.sourceName === 'string' && raw.sourceName.trim()) item.sourceName = raw.sourceName.trim();
+  if (sourceName) item.sourceName = sourceName;
   if (typeof raw.hidden === 'boolean') item.hidden = raw.hidden;
   if (typeof raw.added === 'boolean') item.added = raw.added;
   if (typeof raw.scope === 'string' && MENU_SCOPES.includes(raw.scope as MenuScope)) {
