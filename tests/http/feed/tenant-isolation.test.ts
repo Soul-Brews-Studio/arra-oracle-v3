@@ -9,6 +9,8 @@ const savedDataDir = process.env.ORACLE_DATA_DIR;
 const savedDbPath = process.env.ORACLE_DB_PATH;
 const savedMawUrl = process.env.MAW_JS_URL;
 const root = mkdtempSync(join(tmpdir(), 'feed-tenant-'));
+const restoreDbPath = savedDbPath
+  ?? join(savedDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
 process.env.ORACLE_DATA_DIR = root;
 process.env.ORACLE_DB_PATH = join(root, 'oracle.db');
 
@@ -87,6 +89,7 @@ afterAll(() => {
   else process.env.ORACLE_DB_PATH = savedDbPath;
   if (savedMawUrl === undefined) delete process.env.MAW_JS_URL;
   else process.env.MAW_JS_URL = savedMawUrl;
+  dbMod.resetDefaultDatabaseForTests(restoreDbPath);
 });
 
 test('/api/feed stores and lists only selected tenant feed events', async () => {
