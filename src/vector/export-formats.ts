@@ -243,3 +243,7 @@ registerExportFormat('v2', withMeta(streamV2Compat, {
   contentType: 'application/json; charset=utf-8',
   extension: 'v2.json',
 }));
+registerExportFormat('v2', withMeta(streamV2Compat, {
+  contentType: 'application/json; charset=utf-8',
+  extension: 'v2.json',
+}));
