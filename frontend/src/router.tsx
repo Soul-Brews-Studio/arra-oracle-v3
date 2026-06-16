@@ -10,6 +10,7 @@ import { PluginsPage } from './pages/PluginsPage';
 import { CanvasPluginsPage } from './pages/CanvasPluginsPage';
 import { SearchPage } from './pages/SearchPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { StatusPage } from './pages/StatusPage';
 import { VectorPage } from './pages/VectorPage';
 import { VectorSearchPage } from './pages/VectorSearchPage';
 import { VectorDocumentsPage } from './pages/VectorDocumentsPage';
@@ -22,6 +23,7 @@ import type { MetricsSnapshot } from '../../src/server/types';
 export const frontendRoutes = [
   '/',
   '/plugins',
+  '/status',
   '/canvas/plugins',
   '/metrics',
   '/search',
@@ -74,6 +76,7 @@ export function DashboardRoutes({
     <Routes>
       <Route index element={menuPage} />
       <Route path="/plugins" element={pluginPage} />
+      <Route path="/status" element={<StatusPage />} />
       <Route path="/canvas/plugins" element={<CanvasPluginsPage />} />
       <Route path="/metrics" element={<MetricsPage metrics={metrics} loading={isRouteLoading(states.metrics)} />} />
       <Route path="/search" element={<SearchPage />} />

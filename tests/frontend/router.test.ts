@@ -34,6 +34,7 @@ describe('frontend router', () => {
     expect([...frontendRoutes]).toEqual([
       '/',
       '/plugins',
+      '/status',
       '/canvas/plugins',
       '/metrics',
       '/search',
@@ -50,6 +51,7 @@ describe('frontend router', () => {
   test('routes root, plugins, metrics, search, and learn surfaces', () => {
     expect(htmlAt('/')).toContain('Menu viewer');
     expect(htmlAt('/plugins')).toContain('Registered plugins');
+    expect(htmlAt('/status')).toContain('GET /api/v1/health');
     expect(htmlAt('/canvas/plugins')).toContain('Canvas plugin registry');
     expect(htmlAt('/metrics')).toContain('Metrics dashboard');
     expect(htmlAt('/metrics')).toContain('42');

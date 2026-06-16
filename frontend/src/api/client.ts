@@ -67,7 +67,7 @@ export interface VectorIndexStartResponse {
 }
 
 export interface ApiRouteResponses {
-  '/api/health': HealthResponse;
+  '/api/v1/health': HealthResponse;
   '/api/v1/metrics': MetricsSnapshot;
   '/api/menu': MenuResponse;
   '/api/menu/search': MenuSearchResponse;
@@ -151,7 +151,7 @@ export class ApiClient {
   }
 
   health(): Promise<HealthResponse> {
-    return this.request('/api/health');
+    return this.request('/api/v1/health');
   }
 
   metrics(): Promise<MetricsSnapshot> {
