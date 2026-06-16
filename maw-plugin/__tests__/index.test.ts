@@ -74,6 +74,7 @@ describe('maw arra plugin', () => {
     expect(help.output).toContain('index');
     expect(help.output).toContain('vector');
     expect(help.output).toContain('vector-config [--json]');
+    expect(help.output).toContain('vector-config reload');
     expect(help.output).toContain('trace_chain');
     expect(help.output).toContain('thread_update');
     expect(help.output).toContain('serve [--stop|--status] [--port N]');
@@ -181,6 +182,9 @@ describe('maw arra plugin', () => {
       [['thread_update', '42', '--status', 'closed'], 'PATCH', '/api/thread/42/status', { status: 'closed' }],
       [['vector_index', '--model', 'nomic'], 'POST', '/api/vector/index/start', { model: 'nomic' }],
       [['vector_stop'], 'POST', '/api/vector/index/stop', undefined],
+      [['vector-config', 'set', 'bge-m3', 'adapter', 'qdrant'], 'PUT', '/api/v1/vector/config/bge-m3', { adapter: 'qdrant' }],
+      [['vector-config', 'reload'], 'POST', '/api/v1/vector/config/reload', undefined],
+      [['vector-config', 'test', 'bge-m3'], 'POST', '/api/v1/vector/config/bge-m3/test', undefined],
       [['verify', '--check', 'false', '--type', 'learning'], 'POST', '/api/verify', { check: false, type: 'learning' }],
     ];
 
