@@ -161,7 +161,11 @@ test('CLI progress-json flag emits machine-readable progress', async () => {
   expect(JSON.parse(stdout.join('')).success).toBe(true);
   expect(events).toContainEqual(expect.objectContaining({
     event: 'export_progress',
+    type: 'export-progress',
     message: expect.stringContaining('oracle_documents'),
+    collection: 'oracle_documents',
+    rows: 2,
+    percent: expect.any(Number),
   }));
 });
 
@@ -193,6 +197,8 @@ test('CLI dry-run reports counts without writing a backup bundle', async () => {
 test('CLI rejects unknown flags before exporting', () => {
   expect(() => parseArgs(['--output', './backup', '--bogus'])).toThrow('unknown flag: --bogus');
   expect(() => parseArgs(['--output'])).toThrow('missing value for --output');
+  expect(parseArgs(['--output', './backup', '--progress=json']).progressMode).toBe('json');
+  expect(() => parseArgs(['--output', './backup', '--progress', 'xml'])).toThrow('invalid --progress');
 });
 
 test('CLI reports missing database path before exporting', async () => {

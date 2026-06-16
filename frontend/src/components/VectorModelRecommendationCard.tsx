@@ -42,7 +42,11 @@ export function VectorModelRecommendationCard({ defaultProvider = 'openai', init
   const [estimate, setEstimate] = useState<CostEstimate | null>(initialEstimate ?? null);
   const [loading, setLoading] = useState(initialEstimate === undefined);
   const [error, setError] = useState('');
-  const estimates = useMemo(() => Object.entries(estimate?.providerEstimates ?? {}), [estimate]);
+  const estimates = useMemo<Array<[string, ProviderCost]>>(() => Object.entries(estimate?.providerEstimates ?? {}), [estimate]);
+  const comparisonRows = useMemo<Array<[string, ProviderCost]>>(() => {
+    if (estimates.length) return estimates;
+    return estimate ? [[estimate.provider, estimate]] : [];
+  }, [estimate, estimates]);
 
   useEffect(() => {
     if (initialEstimate !== undefined) return;
@@ -80,7 +84,7 @@ export function VectorModelRecommendationCard({ defaultProvider = 'openai', init
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
             <p className="text-sm font-semibold text-white">Cost comparison</p>
             <div className="mt-3 grid gap-2">
-              {(estimates.length ? estimates : [[estimate.provider, estimate]]).map(([provider, item]) => (
+              {comparisonRows.map(([provider, item]) => (
                 <p key={provider} className="rounded-xl border border-white/10 bg-slate-950/60 p-3 text-sm text-slate-300">
                   <span className="font-semibold text-teal-100">{provider}</span> · {item.model ?? 'default model'} · {formatUsd(item.estimatedUsd)}
                 </p>

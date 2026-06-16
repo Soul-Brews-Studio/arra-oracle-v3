@@ -22,6 +22,7 @@ import {
   storeSqliteDocuments,
 } from './learn-doc-source.ts';
 import { isWithinRoot, listDirs, listFiles, safeClearTimeout, safeClose, watchDir } from './watch-utils.ts';
+import { discoverProjectPsiDirs } from './discovery.ts';
 
 export interface LearnWatcherOptions {
   /** sqlite database used by enqueueIndexJob(). */
@@ -66,6 +67,14 @@ function shouldAutoStore(sourceFile: string): boolean {
   return isPsiLearnSource(sourceFile) || isMemoryLearningSource(sourceFile);
 }
 
+function learnRoots(root: string): string[] {
+  const roots = [path.join(root, MEMORY_LEARN_REL), path.join(root, PSI_LEARN_REL)];
+  for (const psiDir of discoverProjectPsiDirs(root)) {
+    roots.push(path.join(psiDir, 'memory', 'learnings'), path.join(psiDir, 'learn'));
+  }
+  return roots.filter((dir, index, all) => all.indexOf(dir) === index);
+}
+
 /**
  * Start a file watcher for learn-source Markdown files.
  *
@@ -78,7 +87,7 @@ export function startLearnWatcher({
   debounceMs = DEFAULT_DEBOUNCE_MS,
 }: LearnWatcherOptions): StopWatch {
   const root = path.resolve(repoRoot);
-  const roots = [path.join(root, MEMORY_LEARN_REL), path.join(root, PSI_LEARN_REL)]
+  const roots = learnRoots(root)
     .filter((dir) => {
       try { fs.mkdirSync(dir, { recursive: true }); return true; }
       catch { return false; }

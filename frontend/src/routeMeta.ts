@@ -77,6 +77,7 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
   if (pathname === '/learn') return base('Learn entries', 'Learn', 'Capture and edit Oracle learnings.', [{ label: 'Learn' }]);
   if (pathname === '/vector') return base('Vector dashboard', 'Vector', 'Collection health, search, and export status.', [{ label: 'Vector dashboard' }]);
   if (pathname === '/mcp') return base('MCP tools', 'MCP', 'Browse available MCP tool schemas and groups.', [{ label: 'MCP tools' }]);
+  if (pathname === '/storage') return base('Storage backend', 'Storage', 'Backend config viewer from /api/settings/system.', [{ label: 'Storage' }]);
   if (pathname === '/settings') return base('Runtime settings', 'Settings', 'Storage, embedder, and DB status.', [{ label: 'Settings' }]);
   return base('Menu viewer', 'Menu', 'Navigation rows from /api/menu.', [{ label: 'Menu' }]);
 }

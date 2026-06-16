@@ -12,6 +12,7 @@ import { CanvasPluginsPage } from './pages/CanvasPluginsPage';
 import { SearchPage } from './pages/SearchPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { StatusPage } from './pages/StatusPage';
+import { StoragePage } from './pages/StoragePage';
 import { VectorPage } from './pages/VectorPage';
 import { VectorSearchPage } from './pages/VectorSearchPage';
 import { VectorDocumentsPage } from './pages/VectorDocumentsPage';
@@ -38,6 +39,7 @@ export const frontendRoutes = [
   '/vector/export',
   '/vector/settings',
   '/mcp',
+  '/storage',
   '/settings',
 ] as const;
 export type FrontendRoute = typeof frontendRoutes[number];
@@ -95,6 +97,7 @@ export function DashboardRoutes({
       <Route path="/vector/export" element={<VectorExportPage />} />
       <Route path="/vector/settings" element={<VectorSettingsPage />} />
       <Route path="/mcp" element={<McpPage />} />
+      <Route path="/storage" element={<StoragePage />} />
       <Route path="/mcp/tools/:name" element={<McpToolDetailPage />} />
       <Route
         path="/settings"

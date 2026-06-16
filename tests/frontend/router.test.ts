@@ -48,6 +48,7 @@ describe('frontend router', () => {
       '/vector/export',
       '/vector/settings',
       '/mcp',
+      '/storage',
       '/settings',
     ]);
   });
@@ -70,6 +71,7 @@ describe('frontend router', () => {
     expect(htmlAt('/vector/export')).toContain('Vector export');
     expect(htmlAt('/vector/settings')).toContain('Configure adapters, embedding models');
     expect(htmlAt('/mcp')).toContain('Tool browser');
+    expect(htmlAt('/storage')).toContain('Storage backend');
     expect(htmlAt('/settings')).toContain('Runtime configuration');
   });
 

@@ -20,7 +20,15 @@ import { EXPORT_MANIFEST_SCHEMA } from './schema.ts';
 import { exportFileInventory } from './inventory.ts';
 
 type ExportTable = Parameters<typeof getTableName>[0];
-type Progress = (message: string) => void;
+type Progress = (message: string, event?: ExportProgressEvent) => void;
+
+export interface ExportProgressEvent {
+  current: number;
+  total: number;
+  percent: number;
+  collection: string;
+  rows: number;
+}
 
 export interface ExportAppOptions {
   outputDir: string;
@@ -72,7 +80,7 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
       const rows = normalizeRecords(selectRows(connection, table));
       allCollections[name] = rows;
       rowCount += rows.length;
-      progress(`[${i + 1}/${tables.length}] ${name}: ${rows.length} rows`);
+      reportProgress(progress, { current: i + 1, total: tables.length, collection: name, rows: rows.length });
       await writeCollectionFiles(collectionsDir, name, rows);
     }
 
@@ -119,7 +127,7 @@ export async function exportMarkdownData(options: ExportAppOptions): Promise<Exp
       const table = tables[i]!;
       const name = getTableName(table);
       const rows = selectRows(connection, table).map(normalizeRecord);
-      progress(`[${i + 1}/${tables.length}] ${name}: ${rows.length} rows`);
+      reportProgress(progress, { current: i + 1, total: tables.length, collection: name, rows: rows.length });
       fileCount += await writeCollectionMarkdown(outputDir, name, rows);
     }
     return { outputDir, collectionCount: tables.length, fileCount };
@@ -135,6 +143,11 @@ function openReadonlyConnection(dbPath = DB_PATH): { connection: DatabaseConnect
 
 function selectRows(connection: DatabaseConnection, table: ExportTable): ExportRecord[] {
   return (connection.db as any).select().from(table).all() as ExportRecord[];
+}
+
+function reportProgress(progress: Progress, event: Omit<ExportProgressEvent, 'percent'>): void {
+  const percent = Math.round((event.current / event.total) * 100);
+  progress(`[${event.current}/${event.total}] ${percent}% ${event.collection}: ${event.rows} rows`, { ...event, percent });
 }
 
 function collectionManifest(collections: Record<string, ExportRecord[]>): Record<string, { rowCount: number }> {

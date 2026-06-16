@@ -63,6 +63,7 @@ export function AppShell({
     { to: '/learn', label: 'Learn', description: 'Create and edit learnings' },
     { to: '/metrics', label: 'Metrics', description: 'Runtime counters from /api/v1/metrics' },
     { to: '/mcp', label: 'MCP', description: 'Tool schemas and groups' },
+    { to: '/storage', label: 'Storage', description: 'Backend config from /api/settings/system' },
     { to: '/settings', label: 'Settings', description: 'Storage, embedder, and DB status' },
   ];
   const requestValue = metricsLoading ? <Spinner label="Loading metrics" /> : metrics?.requestCount ?? '—';

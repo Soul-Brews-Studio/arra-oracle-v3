@@ -1,15 +1,16 @@
 import { existsSync, statSync } from 'node:fs';
 import { DB_PATH } from '../../src/config.ts';
-import { exportOracleData } from './exporter.ts';
+import { exportOracleData, type ExportProgressEvent } from './exporter.ts';
 import { previewOracleExport } from './summary.ts';
 
 type Writer = (message: string) => void;
+type ProgressMode = 'text' | 'json' | 'silent';
 
 interface CliOptions {
   outputDir: string;
   dbPath?: string;
   quiet: boolean;
-  progressJson: boolean;
+  progressMode: ProgressMode;
   dryRun: boolean;
 }
 
@@ -31,26 +32,34 @@ export function parseArgs(args: string[]): CliOptions {
   let outputDir: string | undefined;
   let dbPath: string | undefined;
   let quiet = false;
-  let progressJson = false;
+  let progressMode: ProgressMode = 'text';
   let dryRun = false;
 
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i]!;
     const outputAssigned = assignedValue(arg, '--output');
     const dbAssigned = assignedValue(arg, '--db');
+    const progressAssigned = assignedValue(arg, '--progress');
     if (outputAssigned !== undefined) { outputDir = outputAssigned; continue; }
     if (dbAssigned !== undefined) { dbPath = dbAssigned; continue; }
+    if (progressAssigned !== undefined) { progressMode = readProgressMode(progressAssigned); continue; }
     if (arg === '--output' || arg === '-o') { outputDir = flagValue(args, i, arg); i += 1; continue; }
     if (arg === '--db') { dbPath = flagValue(args, i, arg); i += 1; continue; }
+    if (arg === '--progress') { progressMode = readProgressMode(flagValue(args, i, arg)); i += 1; continue; }
     if (arg === '--quiet' || arg === '--no-progress') { quiet = true; continue; }
-    if (arg === '--progress-json') { progressJson = true; continue; }
+    if (arg === '--progress-json') { progressMode = 'json'; continue; }
     if (arg === '--dry-run') { dryRun = true; continue; }
     if (arg === '--help' || arg === '-h') continue;
     throw new Error(arg.startsWith('-') ? `unknown flag: ${arg}` : `unexpected argument: ${arg}`);
   }
 
   if (!outputDir) throw new Error('missing required --output <dir>');
-  return { outputDir, dbPath, quiet, progressJson, dryRun };
+  return { outputDir, dbPath, quiet, progressMode, dryRun };
+}
+
+function readProgressMode(value: string): ProgressMode {
+  if (value === 'text' || value === 'json' || value === 'silent') return value;
+  throw new Error('invalid --progress: expected text, json, or silent');
 }
 
 function requireFile(path: string): void {
@@ -80,6 +89,7 @@ function printHelp(write: Writer): void {
     'Flags:',
     '  --output, -o <dir>   destination backup directory',
     '  --db <path>          SQLite database path (defaults to ORACLE_DB_PATH)',
+    '  --progress <mode>    progress output: text, json, or silent',
     '  --dry-run            print collection counts without writing files',
     '  --quiet              suppress progress output',
     '  --no-progress        alias for --quiet',
@@ -87,6 +97,19 @@ function printHelp(write: Writer): void {
     '  --help, -h           show this help',
     '',
   ].join('\n'));
+}
+
+function progressWriter(options: CliOptions, write: Writer) {
+  if (options.quiet || options.progressMode === 'silent') return () => {};
+  if (options.progressMode === 'json') {
+    return (message: string, event?: ExportProgressEvent) => {
+      const payload = event
+        ? { event: 'export_progress', type: 'export-progress', message, ...event }
+        : { event: 'export_progress', type: 'export-progress', message };
+      write(`${JSON.stringify(payload)}\n`);
+    };
+  }
+  return (message: string) => write(`${message}\n`);
 }
 
 export async function runExportApp(args: string[], stdout: Writer = process.stdout.write.bind(process.stdout), stderr: Writer = process.stderr.write.bind(process.stderr)): Promise<number> {
@@ -101,11 +124,7 @@ export async function runExportApp(args: string[], stdout: Writer = process.stdo
       stdout(`${JSON.stringify({ success: true, dryRun: true, ...previewOracleExport({ dbPath: options.dbPath }) }, null, 2)}\n`);
       return 0;
     }
-    const progress = options.quiet
-      ? () => {}
-      : options.progressJson
-        ? (message: string) => stderr(`${JSON.stringify({ event: 'export_progress', message })}\n`)
-        : (message: string) => stderr(`${message}\n`);
+    const progress = progressWriter(options, stderr);
     const result = await exportOracleData({
       outputDir: options.outputDir,
       dbPath: options.dbPath,
