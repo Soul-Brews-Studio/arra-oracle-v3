@@ -1,26 +1,9 @@
-import { Elysia, t } from 'elysia';
+import { Elysia } from 'elysia';
 import { thorOracleProfile } from '../../oracles/thor.ts';
-
-const ThorCapabilitySchema = t.Object({
-  id: t.String(),
-  label: t.String(),
-  description: t.String(),
-});
-
-const ThorProfileSchema = t.Object({
-  id: t.String(),
-  name: t.String(),
-  role: t.String(),
-  theme: t.String(),
-  born: t.String(),
-  motto: t.String(),
-  principles: t.Array(t.String()),
-  capabilities: t.Array(ThorCapabilitySchema),
-  workflows: t.Array(t.String()),
-});
+import { OracleProfileSchema } from './oracle-profiles.ts';
 
 export const thorOracleEndpoint = new Elysia().get('/oracles/thor', () => thorOracleProfile, {
-  response: ThorProfileSchema,
+  response: OracleProfileSchema,
   detail: {
     tags: ['health'],
     menu: { group: 'hidden' },
