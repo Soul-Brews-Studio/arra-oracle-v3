@@ -110,6 +110,20 @@ test('GET and PUT /api/v1/vector/config expose and update vector-server.json', a
     adapter: 'qdrant',
   });
 
+  const switchRes = await call('/api/v1/vector/config', {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      collections: Object.fromEntries(Object.entries(putRes.body.config.collections).map(([key, value]) => [
+        key,
+        { ...(value as Record<string, unknown>), adapter: 'sqlite-vec', enabled: true },
+      ])),
+    }),
+  });
+  expect(switchRes.status).toBe(200);
+  expect(switchRes.body.config.collections.phase1).toMatchObject({ adapter: 'sqlite-vec', enabled: true });
+  expect(vectorConfig.loadVectorConfig(vectorConfig.configPath(root))?.collections.phase1.adapter).toBe('sqlite-vec');
+
   const disabledRes = await call('/api/v1/vector/config/phase1', {
     method: 'PUT',
     headers: { 'content-type': 'application/json' },
@@ -165,6 +179,6 @@ test('GET and PUT /api/v1/vector/config expose and update vector-server.json', a
   const reloadRes = await call('/api/v1/vector/config/reload', { method: 'POST' });
   expect(reloadRes.status).toBe(200);
   expect(reloadRes.body).toMatchObject({ success: true, reloaded: true, source: 'file' });
-  expect(reloadRes.body.config.collections.phase1.adapter).toBe('qdrant');
+  expect(reloadRes.body.config.collections.phase1.adapter).toBe('sqlite-vec');
   expect(readdirSync(root).some((name) => name.includes('.tmp'))).toBe(false);
 });

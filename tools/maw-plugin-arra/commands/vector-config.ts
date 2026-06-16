@@ -4,10 +4,12 @@ const usage = [
   'usage: maw arra vector-config list|get [collection]',
   '       maw arra vector-config set <collection> <field> <value>',
   '       maw arra vector-config add <collection> --model <model> [--adapter <adapter>]',
+  '       maw arra vector-config switch <lancedb|qdrant|chroma|sqlite-vec> [--enabled true|false]',
   '       maw arra vector-config remove|set-primary|test <collection>',
   '       maw arra vector-config reload',
 ].join('\n');
 const adapters = new Set(['chroma', 'sqlite-vec', 'lancedb', 'qdrant', 'cloudflare-vectorize', 'proxy', 'turbovec']);
+const switchableAdapters = new Set(['chroma', 'sqlite-vec', 'lancedb', 'qdrant']);
 const updateFields = new Set(['adapter', 'model', 'provider', 'service', 'endpoint', 'enabled', 'primary', 'embedder']);
 const createFields = new Set([...updateFields, 'collection']);
 
@@ -93,6 +95,15 @@ async function writeCollection(collection: string, body: JsonObject): Promise<Js
   return text ? JSON.parse(text) as JsonObject : {};
 }
 
+async function patchConfig(body: JsonObject): Promise<JsonObject> {
+  const text = await requestText('/api/v1/vector/config', {
+    method: 'PATCH',
+    headers: { accept: 'application/json', 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return text ? JSON.parse(text) as JsonObject : {};
+}
+
 async function createCollection(collection: string, body: JsonObject): Promise<JsonObject> {
   const text = await requestText(`/api/v1/vector/config/${encodeURIComponent(collection)}`, {
     method: 'POST',
@@ -121,6 +132,22 @@ function requiredCollection(parsed: ParsedArgs): string {
   return collection;
 }
 
+async function switchBackend(parsed: ParsedArgs): Promise<JsonObject> {
+  const adapter = parseValue('adapter', requiredCollection(parsed));
+  if (typeof adapter !== 'string' || !switchableAdapters.has(adapter)) {
+    throw new Error('switch adapter must be lancedb, qdrant, chroma, or sqlite-vec');
+  }
+  const enabledRaw = flag(parsed, 'enabled');
+  const enabled = enabledRaw === undefined ? undefined : bool(enabledRaw);
+  const payload = await readConfig();
+  const collections = Object.fromEntries(Object.entries(configCollections(payload)).map(([key, value]) => [
+    key,
+    { ...object(value), adapter, ...(enabled !== undefined && { enabled }) },
+  ]));
+  if (Object.keys(collections).length === 0) throw new Error('no vector collections configured');
+  return patchConfig({ collections });
+}
+
 export async function runVectorConfigCommand(args: string[]): Promise<string> {
   const parsed = parseArgs(args);
   const action = (parsed.positionals[0] ?? 'list').toLowerCase().replace(/-/g, '_');
@@ -133,6 +160,7 @@ export async function runVectorConfigCommand(args: string[]): Promise<string> {
   if (action === 'set') {
     return json(await writeCollection(requiredCollection(parsed), updateBody(parsed)));
   }
+  if (action === 'switch' || action === 'backend') return json(await switchBackend(parsed));
   if (action === 'add') {
     const collection = requiredCollection(parsed);
     const body = flagUpdates(parsed, createFields);
@@ -152,4 +180,4 @@ export async function runVectorConfigCommand(args: string[]): Promise<string> {
   throw new Error(usage);
 }
 
-export const VECTOR_CONFIG_HELP = 'vector-config list|get|set|add|remove|set-primary|reload|test';
+export const VECTOR_CONFIG_HELP = 'vector-config list|get|set|switch|add|remove|set-primary|reload|test';
