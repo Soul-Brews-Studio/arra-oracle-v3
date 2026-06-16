@@ -1,5 +1,6 @@
-import { inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db, oracleDocuments } from '../db/index.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 import {
   createVectorStore,
   ensureVectorStoreConnected,
@@ -32,9 +33,12 @@ async function searchOneModel(input: VectorSearchInput, model: string | undefine
 
   if (!vectorRows.ids || vectorRows.ids.length === 0) return [];
 
+  const tenantId = currentTenantId();
+  const idFilter = inArray(oracleDocuments.id, vectorRows.ids);
+  const docFilter = tenantId ? and(idFilter, eq(oracleDocuments.tenantId, tenantId)) : idFilter;
   const rows = db.select({ id: oracleDocuments.id, project: oracleDocuments.project })
     .from(oracleDocuments)
-    .where(inArray(oracleDocuments.id, vectorRows.ids))
+    .where(docFilter)
     .all();
   const projectMap = new Map<string, string | null>();
   rows.forEach(r => projectMap.set(r.id, r.project));
@@ -57,7 +61,7 @@ async function searchOneModel(input: VectorSearchInput, model: string | undefine
         model: modelName,
       };
     })
-    .filter(r => !resolvedProject || r.project === resolvedProject || r.project === null);
+    .filter(r => (!tenantId || projectMap.has(r.id)) && (!resolvedProject || r.project === resolvedProject || r.project === null));
 }
 
 function dedupeMultiModel(results: SearchResult[]): SearchResult[] {

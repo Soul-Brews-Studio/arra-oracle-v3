@@ -6,6 +6,7 @@ import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant
 import { forumApi } from '../../../src/routes/forum/index.ts';
 import { searchRoutes } from '../../../src/routes/search/index.ts';
 import { createVectorDocumentsEndpoint } from '../../../src/routes/vector/documents.ts';
+import { mapEndpoint } from '../../../src/routes/vector/map.ts';
 import type { VectorStoreAdapter } from '../../../src/vector/types.ts';
 
 const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -99,6 +100,17 @@ test('GET /api/search hides tenant B FTS rows from tenant A', async () => {
   expect(res.status).toBe(200);
   expect(body.results.map((item) => item.id)).toContain(docIds[0]);
   expect(body.results.map((item) => item.id)).not.toContain(docIds[1]);
+});
+
+test('GET /api/map hides tenant B document nodes from tenant A', async () => {
+  const app = new Elysia({ prefix: '/api' }).use(mapEndpoint);
+  const res = await tenantRequest(app, tenantA, '/api/map');
+  const body = await res.json() as { documents: Array<{ id: string }>; total: number };
+
+  expect(res.status).toBe(200);
+  expect(body.total).toBe(1);
+  expect(body.documents.map((item) => item.id)).toContain(docIds[0]);
+  expect(body.documents.map((item) => item.id)).not.toContain(docIds[1]);
 });
 
 test('forum thread HTTP endpoints hide tenant A thread from tenant B', async () => {

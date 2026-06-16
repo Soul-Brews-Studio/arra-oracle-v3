@@ -118,9 +118,11 @@ function nextIdentity(pattern: string, requestedId?: string, requestedSourceFile
     const tail = suffix === 1 ? slug : `${slug}-${suffix}`;
     const id = `learning_${date}_${tail}`;
     const sourceFile = requestedSourceFile ?? `ψ/memory/learnings/${date}_${tail}.md`;
+    const tenantId = currentTenantId();
+    const where = tenantId ? and(eq(oracleDocuments.id, id), eq(oracleDocuments.tenantId, tenantId)) : eq(oracleDocuments.id, id);
     const existing = db.select({ id: oracleDocuments.id })
       .from(oracleDocuments)
-      .where(eq(oracleDocuments.id, id))
+      .where(where)
       .get();
     if (!existing && !fs.existsSync(path.join(repoRoot(), sourceFile))) {
       return {

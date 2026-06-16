@@ -5,6 +5,33 @@ import type { PluginEntry } from '../types';
 export type Tone = 'ok' | 'warn' | 'bad' | 'idle';
 export type PluginVisibilityFilter = 'all' | 'enabled' | 'disabled' | 'unhealthy';
 export type PluginSurfaceFilter = 'all' | Surface | 'metadata';
+export type PluginFilterDefaults = {
+  query: string;
+  visibility: PluginVisibilityFilter;
+  surface: PluginSurfaceFilter;
+};
+
+const visibilityValues: PluginVisibilityFilter[] = ['all', 'enabled', 'disabled', 'unhealthy'];
+const surfaceValues: PluginSurfaceFilter[] = ['all', 'wasm', 'menu', 'server', 'mcp', 'apiRoutes', 'proxy', 'cliSubcommands', 'exportFormats', 'metadata'];
+
+function isVisibility(value: string | null): value is PluginVisibilityFilter {
+  return visibilityValues.includes(value as PluginVisibilityFilter);
+}
+
+function isSurface(value: string | null): value is PluginSurfaceFilter {
+  return surfaceValues.includes(value as PluginSurfaceFilter);
+}
+
+export function pluginFiltersFromSearch(search = ''): PluginFilterDefaults {
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+  const visibility = params.get('visibility');
+  const surface = params.get('surface');
+  return {
+    query: params.get('q') ?? params.get('query') ?? '',
+    visibility: isVisibility(visibility) ? visibility : 'all',
+    surface: isSurface(surface) ? surface : 'all',
+  };
+}
 
 export function enabledStateForPlugins(plugins: PluginEntry[]): PluginEnabledState {
   return Object.fromEntries(plugins.map((plugin) => [

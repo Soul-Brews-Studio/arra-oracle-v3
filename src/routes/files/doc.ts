@@ -139,7 +139,10 @@ export const docRoute = new Elysia()
           ? data.id
           : `${data.type}_${now}_${Math.random().toString(36).slice(2, 8)}`;
 
-        const existing = sqlite.prepare(`SELECT id FROM oracle_documents WHERE id = ?`).get(id);
+        const filter = tenantFilter('d');
+        const existing = sqlite
+          .prepare(`SELECT id FROM oracle_documents d WHERE d.id = ? ${filter.clause}`)
+          .get(id, ...filter.params);
         if (existing) {
           set.status = 409;
           return { error: `Document already exists: ${id}` };
@@ -169,6 +172,10 @@ export const docRoute = new Elysia()
 
         return { ok: true, id };
       } catch (e: any) {
+        if (String(e?.message ?? '').includes('UNIQUE constraint failed: oracle_documents.id')) {
+          set.status = 409;
+          return { error: 'Document id unavailable' };
+        }
         set.status = 500;
         return { error: e.message };
       }

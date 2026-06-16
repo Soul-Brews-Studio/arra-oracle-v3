@@ -23,6 +23,7 @@ import {
 } from './learn-doc-source.ts';
 import { isWithinRoot, listDirs, listFiles, safeClearTimeout, safeClose, watchDir } from './watch-utils.ts';
 import { discoverProjectPsiDirs } from './discovery.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 
 export interface LearnWatcherOptions {
   /** sqlite database used by enqueueIndexJob(). */
@@ -57,10 +58,16 @@ function enqueueDocIds(db: Database, models: Record<string, { collection: string
 }
 
 function existingLearningIds(db: Database, sourceFile: string): string[] {
-  return db.query<{ id: string }, [string]>(
-    `SELECT id FROM oracle_documents
-     WHERE source_file = ? AND type = 'learning' AND superseded_at IS NULL`,
-  ).all(sourceFile).map((row) => row.id);
+  const tenantId = currentTenantId();
+  return tenantId
+    ? db.query<{ id: string }, [string, string]>(
+      `SELECT id FROM oracle_documents
+       WHERE source_file = ? AND tenant_id = ? AND type = 'learning' AND superseded_at IS NULL`,
+    ).all(sourceFile, tenantId).map((row) => row.id)
+    : db.query<{ id: string }, [string]>(
+      `SELECT id FROM oracle_documents
+       WHERE source_file = ? AND type = 'learning' AND superseded_at IS NULL`,
+    ).all(sourceFile).map((row) => row.id);
 }
 
 function shouldAutoStore(sourceFile: string): boolean {

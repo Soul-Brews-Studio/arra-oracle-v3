@@ -4,6 +4,7 @@ import {
   enabledStateForPlugins,
   filteredPluginsFor,
   pluginAdminSummary,
+  pluginFiltersFromSearch,
   pluginSurfaceFilterOptions,
 } from '../../../frontend/src/pages/PluginsPage';
 import type { PluginEntry } from '../../../frontend/src/types';
@@ -43,6 +44,24 @@ describe('PluginsPage admin view', () => {
     expect(html).toContain('echo');
     expect(html).toContain('Clear filters');
     expect(html).toContain('All surfaces');
+  });
+
+  test('hydrates plugin filters from shareable route search params', () => {
+    expect(pluginFiltersFromSearch('?q=echo&visibility=enabled&surface=mcp')).toEqual({
+      query: 'echo',
+      visibility: 'enabled',
+      surface: 'mcp',
+    });
+    expect(pluginFiltersFromSearch('?visibility=bad&surface=unknown')).toEqual({
+      query: '',
+      visibility: 'all',
+      surface: 'all',
+    });
+
+    const html = htmlFor(<PluginsPage plugins={plugins} loading={false} initialSearch="?surface=mcp" />);
+    expect(html).toContain('Showing 1 of 4 plugins');
+    expect(html).toContain('echo');
+    expect(html).toContain('value="mcp" selected');
   });
 
   test('renders a no-match state for filtered plugin inventory', () => {

@@ -9,6 +9,7 @@ import {
   filteredPluginsFor,
   healthForPlugin,
   pluginAdminSummary,
+  pluginFiltersFromSearch,
   pluginSurfaceFilterOptions,
   type PluginSurfaceFilter,
   type PluginVisibilityFilter,
@@ -23,6 +24,7 @@ export {
   enabledStateForPlugins,
   filteredPluginsFor,
   pluginAdminSummary,
+  pluginFiltersFromSearch,
   pluginSurfaceFilterOptions,
 } from './pluginInventory';
 export type { PluginSurfaceFilter, PluginVisibilityFilter } from './pluginInventory';
@@ -35,6 +37,11 @@ export interface PluginsPageProps {
   initialQuery?: string;
   initialVisibility?: PluginVisibilityFilter;
   initialSurface?: PluginSurfaceFilter;
+  initialSearch?: string;
+}
+
+function browserSearch(): string {
+  return typeof window === 'undefined' ? '' : window.location.search;
 }
 
 function toneClass(tone: Tone): string {
@@ -62,22 +69,25 @@ export function PluginsPage({
   loading = false,
   endpoint = PLUGINS_ENDPOINT,
   fetcher,
-  initialQuery = '',
-  initialVisibility = 'all',
-  initialSurface = 'all',
+  initialQuery,
+  initialVisibility,
+  initialSurface,
+  initialSearch,
 }: PluginsPageProps) {
+  const filterDefaults = pluginFiltersFromSearch(initialSearch ?? browserSearch());
   const initialLoading = loading || initialPlugins.length === 0;
   const { plugins, loading: fetching, error, reload } = usePlugins({ initialPlugins, initialLoading, endpoint, fetcher });
   const [overrides, setOverrides] = useState<PluginEnabledState>({});
-  const [query, setQuery] = useState(initialQuery);
-  const [visibility, setVisibility] = useState<PluginVisibilityFilter>(initialVisibility);
-  const [surface, setSurface] = useState<PluginSurfaceFilter>(initialSurface);
+  const [query, setQuery] = useState(initialQuery ?? filterDefaults.query);
+  const [visibility, setVisibility] = useState<PluginVisibilityFilter>(initialVisibility ?? filterDefaults.visibility);
+  const [surface, setSurface] = useState<PluginSurfaceFilter>(initialSurface ?? filterDefaults.surface);
   const [adminError, setAdminError] = useState('');
   const [adminMessage, setAdminMessage] = useState('');
   const enabledState = useMemo(() => ({ ...enabledStateForPlugins(plugins), ...overrides }), [plugins, overrides]);
   const summary = useMemo(() => pluginAdminSummary(plugins, enabledState), [plugins, enabledState]);
   const surfaceOptions = useMemo(() => pluginSurfaceFilterOptions(plugins), [plugins]);
   const visiblePlugins = useMemo(() => filteredPluginsFor(plugins, enabledState, query, visibility, surface), [plugins, enabledState, query, visibility, surface]);
+  const selectedSurfaceMissing = surface !== 'all' && !surfaceOptions.includes(surface);
   const hasFilters = query.trim().length > 0 || visibility !== 'all' || surface !== 'all';
   const metrics = useMemo(() => {
     const active = plugins.filter((plugin) => isPluginEnabled(plugin, enabledState)).length;
@@ -175,6 +185,7 @@ export function PluginsPage({
                   onChange={(event) => setSurface(event.currentTarget.value as PluginSurfaceFilter)}
                 >
                   <option value="all">All surfaces</option>
+                  {selectedSurfaceMissing ? <option value={surface}>{surface}</option> : null}
                   {surfaceOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                 </select>
               </label>
