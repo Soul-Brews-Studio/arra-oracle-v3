@@ -42,7 +42,11 @@ export function readSavedBackendUrls(storageKey = BACKEND_URLS_KEY): string[] {
 
 export function writeSavedBackendUrls(urls: string[], storageKey = BACKEND_URLS_KEY): string[] {
   const next = uniqueBackendUrls([DEFAULT_BACKEND_URL, ...urls]);
-  browserStorage()?.setItem(storageKey, JSON.stringify(next));
+  try {
+    browserStorage()?.setItem(storageKey, JSON.stringify(next));
+  } catch {
+    // Storage can be unavailable in privacy-restricted browser contexts.
+  }
   return next;
 }
 

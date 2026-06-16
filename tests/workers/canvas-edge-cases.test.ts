@@ -38,6 +38,46 @@ describe('canvas worker edge cases', () => {
     expect(seen).toEqual(['https://studio.buildwithoracle.com/api/health?probe=1']);
   });
 
+  test('sanitizes configured API base before exposing it to health and HTML', async () => {
+    const env = { ORACLE_API_BASE: ' https://user:pass@oracle.example.test/root/?token=secret#frag ' };
+    const health = await handleCanvasRequest(
+      new Request('https://canvas.buildwithoracle.com/__health'),
+      env,
+    );
+    const body = await health.json() as { apiBase: string };
+    const page = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/wave'), env);
+    const html = await page.text();
+
+    expect(body.apiBase).toBe('https://oracle.example.test/root');
+    expect(html).toContain('data-api-base="https://oracle.example.test/root"');
+    expect(html).not.toContain('user:pass');
+    expect(html).not.toContain('token=secret');
+  });
+
+  test('strips client host headers and omits bodies for HEAD API proxy requests', async () => {
+    const seen: Array<{ url: string; method: string; host: string | null; body: BodyInit | null | undefined }> = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      seen.push({
+        url: String(input),
+        method: init?.method ?? 'GET',
+        host: new Headers(init?.headers).get('host'),
+        body: init?.body,
+      });
+      return new Response(null, { status: 204 });
+    }) as typeof fetch;
+
+    const response = await handleCanvasRequest(
+      new Request('https://canvas.buildwithoracle.com/api/health', {
+        method: 'HEAD',
+        headers: { host: 'spoofed.example', 'x-api-key': 'token' },
+      }),
+      { ORACLE_API_BASE: 'https://oracle.example.test' },
+    );
+
+    expect(response.status).toBe(204);
+    expect(seen).toEqual([{ url: 'https://oracle.example.test/api/health', method: 'HEAD', host: null, body: undefined }]);
+  });
+
   test('rejects malformed percent-encoded local registry plugin ids', async () => {
     const response = await handleCanvasRequest(
       new Request('https://canvas.buildwithoracle.com/api/canvas/plugins/%E0%A4%A'),
