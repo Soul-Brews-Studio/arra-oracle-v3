@@ -7,7 +7,9 @@ const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-search-edge-'));
 const stamp = `${Date.now()}${Math.random().toString(16).slice(2)}`;
 const tenantId = `tenant-edge-${stamp}`;
 const docId = `search-edge-${stamp}`;
+const conceptDocId = `search-concepts-${stamp}`;
 const term = `edgeterm${stamp}`;
+const conceptTerm = `conceptterm${stamp}`;
 
 let dbModule: typeof import('../../../src/db/index.ts');
 let searchRoutes: { handle: (request: Request) => Response | Promise<Response> };
@@ -39,6 +41,20 @@ beforeAll(async () => {
   }).run();
   dbModule.sqlite.prepare('INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)')
     .run(docId, `document with ${term}`, 'edge');
+  dbModule.db.insert(dbModule.oracleDocuments).values({
+    id: conceptDocId,
+    tenantId,
+    type: 'learning',
+    sourceFile: 'ψ/shared/search-concepts.md',
+    concepts: '"not-array"',
+    createdAt: now,
+    updatedAt: now,
+    indexedAt: now,
+    project: 'edge',
+    createdBy: 'search-edge-test',
+  }).run();
+  dbModule.sqlite.prepare('INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)')
+    .run(conceptDocId, `document with ${conceptTerm}`, 'edge');
 });
 
 function request(route: string) {
@@ -72,14 +88,24 @@ describe('search route edge cases', () => {
     expect(body.results.map((item) => item.id)).toEqual([docId]);
   });
 
+  test('GET /api/search normalizes mode and malformed concepts', async () => {
+    const res = await request(`/api/search?q=${conceptTerm}&mode=%20FTS%20&limit=2abc`);
+    const body = await res.json() as { results: Array<{ id: string; concepts: string[] }>; limit: number; total: number };
+
+    expect(res.status).toBe(200);
+    expect(body.limit).toBe(10);
+    expect(body.total).toBe(1);
+    expect(body.results).toEqual([expect.objectContaining({ id: conceptDocId, concepts: [] })]);
+  });
+
   test('GET /api/list falls back on safe pagination for bad numbers', async () => {
-    const res = await request('/api/list?limit=not-a-number&offset=-10');
+    const res = await request('/api/list?limit=2abc&offset=-10');
     const body = await res.json() as { results: Array<{ id: string }>; limit: number; offset: number; total: number };
 
     expect(res.status).toBe(200);
     expect(body.limit).toBe(10);
     expect(body.offset).toBe(0);
-    expect(body.total).toBe(1);
-    expect(body.results.map((item) => item.id)).toEqual([docId]);
+    expect(body.total).toBe(2);
+    expect(body.results.map((item) => item.id)).toEqual(expect.arrayContaining([docId, conceptDocId]));
   });
 });

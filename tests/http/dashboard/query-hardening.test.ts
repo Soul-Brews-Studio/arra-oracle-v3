@@ -38,16 +38,52 @@ afterAll(() => {
 
 test('dashboard query parameters fall back to bounded defaults', async () => {
   const invalidDays = await dashboardJson('/api/dashboard/activity?days=-9');
+  const suffixDays = await dashboardJson('/api/dashboard/activity?days=7days');
   const cappedDays = await dashboardJson('/api/dashboard/activity?days=9999');
-  const growth = await dashboardJson('/api/dashboard/growth?period=forever');
+  const growth = await dashboardJson('/api/dashboard/growth?period=%20Quarter%20');
   const beforeDefaultSince = Date.now() - 24 * 60 * 60 * 1000 - 1_000;
-  const stats = await dashboardJson('/api/session/stats?since=not-a-number');
+  const stats = await dashboardJson('/api/session/stats?since=123abc');
 
   expect(invalidDays.response.status).toBe(200);
   expect(invalidDays.json.days).toBe(7);
+  expect(suffixDays.json.days).toBe(7);
   expect(cappedDays.json.days).toBe(365);
-  expect(growth.json.period).toBe('week');
-  expect(growth.json.days).toBe(7);
+  expect(growth.json.period).toBe('quarter');
+  expect(growth.json.days).toBe(90);
   expect(stats.json.since).toBeGreaterThanOrEqual(beforeDefaultSince);
   expect(stats.json.since).toBeLessThanOrEqual(Date.now());
+});
+
+test('dashboard tolerates malformed concept payloads per row', async () => {
+  const now = Date.now();
+  const id = `dashboard-malformed-${now}`;
+  dbMod.db.insert(dbMod.oracleDocuments).values({
+    id,
+    tenantId: 'default',
+    type: 'learning',
+    sourceFile: `ψ/memory/${id}.md`,
+    concepts: '[" alpha ","alpha",42,"beta"]',
+    createdAt: now,
+    updatedAt: now,
+    indexedAt: now,
+    project: 'dashboard-hardening',
+    createdBy: 'test',
+  }).run();
+  dbMod.db.insert(dbMod.learnLog).values({
+    documentId: id,
+    tenantId: 'default',
+    patternPreview: 'malformed concept row',
+    concepts: 'not-json',
+    createdAt: now,
+  }).run();
+
+  const summary = await dashboardJson('/api/dashboard/summary');
+  const activity = await dashboardJson('/api/dashboard/activity?days=1');
+  const conceptNames = summary.json.concepts.top.map((item: { name: string }) => item.name);
+  const learning = activity.json.learnings.find((item: { document_id: string }) => item.document_id === id);
+
+  expect(conceptNames).toContain('alpha');
+  expect(conceptNames).toContain('beta');
+  expect(learning.concepts).toEqual([]);
+  expect(learning.created_at).toBe(new Date(now).toISOString());
 });
