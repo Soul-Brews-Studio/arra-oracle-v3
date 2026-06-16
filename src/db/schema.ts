@@ -245,4 +245,5 @@ export const traceLog = sqliteTable('trace_log', {
   index('idx_trace_created').on(table.createdAt),
 ]);
 
+export { exportJobs } from './export-schema.ts';
 export { activityLog, menuItems, schedule, settings, supersedeLog } from './logistics-schema.ts';

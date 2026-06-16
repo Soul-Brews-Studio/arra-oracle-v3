@@ -11,7 +11,7 @@ process.env.ORACLE_DATA_DIR = root;
 process.env.ORACLE_VECTOR_HEALTH_TIMEOUT = '1500';
 
 const vectorConfig = await import('../../../src/vector/config.ts');
-const { vectorConfigApiRoutes } = await import('../../../src/routes/vector/config-api.ts');
+const { vectorConfigApiRoutes } = await import('../../../src/routes/vector/config.ts');
 
 const versionedFetch = createApiVersionedFetch((request) => vectorConfigApiRoutes.handle(request));
 
