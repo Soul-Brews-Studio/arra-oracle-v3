@@ -1,9 +1,56 @@
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import { sqlite } from '../../db/index.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
 import { OraclesQuery } from './model.ts';
 
-let oracleCache: { data: unknown; ts: number; key: string } | null = null;
+const OracleIdentitiesSchema = t.Object({
+  oracle_name: t.String(),
+  source: t.String(),
+  last_seen: t.Nullable(t.Union([t.String(), t.Number()])),
+  actions: t.Number(),
+});
+
+const OracleProjectsSchema = t.Object({
+  project: t.String(),
+  docs: t.Number(),
+  types: t.Number(),
+  last_indexed: t.Nullable(t.Union([t.String(), t.Number()])),
+});
+
+const OraclesResponseSchema = t.Object({
+  identities: t.Array(OracleIdentitiesSchema),
+  projects: t.Array(OracleProjectsSchema),
+  total_projects: t.Number(),
+  total_identities: t.Number(),
+  window_hours: t.Number(),
+  tenant: t.Optional(t.Object({
+    id: t.String(),
+    scope: t.String(),
+  })),
+  cached_at: t.String(),
+});
+
+interface OraclesResponse {
+  identities: Array<{
+    oracle_name: string;
+    source: string;
+    last_seen: string | number | null;
+    actions: number;
+  }>;
+  projects: Array<{
+    project: string;
+    docs: number;
+    types: number;
+    last_indexed: string | number | null;
+  }>;
+  total_projects: number;
+  total_identities: number;
+  window_hours: number;
+  tenant?: { id: string; scope: string };
+  cached_at: string;
+}
+
+let oracleCache: { data: OraclesResponse; ts: number; key: string } | null = null;
 
 export const oraclesEndpoint = new Elysia().get('/oracles', ({ query }) => {
   const parsed = parseInt(query.hours ?? '168');
@@ -39,7 +86,7 @@ export const oraclesEndpoint = new Elysia().get('/oracles', ({ query }) => {
     WHERE oracle_name IS NOT NULL AND oracle_name != 'unknown'
     GROUP BY oracle_name
     ORDER BY last_seen DESC
-  `).all(cutoff, ...tenantArg, cutoff, ...tenantArg, cutoff, ...tenantArg);
+  `).all(cutoff, ...tenantArg, cutoff, ...tenantArg, cutoff, ...tenantArg) as OraclesResponse['identities'];
 
   const projects = sqlite.prepare(`
     SELECT project, count(*) as docs,
@@ -49,9 +96,9 @@ export const oraclesEndpoint = new Elysia().get('/oracles', ({ query }) => {
     WHERE project IS NOT NULL ${docProjectWhere}
     GROUP BY project
     ORDER BY last_indexed DESC
-  `).all(...tenantArg);
+  `).all(...tenantArg) as OraclesResponse['projects'];
 
-  const result = {
+  const result: OraclesResponse = {
     identities,
     projects,
     total_projects: projects.length,
@@ -64,9 +111,11 @@ export const oraclesEndpoint = new Elysia().get('/oracles', ({ query }) => {
   return result;
 }, {
   query: OraclesQuery,
+  response: OraclesResponseSchema,
   detail: {
     tags: ['health'],
     menu: { group: 'hidden' },
+    description: 'Returns active oracle identities and project activity aggregates scoped by query window.',
     summary: 'Oracle identities + project activity',
   },
 });
