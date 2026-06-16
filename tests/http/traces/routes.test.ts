@@ -50,10 +50,12 @@ afterAll(() => {
 describe("Trace routes", () => {
   let traceA: string;
   let traceB: string;
+  let traceC: string;
 
   beforeAll(() => {
     traceA = randomUUID();
     traceB = randomUUID();
+    traceC = randomUUID();
     const db = new Database(dbPath);
     try {
       const now = Date.now();
@@ -70,6 +72,7 @@ describe("Trace routes", () => {
       `);
       insert.run(traceA, "contract-test trace A", now, now);
       insert.run(traceB, "contract-test trace B", now, now);
+      insert.run(traceC, "contract-test trace C", now, now);
     } finally {
       db.close();
     }
@@ -143,6 +146,31 @@ describe("Trace routes", () => {
     const learning = await learnRes.json();
     expect(learning.concepts).toContain("thor-oracle");
     expect(learning.origin).toBe("thor-oracle");
+  });
+
+  test("POST /api/traces/:id/distill keeps Thor dev-research metadata searchable", async () => {
+    const res = await fetch(`${BASE_URL}/api/traces/${traceC}/distill`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        awakening: "Thor links research hypotheses to implementation evidence.",
+        promoteToLearning: true,
+        oracle: "Thor Oracle",
+        theme: "Stormforge",
+        concepts: ["system thinking", "continuity"],
+      }),
+    });
+    expect(res.ok).toBe(true);
+    const body = await res.json();
+    expect(body.concepts).toContain("dev-research");
+    expect(body.concepts).toContain("stormforge");
+
+    const learnRes = await fetch(`${BASE_URL}/api/learn/${body.learningId}`);
+    expect(learnRes.ok).toBe(true);
+    const learning = await learnRes.json();
+    expect(learning.origin).toBe("thor-oracle");
+    expect(learning.concepts).toContain("system-thinking");
+    expect(learning.concepts).toContain("continuity");
   });
 
   test("POST /api/traces/:prevId/link without body returns 400", async () => {
