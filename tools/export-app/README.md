@@ -40,6 +40,8 @@ files under `collections/` and a top-level relationship export.
 When `/api/export/run` is pointed at a legacy Oracle v2 backend with
 `oracleV2Url`, `format: "json"` writes the metadata dump and
 `format: "markdown"` writes a readable document vault file.
+The direct fallback download path is
+`/api/v1/export/app?collection=oracle_documents&format=markdown`.
 
 ## Graph Export
 
@@ -78,9 +80,10 @@ The batch output includes:
 - `relationships.<ext>`
 - `all-collections.json`
 - `manifest.json`
+- `manifest.schema.json`
 
-`manifest.json` includes collection counts plus a deterministic file inventory
-with byte sizes and SHA-256 checksums for integrity checks before migration.
+`manifest.json` includes a `files` inventory with each artifact path, byte
+count, and SHA-256 checksum so operators can verify the bundle before migration.
 
 ## CLI Usage
 

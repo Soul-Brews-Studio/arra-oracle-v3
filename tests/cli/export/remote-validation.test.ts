@@ -11,3 +11,13 @@ test("export CLI rejects formats outside the requested remote export set", async
     "--output", join(tmpdir(), "bad.csv"),
   ])).rejects.toThrow("unsupported format: csv");
 });
+
+test("export CLI rejects invalid retry counts", async () => {
+  await expect(runRemoteExportCommand([
+    "--url", "http://oracle.test",
+    "--collection", "oracle_documents",
+    "--format", "json",
+    "--output", join(tmpdir(), "bad.json"),
+    "--retries", "-1",
+  ])).rejects.toThrow("--retries must be a non-negative integer");
+});

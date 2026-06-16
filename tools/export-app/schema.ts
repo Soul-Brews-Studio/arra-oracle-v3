@@ -12,6 +12,7 @@ const manifestRequired = [
 ] as const;
 
 const nonNegativeInteger = { type: 'integer', minimum: 0 } as const;
+const sha256Pattern = '^[a-f0-9]{64}$';
 
 export const EXPORT_MANIFEST_SCHEMA = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
@@ -37,7 +38,7 @@ export const EXPORT_MANIFEST_SCHEMA = {
         properties: {
           path: { type: 'string', minLength: 1 },
           bytes: nonNegativeInteger,
-          sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+          sha256: { type: 'string', pattern: sha256Pattern },
         },
       },
     },
