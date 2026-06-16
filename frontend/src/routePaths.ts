@@ -43,3 +43,7 @@ export function vectorSettingsPath(): string {
 export function canvasPluginsPath(): string {
   return '/canvas/plugins';
 }
+
+export function storagePath(): string {
+  return '/storage';
+}

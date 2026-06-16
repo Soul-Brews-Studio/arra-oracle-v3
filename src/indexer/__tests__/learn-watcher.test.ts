@@ -179,6 +179,26 @@ describe('startLearnWatcher', () => {
     stop();
   });
 
+  it('stores project-first vault ψ/learn files', async () => {
+    const filePath = path.join(repoRoot, 'github.com', 'Soul-Brews-Studio', 'demo', 'ψ', 'learn', 'codex', 'note.md');
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, '# Project Learn\n\n## Finding\n\nProject-first vault learn docs auto-index.', 'utf8');
+
+    const stop = startLearnWatcher({ db, models: MODELS, repoRoot, debounceMs: 20 });
+    await waitFor(() => {
+      const row = db.query<{ count: number }, []>('SELECT COUNT(*) AS count FROM indexing_jobs').get();
+      return row?.count === Object.keys(MODELS).length;
+    });
+
+    const doc = db.query<{ source_file: string; project: string }, []>(
+      'SELECT source_file, project FROM oracle_documents',
+    ).get();
+    expect(doc?.source_file).toBe('github.com/Soul-Brews-Studio/demo/ψ/learn/codex/note.md');
+    expect(doc?.project).toBe('github.com/soul-brews-studio/demo');
+
+    stop();
+  });
+
   it('does nothing for non-markdown files', async () => {
     const learnDir = path.join(repoRoot, 'ψ', 'memory', 'learnings');
     const filePath = path.join(learnDir, 'note.txt');

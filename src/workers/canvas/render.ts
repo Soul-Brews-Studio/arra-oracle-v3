@@ -3,6 +3,7 @@ import { findCanvasPlugin, listCanvasPlugins, type CanvasPluginDescriptor } from
 export type CanvasPlugin = CanvasPluginDescriptor;
 
 const DEFAULT_PLUGIN = 'wave';
+const CANVAS_ORIGIN = 'https://canvas.buildwithoracle.com';
 const STUDIO_HOME = 'https://studio.buildwithoracle.com/';
 
 export function normalizePlugin(value: string | null): CanvasPlugin {
@@ -15,6 +16,14 @@ function titleFor(plugin: CanvasPlugin): string {
 
 function pluginUrl(id: string): string {
   return id === 'map' || id === 'planets' ? `/${id}` : `/?plugin=${id}`;
+}
+
+function canonicalUrl(id: string): string {
+  return `${CANVAS_ORIGIN}${pluginUrl(id)}`;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
 function pluginLinks(current: string): string {
@@ -33,13 +42,21 @@ function pluginOptions(current: string): string {
 
 export function renderCanvasApp(plugin: CanvasPlugin, apiBase: string): string {
   const id = plugin.id;
+  const title = titleFor(plugin);
+  const canonical = canonicalUrl(id);
+  const description = `${plugin.description} Runs as a dedicated Oracle canvas subdomain app.`;
   const plugins = listCanvasPlugins().map((item) => ({ id: item.id, label: item.label, kind: item.kind, href: pluginUrl(item.id) }));
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>${titleFor(plugin)}</title>
+<title>${escapeHtml(title)}</title>
+<link rel="canonical" href="${escapeHtml(canonical)}" />
+<meta name="description" content="${escapeHtml(description)}" />
+<meta property="og:title" content="${escapeHtml(title)}" />
+<meta property="og:url" content="${escapeHtml(canonical)}" />
+<meta property="og:type" content="website" />
 <style>
 :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#020617;color:#e2e8f0}
 body{margin:0;min-height:100vh;background:radial-gradient(circle at top,#164e63 0,#020617 42%);overflow:hidden}
@@ -49,9 +66,9 @@ p{margin:.25rem 0 0;color:#94a3b8}.pill{border:1px solid rgb(45 212 191/.4);bord
 .picker{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}.picker label{font-size:.75rem;color:#94a3b8}.picker select{border:1px solid rgb(45 212 191/.28);border-radius:.8rem;background:#020617;color:#e2e8f0;padding:.45rem .65rem}canvas{display:block;width:100vw;height:100vh}.error{position:fixed;left:1rem;right:1rem;bottom:1rem;color:#fecaca}
 </style>
 </head>
-<body data-plugin="${id}" data-kind="${plugin.kind}" data-api-base="${apiBase}">
-<header><div class="top"><div><h1 id="canvas-title">${titleFor(plugin)}</h1><p id="canvas-subtitle">canvas.buildwithoracle.com · plugin=${id} · ${plugin.kind}</p></div><span class="pill" id="status">loading API</span></div><div class="picker"><label for="plugin-picker">Hot-swap plugin</label><select id="plugin-picker" aria-label="Hot-swap canvas plugin">${pluginOptions(id)}</select><a href="${STUDIO_HOME}" data-studio-home aria-label="Open Oracle Studio home">Studio home</a></div><nav aria-label="Canvas plugins">${pluginLinks(id)}</nav></header>
-<canvas id="oracle-canvas" aria-label="${id} canvas visualization"></canvas><p class="error" id="error"></p>
+<body data-plugin="${escapeHtml(id)}" data-kind="${escapeHtml(plugin.kind)}" data-api-base="${escapeHtml(apiBase)}">
+<header><div class="top"><div><h1 id="canvas-title">${escapeHtml(title)}</h1><p id="canvas-subtitle">canvas.buildwithoracle.com · plugin=${escapeHtml(id)} · ${escapeHtml(plugin.kind)}</p></div><span class="pill" id="status">loading API</span></div><div class="picker"><label for="plugin-picker">Hot-swap plugin</label><select id="plugin-picker" aria-label="Hot-swap canvas plugin">${pluginOptions(id)}</select><a href="${STUDIO_HOME}" data-studio-home aria-label="Open Oracle Studio home">Studio home</a></div><nav aria-label="Canvas plugins">${pluginLinks(id)}</nav></header>
+<canvas id="oracle-canvas" aria-label="${escapeHtml(id)} canvas visualization"></canvas><p class="error" id="error"></p>
 <script type="module">
 const plugins=${JSON.stringify(plugins)};let plugin=${JSON.stringify(id)};const apiBase=${JSON.stringify(apiBase)};const canvas=document.querySelector('canvas');const ctx=canvas.getContext('2d');
 const CACHE_KEY='oracle.canvas.registry.v1';const DB_NAME='oracle-canvas-cache';

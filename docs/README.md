@@ -10,6 +10,7 @@ Use this page as the one-hop map for the 2026-06-06/07 alpha docs wave.
 | [DEPLOY-DIGITALOCEAN.md](./DEPLOY-DIGITALOCEAN.md) | Deploy a small public Arra HTTP node on DigitalOcean | `doctl`, firewall allowlist, `ARRA_API_TOKEN`, seed, teardown |
 | [FEDERATION.md](./FEDERATION.md) | Pair and secure Arra peers | `/info`, `/api/identity`, `/api/peer/feed`, `/api/peer/search`, TOFU pins |
 | [HUGINN-MUNINN.md](./HUGINN-MUNINN.md) | Understand the capture/recall naming split | Muninn recall, Huginn capture, no `huginn_*` aliases |
+| [issues/memory-systems-ai-agents-1648.md](./issues/memory-systems-ai-agents-1648.md) | Apply the #1648 memory-systems research | provenance-first hybrid memory, confidence, validation, review-gated capture |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | Pick the correct repo/branch for PRs | two-repo rule, source PRs to `arra-oracle-v3:alpha` |
 | [CHANGELOG.md](../CHANGELOG.md) | Review what changed in the alpha wave | release notes, tracker issues, source PRs |
 | [TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md) | Find feature knobs and first commands | MCP modes, plugins, CLI targets, vectors, Docker, federation |
@@ -27,6 +28,7 @@ Use this page as the one-hop map for the 2026-06-06/07 alpha docs wave.
 | DigitalOcean deploy | [DEPLOY-DIGITALOCEAN.md](./DEPLOY-DIGITALOCEAN.md) | `doctl`, `sgp1`, `s-1vcpu-2gb`, `ARRA_API_TOKEN`, `scripts/deploy-do.sh` |
 | Federation | [FEDERATION.md](./FEDERATION.md) | `ARRA_PEER_TOKEN`, `ARRA_NAMED_PEERS`, `ARRA_SCOUT_ANNOUNCE`, `peers-tofu.json` |
 | Capture/recall taxonomy | [HUGINN-MUNINN.md](./HUGINN-MUNINN.md) | `oracle_search`, `oracle_trace*`, `oracle_learn`, `oracle_handoff`, no `huginn_*` aliases |
+| Memory-systems research | [issues/memory-systems-ai-agents-1648.md](./issues/memory-systems-ai-agents-1648.md) | `oracle_documents`, `oracle_memories`, confidence, validation, provenance |
 
 ## Source references
 

@@ -133,25 +133,30 @@ export function collectPsiLearn(opts: {
   const { config, seenContentHashes } = opts;
   const documents: OracleDocument[] = [];
   const subPath = config.sourcePaths.learn ?? 'ψ/learn';
+  const roots = [
+    path.join(config.repoRoot, subPath),
+    ...discoverProjectPsiDirs(config.repoRoot).map((psiDir) => path.join(psiDir, 'learn')),
+  ].filter((dir, index, all) => all.indexOf(dir) === index && fs.existsSync(dir));
 
-  const sourcePath = path.join(config.repoRoot, subPath);
-  if (!fs.existsSync(sourcePath)) return documents;
-
-  const files = getAllMarkdownFiles(sourcePath);
   let skippedDupes = 0;
-  for (const filePath of files) {
-    const relPath = path.relative(config.repoRoot, filePath).split(path.sep).join('/');
-    if (!isPsiLearnSource(relPath)) continue;
+  let totalFiles = 0;
+  for (const sourcePath of roots) {
+    const files = getAllMarkdownFiles(sourcePath);
+    totalFiles += files.length;
+    for (const filePath of files) {
+      const relPath = path.relative(config.repoRoot, filePath).split(path.sep).join('/');
+      if (!isPsiLearnSource(relPath)) continue;
 
-    const content = fs.readFileSync(filePath, 'utf-8');
-    if (!content.trim()) continue;
-    const contentHash = Bun.hash(content).toString(36);
-    if (seenContentHashes.has(contentHash)) { skippedDupes++; continue; }
-    seenContentHashes.add(contentHash);
-    documents.push(...parsePsiLearnFile(relPath, content));
+      const content = fs.readFileSync(filePath, 'utf-8');
+      if (!content.trim()) continue;
+      const contentHash = Bun.hash(content).toString(36);
+      if (seenContentHashes.has(contentHash)) { skippedDupes++; continue; }
+      seenContentHashes.add(contentHash);
+      documents.push(...parsePsiLearnFile(relPath, content));
+    }
   }
 
-  console.log(`Indexed ${documents.length} ψ/learn documents from ${files.length} files (skipped ${skippedDupes} duplicates)`);
+  console.log(`Indexed ${documents.length} ψ/learn documents from ${totalFiles} files (skipped ${skippedDupes} duplicates)`);
   return documents;
 }
 
