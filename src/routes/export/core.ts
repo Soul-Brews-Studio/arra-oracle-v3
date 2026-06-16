@@ -111,7 +111,7 @@ export function createExportCoreRoutes(deps: ExportCoreRoutesDeps = {}) {
       detail: { tags: ['export'], summary: 'Read exportable documents for one collection' },
     })
     .post('/export/run', async ({ body, set }) => {
-      const runBody = body as ExportRunBody;
+      const runBody = (body ?? {}) as ExportRunBody;
       const { outputDir, jobId } = resolveOutputDir(deps, runBody);
       try {
         const { exportOracleData } = await loadExportEngine();

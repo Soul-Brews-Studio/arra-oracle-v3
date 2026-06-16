@@ -7,7 +7,7 @@ describe('export ConnectionTest', () => {
     expect(normalizeCollections({
       collections: [
         { key: 'nomic', docs: '7' },
-        { name: 'bge-m3', docCount: 42 },
+        { name: 'bge-m3', rowCount: 42 },
       ],
     })).toEqual([
       { name: 'bge-m3', count: 42, description: undefined },
