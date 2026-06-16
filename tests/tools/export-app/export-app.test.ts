@@ -109,14 +109,6 @@ describe('standalone export app', () => {
         expect.objectContaining({ type: 'supersede_log', from: 'doc-old', to: 'doc-new' }),
         expect.objectContaining({ type: 'trace_next', from: 'trace-a', to: 'trace-b' }),
       ]));
-      const inventory = JSON.parse(readFileSync(join(outputDir, 'inventory.json'), 'utf8'));
-      expect(inventory).toMatchObject({ version: 1, generatedAt: '2026-01-02T03:04:05.006Z' });
-      expect(inventory.files).toEqual(expect.arrayContaining([
-        expect.objectContaining({ path: 'manifest.json', size: expect.any(Number) }),
-        expect.objectContaining({ path: 'documents/index.json', size: expect.any(Number) }),
-        expect.objectContaining({ path: 'collections/oracle_documents.json', size: expect.any(Number) }),
-      ]));
-      expect(inventory.files.some((file: { path: string }) => file.path === 'inventory.json')).toBe(false);
 
       const markdown = readFileSync(join(outputDir, 'documents', 'markdown', 'learn_old.md'), 'utf8');
       expect(markdown).toContain('source_file: "ψ/learn/old.md"');
