@@ -48,6 +48,11 @@ describe('parseGitStatus', () => {
     expect(parseGitStatus(status)).toEqual({ added: 0, modified: 1, deleted: 0 });
   });
 
+  it('counts copies as added and type changes as modified', () => {
+    const status = 'C  ψ/source.md -> ψ/copy.md\nT  ψ/memory/link.md';
+    expect(parseGitStatus(status)).toEqual({ added: 1, modified: 1, deleted: 0 });
+  });
+
   it('handles mixed status output', () => {
     const status = [
       '?? ψ/memory/new.md',
@@ -163,6 +168,14 @@ describe('ensureFrontmatterProject', () => {
     expect(result).toContain(`project: ${project}`);
     expect(result).toContain('tags: [git, safety]');
     expect(result).toContain('source: Oracle Learn');
+  });
+
+  it('injects project into CRLF frontmatter without duplicating fences', () => {
+    const content = '---\r\ntags: [git, safety]\r\n---\r\n\r\n# Content';
+    const result = ensureFrontmatterProject(content, project);
+    expect(result).toContain(`project: ${project}`);
+    expect(result.startsWith('---\r\n')).toBe(true);
+    expect(result.match(/^---/gm)?.length).toBe(2);
   });
 
   it('does not modify if project already exists', () => {
