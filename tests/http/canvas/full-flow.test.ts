@@ -7,6 +7,10 @@ import { handleCanvasRequest } from '../../../src/workers/canvas/index.ts';
 const HOST = 'https://canvas.buildwithoracle.com';
 const PLUGIN_IDS = listCanvasPlugins().map((plugin) => plugin.id);
 
+function canonicalPath(id: string): string {
+  return id === 'map' || id === 'planets' ? `/${id}` : `/?plugin=${id}`;
+}
+
 async function workerJson(path: string) {
   const res = await handleCanvasRequest(new Request(`${HOST}${path}`));
   return { res, body: await res.json() as Record<string, any> };
@@ -84,6 +88,8 @@ describe('canvas.buildwithoracle.com full integration flow', () => {
       expect(html, id).toContain(`plugin=${id}`);
       expect(html, id).toContain('aria-label="Hot-swap canvas plugin"');
       expect(html, id).toContain('canvas.buildwithoracle.com');
+      expect(html, id).toContain(`rel="canonical" href="${HOST}${canonicalPath(id)}"`);
+      expect(html, id).toContain(`property="og:url" content="${HOST}${canonicalPath(id)}"`);
     }
     const registry = await workerJson('/api/canvas/registry');
     expect(registry.body.standalone).toMatchObject({ host: 'canvas.buildwithoracle.com' });
