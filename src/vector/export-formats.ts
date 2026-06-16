@@ -1,4 +1,4 @@
-import type { VectorStoreAdapter } from './types.ts';
+import type { VectorStoreAdapter } from './adapter.ts';
 
 export type EmbeddingDump = Awaited<ReturnType<NonNullable<VectorStoreAdapter['getAllEmbeddings']>>>;
 export type ExportFormatter = ((dump: EmbeddingDump) => ReadableStream<Uint8Array>) & {
