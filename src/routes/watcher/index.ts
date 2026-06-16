@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { fileWatcherService, type FileWatcherService } from '../../services/file-watcher.ts';
+import { fileWatcherService, type FileWatcherControl } from '../../services/file-watcher.ts';
 
 type StatusSetter = { status?: number | string };
 
@@ -16,7 +16,7 @@ function safeWatcherCall<T>(set: StatusSetter, action: () => T): T | { error: st
   }
 }
 
-export function createWatcherRoutes(service: FileWatcherService = fileWatcherService) {
+export function createWatcherRoutes(service: FileWatcherControl = fileWatcherService) {
   return new Elysia({ prefix: '/api' })
     .get('/watcher/status', ({ set }) => safeWatcherCall(set, () => service.status()), {
       detail: { tags: ['watcher'], summary: 'File watcher daemon status' },
