@@ -1,5 +1,7 @@
+import { vectorConfigCli } from "./vector-config-cli.ts";
+
 type ArraPluginContext = {
-  source: 'api' | 'mcp' | 'cli' | 'server' | 'init' | 'destroy';
+  source: "api" | "mcp" | "cli" | "server" | "init" | "destroy";
   plugin: string;
   args?: unknown[];
   request?: Request;
@@ -11,56 +13,110 @@ type ArraVerb = {
   menuPath: string;
   httpPath: string;
   requiresEmbedder: boolean;
-  storage: 'swappable';
+  storage: "swappable";
 };
 
-const VERSION = '1.0.0';
-const MENU_PATH = '/plugins/arra';
-const HTTP_PATH = '/api/plugins/arra';
+type CliResult = { ok: boolean; output?: string; error?: string };
+
+const VERSION = "1.0.0";
+const MENU_PATH = "/plugins/arra";
+const HTTP_PATH = "/api/plugins/arra";
 
 const VERBS: ArraVerb[] = [
-  { name: 'help', help: 'Show ARRA plugin commands', menuPath: MENU_PATH, httpPath: HTTP_PATH, requiresEmbedder: false, storage: 'swappable' },
-  { name: 'version', help: 'Print ARRA plugin version', menuPath: MENU_PATH, httpPath: HTTP_PATH, requiresEmbedder: false, storage: 'swappable' },
-  { name: 'menu', help: 'Describe the ARRA menu surface', menuPath: MENU_PATH, httpPath: HTTP_PATH, requiresEmbedder: false, storage: 'swappable' },
-  { name: 'status', help: 'Describe optional backend capabilities', menuPath: MENU_PATH, httpPath: HTTP_PATH, requiresEmbedder: false, storage: 'swappable' },
+  {
+    name: "help",
+    help: "Show ARRA plugin commands",
+    menuPath: MENU_PATH,
+    httpPath: HTTP_PATH,
+    requiresEmbedder: false,
+    storage: "swappable",
+  },
+  {
+    name: "version",
+    help: "Print ARRA plugin version",
+    menuPath: MENU_PATH,
+    httpPath: HTTP_PATH,
+    requiresEmbedder: false,
+    storage: "swappable",
+  },
+  {
+    name: "menu",
+    help: "Describe the ARRA menu surface",
+    menuPath: MENU_PATH,
+    httpPath: HTTP_PATH,
+    requiresEmbedder: false,
+    storage: "swappable",
+  },
+  {
+    name: "status",
+    help: "Describe optional backend capabilities",
+    menuPath: MENU_PATH,
+    httpPath: HTTP_PATH,
+    requiresEmbedder: false,
+    storage: "swappable",
+  },
+  {
+    name: "vector-config",
+    help: "Inspect and manage vector backend config",
+    menuPath: MENU_PATH,
+    httpPath: "/api/v1/vector/config",
+    requiresEmbedder: false,
+    storage: "swappable",
+  },
 ];
 
 function commandName(ctx: ArraPluginContext): string {
   const arg = ctx.args?.[0];
-  return typeof arg === 'string' && arg.trim() ? arg.trim().toLowerCase() : 'help';
+  return typeof arg === "string" && arg.trim()
+    ? arg.trim().toLowerCase()
+    : "help";
 }
 
 function pluginBody(ctx: ArraPluginContext) {
   return {
-    plugin: ctx.plugin || 'arra',
+    plugin: ctx.plugin || "arra",
     version: VERSION,
     surface: ctx.source,
     menuPath: MENU_PATH,
     httpPath: HTTP_PATH,
-    cliCommand: 'arra',
+    cliCommand: "arra",
     embedderRequired: false,
-    storageBackend: 'swappable',
+    storageBackend: "swappable",
     verbs: VERBS,
   };
 }
 
-function renderCli(ctx: ArraPluginContext): string {
+async function renderCli(ctx: ArraPluginContext): Promise<CliResult> {
   const command = commandName(ctx);
-  if (command === 'version') return `arra ${VERSION}`;
-  if (command === 'menu') return `arra menu: ${MENU_PATH}`;
-  if (command === 'status') return 'arra status: ok (embedder optional, storage swappable)';
-  if (command !== 'help') return `unknown arra command: ${command}\n${renderCli({ ...ctx, args: ['help'] })}`;
-  return ['maw arra <command>', ...VERBS.map((verb) => `  ${verb.name.padEnd(8)} ${verb.help}`)].join('\n');
+  if (command === "version") return { ok: true, output: `arra ${VERSION}` };
+  if (command === "menu")
+    return { ok: true, output: `arra menu: ${MENU_PATH}` };
+  if (command === "status")
+    return {
+      ok: true,
+      output: "arra status: ok (embedder optional, storage swappable)",
+    };
+  if (command === "vector-config")
+    return vectorConfigCli((ctx.args ?? []).slice(1).map(String));
+  if (command !== "help")
+    return { ok: false, error: `unknown arra command: ${command}` };
+  return {
+    ok: true,
+    output: [
+      "maw arra <command>",
+      ...VERBS.map((verb) => `  ${verb.name.padEnd(14)} ${verb.help}`),
+    ].join("\n"),
+  };
 }
 
 export function arraHttpRoute(ctx: ArraPluginContext) {
   return { ok: true, body: pluginBody(ctx) };
 }
 
-export function arraCli(ctx: ArraPluginContext) {
-  return { ok: true, output: renderCli(ctx) };
+export async function arraCli(ctx: ArraPluginContext) {
+  return renderCli(ctx);
 }
 
 export default function handler(ctx: ArraPluginContext) {
-  return ctx.source === 'cli' ? arraCli(ctx) : arraHttpRoute(ctx);
+  return ctx.source === "cli" ? arraCli(ctx) : arraHttpRoute(ctx);
 }
