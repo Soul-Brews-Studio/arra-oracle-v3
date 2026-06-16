@@ -1,11 +1,3 @@
-/**
- * Vector Store Factory
- *
- * Creates the right VectorStoreAdapter + EmbeddingProvider from env vars.
- * Supports model-based registry for multi-index (bge-m3 default, nomic, qwen3).
- */
-
-import path from 'path';
 import { VECTORS_DB_PATH, LANCEDB_DIR, CHROMADB_DIR } from '../config.ts';
 import { COLLECTION_NAME } from '../const.ts';
 import type {
@@ -19,9 +11,10 @@ import { SqliteVecAdapter } from './adapters/sqlite-vec.ts';
 import { LanceDBAdapter } from './adapters/lancedb.ts';
 import { QdrantAdapter } from './adapters/qdrant.ts';
 import { CloudflareVectorizeAdapter, CloudflareAIEmbeddings } from './adapters/cloudflare-vectorize.ts';
+import { ProxyVectorAdapter } from './adapters/proxy.ts';
 import { createEmbeddingProvider } from './embeddings.ts';
 import { resolveEmbeddingModel, resolveEmbeddingProviderType } from './embedder-config.ts';
-import { loadVectorConfig, configToModels } from './config.ts';
+import { loadVectorConfig, resolveServiceEndpoint, configToModels, fallbackCollectionsFor } from './config.ts';
 
 export interface VectorStoreConfig {
   type?: VectorDBType;
@@ -41,6 +34,8 @@ export interface VectorStoreConfig {
   cfAccountId?: string;
   /** Cloudflare API token */
   cfApiToken?: string;
+  /** Endpoint for proxy adapter */
+  proxyEndpoint?: string;
 }
 
 export interface EmbeddingModelConfig {
@@ -49,21 +44,9 @@ export interface EmbeddingModelConfig {
   adapter?: VectorDBType;
   dataPath?: string;
   embedder?: EmbedderConfig;
+  endpoint?: string;
 }
 
-/**
- * Create a VectorStoreAdapter from config or env vars.
- *
- * Env vars:
- *   ORACLE_VECTOR_DB          = 'chroma' | 'sqlite-vec' | 'lancedb' | 'qdrant' | 'cloudflare-vectorize'
- *   ORACLE_EMBEDDER           = 'none' | 'local' | 'remote' (default: none/FTS5)
- *   ORACLE_EMBEDDER_URL       = remote HTTP embedding endpoint
- *   ORACLE_EMBEDDING_PROVIDER = legacy provider override
- *   ORACLE_EMBEDDING_MODEL    = model name override
- *   ORACLE_VECTOR_DB_PATH     = sqlite-vec / lancedb path
- *   CLOUDFLARE_ACCOUNT_ID     = CF account (for cloudflare-vectorize)
- *   CLOUDFLARE_API_TOKEN      = CF API token (for cloudflare-vectorize)
- */
 export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAdapter {
   const type = config.type
     || (process.env.ORACLE_VECTOR_DB as VectorDBType)
@@ -134,6 +117,14 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
       return new CloudflareVectorizeAdapter(collectionName, embedder, cfConfig);
     }
 
+    case 'proxy': {
+      const proxyUrl = config.proxyEndpoint || process.env.ORACLE_PROXY_VECTOR_URL;
+      if (!proxyUrl) {
+        throw new Error('proxy vector adapter requires proxyEndpoint or ORACLE_PROXY_VECTOR_URL');
+      }
+      return new ProxyVectorAdapter(collectionName, proxyUrl);
+    }
+
     case 'chroma':
     default: {
       const dataPath = config.dataPath || CHROMADB_DIR;
@@ -143,14 +134,28 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
   }
 }
 
-// ============================================================================
-// Model-based registry for dual-index search
-// ============================================================================
-
 export function getEmbeddingModels(
   cfg: ReturnType<typeof loadVectorConfig> = loadVectorConfig(),
 ): Record<string, EmbeddingModelConfig> {
-  // If vector-server.json exists, use it as source of truth (#1071 phase 2)
+  const fallbackFromFallbackCollections = cfg ? fallbackCollectionsFor(cfg) : [];
+
+  if (cfg && Object.keys(cfg.collections).length > 0) return configToModels(cfg);
+
+    if (cfg && fallbackFromFallbackCollections.length > 0) {
+    const modelMap: Record<string, EmbeddingModelConfig> = {};
+    for (const col of fallbackFromFallbackCollections) {
+      const serviceName = col.service;
+      const storageService = serviceName ? cfg.storage?.services[serviceName] : undefined;
+      modelMap[col.collection] = {
+        collection: col.collection,
+        model: col.model,
+        adapter: storageService?.type === 'proxy' ? 'proxy' : 'lancedb',
+        endpoint: resolveServiceEndpoint(cfg, serviceName),
+      };
+    }
+    return modelMap;
+  }
+
   if (cfg) return configToModels(cfg);
 
   // Hardcoded fallback — always works even without config file
@@ -176,7 +181,6 @@ export function getEmbeddingModels(
   };
 }
 
-/** @deprecated Use getEmbeddingModels() — kept for backward compat */
 export const EMBEDDING_MODELS = new Proxy({} as Record<string, EmbeddingModelConfig>, {
   get(_, prop: string) { return getEmbeddingModels()[prop]; },
   has(_, prop: string) { return prop in getEmbeddingModels(); },
@@ -190,11 +194,6 @@ export const EMBEDDING_MODELS = new Proxy({} as Record<string, EmbeddingModelCon
 
 const modelStoreCache = new Map<string, VectorStoreAdapter>();
 
-/**
- * Get a vector store for a specific embedding model.
- * Uses the configured embedder backend. Default is none, so vector calls fail
- * fast and callers keep serving FTS5-only results until local/remote is set.
- */
 const connectPromises = new Map<string, Promise<void>>();
 
 export function createVectorStoreForModel(preset: EmbeddingModelConfig): VectorStoreAdapter {
@@ -205,6 +204,7 @@ export function createVectorStoreForModel(preset: EmbeddingModelConfig): VectorS
     embeddingModel: preset.embedder?.model || preset.model,
     embeddingUrl: preset.embedder?.url,
     embeddingDimensions: preset.embedder?.dimensions,
+    proxyEndpoint: preset.endpoint,
     ...(preset.dataPath && { dataPath: preset.dataPath }),
   });
 }
@@ -220,7 +220,6 @@ export function getVectorStoreByModel(
     const preset = models[key];
     store = createVectorStoreForModel(preset);
     modelStoreCache.set(key, store);
-    // Auto-connect in background (non-blocking)
     connectPromises.set(key, connectStore(store).catch(e =>
       console.warn(`[VectorRegistry] Failed to connect ${key}:`, e instanceof Error ? e.message : String(e))
     ));
@@ -228,7 +227,6 @@ export function getVectorStoreByModel(
   return store;
 }
 
-/** Ensure a model's store is connected. Call before first query. */
 export async function ensureVectorStoreConnected(
   model?: string,
   models = getEmbeddingModels(),

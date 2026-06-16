@@ -26,15 +26,18 @@ const adapterSchema = t.Union([
   t.Literal('lancedb'),
   t.Literal('qdrant'),
   t.Literal('cloudflare-vectorize'),
+  t.Literal('proxy'),
 ]);
 
-type CollectionUpdate = Partial<Pick<VectorCollectionConfig, 'adapter' | 'model' | 'provider'>>;
+type CollectionUpdate = Partial<Pick<VectorCollectionConfig, 'adapter' | 'model' | 'provider' | 'service' | 'endpoint'>>;
 type CollectionHealth = {
   key: string;
   collection: string;
   model: string;
   provider: string;
   adapter: VectorDBType;
+  service?: string;
+  endpoint?: string;
   count: number;
   ok: boolean;
   status: 'ok' | 'down';
@@ -132,12 +135,14 @@ function normalizedUpdate(body: CollectionUpdate): CollectionUpdate | { error: s
     if (!model) return { error: 'model must be a non-empty string' };
     update.model = model;
   }
-  if (body.provider !== undefined) {
-    const provider = body.provider.trim();
-    if (!provider) return { error: 'provider must be a non-empty string' };
-    update.provider = provider;
-  }
-  if (Object.keys(update).length === 0) return { error: 'body must include adapter, model, or provider' };
+    if (body.provider !== undefined) {
+      const provider = body.provider.trim();
+      if (!provider) return { error: 'provider must be a non-empty string' };
+      update.provider = provider;
+    }
+    if (body.service !== undefined) update.service = body.service;
+    if (body.endpoint !== undefined) update.endpoint = body.endpoint;
+  if (Object.keys(update).length === 0) return { error: 'body must include adapter, model, provider, service, or endpoint' };
   return update;
 }
 
@@ -218,6 +223,8 @@ export const vectorConfigApiEndpoint = new Elysia()
       adapter: t.Optional(adapterSchema),
       model: t.Optional(t.String()),
       provider: t.Optional(t.String()),
+      service: t.Optional(t.String()),
+      endpoint: t.Optional(t.String()),
     }),
     detail: { tags: ['vector'], summary: 'Update one vector collection config' },
   });
