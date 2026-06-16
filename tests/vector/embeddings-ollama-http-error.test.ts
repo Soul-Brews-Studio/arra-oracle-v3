@@ -6,5 +6,5 @@ test('ollama embedder surfaces HTTP errors from the local embedding server', asy
   const target = startServer(() => new Response('ollama down', { status: 500 }));
   const provider = new OllamaEmbeddings({ baseUrl: target, model: 'nomic-embed-text' });
 
-  await expect(provider.embed(['hello'])).rejects.toThrow(/Ollama API error: ollama down/);
+  await expect(provider.embed(['hello'])).rejects.toThrow(/Ollama API error \(500\): ollama down/);
 });
