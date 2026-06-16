@@ -35,6 +35,7 @@ test('ProxyVectorAdapter speaks vector proxy protocol under endpoint path prefix
   await adapter.addDocuments(docs);
   const result = await adapter.query('hello', 3, { type: 'learning' });
   const info = await adapter.getCollectionInfo();
+  await adapter.replaceDocuments(docs);
   await adapter.deleteCollection();
 
   expect(result.ids).toEqual(['doc-1']);
@@ -45,8 +46,11 @@ test('ProxyVectorAdapter speaks vector proxy protocol under endpoint path prefix
     'POST /proxy/vectors/query',
     'GET /proxy/vectors/stats',
     'DELETE /proxy/vectors/collection',
+    'POST /proxy/vectors/add',
+    'DELETE /proxy/vectors/collection',
   ]);
   expect(requests[2].body).toEqual({ text: 'hello', limit: 3, where: { type: 'learning' } });
+  expect(requests[5].body).toEqual({ documents: docs });
 });
 
 test('vectorServiceUrl preserves path prefixes', () => {

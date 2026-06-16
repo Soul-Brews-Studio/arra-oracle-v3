@@ -84,6 +84,11 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
     await this.post('/vectors/add', { documents: docs });
   }
 
+  async replaceDocuments(docs: VectorDocument[]): Promise<void> {
+    await this.deleteCollection();
+    if (docs.length > 0) await this.addDocuments(docs);
+  }
+
   async query(text: string, limit: number = 10, where?: Record<string, any>): Promise<VectorQueryResult> {
     const body: ProxyQueryRequest = { text, limit, ...(where ? { where } : {}) };
     return this.postJson<ProxyQueryResponse>('/vectors/query', body);
