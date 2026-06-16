@@ -25,6 +25,22 @@ jobs:
           export PATH="$PWD/node_modules/.bin:$PATH"
           tsc --noEmit
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Check Tauri shell
+        run: cd frontend/src-tauri && cargo check
+
       - name: Run scoped unit tests
         run: >
           bun test --isolate
