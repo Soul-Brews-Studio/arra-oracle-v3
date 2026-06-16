@@ -76,6 +76,21 @@ describe('vault sync HTTP route', () => {
     expect(spawnIndexer).toHaveBeenCalledTimes(1);
   });
 
+  test('reindex spawn failures keep completed sync result visible', async () => {
+    const migrate = mock(() => ({ ...emptyMigrate, filesCopied: 1 }));
+    const spawnIndexer = mock(() => {
+      throw new Error('spawn unavailable');
+    });
+    const res = await post(appWith(migrate, spawnIndexer), { reindex: true });
+    const body = await res.json() as Record<string, any>;
+
+    expect(res.status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.reindex).toBe(false);
+    expect(body.reindexError).toBe('spawn unavailable');
+    expect(body.migrate.filesCopied).toBe(1);
+  });
+
   test('matches vault projects to tenant ids before migration filtering', () => {
     expect(projectMatchesTenant('github.com/soul-brews-studio/arra-oracle-v3', 'soul-brews-studio')).toBe(true);
     expect(projectMatchesTenant('tenant-a', 'tenant-a')).toBe(true);

@@ -8,6 +8,7 @@ import { Elysia, t } from 'elysia';
 import { eq } from 'drizzle-orm';
 import { db, menuItems } from '../../db/index.ts';
 import { menuOwnedWhere } from '../../menu/tenant.ts';
+import { isMenuId, parseMenuIdParam } from './ids.ts';
 
 export function createMenuOrderRoutes() {
   return new Elysia()
@@ -19,6 +20,10 @@ export function createMenuOrderRoutes() {
           const ids = db.transaction((tx) => {
             const touched: number[] = [];
             for (const item of body.items) {
+              if (!isMenuId(item.id)) throw new Error('invalid id');
+              if (item.parentId != null && !isMenuId(item.parentId)) {
+                throw new Error('invalid parentId');
+              }
               const row = tx
                 .update(menuItems)
                 .set({
@@ -63,8 +68,8 @@ export function createMenuOrderRoutes() {
     .post(
       '/menu/reset/:id',
       ({ params, set }) => {
-        const id = Number(params.id);
-        if (!Number.isFinite(id)) {
+        const id = parseMenuIdParam(params.id);
+        if (id == null) {
           set.status = 400;
           return { error: 'invalid id' };
         }

@@ -25,4 +25,18 @@ describe('GET /api/menu/search', () => {
     expect(json).toMatchObject({ q: 'search', total: 2 });
     expect(json.data.map((item) => item.path)).toEqual(['/beta-search', '/alpha']);
   });
+
+  test('treats LIKE wildcard characters as literal search text', async () => {
+    insertMenuRow({ path: '/percent-literal', label: 'Usage 100% Ready', position: 10 });
+    insertMenuRow({ path: '/underscore_literal', label: 'Under_score', position: 20 });
+    insertMenuRow({ path: '/plain', label: 'Plain Menu Row', position: 30 });
+
+    const percent = await requestJson<MenuSearch>(createMenuApp(), 'GET', '/api/menu/search?q=%');
+    const underscore = await requestJson<MenuSearch>(createMenuApp(), 'GET', '/api/menu/search?q=_');
+
+    expect(percent.status).toBe(200);
+    expect(percent.json.data.map((item) => item.path)).toEqual(['/percent-literal']);
+    expect(underscore.status).toBe(200);
+    expect(underscore.json.data.map((item) => item.path)).toEqual(['/underscore_literal']);
+  });
 });
