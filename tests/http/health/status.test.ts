@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import { DB_PATH } from '../../../src/config.ts';
 import { mcpTools } from '../../../src/tools/mcp-manifest.ts';
 import { createHealthRoutes } from '../../../src/routes/health/index.ts';
 
@@ -19,10 +20,11 @@ test('GET /api/health reports uptime, DB, vector, MCP, and plugin status', async
   const body = await res.json() as Record<string, any>;
 
   expect(body.status).toBe('ok');
+  expect(body.uptime).toBe(42.125);
   expect(body.uptimeSeconds).toBe(42.125);
-  expect(body.uptime).toEqual({ seconds: 42.125 });
-  expect(body.dbStatus).toBe('ok');
-  expect(body.db.status).toBe('ok');
+  expect(body.db).toBe('connected');
+  expect(body.dbStatus).toBe('connected');
+  expect(body.dbCheck).toMatchObject({ status: 'connected', path: DB_PATH });
   expect(body.vectorStatus).toBe('ok');
   expect(body.vector).toMatchObject({ status: 'ok', engines: [{ key: 'bge-m3', ok: true }] });
   expect(body.mcpToolCount).toBe(mcpTools.length + 2);
