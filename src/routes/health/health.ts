@@ -1,7 +1,7 @@
 import { Elysia } from 'elysia';
 import { DB_PATH, PORT } from '../../config.ts';
 import { MCP_SERVER_NAME } from '../../const.ts';
-import { db, sqlite, settings } from '../../db/index.ts';
+import { sqlite } from '../../db/index.ts';
 import { scanPlugins } from '../plugins/model.ts';
 import { handleVectorHealth } from '../../server/vector-handlers.ts';
 import { mcpTools } from '../../tools/mcp-manifest.ts';
@@ -10,6 +10,7 @@ import pkg from '../../../package.json' with { type: 'json' };
 
 type VectorHealth = Awaited<ReturnType<typeof handleVectorHealth>>;
 type DbStatus = { status: 'connected' } | { status: 'error'; error: string };
+type DbPing = () => DbStatus | Promise<DbStatus>;
 
 export interface HealthEndpointOptions {
   pluginCount?: number;
@@ -18,15 +19,23 @@ export interface HealthEndpointOptions {
   uptimeSeconds?: () => number;
   vectorHealth?: () => Promise<VectorHealth>;
   pluginStatuses?: () => UnifiedPluginStatus[] | Promise<UnifiedPluginStatus[]>;
+  dbPing?: DbPing;
 }
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function readDbStatus(): DbStatus {
+async function readDbStatus(ping: DbPing = defaultDbPing): Promise<DbStatus> {
   try {
-    db.select({ key: settings.key }).from(settings).limit(1).all();
+    return await ping();
+  } catch (error) {
+    return { status: 'error', error: errorMessage(error) };
+  }
+}
+
+async function defaultDbPing(): Promise<DbStatus> {
+  try {
     sqlite.prepare('SELECT 1 as ok').get();
     return { status: 'connected' };
   } catch (error) {
@@ -67,16 +76,16 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
       };
     }
 
-  const uptimeSeconds = Number(options.uptimeSeconds?.() ?? process.uptime());
-  const dbStatus = readDbStatus();
-  const vector = await readVectorStatus(options.vectorHealth);
-  const pluginItems = await options.pluginStatuses?.() ?? [];
+    const uptimeSeconds = Number(options.uptimeSeconds?.() ?? process.uptime());
+    const dbStatus = await readDbStatus(options.dbPing);
+    const vector = await readVectorStatus(options.vectorHealth);
+    const pluginItems = await options.pluginStatuses?.() ?? [];
     const pluginCount = options.pluginCount ?? (pluginItems.length || installedPluginCount());
     const pluginStatus = pluginItems.some((plugin) => plugin.status === 'degraded') ? 'degraded' : 'ok';
     const toolCount = mcpTools.length + (options.pluginMcpToolCount ?? 0);
 
-  const serviceUptime = Math.round(uptimeSeconds * 1000) / 1000;
-  return {
+    const serviceUptime = Math.round(uptimeSeconds * 1000) / 1000;
+    return {
       status: dbStatus.status === 'connected' ? 'ok' : 'degraded',
       server: MCP_SERVER_NAME,
       version: pkg.version,
