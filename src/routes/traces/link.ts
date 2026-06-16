@@ -1,10 +1,10 @@
 import { Elysia } from 'elysia';
 import { linkTenantTraces } from './tenant-scope.ts';
-import { traceIdParam, linkBody } from './model.ts';
+import { traceIdParam, linkBody, trimmedString } from './model.ts';
 
 export const traceLinkRoute = new Elysia().post('/api/traces/:id/link', async ({ params, body, set }) => {
   try {
-    const { nextId } = (body as any) ?? {};
+    const nextId = trimmedString((body as any)?.nextId);
     if (!nextId) {
       set.status = 400;
       return { error: 'Missing nextId in request body' };
