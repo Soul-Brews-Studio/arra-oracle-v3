@@ -103,6 +103,9 @@ describe('standalone export app', () => {
       expect(exportedFile.bytes).toBeGreaterThan(0);
       expect(exportedFile.sha256).toMatch(/^[a-f0-9]{64}$/);
       expect(manifest.files.map((entry: { path: string }) => entry.path)).toContain('all-collections.json');
+      expect(manifest.files.map((entry: { path: string }) => entry.path)).toContain('README.md');
+      const bundleReadme = readFileSync(join(outputDir, 'README.md'), 'utf8');
+      expect(bundleReadme).toContain('Documents: 2');
 
       const relationships = JSON.parse(readFileSync(join(outputDir, 'relationships.json'), 'utf8'));
       expect(relationships.rows).toEqual(expect.arrayContaining([
