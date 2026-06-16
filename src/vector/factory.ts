@@ -1,18 +1,14 @@
 import { VECTORS_DB_PATH, LANCEDB_DIR, CHROMADB_DIR } from '../config.ts';
 import { COLLECTION_NAME } from '../const.ts';
-import type {
-  EmbedderConfig,
-  VectorStoreAdapter,
-  VectorDBType,
-  EmbeddingProviderType,
-} from './types.ts';
+import type { EmbedderConfig, VectorStoreAdapter, VectorDBType, EmbeddingProviderType } from './types.ts';
 import { ChromaMcpAdapter } from './adapters/chroma-mcp.ts';
 import { SqliteVecAdapter } from './adapters/sqlite-vec.ts';
 import { LanceDBAdapter } from './adapters/lancedb.ts';
 import { QdrantAdapter } from './adapters/qdrant.ts';
 import { CloudflareVectorizeAdapter, CloudflareAIEmbeddings } from './adapters/cloudflare-vectorize.ts';
 import { ProxyVectorAdapter } from './adapters/proxy.ts';
-import { createEmbeddingProvider } from './embeddings.ts';
+import { createEmbeddingProvider, FallbackEmbeddings } from './embeddings.ts';
+import { GeminiEmbeddings } from './providers/gemini.ts';
 import { resolveEmbeddingFallbackChain, resolveEmbeddingModel, resolveEmbeddingProviderType } from './embedder-config.ts';
 import { configPath, loadVectorConfig, resolveServiceEndpoint, configToModels, fallbackCollectionsFor } from './config.ts';
 import { tenantDataPath } from '../middleware/tenant.ts';
@@ -44,15 +40,21 @@ export interface EmbeddingModelConfig {
 }
 
 function createConfiguredEmbedder(config: VectorStoreConfig) {
-  return createEmbeddingProvider(
-    resolveEmbeddingProviderType(config.embeddingProvider),
-    resolveEmbeddingModel(config.embeddingModel),
-    {
-      url: config.embeddingUrl,
-      dimensions: config.embeddingDimensions,
-      fallbackChain: resolveEmbeddingFallbackChain(config.embeddingFallbackChain),
-    },
+  const provider = resolveEmbeddingProviderType(config.embeddingProvider);
+  const model = resolveEmbeddingModel(config.embeddingModel);
+  const fallbackChain = resolveEmbeddingFallbackChain(config.embeddingFallbackChain);
+  const options = { url: config.embeddingUrl, dimensions: config.embeddingDimensions, fallbackChain };
+  const chain = [provider, ...fallbackChain].filter((item, index, all) =>
+    item !== 'none' && all.indexOf(item) === index
   );
+  if (chain.length > 1 && chain.includes('gemini')) {
+    const singleOptions = { url: config.embeddingUrl, dimensions: config.embeddingDimensions };
+    return new FallbackEmbeddings(chain.map((item) => item === 'gemini'
+      ? new GeminiEmbeddings({ model })
+      : createEmbeddingProvider(item, model, singleOptions)));
+  }
+  if (provider === 'gemini' && fallbackChain.length === 0) return new GeminiEmbeddings({ model });
+  return createEmbeddingProvider(provider, model, options);
 }
 
 export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAdapter {
@@ -144,24 +146,9 @@ export function getEmbeddingModels(
   if (cfg) return configToModels(cfg);
 
   return {
-    nomic: {
-      collection: COLLECTION_NAME,
-      model: 'nomic-embed-text',
-      adapter: 'lancedb',
-      dataPath: LANCEDB_DIR,
-    },
-    qwen3: {
-      collection: 'oracle_knowledge_qwen3',
-      model: 'qwen3-embedding',
-      adapter: 'lancedb',
-      dataPath: LANCEDB_DIR,
-    },
-    'bge-m3': {
-      collection: 'oracle_knowledge_bge_m3',
-      model: 'bge-m3',
-      adapter: 'lancedb',
-      dataPath: LANCEDB_DIR,
-    },
+    nomic: { collection: COLLECTION_NAME, model: 'nomic-embed-text', adapter: 'lancedb', dataPath: LANCEDB_DIR },
+    qwen3: { collection: 'oracle_knowledge_qwen3', model: 'qwen3-embedding', adapter: 'lancedb', dataPath: LANCEDB_DIR },
+    'bge-m3': { collection: 'oracle_knowledge_bge_m3', model: 'bge-m3', adapter: 'lancedb', dataPath: LANCEDB_DIR },
   };
 }
 export const EMBEDDING_MODELS = new Proxy({} as Record<string, EmbeddingModelConfig>, {
