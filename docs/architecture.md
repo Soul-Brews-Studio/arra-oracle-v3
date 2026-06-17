@@ -69,7 +69,7 @@ and configured per model/collection.
 ## Plugin architecture
 
 Unified plugins are directories with `plugin.json` plus an entry module. The
-runtime scans `~/.arra/plugins` and `~/.oracle/plugins`, normalizes manifests,
+runtime scans parent `.maw/plugins`, `$MAW_PLUGINS_DIR`, `~/.maw/plugins`, `~/.arra/plugins`, and `~/.oracle/plugins`, normalizes manifests,
 and registers declared surfaces:
 
 | Manifest key | Runtime effect |

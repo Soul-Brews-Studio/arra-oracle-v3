@@ -10,7 +10,7 @@ tools plug in or out through unified plugin manifests.
 ```mermaid
 flowchart TD
   Clients[Studio UI / Claude / agents / maw-js]
-  Edge[Layer 1: CF Workers edge\nStudio static assets\nAPI and MCP proxy\nedge auth/cache]
+  Edge[Layer 1: CF Workers edge\nStudio static assets\nAPI/MCP/canvas proxy\nedge auth/cache]
   Backend[Layer 2: maw arra plugin backend\nmaw arra serve\nREST API via plugin contracts\nunified-loader runtime]
   Vector[Layer 3: vector server\nLanceDB / Qdrant / TurboVec\nproxy protocol over HTTP]
   Plugins[Layer 4: MCP plugin packages\ncore + community tools\ninstall / reload / remove]
@@ -27,7 +27,7 @@ flowchart TD
 
 | Layer | Owns | Must not own |
 | --- | --- | --- |
-| CF Workers edge | Studio static assets, `/api/*` proxying, remote `/mcp` entry, lightweight auth/cache, public routing. | Local SQLite, LanceDB files, heavy indexing, plugin package discovery, long-lived backend state. |
+| CF Workers edge | Studio static assets, `/api/*` proxying, remote `/mcp` entry, `workers/canvas` standalone canvas routes, lightweight auth/cache, public routing. | Local SQLite, LanceDB files, heavy indexing, plugin package discovery, long-lived backend state. |
 | `maw arra` plugin backend | Backend process lifecycle, Elysia REST routes, tenant/auth middleware, plugin registration, MCP tool registry, vector proxy client. | Browser asset hosting as primary concern, native vector storage internals, direct Cloudflare-only assumptions. |
 | Vector server | Embeddings/vector collections, LanceDB/Qdrant/TurboVec adapters, `/vectors/*` protocol, GPU/disk-heavy operations. | HTTP product routes, MCP protocol, edge routing, plugin install UX. |
 | MCP plugin system | Core/community tool manifests, tool enable/disable/reload, `InvokeContext` handlers, API/menu/MCP surface projection. | Starting the whole backend by accident, bypassing tenant/auth context, hardcoding tool lists in Workers. |
@@ -36,14 +36,17 @@ flowchart TD
 
 Workers are the public, low-latency shell:
 
-- `workers/studio` serves the Vite Studio build and forwards `/api/*` to the
-  backend.
+- `workers/studio` serves the canonical `frontend/dist` Studio build and forwards
+  `/api/*` to the backend.
 - `workers/mcp` exposes a remote MCP endpoint and proxies safe tool calls to the
   backend.
+- `workers/canvas` (`ui-canvas-oracle-studio`) serves `canvas.buildwithoracle.com`
+  plugin pages/registries and proxies non-canvas `/api/*` to `ORACLE_API_BASE`.
 - Future plugin endpoints can be edge routes only when they stay stateless or
   proxy to the backend.
 
-Workers should be replaceable by Vercel or another frontend host. That is why
+Workers should be replaceable by Vercel or another frontend host. `frontend/` is
+the canonical Studio app; there is no production `web/` Astro app in this repo.
 Workers do not own the database, local filesystem, LanceDB, or unified plugin
 installation.
 
@@ -152,7 +155,7 @@ core server code.
 
 ## Design rules
 
-1. CF Workers are the edge shell, not the brain.
+1. CF Workers are the edge shell, not the brain; `workers/canvas` is the canvas subdomain shell.
 2. `maw arra serve` is the operator entrypoint for the backend.
 3. Vector search is a separate process behind a protocol, not a local assumption.
 4. MCP tools are installable plugin surfaces, not a fixed core list.
@@ -161,7 +164,7 @@ core server code.
 
 ## Readiness markers
 
-- Workers can serve Studio and expose remote MCP while proxying to the backend.
+- Workers can serve Studio, Canvas, and remote MCP while proxying to the backend.
 - The backend can start through the ARRA maw plugin and report `/api/health`.
 - Backend vector config can point at a standalone vector server URL.
 - MCP plugin tools can be added, reloaded, disabled, and removed without core

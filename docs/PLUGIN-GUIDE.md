@@ -23,14 +23,15 @@ until source installs consume unified manifests directly.
 During development, copy or symlink the plugin directory into a scan path:
 
 ```bash
-mkdir -p ~/.oracle/plugins
-ln -s "$PWD" ~/.oracle/plugins/my-plugin
+mkdir -p ~/.maw/plugins
+ln -s "$PWD" ~/.maw/plugins/my-plugin
 arra-oracle-v3 serve --port 47778
 arra --help
 ```
 
-The unified runtime scans `~/.arra/plugins/<name>/plugin.json` and
-`~/.oracle/plugins/<name>/plugin.json`.
+The unified runtime scans `.maw/plugins` from the current directory and each
+parent directory first, then `$MAW_PLUGINS_DIR`, then `~/.maw/plugins`,
+`~/.arra/plugins`, and `~/.oracle/plugins`.
 
 ## Minimal unified plugin
 
@@ -156,7 +157,7 @@ Unified plugin MCP tools can be added or removed without editing core code. The
 runtime keeps a mutable MCP registry:
 
 ```ts
-const runtime = await loadUnifiedPlugins({ dirs: ['~/.oracle/plugins'] });
+const runtime = await loadUnifiedPlugins({ dirs: ['~/.maw/plugins'] });
 await runtime.reload(); // re-scan plugin.json files and update mcpTools in place
 ```
 
@@ -172,5 +173,5 @@ Include:
 - Surfaces provided: CLI, API, MCP, menu, proxy, server, export.
 - Config/env variables and defaults.
 - Smoke checks in fenced code blocks.
-- Uninstall steps: remove `~/.oracle/plugins/<name>` or use plugin remove when
-  available.
+- Uninstall steps: remove the plugin folder from `.maw/plugins`, `~/.maw/plugins`,
+  or the configured `$MAW_PLUGINS_DIR`, or use plugin remove when available.

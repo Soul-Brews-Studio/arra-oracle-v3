@@ -112,7 +112,7 @@ For HTTP-proxy MCP mode, point stdio clients at an already running HTTP server:
 
 ## Plugin-style install
 
-Arra plugins live under `~/.arra/plugins` and `~/.oracle/plugins`. Install from a
+Arra plugins live under parent-walk `.maw/plugins`, `$MAW_PLUGINS_DIR`, `~/.maw/plugins`, `~/.arra/plugins`, and `~/.oracle/plugins`. Install from a
 repo, local path, or prebuilt artifact:
 
 ```bash

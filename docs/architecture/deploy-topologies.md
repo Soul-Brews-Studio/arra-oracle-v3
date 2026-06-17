@@ -11,13 +11,14 @@ server, and pluggable MCP tools.
 | All-local | Studio dev server, `maw arra serve`, local DB, local or sidecar vector server, stdio MCP. | You need privacy, offline work, fast development, or a single-operator machine. | You need a public Studio/MCP URL or remote team access. | `maw arra serve`, `bun run vector:proxy`, `ORACLE_DATA_DIR`. |
 | CF Workers edge + local backend | `workers/studio` static/API proxy, `workers/mcp`, optional `workers/federation`, local backend through a tunnel, vector sidecar near backend. | You want a public edge URL while keeping the brain/data on your machine or LAN. | You cannot keep a tunnel online or need all state to live at the edge. | `ORACLE_ORIGIN_URL`, `ORACLE_URL`, `ORACLE_MCP_URL`, `TUNNEL_URL`, `FEDERATION_TOKEN`. |
 | Vercel frontend + backend URL | Vercel hosts `frontend/dist`; `api/proxy.ts` forwards `/api/*` to `ORACLE_URL`; backend/vector stay elsewhere. | Your team already uses Vercel and only needs Studio web hosting plus API proxying. | You need remote MCP on the same host or a private backend that Vercel cannot reach. | `vercel.json`, `ORACLE_URL`, Vercel env vars. |
+| Canvas subdomain Worker | `workers/canvas` (`ui-canvas-oracle-studio`) serves `canvas.buildwithoracle.com` and proxies non-canvas `/api/*` to Studio/backend. | You need standalone canvas plugin URLs while Studio remains in `frontend/`. | You need the whole Studio shell or local DB/vector work at the edge. | `workers/canvas/wrangler.toml`, `ORACLE_API_BASE`. |
 | Federation tunnel | `workers/federation` signs and relays selected coordination routes to a cloudflared/local tunnel. | You need remote maw/session coordination without exposing the whole backend. | You need full Studio, full REST API, or vector traffic through the federation proxy. | `TUNNEL_URL`, `FEDERATION_TOKEN`, `/api/send`, `/api/sessions`. |
 
 ## Reference layer diagram
 
 ```text
 public clients
-  -> edge host (Cloudflare Workers, Vercel, or none)
+  -> edge host (Cloudflare Workers, Vercel, Canvas Worker, or none)
   -> maw arra backend plugin (REST, auth, tenants, plugin runtime)
   -> vector server sidecar (LanceDB, Qdrant, TurboVec, proxy protocol)
   -> MCP/plugin packages (core + community tools)
@@ -81,7 +82,20 @@ Operational notes:
   coordination routes.
 - Do not move native vector libraries or SQLite/LanceDB files into Workers. See [`cloudflared-origin-contract.md`](./cloudflared-origin-contract.md) before calling this topology production-ready.
 
-### 3. Vercel frontend + backend URL
+### 3. Canvas subdomain Worker
+
+`workers/canvas` is the fifth Worker shape. Its Wrangler name is
+`ui-canvas-oracle-studio`, it owns the custom domain
+`canvas.buildwithoracle.com`, serves canvas plugin HTML/registry routes, and
+proxies other `/api/*` calls to `ORACLE_API_BASE`.
+
+Use this when:
+
+- canvas plugins need clean standalone URLs such as `/map` or `/?plugin=wave`;
+- Studio stays canonical in `frontend/`;
+- the old `web/` Astro experiment should not be treated as the production UI.
+
+### 4. Vercel frontend + backend URL
 
 Vercel is the simplest web-UI option for teams already using Vercel. It hosts the
 Vite build and proxies browser `/api/*` calls to the backend.
@@ -107,7 +121,7 @@ Operational notes:
 - Remote MCP should still use the Cloudflare MCP worker or another MCP-specific
   host until Vercel has a dedicated MCP route.
 
-### 4. Federation tunnel
+### 5. Federation tunnel
 
 The federation proxy is not a full backend deploy. It is a narrow remote-control
 path for maw/session coordination through a signed tunnel.
@@ -139,6 +153,8 @@ Operational notes:
   or MCP but want storage/vector work near the operator.
 - Pick **Vercel** when the web UI is the only public surface and the backend is
   already reachable.
+- Pick **Canvas subdomain Worker** when standalone canvas plugin URLs should live
+  on `canvas.buildwithoracle.com` while `frontend/` remains the canonical Studio.
 - Pick **federation tunnel** for narrow remote coordination between agents and a
   local operator machine.
 
@@ -148,8 +164,9 @@ Operational notes:
 2. Split vector into `bun run vector:proxy` when indexing becomes heavy or needs
    a separate host.
 3. Add Vercel or Cloudflare Workers for public Studio access; for Workers, set the `ORACLE_ORIGIN_URL` secret first.
-4. Add the Cloudflare MCP worker for remote MCP clients.
-5. Add federation tunnel only for signed coordination routes.
+4. Add `workers/canvas` when canvas needs the `canvas.buildwithoracle.com` custom domain.
+5. Add the Cloudflare MCP worker for remote MCP clients.
+6. Add federation tunnel only for signed coordination routes.
 
 Each step should preserve the same backend contracts: authenticated HTTP to the
 backend, explicit tenant headers, `/vectors/*` for vector sidecars, and plugin

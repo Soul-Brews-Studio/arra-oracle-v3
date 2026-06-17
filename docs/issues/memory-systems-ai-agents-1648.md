@@ -1,11 +1,11 @@
 # #1648 Memory Systems for AI Agents
 
-Status: 2026-06-16 implementation summary for issue
+Status: 2026-06-17 as-built summary for issue
 [#1648](https://github.com/Soul-Brews-Studio/arra-oracle-v3/issues/1648).
 
 This file promotes the issue research into a repo-local planning artifact. It
 does not introduce a second memory backend; it records the architecture choices
-that future implementation issues should follow.
+that shipped work and future implementation issues should follow.
 
 ## Research verdict
 
@@ -46,9 +46,22 @@ Use these names consistently:
 The taxonomy keeps `/api/memory/*` from being confused with the canonical
 knowledge corpus.
 
+## Shipped vs planned
+
+| Status | Capability | Source / note |
+| --- | --- | --- |
+| Shipped | Query-time memory confidence | `src/routes/memory/confidence.ts`; responses include score, label, reasons, and warnings. |
+| Shipped | Confidence-weighted fan-out ranking | `src/routes/memory/fanout.ts`; `rankingScore` blends RRF with confidence. |
+| Shipped | Supersede-not-delete memory lifecycle | `src/routes/supersede/*`, `src/tools/supersede.ts`, and search status helpers. |
+| Shipped | Async consolidation worker | `src/workers/consolidation.ts`; dry-run by default and emits supersede plans, not deletes. |
+| Shipped | Optional LLM consolidation layer | `src/workers/consolidation-llm.ts`; gated by explicit options/env and only emits supersede calls. |
+| Shipped | Reinforcement signals | Migration `0030_document_usage_reinforcement.sql` adds usage count and last-access fields for ranking signals. |
+| Planned | `memory_propose` / `memory_validate` / `memory_promote` workflow | Still design-level; do not document as live MCP tools. |
+| Planned | Graph/LangMem compatibility adapter | Future adapter over existing search/learn/read/list APIs. |
+
 ## Implementation sequence
 
-### Phase 1 — contract and visibility
+### Remaining Phase 1 — contract and visibility
 
 - Keep this summary and the `ψ/memory/ai-memory-*` filings as the source
   references for future issues.
@@ -56,13 +69,11 @@ knowledge corpus.
   confidence fields.
 - Keep Huginn/Muninn language aligned: Huginn captures, Muninn recalls.
 
-### Phase 2 — confidence and validation
+### Remaining Phase 2 — validation
 
-- Add a small query-time confidence service before changing ranking.
-- Inputs should include validation status, source hash/path, supersede state,
-  access count, updated/indexed timestamps, tenant scope, and vector health.
-- Return confidence metadata and warnings first; only alter ranking after
-  measuring false positives.
+- Query-time confidence and confidence-weighted fan-out ranking are shipped.
+- Remaining validation work should add source hash/path checks, remote excerpt
+  checks, and measurement around false positives.
 
 ### Phase 3 — review-gated writes
 

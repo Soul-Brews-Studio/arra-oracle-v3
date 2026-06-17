@@ -1,7 +1,7 @@
 # Multi-tenant HTTP isolation design
 
 Issue: #1650  
-Status: design + implementation plan
+Status: as-built summary + planned hardening
 
 ## Goal
 
@@ -13,13 +13,28 @@ header.
 ## Current baseline
 
 - HTTP runs through Elysia routes composed in `src/server.ts`.
-- API auth is token-based (`ARRA_API_KEY`, legacy `ORACLE_API_TOKEN`).
-- `src/middleware/tenant.ts` already parses `X-Oracle-Tenant`, validates
-  optional `X-Oracle-Tenant-Token`, and exposes request/async context helpers.
-- `oracle_documents` has `project`, but no dedicated `tenant_id`; other tables
-  such as `search_log`, `forum_threads`, and `trace_log` also use `project`.
-- Vector config and LanceDB default to process-level paths under
-  `ORACLE_DATA_DIR`.
+- API auth is token-based (`ARRA_API_KEY` for middleware and `ARRA_API_TOKEN`
+  for API-token guarded routes/workers).
+- `src/middleware/tenant.ts` parses `X-Oracle-Tenant`, validates optional
+  `X-Oracle-Tenant-Token`, accepts aliases, and exposes request/async context
+  helpers.
+- Drizzle migrations add `tenant_id` to the major user-data tables, including
+  documents, search/access logs, traces, memories, export jobs, schedule, and
+  menu rows.
+- Vector/memory routes propagate tenant scope through metadata and tenant-aware
+  helpers; some deeper admin workflows remain planned.
+
+## Shipped vs planned
+
+| Status | Scope | Source / note |
+| --- | --- | --- |
+| Shipped | Header parsing and token validation | `src/middleware/tenant.ts` with `ORACLE_TENANT_TOKENS` and `ORACLE_TENANT_API_KEYS`. |
+| Shipped | Tenant columns and indexes | Migrations `0022`, `0025`-`0028`; `trace_log` and `oracle_memories` are tenant-aware. |
+| Shipped | Basic tenant admin routes | `GET/POST /api/tenants`, `GET /api/tenants/:id` in `src/routes/tenants/index.ts`. |
+| Shipped | Tenant-aware memory/vector paths | `src/routes/memory/store.ts`, `vector.ts`, and proxy/header tests. |
+| Planned | Persistent hashed tenant-token table | Env-backed token maps are current; DB-managed token CRUD is not shipped. |
+| Planned | Full tenant lifecycle | PATCH/delete/purge flows and backup-gated deletion remain future work. |
+| Planned | Exhaustive route coverage audit | Continue adding route-level isolation tests before claiming every route is tenant-complete. |
 
 ## Tenancy model
 
