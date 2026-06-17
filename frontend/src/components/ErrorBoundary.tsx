@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { apiUrl } from '../api/oracle';
+import { apiUrl, withLocalPna } from '../api/oracle';
 
 export type ErrorReportStatus = 'idle' | 'reporting' | 'reported' | 'failed';
 export type ErrorReporter = (error: Error, info: ErrorInfo, retryCount: number) => Promise<boolean> | boolean;
@@ -65,7 +65,7 @@ export async function reportErrorToMetrics(
   };
 
   try {
-    const response = await fetcher(apiUrl('/api/metrics'), {
+    const response = await fetcher(apiUrl('/api/metrics'), withLocalPna({
       method: 'POST',
       keepalive: true,
       headers: {
@@ -74,7 +74,7 @@ export async function reportErrorToMetrics(
         'x-arra-report': 'frontend-error-boundary',
       },
       body: JSON.stringify(payload),
-    });
+    }));
     return response.ok;
   } catch {
     return false;

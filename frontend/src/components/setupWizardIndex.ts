@@ -1,4 +1,4 @@
-import { apiUrl } from '../api';
+import { apiFetch } from '../api';
 import type { VectorConfig, VectorIndexSource } from './setupWizardTypes';
 
 export type IndexStartBody = {
@@ -28,7 +28,7 @@ export function buildIndexStartBody(
 }
 
 export async function requestVectorIndexStart(body: IndexStartBody): Promise<void> {
-  await fetch(apiUrl('/api/v1/vector/index/start'), {
+  await apiFetch('/api/v1/vector/index/start', {
     method: 'POST',
     headers: { accept: 'application/json', 'content-type': 'application/json' },
     body: JSON.stringify(body),

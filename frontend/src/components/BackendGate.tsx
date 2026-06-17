@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { API_BASE, API_HOST, apiFetch, connectToApiHost, hasStoredApiHost } from "../api/oracle";
 import { SetupWizard } from "./SetupWizard";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
@@ -21,7 +22,7 @@ function okStatus(value: unknown): boolean {
 }
 
 async function browserHealthCheck(): Promise<void> {
-  const response = await fetch("/api/health", {
+  const response = await apiFetch("/api/health", {
     headers: { accept: "application/json" },
   });
   if (!response.ok) throw new Error(`/api/health returned ${response.status}`);
@@ -37,6 +38,7 @@ export function BackendGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GateState>("checking");
   const [message, setMessage] = useState("Checking backend health…");
   const [starting, setStarting] = useState(false);
+  const [host, setHost] = useState(API_HOST);
   const isTauri = isTauriRuntime();
 
   const check = useCallback(async () => {
@@ -70,6 +72,10 @@ export function BackendGate({ children }: { children: ReactNode }) {
     }
   }
 
+  function connectBrowserBackend() {
+    connectToApiHost(host);
+  }
+
   if (state === "ready") return <SetupWizard>{children}</SetupWizard>;
 
   return (
@@ -84,6 +90,34 @@ export function BackendGate({ children }: { children: ReactNode }) {
             ? "Checking whether the local Oracle API is ready."
             : message}
         </p>
+        {!isTauri && (
+          <div className="mt-6 rounded-2xl border border-teal-400/20 bg-teal-400/10 p-4">
+            <p className="text-sm font-semibold text-teal-200">Connect to your Oracle</p>
+            <p className="mt-2 text-xs text-slate-300">
+              Studio is trying {API_BASE}. Open with <code>?host=localhost:47778</code> or enter a host below.
+              {!hasStoredApiHost() ? " The default is localhost:47778." : null}
+            </p>
+            <label className="mt-3 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-400" htmlFor="oracle-host">
+              Oracle host
+            </label>
+            <div className="mt-2 flex gap-2">
+              <input
+                className="min-w-0 flex-1 rounded-full border border-white/10 bg-slate-950 px-4 py-2 text-sm text-slate-100 outline-none focus:border-teal-300"
+                id="oracle-host"
+                value={host}
+                onChange={(event) => setHost(event.target.value)}
+                placeholder="localhost:47778"
+              />
+              <button
+                className="focus-ring rounded-full bg-teal-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-teal-300"
+                type="button"
+                onClick={connectBrowserBackend}
+              >
+                Connect
+              </button>
+            </div>
+          </div>
+        )}
         <div className="mt-6 flex flex-wrap gap-3">
           {state === "unreachable" && isTauri && (
             <button

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ErrorMessage, LoadingPanel, Spinner } from '../AsyncState';
-import { apiUrl, type VectorProvider } from '../../api/oracle';
+import { apiFetch, type VectorProvider } from '../../api/oracle';
 import { useFirstRun } from '../../hooks/useFirstRun';
 
 type Step = 0 | 1 | 2 | 3;
@@ -23,7 +23,7 @@ const defaultPlans: CollectionPlan[] = [
 ];
 
 async function json<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(apiUrl(path), {
+  const response = await apiFetch(path, {
     ...init,
     headers: { accept: 'application/json', 'content-type': 'application/json', ...(init.headers ?? {}) },
   });
