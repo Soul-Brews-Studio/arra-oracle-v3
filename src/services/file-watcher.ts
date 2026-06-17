@@ -22,7 +22,7 @@ export interface WatcherEvent { type: WatcherEventType; at: string; path?: strin
 export interface FileWatcherStatus { running: boolean; watchRoot: string; debounceMs: number; watchedDirs: number; pending: number; events: WatcherEvent[]; }
 
 export interface FileWatcherControl {
-  start(): FileWatcherStatus; stop(): FileWatcherStatus; status(): FileWatcherStatus;
+  start(): FileWatcherStatus; stop(): FileWatcherStatus; restart(): FileWatcherStatus; status(): FileWatcherStatus;
   schedule(filePath: string): void;
 }
 
@@ -72,7 +72,7 @@ export class FileWatcherService implements FileWatcherControl {
   }
 
   start(): FileWatcherStatus {
-    if (this.running) return this.status();
+    if (this.running) return this.watchers.length ? this.status() : this.restart();
     try {
       fs.mkdirSync(this.watchRoot, { recursive: true });
       this.addWatchers(this.watchRoot);
@@ -102,6 +102,7 @@ export class FileWatcherService implements FileWatcherControl {
     return this.status();
   }
 
+  restart(): FileWatcherStatus { this.stop(); return this.start(); }
   status(): FileWatcherStatus {
     return {
       running: this.running,
@@ -236,12 +237,12 @@ export class FileWatcherService implements FileWatcherControl {
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
-
 class LazyFileWatcherService implements FileWatcherControl {
   private service?: FileWatcherService;
   private get current(): FileWatcherService { return this.service ??= new FileWatcherService(); }
   start(): FileWatcherStatus { return this.current.start(); }
   stop(): FileWatcherStatus { return this.current.stop(); }
+  restart(): FileWatcherStatus { return this.current.restart(); }
   status(): FileWatcherStatus { return this.current.status(); }
   schedule(filePath: string): void { this.current.schedule(filePath); }
 }
