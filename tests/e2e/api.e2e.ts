@@ -34,10 +34,11 @@ test.describe('Oracle API E2E', () => {
     expect(res.ok()).toBe(true);
   });
 
-  test('consult endpoint', async ({ request }) => {
-    const res = await request.get('/api/consult?q=Should%20I%20use%20TypeScript');
+  test('concepts endpoint', async ({ request }) => {
+    const res = await request.get('/api/concepts?limit=5');
     expect(res.ok()).toBe(true);
     const data = await res.json();
-    expect(data).toHaveProperty('guidance');
+    expect(Array.isArray(data.concepts)).toBe(true);
+    expect(typeof data.total_unique).toBe('number');
   });
 });
