@@ -109,7 +109,17 @@ export function runSupersede(db: ToolContext['db'], input: OracleSupersededInput
   const docWhere = (id: string) => tenantId
     ? and(eq(oracleDocuments.id, id), eq(oracleDocuments.tenantId, tenantId))
     : eq(oracleDocuments.id, id);
-  const oldDoc = db.select({ id: oracleDocuments.id, type: oracleDocuments.type })
+  const successorFor = (id: string) => db.select({ supersededBy: oracleDocuments.supersededBy })
+    .from(oracleDocuments)
+    .where(docWhere(id))
+    .get()?.supersededBy ?? null;
+  const oldDoc = db.select({
+    id: oracleDocuments.id,
+    type: oracleDocuments.type,
+    supersededBy: oracleDocuments.supersededBy,
+    supersededAt: oracleDocuments.supersededAt,
+    supersededReason: oracleDocuments.supersededReason,
+  })
     .from(oracleDocuments)
     .where(docWhere(oldId))
     .get();
@@ -120,6 +130,39 @@ export function runSupersede(db: ToolContext['db'], input: OracleSupersededInput
 
   if (!oldDoc) throw new Error(`Old document not found: ${oldId}`);
   if (!newDoc) throw new Error(`New document not found: ${newId}`);
+  if (oldDoc.supersededBy) {
+    if (oldDoc.supersededBy === newId) {
+      return {
+        payload: {
+          success: true,
+          unchanged: true,
+          old_id: oldId,
+          old_type: oldDoc.type,
+          new_id: newId,
+          new_type: newDoc.type,
+          reason: oldDoc.supersededReason,
+          superseded_at: oldDoc.supersededAt ? new Date(oldDoc.supersededAt).toISOString() : null,
+          message: `"${oldId}" is already marked as superseded by "${newId}".`,
+        },
+      };
+    }
+    return {
+      payload: {
+        success: false,
+        error: `"${oldId}" is already superseded by "${oldDoc.supersededBy}". Supersede that successor to extend the chain instead of rewriting history.`,
+        received: { oldId, newId, existingNewId: oldDoc.supersededBy },
+      },
+      isError: true,
+    };
+  }
+  for (let cursor: string | null = newId, seen = new Set<string>(); cursor;) {
+    if (cursor === oldId) {
+      return { payload: { success: false, error: 'arra_supersede would create a supersede cycle.', received: { oldId, newId } }, isError: true };
+    }
+    if (seen.has(cursor)) break;
+    seen.add(cursor);
+    cursor = successorFor(cursor);
+  }
 
   db.update(oracleDocuments)
     .set({

@@ -19,7 +19,7 @@ const oracleFts = sqliteTable('oracle_fts', {
   content: text('content'),
   concepts: text('concepts'),
 });
-type LearnCreateBody = {
+export type LearnCreateBody = {
   pattern?: string;
   concepts?: string[] | string;
   source?: string;
@@ -51,11 +51,18 @@ const UpdateBody = t.Object({
   supersededBy: t.Optional(t.Nullable(t.String())),
   supersededReason: t.Optional(t.Nullable(t.String())),
 });
-function writeLearningFile(sourceFile: string, content: string): void {
+function writeLearningFile(sourceFile: string, content: string): boolean {
   const filePath = learningSourcePath(sourceFile);
   if (!filePath) throw new Error(INVALID_LEARNING_SOURCE_FILE);
+  if (fs.existsSync(filePath)) return false;
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, content, 'utf-8');
+  try {
+    fs.writeFileSync(filePath, content, { encoding: 'utf-8', flag: 'wx' });
+  } catch (error) {
+    if ((error as { code?: string }).code === 'EEXIST') return false;
+    throw error;
+  }
+  return true;
 }
 function ftsContent(id: string): string | null {
   return db.select({ content: oracleFts.content })
@@ -107,7 +114,7 @@ function rowById(id: string): LearnDoc | undefined {
 function responseRow(row: LearnDoc) {
   return { ...row, concepts: conceptsFrom(row.concepts) };
 }
-function createLearning(body: LearnCreateBody) {
+export function createLearning(body: LearnCreateBody) {
   const pattern = body.pattern?.trim();
   if (!pattern) return { status: 400, body: { error: 'Missing required field: pattern' } };
   if (body.id !== undefined && !safeLearningId(body.id)) return { status: 400, body: { error: INVALID_LEARNING_ID } };
@@ -118,7 +125,9 @@ function createLearning(body: LearnCreateBody) {
   const identity = nextIdentity(pattern, body.id, requestedSourceFile);
   if (rowById(identity.id)) return { status: 409, body: { error: 'Learning already exists' } };
   const content = learningContent(pattern, concepts, body.source);
-  writeLearningFile(identity.sourceFile, content);
+  if (!writeLearningFile(identity.sourceFile, content)) {
+    return { status: 409, body: { error: 'Learning sourceFile already exists' } };
+  }
   const tenantId = tenantIdForWrite();
   db.insert(oracleDocuments).values({
     id: identity.id,

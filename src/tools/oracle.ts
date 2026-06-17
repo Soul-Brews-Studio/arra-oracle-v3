@@ -1,31 +1,11 @@
 import { getOracleProfile, listOracleProfiles } from '../oracles/registry.ts';
 import { handleLearn } from './learn.ts';
-import type { StormforgeFinding } from '../oracles/model.ts';
+import { buildResearchNoteLearning } from '../research/note.ts';
 import type { DistillTraceInput } from '../trace/types.ts';
 import type { ToolContext, ToolResponse } from './types.ts';
 
 function text(payload: unknown, isError = false): ToolResponse {
   return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }], ...(isError && { isError }) };
-}
-
-function stringList(value: unknown): string[] | undefined {
-  return Array.isArray(value) ? value.map(String).filter(Boolean) : undefined;
-}
-
-function asFinding(input: Record<string, unknown>): StormforgeFinding {
-  return {
-    issue: typeof input.issue === 'number' ? input.issue : undefined,
-    repo: typeof input.repo === 'string' ? input.repo : undefined,
-    title: typeof input.title === 'string' ? input.title : undefined,
-    question: typeof input.question === 'string' ? input.question : undefined,
-    repoEvidence: Array.isArray(input.repoEvidence) ? input.repoEvidence as StormforgeFinding['repoEvidence'] : undefined,
-    externalSources: Array.isArray(input.externalSources) ? input.externalSources as StormforgeFinding['externalSources'] : undefined,
-    hypotheses: stringList(input.hypotheses),
-    recommendation: typeof input.recommendation === 'string' ? input.recommendation : undefined,
-    implementationPlan: stringList(input.implementationPlan),
-    verificationPlan: stringList(input.verificationPlan),
-    openQuestions: stringList(input.openQuestions),
-  };
 }
 
 export const oracleProfileToolDef = {
@@ -98,21 +78,13 @@ export async function handleOracleTraceDistill(input: DistillTraceInput): Promis
 }
 
 export async function handleOracleResearchNote(ctx: ToolContext, input: Record<string, unknown>): Promise<ToolResponse> {
-  if (!input || typeof input.title !== 'string' || !input.title.trim()) {
-    return text({ success: false, error: 'oracle_research_note requires title' }, true);
-  }
-  const finding = asFinding(input);
-  const { renderDistilledAwakening } = await import('../trace/distill.ts');
-  const pattern = renderDistilledAwakening({
-    traceId: 'research-note',
-    awakening: input.title.trim(),
-    finding,
-    metadata: { oracle: 'thor-oracle', theme: 'stormforge' },
-  });
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return text({ success: false, error: 'oracle_research_note requires title' }, true);
+  const note = buildResearchNoteLearning(input);
+  if (!note.success) return text({ success: false, error: note.error }, true);
   return handleLearn(ctx, {
-    pattern,
-    source: typeof input.source === 'string' ? input.source : 'Thor Stormforge research note',
-    concepts: ['thor-oracle', 'stormforge', 'dev-research', ...(stringList(input.concepts) ?? [])],
-    project: typeof input.project === 'string' ? input.project : finding.repo,
+    pattern: note.pattern,
+    source: note.source,
+    concepts: note.concepts,
+    project: note.project,
   });
 }

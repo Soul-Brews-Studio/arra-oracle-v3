@@ -34,7 +34,7 @@ describe('pure MCP REST map', () => {
     expect(mcpRestMapByName.get('oracle_search')).toMatchObject({ remoteable: true, method: 'GET', path: '/api/search' });
     expect(mcpRestMapByName.get('oracle_learn')).toMatchObject({ remoteable: true, method: 'POST', path: '/api/learn', body: 'args' });
     expect(mcpRestMapByName.get('oracle_trace_get')).toMatchObject({ remoteable: true, path: '/api/traces/:traceId' });
-    expect(mcpRestMapByName.get('oracle_research_note')).toMatchObject({ remoteable: false });
+    expect(mcpRestMapByName.get('oracle_research_note')).toMatchObject({ remoteable: true, method: 'POST', path: '/api/research/note' });
     expect(mcpRestMapByName.get('oracle_mcp_call')).toMatchObject({ remoteable: false });
   });
 });
