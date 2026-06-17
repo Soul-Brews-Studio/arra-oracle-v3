@@ -99,3 +99,22 @@ test('GET /api/v1/vector/export/formats lists registered export formats', async 
     { format: 'v2', label: 'V2', mimeType: 'application/json; charset=utf-8', extension: 'v2.json' },
   ]);
 });
+
+test('GET /api/v1/vector/export preserves explicit unsupported adapter status', async () => {
+  const store = createStore();
+  store.getAllEmbeddings = mock(async () => {
+    const error = new Error('remote vector proxy export unsupported');
+    Object.assign(error, { statusCode: 501 });
+    throw error;
+  });
+  const fetcher = createFetch(store, []);
+
+  const res = await fetcher(new Request('http://local/api/v1/vector/export?collection=bge-m3&format=json'));
+  const body = await res.json() as Record<string, unknown>;
+
+  expect(res.status).toBe(501);
+  expect(body).toEqual({
+    error: 'Vector collection export is not supported by this adapter',
+    message: 'remote vector proxy export unsupported',
+  });
+});

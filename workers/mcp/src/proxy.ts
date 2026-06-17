@@ -1,6 +1,7 @@
 import { requireActiveTenant, type TenantRegistryEnv } from './tenant-registry.ts';
 
 export type OracleProxyEnv = {
+  ORACLE_ORIGIN_URL?: string;
   ORACLE_URL?: string;
   ORACLE_HTTP_URL?: string;
   ORACLE_API?: string;
@@ -72,10 +73,17 @@ export function resolveMcpTenantId(
 }
 
 export function resolveOracleUrl(env: OracleProxyEnv): string {
-  const raw = env.ORACLE_URL ?? env.ORACLE_HTTP_URL ?? env.ORACLE_API;
-  const trimmed = raw?.trim();
-  if (!trimmed) throw new Error('Set ORACLE_URL to the Arra Oracle HTTP backend.');
-  const url = new URL(trimmed);
+  const candidates = [
+    ['ORACLE_ORIGIN_URL', env.ORACLE_ORIGIN_URL],
+    ['ORACLE_URL', env.ORACLE_URL],
+    ['ORACLE_HTTP_URL', env.ORACLE_HTTP_URL],
+    ['ORACLE_API', env.ORACLE_API],
+  ] as const;
+  const match = candidates.find(([, value]) => value?.trim());
+  if (!match) throw new Error('Set ORACLE_ORIGIN_URL to the Arra Oracle HTTP backend.');
+  const [label, raw] = match;
+  const url = new URL(raw!.trim());
+  if (!['http:', 'https:'].includes(url.protocol)) throw new Error(`${label} must be http(s).`);
   url.hash = '';
   url.search = '';
   url.pathname = url.pathname.replace(/\/+$/, '');
