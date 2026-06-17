@@ -13,6 +13,7 @@ export interface UnifiedMcpToolManifest {
   handler: string;
   group?: string;
   readOnly?: boolean;
+  enabled?: boolean;
   enabledByDefault?: boolean;
 }
 
@@ -53,12 +54,7 @@ export interface UnifiedCliSubcommandManifest {
   handler?: string;
 }
 
-export interface UnifiedLifecycleManifest {
-  init?: string;
-  destroy?: string;
-  start?: boolean;
-  stop?: boolean;
-}
+export interface UnifiedLifecycleManifest { init?: string; destroy?: string; start?: boolean; stop?: boolean; }
 
 export interface UnifiedPluginManifest {
   name: string;
@@ -141,6 +137,8 @@ function assertOptionalHandler(value: unknown, field: string): void {
   if (value !== undefined && !isNonBlankString(value)) throw new Error(`${field} must be a string`);
 }
 
+function assertOptionalBoolean(value: unknown, field: string): void { if (value !== undefined && typeof value !== 'boolean') throw new Error(`${field} must be a boolean`); }
+
 export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedPluginManifest {
   if (!isRecord(raw)) throw new Error('manifest must be a JSON object');
   const manifest = raw as unknown as UnifiedPluginManifest;
@@ -170,6 +168,9 @@ export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedP
     if (!tool.description || typeof tool.description !== 'string') throw new Error(`mcpTools.${tool.name}.description must be a string`);
     if (!isRecord(tool.inputSchema)) throw new Error(`mcpTools.${tool.name}.inputSchema must be an object`);
     if (!tool.handler || typeof tool.handler !== 'string') throw new Error(`mcpTools.${tool.name}.handler must be a string`);
+    assertOptionalBoolean(tool.readOnly, `mcpTools.${tool.name}.readOnly`);
+    assertOptionalBoolean(tool.enabled, `mcpTools.${tool.name}.enabled`);
+    assertOptionalBoolean(tool.enabledByDefault, `mcpTools.${tool.name}.enabledByDefault`);
   }
   for (const route of apiRoutes) {
     assertAbsolutePath(route.path, 'apiRoutes.path');
@@ -239,7 +240,7 @@ export function manifestSurfaces(manifest: NormalizedUnifiedPluginManifest): Uni
 }
 
 export function mcpToolNamesForToggle(manifest: NormalizedUnifiedPluginManifest): string[] {
-  return manifest.mcpTools.map((tool) => tool.name);
+  return manifest.mcpTools.filter((tool) => tool.enabled !== false).map((tool) => tool.name);
 }
 
 export function publicUnifiedServerManifest(server?: UnifiedServerManifest): PublicUnifiedServerManifest | undefined {

@@ -188,7 +188,7 @@ const apiModules = [
   tracesApi,
   scheduleApi,
   filesRouter,
-  createPluginsRouter({ registry: unifiedPlugins.pluginRegistry }),
+  createPluginsRouter({ registry: unifiedPlugins.pluginRegistry, runtime: unifiedPlugins }),
   sessionsRoutes,
   vaultRoutes,
   metricsRoutes,

@@ -90,6 +90,8 @@ subcommands, and plugin-owned sidecar servers.
 | --- | --- | --- | --- |
 | `GET` | `/api/plugins` | none | `{ plugins: PluginEntry[], dir?: string }` |
 | `GET` | `/api/plugins/:name` | plugin name | `application/wasm` bytes or `404` |
+| `PATCH` | `/api/plugins/:name/state` | `{ enabled: boolean }` | persists manifest state; runtime reload still required |
+| `POST` | `/api/plugins/:name/toggle` | `{ enabled?: boolean }` or empty body | persists state and reloads unified runtime MCP tools |
 
 ```ts
 type PluginEntry = {
@@ -105,6 +107,9 @@ Example:
 ```bash
 curl http://localhost:47778/api/plugins
 curl -o plugin.wasm http://localhost:47778/api/plugins/canvas-inspector
+curl -X POST http://localhost:47778/api/plugins/community-search/toggle \
+  -H 'content-type: application/json' \
+  -d '{"enabled":false}'
 ```
 
 ### Plugin-owned server endpoints
@@ -182,6 +187,10 @@ type PublicTool = {
   plugin?: string;
 };
 ```
+
+Unified plugin tools with `"enabled": false` in `plugin.json` are not registered,
+listed, or callable. `enabledByDefault: false` keeps a tool registered but hides
+it unless config explicitly enables it.
 
 Core tool names: `____IMPORTANT`, `oracle_search`, `oracle_read`,
 `oracle_learn`, `oracle_list`, `oracle_stats`, `oracle_concepts`,

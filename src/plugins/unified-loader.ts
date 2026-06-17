@@ -197,7 +197,7 @@ function runtimeFrom(initialPlugins: LoadedUnifiedPlugin[], options: UnifiedLoad
     replaceAll(routes, []); replaceAll(mcpTools, []); replaceAll(menu, []); replaceAll(cliSubcommands, []); replaceAll(servers, []);
     for (const plugin of plugins) {
       pluginStatus.set(plugin.manifest.name, { name: plugin.manifest.name, status: 'ok' });
-      for (const tool of plugin.manifest.mcpTools) { mcpTools.push({ ...tool, plugin: plugin.manifest.name }); mcpInvokers.set(tool.name, { plugin, tool }); }
+      for (const tool of plugin.manifest.mcpTools) { if (tool.enabled === false) continue; mcpTools.push({ ...tool, plugin: plugin.manifest.name }); mcpInvokers.set(tool.name, { plugin, tool }); }
       for (const route of plugin.manifest.apiRoutes) routes.push(apiRoute(plugin, route, timeoutMs));
       for (const proxy of plugin.manifest.proxy) routes.push(createUnifiedProxyRoute(plugin.manifest.name, proxy));
       if (plugin.manifest.server) servers.push({ ...plugin.manifest.server, plugin: plugin.manifest.name, dir: plugin.dir, routePrefix: `/api/plugins/${plugin.manifest.name}/server` });
