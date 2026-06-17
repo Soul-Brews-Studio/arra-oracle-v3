@@ -6,6 +6,7 @@
  */
 
 import { and, eq } from 'drizzle-orm';
+import { supersedeWouldCreateCycle } from '../db/document-integrity.ts';
 import { oracleDocuments } from '../db/schema.ts';
 import { currentTenantId } from '../middleware/tenant.ts';
 import type { ToolContext, ToolResponse, OracleSupersededInput } from './types.ts';
@@ -14,6 +15,7 @@ type SupersedeRunResult = {
   payload: Record<string, unknown>;
   isError?: boolean;
 };
+type SupersedeDoc = { id: string; type: string; supersededBy: string | null };
 
 function cleanRequiredId(value: unknown, field: 'oldId' | 'newId'): SupersedeRunResult | string {
   if (typeof value !== 'string') {
@@ -45,6 +47,10 @@ function cleanRequiredId(value: unknown, field: 'oldId' | 'newId'): SupersedeRun
 function cleanOptionalString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   return value.trim() || null;
+}
+
+function errorResult(error: string, extra: Record<string, unknown> = {}): SupersedeRunResult {
+  return { payload: { success: false, error, ...extra }, isError: true };
 }
 
 export const supersedeToolDef = {
@@ -109,17 +115,22 @@ export function runSupersede(db: ToolContext['db'], input: OracleSupersededInput
   const docWhere = (id: string) => tenantId
     ? and(eq(oracleDocuments.id, id), eq(oracleDocuments.tenantId, tenantId))
     : eq(oracleDocuments.id, id);
-  const oldDoc = db.select({ id: oracleDocuments.id, type: oracleDocuments.type })
-    .from(oracleDocuments)
-    .where(docWhere(oldId))
-    .get();
-  const newDoc = db.select({ id: oracleDocuments.id, type: oracleDocuments.type })
-    .from(oracleDocuments)
-    .where(docWhere(newId))
-    .get();
+  const selectDoc = {
+    id: oracleDocuments.id,
+    type: oracleDocuments.type,
+    supersededBy: oracleDocuments.supersededBy,
+  };
+  const oldDoc = db.select(selectDoc).from(oracleDocuments).where(docWhere(oldId)).get() as SupersedeDoc | undefined;
+  const newDoc = db.select(selectDoc).from(oracleDocuments).where(docWhere(newId)).get() as SupersedeDoc | undefined;
 
   if (!oldDoc) throw new Error(`Old document not found: ${oldId}`);
   if (!newDoc) throw new Error(`New document not found: ${newId}`);
+  if (oldDoc.supersededBy && oldDoc.supersededBy !== newId) {
+    return errorResult('Old document is already superseded by another document.', { oldId, supersededBy: oldDoc.supersededBy });
+  }
+  if (supersedeWouldCreateCycle(db, oldId, newId, docWhere)) {
+    return errorResult('Supersede would create a cycle in the replacement chain.', { oldId, newId });
+  }
 
   db.update(oracleDocuments)
     .set({

@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import fs from 'fs';
 import path from 'path';
+import { documentIdExists } from '../../db/document-integrity.ts';
 import { db, learnLog, oracleDocuments } from '../../db/index.ts';
 import { currentTenantId, tenantIdForWrite } from '../../middleware/tenant.ts';
 import { conceptsFrom, learningContent, slugFor } from './content.ts';
@@ -81,11 +82,9 @@ function nextIdentity(pattern: string, requestedId?: string, requestedSourceFile
     const tail = suffix === 1 ? slug : `${slug}-${suffix}`;
     const id = `learning_${date}_${tail}`;
     const sourceFile = requestedSourceFile ?? `ψ/memory/learnings/${date}_${tail}.md`;
-    const tenantId = currentTenantId();
-    const where = tenantId ? and(eq(oracleDocuments.id, id), eq(oracleDocuments.tenantId, tenantId)) : eq(oracleDocuments.id, id);
     const existing = db.select({ id: oracleDocuments.id })
       .from(oracleDocuments)
-      .where(where)
+      .where(eq(oracleDocuments.id, id))
       .get();
     const filePath = learningSourcePath(sourceFile);
     if (!existing && filePath && !fs.existsSync(filePath)) {
@@ -116,7 +115,7 @@ function createLearning(body: LearnCreateBody) {
   const now = Date.now();
   const concepts = conceptsFrom(body.concepts);
   const identity = nextIdentity(pattern, body.id, requestedSourceFile);
-  if (rowById(identity.id)) return { status: 409, body: { error: 'Learning already exists' } };
+  if (documentIdExists(db, identity.id)) return { status: 409, body: { error: 'Learning already exists' } };
   const content = learningContent(pattern, concepts, body.source);
   writeLearningFile(identity.sourceFile, content);
   const tenantId = tenantIdForWrite();
