@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/Soul-Brews-Studio/arra-oracle-v3/actions/workflows/ci.yml/badge.svg)](https://github.com/Soul-Brews-Studio/arra-oracle-v3/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](./LICENSE) [![Bun](https://img.shields.io/badge/runtime-Bun%201.2%2B-f9f1e1)](https://bun.sh)
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Soul-Brews-Studio/arra-oracle-v3)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Soul-Brews-Studio/arra-oracle-v3&env=ORACLE_URL&envDescription=Oracle%20HTTP%20backend%20URL&project-name=arra-oracle-studio&repository-name=arra-oracle-studio) — [Vercel quickstart](docs/deploy-vercel.md)
 
 > "The Oracle Keeps the Human Human" — queryable through MCP, HTTP, CLI, and
 > maw-js plugin surfaces.
