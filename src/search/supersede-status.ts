@@ -1,5 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import { currentTenantId } from '../middleware/tenant.ts';
+import { isoTimestamp } from './timestamp.ts';
 
 type SearchResultRecord = Record<string, unknown>;
 
@@ -14,13 +15,6 @@ function resultIds(results: SearchResultRecord[]): string[] {
   return [...new Set(results
     .map((result) => result.id)
     .filter((id): id is string => typeof id === 'string' && id.length > 0))];
-}
-
-function isoTimestamp(value: number | string | null): string | null {
-  const ms = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(ms) || ms <= 0) return null;
-  const date = new Date(ms);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 export function attachSupersedeStatus(

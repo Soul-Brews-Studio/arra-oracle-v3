@@ -107,7 +107,7 @@ export function VectorSearchToggle() {
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-search-toggle-title">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Vector Search panel</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Vector Search panel</p>
           <h2 id="vector-search-toggle-title" className="mt-2 text-2xl font-semibold text-white">Enable vector search</h2>
           <p className="mt-2 text-sm text-slate-400">Toggle collection indexing, switch all collection backends, and hot-reload adapters through PATCH /api/v1/vector/config.</p>
           <p className="mt-2 text-xs text-slate-500">{loading ? 'Loading vector search switch…' : enabledSummary(config)}</p>
@@ -135,7 +135,7 @@ export function VectorSearchToggle() {
           </label>
         </div>
       </div>
-      {message ? <p className="mt-4 rounded-2xl border border-teal-300/20 bg-teal-300/10 p-3 text-sm text-teal-100">{message}</p> : null}
+      {message ? <p className="mt-4 rounded-2xl border border-[color:var(--color-accent,#0f766e)] p-3 text-sm text-[color:var(--color-accent,#0f766e)]">{message}</p> : null}
       {error ? <div className="mt-4"><ErrorMessage title="Vector search toggle failed." message={error} /></div> : null}
     </section>
   );

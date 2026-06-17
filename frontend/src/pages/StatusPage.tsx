@@ -23,9 +23,9 @@ export interface StatusPageProps {
 }
 
 function statusClass(status?: string): string {
-  if (status === 'ok' || status === 'connected') return 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100';
-  if (status === 'degraded' || status === 'draining') return 'border-amber-300/30 bg-amber-300/10 text-amber-100';
-  return 'border-red-300/30 bg-red-300/10 text-red-100';
+  if (status === 'ok' || status === 'connected') return 'border-[color:var(--color-ok-text,#166534)] bg-[var(--color-ok-bg,#dcfce7)] text-[color:var(--color-ok-text,#166534)]';
+  if (status === 'degraded' || status === 'draining') return 'border-[color:var(--color-warn-text,#92400e)] bg-[var(--color-warn-bg,#fef3c7)] text-[color:var(--color-warn-text,#92400e)]';
+  return 'border-[color:var(--color-err-text,#991b1b)] bg-[var(--color-err-bg,#fee2e2)] text-[color:var(--color-err-text,#991b1b)]';
 }
 
 function formatSeconds(seconds?: number): string {
@@ -49,7 +49,7 @@ function StatusBadge({ label, status }: { label: string; status?: string }) {
   return (
     <div className={`rounded-2xl border p-4 ${statusClass(status)}`} data-contrast-badge>
       <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-80">{label}</p>
-      <p className="mt-2 text-2xl font-semibold">{status ?? 'unknown'}</p>
+      <p className="mt-2 flex items-center gap-2 text-2xl font-semibold"><span aria-hidden="true">●</span>{status ?? 'unknown'}</p>
     </div>
   );
 }
@@ -84,9 +84,9 @@ function PluginRows({ health }: { health: HealthResponse }) {
     <ul className="grid gap-2">
       {items.map((plugin) => (
         <li key={plugin.name} className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center sm:justify-between">
-          <a className="focus-ring font-mono text-sm text-teal-100 hover:text-teal-200" href={pluginHealthPath(plugin)}>{plugin.name}</a>
-          <span className={`rounded-full border px-2 py-1 text-xs ${statusClass(plugin.status)}`} data-contrast-badge>{plugin.status}</span>
-          {plugin.error ? <span className="text-sm text-amber-200">{plugin.error}</span> : null}
+          <a className="focus-ring font-mono text-sm text-[color:var(--color-accent,#0f766e)] hover:text-[color:var(--color-accent,#0f766e)]" href={pluginHealthPath(plugin)}>{plugin.name}</a>
+          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${statusClass(plugin.status)}`} data-contrast-badge><span aria-hidden="true">●</span>{plugin.status}</span>
+          {plugin.error ? <span className="text-sm text-[color:var(--color-warn-text,#92400e)]">{plugin.error}</span> : null}
         </li>
       ))}
     </ul>
@@ -101,8 +101,8 @@ function ProxyRows({ vector }: { vector: VectorHealthForStatus | null }) {
       {rows.map((row) => (
         <li key={`${row.name}-${row.endpoint}`} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span className="font-mono text-sm text-teal-100">{row.name}</span>
-            <span className={`rounded-full border px-2 py-1 text-xs ${statusClass(row.status === 'up' ? 'ok' : row.status)}`} data-contrast-badge>{row.status}</span>
+            <span className="font-mono text-sm text-[color:var(--color-accent,#0f766e)]">{row.name}</span>
+            <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${statusClass(row.status === 'up' ? 'ok' : row.status)}`} data-contrast-badge><span aria-hidden="true">●</span>{row.status}</span>
           </div>
           <p className="mt-2 break-words font-mono text-xs text-slate-300">{row.endpoint}</p>
           <p className="mt-1 text-sm text-slate-400">{row.detail}</p>
@@ -148,7 +148,7 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
   return (
     <section className="grid gap-5" aria-labelledby="status-page-title">
       <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Server status</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Server status</p>
         <h2 id="status-page-title" className="mt-2 text-2xl font-semibold text-white">Health overview</h2>
         <p className="mt-2 text-sm text-slate-400">Live health from GET /api/v1/health.</p>
       </div>
@@ -181,7 +181,7 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
           <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-label="Proxy status rows">
             <h3 className="text-lg font-semibold text-white">Proxy status</h3>
             <p className="mt-2 text-sm text-slate-400">Vector proxy and registered proxy services from /api/v1/vector/health.</p>
-            {vectorError ? <p className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-sm text-amber-100">{vectorError}</p> : null}
+            {vectorError ? <p className="mt-3 rounded-xl border border-[color:var(--color-warn-text,#92400e)] bg-[var(--color-warn-bg,#fef3c7)] p-3 text-sm text-[color:var(--color-warn-text,#92400e)]">{vectorError}</p> : null}
             <div className="mt-4"><ProxyRows vector={vectorHealth} /></div>
           </section>
         </>

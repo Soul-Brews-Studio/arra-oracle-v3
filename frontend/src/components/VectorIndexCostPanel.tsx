@@ -89,13 +89,13 @@ export function VectorIndexCostPanel({
   return (
     <>
       {costEstimate ? (
-        <div className="mb-4 rounded-2xl border border-teal-200/20 bg-teal-200/10 p-4 text-sm text-teal-50/90">
-          <p className="font-semibold text-teal-100">Preflight cost before Index Now</p>
+        <div className="mb-4 rounded-2xl border border-[color:var(--color-accent,#0f766e)] p-4 text-sm text-[color:var(--color-accent,#0f766e)]">
+          <p className="font-semibold text-[color:var(--color-accent,#0f766e)]">Preflight cost before Index Now</p>
           <p className="mt-1">{costEstimate.formula} · {costEstimate.provider}: {formatCost(costEstimate.estimatedUsd)}</p>
-          {costEstimate.fallbackSummary ? <p className="mt-1 text-teal-100/75">{costEstimate.fallbackSummary}</p> : null}
-          {costEstimate.recommendation ? <p className="mt-1 text-teal-100/75">{costEstimate.recommendation}</p> : null}
+          {costEstimate.fallbackSummary ? <p className="mt-1 text-[color:var(--color-accent,#0f766e)] opacity-75">{costEstimate.fallbackSummary}</p> : null}
+          {costEstimate.recommendation ? <p className="mt-1 text-[color:var(--color-accent,#0f766e)] opacity-75">{costEstimate.recommendation}</p> : null}
         </div>
-      ) : costError ? <p className="mb-4 text-sm text-amber-100">Cost estimate unavailable: {costError}</p> : null}
+      ) : costError ? <p className="mb-4 text-sm text-[color:var(--color-warn-text,#92400e)]">Cost estimate unavailable: {costError}</p> : null}
 
       {costTracking ? (
         <div className="mb-4 rounded-2xl border border-cyan-200/20 bg-cyan-200/10 p-4 text-sm text-cyan-50/90">
@@ -110,7 +110,7 @@ export function VectorIndexCostPanel({
           ))}
           {(daily?.inputTokens ?? 0) === 0 ? <p className="mt-1 text-cyan-100/70">No metered indexing usage recorded yet.</p> : null}
         </div>
-      ) : trackingError ? <p className="mb-4 text-sm text-amber-100">Live cost tracking unavailable: {trackingError}</p> : null}
+      ) : trackingError ? <p className="mb-4 text-sm text-[color:var(--color-warn-text,#92400e)]">Live cost tracking unavailable: {trackingError}</p> : null}
     </>
   );
 }

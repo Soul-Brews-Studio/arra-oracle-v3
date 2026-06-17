@@ -87,7 +87,7 @@ export function VectorSearchWidget({ onOpenResults }: { onOpenResults?: (query: 
           <ErrorMessage
             title="Vector search failed."
             message={error}
-            action={lastQuery ? <button aria-label={`Retry vector search for ${lastQuery}`} className="focus-ring rounded-lg border border-red-200/30 px-3 py-2 font-semibold text-red-50 hover:bg-red-200/10" type="button" onClick={() => void runSearch(lastQuery)}>Retry search</button> : null}
+            action={lastQuery ? <button aria-label={`Retry vector search for ${lastQuery}`} className="focus-ring rounded-lg border border-[color:var(--color-err-text,#991b1b)] px-3 py-2 font-semibold text-[color:var(--color-err-text,#991b1b)] hover:bg-[var(--color-err-bg,#fee2e2)]" type="button" onClick={() => void runSearch(lastQuery)}>Retry search</button> : null}
           />
         </div>
       ) : null}
