@@ -20,6 +20,7 @@ import { EXPORT_MANIFEST_SCHEMA } from './schema.ts';
 import { exportFileInventory } from './inventory.ts';
 import { exportBundleReadme } from './bundle-readme.ts';
 import { selectExportTables, shouldExportDocuments } from './collections.ts';
+import { writeStandaloneBackupDump } from './backup.ts';
 
 type ExportTable = Parameters<typeof getTableName>[0];
 type Progress = (message: string, event?: ExportProgressEvent) => void;
@@ -71,7 +72,8 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
   const outputDir = path.resolve(options.outputDir);
   const collectionsDir = path.join(outputDir, 'collections');
   const progress = options.progress ?? ((message) => console.error(message));
-  const exportedAt = (options.now?.() ?? new Date()).toISOString();
+  const now = options.now?.() ?? new Date();
+  const exportedAt = now.toISOString();
   const allCollections: Record<string, ExportRecord[]> = {};
   let rowCount = 0;
 
@@ -94,6 +96,7 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
     await writeCollectionFiles(outputDir, 'relationships', relationships);
     await writeJson(path.join(outputDir, 'all-collections.json'), { exportedAt, collections: allCollections });
     await writeJson(path.join(outputDir, 'manifest.schema.json'), EXPORT_MANIFEST_SCHEMA);
+    const backup = await writeStandaloneBackupDump({ outputDir, connection, tables, createdAt: now });
     await writeFile(path.join(outputDir, 'README.md'), exportBundleReadme({
       exportedAt,
       dbPath: options.dbPath ?? DB_PATH,
@@ -109,6 +112,7 @@ export async function exportOracleData(options: ExportAppOptions): Promise<Expor
       dbPath: options.dbPath ?? DB_PATH,
       formats: EXPORT_FORMATS,
       files,
+      backup,
       collectionCount: tables.length,
       collections: collectionManifest(allCollections),
       rowCount,

@@ -9,6 +9,8 @@ describe('export summary and download components', () => {
 
     expect(html).toContain('Export summary');
     expect(html).toContain('No collections selected.');
+    expect(html).toContain('border-warn-border bg-warn-bg');
+    expect(html).toContain('text-warn-text');
     expect(html).toContain('JSON');
     expect(html).toContain('Not estimated');
   });

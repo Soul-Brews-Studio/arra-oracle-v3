@@ -1,19 +1,20 @@
 # Arra Oracle architecture overview
 
-Arra Oracle is the Oracle family's installable memory/search layer. One core
-runtime exposes the same capabilities through HTTP, MCP stdio, the `arra` CLI,
-Studio UI, unified plugins, and Docker/MCP Toolkit packaging.
+Verified against `src/server.ts`, `src/routes/*`, and `src/tools/*` on
+2026-06-17. Arra Oracle is the Oracle family's installable memory/search layer:
+SQLite + FTS5 stay local, vector backends are optional, and the same capability
+core is exposed through HTTP, MCP stdio, CLI, Studio, plugins, and packaging.
 
 ## Design goals
 
-- **Easy install:** `bun add -g github:Soul-Brews-Studio/arra-oracle-v3#vX.Y.Z`
-  should be enough to run the server and CLI.
 - **One capability core:** HTTP routes, MCP tools, CLI commands, and plugins reuse
   shared handlers instead of duplicating business logic.
-- **Local-first data:** SQLite + FTS5 remain available even when vector backends
-  or remote services are disabled.
-- **Plugin-shaped extension:** external features should install as plugin folders
-  or artifacts, not require editing core source.
+- **Local-first operation:** search, learn, read, and list work from SQLite/FTS5
+  even when vector services or remote proxies are disabled.
+- **Plugin-shaped extension:** additional API routes, MCP tools, menu items,
+  sidecars, export formats, and CLI commands come from `plugin.json` manifests.
+- **Safe multi-tenant deploys:** token auth and tenant headers scope data without
+  changing local-first defaults.
 
 ## Runtime map
 
@@ -27,84 +28,120 @@ Users, agents, Studio, maw-js, MCP clients
         └─ Plugin runtime: src/plugins/unified-loader.ts
                   │
         Core services and storage
-        ├─ src/tools/       MCP/CLI-ready tool handlers
-        ├─ src/vector/      vector adapters and config
-        ├─ src/indexer/     document parsing and backfill jobs
-        ├─ src/gateway/     federation/proxy guardrails
-        ├─ src/middleware/  auth, tenant, logging, negotiation
-        └─ SQLite + FTS5 + vector stores + vault markdown
+        ├─ src/tools/       MCP-ready handlers and REST mapping
+        ├─ src/vector/      vector adapters, config, provider detection
+        ├─ src/indexer/     document parsing, scan/reindex, daemon jobs
+        ├─ src/gateway/     vector/gateway status and proxy guardrails
+        ├─ src/middleware/  versioning, auth, tenant, limits, errors
+        └─ SQLite + FTS5 + optional vector stores + vault markdown
 ```
 
-## Request paths
+## Request lifecycle
 
-| Surface | Entrypoint | Primary contracts |
+1. `createStartedApp()` validates env, resets indexing status, preflights vector
+   runtime, starts file/plugin watchers, seeds menus, then wraps `app.fetch()`.
+2. `createApiVersionedFetch()` redirects public non-health `/api/*` requests to
+   `/api/v1/*` and rewrites `/api/v1/*` back to internal `/api/*` routes.
+3. Global middleware adds request logging, correlation IDs, tenant context, CORS,
+   private-network preflight, version/security/content headers, body limits,
+   optional API-key/token auth, rate limits, metrics, compression, ETags, DB
+   context, request de-duplication, timeouts, structured errors, and not-found
+   handling.
+4. `createServerRouteModules()` mounts the Elysia route modules, then plugin
+   routes, then the not-found boundary. A source inspection currently builds 185
+   routes, 181 of them under `/api`.
+
+## HTTP route families
+
+| Family | Source modules | Primary paths |
 | --- | --- | --- |
-| HTTP | `src/server.ts` | Elysia route clusters under `/api/*`, `/health` |
-| MCP embedded | `src/index.ts` | `oracle_search`, `oracle_learn`, `oracle_read`, plugin tools |
-| MCP proxy | `ORACLE_HTTP_URL` | Stdio MCP forwards covered writes/reads to HTTP |
-| CLI | `cli/src/cli.ts` | Built-ins plus plugin commands, target config, install helpers |
-| Studio | `frontend/` | React pages over HTTP routes and plugin/menu registries |
-| Docker | `Dockerfile`, `catalog/` | HTTP image, stdio image, Docker MCP Toolkit catalog |
+| Health/status | `routes/health`, `routes/metrics`, `gateway` | `/api/health`, `/api/health/deep`, `/api/stats`, `/api/metrics`, `/api/gateway/*` |
+| Search/knowledge | `routes/search`, `routes/learn`, `routes/knowledge` | `/api/search`, `/api/list`, `/api/read`, `/api/learn*`, `/api/handoff`, `/api/inbox` |
+| Vector/indexer | `routes/vector`, `routes/indexer` | `/api/vector/*`, `/api/vector-db*`, `/api/similar`, `/api/compare`, `/api/map*`, `/api/indexer/*` |
+| Studio/admin | `routes/menu`, `routes/plugins`, `routes/canvas`, `routes/settings` | `/api/menu*`, `/api/plugins*`, `/api/canvas/*`, `/api/settings/*` |
+| Collaboration | `routes/forum`, `routes/traces`, `routes/schedule`, `routes/supersede` | `/api/thread*`, `/api/threads`, `/api/traces*`, `/api/schedule*`, `/api/supersede*` |
+| Import/export | `routes/export`, `routes/vault`, `routes/files` | `/api/export*`, `/api/vault/sync`, `/api/doc*`, `/api/file`, `/api/context`, `/api/graph` |
+| MCP catalogue | `routes/mcp`, `src/tools/mcp-rest-map.ts` | `/api/mcp/tools` plus MCP stdio tools |
+
+## MCP and HTTP coupling
+
+`src/tools/mcp-manifest.ts` defines 27 core MCP tools. `src/tools/mcp-rest-map.ts`
+uses the same ordered names to mark 24 tools as HTTP-remoteable and three as
+local-only (`____IMPORTANT`, `oracle_mcp_list_tools`, `oracle_mcp_call`).
+`GET /api/mcp/tools` merges those core definitions with active plugin tools and
+returns public metadata only; plugin handlers are never exposed.
+
+Example catalogue item:
+
+```json
+{
+  "name": "oracle_search",
+  "group": "search",
+  "readOnly": true,
+  "remoteable": true,
+  "rest": { "method": "GET", "path": "/api/search" },
+  "source": "core"
+}
+```
 
 ## Data flow
 
 ```text
-markdown/import/API write
+HTTP/MCP/CLI/plugin write
         │
         ▼
-parse/index document chunks
+parse + normalize document metadata
         │
-        ├─ oracle_documents metadata table
-        ├─ oracle_fts keyword index
-        └─ vector collection when enabled
+        ├─ oracle_documents tenant-scoped source of truth
+        ├─ oracle_fts keyword index for always-on recall
+        └─ optional vector collection via configured adapter/provider
         │
         ▼
-search/list/read/export through HTTP, MCP, CLI, or plugin routes
+search/list/read/export via HTTP, MCP, CLI, Studio, or plugin routes
 ```
 
-`oracle_documents` is the tenant-scoped source of truth for indexed metadata.
-FTS5 provides the always-on fallback search path. Vector adapters are optional
-and configured per model/collection.
+`oracle_documents` owns metadata and tenant scope. FTS5 owns the fallback search
+path. Vector config lives in `vector-server.json`; default collections are
+`bge-m3`, `nomic`, and `qwen3`, with a default sidecar proxy manifest at
+`/api/vector-db*` using `VECTOR_DB_URL`.
 
 ## Plugin architecture
 
-Unified plugins are directories with `plugin.json` plus an entry module. The
-runtime scans parent `.maw/plugins`, `$MAW_PLUGINS_DIR`, `~/.maw/plugins`, `~/.arra/plugins`, and `~/.oracle/plugins`, normalizes manifests,
-and registers declared surfaces:
+Unified plugins are folders with `plugin.json` plus code/artifacts. The runtime
+scans parent `.maw/plugins`, `$MAW_PLUGINS_DIR`, `~/.maw/plugins`,
+`~/.arra/plugins`, and `~/.oracle/plugins`, normalizes manifests, and registers:
 
 | Manifest key | Runtime effect |
 | --- | --- |
-| `apiRoutes[]` | Adds Elysia routes to the main HTTP server |
-| `mcpTools[]` | Adds tool definitions and dispatchable plugin MCP calls |
-| `menu[]` | Adds Studio/menu navigation rows |
-| `cliSubcommands[]` | Adds `arra <command>` operator commands |
-| `proxy[]` | Adds guarded proxy routes to external services |
-| `server` | Starts or lazily proxies a plugin-owned child service |
-| `exportFormats[]` | Adds app export formats |
-
-Easy plugin install should place the same folder shape under a plugin home, so
-installers only need to fetch, build/copy artifacts, and write `plugin.json`.
-See [PLUGIN-GUIDE.md](./PLUGIN-GUIDE.md) for authoring and packaging.
+| `apiRoutes[]` / `proxy[]` | Mounted HTTP routes or guarded upstream proxies |
+| `mcpTools[]` | Extra MCP definitions and dispatchable plugin calls |
+| `menu[]` | Studio/menu rows seeded into `/api/menu` |
+| `cliSubcommands[]` | `arra <command>` operators |
+| `server` | Child sidecar service health/proxy lifecycle |
+| `exportFormats[]` | Additional export app formats |
 
 ## Security and isolation
 
-- Protected HTTP writes use bearer tokens when `ARRA_API_TOKEN` is set.
-- Shared HTTP deployments can require `ORACLE_TENANT_TOKENS` and scope reads/writes
-  by `tenant_id`.
-- MCP stdio mode sends logs to stderr with `ORACLE_LOG_TARGET=stderr`.
-- File reads resolve real paths and stay inside allowed repo/ghq/vault roots.
-- Plugin paths and entry modules are containment-checked before import.
+- `ARRA_API_TOKEN` protects `/api/*` except `/api/health` and `/api/docs*`.
+- `ARRA_API_KEY` is a legacy bearer guard that only bypasses `/api/health`.
+- Tenant scope comes from `X-Oracle-Tenant`; `ORACLE_TENANT_TOKENS` can require
+  `X-Oracle-Tenant-Token` per tenant or wildcard.
+- MCP stdio logs go to stderr when `ORACLE_LOG_TARGET=stderr`.
+- File reads resolve real paths inside allowed repo/ghq/vault roots, and plugin
+  paths/entry modules are containment-checked before import.
 
 ## Operational checks
 
 ```bash
 arra-oracle-v3 serve --port 47778
 curl -sf http://localhost:47778/api/health
-arra health
+curl -H "Authorization: Bearer $ARRA_API_TOKEN" \
+  'http://localhost:47778/api/v1/search?q=oracle&mode=fts&limit=3'
+curl -sf http://localhost:47778/api/v1/mcp/tools
 bunx tsc --noEmit
-bun test tests/http/health/
-bun test tests/plugins/
+bun test tests/http/health/ tests/http/mcp/tools.test.ts
 ```
 
 For install steps, start with [INSTALL.md](./INSTALL.md) and
-[QUICKSTART.md](./QUICKSTART.md).
+[QUICKSTART.md](./QUICKSTART.md). See [API.md](./API.md) for request/response
+examples and [PLUGIN-GUIDE.md](./PLUGIN-GUIDE.md) for plugin packaging.

@@ -77,7 +77,10 @@ export function storeSqliteDocuments(db: Database, documents: OracleDocument[]):
       concepts = excluded.concepts,
       updated_at = excluded.updated_at,
       indexed_at = excluded.indexed_at,
-      project = excluded.project
+      project = excluded.project,
+      superseded_by = NULL,
+      superseded_at = NULL,
+      superseded_reason = NULL
   `);
   const deleteFts = db.prepare('DELETE FROM oracle_fts WHERE id = ?');
   const insertFts = db.prepare('INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)');

@@ -1,4 +1,5 @@
 import { SetupWizardCostEstimate } from "./SetupWizardCostEstimate";
+import { StateNotice } from "./StateNotice";
 import type { Provider, Step, VectorConfig, VectorIndexSource } from "./setupWizardTypes";
 
 export const setupSteps = [
@@ -33,18 +34,24 @@ export function StepBody({
 }) {
   if (step === 0)
     return (
-      <p className="mt-2 text-sm text-text-muted">
-        Run auto-detect to check Ollama, OpenAI, Gemini, Cloudflare, and
-        registered vector services.
-      </p>
+      <div className="mt-3">
+        <StateNotice
+          title="Ready to detect providers"
+          detail="Run auto-detect to check Ollama, OpenAI, Gemini, Cloudflare, and registered vector services."
+        />
+      </div>
     );
   if (step === 1)
     return <ProviderList providers={providers} recommended={recommended} selectedProvider={selectedProvider} onProviderSelect={onProviderSelect} />;
   if (step === 2) return <VaultPlan config={config} provider={selectedProvider || recommended?.type || "openai"} source={indexSource} repoRoot={repoRoot} onSource={onIndexSource} onRepoRoot={onRepoRoot} />;
   return (
-    <p className="mt-2 text-sm text-text-muted">
-      Done. Continue to the Vector dashboard or watch live progress in Vector Settings.
-    </p>
+    <div className="mt-3">
+      <StateNotice
+        tone="success"
+        title="First-run setup complete"
+        detail="Continue to the Vector dashboard or watch live progress in Vector Settings."
+      />
+    </div>
   );
 }
 
@@ -61,10 +68,13 @@ function ProviderList({
 }) {
   if (!providers.length)
     return (
-      <p className="mt-2 text-sm text-text-muted">
-        No provider report yet. Configure API keys or start Ollama, then
-        auto-detect again.
-      </p>
+      <div className="mt-3">
+        <StateNotice
+          tone="warning"
+          title="No provider report yet"
+          detail="Configure API keys or start Ollama, then auto-detect again."
+        />
+      </div>
     );
   return (
     <div className="mt-3 grid gap-3 sm:grid-cols-2">

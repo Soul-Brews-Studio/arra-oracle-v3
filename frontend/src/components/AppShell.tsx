@@ -102,12 +102,12 @@ export function AppShell({
       <div className="mx-auto grid w-full max-w-7xl gap-4 px-3 py-3 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[18rem_1fr] lg:px-8">
         <NavSidebar items={navItems} />
         <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
-          <header className="flex flex-col gap-5 rounded-3xl border border-border bg-surface p-4 shadow-2xl backdrop-blur sm:p-6 lg:flex-row lg:items-end lg:justify-between">
+          <header className="grid gap-5 rounded-3xl border border-border bg-surface p-4 shadow-2xl backdrop-blur sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,28rem)] lg:items-end">
             <PageChrome meta={meta} />
-            <div className="grid w-full gap-3 lg:max-w-md">
+            <div className="grid w-full min-w-0 gap-3">
               <CommandPalette onRefresh={onRefresh} />
               <GlobalSearch />
-              <div className="grid gap-3 sm:flex sm:items-center sm:justify-end">
+              <div className="flex flex-wrap items-center justify-start gap-3 sm:justify-end">
                 <TauriBadge connected={!error} />
                 <ThemeToggle />
                 <button

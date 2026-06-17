@@ -23,5 +23,7 @@ describe('export ConnectionTest', () => {
     expect(html).toContain('Backend connection');
     expect(html).toContain('Not tested');
     expect(html).toContain('http://localhost:47778');
+    expect(html).toContain('border-warn-border bg-warn-bg text-warn-text');
+    expect(html).toContain('No export collections were returned.');
   });
 });

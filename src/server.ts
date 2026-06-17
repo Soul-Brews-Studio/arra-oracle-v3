@@ -34,6 +34,7 @@ import { createBodyLimitMiddleware } from './middleware/body-limit.ts';
 import { createRateLimiterMiddleware } from './middleware/rate-limiter.ts';
 import { createResponseFormatMiddleware } from './middleware/response-format.ts';
 import { createNotFoundMiddleware } from './middleware/not-found.ts';
+import { createOpenApiSwaggerConfig, openApiSpecHandler } from './openapi/index.ts';
 import { createEtagMiddleware } from './middleware/etag.ts';
 import { createCompressMiddleware } from './middleware/compress.ts';
 import { createRequestDedupFetch } from './middleware/dedup.ts';
@@ -100,7 +101,7 @@ export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef
     .use(createApiKeyAuthMiddleware())
     .use(createRateLimiterMiddleware())
     .use(createMetricsLifecycle())
-    .use(swagger({ provider: 'swagger-ui', path: '/api/docs', specPath: '/api/docs/json', swaggerOptions: { url: '/api/docs/json' } as any, documentation: { info: { title: 'Arra Oracle API', version: pkg.version, description: 'HTTP API for the Arra Oracle MCP memory layer.' } } }))
+    .use(swagger(createOpenApiSwaggerConfig(pkg.version)))
     .use(createResponseFormatMiddleware())
     .use(createCompressMiddleware())
     .use(createEtagMiddleware())
@@ -121,6 +122,7 @@ export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef
 
   const routeModules = createServerRouteModules(unifiedPlugins, runtimeRef);
   mountRouteModules(app, routeModules);
+  app.get('/api/docs/json', openApiSpecHandler(app), { detail: { hide: true } });
   app.use(createUnifiedPluginRouteMount(runtimeRef, { localRoutes: () => app.routes }));
   app.use(createNotFoundMiddleware(() => app.routes));
   return app;

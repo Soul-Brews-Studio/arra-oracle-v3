@@ -20,6 +20,7 @@ describe('ExportProgress', () => {
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain('bg-surface');
     expect(html).toContain('bg-surface-muted');
+    expect(html).toContain('border-accent-border bg-accent-soft text-accent');
     expect(html).toContain('1.5 KB');
     expect(html).toContain('exp-1');
   });
@@ -31,6 +32,7 @@ describe('ExportProgress', () => {
     expect(done).toContain('Download export');
     expect(done).toContain('href="/download/exp-1"');
     expect(failed).toContain('Export failed.');
+    expect(failed).toContain('border-err-border bg-err-bg text-err-text');
     expect(failed).toContain('disk full');
     expect(failed).toContain('Retry');
   });

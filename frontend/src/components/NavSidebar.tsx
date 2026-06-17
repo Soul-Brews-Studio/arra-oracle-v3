@@ -10,8 +10,8 @@ export type NavItem = {
 
 function navClass({ isActive }: { isActive: boolean }) {
   const base = 'focus-ring min-w-[10rem] rounded-2xl border px-4 py-3 text-left transition lg:min-w-0';
-  if (isActive) return `${base} border-accent-border bg-accent-soft text-text shadow-lg`;
-  return `${base} border-border bg-surface text-text hover:border-accent-border hover:bg-field`;
+  if (isActive) return `${base} border-accent-border bg-accent-soft text-accent shadow-lg`;
+  return `${base} border-border bg-surface text-text hover:border-accent-border hover:bg-surface-muted`;
 }
 
 export function NavSidebar({ items }: { items: NavItem[] }) {
@@ -30,7 +30,7 @@ export function NavSidebar({ items }: { items: NavItem[] }) {
               <span className="flex items-center justify-between gap-3">
                 <span className="font-semibold">{item.label}</span>
                 {item.badge !== undefined ? (
-                  <span className="rounded-full bg-surface-muted px-2 py-1 text-xs text-text-muted">{item.badge}</span>
+                  <span className="rounded-full bg-surface-muted px-2 py-1 text-xs text-text-muted" aria-label={`${item.badge} items`}>{item.badge}</span>
                 ) : null}
               </span>
               <span className="mt-1 block text-xs leading-5 text-text-muted">{item.description}</span>

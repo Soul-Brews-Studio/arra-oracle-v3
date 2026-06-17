@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiFetch, fetchVectorConfig, reloadVectorConfig, updateVectorCollection } from '../api';
-import { ErrorMessage, Spinner } from './AsyncState';
+import { ErrorMessage, LoadingPanel, Spinner } from './AsyncState';
+import { StateNotice } from './StateNotice';
 import { VectorConfigHealthSummary } from './VectorConfigHealthSummary';
 import type { SettingsEmbedderCollection, VectorConfigResponse } from '../types';
 
@@ -13,7 +14,7 @@ type PanelResponse = VectorConfigResponse & { enabled?: boolean; engine?: string
 
 function statusClass(status: string) {
   if (status === 'ok') return 'border-ok-border bg-ok-bg text-ok-text';
-  if (status === 'disabled') return 'border-border bg-slate-900/70 text-text-muted';
+  if (status === 'disabled') return 'border-warn-border bg-warn-bg text-warn-text';
   return 'border-err-border bg-err-bg text-err-text';
 }
 
@@ -161,8 +162,9 @@ export function VectorConfigPanel() {
         </button>
       </div>
 
+      {loading && !state ? <div className="mt-4"><LoadingPanel title="Loading vector config" detail="Fetching collection config, health, and document counts." /></div> : null}
       {error ? <div className="mt-4"><ErrorMessage title="Vector config update failed." message={error} /></div> : null}
-      {message ? <p className="mt-4 rounded-2xl border border-border bg-slate-900/70 p-3 text-sm text-accent">{message}</p> : null}
+      {message ? <div className="mt-4"><StateNotice tone="success" title="Vector config updated" detail={message} /></div> : null}
       {state ? <VectorConfigHealthSummary collections={state.config.collections} health={state.health} /> : null}
 
       <div className="mt-5 grid gap-3">
@@ -190,27 +192,27 @@ export function VectorConfigPanel() {
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
                     Model
-                    <input className="mt-1 block rounded-xl border border-border bg-slate-900 px-3 py-2 text-sm text-text" value={draft.model} onChange={(event) => updateDraft(key, { model: event.target.value })} />
+                    <input className="mt-1 block rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" value={draft.model} onChange={(event) => updateDraft(key, { model: event.target.value })} />
                   </label>
                   <label className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
                     Active adapter
-                    <select className="mt-1 block rounded-xl border border-border bg-slate-900 px-3 py-2 text-sm text-text" value={draft.adapter} onChange={(event) => updateDraft(key, { adapter: event.target.value })}>
+                    <select className="mt-1 block rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" value={draft.adapter} onChange={(event) => updateDraft(key, { adapter: event.target.value })}>
                       {ADAPTERS.map((adapter) => <option key={adapter} value={adapter}>{adapter}</option>)}
                     </select>
                   </label>
                   <label className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
                     Provider
-                    <select className="mt-1 block rounded-xl border border-border bg-slate-900 px-3 py-2 text-sm text-text" value={draft.provider} onChange={(event) => updateDraft(key, { provider: event.target.value })}>
+                    <select className="mt-1 block rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" value={draft.provider} onChange={(event) => updateDraft(key, { provider: event.target.value })}>
                       {VECTOR_PROVIDERS.map((provider) => <option key={provider} value={provider}>{provider}</option>)}
                     </select>
                   </label>
                   <label className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
                     Service
-                    <input className="mt-1 block rounded-xl border border-border bg-slate-900 px-3 py-2 text-sm text-text" placeholder="registry key" value={draft.service} onChange={(event) => updateDraft(key, { service: event.target.value })} />
+                    <input className="mt-1 block rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" placeholder="registry key" value={draft.service} onChange={(event) => updateDraft(key, { service: event.target.value })} />
                   </label>
                   <label className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
                     Endpoint
-                    <input className="mt-1 block rounded-xl border border-border bg-slate-900 px-3 py-2 text-sm text-text" placeholder="http://localhost:6333" value={draft.endpoint} onChange={(event) => updateDraft(key, { endpoint: event.target.value })} />
+                    <input className="mt-1 block rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" placeholder="http://localhost:6333" value={draft.endpoint} onChange={(event) => updateDraft(key, { endpoint: event.target.value })} />
                   </label>
                   <label className="flex items-center gap-2 text-sm text-text">
                     <input type="checkbox" checked={draft.enabled} onChange={(event) => updateDraft(key, { enabled: event.target.checked })} />
@@ -224,7 +226,7 @@ export function VectorConfigPanel() {
             </article>
           );
         })}
-        {!loading && rows.length === 0 ? <p className="text-sm text-text-muted">No vector collections configured.</p> : null}
+        {!loading && rows.length === 0 ? <StateNotice tone="warning" title="No vector collections configured." detail="Add a collection in vector config before switching adapters or setting a primary." /> : null}
       </div>
     </section>
   );

@@ -9,7 +9,7 @@ export const tenants = sqliteTable('tenants', {
 }, (table) => [index('idx_tenants_status').on(table.status)]);
 export const oracleDocuments = sqliteTable('oracle_documents', {
   id: text('id').primaryKey(),
-  tenantId: text('tenant_id').default('default').notNull(),
+  tenantId: text('tenant_id').default('default').notNull().references(() => tenants.id),
   type: text('type').notNull(),
   sourceFile: text('source_file').notNull(),
   concepts: text('concepts').notNull(),
@@ -29,6 +29,7 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   index('idx_source').on(table.sourceFile),
   index('idx_type').on(table.type),
   index('idx_superseded').on(table.supersededBy),
+  index('idx_documents_tenant_superseded').on(table.tenantId, table.supersededBy),
   index('idx_origin').on(table.origin),
   index('idx_project').on(table.project),
   index('idx_documents_tenant').on(table.tenantId),

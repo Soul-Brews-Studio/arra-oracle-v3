@@ -225,6 +225,13 @@
       "when": 1781683200000,
       "tag": "0031_oracle_documents_valid_time",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1781669499599,
+      "tag": "0032_schema_integrity_guards",
+      "breakpoints": true
     }
   ]
 }

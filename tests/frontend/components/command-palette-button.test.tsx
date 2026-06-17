@@ -11,6 +11,8 @@ describe('CommandPalette', () => {
       </MemoryRouter>,
     );
     expect(html).toContain('Open command palette');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('aria-haspopup="dialog"');
     expect(html).toContain('Search actions (⌘K)');
   });
 });
