@@ -47,6 +47,6 @@ describe('runtime MCP manifest', () => {
     expect(order).toContain('oracle_search');
     expect(order).toContain('oracle_mcp_call');
     expect(order).not.toContain('oracle_learn');
-    expect(order).not.toContain('____IMPORTANT');
+    expect(order[0]).toBe('____IMPORTANT');
   });
 });

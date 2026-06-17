@@ -76,6 +76,6 @@ export function toMcpToolDefinition(tool: RuntimeMcpToolManifest) {
 
 export function defaultMcpToolOrder(configOrder: string[]): string[] {
   const seen = new Set<string>();
-  return [...configOrder, ...mcpTools.filter((t) => t.group === 'mcp' && t.enabledByDefault !== false).map((t) => t.name)]
+  return [GUIDE_TOOL_NAME, ...configOrder, ...mcpTools.filter((t) => t.group === 'mcp' && t.enabledByDefault !== false).map((t) => t.name)]
     .filter((name) => mcpToolByName.has(name) && !seen.has(name) && seen.add(name));
 }
