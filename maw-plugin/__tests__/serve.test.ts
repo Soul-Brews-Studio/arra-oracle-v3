@@ -48,6 +48,40 @@ describe('maw arra serve command', () => {
     })]);
   });
 
+  test('probes configured vector server before starting', async () => {
+    const seen: string[] = [];
+    const result = await runServe({ pos: [], flags: { port: '47779' } }, runner, {
+      ...env(),
+      VECTOR_URL: 'http://vector.local:8081/root/',
+    }, {
+      start: () => 43211,
+      isAlive: () => false,
+      fetch: async (input) => {
+        seen.push(String(input));
+        return Response.json({ status: 'ok', protocol: 'vector-proxy-v1' });
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain('vector preflight: ok http://vector.local:8081/root');
+    expect(seen).toEqual(['http://vector.local:8081/health']);
+  });
+
+  test('blocks start when configured vector server preflight fails', async () => {
+    let started = false;
+    const result = await runServe({ pos: [], flags: {} }, runner, {
+      ...env(),
+      VECTOR_URL: 'http://vector.local:8081',
+    }, {
+      start: () => { started = true; return 1; },
+      isAlive: () => false,
+      fetch: async () => Response.json({ status: 'down' }, { status: 503 }),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('vector preflight failed for http://vector.local:8081');
+    expect(started).toBe(false);
+  });
 
   test('starts optional in-process backend without spawning manifest command', async () => {
     const started: unknown[] = [];

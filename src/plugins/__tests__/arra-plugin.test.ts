@@ -211,4 +211,32 @@ describe("built-in arra plugin", () => {
       else process.env.ORACLE_DATA_DIR = savedDataDir;
     }
   });
+
+  test("maw arra serve checks VECTOR_URL before spawning backend", async () => {
+    const { serveCli } = await import("../arra/serve-cli.ts");
+    const savedDataDir = process.env.ORACLE_DATA_DIR;
+    const savedVectorUrl = process.env.VECTOR_URL;
+    process.env.ORACLE_DATA_DIR = mkdtempSync(join(tmpdir(), "arra-serve-vector-"));
+    process.env.VECTOR_URL = "http://vector.local:8081/root/";
+    const seen: string[] = [];
+    const spawn = (() => ({ pid: 4343, unref() {} })) as typeof Bun.spawn;
+    try {
+      const result = await serveCli(["--port", "59997"], {
+        spawn,
+        fetch: async (input) => {
+          seen.push(String(input));
+          if (String(input).includes("59997")) return new Response("no", { status: 503 });
+          return Response.json({ status: "ok", protocol: "vector-proxy-v1" });
+        },
+      });
+      expect(result.ok).toBe(true);
+      expect(result.output).toContain("vector preflight: ok http://vector.local:8081/root");
+      expect(seen).toContain("http://vector.local:8081/health");
+    } finally {
+      if (savedDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
+      else process.env.ORACLE_DATA_DIR = savedDataDir;
+      if (savedVectorUrl === undefined) delete process.env.VECTOR_URL;
+      else process.env.VECTOR_URL = savedVectorUrl;
+    }
+  });
 });

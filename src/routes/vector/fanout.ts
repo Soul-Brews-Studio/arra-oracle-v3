@@ -1,4 +1,6 @@
 import { Elysia } from 'elysia';
+import { sqlite } from '../../db/index.ts';
+import { attachSupersedeStatus } from '../../search/supersede-status.ts';
 import { ensureVectorStoreConnected, getEmbeddingModels, type EmbeddingModelConfig } from '../../vector/factory.ts';
 import { queryFanout, type FanoutStrategy } from '../../vector/fanout-query.ts';
 import { loadVectorConfig } from '../../vector/config.ts';
@@ -30,6 +32,13 @@ function activeFanoutConfig(): FanoutRouteConfig | undefined {
 
 function resolveStrategy(raw: string | undefined, configured?: FanoutStrategy): FanoutStrategy {
   return raw === 'merge' ? 'merge' : configured ?? 'merge';
+}
+
+function withSupersedeStatus(result: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(result.results)) return result;
+  const results = result.results.map((item) => ({ ...(item as Record<string, unknown>) }));
+  attachSupersedeStatus(sqlite, results);
+  return { ...result, results };
 }
 
 function requestedBackends(
@@ -79,7 +88,7 @@ export function createFanoutEndpoint(options: FanoutEndpointOptions = {}) {
     const cacheKey = stableCacheKey({ q, backends, limit, strategy, type: query.type ?? 'all' });
     if (query.cache !== 'false') {
       const cached = endpointCache.get(cacheKey);
-      if (cached) return { ...(cached as Record<string, unknown>), cached: true };
+      if (cached) return withSupersedeStatus({ ...(cached as Record<string, unknown>), cached: true });
     }
 
     const where = query.type && query.type !== 'all' ? { type: query.type } : undefined;
@@ -89,7 +98,7 @@ export function createFanoutEndpoint(options: FanoutEndpointOptions = {}) {
     })));
     const result = { query: q, ...(await queryFanout({ text: q, limit, strategy, where, targets })) };
     if (query.cache !== 'false') endpointCache.set(cacheKey, result);
-    return result;
+    return withSupersedeStatus(result);
       },
       {
         query: FanoutQuery,

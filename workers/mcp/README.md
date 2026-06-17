@@ -6,8 +6,11 @@ path for sharing one deployed MCP URL across a team, school, or organization.
 
 ## What it runs
 
-- `muninn_search` -> `GET /api/search`
-- `muninn_stats` -> `GET /api/stats`
+The Worker imports the pure `src/tools/mcp-rest-map.ts` table and registers each
+entry marked `remoteable: true`. Examples include:
+
+- `oracle_search` -> `GET /api/search`
+- `oracle_stats` -> `GET /api/stats`
 - `oracle_learn` -> `POST /api/learn`
 
 The Worker does not host the full local database or vector index. It forwards
@@ -98,8 +101,10 @@ In the Inspector UI, connect to:
 https://<worker-name>.<account>.workers.dev/mcp
 ```
 
-Then run **List Tools** and call `muninn_stats`. If the backend is protected,
+Then run **List Tools** and call `oracle_stats`. If the backend is protected,
 confirm `ARRA_API_TOKEN` is set and the upstream server accepts bearer tokens.
+For stdio-only clients, use the `mcp-remote` bridge contract documented in
+`docs/architecture/mcp-remote-transport.md`.
 
 ## Config reference
 

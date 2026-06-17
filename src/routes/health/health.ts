@@ -56,6 +56,7 @@ const HealthResponseSchema = t.Object({
   dbStatus: t.Optional(t.Union([t.Literal('connected'), t.Literal('error')])),
   vectorStatus: t.Optional(t.Union([t.Literal('ok'), t.Literal('degraded'), t.Literal('down')])),
   vectorMode: t.Optional(t.Union([t.Literal('embedded'), t.Literal('proxied'), t.Literal('disabled')])),
+  vectorAvailable: t.Optional(t.Boolean()),
   vectorUrl: t.Optional(t.String()),
   vectorDisabledReason: t.Optional(t.String()),
   pluginStatus: t.Optional(t.Union([t.Literal('ok'), t.Literal('degraded')])),
@@ -156,6 +157,16 @@ function aggregateStatus(db: DbStatus, pluginStatus: 'ok' | 'degraded', vectorSe
   return db.status === 'connected' && pluginStatus === 'ok' && vectorOk ? 'ok' : 'degraded';
 }
 
+function vectorAvailable(
+  runtime: ReturnType<typeof getVectorRuntimeStatus>,
+  vector: VectorHealth,
+  vectorServer: VectorServerHealth,
+): boolean {
+  if (vectorServer.configured || runtime.vectorMode === 'proxied') return vectorServer.status === 'ok';
+  if (runtime.vectorMode === 'disabled') return false;
+  return vector.status !== 'down';
+}
+
 async function readSafeVectorServerHealth(read = readVectorServerHealth): Promise<VectorServerHealth> {
   try { return await read(); }
   catch (error) { return { configured: true, status: 'down', error: errorMessage(error) }; }
@@ -206,6 +217,7 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
       dbStatus: dbStatus.status,
       vectorStatus: vector.status,
       ...vectorRuntime,
+      vectorAvailable: vectorAvailable(vectorRuntime, vector, vectorServer),
       pluginStatus,
       mcpToolCount: toolCount,
       pluginCount,

@@ -1,17 +1,20 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
+import { remoteableMcpRestMap } from '../../src/tools/mcp-rest-map.ts';
+import { workerMcpToolEntries } from '../../workers/mcp/src/tools.ts';
 import { buildProxyUrl, oracleProxyTool, resolveMcpTenantId, resolveOracleUrl } from '../../workers/mcp/src/proxy.ts';
 
 describe('Cloudflare MCP proxy tools', () => {
-  test('registers search, stats, and learn tools in the Worker entry', () => {
+  test('generates the Worker tool list from the pure MCP REST map', () => {
     const entry = readFileSync('workers/mcp/src/index.ts', 'utf8');
     const tools = readFileSync('workers/mcp/src/tools.ts', 'utf8');
 
     expect(entry).toContain('registerOracleMcpTools');
     expect(entry).toContain("OracleMCP.serve('/mcp')");
-    expect(tools).toContain("'muninn_search'");
-    expect(tools).toContain("'muninn_stats'");
-    expect(tools).toContain("'oracle_learn'");
+    expect(tools).toContain('remoteableMcpRestMap');
+    expect(tools).not.toContain("'muninn_search'");
+    expect(workerMcpToolEntries.map((tool) => tool.name).sort()).toEqual(remoteableMcpRestMap.map((tool) => tool.name).sort());
+    expect(workerMcpToolEntries.some((tool) => tool.name === 'oracle_learn')).toBe(true);
   });
 
   test('normalizes backend URLs and appends only present query values', () => {
@@ -28,7 +31,7 @@ describe('Cloudflare MCP proxy tools', () => {
     expect(url).toBe('https://oracle.example.test/oracle/api/search?q=vector+safety&limit=5&offset=0');
   });
 
-  test('proxies muninn_stats with auth and tenant headers', async () => {
+  test('proxies oracle_stats with auth and tenant headers', async () => {
     const captured: Array<{ url: string; init?: RequestInit }> = [];
     const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
       captured.push({ url: String(input), init });

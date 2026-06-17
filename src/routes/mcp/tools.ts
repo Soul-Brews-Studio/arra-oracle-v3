@@ -1,7 +1,8 @@
 import { Elysia } from 'elysia';
 import type { UnifiedRuntime } from '../../plugins/unified-loader.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
-import { mcpTools, toMcpToolDefinition, type RuntimeMcpToolManifest } from '../../tools/mcp-manifest.ts';
+import { mcpToolByName, toMcpToolDefinition, type RuntimeMcpToolManifest } from '../../tools/mcp-manifest.ts';
+import { mcpRestMap, type McpRestMapEntry } from '../../tools/mcp-rest-map.ts';
 
 type PluginTool = UnifiedRuntime['mcpTools'][number];
 
@@ -9,16 +10,23 @@ type PublicTool = ReturnType<typeof toMcpToolDefinition> & {
   group?: string;
   readOnly?: boolean;
   enabledByDefault?: boolean;
+  remoteable?: boolean;
+  rest?: { method: string; path: string };
+  localOnlyReason?: string;
   source: 'core' | 'plugin';
   plugin?: string;
 };
 
-function coreTool(tool: RuntimeMcpToolManifest): PublicTool {
+function coreTool(entry: McpRestMapEntry): PublicTool | null {
+  const tool = mcpToolByName.get(entry.name);
+  if (!tool) return null;
   return {
     ...toMcpToolDefinition(tool),
     group: tool.group,
     readOnly: tool.readOnly,
     enabledByDefault: tool.enabledByDefault,
+    remoteable: entry.remoteable,
+    ...(entry.remoteable ? { rest: { method: entry.method, path: entry.path } } : { localOnlyReason: entry.reason }),
     source: 'core',
   };
 }
@@ -49,7 +57,8 @@ function pluginTool(tool: PluginTool): PublicTool {
 
 export function createMcpRoutes(pluginTools: PluginTool[] = []) {
   return new Elysia({ prefix: '/api' }).get('/mcp/tools', () => {
-    const tools = [...mcpTools.map(coreTool), ...pluginTools.filter(isValidPluginTool).map(pluginTool)];
+    const coreTools = mcpRestMap.map(coreTool).filter((tool): tool is PublicTool => !!tool);
+    const tools = [...coreTools, ...pluginTools.filter(isValidPluginTool).map(pluginTool)];
     const tenantId = currentTenantId();
     return { tools, total: tools.length, ...(tenantId ? { tenant: { id: tenantId, scope: 'tenant_id' } } : {}) };
   }, {

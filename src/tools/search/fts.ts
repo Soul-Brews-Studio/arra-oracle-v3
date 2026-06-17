@@ -1,7 +1,8 @@
 import { currentTenantId } from '../../middleware/tenant.ts';
+import { attachSupersedeStatus } from '../../search/supersede-status.ts';
 import type { ToolContext } from '../types.ts';
 import { normalizeFtsScore } from './helpers.ts';
-import type { CombinedSearchResult, FtsResult, FtsRow } from './types.ts';
+import type { FtsResult, FtsRow } from './types.ts';
 
 function parseConcepts(value: string | null): string[] {
   try {
@@ -54,29 +55,5 @@ export function mapFtsResults(rows: FtsRow[]): FtsResult[] {
 }
 
 export function enrichSupersedeFlags(ctx: ToolContext, results: Array<Record<string, unknown>>): void {
-  if (results.length === 0) return;
-  const tenantId = currentTenantId();
-  const ids = results.map((result) => result.id as string);
-  const placeholders = ids.map(() => '?').join(',');
-  const tenantFilter = tenantId ? 'AND tenant_id = ?' : '';
-  const supersedeRows = ctx.sqlite.prepare(`
-    SELECT id, superseded_by, superseded_at, superseded_reason
-    FROM oracle_documents
-    WHERE id IN (${placeholders}) AND superseded_by IS NOT NULL ${tenantFilter}
-  `).all(...ids, ...(tenantId ? [tenantId] : [])) as Array<{
-    id: string;
-    superseded_by: string;
-    superseded_at: number;
-    superseded_reason: string | null;
-  }>;
-  const supersedeMap = new Map(supersedeRows.map((row) => [row.id, row]));
-
-  for (const result of results as CombinedSearchResult[]) {
-    const supersede = supersedeMap.get(result.id);
-    if (!supersede) continue;
-    const writable = result as unknown as Record<string, unknown>;
-    writable.superseded_by = supersede.superseded_by;
-    writable.superseded_at = new Date(supersede.superseded_at).toISOString();
-    writable.superseded_reason = supersede.superseded_reason;
-  }
+  attachSupersedeStatus(ctx.sqlite, results);
 }

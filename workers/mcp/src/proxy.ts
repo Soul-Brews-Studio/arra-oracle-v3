@@ -14,8 +14,8 @@ export type TextToolResult = {
   isError?: boolean;
 };
 
-type ProxyRequest = {
-  method?: 'GET' | 'POST';
+export type ProxyRequest = {
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   path: string;
   query?: Record<string, unknown>;
   body?: unknown;

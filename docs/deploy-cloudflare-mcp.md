@@ -1,8 +1,8 @@
 # Deploy Arra Oracle remote MCP on Cloudflare Workers
 
 This guide covers the #2167 implementation path for one-click Cloudflare deploy,
-the `McpAgent` Worker entry, and MCP client connection. The Worker entry lives in
-`src/workers/cloudflare-mcp/` and `wrangler.jsonc` points at it.
+the `McpAgent` Worker entry, and MCP client connection. The canonical deployable Worker lives in
+`workers/mcp/` and `workers/mcp/wrangler.jsonc` points at `src/index.ts`.
 
 ## What this deploy gives you
 
@@ -10,11 +10,11 @@ the `McpAgent` Worker entry, and MCP client connection. The Worker entry lives i
 - Streamable HTTP transport handled by Cloudflare's Agents SDK.
 - A `workers.dev` URL that Claude, MCP Inspector, Cursor, Windsurf, or another
   remote-capable MCP client can connect to.
-- Edge-safe tools now: `oracle_health`, `oracle_search`, and `muninn_search`.
+- Edge-safe tools are generated from `src/tools/mcp-rest-map.ts` entries marked `remoteable: true`.
 
-The first slice proxies search to an existing Oracle HTTP API. Local SQLite,
-filesystem vaults, and full vector indexing need D1, Vectorize, R2, or other
-Workers-native replacements before they run fully on the edge.
+The Worker proxies remoteable MCP tools to an existing Oracle HTTP API. Local
+SQLite, filesystem vaults, and vector indexing stay in the backend/vector-server
+planes instead of running in the Worker isolate.
 
 ## One-click deploy
 
@@ -30,31 +30,24 @@ https://<worker-name>.<account>.workers.dev/mcp
 
 ## Worker shape
 
-The entry uses Cloudflare `McpAgent`, Durable Object session state, and both
-Streamable HTTP and legacy SSE mounts:
-
-```ts
-export class OracleMcpAgent extends McpAgent {
-  server = new McpServer({ name: 'arra-oracle-remote-mcp', version: '1.0.0' });
-  async init() {
-    this.server.registerTool('oracle_health', {}, async () => runRemoteOracleHealth(env));
-    this.server.registerTool('oracle_search', { inputSchema }, async (args) => runRemoteOracleSearch(env, args));
-    this.server.registerTool('muninn_search', { inputSchema }, async (args) => runRemoteOracleSearch(env, args));
-  }
-}
-```
+The entry uses Cloudflare `McpAgent` and Durable Object session state. At init,
+`workers/mcp/src/tools.ts` loops over the pure `remoteableMcpRestMap` table and
+registers only REST-proxyable tools. The Worker must not import the Bun-side
+`src/tools/mcp-manifest.ts`, DB modules, or vector adapters.
 
 `/health` is a normal HTTP readiness endpoint. `/mcp` expects MCP protocol
-messages, so use MCP Inspector or a real client instead of browser navigation.
+messages, so use MCP Inspector, `mcp-remote`, or a remote-capable client instead
+of browser navigation. See `docs/architecture/mcp-remote-transport.md` for the
+transport contract.
 
 ## Required configuration
 
 | Setting | Purpose |
 | --- | --- |
-| `main` | `src/workers/cloudflare-mcp/index.ts`. |
+| `main` | `workers/mcp/src/index.ts` via `workers/mcp/wrangler.jsonc`. |
 | `compatibility_flags` | Includes `nodejs_compat` for Agents SDK/runtime compatibility. |
 | `MCP_OBJECT` | Durable Object binding required by `McpAgent` session state. |
-| `ORACLE_HTTP_URL` | Backend URL for proxying `oracle_search` to a full Arra Oracle server. |
+| `ORACLE_URL` | Backend URL for proxying remoteable tools to a full Arra Oracle server. |
 | `ORACLE_API_TOKEN` | Optional Bearer token for protected backend calls. |
 | D1/Vectorize/R2 | Future edge-native persistence/search replacements. |
 
@@ -96,8 +89,9 @@ In the inspector UI, connect to:
 https://<worker-name>.<account>.workers.dev/mcp
 ```
 
-Then select **List Tools**. You should see `oracle_health`, `oracle_search`, and
-`muninn_search`.
+Then select **List Tools**. You should see remoteable REST tools from
+`src/tools/mcp-rest-map.ts`, such as `oracle_search`, `oracle_stats`, and
+`oracle_learn`.
 
 ## Client connection: Claude Desktop + mcp-remote
 
@@ -169,8 +163,8 @@ embedding runtimes. Follow-up slices should add Cloudflare-native storage:
   browser navigation is not a valid MCP request.
 - **Claude shows no tools:** verify the deployed URL ends in `/mcp`, restart the
   client, and run MCP Inspector to separate client config from server issues.
-- **Search fails:** set `ORACLE_HTTP_URL`; if protected, also set
-  `ORACLE_API_TOKEN`.
+- **Search fails:** set `ORACLE_URL` or `ORACLE_HTTP_URL`; if protected, also
+  set `ORACLE_API_TOKEN`.
 
 ## References
 
