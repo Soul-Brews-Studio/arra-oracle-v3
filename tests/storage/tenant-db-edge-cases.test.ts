@@ -18,7 +18,7 @@ test('tenant database falls back to default tenant for malformed runtime ids', (
   const connection = getTenantDb(undefined as never, { dataDir: tempDir });
 
   expect(connection.tenantId).toBe('default');
-  expect(connection.dbPath).toBe(path.join(tempDir, 'tenants', 'default', 'oracle.db'));
+  expect(connection.dbPath).toBe(path.join(fs.realpathSync(tempDir), 'tenants', 'default', 'oracle.db'));
 });
 
 test('tenant database rejects path-like tenant ids before opening sqlite', () => {

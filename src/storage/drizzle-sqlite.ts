@@ -51,6 +51,15 @@ function normalizeProjectCasing(db: BunSQLiteDatabase<typeof schema>): void {
     .run();
 }
 
+function configureSqliteConnection(
+  sqlite: Database,
+  options: { readonly: boolean; isMemory: boolean },
+): void {
+  sqlite.exec('PRAGMA busy_timeout = 5000');
+  sqlite.exec('PRAGMA foreign_keys = ON');
+  if (!options.readonly && !options.isMemory) sqlite.exec('PRAGMA journal_mode = WAL');
+}
+
 /** Run all default sqlite initialization through Drizzle/migrations. */
 export function initializeDrizzleSqlite(
   db: BunSQLiteDatabase<typeof schema>,
@@ -67,11 +76,16 @@ export function createDrizzleSqliteBackend(
 ): StorageBackend {
   const resolvedPath = options.dbPath || DB_PATH;
   const dir = path.dirname(resolvedPath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const isMemory = resolvedPath === ':memory:';
+  if (options.readonly && !isMemory && !fs.existsSync(resolvedPath)) {
+    throw new Error(`Readonly sqlite database does not exist: ${resolvedPath}`);
+  }
+  if (!isMemory && !fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
   const sqlite = options.readonly
     ? new Database(resolvedPath, { readonly: true })
     : new Database(resolvedPath);
+  configureSqliteConnection(sqlite, { readonly: options.readonly === true, isMemory });
   const migrationDb = drizzle(sqlite, { schema });
 
   if (!options.readonly) initializeDrizzleSqlite(migrationDb, sqlite);
