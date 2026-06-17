@@ -75,6 +75,8 @@ import pkg from '../package.json' with { type: 'json' };
 
 type UnifiedRuntime = Awaited<ReturnType<typeof loadUnifiedPlugins>>;
 type ServerSpec = { port: number; fetch(request: Request): Response | Promise<Response> };
+type ElysiaApp = Elysia<any, any, any, any, any, any, any>;
+type RouteModule = Parameters<ElysiaApp['use']>[0];
 export interface StartServerOptions { writePidFile?: boolean }
 
 export interface CreateAppOptions {
@@ -117,13 +119,30 @@ export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef
     .get('/api/openapi.json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
     .get('/', () => ({ server: MCP_SERVER_NAME, version: pkg.version, status: 'ok', docs: '/api/docs', api: '/api/v1' }));
 
-  const healthRoutes = createHealthRoutes({ pluginCount: unifiedPlugins.pluginCount, pluginMcpToolCount: unifiedPlugins.mcpTools.length, pluginStatuses: unifiedPlugins.pluginStatuses, isDraining });
-  const apiModules = [authRoutes, settingsRoutes, feedRoutes, healthRoutes, dashboardRoutes, searchRoutes, askRoutes, vectorRoutes, vectorConfigApiRoutes, conceptsRoutes, knowledgeRoutes, researchRoutes, verifyRoutes, supersedeRoutes, forumApi, tracesApi, scheduleApi, filesRouter, createPluginsRouter({ registry: () => runtimeRef.current.pluginRegistry(), runtimeRef }), sessionsRoutes, vaultRoutes, metricsRoutes, exportRoutes, memoryRoutes, canvasRoutes, tenantsRoutes, watcherRoutes, indexerRoutes];
-  const modules = [...apiModules, createMcpRoutes({ runtimeRef }), createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu))];
-  for (const mod of modules) app.use(mod as any);
+  const routeModules = createServerRouteModules(unifiedPlugins, runtimeRef);
+  mountRouteModules(app, routeModules);
   app.use(createUnifiedPluginRouteMount(runtimeRef, { localRoutes: () => app.routes }));
   app.use(createNotFoundMiddleware(() => app.routes));
   return app;
+}
+
+export function createServerRouteModules(unifiedPlugins: UnifiedRuntime, runtimeRef: UnifiedRuntimeRef<UnifiedRuntime>): RouteModule[] {
+  const healthRoutes = createHealthRoutes({ pluginCount: unifiedPlugins.pluginCount, pluginMcpToolCount: unifiedPlugins.mcpTools.length, pluginStatuses: unifiedPlugins.pluginStatuses, isDraining });
+  const apiModules = [authRoutes, settingsRoutes, feedRoutes, healthRoutes, dashboardRoutes, searchRoutes, askRoutes, vectorRoutes, vectorConfigApiRoutes, conceptsRoutes, knowledgeRoutes, researchRoutes, verifyRoutes, supersedeRoutes, forumApi, tracesApi, scheduleApi, filesRouter, createPluginsRouter({ registry: () => runtimeRef.current.pluginRegistry(), runtimeRef }), sessionsRoutes, vaultRoutes, metricsRoutes, exportRoutes, memoryRoutes, canvasRoutes, tenantsRoutes, watcherRoutes, indexerRoutes];
+  return [...apiModules, createMcpRoutes({ runtimeRef }), createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu))];
+}
+
+export function mountRouteModules(app: ElysiaApp, modules: RouteModule[]): void {
+  modules.forEach((mod, index) => {
+    assertRouteModule(mod, index);
+    app.use(mod as any);
+  });
+}
+
+function assertRouteModule(mod: unknown, index: number): asserts mod is RouteModule {
+  if (typeof mod !== 'function' && !(mod instanceof Elysia)) {
+    throw new Error(`Invalid server route module at index ${index}`);
+  }
 }
 
 export async function startServer(options: StartServerOptions = {}): Promise<ReturnType<typeof Bun.serve>> {
