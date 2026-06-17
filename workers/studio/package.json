@@ -5,7 +5,6 @@
   "scripts": {
     "build": "cd ../../frontend && bun run build",
     "deploy": "bun run build && wrangler deploy",
-    "dev": "bun run build && wrangler dev --local",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

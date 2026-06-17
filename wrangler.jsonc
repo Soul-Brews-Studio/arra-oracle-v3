@@ -1,39 +1,44 @@
+/**
+ * Cloudflare remote MCP deployment for Arra Oracle.
+ * Docs: docs/deploy-cloudflare-mcp.md
+ */
 {
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
   "name": "arra-oracle-remote-mcp",
-  // Placeholder owned by the #2167 Worker-entry lane. This docs/config PR
-  // intentionally does not add or overwrite src/workers/* implementation.
-  "main": "./src/workers/oracle-mcp.ts",
-  "compatibility_date": "2026-05-07",
+  "main": "src/workers/cloudflare-mcp/index.ts",
+  "compatibility_date": "2026-06-16",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["OracleMcpAgent"]
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MCP_OBJECT",
+        "class_name": "OracleMcpAgent"
+      }
+    ]
+  },
   "vars": {
+    "ORACLE_HTTP_URL": "",
+    "ORACLE_REMOTE_MCP_NAME": "Arra Oracle Remote MCP",
     "ORACLE_MCP_PATH": "/mcp",
-    "ORACLE_STORAGE_BACKEND": "d1",
-    "ORACLE_VECTOR_BACKEND": "cloudflare-vectorize"
+    "ORACLE_STORAGE_BACKEND": "http-proxy",
+    "ORACLE_VECTOR_BACKEND": "http-proxy"
   }
 
-  // Bindings for the Worker-entry/vector lanes to enable after resources exist:
+  // Future edge-native storage bindings for follow-up slices:
   // "ai": { "binding": "AI" },
   // "d1_databases": [
-  //   {
-  //     "binding": "ORACLE_DB",
-  //     "database_name": "arra-oracle",
-  //     "database_id": "<created-by-cloudflare>"
-  //   }
+  //   { "binding": "ORACLE_DB", "database_name": "arra-oracle", "database_id": "<created-by-cloudflare>" }
   // ],
   // "vectorize": [
-  //   {
-  //     "binding": "ORACLE_VECTORIZE",
-  //     "index_name": "arra-oracle-vector"
-  //   }
+  //   { "binding": "ORACLE_VECTORIZE", "index_name": "arra-oracle-vector" }
   // ],
-  // "kv_namespaces": [
-  //   {
-  //     "binding": "ORACLE_STATE",
-  //     "id": "<kv-namespace-id>"
-  //   }
-  // ],
-  // "secrets": { "required": ["ARRA_API_TOKEN"] }
+  // "secrets": { "required": ["ORACLE_API_TOKEN"] }
 }
