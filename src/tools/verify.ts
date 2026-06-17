@@ -53,6 +53,7 @@ export async function runVerify(input: OracleVerifyInput, repoRoot: string) {
     orphaned: result.orphaned,
     drifted: result.drifted,
     untracked: result.untracked,
+    mismatches: result.mismatches,
     recommendation: result.recommendation,
     ...(result.fixedOrphans ? { fixed_orphans: result.fixedOrphans } : {}),
   };
