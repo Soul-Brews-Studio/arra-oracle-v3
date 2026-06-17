@@ -13,15 +13,34 @@ const SECURITY_CORPUS_EXTENSIONS = ['.md', '.txt', '.yaml', '.yml', '.json', '.r
 const SECURITY_CORPUS_MAX_FILE_BYTES = 200 * 1024;  // 200KB cap per file
 const SECURITY_CORPUS_SKIP_DIRS = ['_meta', '.git', 'node_modules', '__pycache__'];
 
+function skippableFsError(err: unknown): boolean {
+  const code = err && typeof err === 'object' && 'code' in err
+    ? (err as NodeJS.ErrnoException).code
+    : undefined;
+  return code === 'ENOENT' || code === 'ENOTDIR' || code === 'EACCES' || code === 'EPERM';
+}
+
 /**
  * Recursively get all markdown files in a directory
  */
 export function getAllMarkdownFiles(dir: string): string[] {
   const files: string[] = [];
-  const items = fs.readdirSync(dir);
+  let items: string[];
+  try {
+    items = fs.readdirSync(dir);
+  } catch (err) {
+    if (skippableFsError(err)) return files;
+    throw err;
+  }
   for (const item of items) {
     const fullPath = path.join(dir, item);
-    const stat = fs.statSync(fullPath);
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(fullPath);
+    } catch (err) {
+      if (skippableFsError(err)) continue;
+      throw err;
+    }
     if (stat.isDirectory()) {
       files.push(...getAllMarkdownFiles(fullPath));
     } else if (item.endsWith('.md')) {
@@ -92,7 +111,13 @@ export function collectDocuments(opts: CollectOpts): OracleDocument[] {
  */
 function getSecurityCorpusFiles(dir: string): string[] {
   const files: string[] = [];
-  const items = fs.readdirSync(dir, { withFileTypes: true });
+  let items: fs.Dirent[];
+  try {
+    items = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (err) {
+    if (skippableFsError(err)) return files;
+    throw err;
+  }
   for (const item of items) {
     if (SECURITY_CORPUS_SKIP_DIRS.includes(item.name)) continue;
     const fullPath = path.join(dir, item.name);
@@ -126,25 +151,30 @@ export function collectPsiLearn(opts: {
   const { config, seenContentHashes } = opts;
   const documents: OracleDocument[] = [];
   const subPath = config.sourcePaths.learn ?? 'ψ/learn';
+  const roots = [
+    path.join(config.repoRoot, subPath),
+    ...discoverProjectPsiDirs(config.repoRoot).map((psiDir) => path.join(psiDir, 'learn')),
+  ].filter((dir, index, all) => all.indexOf(dir) === index && fs.existsSync(dir));
 
-  const sourcePath = path.join(config.repoRoot, subPath);
-  if (!fs.existsSync(sourcePath)) return documents;
-
-  const files = getAllMarkdownFiles(sourcePath);
   let skippedDupes = 0;
-  for (const filePath of files) {
-    const relPath = path.relative(config.repoRoot, filePath).split(path.sep).join('/');
-    if (!isPsiLearnSource(relPath)) continue;
+  let totalFiles = 0;
+  for (const sourcePath of roots) {
+    const files = getAllMarkdownFiles(sourcePath);
+    totalFiles += files.length;
+    for (const filePath of files) {
+      const relPath = path.relative(config.repoRoot, filePath).split(path.sep).join('/');
+      if (!isPsiLearnSource(relPath)) continue;
 
-    const content = fs.readFileSync(filePath, 'utf-8');
-    if (!content.trim()) continue;
-    const contentHash = Bun.hash(content).toString(36);
-    if (seenContentHashes.has(contentHash)) { skippedDupes++; continue; }
-    seenContentHashes.add(contentHash);
-    documents.push(...parsePsiLearnFile(relPath, content));
+      const content = fs.readFileSync(filePath, 'utf-8');
+      if (!content.trim()) continue;
+      const contentHash = Bun.hash(content).toString(36);
+      if (seenContentHashes.has(contentHash)) { skippedDupes++; continue; }
+      seenContentHashes.add(contentHash);
+      documents.push(...parsePsiLearnFile(relPath, content));
+    }
   }
 
-  console.log(`Indexed ${documents.length} ψ/learn documents from ${files.length} files (skipped ${skippedDupes} duplicates)`);
+  console.log(`Indexed ${documents.length} ψ/learn documents from ${totalFiles} files (skipped ${skippedDupes} duplicates)`);
   return documents;
 }
 

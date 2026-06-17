@@ -20,15 +20,37 @@ function printHelp(): void {
 
 function readValue(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag);
-  if (index >= 0) return args[index + 1];
+  if (index >= 0) {
+    const value = args[index + 1];
+    if (!value || value.startsWith("--")) throw new Error(`missing value for ${flag}`);
+    return value;
+  }
   const prefix = `${flag}=`;
-  return args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+  const value = args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+  if (value === "") throw new Error(`missing value for ${flag}`);
+  return value;
+}
+
+function consumeFlag(args: string[], flag: string, consumed: Set<number>): void {
+  const index = args.indexOf(flag);
+  if (index >= 0) {
+    consumed.add(index);
+    consumed.add(index + 1);
+  }
+  const prefix = `${flag}=`;
+  const inline = args.findIndex((arg) => arg.startsWith(prefix));
+  if (inline >= 0) consumed.add(inline);
 }
 
 export function parseImportOptions(args: string[]): DataImportOptions {
+  const consumed = new Set<number>();
   const format = readValue(args, "--format") ?? "json";
+  consumeFlag(args, "--format", consumed);
   if (format !== "json") throw new Error(`unsupported format: ${format}`);
   const inFile = readValue(args, "--in");
+  consumeFlag(args, "--in", consumed);
+  const unknown = args.find((_, index) => !consumed.has(index));
+  if (unknown) throw new Error(`unknown import option: ${unknown}`);
   return inFile ? { format, inFile } : { format };
 }
 
@@ -72,12 +94,15 @@ function parseDocument(value: unknown): OracleDocumentInsert {
     createdAt: requiredNumber(row, "createdAt"),
     updatedAt: requiredNumber(row, "updatedAt"),
     indexedAt: requiredNumber(row, "indexedAt"),
+    validTime: optionalNumber(row, "validTime"),
     supersededBy: optionalString(row, "supersededBy"),
     supersededAt: optionalNumber(row, "supersededAt"),
     supersededReason: optionalString(row, "supersededReason"),
     origin: optionalString(row, "origin"),
     project: optionalString(row, "project"),
     createdBy: optionalString(row, "createdBy"),
+    usageCount: optionalNumber(row, "usageCount") ?? 0,
+    lastAccessedAt: optionalNumber(row, "lastAccessedAt"),
   };
 }
 
@@ -98,12 +123,15 @@ function updateSet(row: OracleDocumentInsert): Omit<OracleDocumentRow, "id"> {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     indexedAt: row.indexedAt,
+    validTime: row.validTime ?? null,
     supersededBy: row.supersededBy ?? null,
     supersededAt: row.supersededAt ?? null,
     supersededReason: row.supersededReason ?? null,
     origin: row.origin ?? null,
     project: row.project ?? null,
     createdBy: row.createdBy ?? null,
+    usageCount: row.usageCount ?? 0,
+    lastAccessedAt: row.lastAccessedAt ?? null,
   };
 }
 

@@ -1,4 +1,5 @@
 import { surfacesFor } from '../plugin-surfaces';
+import { mcpToolsPath, pluginInventoryPath } from '../routePaths';
 import type { PluginEntry } from '../types';
 import { Badge } from './Badge';
 import { EmptyState } from './EmptyState';
@@ -16,8 +17,65 @@ export function pluginStatusLabel(plugin: PluginEntry, enabled: boolean): string
   return plugin.status || 'ok';
 }
 
+export function pluginHealthLabel(plugin: PluginEntry, enabled: boolean): string {
+  if (!enabled) return 'inactive';
+  if (plugin.error) return 'unhealthy';
+  if (plugin.status === 'degraded') return 'degraded';
+  if (plugin.status && plugin.status !== 'ok') return plugin.status;
+  return 'healthy';
+}
+
 export function togglePluginEnabled(state: PluginEnabledState, name: string): PluginEnabledState {
   return { ...state, [name]: !(state[name] ?? true) };
+}
+
+export function pluginSurfaceBadgePath(pluginName: string, surface: string): string {
+  return pluginInventoryPath({ q: pluginName, surface });
+}
+
+type SurfaceRow = { label: string; value: string; href: string };
+
+function routeLabel(methods: string[] | undefined, path: string): string {
+  const safeMethods = Array.isArray(methods) ? methods : [];
+  return `${safeMethods.length ? safeMethods.join('|') : 'ANY'} ${path}`;
+}
+
+export function pluginSurfaceRows(plugin: PluginEntry): SurfaceRow[] {
+  const rows: SurfaceRow[] = [];
+  if (plugin.menu) {
+    rows.push({
+      label: 'Menu entry',
+      value: [plugin.menu.label, plugin.menu.path].filter(Boolean).join(' · '),
+      href: plugin.menu.path ?? pluginSurfaceBadgePath(plugin.name, 'menu'),
+    });
+  }
+  if (plugin.server) {
+    rows.push({
+      label: 'Server',
+      value: `${plugin.server.command} ${(plugin.server.args ?? []).join(' ')} · ${plugin.server.healthPath ?? '/health'}`,
+      href: pluginSurfaceBadgePath(plugin.name, 'server'),
+    });
+  }
+  if (Array.isArray(plugin.mcpTools) && plugin.mcpTools.length) {
+    rows.push({ label: 'MCP tools', value: plugin.mcpTools.map((tool) => tool.name).join(', '), href: mcpToolsPath({ q: plugin.name, source: 'plugin' }) });
+  }
+  if (Array.isArray(plugin.apiRoutes) && plugin.apiRoutes.length) {
+    rows.push({ label: 'API routes', value: plugin.apiRoutes.map((route) => routeLabel(route.methods, route.path)).join(', '), href: pluginSurfaceBadgePath(plugin.name, 'apiRoutes') });
+  }
+  if (Array.isArray(plugin.proxy) && plugin.proxy.length) {
+    rows.push({
+      label: 'Proxy routes',
+      value: plugin.proxy.map((proxy) => `${routeLabel(proxy.methods, proxy.path)} → $${proxy.targetEnv}`).join(', '),
+      href: pluginSurfaceBadgePath(plugin.name, 'proxy'),
+    });
+  }
+  if (Array.isArray(plugin.cliSubcommands) && plugin.cliSubcommands.length) {
+    rows.push({ label: 'CLI subcommands', value: plugin.cliSubcommands.map((command) => command.command).join(', '), href: pluginSurfaceBadgePath(plugin.name, 'cliSubcommands') });
+  }
+  if (Array.isArray(plugin.exportFormats) && plugin.exportFormats.length) {
+    rows.push({ label: 'Export formats', value: plugin.exportFormats.map((format) => `.${format.extension}`).join(', '), href: pluginSurfaceBadgePath(plugin.name, 'exportFormats') });
+  }
+  return rows;
 }
 
 export function PluginList({
@@ -37,40 +95,55 @@ export function PluginList({
         const surfaces = surfacesFor(plugin);
         const enabled = isPluginEnabled(plugin, enabledState);
         const status = pluginStatusLabel(plugin, enabled);
+        const health = pluginHealthLabel(plugin, enabled);
+        const surfaceRows = pluginSurfaceRows(plugin);
         return (
-          <article key={plugin.name} className="rounded-2xl border border-white/10 bg-slate-950/60 p-5">
+          <article key={plugin.name} className="rounded-2xl border border-border bg-surface p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-white">{plugin.name}</h3>
-                <p className="mt-1 text-sm text-slate-400">{plugin.description ?? 'No description supplied.'}</p>
+                <h3 className="text-lg font-semibold text-text">{plugin.name}</h3>
+                <p className="mt-1 text-sm text-text-muted">{plugin.description ?? 'No description supplied.'}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge>{status}</Badge>
+                <Badge>{health}</Badge>
                 {surfaces.length
-                  ? surfaces.map((surface) => <Badge key={surface}>{surface}</Badge>)
-                  : <Badge>metadata</Badge>}
+                  ? surfaces.map((surface) => (
+                    <a key={surface} className="focus-ring rounded-full" href={pluginSurfaceBadgePath(plugin.name, surface)}>
+                      <Badge>{surface}</Badge>
+                    </a>
+                  ))
+                  : (
+                    <a className="focus-ring rounded-full" href={pluginSurfaceBadgePath(plugin.name, 'metadata')}>
+                      <Badge>metadata</Badge>
+                    </a>
+                  )}
               </div>
             </div>
             <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-slate-500">Version</dt>
-                <dd className="font-mono text-slate-200">{plugin.version ?? 'unknown'}</dd>
+                <dt className="text-text-muted">Version</dt>
+                <dd className="font-mono text-text">{plugin.version ?? 'unknown'}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Status</dt>
-                <dd className="font-mono text-slate-200">{status}</dd>
+                <dt className="text-text-muted">Status</dt>
+                <dd className="font-mono text-text">{status}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Artifact</dt>
-                <dd className="font-mono text-slate-200">{plugin.file || 'server-only'}</dd>
+                <dt className="text-text-muted">Health</dt>
+                <dd className="font-mono text-text">{health}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Admin</dt>
+                <dt className="text-text-muted">Artifact</dt>
+                <dd className="font-mono text-text">{plugin.file || 'server-only'}</dd>
+              </div>
+              <div>
+                <dt className="text-text-muted">Admin</dt>
                 <dd>
                   <button
                     aria-label={`${enabled ? 'Disable' : 'Enable'} ${plugin.name}`}
                     aria-pressed={enabled}
-                    className="focus-ring rounded-lg border border-teal-300/30 px-3 py-2 font-semibold text-teal-100 transition hover:bg-teal-300/10"
+                    className="focus-ring rounded-lg border border-accent-border px-3 py-2 font-semibold text-accent transition hover:bg-ok-bg"
                     type="button"
                     onClick={() => onToggle?.(plugin.name)}
                   >
@@ -80,46 +153,20 @@ export function PluginList({
               </div>
               {plugin.error ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-slate-500">Error</dt>
-                  <dd className="text-amber-200">{plugin.error}</dd>
+                  <dt className="text-text-muted">Error</dt>
+                  <dd className="text-warn-text">{plugin.error}</dd>
                 </div>
               ) : null}
-              {plugin.server ? (
+              {surfaceRows.length ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-slate-500">Server</dt>
-                  <dd className="font-mono text-slate-200">
-                    {plugin.server.command} {(plugin.server.args ?? []).join(' ')} · {plugin.server.healthPath ?? '/health'}
+                  <dt className="text-text-muted">Surface details</dt>
+                  <dd className="mt-2 grid gap-2">
+                    {surfaceRows.map((row) => (
+                      <a key={`${row.label}:${row.value}`} className="focus-ring rounded-lg border border-border bg-surface-muted px-3 py-2 font-mono text-xs text-text hover:border-teal-300/40" href={row.href}>
+                        <span className="font-sans text-text-muted">{row.label}: </span>{row.value}
+                      </a>
+                    ))}
                   </dd>
-                </div>
-              ) : null}
-              {plugin.mcpTools?.length ? (
-                <div className="sm:col-span-2">
-                  <dt className="text-slate-500">MCP tools</dt>
-                  <dd className="font-mono text-slate-200">{plugin.mcpTools.length}</dd>
-                </div>
-              ) : null}
-              {plugin.apiRoutes?.length ? (
-                <div className="sm:col-span-2">
-                  <dt className="text-slate-500">API routes</dt>
-                  <dd className="font-mono text-slate-200">{plugin.apiRoutes.length}</dd>
-                </div>
-              ) : null}
-              {plugin.proxy?.length ? (
-                <div className="sm:col-span-2">
-                  <dt className="text-slate-500">Proxy routes</dt>
-                  <dd className="font-mono text-slate-200">{plugin.proxy.length}</dd>
-                </div>
-              ) : null}
-              {plugin.cliSubcommands?.length ? (
-                <div className="sm:col-span-2">
-                  <dt className="text-slate-500">CLI subcommands</dt>
-                  <dd className="font-mono text-slate-200">{plugin.cliSubcommands.length}</dd>
-                </div>
-              ) : null}
-              {plugin.exportFormats?.length ? (
-                <div className="sm:col-span-2">
-                  <dt className="text-slate-500">Export formats</dt>
-                  <dd className="font-mono text-slate-200">{plugin.exportFormats.length}</dd>
                 </div>
               ) : null}
             </dl>

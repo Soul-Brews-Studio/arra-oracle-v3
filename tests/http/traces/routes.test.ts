@@ -158,12 +158,24 @@ describe("Trace routes", () => {
         oracle: "Thor Oracle",
         theme: "Stormforge",
         concepts: ["system thinking", "continuity"],
+        finding: {
+          issue: 1030,
+          repo: "github.com/Soul-Brews-Studio/arra-oracle-v3",
+          recommendation: "Store evidence-backed Stormforge findings as durable learning.",
+          repoEvidence: [{ path: "src/trace/distill.ts", summary: "Formats Thor findings before promotion." }],
+        },
       }),
     });
     expect(res.ok).toBe(true);
     const body = await res.json();
     expect(body.concepts).toContain("dev-research");
     expect(body.concepts).toContain("stormforge");
+    expect(body.concepts).toContain("issue-1030");
+
+    const traceRes = await fetch(`${BASE_URL}/api/traces/${traceC}`);
+    const trace = await traceRes.json();
+    expect(trace.awakening).toContain("## Stormforge finding");
+    expect(trace.awakening).toContain("src/trace/distill.ts");
 
     const learnRes = await fetch(`${BASE_URL}/api/learn/${body.learningId}`);
     expect(learnRes.ok).toBe(true);

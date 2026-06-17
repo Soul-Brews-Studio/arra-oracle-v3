@@ -9,6 +9,7 @@ import type { VectorStoreAdapter } from '../../vector/types.ts';
 
 interface VectorExportDeps {
   getStore?: (collection?: string) => VectorStoreAdapter;
+  getModels?: () => Record<string, unknown>;
 }
 
 const DEFAULT_COLLECTION = 'bge-m3';
@@ -53,14 +54,14 @@ function progressStream(getStore: GetStore, collection: string): ReadableStream<
   });
 }
 
-function resolveCollection(collection: string | undefined): string | null {
-  const resolved = collection || DEFAULT_COLLECTION;
-  const models = getEmbeddingModels();
-  return models[resolved] ? resolved : null;
+function resolveCollection(collection: string | undefined, getModels?: () => Record<string, unknown>): string | null {
+  const resolved = (collection || DEFAULT_COLLECTION).trim() || DEFAULT_COLLECTION;
+  return !getModels || resolved in getModels() ? resolved : null;
 }
 
 export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
   const getStore = deps.getStore ?? getVectorStoreByModel;
+  const getModels = deps.getModels ?? (deps.getStore ? undefined : getEmbeddingModels);
 
   return new Elysia()
     .get('/vector/export/formats', () => ({ formats: availableExportFormats() }), {
@@ -72,7 +73,7 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
     .get(
       '/vector/export/progress',
       ({ query, set }) => {
-        const collection = resolveCollection(query.collection);
+        const collection = resolveCollection(query.collection, getModels);
         if (!collection) {
           set.status = 404;
           return { error: `Unknown vector collection: ${query.collection}` };
@@ -103,7 +104,7 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
         return { error: 'Invalid format', formats: availableExportFormats() };
       }
 
-      const collection = resolveCollection(query.collection);
+      const collection = resolveCollection(query.collection, getModels);
       if (!collection) {
         set.status = 404;
         return { error: `Unknown vector collection: ${query.collection}` };
@@ -130,9 +131,13 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
           },
         });
       } catch (error) {
-        set.status = 500;
+        const status = errorStatus(error);
+        set.status = status;
         const message = error instanceof Error ? error.message : String(error);
-        return { error: 'Vector export failed', message };
+        const label = status === 501
+          ? 'Vector collection export is not supported by this adapter'
+          : 'Vector export failed';
+        return { error: label, message };
       }
     }, {
       query: t.Object({
@@ -145,6 +150,12 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
         summary: 'Export a vector collection in a registered format',
       },
     });
+}
+
+function errorStatus(error: unknown): number {
+  const status = (error as { status?: unknown; statusCode?: unknown })?.status
+    ?? (error as { statusCode?: unknown })?.statusCode;
+  return typeof status === 'number' && Number.isInteger(status) && status >= 400 && status < 600 ? status : 500;
 }
 
 export const vectorExportEndpoint = createVectorExportEndpoint();

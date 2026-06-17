@@ -5,6 +5,7 @@ import { apiErrorResponse } from './errors.ts';
 const HEALTH_BYPASS_PATH = '/api/health';
 
 type AuthFailureReason = 'missing' | 'invalid';
+type BearerAuth = { present: boolean; token: string };
 
 export function configuredApiKey(): string {
   return process.env.ARRA_API_KEY?.trim() ?? '';
@@ -15,7 +16,7 @@ export function isApiKeyAuthEnabled(): boolean {
 }
 
 export function isApiKeyAuthBypassed(pathname: string): boolean {
-  return pathname === HEALTH_BYPASS_PATH;
+  return pathname === HEALTH_BYPASS_PATH || pathname.startsWith(`${HEALTH_BYPASS_PATH}/`);
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -24,15 +25,17 @@ function safeEqual(a: string, b: string): boolean {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-function bearerToken(request: Request): string {
-  const value = request.headers.get('authorization') ?? '';
-  return value.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ?? '';
+function bearerAuth(request: Request): BearerAuth {
+  const value = request.headers.get('authorization')?.trim() ?? '';
+  if (!value) return { present: false, token: '' };
+  const token = value.match(/^Bearer\s+([^\s,]+)\s*$/i)?.[1] ?? '';
+  return { present: true, token };
 }
 
 export function isApiKeyAuthorized(request: Request): boolean {
   const expected = configuredApiKey();
   if (!expected) return true;
-  const token = bearerToken(request);
+  const token = bearerAuth(request).token;
   return token.length > 0 && safeEqual(token, expected);
 }
 
@@ -51,10 +54,11 @@ export function createApiKeyAuthMiddleware() {
     const pathname = new URL(request.url).pathname;
     if (!key || isApiKeyAuthBypassed(pathname)) return;
 
-    const token = bearerToken(request);
+    const auth = bearerAuth(request);
+    const token = auth.token;
     if (token && safeEqual(token, key)) return;
 
     set.status = 401;
-    return apiKeyUnauthorizedResponse(token ? 'invalid' : 'missing');
+    return apiKeyUnauthorizedResponse(auth.present ? 'invalid' : 'missing');
   });
 }

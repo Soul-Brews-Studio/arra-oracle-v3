@@ -36,6 +36,7 @@ describe('frontend router', () => {
       '/menu',
       '/plugins',
       '/status',
+      '/canvas',
       '/canvas/plugins',
       '/metrics',
       '/search',
@@ -44,9 +45,14 @@ describe('frontend router', () => {
       '/vector',
       '/vector/search',
       '/vector/documents',
+      '/vector/first-run',
+      '/vector/index',
       '/vector/results',
       '/vector/export',
       '/vector/settings',
+      '/mcp',
+      '/storage',
+      '/settings',
     ]);
   });
 
@@ -54,19 +60,32 @@ describe('frontend router', () => {
     expect(htmlAt('/')).toContain('Menu catalog');
     expect(htmlAt('/plugins')).toContain('Registered plugins');
     expect(htmlAt('/status')).toContain('GET /api/v1/health');
+    expect(htmlAt('/canvas?plugin=map')).toContain('https://canvas.buildwithoracle.com/map');
+    expect(htmlAt('/canvas?plugin=wave')).toContain('Studio canvas alias');
+    expect(htmlAt('/canvas?plugin=torus')).toContain('https://canvas.buildwithoracle.com/?plugin=torus');
     expect(htmlAt('/canvas/plugins')).toContain('Canvas plugin registry');
     expect(htmlAt('/metrics')).toContain('Metrics dashboard');
     expect(htmlAt('/metrics')).toContain('42');
     expect(htmlAt('/metrics')).toContain('Memory usage');
     expect(htmlAt('/search')).toContain('Full-text menu search');
-    expect(htmlAt('/export')).toContain('Export collections');
+    expect(htmlAt('/export')).toContain('Export app');
     expect(htmlAt('/learn')).toContain('Learn entries');
     expect(htmlAt('/vector')).toContain('Vector dashboard');
     expect(htmlAt('/vector/search')).toContain('Vector search preview');
     expect(htmlAt('/vector/documents')).toContain('Vector documents');
+    expect(htmlAt('/vector/first-run')).toContain('First-run setup wizard');
+    expect(htmlAt('/vector/index')).toContain('Index Manager');
     expect(htmlAt('/vector/results')).toContain('Vector search results');
     expect(htmlAt('/vector/export')).toContain('Vector export');
     expect(htmlAt('/vector/settings')).toContain('Configure adapters, embedding models');
+    expect(htmlAt('/mcp')).toContain('Tool browser');
+    expect(htmlAt('/mcp/tools/plugin%3Aecho')).toContain('MCP tool detail');
+    expect(htmlAt('/storage')).toContain('Storage backend');
+    expect(htmlAt('/settings')).toContain('Runtime configuration');
+  });
+
+  test('renders no stale route content before wildcard redirects in the browser', () => {
+    expect(htmlAt('/missing-route')).toBe('');
   });
 
   test('wraps routed children in the browser router and error boundary shell', () => {

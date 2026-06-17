@@ -1,13 +1,5 @@
-/**
- * Arra Oracle v3 Database Schema (Drizzle ORM)
- *
- * Generated from existing database via drizzle-kit pull,
- * then cleaned up to exclude FTS5 internal tables.
- */
-
 import { sql } from 'drizzle-orm';
 import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
-
 export const tenants = sqliteTable('tenants', {
   id: text('id').primaryKey(),
   name: text('name'),
@@ -20,18 +12,19 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   tenantId: text('tenant_id').default('default').notNull().references(() => tenants.id),
   type: text('type').notNull(),
   sourceFile: text('source_file').notNull(),
-  concepts: text('concepts').notNull(), // JSON array
+  concepts: text('concepts').notNull(),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
   indexedAt: integer('indexed_at').notNull(),
-  // Supersede pattern (Issue #19) - "Nothing is Deleted" but can be outdated
-  supersededBy: text('superseded_by'),      // ID of newer document
-  supersededAt: integer('superseded_at'),   // When it was superseded
-  supersededReason: text('superseded_reason'), // Why (optional)
-  // Provenance tracking (Issue #22)
-  origin: text('origin'),                   // 'mother' | 'arthur' | 'volt' | 'human' | null (legacy)
-  project: text('project'),                 // ghq-style: 'github.com/laris-co/arra-oracle'
-  createdBy: text('created_by'),            // 'indexer' | 'oracle_learn' | 'manual'
+  validTime: integer('valid_time').default(sql`null`),
+  supersededBy: text('superseded_by'),
+  supersededAt: integer('superseded_at'),
+  supersededReason: text('superseded_reason'),
+  origin: text('origin'),
+  project: text('project'),
+  createdBy: text('created_by'),
+  usageCount: integer('usage_count').default(0).notNull(),
+  lastAccessedAt: integer('last_accessed_at'),
 }, (table) => [
   index('idx_source').on(table.sourceFile),
   index('idx_type').on(table.type),
@@ -40,11 +33,14 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   index('idx_origin').on(table.origin),
   index('idx_project').on(table.project),
   index('idx_documents_tenant').on(table.tenantId),
+  index('idx_documents_usage_heat').on(table.usageCount, table.lastAccessedAt),
   index('idx_documents_tenant_type_active_updated').on(table.tenantId, table.type, table.supersededAt, table.updatedAt),
+  index('idx_documents_tenant_valid_time').on(table.tenantId, table.validTime),
 ]);
 // Challenge 2 memory system persistence (#1457)
 export const oracleMemories = sqliteTable('oracle_memories', {
   id: text('id').primaryKey(),
+  tenantId: text('tenant_id').default('default').notNull(),
   content: text('content').notNull(),
   title: text('title'),
   tags: text('tags').default('[]').notNull(),
@@ -55,8 +51,8 @@ export const oracleMemories = sqliteTable('oracle_memories', {
   index('idx_memory_created').on(table.createdAt),
   index('idx_memory_title').on(table.title),
   index('idx_memory_source').on(table.source),
+  index('idx_memory_tenant_created').on(table.tenantId, table.createdAt),
 ]);
-
 // Indexing status tracking
 export const indexingStatus = sqliteTable('indexing_status', {
   id: integer('id').primaryKey(),

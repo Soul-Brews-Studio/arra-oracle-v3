@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Elysia, t } from 'elysia';
 import { sanitizePluginName } from './model.ts';
+import { tenantScopedPluginDirs } from './tenant.ts';
 
 const DEFAULT_PLUGIN_DIRS = [join(homedir(), '.arra', 'plugins'), join(homedir(), '.oracle', 'plugins')];
 
@@ -14,7 +15,7 @@ type PluginManifest = {
 
 function pluginDirs(): string[] {
   const configured = process.env.ARRA_PLUGIN_DIRS?.split(':').map((item) => item.trim()).filter(Boolean);
-  return configured?.length ? configured : DEFAULT_PLUGIN_DIRS;
+  return tenantScopedPluginDirs(configured?.length ? configured : DEFAULT_PLUGIN_DIRS);
 }
 
 function readJson(path: string): PluginManifest | null {
@@ -58,7 +59,7 @@ export function readPluginEnabled(name: string): boolean | undefined {
   return manifest.enabled !== false;
 }
 
-function writePluginEnabled(name: string, enabled: boolean) {
+export function writePluginEnabled(name: string, enabled: boolean) {
   const path = manifestPathFor(name);
   if (!path) return null;
   const manifest = readJson(path);

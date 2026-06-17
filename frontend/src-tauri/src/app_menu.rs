@@ -58,7 +58,7 @@ pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: tauri::menu::Men
 
 fn open_export_page<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("main") {
-        let script = "window.history.pushState(null, '', '/vector/export'); window.dispatchEvent(new PopStateEvent('popstate'));";
+        let script = "window.history.pushState(null, '', '/export'); window.dispatchEvent(new PopStateEvent('popstate'));";
         if let Err(err) = window.eval(script) {
             eprintln!("[Tauri menu] navigation failed: {err}");
         }

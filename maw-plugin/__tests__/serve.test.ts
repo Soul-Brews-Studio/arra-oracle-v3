@@ -1,6 +1,7 @@
 import { mkdtempSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
-import { runServe, type Runner } from '../serve.ts';
+import { resolveServerCommand, runServe, type Runner } from '../serve.ts';
 
 function env() {
   return { HOME: mkdtempSync('/tmp/arra-serve-test-'), ORACLE_ROOT: '/repo/arra-oracle-v3' };
@@ -9,11 +10,28 @@ function env() {
 const runner: Runner = async () => ({ code: 1, stdout: '', stderr: '' });
 
 describe('maw arra serve command', () => {
+  test('resolves the backend from the plugin server manifest', () => {
+    const server = resolveServerCommand('/repo/arra-oracle-v3', { ORACLE_PORT: '47779' }, join(import.meta.dir, '..'));
+
+    expect(server).toMatchObject({
+      command: 'bun',
+      args: ['server.ts'],
+      healthPath: '/api/health',
+      env: {
+        ORACLE_ROOT: '/repo/arra-oracle-v3',
+        ORACLE_PORT: '47779',
+        PORT: '47779',
+        ARRA_BACKEND_SOURCE: 'maw-plugin',
+      },
+    });
+    expect(server.cwd).toEndWith('maw-plugin');
+  });
+
   test('starts with ORACLE_ROOT and port override', async () => {
     const started: unknown[] = [];
-    const result = await runServe({ pos: [], flags: { port: '47779' } }, runner, env(), {
-      start: (cwd, startEnv) => {
-        started.push({ cwd, port: startEnv.ORACLE_PORT });
+    const result = await runServe({ pos: [], flags: { backend: true, port: '47779' } }, runner, env(), {
+      start: (cwd, startEnv, command) => {
+        started.push({ cwd, port: startEnv.ORACLE_PORT, root: startEnv.ORACLE_ROOT, command });
         return 43210;
       },
       isAlive: () => false,
@@ -21,7 +39,66 @@ describe('maw arra serve command', () => {
 
     expect(result.ok).toBe(true);
     expect(result.output).toContain('started pid=43210 port=47779');
-    expect(started).toEqual([{ cwd: '/repo/arra-oracle-v3', port: '47779' }]);
+    expect(result.output).toContain('backend: full Oracle');
+    expect(started).toEqual([expect.objectContaining({
+      cwd: expect.stringContaining('maw-plugin'),
+      port: '47779',
+      root: '/repo/arra-oracle-v3',
+      command: expect.objectContaining({ command: 'bun', args: ['server.ts'] }),
+    })]);
+  });
+
+  test('probes configured vector server before starting', async () => {
+    const seen: string[] = [];
+    const result = await runServe({ pos: [], flags: { port: '47779' } }, runner, {
+      ...env(),
+      VECTOR_URL: 'http://vector.local:8081/root/',
+    }, {
+      start: () => 43211,
+      isAlive: () => false,
+      fetch: async (input) => {
+        seen.push(String(input));
+        return Response.json({ status: 'ok', protocol: 'vector-proxy-v1' });
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain('vector preflight: ok http://vector.local:8081/root');
+    expect(seen).toEqual(['http://vector.local:8081/health']);
+  });
+
+  test('blocks start when configured vector server preflight fails', async () => {
+    let started = false;
+    const result = await runServe({ pos: [], flags: {} }, runner, {
+      ...env(),
+      VECTOR_URL: 'http://vector.local:8081',
+    }, {
+      start: () => { started = true; return 1; },
+      isAlive: () => false,
+      fetch: async () => Response.json({ status: 'down' }, { status: 503 }),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('vector preflight failed for http://vector.local:8081');
+    expect(started).toBe(false);
+  });
+
+  test('starts optional in-process backend without spawning manifest command', async () => {
+    const started: unknown[] = [];
+    const result = await runServe({ pos: [], flags: { in_process: true, port: '47780' } }, runner, env(), {
+      isAlive: () => false,
+      start: () => { throw new Error('spawn should not be used for --in-process'); },
+      inProcessStart: async (root, startEnv) => {
+        started.push({ root, port: startEnv.ORACLE_PORT, source: startEnv.ARRA_BACKEND_SOURCE });
+        return { pid: 24601, port: '47780', healthPath: '/api/health' };
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain('started pid=24601 port=47780');
+    expect(result.output).toContain('mode: in-process');
+    expect(result.output).not.toContain('command:');
+    expect(started).toEqual([{ root: '/repo/arra-oracle-v3', port: '47780', source: 'maw-plugin' }]);
   });
 
   test('supports positional start stop status actions', async () => {
@@ -137,7 +214,7 @@ describe('maw arra serve command', () => {
     expect(result.output).toContain('started pid=77777');
     expect(calls).toEqual([
       ['ghq', ['locate', 'Soul-Brews-Studio/arra-oracle-v3']],
-      ['start', '/ghq/github.com/Soul-Brews-Studio/arra-oracle-v3'],
+      ['start', expect.stringContaining('maw-plugin')],
     ]);
   });
 

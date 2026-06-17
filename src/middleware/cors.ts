@@ -1,10 +1,18 @@
 import { Elysia } from 'elysia';
+import {
+  LEGACY_TENANT_HEADER,
+  ORG_HEADER,
+  TENANT_API_KEY_HEADER,
+  TENANT_HEADER,
+  TENANT_TOKEN_HEADER,
+} from './tenant.ts';
 
 const DEFAULT_ORIGINS = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
   'http://localhost:4321',
   'http://127.0.0.1:4321',
+  'https://god.buildwithoracle.com',
 ] as const;
 const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] as const;
 const ALLOWED_HEADERS = [
@@ -13,9 +21,14 @@ const ALLOWED_HEADERS = [
   'x-correlation-id',
   'x-request-id',
   'x-requested-with',
-  'x-tenant-id',
+  TENANT_HEADER.toLowerCase(),
+  TENANT_TOKEN_HEADER.toLowerCase(),
+  TENANT_API_KEY_HEADER.toLowerCase(),
+  ORG_HEADER.toLowerCase(),
+  LEGACY_TENANT_HEADER.toLowerCase(),
 ] as const;
 const MAX_AGE_SECONDS = '86400';
+const PNA_REQUEST_HEADER = 'access-control-request-private-network';
 
 export interface CorsPolicy {
   wildcard: false;
@@ -32,10 +45,21 @@ function splitCsv(value: string): string[] {
   return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
+function normalizeOrigin(raw: string): string | null {
+  const value = raw.trim();
+  if (!value || value === '*' || value.toLowerCase() === 'null') return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
 function allowedRequestHeaders(request: Request): string[] | null {
   const requested = request.headers.get('access-control-request-headers');
   if (!requested) return [...ALLOWED_HEADERS];
-  const headers = splitCsv(requested).map((header) => header.toLowerCase());
+  const headers = [...new Set(splitCsv(requested).map((header) => header.toLowerCase()))];
   const allowed = new Set<string>(ALLOWED_HEADERS);
   return headers.every((header) => allowed.has(header)) ? headers : null;
 }
@@ -43,20 +67,25 @@ function allowedRequestHeaders(request: Request): string[] | null {
 function allowsRequestMethod(request: Request): boolean {
   const requested = request.headers.get('access-control-request-method');
   if (!requested) return true;
-  return ALLOWED_METHODS.includes(requested.toUpperCase() as typeof ALLOWED_METHODS[number]);
+  return ALLOWED_METHODS.includes(requested.trim().toUpperCase() as typeof ALLOWED_METHODS[number]);
+}
+
+function wantsPrivateNetwork(request: Request): boolean {
+  return request.headers.get(PNA_REQUEST_HEADER)?.trim().toLowerCase() === 'true';
 }
 
 export function parseCorsOrigins(value = configuredOrigins()): CorsPolicy {
-  const origins = value?.trim() ? splitCsv(value) : [...DEFAULT_ORIGINS];
+  const rawOrigins = value?.trim() ? splitCsv(value) : [...DEFAULT_ORIGINS];
+  const origins = [...new Set(rawOrigins.map(normalizeOrigin).filter((origin): origin is string => !!origin))];
   return {
     wildcard: false,
-    origins: origins.filter((origin) => origin !== '*'),
+    origins,
   };
 }
 
 export function allowedCorsOrigin(origin: string | null | undefined, policy = parseCorsOrigins()): string | null {
-  if (!origin) return null;
-  return policy.origins.includes(origin) ? origin : null;
+  const normalized = origin ? normalizeOrigin(origin) : null;
+  return normalized && policy.origins.includes(normalized) ? normalized : null;
 }
 
 type MutableHeaders = Record<string, string | number | string[]>;
@@ -94,7 +123,10 @@ function preflightResponse(request: Request, policy: CorsPolicy): Response {
     'Access-Control-Max-Age': MAX_AGE_SECONDS,
   };
   const allowed = applyCorsHeaders(headers, request, policy);
-  if (allowed && request.headers.get('access-control-request-private-network') === 'true') {
+  appendVary(headers, 'Access-Control-Request-Method');
+  appendVary(headers, 'Access-Control-Request-Headers');
+  appendVary(headers, 'Access-Control-Request-Private-Network');
+  if (allowed && wantsPrivateNetwork(request)) {
     headers['Access-Control-Allow-Private-Network'] = 'true';
   }
   return new Response(null, { status: 204, headers });
@@ -115,10 +147,7 @@ export function createCorsMiddleware(policy = parseCorsOrigins()) {
 
 export function createPrivateNetworkPreflightMiddleware(policy = parseCorsOrigins()) {
   return new Elysia({ name: 'private-network-preflight' }).onRequest(({ request }) => {
-    if (
-      request.method === 'OPTIONS' &&
-      request.headers.get('access-control-request-private-network') === 'true'
-    ) {
+    if (request.method === 'OPTIONS' && wantsPrivateNetwork(request)) {
       return preflightResponse(request, policy);
     }
   });

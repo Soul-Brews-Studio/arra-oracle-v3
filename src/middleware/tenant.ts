@@ -10,12 +10,14 @@ export const LEGACY_TENANT_HEADER = 'X-Tenant-ID';
 export const ORG_HEADER = 'X-Org-Id';
 export const TENANT_API_KEY_HEADER = 'X-API-Key';
 const TENANT_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
+const RESERVED_TENANT_KEYS = new Set(['constructor', 'prototype']);
 
 export const DEFAULT_TENANT_ID = 'default';
 type TenantContext = { tenantId?: string };
 type ProjectColumn = { project: unknown };
 type FetchHandler = (request: Request) => Response | Promise<Response>;
 type TenantTokenMap = Record<string, string>;
+type TokenEntry = [string, unknown];
 
 const tenantStore = new AsyncLocalStorage<TenantContext>();
 const tenants = new WeakMap<Request, string | undefined>();
@@ -29,11 +31,19 @@ function safeEqual(a: string, b: string): boolean {
 export function parseTenantTokens(raw = process.env.ORACLE_TENANT_TOKENS ?? ''): TenantTokenMap {
   const value = raw.trim();
   if (!value) return {};
-  if (value.startsWith('{')) return JSON.parse(value) as TenantTokenMap;
-  return Object.fromEntries(value.split(',').map((entry) => {
+  if (value.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error('object expected');
+      return tokenMapFromEntries(Object.entries(parsed));
+    } catch {
+      throw new Error('invalid tenant token config');
+    }
+  }
+  return tokenMapFromEntries(value.split(',').map((entry) => {
     const [tenant, ...tokenParts] = entry.split('=');
     return [tenant.trim(), tokenParts.join('=').trim()];
-  }).filter(([tenant, token]) => tenant && token));
+  }));
 }
 
 export function parseTenantApiKeys(raw = process.env.ORACLE_TENANT_API_KEYS ?? ''): TenantTokenMap {
@@ -45,12 +55,31 @@ function bearerToken(headers: Headers): string {
   return value.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ?? '';
 }
 
+function tokenMapFromEntries(entries: TokenEntry[]): TenantTokenMap {
+  const map: TenantTokenMap = {};
+  for (const [rawTenant, rawToken] of entries) {
+    const tenant = rawTenant.trim();
+    const token = typeof rawToken === 'string' ? rawToken.trim() : '';
+    if (!tenant && !token) continue;
+    if (!tenant || !token || (tenant !== '*' && !isValidTenantId(tenant))) {
+      throw new Error('invalid tenant token config');
+    }
+    map[tenant] = token;
+  }
+  return map;
+}
+
+function isValidTenantId(tenantId: string): boolean {
+  return TENANT_PATTERN.test(tenantId) && !RESERVED_TENANT_KEYS.has(tenantId.toLowerCase());
+}
+
 function tenantIdFromApiKey(headers: Headers, apiKeys = parseTenantApiKeys()): string | undefined {
   const actual = headers.get(TENANT_API_KEY_HEADER)?.trim() || bearerToken(headers);
   if (!actual) return undefined;
   for (const [tenantId, expected] of Object.entries(apiKeys)) {
+    if (tenantId === '*') continue;
     if (expected && safeEqual(actual, expected)) {
-      if (!TENANT_PATTERN.test(tenantId)) throw new Error('invalid tenant id');
+      if (!isValidTenantId(tenantId)) throw new Error('invalid tenant id');
       return tenantId;
     }
   }
@@ -61,7 +90,7 @@ export function tenantIdFromHeaders(headers: Headers): string | undefined {
   const raw = headers.get(TENANT_HEADER) ?? headers.get(LEGACY_TENANT_HEADER) ?? headers.get(ORG_HEADER);
   const tenant = raw?.trim();
   if (!tenant) return tenantIdFromApiKey(headers);
-  if (!TENANT_PATTERN.test(tenant)) throw new Error('invalid tenant id');
+  if (!isValidTenantId(tenant)) throw new Error('invalid tenant id');
   return tenant;
 }
 
@@ -144,7 +173,11 @@ export function createTenantMiddleware() {
       if (tenantError) return { error: tenantError };
     })
     .onRequest(({ request }) => {
-      tenantIdFor(request);
+      try {
+        tenantIdFor(request);
+      } catch {
+        // derive returns the structured 400 tenant error response.
+      }
     });
 }
 

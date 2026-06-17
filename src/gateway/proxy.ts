@@ -5,22 +5,41 @@
  * Returns 502 on connection refused, 504 on timeout.
  */
 import type { ServiceConfig } from './config.ts';
+import { currentTenantId, TENANT_HEADER, tenantIdFor } from '../middleware/tenant.ts';
 import { cloneRetryableBody, retryableRequestBody, retryUpstreamRequest } from '../middleware/retry.ts';
 
 const DEFAULT_TIMEOUT_MS = 15_000;
+
+function safeTimeoutMs(value: number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : DEFAULT_TIMEOUT_MS;
+}
+
+function normalizeServiceUrl(value: unknown): string {
+  const targetBase = typeof value === 'string' ? value.trim().replace(/\/+$/, '') : '';
+  if (!targetBase) throw new Error('service url is required');
+  const parsed = new URL(targetBase);
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error('service url must use http or https');
+  }
+  return targetBase;
+}
 
 export async function proxyToService(
   request: Request,
   service: ServiceConfig,
 ): Promise<Response> {
   const incomingUrl = new URL(request.url);
-  const targetBase = service.url.replace(/\/+$/, '');
-  const targetUrl = `${targetBase}${incomingUrl.pathname}${incomingUrl.search}`;
-  const timeoutMs = service.timeout ?? DEFAULT_TIMEOUT_MS;
+  let targetBase = '<invalid>';
+  const timeoutMs = safeTimeoutMs(service.timeout);
 
   try {
+    targetBase = normalizeServiceUrl(service.url);
+    const targetUrl = `${targetBase}${incomingUrl.pathname}${incomingUrl.search}`;
     const headers = new Headers(request.headers);
     headers.delete('host');
+    const tenantId = currentTenantId() ?? tenantIdFor(request);
+    if (tenantId) headers.set(TENANT_HEADER, tenantId);
+
     const body = await retryableRequestBody(request);
 
     const res = await retryUpstreamRequest(() => fetch(targetUrl, {
@@ -33,7 +52,7 @@ export async function proxyToService(
 
     // Stream the response back, preserving status and headers
     const responseHeaders = new Headers(res.headers);
-    responseHeaders.set('X-Gateway-Service', service.url);
+    responseHeaders.set('X-Gateway-Service', targetBase);
 
     return new Response(res.body, {
       status: res.status,

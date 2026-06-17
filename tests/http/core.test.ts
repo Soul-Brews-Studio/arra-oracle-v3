@@ -3,7 +3,6 @@
  *
  * Covers:
  *   - src/routes/health.ts      → /api/health, /api/stats, /api/oracles
- *   - src/routes/oraclenet.ts   → /api/oraclenet/{feed,oracles,presence,status}
  *   - src/routes/dashboard.ts   → /api/dashboard(/summary|activity|growth), /api/session/stats
  *
  * Runs against current Hono backend; shape contracts will later verify Elysia parity.
@@ -116,56 +115,6 @@ describe("HTTP Contract — Core Routes", () => {
     test("GET /api/oracles?hours=notanumber → coerces without 500", async () => {
       const res = await fetch(`${BASE_URL}/api/oracles?hours=abc`);
       expect(res.status).toBeLessThan(500);
-    });
-  });
-
-  // ============================================================
-  // oraclenet.ts — upstream may be offline; tolerate 200 or 502
-  // ============================================================
-  describe("oraclenet.ts", () => {
-    const okOrBadGateway = (status: number) =>
-      expect([200, 502]).toContain(status);
-
-    test("GET /api/oraclenet/feed → 200 payload or 502 error", async () => {
-      const res = await fetch(`${BASE_URL}/api/oraclenet/feed`);
-      okOrBadGateway(res.status);
-      const data = await res.json();
-      if (res.status === 502) expect(typeof data.error).toBe("string");
-      else expect(typeof data).toBe("object");
-    }, 15_000);
-
-    test("GET /api/oraclenet/feed?sort=-created&limit=5", async () => {
-      const res = await fetch(`${BASE_URL}/api/oraclenet/feed?sort=-created&limit=5`);
-      okOrBadGateway(res.status);
-    }, 15_000);
-
-    test("GET /api/oraclenet/oracles → 200 or 502", async () => {
-      const res = await fetch(`${BASE_URL}/api/oraclenet/oracles`);
-      okOrBadGateway(res.status);
-    }, 15_000);
-
-    test("GET /api/oraclenet/oracles?limit=10", async () => {
-      const res = await fetch(`${BASE_URL}/api/oraclenet/oracles?limit=10`);
-      okOrBadGateway(res.status);
-    }, 15_000);
-
-    test("GET /api/oraclenet/presence → 200 or 502", async () => {
-      const res = await fetch(`${BASE_URL}/api/oraclenet/presence`);
-      okOrBadGateway(res.status);
-    }, 15_000);
-
-    test("GET /api/oraclenet/status → always 200 with online flag", async () => {
-      const res = await fetch(`${BASE_URL}/api/oraclenet/status`);
-      expect(res.ok).toBe(true);
-      const data = await res.json();
-      expect(typeof data.online).toBe("boolean");
-      expect(typeof data.url).toBe("string");
-    }, 15_000);
-
-    test("GET /api/oraclenet/nonexistent → not 5xx", async () => {
-      const res = await fetch(`${BASE_URL}/api/oraclenet/nonexistent`);
-      expect(res.status).toBeLessThan(500);
-      expect(res.status).toBeGreaterThanOrEqual(400);
     });
   });
 

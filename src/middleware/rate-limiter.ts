@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { apiRequestPath } from './api-version.ts';
+import { API_VERSION, apiRequestPath } from './api-version.ts';
 import { apiErrorResponse } from './errors.ts';
 
 export type RateLimitRule = {
@@ -31,15 +31,21 @@ function pathMatches(rule: RateLimitRule, pathname: string): boolean {
   return typeof rule.path === 'string' ? pathname === rule.path : rule.path.test(pathname);
 }
 
+function canonicalApiPath(pathname: string): string {
+  const versionedRoot = `/api/${API_VERSION}`;
+  if (pathname === versionedRoot) return '/api';
+  return pathname.startsWith(`${versionedRoot}/`) ? `/api${pathname.slice(versionedRoot.length)}` : pathname;
+}
+
 export function matchingRateLimitRule(request: Request, rules = DEFAULT_RATE_LIMIT_RULES): RateLimitRule | undefined {
-  const pathname = apiRequestPath(request);
+  const pathname = canonicalApiPath(apiRequestPath(request));
   return rules.find((rule) => methodAllowed(rule, request.method) && pathMatches(rule, pathname));
 }
 
 export function clientRateLimitKey(request: Request): string {
   const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
   const clientIp = request.headers.get('cf-connecting-ip')?.trim() || forwarded || 'local';
-  return `${request.method.toUpperCase()} ${apiRequestPath(request)} ${clientIp}`;
+  return `${request.method.toUpperCase()} ${canonicalApiPath(apiRequestPath(request))} ${clientIp}`;
 }
 
 function secondsUntil(resetAt: number, now: number): number {

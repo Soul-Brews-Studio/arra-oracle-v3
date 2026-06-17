@@ -44,12 +44,11 @@ function expectSqliteAbort(fn: () => void, message: string) {
   expect(fn).toThrow(new RegExp(message));
 }
 
-test('oracle_documents tenant_id must reference a tenant row', () => {
+test('oracle_documents auto-registers tenant rows for scoped data', () => {
   const conn = freshDb();
-  expectSqliteAbort(
-    () => addDoc(conn, 'missing-tenant-doc', 'missing-tenant'),
-    'tenant_id must reference tenants.id',
-  );
+  addDoc(conn, 'missing-tenant-doc', 'missing-tenant');
+  const row = conn.db.select({ id: tenants.id }).from(tenants).where(eq(tenants.id, 'missing-tenant')).get();
+  expect(row).toEqual({ id: 'missing-tenant' });
 });
 
 test('supersede chains stay inside the same tenant and cannot cycle', () => {

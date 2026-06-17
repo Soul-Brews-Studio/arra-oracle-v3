@@ -2,6 +2,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { ORACLE_DATA_DIR_NAME, ORACLE_DEFAULT_PORT, PID_FILE_NAME } from '../../const.ts';
 import { configure, isProcessAlive, readPidFile, removePidFile, waitForProcessesExit, writePidFile } from '../../process-manager/index.ts';
+import { readVectorServerHealth } from '../../routes/health/vector-server.ts';
 
 type CliResult = { ok: boolean; output?: string; error?: string };
 type ServeAction = 'start' | 'stop' | 'status';
@@ -59,6 +60,8 @@ async function renderStatus(options: ServeOptions, deps: ServeDeps): Promise<Cli
 async function startServer(options: ServeOptions, deps: ServeDeps): Promise<CliResult> {
   const status = await serverStatus(options.port, deps.fetch);
   if (status.running) return { ok: true, output: `Oracle server already running on ${status.url} (pid=${status.pid ?? 'unknown'})` };
+  const vector = await vectorPreflight(deps.fetch);
+  if (!vector.ok) return { ok: false, error: vector.error };
   const child = (deps.spawn ?? Bun.spawn)(['bun', 'run', 'server'], {
     cwd: deps.cwd ?? process.env.ORACLE_REPO_ROOT ?? process.cwd(),
     detached: true,
@@ -68,12 +71,27 @@ async function startServer(options: ServeOptions, deps: ServeDeps): Promise<CliR
   if (!child.pid) return { ok: false, error: 'failed to spawn Oracle server' };
   child.unref?.();
   writePidFile({ pid: child.pid, port: options.port, startedAt: new Date().toISOString(), name: 'oracle-http' });
-  return { ok: true, output: `Oracle server started on http://${DEFAULT_HOST}:${options.port} (pid=${child.pid})` };
+  return { ok: true, output: [
+    `Oracle server started on http://${DEFAULT_HOST}:${options.port} (pid=${child.pid})`,
+    vector.line,
+  ].filter(Boolean).join('\n') };
+}
+
+async function vectorPreflight(fetcher: typeof fetch = fetch): Promise<{ ok: boolean; line?: string; error?: string }> {
+  const health = await readVectorServerHealth(fetcher);
+  if (!health.configured) return { ok: true };
+  if (health.status !== 'ok') {
+    return { ok: false, error: `vector preflight failed for ${health.url ?? 'configured vector server'}: ${health.error ?? health.status}` };
+  }
+  return { ok: true, line: `vector preflight: ok ${health.url ?? 'configured vector server'}` };
 }
 
 async function stopServer(options: ServeOptions): Promise<CliResult> {
   const info = readPidFile();
   if (!info?.pid) return { ok: true, output: `Oracle server not running on http://${DEFAULT_HOST}:${options.port}` };
+  if (info.port !== options.port) {
+    return { ok: true, output: `Oracle server not running on http://${DEFAULT_HOST}:${options.port} (PID file tracks port ${info.port})` };
+  }
   if (!isProcessAlive(info.pid)) {
     removePidFile();
     return { ok: true, output: `Removed stale PID file (pid=${info.pid})` };
@@ -90,11 +108,12 @@ async function stopServer(options: ServeOptions): Promise<CliResult> {
 
 async function serverStatus(port: number, fetcher: typeof fetch = fetch) {
   const info = readPidFile();
-  const processAlive = info?.pid ? isProcessAlive(info.pid) : false;
+  const pidMatchesPort = info?.port === port;
+  const processAlive = pidMatchesPort && info?.pid ? isProcessAlive(info.pid) : false;
   const healthy = await isHealthy(port, fetcher);
   return {
     running: processAlive || healthy,
-    pid: info?.pid,
+    pid: processAlive ? info?.pid : undefined,
     port,
     healthy,
     url: `http://${DEFAULT_HOST}:${port}`,

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "arra-oracle-studio",
+  "main": "worker.ts",
+  "compatibility_date": "2026-06-16",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "../../frontend/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "vars": {
+    "ORACLE_URL": "https://replace-with-your-oracle-backend.example.com",
+    "ORACLE_MCP_URL": "https://arra-oracle-mcp.laris.workers.dev/mcp"
+  }
+}

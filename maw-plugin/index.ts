@@ -4,6 +4,7 @@ import { apiArgsToCliArgs } from './api.ts';
 import { resolveServePort, runServe, type ServeDeps } from './serve.ts';
 import { LOCAL_CLI_HELP, resolveLocalCliName, runLocalCli } from './local-cli.ts';
 import { runVectorConfig, VECTOR_CONFIG_HELP } from './vector-config.ts';
+import { MCP_CLIENT_HELP, runMcpCall } from './mcp-client.ts';
 type InvokeContext = { source?: string; args?: string[] | Record<string, unknown>; writer?: (...args: unknown[]) => void };
 type InvokeResult = { ok: boolean; output?: string; error?: string };
 type Requester = (path: string, init?: RequestInit) => Promise<unknown>;
@@ -176,12 +177,21 @@ export const COMMANDS: Record<string, Spec> = {
   verify: { tool: 'oracle_verify', method: 'POST', write: true, help: 'verify [--check true|false] [--type all|learning|pattern]', build: p => route('/api/verify', undefined, { check: b(p, 'check'), type: f(p, 'type') }), format: d => `arra verify: ${preview(d, 500)}` },
 };
 
-const LOCAL_COMMANDS = { frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]', serve: 'serve [--stop|--status] [--port N]', server: 'server [start|stop|status]', studio: 'studio [--port N]', ...LOCAL_CLI_HELP } as const;
+const LOCAL_COMMANDS = { commands: 'commands', mcp_call: MCP_CLIENT_HELP, frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]', serve: 'serve [--backend] [--in-process] [--stop|--status] [--port N]', server: 'server [start|stop|status]', studio: 'studio [--port N]', ...LOCAL_CLI_HELP } as const;
+const MCP_COMMANDS = new Set(['commands', ...Object.entries(COMMANDS).filter(([name, spec]) => name !== 'vector_config' && !spec.write && spec.method === 'GET').map(([name]) => name)]);
 function usage(): InvokeResult {
   const commandNames = [...Object.keys(COMMANDS), ...Object.keys(LOCAL_COMMANDS)].sort();
   return { ok: false, error: 'usage', output: ['usage: maw arra <subcommand> [args]', `subcommands: ${commandNames.join('|')}`, '', ...Object.entries(LOCAL_COMMANDS).sort().map(([name, help]) => `  ${name}  ${help}`), ...Object.entries(COMMANDS).sort().map(([name, spec]) => `  ${name}  ${spec.help}`)].join('\n') };
 }
 export function listSubcommands(): string[] { return [...Object.keys(COMMANDS), ...Object.keys(LOCAL_COMMANDS)].sort(); }
+
+function registryPayload(source?: string): InvokeResult {
+  const commands = listSubcommands().map(name => {
+    const localHelp = LOCAL_COMMANDS[name as keyof typeof LOCAL_COMMANDS];
+    return { name, help: COMMANDS[name]?.help ?? localHelp };
+  });
+  return { ok: true, output: JSON.stringify({ plugin: 'arra', surface: source ?? 'api', cli: 'arra', menu: '/plugins/arra', api: '/api/arra', commands }, null, 2) };
+}
 
 function runFrontend(parsed: Parsed, opener: Opener, env: Record<string, string | undefined>): InvokeResult {
   const url = buildFrontendUrl(env);
@@ -207,8 +217,10 @@ export async function runArra(args: string[], request: Requester = requestJson, 
   const sub = key(args[0] || '');
   if (!sub || sub === 'help' || sub === '--help' || sub === '-h') return usage();
   const parsed = parse(args.slice(1));
+  if (sub === 'commands') return registryPayload('cli');
   if (sub === 'frontend' || sub === 'ui' || sub === 'open') return runFrontend(parsed, opener, env);
   if (sub === 'studio') return runStudio(parsed, runner, env);
+  if (sub === 'mcp_call') return runMcpCall(args.slice(1), env);
   if (sub === 'serve' || sub === 'server') return runServe(parsed, runner, env, serveDeps);
   if (resolveLocalCliName(sub)) return runLocalCli(sub, args.slice(1), runner, env);
   if (sub === 'vector_config') return runVectorConfig(parsed, request, authHeaders);
@@ -224,4 +236,14 @@ export async function runArra(args: string[], request: Requester = requestJson, 
   } catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
 }
 
-export default async function handler(ctx: InvokeContext): Promise<InvokeResult> { return runArra(apiArgsToCliArgs(ctx.args)); }
+export default async function handler(ctx: InvokeContext): Promise<InvokeResult> {
+  const args = apiArgsToCliArgs(ctx.args);
+  if (ctx.source === 'mcp' && args.length && !MCP_COMMANDS.has(key(args[0]))) return { ok: false, error: 'MCP surface exposes read-only commands only' };
+  if (ctx.source !== 'cli' && args.length === 0) return registryPayload(ctx.source);
+  const result = await runArra(args);
+  if (ctx.source === 'cli' && ctx.writer && result.ok && result.output) {
+    ctx.writer(result.output);
+    return { ok: true };
+  }
+  return result;
+}

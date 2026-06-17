@@ -20,7 +20,6 @@ describe('GET /api/docs', () => {
         ORACLE_DB_PATH: join(scratch, 'data', 'oracle.db'),
         ORACLE_REPO_ROOT: join(scratch, 'repo'),
         ARRA_API_TOKEN: 'test-token',
-        ARRA_SCOUT_ANNOUNCE: '0',
         ORACLE_EMBEDDER: 'none',
       },
       stdout: 'ignore',

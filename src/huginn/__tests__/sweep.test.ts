@@ -53,6 +53,31 @@ describe('Huginn periodic sweep', () => {
     expect(Object.keys(state.captures)).toHaveLength(1);
   });
 
+  it('recovers when persisted sweep state has malformed records', async () => {
+    const dir = tmpdir();
+    const sessions = path.join(dir, 'sessions');
+    const transcript = path.join(sessions, 'malformed-state.jsonl');
+    const statePath = path.join(dir, 'state.json');
+    fs.writeFileSync(statePath, JSON.stringify({ captures: [], sweeps: [] }));
+    writeJsonl(transcript, [
+      { message: { role: 'assistant', content: 'Decision: Huginn sweep should tolerate malformed persisted state records.' } },
+    ], 2_000);
+
+    const result = await sweepHuginn({
+      sessionDirs: [sessions],
+      statePath,
+      now: 3_000,
+      learn: () => ({ id: 'learn_malformed_state' }),
+      indexMarkdown: () => {},
+    });
+
+    expect(result.learned).toBe(1);
+    const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+    expect(Array.isArray(state.captures)).toBe(false);
+    expect(Array.isArray(state.sweeps)).toBe(false);
+    expect(state.sweeps.lastSweepAtMs).toBe(3_000);
+  });
+
   it('uses #49 dedup state when the fast-path hook already captured the transcript', async () => {
     const dir = tmpdir();
     const sessions = path.join(dir, 'sessions');
@@ -97,5 +122,33 @@ describe('Huginn periodic sweep', () => {
     const second = await sweepHuginn({ sessionDirs: [], repoRoot, statePath, now: 4_000, indexMarkdown: (_file, sourceFile) => indexed.push(sourceFile) });
     expect(second.markdownIndexed).toBe(0);
     expect(indexed).toHaveLength(1);
+  });
+
+  it('normalizes invalid limits and ignores future sweep watermarks', async () => {
+    const dir = tmpdir();
+    const sessions = path.join(dir, 'sessions');
+    const statePath = path.join(dir, 'state.json');
+    fs.writeFileSync(statePath, JSON.stringify({ captures: {}, sweeps: { lastSweepAtMs: 999_999 } }));
+    writeJsonl(path.join(sessions, 'one.jsonl'), [
+      { message: { role: 'assistant', content: 'Decision: invalid Huginn sweep limits should fall back safely.' } },
+    ], 2_000);
+    writeJsonl(path.join(sessions, 'two.jsonl'), [
+      { message: { role: 'assistant', content: 'Learned: future sweep watermarks should not suppress backfill.' } },
+    ], 2_100);
+
+    const result = await sweepHuginn({
+      sessionDirs: [sessions],
+      statePath,
+      now: 3_000,
+      lookbackHours: Number.NaN,
+      maxFiles: 0,
+      learn: () => ({ id: 'learn_normalized' }),
+      indexMarkdown: () => {},
+    });
+
+    expect(result.watermarkBeforeMs).toBeUndefined();
+    expect(result.scanned).toBe(2);
+    expect(result.learned).toBe(2);
+    expect(result.capped).toBe(false);
   });
 });

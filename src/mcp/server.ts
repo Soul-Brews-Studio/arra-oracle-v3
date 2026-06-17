@@ -12,10 +12,13 @@ import { getDisabledTools, getEnabledToolNames, loadToolGroupConfig, watchToolGr
 import type { ToolContext, ToolResponse } from '../tools/types.ts';
 import type { VectorStoreAdapter } from '../vector/types.ts';
 import { defaultMcpToolOrder, mcpToolByName, mcpTools, toMcpToolDefinition, type RuntimeMcpToolManifest } from '../tools/mcp-manifest.ts';
-import { loadUnifiedPlugins, type UnifiedRuntime } from '../plugins/unified-loader.ts';
+import type { UnifiedRuntime } from '../plugins/unified-loader.ts';
 import { resolveToolName } from './aliases.ts';
 import { proxyToolCall, resolveOracleApiBase } from './http-proxy.ts';
 import { pluginMcpToolsFrom } from './plugin-tools.ts';
+import { runWithTenant } from '../middleware/tenant.ts';
+import { stripMcpTenantArgs, tenantIdFromMcpArgs } from './tenant.ts';
+import { createMcpPluginRuntime, type McpPluginRuntime, type McpPluginRuntimeOptions } from './plugin-runtime.ts';
 
 function errorResponse(text: string): ToolResponse {
   return { content: [{ type: 'text', text }], isError: true };
@@ -40,6 +43,9 @@ export type OracleMCPServerOptions = {
   toolGroups?: ToolGroupConfig;
   embeddedDeps?: EmbeddedDeps | Promise<EmbeddedDeps>;
   watchToolGroups?: typeof watchToolGroupConfig;
+  unifiedRuntime?: McpPluginRuntimeOptions['runtime'];
+  unifiedRuntimeRef?: McpPluginRuntimeOptions['runtimeRef'];
+  watchPlugins?: McpPluginRuntimeOptions['watch'];
 };
 
 export class OracleMCPServer {
@@ -58,7 +64,7 @@ export class OracleMCPServer {
   private stopToolGroupsWatch: (() => void) | null = null;
   private embeddedReady: Promise<void> | null = null;
   private readonly oracleApiBase: string | null;
-  private readonly unifiedRuntimeReady: Promise<UnifiedRuntime>;
+  private readonly unifiedRuntime: McpPluginRuntime;
   private readonly embeddedDeps?: EmbeddedDeps | Promise<EmbeddedDeps>;
   private readonly watchToolGroups: typeof watchToolGroupConfig;
 
@@ -75,7 +81,7 @@ export class OracleMCPServer {
     const groupConfig = options.toolGroups ?? loadToolGroupConfig(this.repoRoot);
     this.applyToolGroupConfig(groupConfig);
     this.logToolGroupConfig(groupConfig);
-    this.unifiedRuntimeReady = loadUnifiedPlugins({ warn: (message) => console.error(message) });
+    this.unifiedRuntime = createMcpPluginRuntime({ runtime: options.unifiedRuntime, runtimeRef: options.unifiedRuntimeRef, watch: options.watchPlugins, warn: (message) => console.error(message) });
     this.watchToolGroupsIfNeeded(options.toolGroups);
 
     this.server = new Server(
@@ -132,7 +138,7 @@ export class OracleMCPServer {
     if (this.embeddedDeps) return await this.embeddedDeps;
     const [{ createVectorStoreForModel, getEmbeddingModels }, { createDatabase }] = await Promise.all([
       import('../vector/factory.ts'),
-      import('../db/index.ts'),
+      import('../db/create.ts'),
     ]);
     return { createVectorStoreForModel, getEmbeddingModels, createDatabase };
   }
@@ -163,7 +169,7 @@ export class OracleMCPServer {
   }
 
   private async toolRegistry(): Promise<Map<string, RuntimeMcpToolManifest>> {
-    const runtime = await this.unifiedRuntimeReady;
+    const runtime = await this.unifiedRuntime.current();
     const pluginTools = pluginMcpToolsFrom(runtime, new Set(mcpToolByName.keys()));
     return new Map([...mcpTools, ...pluginTools].map((tool) => [tool.name, tool]));
   }
@@ -192,6 +198,9 @@ export class OracleMCPServer {
     }));
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> => {
+      if (typeof request.params.name !== 'string' || !request.params.name.trim()) {
+        return errorResponse('Error: Tool name must be a non-empty string');
+      }
       const toolName = resolveToolName(request.params.name);
       const tool = (await this.toolRegistry()).get(toolName);
       if (!tool) return errorResponse(`Error: Unknown tool: ${toolName}`);
@@ -202,12 +211,14 @@ export class OracleMCPServer {
         return errorResponse(`Error: Tool "${toolName}" is disabled in read-only mode. This Oracle instance is configured for read-only access.`);
       }
       try {
-        const args = request.params.arguments && typeof request.params.arguments === 'object'
+        const rawArgs = request.params.arguments && typeof request.params.arguments === 'object'
           ? request.params.arguments as Record<string, unknown>
           : {};
-        const proxied = await proxyToolCall(this.oracleApiBase, toolName, args);
+        const tenantId = tenantIdFromMcpArgs(rawArgs);
+        const args = stripMcpTenantArgs(rawArgs);
+        const proxied = await proxyToolCall(this.oracleApiBase, toolName, args, tenantId);
         if (proxied) return proxied;
-        return await tool.handler(args, { version: this.version, getToolCtx: () => this.getToolCtx() });
+        return await runWithTenant(tenantId, () => tool.handler(args, { version: this.version, getToolCtx: () => this.getToolCtx() }));
       } catch (error) {
         return errorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -231,6 +242,7 @@ export class OracleMCPServer {
 
   async cleanup(): Promise<void> {
     this.stopToolGroupsWatch?.();
+    this.unifiedRuntime.close();
     this.sqlite?.close();
     await this.vectorStore?.close();
   }

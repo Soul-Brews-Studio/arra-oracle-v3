@@ -10,6 +10,7 @@ import { DB_PATH } from '../config.ts';
 import * as schema from '../db/schema.ts';
 import { createDbContextQueryLogger } from '../middleware/db-context.ts';
 import { auditLog, createAuditLogObserver } from './audit-log.ts';
+import { repairAdditiveMigrationDrift } from './migration-repair.ts';
 import type { StorageBackend, StorageBackendOptions } from './types.ts';
 
 const MIGRATIONS_FOLDER = path.join(import.meta.dirname, '../db/migrations');
@@ -53,7 +54,9 @@ function normalizeProjectCasing(db: BunSQLiteDatabase<typeof schema>): void {
 /** Run all default sqlite initialization through Drizzle/migrations. */
 export function initializeDrizzleSqlite(
   db: BunSQLiteDatabase<typeof schema>,
+  sqlite?: Database,
 ): void {
+  if (sqlite) repairAdditiveMigrationDrift(sqlite, MIGRATIONS_FOLDER);
   migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
   seedIndexingStatus(db);
   normalizeProjectCasing(db);
@@ -71,7 +74,7 @@ export function createDrizzleSqliteBackend(
     : new Database(resolvedPath);
   const migrationDb = drizzle(sqlite, { schema });
 
-  if (!options.readonly) initializeDrizzleSqlite(migrationDb);
+  if (!options.readonly) initializeDrizzleSqlite(migrationDb, sqlite);
 
   const auditDb = drizzle(sqlite, { schema: { auditLog } });
   const logger = options.readonly

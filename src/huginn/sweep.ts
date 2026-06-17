@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { ORACLE_DATA_DIR, REPO_ROOT } from '../config.ts';
 import { captureSession, defaultStatePath, type HuginnCaptureResult } from './capture.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 
 export interface HuginnSweepOptions {
   sessionDirs?: string[];
@@ -37,12 +38,16 @@ export interface HuginnSweepSummary {
   files: Array<{ path: string; action: string; sessionId?: string; hash?: string; sourceFile?: string }>;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
 function readSweepState(statePath: string): HuginnSweepState {
   try {
-    const parsed = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+    const parsed: unknown = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
     return {
-      captures: parsed && typeof parsed.captures === 'object' ? parsed.captures : {},
-      sweeps: parsed && typeof parsed.sweeps === 'object' ? parsed.sweeps : {},
+      captures: isRecord(parsed) && isRecord(parsed.captures) ? parsed.captures as HuginnSweepState['captures'] : {},
+      sweeps: isRecord(parsed) && isRecord(parsed.sweeps) ? parsed.sweeps as HuginnSweepState['sweeps'] : {},
     };
   } catch {
     return { captures: {}, sweeps: {} };
@@ -92,6 +97,20 @@ function sourceFileForMarkdown(repoRoot: string, filePath: string): string {
   return path.relative(repoRoot, filePath).split(path.sep).join('/');
 }
 
+function positiveNumber(value: unknown, fallback: number): number {
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+function positiveInteger(value: unknown, fallback: number): number {
+  return Math.max(1, Math.floor(positiveNumber(value, fallback)));
+}
+
+function validWatermark(value: unknown, now: number): number | undefined {
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) && number >= 0 && number <= now ? number : undefined;
+}
+
 function safeSessionIdFromFile(filePath: string): string {
   return path.basename(filePath).replace(/\.jsonl$/i, '');
 }
@@ -104,7 +123,10 @@ async function defaultIndexMarkdown(filePath: string, sourceFile: string): Promi
   ]);
   const { sqlite, db } = createDatabase();
   try {
-    const exists = sqlite.prepare('SELECT id FROM oracle_documents WHERE source_file = ? LIMIT 1').get(sourceFile);
+    const tenantId = currentTenantId();
+    const exists = tenantId
+      ? sqlite.prepare('SELECT id FROM oracle_documents WHERE source_file = ? AND tenant_id = ? LIMIT 1').get(sourceFile, tenantId)
+      : sqlite.prepare('SELECT id FROM oracle_documents WHERE source_file = ? LIMIT 1').get(sourceFile);
     if (exists) return;
     const content = fs.readFileSync(filePath, 'utf-8');
     const docs = parseLearningFile(path.basename(filePath), content, sourceFile);
@@ -124,20 +146,24 @@ async function markdownIndexed(sourceFile: string): Promise<boolean> {
   const { createDatabase } = await import('../db/index.ts');
   const { sqlite } = createDatabase();
   try {
-    return Boolean(sqlite.prepare('SELECT id FROM oracle_documents WHERE source_file = ? LIMIT 1').get(sourceFile));
+    const tenantId = currentTenantId();
+    return Boolean(tenantId
+      ? sqlite.prepare('SELECT id FROM oracle_documents WHERE source_file = ? AND tenant_id = ? LIMIT 1').get(sourceFile, tenantId)
+      : sqlite.prepare('SELECT id FROM oracle_documents WHERE source_file = ? LIMIT 1').get(sourceFile));
   } finally {
     sqlite.close();
   }
 }
 
 export async function sweepHuginn(options: HuginnSweepOptions = {}): Promise<HuginnSweepSummary> {
-  const now = options.now ?? Date.now();
+  const now = Number.isFinite(options.now) ? options.now! : Date.now();
   const statePath = options.statePath ?? defaultStatePath();
   const state = readSweepState(statePath);
-  const lookbackMs = (options.lookbackHours ?? Number(process.env.ARRA_HUGINN_SWEEP_LOOKBACK_HOURS || 24)) * 60 * 60 * 1000;
-  const watermarkBeforeMs = state.sweeps?.lastSweepAtMs;
+  const lookbackHours = positiveNumber(options.lookbackHours ?? process.env.ARRA_HUGINN_SWEEP_LOOKBACK_HOURS ?? 24, 24);
+  const lookbackMs = lookbackHours * 60 * 60 * 1000;
+  const watermarkBeforeMs = validWatermark(state.sweeps?.lastSweepAtMs, now);
   const sinceMs = watermarkBeforeMs ?? now - lookbackMs;
-  const maxFiles = options.maxFiles ?? Number(process.env.ARRA_HUGINN_SWEEP_MAX_FILES || 200);
+  const maxFiles = positiveInteger(options.maxFiles ?? process.env.ARRA_HUGINN_SWEEP_MAX_FILES ?? 200, 200);
   const files: HuginnSweepSummary['files'] = [];
   const summary: HuginnSweepSummary = {
     ok: true,
@@ -180,7 +206,6 @@ export async function sweepHuginn(options: HuginnSweepOptions = {}): Promise<Hug
   const repoRoot = options.repoRoot ?? REPO_ROOT;
   const learningsDir = path.join(repoRoot, 'ψ', 'memory', 'learnings');
   const markdowns: string[] = [];
-  walkRecentFiles(learningsDir, sinceMs, [], 0); // no-op guard for missing dir parity
   if (fs.existsSync(learningsDir)) {
     const collectMd = (dir: string) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

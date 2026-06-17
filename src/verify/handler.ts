@@ -7,10 +7,12 @@
  * Philosophy: "Nothing is Deleted" — orphans are flagged, not removed.
  */
 
-import fs from 'fs';
 import path from 'path';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db, oracleDocuments } from '../db/index.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
+import { walkMarkdownFiles } from './files.ts';
+import { normalizeSourceFile } from './paths.ts';
 
 export interface VerifyResult {
   counts: {
@@ -24,47 +26,26 @@ export interface VerifyResult {
   orphaned: string[];
   drifted: string[];
   untracked: string[];
+  mismatches: VerifyMismatch[];
   recommendation: string;
   fixedOrphans?: number;
 }
 
-interface FileInfo {
-  relativePath: string;
-  mtimeMs: number;
+export interface VerifyMismatch {
+  kind: 'missing' | 'orphaned' | 'drifted' | 'untracked';
+  sourceFile: string;
+  ids?: string[];
+  indexedAt?: number;
+  mtimeMs?: number;
 }
 
-/**
- * Recursively collect all .md files with mtimes
- */
-function walkMarkdownFiles(dir: string, baseDir: string): FileInfo[] {
-  const files: FileInfo[] = [];
-  if (!fs.existsSync(dir)) return files;
-
-  const items = fs.readdirSync(dir);
-  for (const item of items) {
-    const fullPath = path.join(dir, item);
-    const stat = fs.statSync(fullPath);
-    if (stat.isDirectory()) {
-      files.push(...walkMarkdownFiles(fullPath, baseDir));
-    } else if (item.endsWith('.md')) {
-      files.push({
-        relativePath: path.relative(baseDir, fullPath),
-        mtimeMs: stat.mtimeMs,
-      });
-    }
-  }
-  return files;
-}
-
-/**
- * Verify knowledge base integrity: disk files vs DB index
- */
 export function verifyKnowledgeBase(opts: {
   check?: boolean;
   type?: string;
   repoRoot: string;
 }): VerifyResult {
   const { check = true, type, repoRoot } = opts;
+  const tenantId = currentTenantId();
 
   // 1. Walk indexed directories on disk
   const indexedDirs = [
@@ -84,23 +65,32 @@ export function verifyKnowledgeBase(opts: {
   }
 
   // 2. Query DB for all indexed documents
-  const typeFilter = type && type !== 'all' ? type : undefined;
-  const dbRows = typeFilter
+  const normalizedType = type?.trim();
+  const typeFilter = normalizedType && normalizedType !== 'all' ? normalizedType : undefined;
+  const fields = {
+    id: oracleDocuments.id,
+    sourceFile: oracleDocuments.sourceFile,
+    indexedAt: oracleDocuments.indexedAt,
+    type: oracleDocuments.type,
+  };
+  const dbRows = typeFilter && tenantId
+    ? db.select(fields)
+        .from(oracleDocuments)
+        .where(and(eq(oracleDocuments.type, typeFilter), eq(oracleDocuments.tenantId, tenantId)))
+        .all()
+    : typeFilter
     ? db.select({
-        id: oracleDocuments.id,
-        sourceFile: oracleDocuments.sourceFile,
-        indexedAt: oracleDocuments.indexedAt,
-        type: oracleDocuments.type,
+        ...fields,
       })
         .from(oracleDocuments)
         .where(eq(oracleDocuments.type, typeFilter))
         .all()
-    : db.select({
-        id: oracleDocuments.id,
-        sourceFile: oracleDocuments.sourceFile,
-        indexedAt: oracleDocuments.indexedAt,
-        type: oracleDocuments.type,
-      })
+    : tenantId
+      ? db.select(fields)
+        .from(oracleDocuments)
+        .where(eq(oracleDocuments.tenantId, tenantId))
+        .all()
+      : db.select(fields)
         .from(oracleDocuments)
         .all();
 
@@ -108,7 +98,9 @@ export function verifyKnowledgeBase(opts: {
   // Multiple DB entries can point to the same source file (chunked docs)
   const dbFileMap = new Map<string, { indexedAt: number; ids: string[] }>();
   for (const row of dbRows) {
-    const existing = dbFileMap.get(row.sourceFile);
+    const sourceFile = normalizeSourceFile(row.sourceFile, repoRoot);
+    if (!sourceFile) continue;
+    const existing = dbFileMap.get(sourceFile);
     if (existing) {
       existing.ids.push(row.id);
       // Use the latest indexedAt
@@ -116,7 +108,7 @@ export function verifyKnowledgeBase(opts: {
         existing.indexedAt = row.indexedAt;
       }
     } else {
-      dbFileMap.set(row.sourceFile, { indexedAt: row.indexedAt, ids: [row.id] });
+      dbFileMap.set(sourceFile, { indexedAt: row.indexedAt, ids: [row.id] });
     }
   }
 
@@ -126,12 +118,17 @@ export function verifyKnowledgeBase(opts: {
   const drifted: string[] = [];
   const orphaned: string[] = [];
 
-  // Check each file on disk
-  for (const [relPath, mtimeMs] of diskFiles) {
+  // Tenant-scoped requests can only prove ownership for DB-backed files.
+  // Keep global disk-only "missing"/"untracked" reporting for unscoped runs.
+  const pathsToCheck = tenantId ? dbFileMap.keys() : diskFiles.keys();
+  for (const relPath of pathsToCheck) {
+    const mtimeMs = diskFiles.get(relPath);
     const dbEntry = dbFileMap.get(relPath);
     if (!dbEntry) {
       // File on disk, not in DB
       missing.push(relPath);
+    } else if (mtimeMs === undefined) {
+      continue;
     } else {
       // File exists in both — check drift
       if (mtimeMs > dbEntry.indexedAt) {
@@ -156,11 +153,13 @@ export function verifyKnowledgeBase(opts: {
   // 4. Count untracked files outside indexed dirs.
   const untrackedDirs = ['ψ/inbox'];
   const untracked: string[] = [];
-  for (const dir of untrackedDirs) {
-    const fullDir = path.join(repoRoot, dir);
-    const files = walkMarkdownFiles(fullDir, repoRoot);
-    for (const f of files) {
-      untracked.push(f.relativePath);
+  if (!tenantId) {
+    for (const dir of untrackedDirs) {
+      const fullDir = path.join(repoRoot, dir);
+      const files = walkMarkdownFiles(fullDir, repoRoot);
+      for (const f of files) {
+        untracked.push(f.relativePath);
+      }
     }
   }
 
@@ -172,13 +171,16 @@ export function verifyKnowledgeBase(opts: {
       const entry = dbFileMap.get(sourceFile);
       if (entry) {
         for (const id of entry.ids) {
+          const where = tenantId
+            ? and(eq(oracleDocuments.id, id), eq(oracleDocuments.tenantId, tenantId))
+            : eq(oracleDocuments.id, id);
           db.update(oracleDocuments)
             .set({
               supersededBy: '_verified_orphan',
               supersededAt: now,
               supersededReason: 'File missing from disk (oracle_verify)',
             })
-            .where(eq(oracleDocuments.id, id))
+            .where(where)
             .run();
           fixedOrphans++;
         }
@@ -203,6 +205,19 @@ export function verifyKnowledgeBase(opts: {
     recommendation += `. Flagged ${fixedOrphans} orphaned entries as '_verified_orphan'.`;
   }
 
+  const dbDetails = (sourceFile: string) => dbFileMap.get(sourceFile) ?? {};
+  const mismatches: VerifyMismatch[] = [
+    ...missing.map((sourceFile) => ({ kind: 'missing' as const, sourceFile, mtimeMs: diskFiles.get(sourceFile) })),
+    ...orphaned.map((sourceFile) => ({ kind: 'orphaned' as const, sourceFile, ...dbDetails(sourceFile) })),
+    ...drifted.map((sourceFile) => ({
+      kind: 'drifted' as const,
+      sourceFile,
+      mtimeMs: diskFiles.get(sourceFile),
+      ...dbDetails(sourceFile),
+    })),
+    ...untracked.map((sourceFile) => ({ kind: 'untracked' as const, sourceFile })),
+  ];
+
   return {
     counts: {
       healthy: healthy.length,
@@ -215,6 +230,7 @@ export function verifyKnowledgeBase(opts: {
     orphaned,
     drifted,
     untracked,
+    mismatches,
     recommendation,
     ...(fixedOrphans > 0 ? { fixedOrphans } : {}),
   };

@@ -16,36 +16,47 @@ import { swagger } from '@elysiajs/swagger';
 
 import { createCorsMiddleware } from './middleware/cors.ts';
 import { loadVectorConfig, generateDefaultConfig } from './vector/config.ts';
+import { warmEmbeddingProviderDetection } from './vector/provider-detection.ts';
 import { vectorRoutes } from './routes/vector/index.ts';
+import { createVectorProxyServer } from './vector/proxy-server.ts';
+import { searchEndpoint } from './routes/search/search.ts';
 
 import pkg from '../package.json' with { type: 'json' };
 
 // ── Config ──────────────────────────────────────────────────────────
 const config = loadVectorConfig() ?? generateDefaultConfig();
 const PORT = Number(process.env.VECTOR_PORT ?? config.port);
+void warmEmbeddingProviderDetection().catch((error) =>
+  console.warn('[Vector] embedding provider auto-detect failed:', error instanceof Error ? error.message : String(error)));
 
 // ── App ─────────────────────────────────────────────────────────────
-const app = new Elysia()
-  .use(createCorsMiddleware())
-  .use(
-    swagger({
-      path: '/swagger',
-      documentation: {
-        info: {
-          title: 'Arra Vector Server',
-          version: pkg.version,
-          description: 'Standalone vector / embedding sidecar for Arra Oracle.',
+export function createVectorServerApp() {
+  return new Elysia()
+    .use(createCorsMiddleware())
+    .use(
+      swagger({
+        path: '/swagger',
+        documentation: {
+          info: {
+            title: 'Arra Vector Server',
+            version: pkg.version,
+            description: 'Standalone vector / embedding sidecar for Arra Oracle.',
+          },
         },
-      },
-    }),
-  )
-  .get('/', () => ({
-    server: 'arra-vector',
-    version: pkg.version,
-    status: 'ok',
-    docs: '/swagger',
-  }))
-  .use(vectorRoutes);
+      }),
+    )
+    .get('/', () => ({
+      server: 'arra-vector',
+      version: pkg.version,
+      status: 'ok',
+      docs: '/swagger',
+    }))
+    .use(createVectorProxyServer({ version: pkg.version }))
+    .use(new Elysia({ prefix: '/api' }).use(searchEndpoint))
+    .use(vectorRoutes);
+}
+
+const app = createVectorServerApp();
 
 console.log(`
 🧭 Arra Vector Server running! (Elysia)

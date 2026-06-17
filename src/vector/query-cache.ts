@@ -19,9 +19,9 @@ export class QueryCache<T> {
   private readonly entries = new Map<string, CacheEntry<T>>();
 
   constructor(options: QueryCacheOptions = {}) {
-    this.ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
+    this.ttlMs = positiveNumber(options.ttlMs, DEFAULT_TTL_MS);
     this.now = options.now ?? Date.now;
-    this.maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
+    this.maxEntries = nonNegativeInteger(options.maxEntries, DEFAULT_MAX_ENTRIES);
   }
 
   get(key: string): T | undefined {
@@ -40,7 +40,7 @@ export class QueryCache<T> {
     this.entries.set(key, { value, expiresAt: this.now() + this.ttlMs });
     while (this.entries.size > this.maxEntries) {
       const oldest = this.entries.keys().next().value;
-      if (!oldest) break;
+      if (oldest === undefined) break;
       this.entries.delete(oldest);
     }
   }
@@ -55,5 +55,24 @@ export class QueryCache<T> {
 }
 
 export function stableCacheKey(parts: Record<string, unknown>): string {
-  return JSON.stringify(Object.keys(parts).sort().map((key) => [key, parts[key]]));
+  return JSON.stringify(stableValue(parts));
+}
+
+function stableValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableValue);
+  if (!isPlainRecord(value)) return value;
+  return Object.keys(value).sort().map((key) => [key, stableValue(value[key])]);
+}
+
+function positiveNumber(value: number | undefined, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function nonNegativeInteger(value: number | undefined, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return fallback;
+  return Math.floor(value);
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype;
 }

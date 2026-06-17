@@ -19,13 +19,16 @@ CREATE TABLE oracle_documents (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   indexed_at INTEGER NOT NULL,
+  valid_time INTEGER,
   superseded_by TEXT,
   superseded_at INTEGER,
   superseded_reason TEXT,
   origin TEXT,
   project TEXT,
   tenant_id TEXT NOT NULL DEFAULT 'default',
-  created_by TEXT
+  created_by TEXT,
+  usage_count INTEGER NOT NULL DEFAULT 0,
+  last_accessed_at INTEGER
 );
 CREATE VIRTUAL TABLE oracle_fts USING fts5(id UNINDEXED, content, concepts, tokenize='porter unicode61');
 CREATE TABLE indexing_jobs (
@@ -91,5 +94,5 @@ describe('handleLearn vault interchange frontmatter', () => {
     expect(row.content).toContain('source: M5 enqueue test');
     expect(row.content).toContain('tags: [m5, vault-interchange]');
     expect(row.content).toContain('project: github.com/soul-brews-studio/arra-oracle-v3');
-  });
+  }, 15_000);
 });

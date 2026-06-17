@@ -28,8 +28,29 @@ export function normalizeAuditQuery(query: string): string {
   return query.replace(/\s+/g, ' ').trim();
 }
 
+function stripLeadingSqlComments(query: string): string {
+  let remaining = query.trimStart();
+  while (remaining.startsWith('--') || remaining.startsWith('/*')) {
+    if (remaining.startsWith('--')) {
+      const nextLine = remaining.indexOf('\n');
+      remaining = nextLine === -1 ? '' : remaining.slice(nextLine + 1).trimStart();
+      continue;
+    }
+    const commentEnd = remaining.indexOf('*/');
+    if (commentEnd === -1) return '';
+    remaining = remaining.slice(commentEnd + 2).trimStart();
+  }
+  return remaining;
+}
+
+function writeStatementHead(query: string): string {
+  return normalizeAuditQuery(stripLeadingSqlComments(query))
+    .toLowerCase()
+    .replace(/^with\b[\s\S]*\)\s+(?=(insert|update|delete|replace)\b)/, '');
+}
+
 function firstQueryToken(query: string): string {
-  return normalizeAuditQuery(query).split(' ', 1)[0]?.toLowerCase() ?? '';
+  return writeStatementHead(query).split(' ', 1)[0] ?? '';
 }
 
 export function isWriteQuery(query: string): boolean {
@@ -37,11 +58,12 @@ export function isWriteQuery(query: string): boolean {
 }
 
 export function isAuditLogQuery(query: string): boolean {
-  const normalized = normalizeAuditQuery(query).toLowerCase().replace(/[\"`]/g, '');
-  return normalized.startsWith('insert into audit_log')
-    || normalized.startsWith('update audit_log')
-    || normalized.startsWith('delete from audit_log')
-    || normalized.startsWith('replace into audit_log');
+  const normalized = writeStatementHead(query).replace(/["`\[\]]/g, '');
+  const auditTable = '(?:[a-z_][\\w]*\\.)?audit_log\\b';
+  return new RegExp(`^(insert(?:\\s+or\\s+\\w+)?\\s+into|replace\\s+into)\\s+${auditTable}`)
+    .test(normalized)
+    || new RegExp(`^update\\s+${auditTable}`).test(normalized)
+    || new RegExp(`^delete\\s+from\\s+${auditTable}`).test(normalized);
 }
 
 function defaultActor(requestId?: string): string {

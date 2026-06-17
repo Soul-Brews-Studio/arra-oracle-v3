@@ -31,13 +31,16 @@ CREATE TABLE oracle_documents (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   indexed_at INTEGER NOT NULL,
+  valid_time INTEGER,
   superseded_by TEXT,
   superseded_at INTEGER,
   superseded_reason TEXT,
   origin TEXT,
   project TEXT,
   tenant_id TEXT NOT NULL DEFAULT 'default',
-  created_by TEXT
+  created_by TEXT,
+  usage_count INTEGER NOT NULL DEFAULT 0,
+  last_accessed_at INTEGER
 );
 CREATE VIRTUAL TABLE oracle_fts USING fts5(id UNINDEXED, content, concepts, tokenize='porter unicode61');
 CREATE TABLE indexing_jobs (
@@ -56,6 +59,8 @@ CREATE TABLE indexing_jobs (
 
 const ORIGINAL_ENQUEUE = process.env.ORACLE_INDEXER_ENQUEUE;
 const ORIGINAL_REPO_ROOT = process.env.ORACLE_REPO_ROOT;
+const ORIGINAL_EMBEDDER = process.env.ORACLE_EMBEDDER;
+const ORIGINAL_EMBEDDING_PROVIDER = process.env.ORACLE_EMBEDDING_PROVIDER;
 
 interface Harness {
   ctx: ToolContext;
@@ -89,6 +94,31 @@ function cleanupHarness(h: Harness): void {
 // import below — main's REPO_ROOT is module-frozen at first import.
 const SHARED_REPO_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-learn-m5-root-'));
 process.env.ORACLE_REPO_ROOT = SHARED_REPO_ROOT;
+process.env.ORACLE_EMBEDDER = 'none';
+process.env.ORACLE_EMBEDDING_PROVIDER = 'none';
+const createdMarkdownFiles = new Set<string>();
+
+function markdownPathCandidates(relativePath: string): string[] {
+  const dataRoot = process.env.ORACLE_DATA_DIR || path.join(os.homedir(), '.arra-oracle-v2');
+  return [SHARED_REPO_ROOT, process.cwd(), dataRoot]
+    .map((root) => path.join(root, relativePath));
+}
+
+function rememberMarkdown(relativePath: string): void {
+  for (const candidate of markdownPathCandidates(relativePath)) {
+    if (fs.existsSync(candidate)) createdMarkdownFiles.add(candidate);
+  }
+}
+
+function readMarkdown(relativePath: string): string {
+  for (const candidate of markdownPathCandidates(relativePath)) {
+    if (fs.existsSync(candidate)) {
+      createdMarkdownFiles.add(candidate);
+      return fs.readFileSync(candidate, 'utf-8');
+    }
+  }
+  throw new Error(`Missing learning markdown file: ${relativePath}`);
+}
 
 // Dynamic import after env is set. Top-level await is supported in Bun.
 const { handleLearn } = await import('../learn.ts');
@@ -103,14 +133,21 @@ describe('handleLearn — M5 enqueue branch', () => {
 
   afterEach(() => {
     cleanupHarness(h);
+    for (const file of createdMarkdownFiles) {
+      try { fs.rmSync(file, { force: true }); } catch {}
+    }
+    createdMarkdownFiles.clear();
     if (ORIGINAL_ENQUEUE) process.env.ORACLE_INDEXER_ENQUEUE = ORIGINAL_ENQUEUE;
     else delete process.env.ORACLE_INDEXER_ENQUEUE;
+    process.env.ORACLE_EMBEDDER = 'none';
+    process.env.ORACLE_EMBEDDING_PROVIDER = 'none';
   });
 
   it('default (env unset) → does NOT enqueue any jobs (existing behavior preserved)', async () => {
     const res = await handleLearn(h.ctx, { pattern: `test pattern A ${Date.now()}-${Math.random()}` });
     const parsed = JSON.parse(res.content[0].text);
     expect(parsed.success).toBe(true);
+    rememberMarkdown(parsed.file);
 
     const count = h.sqlite.query('SELECT COUNT(*) as c FROM indexing_jobs').get() as { c: number };
     expect(count.c).toBe(0);
@@ -123,11 +160,34 @@ describe('handleLearn — M5 enqueue branch', () => {
     expect(parsed.embedding).toBeDefined();
   });
 
+  it('writes vault interchange frontmatter fields to the learning markdown file', async () => {
+    const res = await handleLearn(h.ctx, {
+      pattern: `frontmatter interchange pattern ${Date.now()}-${Math.random()}`,
+      source: 'frontmatter-test',
+      concepts: ['frontmatter', 'vector'],
+    });
+    const parsed = JSON.parse(res.content[0].text);
+    expect(parsed.success).toBe(true);
+
+    const markdown = readMarkdown(parsed.file);
+    expect(markdown).toContain(`id: ${parsed.id}`);
+    expect(markdown).toContain('type: learning');
+    expect(markdown).toContain('concepts: [frontmatter, vector]');
+    expect(markdown).toContain('tags: [frontmatter, vector]');
+    expect(markdown).toMatch(/^hash: sha256:[a-f0-9]{64}$/m);
+    expect(markdown).toMatch(/^indexed_at: .+Z$/m);
+    expect(markdown).toMatch(/^updated_at: .+Z$/m);
+    expect(markdown).toContain(`arra_id: ${parsed.id}`);
+    expect(markdown).toContain('arra_type: learning');
+    expect(markdown).toContain('arra_concepts: [frontmatter, vector]');
+  });
+
   it('ORACLE_INDEXER_ENQUEUE=1 → enqueues one job per registered model', async () => {
     process.env.ORACLE_INDEXER_ENQUEUE = '1';
     const res = await handleLearn(h.ctx, { pattern: `test pattern B ${Date.now()}-${Math.random()}` });
     const parsed = JSON.parse(res.content[0].text);
     expect(parsed.success).toBe(true);
+    rememberMarkdown(parsed.file);
 
     const rows = h.sqlite
       .query<{ doc_id: string; model_key: string; status: string }, []>(
@@ -149,6 +209,7 @@ describe('handleLearn — M5 enqueue branch', () => {
     const res = await handleLearn(h.ctx, { pattern: `test pattern C ${Date.now()}-${Math.random()}` });
     const parsed = JSON.parse(res.content[0].text);
     expect(parsed.success).toBe(true);
+    rememberMarkdown(parsed.file);
 
     const fts = h.sqlite.query('SELECT COUNT(*) as c FROM oracle_fts').get() as { c: number };
     expect(fts.c).toBe(1);
@@ -156,7 +217,8 @@ describe('handleLearn — M5 enqueue branch', () => {
 
   it('value other than "1" does NOT enqueue (strict equality, not truthiness)', async () => {
     process.env.ORACLE_INDEXER_ENQUEUE = 'true';
-    await handleLearn(h.ctx, { pattern: `test pattern D ${Date.now()}-${Math.random()}` });
+    const res = await handleLearn(h.ctx, { pattern: `test pattern D ${Date.now()}-${Math.random()}` });
+    rememberMarkdown(JSON.parse(res.content[0].text).file);
     const count = h.sqlite.query('SELECT COUNT(*) as c FROM indexing_jobs').get() as { c: number };
     expect(count.c).toBe(0);
   });
@@ -167,4 +229,8 @@ describe('handleLearn — M5 enqueue branch', () => {
 process.on('exit', () => {
   try { fs.rmSync(SHARED_REPO_ROOT, { recursive: true, force: true }); } catch {}
   if (ORIGINAL_REPO_ROOT) process.env.ORACLE_REPO_ROOT = ORIGINAL_REPO_ROOT;
+  if (ORIGINAL_EMBEDDER) process.env.ORACLE_EMBEDDER = ORIGINAL_EMBEDDER;
+  else delete process.env.ORACLE_EMBEDDER;
+  if (ORIGINAL_EMBEDDING_PROVIDER) process.env.ORACLE_EMBEDDING_PROVIDER = ORIGINAL_EMBEDDING_PROVIDER;
+  else delete process.env.ORACLE_EMBEDDING_PROVIDER;
 });

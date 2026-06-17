@@ -23,10 +23,6 @@ const { exportOracleData, exportOracleV2Documents, graphRelationships } = export
 const { formatCsvCollection } = csvModule;
 const { formatJsonCollection } = jsonModule;
 
-function restoreDbPath() {
-  return savedDbPath
-    ?? join(savedDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
-}
 
 function seed(connection: ReturnType<typeof createDatabase>) {
   const now = 1_766_000_000_000;
@@ -66,7 +62,7 @@ afterAll(() => {
   else process.env.ORACLE_DATA_DIR = savedDataDir;
   if (savedDbPath === undefined) delete process.env.ORACLE_DB_PATH;
   else process.env.ORACLE_DB_PATH = savedDbPath;
-  resetDefaultDatabaseForTests(restoreDbPath());
+  resetDefaultDatabaseForTests(':memory:');
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -96,6 +92,16 @@ describe('standalone export app', () => {
       expect(documentsJson).toMatchObject({ collection: 'oracle_documents', rowCount: 2 });
       const all = JSON.parse(readFileSync(join(outputDir, 'all-collections.json'), 'utf8'));
       expect(all.collections.oracle_documents.map((row: { id: string }) => row.id)).toContain('doc-old');
+      const manifest = JSON.parse(readFileSync(join(outputDir, 'manifest.json'), 'utf8'));
+      const exportedFile = manifest.files.find(
+        (entry: { path: string }) => entry.path === 'documents/markdown/learn_old.md',
+      );
+      expect(exportedFile.bytes).toBeGreaterThan(0);
+      expect(exportedFile.sha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(manifest.files.map((entry: { path: string }) => entry.path)).toContain('all-collections.json');
+      expect(manifest.files.map((entry: { path: string }) => entry.path)).toContain('README.md');
+      const bundleReadme = readFileSync(join(outputDir, 'README.md'), 'utf8');
+      expect(bundleReadme).toContain('Documents: 2');
 
       const relationships = JSON.parse(readFileSync(join(outputDir, 'relationships.json'), 'utf8'));
       expect(relationships.rows).toEqual(expect.arrayContaining([
@@ -115,6 +121,9 @@ describe('standalone export app', () => {
         concepts: ['backup'],
       });
       expect(docJson.metadata).toMatchObject({ source_file: 'ψ/learn/old.md', concepts: ['backup'] });
+      const docCsv = readFileSync(join(outputDir, 'documents', 'documents.csv'), 'utf8');
+      expect(docCsv).toContain('id,source,type,concepts,content_preview,metadata_json');
+      expect(docCsv).toContain('"doc-old","ψ/learn/old.md","learning","backup"');
     } finally {
       connection.storage.close();
     }
@@ -132,7 +141,30 @@ describe('standalone export app', () => {
     expect(stderr.join('')).toContain('oracle_documents');
     expect(existsSync(join(outputDir, 'documents', 'markdown', 'learn_new.md'))).toBe(true);
     expect(existsSync(join(outputDir, 'documents', 'json', 'learn_new.json'))).toBe(true);
+    expect(existsSync(join(outputDir, 'documents', 'documents.csv'))).toBe(true);
     expect(existsSync(join(outputDir, 'collections', 'oracle_documents.json'))).toBe(true);
+  });
+
+  test('CLI filters batch exports to selected collections', async () => {
+    const filterDbPath = join(root, 'filter.db');
+    const outputDir = join(root, 'backup-filter');
+    const connection = createDatabase(filterDbPath);
+    const stdout: string[] = [];
+    seed(connection);
+    connection.storage.close();
+
+    const code = await runExportApp(
+      ['--output', outputDir, '--db', filterDbPath, '--collection', 'oracle_documents'],
+      (msg) => stdout.push(msg),
+      () => {},
+    );
+
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout.join('')).collectionCount).toBe(1);
+    expect(existsSync(join(outputDir, 'collections', 'oracle_documents.json'))).toBe(true);
+    expect(existsSync(join(outputDir, 'collections', 'trace_log.json'))).toBe(false);
+    const manifest = JSON.parse(readFileSync(join(outputDir, 'manifest.json'), 'utf8'));
+    expect(Object.keys(manifest.collections)).toEqual(['oracle_documents']);
   });
 
   test('document engine reads a legacy Oracle v2 database with only docs and FTS', async () => {
@@ -169,6 +201,7 @@ describe('standalone export app', () => {
 
     const result = await exportOracleV2Documents({ dbPath: legacyDbPath, outputDir: legacyOutput });
     expect(result.documentCount).toBe(1);
+    expect(readFileSync(result.csvPath, 'utf8')).toContain('"legacy-doc","ψ/legacy/export.md"');
     expect(readFileSync(join(legacyOutput, 'documents', 'markdown', 'legacy_export.md'), 'utf8'))
       .toContain('Legacy body from old Oracle v2.');
     const payload = JSON.parse(readFileSync(join(legacyOutput, 'documents', 'json', 'legacy_export.json'), 'utf8'));

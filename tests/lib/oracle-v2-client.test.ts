@@ -60,6 +60,34 @@ test('OracleV2Client avoids duplicating /api when base URL already includes it',
   expect(urls).toEqual(['https://old.example/api/collections']);
 });
 
+test('OracleV2Client normalizes alternate payload keys and string documents', async () => {
+  const urls: string[] = [];
+  const client = new OracleV2Client({
+    baseUrl: 'https://old.example',
+    fetch: async (input) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.endsWith('/api/collections')) {
+        return json({ items: [{ key: ' trace_log ', rowCount: 2 }, { id: 'docs', documentCount: 1 }] });
+      }
+      return json({ rows: ['plain body', { id: 'doc-2', title: 'Second' }] });
+    },
+  });
+
+  await expect(client.listCollections()).resolves.toMatchObject([
+    { name: 'trace_log', rowCount: 2 },
+    { name: 'docs', documentCount: 1 },
+  ]);
+  await expect(client.listDocuments(' trace_log ')).resolves.toEqual([
+    { collection: 'trace_log', content: 'plain body' },
+    { collection: 'trace_log', id: 'doc-2', title: 'Second' },
+  ]);
+  expect(urls).toEqual([
+    'https://old.example/api/collections',
+    'https://old.example/api/documents?collection=trace_log',
+  ]);
+});
+
 test('OracleV2Client reports invalid inputs and backend errors', async () => {
   const client = new OracleV2Client({
     baseUrl: 'https://old.example',
@@ -81,4 +109,56 @@ test('OracleV2Client reports invalid inputs and backend errors', async () => {
     fetch: async () => json({ ok: true }),
   });
   await expect(malformed.listCollections()).rejects.toThrow('collections or items or data');
+});
+
+test('OracleV2Client rejects malformed construction options', () => {
+  expect(() => new OracleV2Client(null as any)).toThrow('Oracle v2 client options are required');
+  expect(() => new OracleV2Client({ baseUrl: '' })).toThrow('Oracle v2 baseUrl is required');
+  expect(() => new OracleV2Client({ baseUrl: 'not-a-url' })).toThrow('absolute URL');
+  expect(() => new OracleV2Client({ baseUrl: 'file:///tmp/oracle' })).toThrow('http or https');
+  expect(() => new OracleV2Client({ baseUrl: 'https://old.example', timeoutMs: -1 })).toThrow('timeoutMs');
+  expect(() => new OracleV2Client({ baseUrl: 'https://old.example', timeoutMs: Number.NaN })).toThrow('timeoutMs');
+});
+
+test('OracleV2Client strips base URL query and hash before appending API paths', async () => {
+  const urls: string[] = [];
+  const client = new OracleV2Client({
+    baseUrl: 'https://old.example/oracle/?debug=1#section',
+    fetch: async (input) => {
+      urls.push(String(input));
+      return json({ collections: [' oracle_documents '] });
+    },
+  });
+
+  await expect(client.listCollections()).resolves.toEqual([{ name: 'oracle_documents' }]);
+  expect(urls).toEqual(['https://old.example/oracle/api/collections']);
+});
+
+test('OracleV2Client rejects runtime-invalid collection names', async () => {
+  const client = new OracleV2Client({
+    baseUrl: 'https://old.example',
+    fetch: async () => json({ documents: [] }),
+  });
+
+  await expect(client.listDocuments(null as any)).rejects.toThrow('collection is required');
+
+  const malformed = new OracleV2Client({
+    baseUrl: 'https://old.example',
+    fetch: async () => json({ collections: ['  '] }),
+  });
+  await expect(malformed.listCollections()).rejects.toThrow('collections[0] is missing a name');
+});
+
+test('OracleV2Client aborts hanging requests after timeout', async () => {
+  const client = new OracleV2Client({
+    baseUrl: 'https://old.example',
+    timeoutMs: 1,
+    fetch: async (_input, init) => await new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal;
+      if (signal?.aborted) reject(new Error('aborted'));
+      signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+    }),
+  });
+
+  await expect(client.listCollections()).rejects.toThrow('Oracle v2 request failed: aborted');
 });

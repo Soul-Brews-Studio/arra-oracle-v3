@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
 import { createApiVersionedFetch } from '../../../src/middleware/api-version.ts';
-import { vectorConfigApiRoutes } from '../../../src/routes/vector/config-api.ts';
+import { vectorConfigApiRoutes } from '../../../src/routes/vector/config.ts';
 import { createVectorStore } from '../../../src/vector/factory.ts';
 import { TurboVecAdapter } from '../../../src/vector/adapters/turbovec.ts';
 import type { VectorDocument } from '../../../src/vector/types.ts';

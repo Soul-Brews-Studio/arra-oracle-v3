@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { runExportCommand } from '../../../tools/maw-plugin-arra/commands/export.ts';
+import { parseExportArgs, runExportCommand } from '../../../tools/maw-plugin-arra/commands/export.ts';
 
 type Call = { url: string; init?: RequestInit };
 
@@ -10,6 +10,12 @@ function json(data: unknown): Response {
 }
 
 describe('maw-plugin-arra export command', () => {
+  test('parses output aliases for operator CLI usage', () => {
+    expect(parseExportArgs(['export', '--out', '/tmp/docs.json']).output).toBe('/tmp/docs.json');
+    expect(parseExportArgs(['export', '-o', '/tmp/docs.csv']).output).toBe('/tmp/docs.csv');
+    expect(parseExportArgs(['export', '-o=/tmp/docs.jsonl']).output).toBe('/tmp/docs.jsonl');
+  });
+
   test('lists available app export collections', async () => {
     const calls: Call[] = [];
 

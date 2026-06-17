@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { normalizeProject, extractProjectFromSource } from '../learn.ts';
+import { normalizeProject, extractProjectFromSource, errorDetails } from '../learn.ts';
 
 // ============================================================================
 // normalizeProject
@@ -72,5 +72,19 @@ describe('extractProjectFromSource', () => {
 
   it('should return null when no project found', () => {
     expect(extractProjectFromSource('just some random text')).toBeNull();
+  });
+});
+
+describe('errorDetails', () => {
+  it('includes name, message, stack, and cause for Error instances', () => {
+    const cause = new Error('root cause');
+    const err = new TypeError('embed failed') as TypeError & { cause?: Error };
+    err.cause = cause;
+    const details = errorDetails(err);
+
+    expect(details.name).toBe('TypeError');
+    expect(details.message).toBe('embed failed');
+    expect(details.stack).toContain('TypeError');
+    expect(details.cause).toContain('root cause');
   });
 });

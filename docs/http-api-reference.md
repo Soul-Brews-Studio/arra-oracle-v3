@@ -23,6 +23,9 @@ Protected routes may require API token/session auth; tenant-aware routes honor `
 | GET | `/api/health` | None. | Aggregate `{ status, uptime, version, db, vectorStatus, pluginStatus }` |
 | GET | `/api/stats` | Optional `X-Oracle-Tenant`. | Document, vector, vault, tenant-scoped counts. |
 | GET | `/api/oracles` | Optional tenant header. | Oracle identities/projects summary. |
+| GET | `/api/oracles/profiles` | None. | Code-backed Oracle profile registry. |
+| GET | `/api/oracles/profiles/:slug` | Profile slug/id. | Oracle profile detail or 404. |
+| GET | `/api/oracles/thor` | None. | Thor Oracle Stormforge profile alias. |
 | GET | `/api/metrics` | None. | Runtime metrics snapshot. |
 | GET | `/api/dashboard` | Query filters optional. | Dashboard summary cards. |
 | GET | `/api/dashboard/summary` | Query filters optional. | Same summary alias. |
@@ -45,6 +48,7 @@ Protected routes may require API token/session auth; tenant-aware routes honor `
 | POST | `/api/handoff` | Handoff JSON payload. | Persisted handoff result. |
 | GET | `/api/inbox` | None. | Inbox/knowledge messages. |
 | POST | `/api/memory/save` | `{ content, title?, tags?, source? }` | `{ success, memory, vector }` |
+| POST | `/api/memory/closeout` | `{ summary, title?, next?, blockers?, artifacts?, tags? }` | Challenge 2 close-out memory plus vector index result. |
 | GET | `/api/memory/recall` | `q?, limit?` | `{ query, total, items }` keyword memories. |
 | GET | `/api/memory/search` | `q` required; `limit?` | `{ success, query, total, results }` vector-enriched memories. |
 | GET | `/api/memory/morning-tape` | `limit?, format=json|markdown|md` | Morning tape JSON or `text/markdown`. |
@@ -119,11 +123,11 @@ Protected routes may require API token/session auth; tenant-aware routes honor `
 | GET | `/api/menu/source/official` | None. | Official menu source. |
 | POST | `/api/menu/reset-all` | None. | Reset all menu rows. |
 | POST | `/api/menu/reload` | None. | Reload/seed menu. |
-| GET | `/api/plugins` | None. | Plugin registry entries. |
+| GET | `/api/plugins` | `kind=canvas?` | Plugin registry entries or CanvasPlugin metadata. |
 | GET | `/api/plugins/:name` | `name` path. | Plugin details or file plugin details. |
 | PATCH | `/api/plugins/:name/state` | `{ enabled }` | Enable/disable state. |
-| GET | `/api/plugins/canvas` | `kind?` | Canvas plugin entries. |
-| GET | `/api/plugins/canvas/:id` | `id` path. | Canvas plugin detail. |
+| GET | `/api/plugins/canvas` | `kind?` | Canvas registry entries with standalone metadata. |
+| GET | `/api/plugins/canvas/:id` | `id` path. | Canvas registry detail with standalone metadata. |
 | GET | `/api/canvas/plugins` | `kind?` | Canvas registry entries. |
 | GET | `/api/canvas/plugins/:id` | `id` path. | Canvas registry detail. |
 | GET | `/api/canvas/registry` | `kind?` | Standalone canvas registry manifest. |
@@ -156,7 +160,7 @@ Protected routes may require API token/session auth; tenant-aware routes honor `
 | GET | `/api/traces/:id/linked-chain` | `id` path. | Linked trace chain. |
 | POST | `/api/traces/:id/link` | Link body. | Link result. |
 | DELETE | `/api/traces/:id/link` | Link selector. | Unlink result. |
-| POST | `/api/traces/:id/distill` | Distill request body. | Distillation result. |
+| POST | `/api/traces/:id/distill` | Distill body; optional `finding`/`metadata`. | Distillation result. |
 | GET | `/api/schedule` | Date/query filters optional. | Schedule entries. |
 | POST | `/api/schedule` | Schedule item body. | Created event. |
 | PATCH | `/api/schedule/:id` | Partial event body. | Updated event. |
@@ -170,16 +174,17 @@ Protected routes may require API token/session auth; tenant-aware routes honor `
 | POST | `/api/tenants` | `{ id, name?, status? }` | Upserted tenant. |
 | GET | `/api/tenants/:id` | `id` path. | Tenant detail. |
 
-## Peer and daemon-local routes
+## Federation mesh and daemon-local routes
+
+Federation routes are mounted only when `ORACLE_ENABLED_PLUGINS=federation` is
+set.
 
 | Method | Path | Request | Response |
 |---|---|---|---|
-| GET | `/info` | None. | Peer node info. |
-| GET | `/identity` | None. | Peer identity. |
-| GET | `/peers` | None. | Known peers. |
-| GET | `/peer/feed` | Query filters optional. | Peer feed. |
-| POST | `/peer/search` | Peer search body. | Federated search results. |
-| POST | `/search` | Peer search alias body. | Federated search results. |
+| GET | `/api/federation/status` | None. | Provider status and active capabilities. |
+| GET | `/api/federation/capabilities` | None. | Capability list and mesh node count. |
+| GET | `/api/federation/mesh/nodes` | None. | Registered mesh nodes. |
+| POST | `/api/federation/mesh/nodes/register` | Mesh node body. | Registered mesh node or 400 error. |
 | GET | `/health` | Daemon-local only. | Indexer daemon health/queue depth. |
 | POST | `/index` | `{ doc_id, model_key? }` | Enqueued daemon jobs. |
 | GET | `/jobs` | `status?, model?, limit?` | Recent daemon jobs. |

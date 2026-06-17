@@ -5,6 +5,7 @@ import { getMenuConfig } from '../../menu/config.ts';
 import { listCustomMenuItems } from '../../menu/custom-store.ts';
 import { buildMenuItems, readApiMenuItemsFromDb } from './menu-items.ts';
 import { ScopeSchema, type MenuItem, type Scope } from './model.ts';
+import { menuVisibleWhere } from '../../menu/tenant.ts';
 
 type MenuRow = typeof menuItems.$inferSelect;
 
@@ -70,7 +71,7 @@ export function menuRowToItem(row: MenuRow): MenuItem {
 }
 
 function readPaginatedMenuItems(pageSize: number, offset: number) {
-  const where = and(eq(menuItems.enabled, true), isNull(menuItems.deletedAt));
+  const where = menuVisibleWhere(and(eq(menuItems.enabled, true), isNull(menuItems.deletedAt)));
   const total = Number(
     db.select({ total: count() }).from(menuItems).where(where).get()?.total ?? 0,
   );

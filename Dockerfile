@@ -13,10 +13,13 @@ FROM oven/bun:1 AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY frontend/package.json ./frontend/package.json
+COPY workers/mcp/package.json ./workers/mcp/package.json
 RUN bun install --production --frozen-lockfile \
  && rm -rf node_modules/@lancedb/lancedb-*-musl
 
 FROM deps AS builder
+COPY tsconfig.json ./
+COPY packages ./packages
 COPY src ./src
 RUN bun build src/server.ts src/index.ts --target bun --outdir dist
 
@@ -31,6 +34,7 @@ ENV HOME=/tmp \
     PATH=/app/node_modules/.bin:$PATH
 COPY package.json bun.lock ./
 COPY frontend/package.json ./frontend/package.json
+COPY workers/mcp/package.json ./workers/mcp/package.json
 RUN bun install --frozen-lockfile \
  && cd frontend \
  && bun install \

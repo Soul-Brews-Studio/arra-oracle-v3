@@ -9,6 +9,8 @@
 import fs from 'fs';
 import path from 'path';
 import type { HooksConfig } from './hooks.ts';
+import { mergeVectorServicesIntoGatewayConfig } from '../vector/gateway-services.ts';
+import { vectorServiceRegistry, type RegisteredVectorService } from '../vector/service-registry.ts';
 
 export interface ServiceConfig {
   url: string;
@@ -34,35 +36,60 @@ export interface GatewayConfig {
   hook_options?: Record<string, unknown>;
 }
 
-const CONFIG_FILE = 'oracle-gateway.json';
+function configFileName(): string { return 'oracle-gateway.json'; }
 
-export function loadGatewayConfig(dataDir: string, vectorUrl?: string): GatewayConfig | null {
-  const configPath = path.join(dataDir, CONFIG_FILE);
+function discoveredVectorServices(): RegisteredVectorService[] {
+  return vectorServiceRegistry.discoverSync();
+}
+export { discoveredVectorServices as discoverGatewayVectorServices };
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function loadGatewayConfig(
+  dataDir: string,
+  vectorUrl?: string,
+  vectorServices: RegisteredVectorService[] = [],
+): GatewayConfig | null {
+  const configPath = path.join(dataDir, configFileName());
 
   if (fs.existsSync(configPath)) {
     try {
       const raw = fs.readFileSync(configPath, 'utf-8');
-      return JSON.parse(raw) as GatewayConfig;
+      return mergeVectorServicesIntoGatewayConfig(JSON.parse(raw) as GatewayConfig, vectorServices);
     } catch (e) {
       console.warn(`[Gateway] Failed to parse ${configPath}:`, e);
       return null;
     }
   }
 
-  // Backward compat: synthesize config from VECTOR_URL
+  // Backward compat: synthesize config from VECTOR_URL. Search can
+  // fall through to local FTS5 when the vector service is unreachable; pure
+  // vector routes must not fall back to local LanceDB inside the core process.
   if (vectorUrl) {
-    return {
+    const vectorBase = vectorUrl.replace(/\/+$/, '');
+    return mergeVectorServicesIntoGatewayConfig({
       services: {
-        vector: { url: vectorUrl, timeout: 5000 },
+        vector: {
+          url: vectorUrl,
+          healthCheck: `${vectorBase}/api/vector/health`,
+          timeout: 5000,
+        },
       },
       routes: [
-        { match: '/api/vector/**', service: 'vector', fallback: 'fts5' },
-        { match: '/api/similar', service: 'vector', fallback: 'fts5' },
         { match: '/api/search', service: 'vector', fallback: 'fts5' },
+        { match: '/api/similar', service: 'vector', fallback: 'error' },
+        { match: '/api/compare', service: 'vector', fallback: 'error' },
+        { match: '/api/map', service: 'vector', fallback: 'empty' },
+        { match: '/api/map3d', service: 'vector', fallback: 'empty' },
+        { match: '/api/vector/**', service: 'vector', fallback: 'error' },
       ],
-    };
+    }, vectorServices);
   }
 
+  const vectorOnly = mergeVectorServicesIntoGatewayConfig({ services: {}, routes: [] }, vectorServices);
+  if (Object.keys(vectorOnly.services).length > 0) return vectorOnly;
   return null;
 }
 
@@ -77,12 +104,13 @@ export function watchGatewayConfig(
   dataDir: string,
   onChange: (next: GatewayConfig | null) => void,
   vectorUrl?: string,
+  vectorServices: () => RegisteredVectorService[] = () => [],
 ): () => void {
-  const configPath = path.join(dataDir, CONFIG_FILE);
+  const configPath = path.join(dataDir, configFileName());
   const watchers: fs.FSWatcher[] = [];
   let timer: ReturnType<typeof setTimeout> | null = null;
   let poller: ReturnType<typeof setInterval> | null = null;
-  let last = JSON.stringify(loadGatewayConfig(dataDir, vectorUrl));
+  let last = JSON.stringify(loadGatewayConfig(dataDir, vectorUrl, vectorServices()));
 
   const reloadIfChanged = (): void => {
     // Malformed JSON survival: if the file exists but failed to parse,
@@ -92,16 +120,20 @@ export function watchGatewayConfig(
     // are silently ignored so the running gateway keeps its last good
     // state until the user saves a valid file.
     const fileMissing = !fs.existsSync(configPath);
-    const next = loadGatewayConfig(dataDir, vectorUrl);
-    if (next === null && !fileMissing && !vectorUrl) {
+    const next = loadGatewayConfig(dataDir, vectorUrl, vectorServices());
+    if (next === null && !fileMissing) {
       // file exists but failed to parse — hold last good
       return;
     }
     const serialized = JSON.stringify(next);
     if (serialized === last) return;
-    last = serialized;
     console.log('[Gateway] Config changed — reloading');
-    onChange(next);
+    try {
+      onChange(next);
+      last = serialized;
+    } catch (error) {
+      console.warn(`[Gateway] Config reload callback failed: ${errorMessage(error)}`);
+    }
   };
 
   const tick = (): void => {
@@ -124,7 +156,7 @@ export function watchGatewayConfig(
       // events for a directly watched file on some platforms.
       watchers.push(
         fs.watch(dataDir, { persistent: false }, (_event, filename) => {
-          if (filename === CONFIG_FILE) tick();
+          if (filename === configFileName()) tick();
         }),
       );
     }

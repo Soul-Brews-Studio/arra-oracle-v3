@@ -11,9 +11,9 @@ export function Spinner({ label = 'Loading' }: { label?: string }) {
 
 export function LoadingPanel({ title, detail }: { title: string; detail?: string }) {
   return (
-    <div className="rounded-xl border border-teal-300/20 bg-teal-300/5 p-5 text-sm text-teal-100">
+    <div className="rounded-xl border border-accent-border bg-accent-soft p-5 text-sm text-accent dark:border-accent-border dark:bg-accent-soft dark:text-accent">
       <Spinner label={title} />
-      {detail ? <p className="mt-2 text-teal-100/70">{detail}</p> : null}
+      {detail ? <p className="mt-2 text-accent">{detail}</p> : null}
     </div>
   );
 }
@@ -28,9 +28,9 @@ export function ErrorMessage({
   action?: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-red-400/30 bg-red-950/40 p-4 text-sm text-red-100" role="alert">
+    <div className="rounded-xl border border-err-border bg-err-bg p-4 text-sm text-err-text dark:border-err-border dark:bg-err-bg dark:text-err-text" role="alert">
       <p className="font-semibold">{title}</p>
-      <p className="mt-1 text-red-200/80">{message}</p>
+      <p className="mt-1 text-err-text">{message}</p>
       {action ? <div className="mt-3">{action}</div> : null}
     </div>
   );

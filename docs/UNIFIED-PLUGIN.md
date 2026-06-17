@@ -6,8 +6,8 @@ plugin contributes while preserving the current ServerPlugin, Installed/Wasm,
 CanvasPlugin, and CLI plugin surfaces.
 
 This started as a design-first slice: schema, migration map, reference manifest,
-and validation tests. Alpha now includes the first runtime loader bridge; MCP and
-CLI execution remain follow-up work.
+and validation tests. Alpha now includes the runtime loader bridge for plugin
+API, proxy, menu, server, MCP tool, export, and CLI metadata surfaces.
 
 ## Manifest shape
 
@@ -63,22 +63,17 @@ loads normalized manifests at boot, then registers whichever surfaces are presen
   `ARRA_PLUGIN_PORT`, must pass `healthPath` (default `/health`), and are proxied
   behind `/api/plugins/<name>/server/*`.
 - `menu[]` entries are seeded into `menu_items` as plugin-owned rows.
-- `mcpTools[]` and `cliSubcommands[]` are collected as registry metadata for the
-  MCP/CLI loaders to consume in follow-up slices.
+- `mcpTools[]` are advertised by `/api/mcp/tools`, appended to MCP stdio
+  `tools/list`, and dispatched through `UnifiedRuntime.callMcpTool()`.
+- `cliSubcommands[]` are collected as registry metadata for the CLI loader.
 
 Missing surfaces are skipped. Invalid or failing plugin manifests are warned and
 ignored so one plugin cannot prevent the server from booting.
 
-## MCP tool registration gap
+## MCP tool runtime
 
-This is the largest missing capability. Today MCP tools are static:
-
-1. definitions are imported from `src/tools/*`;
-2. `src/index.ts` lists them in `ListToolsRequestSchema`;
-3. calls are routed by a `switch (toolName)`;
-4. `src/config/tool-groups.ts` only knows static names in `TOOL_GROUPS`.
-
-A plugin MCP tool needs a dynamic registry before it can be advertised or called:
+Plugin MCP tools use the normalized manifest as their definition and the named
+entry export as their handler:
 
 ```ts
 type RegisteredMcpTool = {
@@ -88,23 +83,43 @@ type RegisteredMcpTool = {
   inputSchema: Record<string, unknown>;
   group: string;              // e.g. "canvas" or "plugin:<name>"
   readOnly: boolean;
+  enabled?: boolean;          // false = do not register or invoke
   enabledByDefault: boolean;
   call(args, ctx): Promise<ToolResponse>;
 };
 ```
 
-Recommended runtime flow:
+Runtime flow:
 
-1. load and normalize all unified manifests;
-2. for each `mcpTools[]` item, import `entry` and bind `handler`;
-3. append registered tool definitions to `ListToolsRequestSchema` output;
-4. before the static `switch`, dispatch `toolName` to the dynamic registry;
-5. extend tool toggles so plugin tools are known names, not ignored typos.
+1. `loadUnifiedPlugins()` discovers and normalizes plugin manifests.
+2. Tools with `enabled: false` are skipped before registration.
+3. For each active `mcpTools[]` item, the runtime records public metadata and a
+   `(plugin, handler)` invoker.
+4. HTTP browsers see core + active plugin tools at `GET /api/mcp/tools`.
+5. MCP stdio builds a fresh registry for each list/call, so plugin tools can be
+   advertised, called, disabled, or removed without editing core tool code.
+6. `runtime.reload()` re-scans plugin dirs in place; callers that hold the
+   runtime object see added/removed MCP tools on the next list/call.
+
+`runtime.reload()` mutates the existing `mcpTools` array, plugin registry, and
+invoker map. API route additions still need the HTTP app to remount routes; use
+reload for MCP tool in/out and restart/remount for newly added route surfaces.
+
+`enabledByDefault: false` is softer than `enabled: false`: the tool remains
+registered and callable when explicitly enabled by config, but it is not listed
+by default. Use `enabled: false` to plug a tool out completely while keeping the
+manifest entry documented.
 
 ### Toggle integration (#1372)
 
-`getDisabledTools()` currently rejects names not present in its static
-`ALL_TOOL_NAMES`. Plugin tools need an additional known-tool set:
+Set `enabled: false` on a plugin MCP tool to keep it declared but completely
+plugged out of runtime registration, registry metadata, and invocation.
+Static tool toggles remain backed by `TOOL_GROUPS`. Plugin tools are filtered at
+manifest-load time by `enabled: false`, then at MCP registry time by their own
+`enabledByDefault` flag and by explicit `disabled_tools` / `enabled_tools`
+entries when the runtime tool name is present.
+Future strict allow-list work can pass plugin names as an additional known-tool
+set:
 
 ```ts
 getDisabledTools(config, { extraToolNames: registry.toolNames() })
@@ -134,9 +149,8 @@ because no static tool names change.
 - **CLI plugins** keep their current `cli` key until the CLI loader consumes
   `cliSubcommands[]` directly.
 
-## Non-goals for this PR
+## Non-goals for this slice
 
-- No dynamic MCP execution yet.
-- No restart/backoff supervisor for plugin-owned servers yet.
+- No restart/backoff supervisor changes for plugin-owned servers.
 - No npm package extraction.
 - No subdomain deploy work.

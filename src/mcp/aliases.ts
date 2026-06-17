@@ -2,8 +2,12 @@
 const ALIAS_PREFIXES = ['arra_', 'muninn_'] as const;
 
 export function resolveToolName(name: string): string {
+  const clean = name.trim();
   for (const prefix of ALIAS_PREFIXES) {
-    if (name.startsWith(prefix)) return 'oracle_' + name.slice(prefix.length);
+    if (!clean.startsWith(prefix)) continue;
+    const suffix = clean.slice(prefix.length).trim();
+    if (!suffix) return clean;
+    return suffix.startsWith('oracle_') ? suffix : `oracle_${suffix}`;
   }
-  return name;
+  return clean;
 }

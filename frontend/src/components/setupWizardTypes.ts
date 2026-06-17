@@ -1,4 +1,5 @@
 export type Step = 0 | 1 | 2 | 3;
+export type VectorIndexSource = 'auto' | 'vault' | 'sqlite';
 export type Stats = {
   total?: number;
   total_docs?: number;
@@ -15,6 +16,7 @@ export type VectorConfig = {
         provider?: string;
       }
     >;
+    embedder?: Record<string, unknown>;
   };
   doc_counts?: Record<string, number>;
 };

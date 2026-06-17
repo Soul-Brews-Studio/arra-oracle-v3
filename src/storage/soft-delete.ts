@@ -1,4 +1,4 @@
-import { and, eq, isNull, type SQL } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, type SQL } from 'drizzle-orm';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import { menuItems } from '../db/schema.ts';
 
@@ -24,6 +24,10 @@ function deletePatch(table: SoftDeleteTable, deletedAt: Date, extra: Record<stri
 
 function restorePatch(restoredAt: Date, extra: Record<string, unknown>) {
   return { updatedAt: restoredAt, ...extra, deletedAt: null };
+}
+
+function validRowId(id: number): boolean {
+  return Number.isSafeInteger(id) && id > 0;
 }
 
 export function notDeleted(table: SoftDeleteTable, predicate?: SQL): SQL | undefined {
@@ -52,7 +56,11 @@ export function softDeleteById<Row = unknown>(
   id: number,
   options: SoftDeleteOptions = {},
 ): SoftDeleteResult<Row> {
-  return softDeleteWhere(db, table, eq(table.id, id), options);
+  if (!validRowId(id)) {
+    const deletedAt = options.deletedAt ?? new Date();
+    return { rows: [], count: 0, deletedAt };
+  }
+  return softDeleteWhere(db, table, notDeleted(table, eq(table.id, id))!, options);
 }
 
 export function restoreById<Row = unknown>(
@@ -62,9 +70,10 @@ export function restoreById<Row = unknown>(
   restoredAt = new Date(),
   extra: Record<string, unknown> = {},
 ): Row | undefined {
+  if (!validRowId(id)) return undefined;
   return (db.update(table as never)
     .set(restorePatch(restoredAt, extra) as never)
-    .where(eq(table.id, id))
+    .where(and(eq(table.id, id), isNotNull(table.deletedAt)))
     .returning()
     .get() as unknown) as Row | undefined;
 }

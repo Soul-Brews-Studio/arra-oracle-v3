@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ErrorMessage, Spinner } from '../components/AsyncState';
-import { fetchJson, type VectorConfigRow } from './vectorSettingsHelpers';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
+import { fetchJson, parseVectorConfigResponse, toRows, type VectorConfigRow } from './vectorSettingsHelpers';
 
 type WizardStep = 0 | 1 | 2 | 3;
 type Provider = { type: string; available?: boolean; configured?: boolean; models?: string[]; error?: string; status?: string };
@@ -16,6 +16,7 @@ type CostEstimate = {
   formula: string;
   note: string;
   recommendation: string;
+  fallbackSummary?: string;
 };
 
 export type FirstRunWizardProps = {
@@ -26,6 +27,41 @@ export type FirstRunWizardProps = {
 };
 
 const steps = ['Welcome', 'Provider', 'Vault + index', 'Done'] as const;
+
+export function VectorFirstRunWizardPage() {
+  const [rows, setRows] = useState<VectorConfigRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const refresh = useCallback(async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const body = await fetchJson<unknown>('/api/v1/vector/config');
+      setRows(toRows(parseVectorConfigResponse(body)));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  return (
+    <section className="grid gap-5" aria-labelledby="vector-first-run-title">
+      <header className="rounded-3xl border border-border bg-surface p-5 sm:p-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Vector onboarding</p>
+        <h1 id="vector-first-run-title" className="mt-2 text-3xl font-semibold text-text">First-run setup wizard</h1>
+        <p className="mt-2 text-sm text-text-muted">Auto-detect providers, review cost, choose the first vault collection, and start indexing.</p>
+      </header>
+
+      <FirstRunWizard rows={rows} onRefresh={refresh} />
+      {loading ? <LoadingPanel title="Loading first-run vector config…" detail="Fetching /api/v1/vector/config." /> : null}
+      {error ? <ErrorMessage title="Could not load first-run vector config." message={error} /> : null}
+    </section>
+  );
+}
 
 function primaryKey(rows: VectorConfigRow[]): string | null {
   return (rows.find((row) => row.primary) ?? rows[0])?.key ?? null;
@@ -94,11 +130,11 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
   }
 
   return (
-    <section className={`rounded-3xl border p-5 sm:p-6 ${showAsFirstRun ? 'border-purple-300/20 bg-purple-300/10' : 'border-white/10 bg-slate-950/70'}`} aria-labelledby="first-run-wizard-title">
+    <section className={`rounded-3xl border p-5 sm:p-6 ${showAsFirstRun ? 'border-purple-300/20 bg-accent2-solid/10' : 'border-border bg-surface'}`} aria-labelledby="first-run-wizard-title">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-purple-200">First-run wizard</p>
-          <h2 id="first-run-wizard-title" className="mt-2 text-2xl font-semibold text-white">{steps[step]}</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">First-run wizard</p>
+          <h2 id="first-run-wizard-title" className="mt-2 text-2xl font-semibold text-text">{steps[step]}</h2>
           <p className="mt-2 max-w-3xl text-sm text-purple-100/80">{copyFor(step, showAsFirstRun, recommended)}</p>
         </div>
         <ol className="flex gap-2" aria-label="First-run steps">{steps.map((item, index) => <li key={item} className={`h-2 w-10 rounded-full ${index <= step ? 'bg-purple-200' : 'bg-white/20'}`} />)}</ol>
@@ -106,14 +142,16 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
 
       {step === 1 ? <ProviderList providers={providers} /> : null}
       {step === 2 ? <VaultPlan rows={rows} cost={cost} /> : null}
-      {message ? <p className="mt-4 rounded-2xl border border-white/10 bg-slate-950/50 p-3 text-sm text-purple-100">{message}</p> : null}
+      {step === 3 ? <DoneActions /> : null}
+      {message ? <p className="mt-4 rounded-2xl border border-border bg-field/50 p-3 text-sm text-purple-100">{message}</p> : null}
       {error ? <div className="mt-4"><ErrorMessage title="First-run step failed." message={error} /></div> : null}
 
       <div className="mt-5 flex flex-wrap gap-2">
-        <button className="focus-ring rounded-xl border border-white/10 px-3 py-2 text-sm text-purple-100 disabled:opacity-50" disabled={step === 0} type="button" onClick={() => setStep((step - 1) as WizardStep)}>Back</button>
-        {step === 0 ? <button className="focus-ring rounded-xl bg-purple-200 px-3 py-2 text-sm font-semibold text-slate-950" type="button" onClick={() => void reloadHealth()}>{busy ? <Spinner label="Detecting" /> : 'Run auto-detect'}</button> : null}
-        {step === 2 ? <button className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50" disabled={busy || !rows.length} type="button" onClick={() => void startIndex()}>{busy ? <Spinner label="Starting" /> : 'Start indexing'}</button> : null}
+        <button className="focus-ring rounded-xl border border-border px-3 py-2 text-sm text-purple-100 disabled:opacity-50" disabled={step === 0} type="button" onClick={() => setStep((step - 1) as WizardStep)}>Back</button>
+        {step === 0 ? <button className="focus-ring rounded-xl bg-purple-200 px-3 py-2 text-sm font-semibold text-on-accent" type="button" onClick={() => void reloadHealth()}>{busy ? <Spinner label="Detecting" /> : 'Run auto-detect'}</button> : null}
+        {step === 2 ? <button className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-on-accent disabled:opacity-50" disabled={busy || !rows.length} type="button" onClick={() => void startIndex()}>{busy ? <Spinner label="Starting" /> : 'Start indexing'}</button> : null}
         <button className="focus-ring rounded-xl border border-purple-200/40 px-3 py-2 text-sm font-semibold text-purple-100 disabled:opacity-50" disabled={step === 3} type="button" onClick={() => setStep((step + 1) as WizardStep)}>Next</button>
+        {step === 3 ? <a className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-on-accent" href="/vector">Continue to dashboard</a> : null}
       </div>
     </section>
   );
@@ -126,22 +164,36 @@ function copyFor(step: WizardStep, firstRun: boolean, provider?: Provider): stri
   return 'Indexing has started. The Index Manager shows live progress and completion state.';
 }
 
+
+function DoneActions() {
+  return (
+    <div className="mt-4 rounded-2xl border border-accent-border p-4 text-sm text-accent">
+      <p className="font-semibold text-accent">Vector setup is underway</p>
+      <p className="mt-1">Continue to the Vector dashboard for collection health, or open the Index Manager for live progress.</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <a className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-on-accent" href="/vector">Open Vector dashboard</a>
+        <a className="focus-ring rounded-xl border border-accent-border px-3 py-2 text-sm font-semibold text-accent" href="/vector/index">Open Index Manager</a>
+      </div>
+    </div>
+  );
+}
+
 function ProviderList({ providers }: { providers: Provider[] }) {
   if (!providers.length) return <p className="mt-4 text-sm text-purple-100/70">Provider detection has not returned results yet.</p>;
-  return <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{providers.map((provider) => <div key={provider.type} className="rounded-2xl border border-white/10 bg-slate-950/50 p-3"><p className="font-semibold text-purple-100">{provider.type}</p><p className="text-sm text-slate-400">{provider.available ? 'available' : 'unavailable'} · {(provider.models ?? []).slice(0, 2).join(', ') || 'no models'}</p></div>)}</div>;
+  return <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{providers.map((provider) => <div key={provider.type} className="rounded-2xl border border-border bg-field/50 p-3"><p className="font-semibold text-purple-100">{provider.type}</p><p className="text-sm text-text-muted">{provider.available ? 'available' : 'unavailable'} · {(provider.models ?? []).slice(0, 2).join(', ') || 'no models'}</p></div>)}</div>;
 }
 
 function VaultPlan({ rows, cost }: { rows: VectorConfigRow[]; cost: CostEstimate | null }) {
   const primary = rows.find((row) => row.primary) ?? rows[0];
   return (
     <div className="mt-4 grid gap-3 text-sm text-purple-100 lg:grid-cols-[1fr_1.3fr]">
-      <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+      <div className="rounded-2xl border border-border bg-field/50 p-4">
         <p>Primary collection: <span className="font-semibold">{primary?.collection ?? 'none'}</span></p>
         <p className="mt-1 text-purple-100/70">Vault selection is represented by indexed source documents; use Index now to backfill vectors for the primary model.</p>
       </div>
-      <div className="rounded-2xl border border-teal-200/20 bg-teal-200/10 p-4">
-        <p className="font-semibold text-teal-100">Estimated embedding cost</p>
-        {cost ? <CostSummary cost={cost} /> : <p className="mt-2 text-teal-100/70">Cost estimate will appear after provider detection completes.</p>}
+      <div className="rounded-2xl border border-accent-border p-4">
+        <p className="font-semibold text-accent">Estimated embedding cost</p>
+        {cost ? <CostSummary cost={cost} /> : <p className="mt-2 text-accent opacity-70">Cost estimate will appear after provider detection completes.</p>}
       </div>
     </div>
   );
@@ -149,12 +201,13 @@ function VaultPlan({ rows, cost }: { rows: VectorConfigRow[]; cost: CostEstimate
 
 function CostSummary({ cost }: { cost: CostEstimate }) {
   return (
-    <div className="mt-2 space-y-2 text-teal-50/85">
+    <div className="mt-2 space-y-2 text-accent opacity-85">
       <p>{cost.docs.toLocaleString()} docs · {cost.tokensPerDoc.toLocaleString()} tokens/doc · {cost.totalTokens.toLocaleString()} tokens total</p>
-      <p>{cost.provider} / {cost.model}: <span className="font-semibold text-teal-100">${cost.estimatedUsd.toFixed(4)}</span></p>
-      <p className="text-teal-100/70">{cost.formula}</p>
-      <p><span className="font-semibold text-teal-100">Recommendation:</span> {cost.recommendation}</p>
-      <p className="text-teal-100/70">{cost.note}</p>
+      <p>{cost.provider} / {cost.model}: <span className="font-semibold text-accent">${cost.estimatedUsd.toFixed(4)}</span></p>
+      <p className="text-accent opacity-70">{cost.formula}</p>
+      {cost.fallbackSummary ? <p className="text-accent opacity-70">{cost.fallbackSummary}</p> : null}
+      <p><span className="font-semibold text-accent">Recommendation:</span> {cost.recommendation}</p>
+      <p className="text-accent opacity-70">{cost.note}</p>
     </div>
   );
 }

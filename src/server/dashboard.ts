@@ -7,15 +7,15 @@
 import { sql, gt, and, gte, lt, desc, eq, type SQL } from 'drizzle-orm';
 import { db, oracleDocuments, searchLog, learnLog } from '../db/index.ts';
 import type { DashboardSummary, DashboardActivity, DashboardGrowth } from './types.ts';
-import { currentTenantId } from '../middleware/tenant.ts';
+import { activeTenantId } from '../middleware/tenant.ts';
+import { parseConceptList, safeIsoTime } from '../dashboard/normalize.ts';
 
 
 type TenantTable = { tenantId: unknown };
 
-function scoped<T extends TenantTable>(table: T, condition?: SQL): SQL | undefined {
-  const tenantId = currentTenantId();
-  const tenantFilter = tenantId ? eq(table.tenantId as never, tenantId) : undefined;
-  return tenantFilter && condition ? and(condition, tenantFilter) : tenantFilter ?? condition;
+function scoped<T extends TenantTable>(table: T, condition?: SQL): SQL {
+  const tenantFilter = eq(table.tenantId as never, activeTenantId());
+  return condition ? and(condition, tenantFilter)! : tenantFilter;
 }
 
 /**
@@ -50,14 +50,9 @@ export function handleDashboardSummary(): DashboardSummary {
 
   const conceptCounts = new Map<string, number>();
   for (const row of conceptsResult) {
-    try {
-      const concepts = JSON.parse(row.concepts);
-      if (Array.isArray(concepts)) {
-        concepts.forEach((c: string) => {
-          conceptCounts.set(c, (conceptCounts.get(c) || 0) + 1);
-        });
-      }
-    } catch {}
+    for (const concept of parseConceptList(row.concepts)) {
+      conceptCounts.set(concept, (conceptCounts.get(concept) || 0) + 1);
+    }
   }
 
   const topConcepts = Array.from(conceptCounts.entries())
@@ -140,7 +135,7 @@ export function handleDashboardActivity(days: number = 7): DashboardActivity {
       type: row.type,
       results_count: row.resultsCount,
       search_time_ms: row.searchTimeMs,
-      created_at: new Date(row.createdAt).toISOString()
+      created_at: safeIsoTime(row.createdAt)
     }));
   } catch {}
 
@@ -164,8 +159,8 @@ export function handleDashboardActivity(days: number = 7): DashboardActivity {
       document_id: row.documentId,
       pattern_preview: row.patternPreview,
       source: row.source,
-      concepts: JSON.parse(row.concepts || '[]'),
-      created_at: new Date(row.createdAt).toISOString()
+      concepts: parseConceptList(row.concepts),
+      created_at: safeIsoTime(row.createdAt)
     }));
   } catch {}
 

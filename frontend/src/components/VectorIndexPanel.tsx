@@ -6,6 +6,7 @@ import {
   type VectorIndexStatusResponse,
 } from '../api/client';
 import { ErrorMessage, LoadingPanel, Spinner } from './AsyncState';
+import { VectorIndexCostPanel, type VectorCostEstimate, type VectorCostTracking } from './VectorIndexCostPanel';
 
 type VectorIndexClient = Pick<ApiClient, 'startVectorIndex' | 'vectorIndexModels' | 'vectorIndexStatus'>;
 
@@ -13,6 +14,9 @@ interface VectorIndexPanelProps {
   client?: VectorIndexClient;
   initialModels?: Record<string, VectorIndexCollection>;
   initialStatus?: VectorIndexStatusResponse | null;
+  initialCostEstimate?: VectorCostEstimate | null;
+  initialCostTracking?: VectorCostTracking | null;
+  loadCostEstimate?: () => Promise<VectorCostEstimate>;
 }
 
 export function formatIndexEta(seconds: number): string {
@@ -28,14 +32,61 @@ function progressFor(status: VectorIndexStatusResponse): number {
   return Math.min(100, Math.round((status.current / status.total) * 100));
 }
 
+function totalVectors(models: Record<string, VectorIndexCollection>): number {
+  return Object.values(models).reduce((sum, model) => sum + (model.count ?? 0), 0);
+}
+
+function gapLabel(models: Record<string, VectorIndexCollection>, status: VectorIndexStatusResponse | null): string {
+  if (status?.total && status.total > status.current) return `${(status.total - status.current).toLocaleString()} docs need backfill`;
+  const total = totalVectors(models);
+  if (!total) return 'Source docs need first vector backfill.';
+  return '0 docs need backfill';
+}
+
 function statusSummary(status: VectorIndexStatusResponse | null): string {
   if (!status || status.status === 'idle') return 'No active index job.';
   if (status.status === 'completed') return `Completed ${status.model} reindex.`;
   if (status.status === 'error') return `Failed ${status.model} reindex.`;
-  return `Indexing ${status.model}; polling every 2s.`;
+  if (status.status === 'stopped') return `Stopped ${status.model} reindex.`;
+  if (status.status === 'stopping') return `Stopping ${status.model} reindex...`;
+  return `⏳ Backfilling ${status.model}... ${status.current.toLocaleString()}/${status.total.toLocaleString()} (${progressFor(status)}%)`;
 }
 
-export function VectorIndexPanel({ client = apiClient, initialModels, initialStatus = null }: VectorIndexPanelProps) {
+function jobNotice(status: VectorIndexStatusResponse | null): { title: string; detail: string; tone: string } | null {
+  if (!status || status.status === 'idle' || status.status === 'indexing' || status.status === 'stopping') return null;
+  if (status.status === 'completed') return {
+    title: 'Index job complete',
+    detail: `${status.model} indexed ${status.current.toLocaleString()}/${status.total.toLocaleString()} docs. Dashboard vectors are ready.`,
+    tone: 'border-ok-border bg-ok-bg text-ok-text',
+  };
+  if (status.status === 'stopped') return {
+    title: 'Index job stopped',
+    detail: status.error ?? `${status.model} stopped at ${status.current.toLocaleString()}/${status.total.toLocaleString()} docs.`,
+    tone: 'border-warn-border bg-warn-bg text-warn-text',
+  };
+  return {
+    title: 'Index job failed',
+    detail: status.error ?? `${status.model} failed before completing the vector backfill.`,
+    tone: 'border-err-border bg-err-bg text-err-text',
+  };
+}
+
+function modelState(model: VectorIndexCollection): string {
+  return (model.count ?? 0) > 0 ? 'synced' : 'stale';
+}
+
+function vaultState(model: VectorIndexCollection): string {
+  return (model.count ?? 0) > 0 ? 'indexed' : 'not indexed';
+}
+
+export function VectorIndexPanel({
+  client = apiClient,
+  initialModels,
+  initialStatus = null,
+  initialCostEstimate,
+  initialCostTracking,
+  loadCostEstimate,
+}: VectorIndexPanelProps) {
   const [models, setModels] = useState<Record<string, VectorIndexCollection>>(initialModels ?? {});
   const [loading, setLoading] = useState(!initialModels);
   const [status, setStatus] = useState<VectorIndexStatusResponse | null>(initialStatus);
@@ -43,7 +94,9 @@ export function VectorIndexPanel({ client = apiClient, initialModels, initialSta
   const [startingKey, setStartingKey] = useState<string | null>(null);
 
   const modelEntries = useMemo(() => Object.entries(models).sort(([a], [b]) => a.localeCompare(b)), [models]);
-  const indexing = status?.status === 'indexing';
+  const indexing = status?.status === 'indexing' || status?.status === 'stopping';
+  const notice = jobNotice(status);
+  const firstModel = modelEntries[0]?.[0];
 
   const refreshStatus = useCallback(async () => {
     const next = await client.vectorIndexStatus();
@@ -91,44 +144,70 @@ export function VectorIndexPanel({ client = apiClient, initialModels, initialSta
     }
   }
 
+  const startFirstModel = () => {
+    if (firstModel) void startReindex(firstModel);
+  };
+
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-index-title">
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-index-title">
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-purple-300">Index Manager</p>
-          <h2 id="vector-index-title" className="mt-2 text-2xl font-semibold text-white">Index jobs and collections</h2>
-          <p className="mt-2 text-sm text-slate-400">Start, poll, and audit embedding rebuilds through /api/v1/vector/index/start.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Index Manager</p>
+          <h2 id="vector-index-title" className="mt-2 text-2xl font-semibold text-text">Index jobs and collections</h2>
+          <p className="mt-2 text-sm text-text-muted">Start, poll, and audit embedding rebuilds through /api/v1/vector/index/start.</p>
         </div>
-        <button
-          className="focus-ring rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-200 hover:border-purple-300/40"
-          type="button"
-          onClick={() => void refreshStatus()}
-        >
-          Refresh status
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button className="focus-ring rounded-xl bg-accent2-solid px-3 py-2 text-sm font-semibold text-on-accent disabled:opacity-50" disabled={!firstModel || indexing || Boolean(startingKey)} type="button" onClick={startFirstModel}>Index Now</button>
+          <button className="focus-ring rounded-xl border border-accent2-border px-3 py-2 text-sm font-semibold text-accent2 disabled:opacity-50" disabled={!firstModel || indexing || Boolean(startingKey)} type="button" onClick={startFirstModel}>Backfill Vectors</button>
+          <a className="focus-ring rounded-xl border border-border px-3 py-2 text-sm text-text hover:border-purple-300/40" href="/settings">Add Vault</a>
+          <button className="focus-ring rounded-xl border border-border px-3 py-2 text-sm text-text hover:border-purple-300/40" type="button" onClick={() => void refreshStatus()}>Refresh status</button>
+        </div>
       </div>
 
-      <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <p className="text-sm font-semibold text-slate-200">{statusSummary(status)}</p>
+      <div className="mb-4 rounded-2xl border border-border bg-surface-muted p-4">
+        <p className="text-sm font-semibold text-text">Active jobs: {statusSummary(status)}</p>
+        <p className="mt-1 text-sm text-warn-text">Gap indicator: {gapLabel(models, status)}</p>
         {status ? <IndexProgress status={status} /> : null}
       </div>
 
+      {notice ? (
+        <div className={`mb-4 rounded-2xl border p-4 text-sm ${notice.tone}`} role="status" aria-live="polite">
+          <p className="font-semibold"><span aria-hidden="true">● </span>{notice.title}</p>
+          <p className="mt-1 opacity-80">{notice.detail}</p>
+        </div>
+      ) : null}
+
+      <VectorIndexCostPanel indexing={indexing} initialCostEstimate={initialCostEstimate} initialCostTracking={initialCostTracking} loadCostEstimate={loadCostEstimate} />
+
       {loading ? <LoadingPanel title="Loading vector collections…" detail="Fetching /api/v1/vector/index/models." /> : null}
       {error ? <ErrorMessage title="Vector indexing failed." message={error} /> : null}
-      {!loading && !modelEntries.length ? <p className="text-sm text-slate-500">No vector collections reported.</p> : null}
+      {!loading && !modelEntries.length ? <p className="text-sm text-text-muted">No vector collections reported.</p> : null}
 
+      <section className="mb-5 rounded-2xl border border-border bg-surface-muted p-4" aria-label="Vault list">
+        <h3 className="font-semibold text-accent">Vault list</h3>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          {modelEntries.map(([key, model]) => (
+            <p key={key} className="rounded-xl border border-border bg-field/50 p-3 text-sm text-text-muted">
+              <span className="font-mono text-accent">{model.collection}</span><br />
+              {(model.count ?? 0).toLocaleString()} docs · {vaultState(model)}
+            </p>
+          ))}
+        </div>
+      </section>
+
+      <h3 className="mb-3 font-semibold text-accent2">Vector Models</h3>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {modelEntries.map(([key, model]) => {
           const active = indexing && status?.model === key;
           return (
-            <article key={key} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <article key={key} className="rounded-2xl border border-border bg-surface-muted p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-mono text-base font-semibold text-teal-200">{key}</h3>
-                  <p className="mt-1 text-sm text-slate-300">{model.collection}</p>
+                  <h3 className="font-mono text-base font-semibold text-accent">{key}</h3>
+                  <p className="mt-1 text-sm text-text-muted">{model.collection}</p>
                 </div>
                 <button
-                  className="focus-ring rounded-xl bg-purple-300 px-3 py-2 text-sm font-semibold text-slate-950 hover:bg-purple-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="focus-ring rounded-xl bg-accent2-solid px-3 py-2 text-sm font-semibold text-on-accent hover:bg-accent2-hover disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={Boolean(startingKey) || indexing}
                   type="button"
                   onClick={() => void startReindex(key)}
@@ -136,10 +215,11 @@ export function VectorIndexPanel({ client = apiClient, initialModels, initialSta
                   {startingKey === key ? <Spinner label="Starting" /> : active ? 'Reindexing…' : 'Reindex'}
                 </button>
               </div>
-              <dl className="mt-4 grid gap-2 text-sm text-slate-400">
-                <div><dt className="inline text-slate-500">Model: </dt><dd className="inline">{model.model}</dd></div>
-                <div><dt className="inline text-slate-500">Adapter: </dt><dd className="inline">{model.adapter}</dd></div>
-                <div><dt className="inline text-slate-500">Docs: </dt><dd className="inline">{model.count ?? 0}</dd></div>
+              <dl className="mt-4 grid gap-2 text-sm text-text-muted">
+                <div><dt className="inline text-text-muted">Model: </dt><dd className="inline">{model.model}</dd></div>
+                <div><dt className="inline text-text-muted">Adapter: </dt><dd className="inline">{model.adapter}</dd></div>
+                <div><dt className="inline text-text-muted">Docs: </dt><dd className="inline">{model.count ?? 0}</dd></div>
+                <div><dt className="inline text-text-muted">Sync: </dt><dd className="inline">{modelState(model)}</dd></div>
               </dl>
             </article>
           );
@@ -154,12 +234,12 @@ function IndexProgress({ status }: { status: VectorIndexStatusResponse }) {
   return (
     <div className="mt-3">
       <div className="h-2 overflow-hidden rounded-full bg-slate-800" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
-        <div className="h-full rounded-full bg-purple-300 transition-all" style={{ width: `${progress}%` }} />
+        <div className="h-full rounded-full bg-accent2-solid transition-all" style={{ width: `${progress}%` }} />
       </div>
-      <p className="mt-2 text-sm text-slate-400">
+      <p className="mt-2 text-sm text-text-muted">
         {status.current}/{status.total} docs · {status.docsPerSec} docs/sec · ETA {formatIndexEta(status.eta)}
       </p>
-      {status.error ? <p className="mt-2 text-sm text-red-200">{status.error}</p> : null}
+      {status.error ? <p className="mt-2 text-sm text-err-text">{status.error}</p> : null}
     </div>
   );
 }

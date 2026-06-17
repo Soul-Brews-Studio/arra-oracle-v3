@@ -14,38 +14,70 @@ import * as schema from './schema.ts';
 import { DB_PATH, ORACLE_DATA_DIR } from '../config.ts';
 import { createStorageBackend } from '../storage/registry.ts';
 import type { StorageBackend } from '../storage/types.ts';
+import { resolveDatabasePath } from './create.ts';
+export { createDatabase, type DatabaseConnection } from './create.ts';
+export {
+  atomicOp,
+  atomicOps,
+  type AtomicBatchDb,
+  type AtomicOperation,
+  type AtomicTransactionDb,
+  type PairedAtomicOperation,
+  type RunnableAtomicStatement,
+} from './atomic-ops.ts';
+export {
+  createDb,
+  detectDbRuntime,
+  type CreateDbEnv,
+  type CreateDbOptions,
+  type DbConnection,
+  type DbRuntime,
+} from './factory.ts';
 
 export { initializeDrizzleSqlite } from '../storage/drizzle-sqlite.ts';
-
-export interface DatabaseConnection {
-  sqlite: Database;
-  db: BunSQLiteDatabase<typeof schema>;
-  storage: StorageBackend;
-}
-
-/**
- * Create a fully-initialized database connection.
- * Used by MCP entry (src/index.ts) and indexer (src/indexer.ts).
- */
-export function createDatabase(dbPath?: string): DatabaseConnection {
-  const storage = createStorageBackend({ dbPath: dbPath || DB_PATH });
-  return { sqlite: storage.sqlite, db: storage.db, storage };
-}
 
 // ============================================================================
 // Default module-level connection (used by server.ts, handlers, etc.)
 // ============================================================================
 
-const isReadonly = process.env.ORACLE_VECTOR_READONLY === '1';
-let defaultStorage = createStorageBackend({ dbPath: DB_PATH, readonly: isReadonly });
-let defaultSqlite = defaultStorage.sqlite;
-let defaultDb = defaultStorage.db;
+let defaultStorage: StorageBackend | null = null;
 
-if (isReadonly) console.log('[DB] Opened in READONLY mode (vector sidecar)');
+function openDefaultStorage(): StorageBackend {
+  if (!defaultStorage) {
+    const readonly = process.env.ORACLE_VECTOR_READONLY === '1';
+    defaultStorage = createStorageBackend({ dbPath: defaultDbPath(), readonly });
+    if (readonly) console.log('[DB] Opened in READONLY mode (vector sidecar)');
+  }
+  return defaultStorage;
+}
 
-export let storage = defaultStorage;
-export let sqlite = defaultSqlite;
-export let db = defaultDb;
+function defaultDbPath(): string {
+  const envPath = process.env.ORACLE_DB_PATH?.trim();
+  if (envPath) return envPath;
+  if (process.env.NODE_ENV === 'test') return ':memory:';
+  return DB_PATH;
+}
+
+function lazyProxy<T extends object>(resolve: () => T): T {
+  return new Proxy({} as T, {
+    get(_target, prop) {
+      const target = resolve() as Record<PropertyKey, unknown>;
+      const value = target[prop];
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+    set(_target, prop, value) {
+      (resolve() as Record<PropertyKey, unknown>)[prop] = value;
+      return true;
+    },
+    has(_target, prop) {
+      return prop in resolve();
+    },
+  });
+}
+
+export const storage = lazyProxy<StorageBackend>(() => openDefaultStorage());
+export const sqlite = lazyProxy<Database>(() => openDefaultStorage().sqlite);
+export const db = lazyProxy<BunSQLiteDatabase<typeof schema>>(() => openDefaultStorage().db);
 
 /**
  * Test-only escape hatch for raw `bun test` non-isolate runs. Some tests set
@@ -54,15 +86,16 @@ export let db = defaultDb;
  * isolation. Production callers should prefer createDatabase().
  */
 export function resetDefaultDatabaseForTests(dbPath?: string): void {
-  try { defaultStorage.close(); } catch {}
-  const resolvedPath = dbPath || process.env.ORACLE_DB_PATH
-    || path.join(process.env.ORACLE_DATA_DIR || ORACLE_DATA_DIR, 'oracle.db');
-  defaultStorage = createStorageBackend({ dbPath: resolvedPath });
-  defaultSqlite = defaultStorage.sqlite;
-  defaultDb = defaultStorage.db;
-  storage = defaultStorage;
-  sqlite = defaultSqlite;
-  db = defaultDb;
+  try { defaultStorage?.close(); } catch {}
+  defaultStorage = null;
+  defaultStorage = createStorageBackend({ dbPath: resolveDatabasePath(dbPath, defaultDbPathForReset()) });
+}
+
+function defaultDbPathForReset(): string {
+  const envPath = process.env.ORACLE_DB_PATH?.trim();
+  if (envPath) return envPath;
+  if (process.env.NODE_ENV === 'test') return ':memory:';
+  return path.join(process.env.ORACLE_DATA_DIR?.trim() || ORACLE_DATA_DIR, 'oracle.db');
 }
 
 // Export schema for use in queries
@@ -70,7 +103,7 @@ export * from './schema.ts';
 
 /** Close database connection. */
 export function closeDb() {
-  defaultStorage.close();
+  try { defaultStorage?.close(); } finally { defaultStorage = null; }
 }
 
 // ============================================================================
@@ -86,8 +119,9 @@ export function closeDb() {
  * fallbacks instead of relying on the 503 catch-all.
  */
 export function isDbLockError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return msg.includes('disk I/O') || msg.includes('SQLITE_BUSY') || msg.includes('database is locked');
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return msg.includes('disk i/o') || msg.includes('sqlite_busy')
+    || msg.includes('sqlite_locked') || msg.includes('database is locked');
 }
 
 // ============================================================================

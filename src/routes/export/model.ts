@@ -21,6 +21,7 @@ export interface ExportPayload {
 
 export interface ExportJobView {
   id: string;
+  tenantId?: string;
   status: ExportJobStatus;
   format: ExportFormat;
   source: ExportSource;
@@ -66,10 +67,13 @@ export const exportHistoryRunBody = t.Object({
   collection: t.String({ minLength: 1 }),
   format: t.String({ minLength: 1 }),
   status: t.Optional(t.String({ minLength: 1 })),
+  oracleV2Url: t.Optional(t.String({ minLength: 1 })),
+  baseUrl: t.Optional(t.String({ minLength: 1 })),
 });
 
 export interface ExportHistoryJob {
   id: string;
+  tenantId: string;
   collection: string;
   format: string;
   timestamp: number;

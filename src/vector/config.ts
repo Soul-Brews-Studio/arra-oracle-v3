@@ -10,58 +10,29 @@
 
 import fs from 'fs';
 import path from 'path';
-import { ORACLE_DATA_DIR, LANCEDB_DIR } from '../config.ts';
-import { COLLECTION_NAME } from '../const.ts';
-import type { UnifiedProxyManifest } from '../plugins/unified-manifest.ts';
-import type { EmbedderConfig, VectorDBType } from './types.ts';
+import { ORACLE_DATA_DIR } from '../config.ts';
+import { COLLECTION_NAME, LANCEDB_DIR_NAME, VECTORS_DB_FILE } from '../const.ts';
+import type { VectorDBType } from './types.ts';
+import type { LocalVectorEngine, VectorCollectionConfig, VectorConfigUpdate, VectorProxyManifest, VectorServerConfig, VectorStorageConfig } from './config-types.ts';
 import { zeroConfigEmbedder } from './default-embedder.ts';
 import { normalizeVectorConfig } from './config-normalize.ts';
 
 export const VECTOR_CONFIG_FILE = 'vector-server.json';
+export const LOCAL_VECTOR_ENGINES = ['lancedb', 'qdrant', 'sqlite-vec'] as const;
+export type { LocalVectorEngine, VectorCollectionConfig, VectorConfigUpdate, VectorProxyManifest, VectorServerConfig, VectorServerV2Storage, VectorStorageConfig, VectorStorageService, VectorModelRegistryEntry } from './config-types.ts';
+export { configToModels, resolveServiceEndpoint } from './config-models.ts';
 
-export interface VectorStorageService {
-  type: 'builtin' | 'proxy';
-  endpoint?: string;
-  capabilities?: Record<string, unknown>;
+function currentDataDir(): string {
+  return process.env.ORACLE_DATA_DIR || ORACLE_DATA_DIR;
 }
 
-export interface VectorStorageConfig {
-  default: string;
-  services: Record<string, VectorStorageService>;
+function defaultLanceDbDir(): string {
+  return path.join(currentDataDir(), LANCEDB_DIR_NAME);
 }
 
-export interface VectorServerV2Storage {
-  storage: VectorStorageConfig;
+function defaultVectorsDbPath(): string {
+  return path.join(currentDataDir(), VECTORS_DB_FILE);
 }
-
-export interface VectorCollectionConfig {
-  collection: string;
-  model: string;
-  provider: string;
-  /** Vector adapter for this collection. Defaults to lancedb for embedded Bun. */
-  adapter?: VectorDBType;
-  service?: string;
-  /** Explicit endpoint for proxy adapter (optional, defaults to registered service). */
-  endpoint?: string;
-  enabled?: boolean;
-  primary?: boolean;
-  embedder?: EmbedderConfig;
-}
-
-export interface VectorServerConfig {
-  version: '1' | '1.0' | '2' | '2.0' | 'legacy';
-  host: string;
-  port: number;
-  collections: Record<string, VectorCollectionConfig>;
-  dataPath: string;
-  /** Default is none: semantic failures fall back to SQLite FTS5. */
-  embedder?: EmbedderConfig;
-  embeddingEndpoint: string;
-  storage?: VectorStorageConfig;
-  proxy?: VectorProxyManifest[];
-}
-
-export type VectorProxyManifest = UnifiedProxyManifest;
 
 /** Absolute path to vector-server.json inside ORACLE_DATA_DIR. */
 export function configPath(dataDir = process.env.ORACLE_DATA_DIR || ORACLE_DATA_DIR): string {
@@ -75,6 +46,7 @@ export function configPath(dataDir = process.env.ORACLE_DATA_DIR || ORACLE_DATA_
 export function generateDefaultConfig(): VectorServerConfig {
   return {
     version: '1.0',
+    enabled: false,
     host: '0.0.0.0',
     port: 8081,
     collections: {
@@ -101,7 +73,7 @@ export function generateDefaultConfig(): VectorServerConfig {
         embedder: zeroConfigEmbedder('qwen3-embedding'),
       },
     },
-    dataPath: LANCEDB_DIR,
+    dataPath: defaultLanceDbDir(),
     embeddingEndpoint: '',
     storage: {
       default: 'lancedb',
@@ -141,74 +113,9 @@ export function loadVectorConfig(fp = configPath()): VectorServerConfig | null {
  * Creates the directory if needed.
  */
 export function writeVectorConfig(config: VectorServerConfig, fp = configPath()): string {
+  fs.mkdirSync(path.dirname(fp), { recursive: true });
   fs.writeFileSync(fp, JSON.stringify(config, null, 2) + '\n', 'utf-8');
   return fp;
-}
-
-function embedderFor(config: VectorServerConfig, col: VectorCollectionConfig): EmbedderConfig | undefined {
-  const generated = col.embedder?.backend === 'ollama' && col.embedder.model === col.model && col.provider === 'ollama';
-  const merged = config.embedder && generated ? { ...col.embedder, ...config.embedder }
-    : config.embedder || col.embedder ? { ...config.embedder, ...col.embedder } : undefined;
-  const primary = col.embedder && !generated
-    ? col.embedder.backend ?? col.embedder.default ?? config.embedder?.backend ?? config.embedder?.default
-    : config.embedder?.backend ?? config.embedder?.default ?? col.embedder?.backend ?? col.embedder?.default;
-  if (merged) return {
-    ...merged,
-    backend: primary ?? 'none',
-    model: merged.model ?? col.model,
-  };
-  const provider = col.provider.toLowerCase();
-  if (provider === 'ollama' || provider === 'local') return { backend: 'local', model: col.model };
-  if (provider === 'openai' || provider === 'gemini' || provider === 'cloudflare-ai') {
-    return { backend: provider, model: col.model };
-  }
-  if (provider === 'remote') return { backend: 'remote', model: col.model };
-  if (provider === 'none') return { backend: 'none' };
-  return undefined;
-}
-
-/**
- * Derive the getEmbeddingModels()-compatible registry from a VectorServerConfig.
- * Used by factory.ts to let the config file override hardcoded models.
- */
-export function configToModels(
-  config: VectorServerConfig,
-): Record<string, {
-  collection: string;
-  model: string;
-  adapter?: VectorDBType;
-  dataPath?: string;
-  embedder?: EmbedderConfig;
-  service?: string;
-  endpoint?: string;
-}> {
-  const out: Record<string, {
-    collection: string;
-    model: string;
-    adapter?: VectorDBType;
-    dataPath?: string;
-    embedder?: EmbedderConfig;
-    service?: string;
-    endpoint?: string;
-  }> = {};
-  for (const [key, col] of Object.entries(config.collections)) {
-    if (col.enabled === false) continue;
-    const adapter = col.adapter || 'lancedb';
-    const serviceEndpoint = col.endpoint
-      || resolveServiceEndpoint(config, col.service)
-      || (col.service && col.service !== 'lancedb' ? undefined : undefined);
-
-    out[key] = {
-      collection: col.collection,
-      model: col.model,
-      adapter,
-      service: col.service,
-      endpoint: serviceEndpoint,
-      dataPath: config.dataPath || undefined,
-      embedder: embedderFor(config, col),
-    };
-  }
-  return out;
 }
 
 export function isV2Config(config: VectorServerConfig): boolean {
@@ -223,11 +130,79 @@ export function getBuiltInStorageService(config: VectorServerConfig): VectorStor
   return storage;
 }
 
-export function resolveServiceEndpoint(config: VectorServerConfig, serviceName?: string): string | undefined {
-  if (!serviceName) return undefined;
-  const svc = config.storage?.services[serviceName];
-  if (!svc || svc.type !== 'proxy') return undefined;
-  return svc.endpoint;
+export function isLocalVectorEngine(value: unknown): value is LocalVectorEngine {
+  return typeof value === 'string' && (LOCAL_VECTOR_ENGINES as readonly string[]).includes(value);
+}
+
+export function defaultDataPathForEngine(engine: LocalVectorEngine): string {
+  if (engine === 'sqlite-vec') return defaultVectorsDbPath();
+  if (engine === 'qdrant') return '';
+  return defaultLanceDbDir();
+}
+
+export function activeVectorEngine(config: VectorServerConfig): VectorDBType {
+  const primary = Object.values(config.collections).find(c => c.primary);
+  return primary?.adapter || Object.values(config.collections)[0]?.adapter || 'lancedb';
+}
+
+export function applyVectorConfigUpdate(
+  base: VectorServerConfig,
+  update: VectorConfigUpdate,
+): VectorServerConfig {
+  const next: VectorServerConfig = structuredClone(base);
+
+  if (update.enabled !== undefined) next.enabled = update.enabled;
+  if (update.engine !== undefined) {
+    if (!isLocalVectorEngine(update.engine)) throw new Error(`Unsupported local vector engine: ${String(update.engine)}`);
+    next.dataPath = update.dataPath ?? defaultDataPathForEngine(update.engine);
+    for (const collection of Object.values(next.collections)) {
+      collection.adapter = update.engine;
+      if (update.engine === 'qdrant') delete collection.dataPath;
+      else collection.dataPath = collection.dataPath || next.dataPath;
+    }
+  } else if (update.dataPath !== undefined) {
+    next.dataPath = update.dataPath;
+  }
+
+  if (update.embeddingEndpoint !== undefined) next.embeddingEndpoint = update.embeddingEndpoint;
+  if (update.vectorProxyUrl !== undefined) {
+    const trimmed = update.vectorProxyUrl.trim();
+    if (trimmed) next.vectorProxyUrl = trimmed.replace(/\/+$/, '');
+    else delete next.vectorProxyUrl;
+  }
+
+  for (const [key, patch] of Object.entries(update.collections ?? {})) {
+    if (!key.trim()) throw new Error('Collection key cannot be empty');
+    const existing = next.collections[key] ?? {
+      collection: key,
+      model: key,
+      provider: 'ollama',
+      adapter: update.engine ?? activeVectorEngine(next),
+    };
+    if (patch.adapter !== undefined && !isLocalVectorEngine(patch.adapter)) {
+      throw new Error(`Unsupported local vector engine: ${String(patch.adapter)}`);
+    }
+    next.collections[key] = {
+      ...existing,
+      ...patch,
+      collection: patch.collection ?? existing.collection ?? key,
+      model: patch.model ?? existing.model ?? key,
+      provider: patch.provider ?? existing.provider ?? 'ollama',
+      adapter: patch.adapter ?? existing.adapter ?? update.engine ?? activeVectorEngine(next),
+    };
+  }
+
+  const primaryKeys = Object.entries(next.collections).filter(([, c]) => c.primary).map(([key]) => key);
+  if (primaryKeys.length === 0 && next.collections['bge-m3']) next.collections['bge-m3'].primary = true;
+  if (primaryKeys.length > 1) {
+    const keep = primaryKeys[0];
+    for (const [key, collection] of Object.entries(next.collections)) collection.primary = key === keep;
+  }
+  return next;
+}
+
+export function isVectorSectionEnabled(config: VectorServerConfig | null = loadVectorConfig()): boolean {
+  return config?.enabled === true || process.env.ORACLE_VECTOR_ENABLED === '1';
 }
 
 export function fallbackCollectionsFor(config: VectorServerConfig): VectorCollectionConfig[] {

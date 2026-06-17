@@ -18,7 +18,7 @@
 │                                                                     │
 │  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐    │
 │  │    500     │  │     45     │  │     87     │  │  Connected │    │
-│  │ Documents  │  │  Concepts  │  │  Consults  │  │  ChromaDB  │    │
+│  │ Documents  │  │  Concepts  │  │  Consults  │  │  LanceDB   │    │
 │  │            │  │            │  │  (7 days)  │  │            │    │
 │  └────────────┘  └────────────┘  └────────────┘  └────────────┘    │
 │                                                                     │
@@ -65,7 +65,7 @@
 ├─────────────────────────────────────────────────────────────────────┤
 │  System Health                                                      │
 │  ┌──────────────┬──────────────┬──────────────┬──────────────┐     │
-│  │ FTS5: ✓      │ ChromaDB: ✓  │ Indexed: 2h  │ Version: 0.2 │     │
+│  │ FTS5: ✓      │ LanceDB: ✓  │ Indexed: 2h  │ Version: 0.2 │     │
 │  │ healthy      │ connected    │ ago          │              │     │
 │  └──────────────┴──────────────┴──────────────┴──────────────┘     │
 └─────────────────────────────────────────────────────────────────────┘
@@ -238,23 +238,13 @@ Response:
 5. Add learning timeline
 6. Integrate knowledge graph visualization
 
-### Phase 4: Real-time Updates (optional)
-
-1. Add WebSocket support
-2. Push new consultations/searches live
-3. Live counter updates
-
 ## Tech Stack
 
-- **Backend**: Existing Express server (`src/server.ts`)
+- **Backend**: Existing Elysia server (`src/server.ts`)
 - **Frontend**: Vanilla HTML/CSS/JS (keep it simple)
 - **Charts**: Chart.js or simple CSS bars
 - **Graph**: D3.js or vis.js for knowledge graph
 
 ## Success Metrics
 
-- Can see last 24h of activity at a glance
-- Can identify most-used concepts
-- Can track knowledge growth over time
-- Can verify system health status
-- Page loads in < 1 second
+Show last-24h activity, top concepts, knowledge growth, health status, and load in under 1 second.

@@ -46,6 +46,20 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
     ]);
   }
 
+  if (pathname === '/vector/first-run') {
+    return base('First-run setup', 'Vector', 'Auto-detect providers, review cost, and start the first vector index.', [
+      { label: 'Vector dashboard', to: '/vector' },
+      { label: 'First-run setup' },
+    ]);
+  }
+
+  if (pathname === '/vector/index') {
+    return base('Index Manager', 'Vector', 'Track vector backfill jobs and reindex collections.', [
+      { label: 'Vector dashboard', to: '/vector' },
+      { label: 'Index Manager' },
+    ]);
+  }
+
   if (pathname === '/vector/results') {
     const query = new URLSearchParams(search).get('q')?.trim();
     return base('Vector search results', 'Vector', query ? `Semantic matches for “${query}”.` : 'Full-page vector search results.', [
@@ -70,13 +84,15 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
 
   if (pathname === '/plugins') return base('Plugin list', 'Plugins', 'Registered plugins and exposed runtime surfaces.', [{ label: 'Plugins' }]);
   if (pathname === '/status') return base('Server status', 'Status', 'Server health from /api/v1/health.', [{ label: 'Status' }]);
+  if (pathname === '/canvas') return base('Canvas app', 'Canvas', 'Studio alias for canvas.buildwithoracle.com.', [{ label: 'Canvas app' }]);
   if (pathname === '/canvas/plugins') return base('Canvas plugins', 'Canvas', 'Canvas plugin registry and standalone status.', [{ label: 'Canvas plugins' }]);
   if (pathname === '/metrics') return base('Runtime metrics', 'Metrics', 'Runtime counters from /api/v1/metrics.', [{ label: 'Metrics' }]);
   if (pathname === '/search') return base('Search', 'Search', 'Search menu, plugin, and MCP tool surfaces.', [{ label: 'Search' }]);
-  if (pathname === '/export') return base('Export app', 'Export', 'Connect to an old Oracle v2 backend and download JSON or Markdown backups.', [{ label: 'Export app' }]);
+  if (pathname === '/export') return base('Export app', 'Export', 'Connect to an old Oracle v2 backend and download JSON, CSV, or Markdown backups.', [{ label: 'Export app' }]);
   if (pathname === '/learn') return base('Learn entries', 'Learn', 'Capture and edit Oracle learnings.', [{ label: 'Learn' }]);
   if (pathname === '/vector') return base('Vector dashboard', 'Vector', 'Collection health, search, and export status.', [{ label: 'Vector dashboard' }]);
   if (pathname === '/mcp') return base('MCP tools', 'MCP', 'Browse available MCP tool schemas and groups.', [{ label: 'MCP tools' }]);
+  if (pathname === '/storage') return base('Storage backend', 'Storage', 'Backend config viewer from /api/settings/system.', [{ label: 'Storage' }]);
   if (pathname === '/settings') return base('Runtime settings', 'Settings', 'Storage, embedder, and DB status.', [{ label: 'Settings' }]);
   return base('Menu viewer', 'Menu', 'Navigation rows from /api/menu.', [{ label: 'Menu' }]);
 }

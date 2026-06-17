@@ -76,4 +76,27 @@ describe('FanOutQuery', () => {
     await expect(engine.search('oracle', [])).resolves.toEqual([]);
     await expect(engine.search('   ', ['alpha'])).rejects.toThrow('non-empty query');
   });
+
+  test('clamps scores, skips malformed ids, and does not double count same-collection duplicates', async () => {
+    const engine = new FanOutQuery(async () => [
+      { id: 'dup', score: 0.4, content: 'low' },
+      { id: 'dup', score: 0.9, content: 'high' },
+      { id: 'too-high', score: 4 },
+      { id: 'negative', score: -1 },
+      { id: 7 as any, score: 1 },
+      { id: 'near', distance: -5 },
+    ]);
+
+    const results = await engine.search('query', ['alpha'], { topK: 10 });
+
+    expect(results.find((item) => item.id === 'dup')).toMatchObject({
+      score: 0.9,
+      content: 'high',
+      collectionScores: { alpha: 0.9 },
+    });
+    expect(results.find((item) => item.id === 'too-high')?.score).toBe(1);
+    expect(results.find((item) => item.id === 'near')?.score).toBe(1);
+    expect(results.find((item) => item.id === 'negative')?.score).toBe(0);
+    expect(results.some((item) => item.id === '7')).toBe(false);
+  });
 });

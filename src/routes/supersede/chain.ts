@@ -6,16 +6,29 @@ import { Elysia } from 'elysia';
 import { and, eq } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { db, oracleDocuments } from '../../db/index.ts';
-import { currentTenantId } from '../../middleware/tenant.ts';
+import { activeTenantId } from '../../middleware/tenant.ts';
+
+function decodePathParam(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const decoded = decodeURIComponent(value).trim();
+    if (!decoded || /[\u0000-\u001F\u007F]/.test(decoded)) return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
 
 export const supersedeChainEndpoint = new Elysia().get(
   '/supersede/chain/:path',
-  ({ params }) => {
-    const docPath = decodeURIComponent(params.path);
-    const tenantId = currentTenantId();
-    const targetWhere = tenantId
-      ? and(eq(oracleDocuments.sourceFile, docPath), eq(oracleDocuments.tenantId, tenantId))
-      : eq(oracleDocuments.sourceFile, docPath);
+  ({ params, set }) => {
+    const docPath = decodePathParam(params.path);
+    if (!docPath) {
+      set.status = 400;
+      return { error: 'Invalid path parameter' };
+    }
+    const tenantId = activeTenantId();
+    const targetWhere = and(eq(oracleDocuments.sourceFile, docPath), eq(oracleDocuments.tenantId, tenantId));
 
     const target = db.select({ id: oracleDocuments.id })
       .from(oracleDocuments)
@@ -28,15 +41,9 @@ export const supersedeChainEndpoint = new Elysia().get(
 
     const newDoc = alias(oracleDocuments, 'new_doc');
 
-    const newDocJoin = tenantId
-      ? and(eq(oracleDocuments.supersededBy, newDoc.id), eq(newDoc.tenantId, tenantId))
-      : eq(oracleDocuments.supersededBy, newDoc.id);
-    const oldWhere = tenantId
-      ? and(eq(oracleDocuments.id, target.id), eq(oracleDocuments.tenantId, tenantId))
-      : eq(oracleDocuments.id, target.id);
-    const newWhere = tenantId
-      ? and(eq(oracleDocuments.supersededBy, target.id), eq(oracleDocuments.tenantId, tenantId))
-      : eq(oracleDocuments.supersededBy, target.id);
+    const newDocJoin = and(eq(oracleDocuments.supersededBy, newDoc.id), eq(newDoc.tenantId, tenantId));
+    const oldWhere = and(eq(oracleDocuments.id, target.id), eq(oracleDocuments.tenantId, tenantId));
+    const newWhere = and(eq(oracleDocuments.supersededBy, target.id), eq(oracleDocuments.tenantId, tenantId));
 
     const asOld = db.select({
       newPath: newDoc.sourceFile,

@@ -182,25 +182,25 @@ export function GraphPreview({
   const nodeById = new Map(layout.nodes.map((node) => [node.id, node]));
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="graph-preview-title">
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="graph-preview-title">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Export graph</p>
-          <h2 id="graph-preview-title" className="mt-2 text-2xl font-semibold text-white">{title}</h2>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Export graph</p>
+          <h2 id="graph-preview-title" className="mt-2 text-2xl font-semibold text-text">{title}</h2>
+          <p className="mt-1 text-sm text-text-muted">
             {layout.nodes.length.toLocaleString()} nodes and {layout.edges.length.toLocaleString()} edges
             {layout.hiddenNodes ? ` shown, ${layout.hiddenNodes.toLocaleString()} hidden` : ''}
           </p>
         </div>
         <button
-          className="focus-ring rounded-xl border border-teal-300/30 px-4 py-2 text-sm font-semibold text-teal-100 hover:bg-teal-300/10"
+          className="focus-ring rounded-xl border border-accent-border px-4 py-2 text-sm font-semibold text-accent hover:bg-ok-bg"
           type="button"
           onClick={() => { if (svgRef.current) saveSvg(svgRef.current, fileName, onExportSvg); }}
         >
           Export SVG
         </button>
       </div>
-      <div className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
+      <div className="mt-5 overflow-hidden rounded-2xl border border-border bg-field">
         <svg ref={svgRef} role="img" aria-label={title} viewBox={`0 0 ${width} ${height}`} className="h-auto w-full">
           <defs>
             <marker id={markerId} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
@@ -214,7 +214,7 @@ export function GraphPreview({
             if (!from || !to) return null;
             return (
               <line key={`${edge.from}-${edge.to}-${edge.type}-${index}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#5eead4" strokeOpacity="0.38" strokeWidth="1.5" markerEnd={`url(#${markerId})`}>
-                <title>{edge.type}: {edge.from} to {edge.to}</title>
+                <title>{`${edge.type}: ${edge.from} to ${edge.to}`}</title>
               </line>
             );
           })}
@@ -226,7 +226,7 @@ export function GraphPreview({
                 <text x={radius + 5} y="4" fill="#e2e8f0" fontSize="12" fontFamily="Inter, ui-sans-serif, system-ui">
                   {shortLabel(node.label ?? node.id)}
                 </text>
-                <title>{node.label ?? node.id}{node.type ? ` (${node.type})` : ''}</title>
+                <title>{`${node.label ?? node.id}${node.type ? ` (${node.type})` : ''}`}</title>
               </g>
             );
           })}

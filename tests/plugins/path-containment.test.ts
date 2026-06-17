@@ -41,6 +41,18 @@ describe("plugin entry path containment", () => {
     expect(warnings[0]).toContain("plugin entry escapes plugin directory");
   });
 
+  test("rejects symlinked plugin directories that point outside the plugin root", async () => {
+    const root = tempRoot();
+    const externalRoot = tempRoot();
+    const externalPlugin = pluginDir(externalRoot, "external", {});
+    symlinkSync(externalPlugin, join(root, "linked-plugin"), "dir");
+    const warnings: string[] = [];
+
+    expect(await discoverUnifiedPluginManifests({ dirs: [root], warn: (msg) => warnings.push(msg) }))
+      .toEqual([]);
+    expect(warnings[0]).toContain("plugin directory symlink escapes plugin root");
+  });
+
   test("rejects entry symlinks that point outside the plugin directory", () => {
     const tmp = tempRoot();
     const externalDir = join(tmp, "external");

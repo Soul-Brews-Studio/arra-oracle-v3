@@ -8,16 +8,20 @@ import { ExportApp } from './pages/ExportApp';
 import { LearnPage } from './pages/LearnPage';
 import { MenuPage } from './pages/MenuPage';
 import { PluginsPage } from './pages/PluginsPage';
+import { CanvasAliasPage } from './pages/CanvasAliasPage';
 import { CanvasPluginsPage } from './pages/CanvasPluginsPage';
 import { SearchPage } from './pages/SearchPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { StatusPage } from './pages/StatusPage';
+import { StoragePage } from './pages/StoragePage';
 import { VectorPage } from './pages/VectorPage';
 import { VectorSearchPage } from './pages/VectorSearchPage';
 import { VectorDocumentsPage } from './pages/VectorDocumentsPage';
 import { VectorSearchResultsPage } from './pages/VectorSearchResultsPage';
 import { VectorExportPage } from './pages/VectorExportPage';
 import { VectorSettingsPage } from './pages/VectorSettingsPage';
+import { VectorFirstRunWizardPage } from './pages/FirstRunWizard';
+import { IndexManagerPanel } from './pages/IndexManagerPanel';
 import type { LoadState, MenuItem, PluginEntry } from './types';
 import type { MetricsSnapshot } from '../../src/server/types';
 
@@ -26,6 +30,7 @@ export const frontendRoutes = [
   '/menu',
   '/plugins',
   '/status',
+  '/canvas',
   '/canvas/plugins',
   '/metrics',
   '/search',
@@ -34,9 +39,14 @@ export const frontendRoutes = [
   '/vector',
   '/vector/search',
   '/vector/documents',
+  '/vector/first-run',
+  '/vector/index',
   '/vector/results',
   '/vector/export',
   '/vector/settings',
+  '/mcp',
+  '/storage',
+  '/settings',
 ] as const;
 export type FrontendRoute = typeof frontendRoutes[number];
 
@@ -80,6 +90,7 @@ export function DashboardRoutes({
       <Route index element={menuPage} />
       <Route path="/plugins" element={pluginPage} />
       <Route path="/status" element={<StatusPage />} />
+      <Route path="/canvas" element={<CanvasAliasPage />} />
       <Route path="/canvas/plugins" element={<CanvasPluginsPage />} />
       <Route path="/metrics" element={<MetricsPage metrics={metrics} loading={isRouteLoading(states.metrics)} />} />
       <Route path="/search" element={<SearchPage />} />
@@ -89,10 +100,13 @@ export function DashboardRoutes({
       <Route path="/vector" element={<VectorPage />} />
       <Route path="/vector/search" element={<VectorSearchPage />} />
       <Route path="/vector/documents" element={<VectorDocumentsPage />} />
+      <Route path="/vector/first-run" element={<VectorFirstRunWizardPage />} />
+      <Route path="/vector/index" element={<IndexManagerPanel />} />
       <Route path="/vector/results" element={<VectorSearchResultsPage />} />
       <Route path="/vector/export" element={<VectorExportPage />} />
       <Route path="/vector/settings" element={<VectorSettingsPage />} />
       <Route path="/mcp" element={<McpPage />} />
+      <Route path="/storage" element={<StoragePage />} />
       <Route path="/mcp/tools/:name" element={<McpToolDetailPage />} />
       <Route
         path="/settings"

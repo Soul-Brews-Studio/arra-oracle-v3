@@ -17,6 +17,10 @@ const healthResponse = {
     { key: 'bge', collection: 'oracle_bge', model: 'BAAI/bge-m3', ok: true },
     { key: 'qwen', collection: 'oracle_qwen', model: 'Qwen/qwen3', ok: false, error: 'timeout' },
   ],
+  services: [
+    { name: 'lancedb', type: 'builtin', status: 'green', available: true, health: { status: 'up' } },
+    { name: 'turbovec', type: 'proxy', status: 'red', available: false, health: { status: 'down', error: 'offline' } },
+  ],
 };
 
 describe('VectorPage dashboard cards', () => {
@@ -31,6 +35,9 @@ describe('VectorPage dashboard cards', () => {
     expect(html).toContain('qdrant');
     expect(html).toContain('Down');
     expect(html).toContain('timeout');
+    expect(html).toContain('Registered services');
+    expect(html).toContain('1/2 services up');
+    expect(html).toContain('turbovec: down · offline');
     expect(html).toContain('Vector search');
   });
 });

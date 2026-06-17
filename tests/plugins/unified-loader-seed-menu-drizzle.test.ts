@@ -8,6 +8,7 @@ const tmp = mkdtempSync(join(tmpdir(), "arra-unified-menu-db-"));
 const previousDbPath = process.env.ORACLE_DB_PATH;
 const previousDataDir = process.env.ORACLE_DATA_DIR;
 let closeDb: (() => void) | undefined;
+let resetDefaultDatabaseForTests: (() => void) | undefined;
 
 afterAll(() => {
   closeDb?.();
@@ -15,6 +16,7 @@ afterAll(() => {
   else process.env.ORACLE_DB_PATH = previousDbPath;
   if (previousDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
   else process.env.ORACLE_DATA_DIR = previousDataDir;
+  resetDefaultDatabaseForTests?.(':memory:');
   rmSync(tmp, { recursive: true, force: true });
 });
 
@@ -24,8 +26,10 @@ describe("seedUnifiedPluginMenuItems", () => {
     process.env.ORACLE_DB_PATH = join(tmp, "oracle.db");
     const { seedUnifiedPluginMenuItems } = await import("../../src/plugins/unified-loader.ts");
     const dbModule = await import("../../src/db/index.ts");
+    dbModule.resetDefaultDatabaseForTests(process.env.ORACLE_DB_PATH);
     const { db, menuItems } = dbModule;
     closeDb = dbModule.closeDb;
+    resetDefaultDatabaseForTests = dbModule.resetDefaultDatabaseForTests;
     const now = new Date();
 
     await seedUnifiedPluginMenuItems([

@@ -1,10 +1,22 @@
 import { afterAll, expect, test } from 'bun:test';
-import { Elysia } from 'elysia';
 import { inArray, like } from 'drizzle-orm';
-import { db, learnLog, oracleDocuments, searchLog } from '../../../src/db/index.ts';
-import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant.ts';
-import { dashboardRoutes } from '../../../src/routes/dashboard/index.ts';
-import { supersedeRoutes } from '../../../src/routes/supersede/index.ts';
+import { mkdirSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+const savedDataDir = process.env.ORACLE_DATA_DIR;
+const savedDbPath = process.env.ORACLE_DB_PATH;
+const root = join(tmpdir(), `arra-dashboard-tenant-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+const dbPath = join(root, 'oracle.db');
+mkdirSync(root, { recursive: true });
+process.env.ORACLE_DATA_DIR = root;
+process.env.ORACLE_DB_PATH = dbPath;
+
+const dbMod = await import('../../../src/db/index.ts');
+dbMod.resetDefaultDatabaseForTests(dbPath);
+const tenantMod = await import('../../../src/middleware/tenant.ts');
+const { dashboardRoutes } = await import('../../../src/routes/dashboard/index.ts');
+const { supersedeRoutes } = await import('../../../src/routes/supersede/index.ts');
 
 const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const tenantA = `tenant-a-${stamp}`;
@@ -17,15 +29,16 @@ const ids = {
 };
 const now = Date.now();
 const paths = Object.fromEntries(Object.entries(ids).map(([key, id]) => [key, `ψ/memory/${id}.md`])) as Record<keyof typeof ids, string>;
+type AppLike = { handle(request: Request): Response | Promise<Response> };
 
-function appRequest(app: Elysia, tenantId: string, path: string) {
-  return createTenantFetch((request) => app.handle(request))(new Request(`http://local${path}`, {
-    headers: { [TENANT_HEADER]: tenantId },
+function appRequest(app: AppLike, tenantId: string, path: string) {
+  return tenantMod.createTenantFetch((request) => app.handle(request))(new Request(`http://local${path}`, {
+    headers: { [tenantMod.TENANT_HEADER]: tenantId },
   }));
 }
 
 function insertDoc(id: string, tenantId: string, path: string, supersededBy?: string) {
-  db.insert(oracleDocuments).values({
+  dbMod.db.insert(dbMod.oracleDocuments).values({
     id,
     tenantId,
     type: 'learning',
@@ -47,19 +60,28 @@ insertDoc(ids.aNew, tenantA, paths.aNew);
 insertDoc(ids.bOld, tenantB, paths.bOld, ids.bNew);
 insertDoc(ids.bNew, tenantB, paths.bNew);
 
-db.insert(searchLog).values([
+dbMod.db.insert(dbMod.searchLog).values([
   { query: `tenant dashboard ${stamp} a`, tenantId: tenantA, mode: 'fts', resultsCount: 1, searchTimeMs: 1, createdAt: now },
   { query: `tenant dashboard ${stamp} b`, tenantId: tenantB, mode: 'fts', resultsCount: 1, searchTimeMs: 1, createdAt: now },
 ]).run();
-db.insert(learnLog).values([
+dbMod.db.insert(dbMod.learnLog).values([
   { documentId: ids.aOld, tenantId: tenantA, patternPreview: `learn a ${stamp}`, concepts: '[]', createdAt: now },
   { documentId: ids.bOld, tenantId: tenantB, patternPreview: `learn b ${stamp}`, concepts: '[]', createdAt: now },
 ]).run();
 
+function restore(name: string, value: string | undefined) {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}
+
 afterAll(() => {
-  db.delete(oracleDocuments).where(inArray(oracleDocuments.id, Object.values(ids))).run();
-  db.delete(searchLog).where(like(searchLog.query, `%${stamp}%`)).run();
-  db.delete(learnLog).where(inArray(learnLog.documentId, [ids.aOld, ids.bOld])).run();
+  dbMod.db.delete(dbMod.oracleDocuments).where(inArray(dbMod.oracleDocuments.id, Object.values(ids))).run();
+  dbMod.db.delete(dbMod.searchLog).where(like(dbMod.searchLog.query, `%${stamp}%`)).run();
+  dbMod.db.delete(dbMod.learnLog).where(inArray(dbMod.learnLog.documentId, [ids.aOld, ids.bOld])).run();
+  dbMod.closeDb();
+  restore('ORACLE_DATA_DIR', savedDataDir);
+  restore('ORACLE_DB_PATH', savedDbPath);
+  rmSync(root, { recursive: true, force: true });
 });
 
 test('dashboard summary and activity are scoped to selected tenant', async () => {
@@ -79,10 +101,9 @@ test('dashboard summary and activity are scoped to selected tenant', async () =>
 });
 
 test('supersede list and chain do not cross tenant boundaries', async () => {
-  const app = supersedeRoutes;
-  const list = await appRequest(app, tenantA, '/api/supersede?limit=10');
-  const deniedChain = await appRequest(app, tenantB, `/api/supersede/chain/${encodeURIComponent(paths.aOld)}`);
-  const allowedChain = await appRequest(app, tenantA, `/api/supersede/chain/${encodeURIComponent(paths.aOld)}`);
+  const list = await appRequest(supersedeRoutes, tenantA, '/api/supersede?limit=10');
+  const deniedChain = await appRequest(supersedeRoutes, tenantB, `/api/supersede/chain/${encodeURIComponent(paths.aOld)}`);
+  const allowedChain = await appRequest(supersedeRoutes, tenantA, `/api/supersede/chain/${encodeURIComponent(paths.aOld)}`);
   const listBody = await list.json() as { supersessions: Array<{ old_id: string; new_path: string | null }> };
   const deniedBody = await deniedChain.json() as { superseded_by: unknown[]; supersedes: unknown[] };
   const allowedBody = await allowedChain.json() as { superseded_by: Array<{ new_path: string }>; supersedes: unknown[] };

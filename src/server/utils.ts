@@ -38,7 +38,7 @@ export function validateRequired(
   required: string[]
 ): string | null {
   for (const param of required) {
-    if (!params[param]) {
+    if (isMissingRequiredValue(params[param])) {
       res.statusCode = 400;
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({ error: `Missing required parameter: ${param}` }));
@@ -65,4 +65,10 @@ export function asyncHandlerWithValidation<T>(
     return; // Response already sent
   }
   asyncHandler(res, handler);
+}
+
+function isMissingRequiredValue(value: unknown): boolean {
+  return value === undefined ||
+    value === null ||
+    (typeof value === 'string' && value.trim().length === 0);
 }

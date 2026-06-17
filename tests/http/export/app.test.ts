@@ -15,13 +15,10 @@ const dbModule = await import('../../../src/db/index.ts');
 const { Elysia } = await import('elysia');
 const { createApiVersionedFetch } = await import('../../../src/middleware/api-version.ts');
 const { createExportAppRoutes } = await import('../../../src/routes/export/app.ts');
+const { createExportProgressResponse, readRememberedExportProgress } = await import('../../../src/routes/export/progress.ts');
 
 const { createDatabase, oracleDocuments, supersedeLog, traceLog, resetDefaultDatabaseForTests } = dbModule;
 const connection = createDatabase(dbPath);
-
-function restoreDbPath() {
-  return savedDbPath ?? join(savedDataDir ?? join(process.env.HOME!, '.arra-oracle-v2'), 'oracle.db');
-}
 
 function seed() {
   const now = 1_766_000_000_000;
@@ -48,12 +45,21 @@ function seed() {
 
 let job = 0;
 seed();
-const app = new Elysia({ prefix: '/api' }).use(createExportAppRoutes({
-  connection,
-  outputDir,
-  idGenerator: () => `job-${++job}`,
-  now: () => new Date('2026-01-02T03:04:05.006Z'),
-}));
+const app = new Elysia({ prefix: '/api' })
+  .get('/export/progress', ({ query, set }) => {
+    const jobId = typeof query.jobId === 'string' ? query.jobId : '';
+    if (!readRememberedExportProgress(jobId)) {
+      set.status = 404;
+      return { error: 'Export job not found', id: jobId };
+    }
+    return createExportProgressResponse(jobId, () => readRememberedExportProgress(jobId));
+  })
+  .use(createExportAppRoutes({
+    connection,
+    outputDir,
+    idGenerator: () => `job-${++job}`,
+    now: () => new Date('2026-01-02T03:04:05.006Z'),
+  }));
 const fetcher = createApiVersionedFetch((request) => app.handle(request));
 
 async function postRun(body: Record<string, unknown>) {
@@ -70,7 +76,7 @@ afterAll(() => {
   else process.env.ORACLE_DATA_DIR = savedDataDir;
   if (savedDbPath === undefined) delete process.env.ORACLE_DB_PATH;
   else process.env.ORACLE_DB_PATH = savedDbPath;
-  resetDefaultDatabaseForTests(restoreDbPath());
+  resetDefaultDatabaseForTests(':memory:');
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -105,7 +111,11 @@ describe('export app HTTP routes', () => {
     });
     expect(body.relationshipCount).toBeGreaterThanOrEqual(4);
     expect('filePath' in body).toBe(false);
+    expect(body.progress).toBe(100);
     expect(existsSync(join(outputDir, 'oracle_documents-job-1.json'))).toBe(true);
+
+    const progress = await fetcher(new Request('http://local/api/v1/export/progress?jobId=job-1'));
+    expect(await progress.text()).toContain('"downloadUrl":"/api/v1/export/app/download/job-1"');
 
     const download = await fetcher(new Request(`http://local${body.downloadUrl}`));
     const payload = await download.json() as Record<string, any>;
@@ -131,6 +141,20 @@ describe('export app HTTP routes', () => {
     expect(download.headers.get('content-type')).toContain('text/csv');
     expect(csv.split('\n')[0]).toBe('id,title,content_preview,collection,created_at');
     expect(csv).toContain('"doc-new"');
+  });
+
+  test('serves direct Markdown export downloads for fallback links', async () => {
+    const res = await fetcher(new Request(
+      'http://local/api/v1/export/app?collection=oracle_documents&format=markdown&includeGraph=true',
+    ));
+    const markdown = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/markdown');
+    expect(res.headers.get('content-disposition')).toBe('attachment; filename="oracle_documents.md"');
+    expect(markdown).toContain('# oracle_documents');
+    expect(markdown).toContain('doc-old');
+    expect(markdown).toContain('# graph_relationships');
   });
 
   test('rejects unknown collections', async () => {

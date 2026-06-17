@@ -4,7 +4,8 @@
   "description": "Arra Oracle - MCP Memory Layer with semantic search, philosophy, and knowledge management",
   "type": "module",
   "workspaces": [
-    "frontend"
+    "frontend",
+    "workers/mcp"
   ],
   "main": "src/index.ts",
   "bin": {
@@ -17,6 +18,7 @@
     "bin",
     "src",
     "cli",
+    "packages",
     "README.md"
   ],
   "engines": {
@@ -29,10 +31,39 @@
   "publishConfig": {
     "access": "public"
   },
+  "cloudflare": {
+    "bindings": {
+      "AI": {
+        "description": "Workers AI binding for edge embeddings. The vector adapter defaults to `@cf/baai/bge-m3` unless `ORACLE_EMBEDDING_MODEL` is changed."
+      },
+      "ORACLE_DB": {
+        "description": "Cloudflare D1 database for Oracle documents, config, logs, jobs, and Vectorize document/metadata hydration."
+      },
+      "ORACLE_VECTORIZE": {
+        "description": "Cloudflare Vectorize index for semantic search. Use dimensions that match the active embedding model."
+      },
+      "ORACLE_STATE": {
+        "description": "Optional KV namespace for lightweight Worker state, deploy metadata, OAuth state, or caches."
+      },
+      "ARRA_API_TOKEN": {
+        "description": "Optional bearer token for protected Oracle HTTP/MCP writes. Generate a random value such as `openssl rand -hex 32`."
+      },
+      "ORACLE_MCP_PATH": {
+        "description": "Remote MCP mount path. Keep `/mcp` unless your Worker route needs a different Streamable HTTP endpoint."
+      },
+      "ORACLE_STORAGE_BACKEND": {
+        "description": "Storage backend selector for Workers deploys. Use `d1` on Cloudflare; local SQLite is not Workers-compatible."
+      },
+      "ORACLE_VECTOR_BACKEND": {
+        "description": "Vector backend selector for Workers deploys. Use `cloudflare-vectorize` to avoid local SQLite/vector files at the edge."
+      }
+    }
+  },
   "scripts": {
     "dev": "bun src/index.ts",
     "server": "bun src/server.ts",
     "vector": "ORACLE_VECTOR_READONLY=1 bun src/vector-server.ts",
+    "vector:proxy": "ORACLE_VECTOR_DB=lancedb bun src/vector-server.ts",
     "vector:dev": "ORACLE_VECTOR_READONLY=1 bun --watch src/vector-server.ts",
     "server:ensure": "bun src/ensure-server.ts",
     "server:status": "bun src/ensure-server.ts --status",
@@ -61,12 +92,20 @@
     "vault:status": "bun src/vault/cli.ts status",
     "vault:migrate": "bun src/vault/cli.ts migrate",
     "vault:rsync": "./scripts/vault-rsync.sh",
-    "test:e2e:federation": "bun test tests/e2e/federation-smoke.test.ts",
-    "smoke:federation": "bun scripts/federation-smoke.ts",
     "huginn:capture": "bun scripts/huginn-capture-hook.ts",
     "test:huginn": "bun test src/huginn/__tests__/capture.test.ts src/huginn/__tests__/sweep.test.ts",
     "huginn:sweep": "bun scripts/huginn-sweep.ts",
-    "bench": "bun run benchmarks/run-all.ts"
+    "bench": "bun run benchmarks/run-all.ts",
+    "export": "bun src/cli/commands/export.ts",
+    "cloudflare:mcp:dev": "wrangler dev --config workers/mcp/wrangler.jsonc",
+    "cloudflare:mcp:deploy": "wrangler deploy --config workers/mcp/wrangler.jsonc",
+    "cloudflare:mcp:dry-run": "wrangler deploy --dry-run --config workers/mcp/wrangler.jsonc",
+    "cloudflare:studio:dev": "cd frontend && bun run build && cd .. && wrangler dev --config workers/studio/wrangler.jsonc",
+    "cloudflare:studio:dry-run": "cd frontend && bun run build && cd .. && wrangler deploy --dry-run --config workers/studio/wrangler.jsonc",
+    "cloudflare:studio:deploy": "cd frontend && bun run build && cd .. && wrangler deploy --config workers/studio/wrangler.jsonc",
+    "cloudflare:federation:dev": "wrangler dev --config workers/federation/wrangler.jsonc",
+    "cloudflare:federation:dry-run": "wrangler deploy --dry-run --config workers/federation/wrangler.jsonc",
+    "cloudflare:federation:deploy": "wrangler deploy --config workers/federation/wrangler.jsonc"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
@@ -74,18 +113,25 @@
     "@lancedb/lancedb": "^0.27.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@qdrant/js-client-rest": "^1.17.0",
+    "agents": "^0.16.1",
     "commander": "^14.0.3",
     "drizzle-orm": "^0.45.2",
     "elysia": "^1.4.28",
-    "sqlite-vec": "^0.1.9"
+    "hook-menu": "github:Soul-Brews-Studio/hook-menu",
+    "sqlite-vec": "^0.1.9",
+    "std-env": "^4.1.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260616.1",
+    "@playwright/test": "^1.61.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.17.9",
     "better-sqlite3": "^12.9.0",
     "bun-types": "^1.3.12",
     "drizzle-kit": "^0.31.10",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "wrangler": "^4.101.0"
   },
   "keywords": [
     "oracle",

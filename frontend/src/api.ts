@@ -1,7 +1,7 @@
-import { apiUrl } from './api/oracle';
+import { apiFetch } from './api/oracle';
 import type { McpToolsResponse, MenuResponse, PluginsResponse, SearchResponse, SettingsSystemResponse, VectorConfigResponse, VectorConfigUpdateResponse } from './types';
 
-export { API_BASE, apiUrl, isTauri } from './api/oracle';
+export { API_BASE, apiFetch, apiUrl, isTauri, withLocalPna } from './api/oracle';
 
 export class ApiError extends Error {
   constructor(readonly status: number, message: string) {
@@ -15,7 +15,7 @@ async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   if (init?.body && !headers.has('content-type')) headers.set('content-type', 'application/json');
   let response: Response;
   try {
-    response = await fetch(apiUrl(path), { ...init, headers });
+    response = await apiFetch(path, { ...init, headers });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new ApiError(0, `${path} is unreachable: ${message}`);
@@ -77,7 +77,10 @@ export async function fetchVectorConfig(): Promise<VectorConfigResponse> {
   return getJson<VectorConfigResponse>('/api/v1/vector/config');
 }
 
-export async function updateVectorCollection(collection: string, patch: { adapter?: string; enabled?: boolean; provider?: string }): Promise<VectorConfigUpdateResponse> {
+export async function updateVectorCollection(
+  collection: string,
+  patch: { adapter?: string; enabled?: boolean; provider?: string; model?: string; primary?: boolean; service?: string; endpoint?: string },
+): Promise<VectorConfigUpdateResponse> {
   return getJson<VectorConfigUpdateResponse>(`/api/v1/vector/config/${encodeURIComponent(collection)}`, {
     method: 'PUT',
     body: JSON.stringify(patch),

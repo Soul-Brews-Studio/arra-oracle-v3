@@ -2,8 +2,10 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { DB_PATH } from '../../src/config.ts';
 import type { DatabaseConnection } from '../../src/db/index.ts';
+import { currentTenantId } from '../../src/middleware/tenant.ts';
 import { createStorageBackend } from '../../src/storage/registry.ts';
 import { normalizeRecord, type ExportRecord } from './formats.ts';
+import { formatDocumentsCsv } from './document-csv.ts';
 
 type Progress = (message: string) => void;
 type FtsRow = { content?: unknown; concepts?: unknown };
@@ -28,6 +30,7 @@ export interface ExportDocumentsResult {
   outputDir: string;
   markdownDir: string;
   jsonDir: string;
+  csvPath: string;
   documentCount: number;
   indexPath: string;
 }
@@ -41,6 +44,7 @@ export async function exportOracleV2Documents(
   const documentsDir = path.join(outputDir, 'documents');
   const markdownDir = path.join(documentsDir, 'markdown');
   const jsonDir = path.join(documentsDir, 'json');
+  const csvPath = path.join(documentsDir, 'documents.csv');
   const progress = options.progress ?? ((message) => console.error(message));
   const exportedAt = (options.now?.() ?? new Date()).toISOString();
 
@@ -69,14 +73,21 @@ export async function exportOracleV2Documents(
     }
 
     const indexPath = path.join(documentsDir, 'index.json');
-    await writeJson(indexPath, { version: 1, exportedAt, documentCount: docs.length, documents: index });
-    return { outputDir, markdownDir, jsonDir, documentCount: docs.length, indexPath };
+    await writeFile(csvPath, formatDocumentsCsv(docs), 'utf8');
+    await writeJson(indexPath, {
+      version: 1,
+      exportedAt,
+      documentCount: docs.length,
+      csv: slash(path.relative(outputDir, csvPath)),
+      documents: index,
+    });
+    return { outputDir, markdownDir, jsonDir, csvPath, documentCount: docs.length, indexPath };
   } finally {
     close?.connection.storage.close();
   }
 }
 
-export function readOracleV2Documents(connection: DatabaseConnection): OracleV2DocumentExport[] {
+export function readOracleV2Documents(connection: Pick<DatabaseConnection, 'sqlite'>): OracleV2DocumentExport[] {
   if (!tableExists(connection, 'oracle_documents')) throw new Error('oracle_documents table not found');
   const columns = tableColumns(connection, 'oracle_documents');
   if (!columns.includes('id')) throw new Error('oracle_documents.id column not found');
@@ -106,15 +117,23 @@ function openReadonlyConnection(dbPath = DB_PATH): { connection: DatabaseConnect
   return { connection: { sqlite: storage.sqlite, db: storage.db, storage } };
 }
 
-function selectDocumentRows(connection: DatabaseConnection, columns: string[]): ExportRecord[] {
+function selectDocumentRows(connection: Pick<DatabaseConnection, 'sqlite'>, columns: string[]): ExportRecord[] {
   const selectList = columns.map((column) => `${quoteIdent(column)} AS ${quoteIdent(column)}`).join(', ');
   const order = columns.includes('source_file') ? 'source_file, id' : 'id';
+  const tenantId = currentTenantId();
+  if (tenantId && !columns.includes('tenant_id')) return [];
+  const tenantWhere = tenantId ? ` WHERE ${quoteIdent('tenant_id')} = ?` : '';
+  if (tenantId) {
+    return connection.sqlite.query<ExportRecord, [string]>(
+      `SELECT ${selectList} FROM ${quoteIdent('oracle_documents')}${tenantWhere} ORDER BY ${order}`,
+    ).all(tenantId);
+  }
   return connection.sqlite.query<ExportRecord, []>(
     `SELECT ${selectList} FROM ${quoteIdent('oracle_documents')} ORDER BY ${order}`,
   ).all();
 }
 
-function createFtsReader(connection: DatabaseConnection): ((id: string) => FtsRow[]) | undefined {
+function createFtsReader(connection: Pick<DatabaseConnection, 'sqlite'>): ((id: string) => FtsRow[]) | undefined {
   if (!tableExists(connection, 'oracle_fts')) return undefined;
   const columns = tableColumns(connection, 'oracle_fts');
   if (!columns.includes('id')) return undefined;
@@ -126,14 +145,14 @@ function createFtsReader(connection: DatabaseConnection): ((id: string) => FtsRo
   return (id: string) => query.all(id);
 }
 
-function tableExists(connection: DatabaseConnection, name: string): boolean {
+function tableExists(connection: Pick<DatabaseConnection, 'sqlite'>, name: string): boolean {
   const row = connection.sqlite.query<{ name: string }, [string]>(
     "SELECT name FROM sqlite_master WHERE name = ? AND type IN ('table', 'view')",
   ).get(name);
   return Boolean(row);
 }
 
-function tableColumns(connection: DatabaseConnection, table: string): string[] {
+function tableColumns(connection: Pick<DatabaseConnection, 'sqlite'>, table: string): string[] {
   return connection.sqlite.query<{ name: string }, []>(`PRAGMA table_info(${quoteIdent(table)})`)
     .all()
     .map((row) => row.name)

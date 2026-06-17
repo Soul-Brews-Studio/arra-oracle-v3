@@ -6,7 +6,7 @@ import { Elysia } from "elysia";
 import { loadUnifiedPlugins } from "../unified-loader.ts";
 
 const pluginRoot = join(process.cwd(), "src/plugins");
-const ARRA_VERBS = ["help", "version", "menu", "status", "health", "vector-config", "serve"];
+const ARRA_VERBS = ["help", "version", "menu", "status", "commands", "health", "vector-config", "serve"];
 
 describe("built-in arra plugin", () => {
   test("declares modern maw-js CLI, menu, and HTTP surfaces", () => {
@@ -18,6 +18,7 @@ describe("built-in arra plugin", () => {
     expect(manifest.cli.handler).toBe("arraCli");
     expect(manifest.verbs).toEqual(ARRA_VERBS);
     expect(manifest.httpRoutes[0].path).toBe("/api/plugins/arra");
+    expect(manifest.apiRoutes[0].methods).toEqual(["GET", "POST"]);
     expect(manifest.config).toMatchObject({ dbBackend: "sqlite", embedderBackend: "none" });
     expect(manifest.configSchema.properties.dbBackend.enum).toEqual(["sqlite", "http", "memory", "custom"]);
   });
@@ -54,6 +55,18 @@ describe("built-in arra plugin", () => {
     expect(body.backends.embedder.optional).toBe(true);
     expect(body.backends.embedder.supported).toContain("remote");
     expect(body.verbs.map((verb) => verb.name)).toEqual(ARRA_VERBS);
+
+    const version = await app.handle(new Request("http://local/api/plugins/arra?command=version"));
+    expect(await version.json()).toEqual({ ok: true, command: "version", output: "arra 1.0.0" });
+
+    const commands = await app.handle(new Request("http://local/api/plugins/arra", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ command: "commands", json: true }),
+    }));
+    const commandsBody = await commands.json() as { surface: string; verbs: Array<{ name: string }> };
+    expect(commandsBody.surface).toBe("api");
+    expect(commandsBody.verbs.map((verb) => verb.name)).toEqual(ARRA_VERBS);
   });
 
   test("delegates maw arra health to vector engine details", async () => {
@@ -147,6 +160,10 @@ describe("built-in arra plugin", () => {
       expect(set.ok).toBe(true);
       expect(calls.at(-1)).toMatchObject({ method: "PUT", path: "/api/v1/vector/config/phase1", body: { adapter: "qdrant", endpoint: "http://localhost:6333" } });
 
+      const added = await arraCli({ source: "cli", plugin: "arra", args: ["vector-config", "add", "qwen3", "--model", "qwen3-embedding", "--primary"] });
+      expect(added.ok).toBe(true);
+      expect(calls.at(-1)).toMatchObject({ method: "POST", path: "/api/v1/vector/config/qwen3", body: { model: "qwen3-embedding", primary: true } });
+
       const blocked = await arraCli({ source: "cli", plugin: "arra", args: ["vector-config", "remove", "phase1"] });
       expect(blocked).toEqual({ ok: false, error: "remove requires --yes" });
 
@@ -192,6 +209,34 @@ describe("built-in arra plugin", () => {
     } finally {
       if (savedDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
       else process.env.ORACLE_DATA_DIR = savedDataDir;
+    }
+  });
+
+  test("maw arra serve checks VECTOR_URL before spawning backend", async () => {
+    const { serveCli } = await import("../arra/serve-cli.ts");
+    const savedDataDir = process.env.ORACLE_DATA_DIR;
+    const savedVectorUrl = process.env.VECTOR_URL;
+    process.env.ORACLE_DATA_DIR = mkdtempSync(join(tmpdir(), "arra-serve-vector-"));
+    process.env.VECTOR_URL = "http://vector.local:8081/root/";
+    const seen: string[] = [];
+    const spawn = (() => ({ pid: 4343, unref() {} })) as typeof Bun.spawn;
+    try {
+      const result = await serveCli(["--port", "59997"], {
+        spawn,
+        fetch: async (input) => {
+          seen.push(String(input));
+          if (String(input).includes("59997")) return new Response("no", { status: 503 });
+          return Response.json({ status: "ok", protocol: "vector-proxy-v1" });
+        },
+      });
+      expect(result.ok).toBe(true);
+      expect(result.output).toContain("vector preflight: ok http://vector.local:8081/root");
+      expect(seen).toContain("http://vector.local:8081/health");
+    } finally {
+      if (savedDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
+      else process.env.ORACLE_DATA_DIR = savedDataDir;
+      if (savedVectorUrl === undefined) delete process.env.VECTOR_URL;
+      else process.env.VECTOR_URL = savedVectorUrl;
     }
   });
 });

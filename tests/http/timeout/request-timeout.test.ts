@@ -68,6 +68,16 @@ describe('request timeout fetch middleware', () => {
     await expect(fetchWithTimeout(request('/boom'))).rejects.toThrow('boom');
   });
 
+  test('falls back to the default timeout for invalid explicit values', async () => {
+    const app = timeoutApp();
+    const fetchWithTimeout = createRequestTimeoutFetch((req) => app.handle(req), -1 as number);
+
+    const res = await fetchWithTimeout(request('/slow'));
+
+    expect(res.status).toBe(200);
+    expect(await body(res)).toEqual({ ok: false });
+  });
+
   test('uses ARRA_REQUEST_TIMEOUT_MS when no explicit timeout is provided', async () => {
     process.env.ARRA_REQUEST_TIMEOUT_MS = '5';
     const app = timeoutApp();
@@ -88,6 +98,8 @@ describe('request timeout fetch middleware', () => {
     expect(requestTimeoutMsFromEnv('250')).toBe(250);
     expect(requestTimeoutMsFromEnv('2.9')).toBe(2);
     expect(requestTimeoutMsFromEnv('0')).toBe(30_000);
+    expect(requestTimeoutMsFromEnv('-1')).toBe(30_000);
+    expect(requestTimeoutMsFromEnv('Infinity')).toBe(30_000);
     expect(requestTimeoutMsFromEnv('invalid')).toBe(30_000);
   });
 });

@@ -24,3 +24,26 @@ test('vector store registry logs background connection failures without throwing
     console.warn = originalWarn;
   }
 });
+
+test('vector store registry logs synchronous connection failures without throwing', async () => {
+  const warnings: string[] = [];
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => { warnings.push(args.map(String).join(' ')); };
+  try {
+    const store = getVectorStoreByModel('sync_failure_model', {
+      sync_failure_model: {
+        collection: 'sync_failure_collection',
+        model: 'sync-failure-model',
+        adapter: 'lancedb',
+        dataPath: tempDir('arra-vector-sync-failure-'),
+        embedder: { backend: 'none' },
+      },
+    }, () => { throw new Error('sync boom'); });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(store.name).toBe('lancedb');
+    expect(warnings.some((line) => line.includes('Failed to connect sync_failure_model'))).toBe(true);
+  } finally {
+    console.warn = originalWarn;
+  }
+});

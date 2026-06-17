@@ -24,7 +24,9 @@ CREATE TABLE oracle_documents (
   origin TEXT,
   project TEXT,
   tenant_id TEXT NOT NULL DEFAULT 'default',
-  created_by TEXT
+  created_by TEXT,
+  usage_count INTEGER NOT NULL DEFAULT 0,
+  last_accessed_at INTEGER
 );
 CREATE VIRTUAL TABLE oracle_fts USING fts5(id UNINDEXED, content, concepts, tokenize='porter unicode61');
 CREATE TABLE indexing_jobs (
@@ -48,6 +50,15 @@ const MODELS = {
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitFor(check: () => boolean, timeoutMs = 1_500): Promise<void> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (check()) return;
+    await wait(25);
+  }
+  throw new Error('timed out waiting for learn watcher');
 }
 
 describe('startLearnWatcher', () => {
@@ -147,6 +158,45 @@ describe('startLearnWatcher', () => {
 
     const jobs = db.query<{ count: number }, []>('SELECT COUNT(*) AS count FROM indexing_jobs').get() as { count: number };
     expect(jobs.count).toBe(Object.keys(MODELS).length);
+
+    stop();
+  });
+
+  it('stores files created under new ψ/learn directories after start', async () => {
+    const filePath = path.join(repoRoot, 'ψ', 'learn', 'Soul-Brews-Studio', 'demo', 'new-tree.md');
+
+    const stop = startLearnWatcher({ db, models: MODELS, repoRoot, debounceMs: 20 });
+    await wait(50);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, '# New Tree\n\n## Finding\n\nWatcher scans directories created after startup.', 'utf8');
+
+    await waitFor(() => {
+      const jobs = db.query<{ count: number }, []>('SELECT COUNT(*) AS count FROM indexing_jobs').get();
+      return jobs?.count === Object.keys(MODELS).length;
+    }, 2_500);
+
+    const doc = db.query<{ source_file: string }, []>('SELECT source_file FROM oracle_documents').get();
+    expect(doc?.source_file).toBe('ψ/learn/Soul-Brews-Studio/demo/new-tree.md');
+
+    stop();
+  });
+
+  it('stores project-first vault ψ/learn files', async () => {
+    const filePath = path.join(repoRoot, 'github.com', 'Soul-Brews-Studio', 'demo', 'ψ', 'learn', 'codex', 'note.md');
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, '# Project Learn\n\n## Finding\n\nProject-first vault learn docs auto-index.', 'utf8');
+
+    const stop = startLearnWatcher({ db, models: MODELS, repoRoot, debounceMs: 20 });
+    await waitFor(() => {
+      const row = db.query<{ count: number }, []>('SELECT COUNT(*) AS count FROM indexing_jobs').get();
+      return row?.count === Object.keys(MODELS).length;
+    });
+
+    const doc = db.query<{ source_file: string; project: string }, []>(
+      'SELECT source_file, project FROM oracle_documents',
+    ).get();
+    expect(doc?.source_file).toBe('github.com/Soul-Brews-Studio/demo/ψ/learn/codex/note.md');
+    expect(doc?.project).toBe('github.com/soul-brews-studio/demo');
 
     stop();
   });

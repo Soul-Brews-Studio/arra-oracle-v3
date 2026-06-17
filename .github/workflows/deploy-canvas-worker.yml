@@ -1,0 +1,68 @@
+name: Deploy Canvas Worker
+
+on:
+  push:
+    branches: [alpha]
+    paths:
+      - .github/workflows/deploy-canvas-worker.yml
+      - workers/canvas/**
+      - src/workers/canvas/**
+      - src/canvas/**
+      - src/routes/canvas/**
+      - tests/workers/canvas-worker.test.ts
+      - tests/http/canvas/**
+      - tests/http/canvas-worker.test.ts
+      - tests/canvas/**
+      - package.json
+      - bun.lock
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canvas-worker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy canvas.buildwithoracle.com
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: canvas-worker
+      url: https://canvas.buildwithoracle.com
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bunx tsc --noEmit
+
+      - name: Canvas worker tests
+        run: >
+          bun test
+          tests/workers/canvas-worker.test.ts
+          tests/http/canvas-worker.test.ts
+          tests/http/canvas/
+          tests/canvas/
+
+      - name: Deploy Cloudflare Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config workers/canvas/wrangler.toml

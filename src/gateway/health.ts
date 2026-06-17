@@ -18,15 +18,26 @@ export interface ServiceHealth {
 const DEFAULT_INTERVAL_MS = 30_000;
 const CHECK_TIMEOUT_MS = 5_000;
 
+function safeIntervalMs(value: number): number {
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_INTERVAL_MS;
+}
+
 export class HealthRegistry {
   private health = new Map<string, ServiceHealth>();
   private interval: Timer | null = null;
+  private generation = 0;
 
   /**
    * Start polling services that have a healthCheck URL.
    * Services without healthCheck are always assumed "up".
    */
   start(services: Record<string, ServiceConfig>, intervalMs = DEFAULT_INTERVAL_MS): void {
+    this.stop();
+    this.health.clear();
+    this.generation += 1;
+    const generation = this.generation;
+    intervalMs = safeIntervalMs(intervalMs);
+
     // Seed initial state
     for (const [name, svc] of Object.entries(services)) {
       if (svc.healthCheck) {
@@ -37,8 +48,8 @@ export class HealthRegistry {
     if (this.health.size === 0) return; // nothing to poll
 
     // Fire first check immediately, then repeat on interval
-    this.checkAll(services);
-    this.interval = setInterval(() => this.checkAll(services), intervalMs);
+    this.checkAll(services, generation);
+    this.interval = setInterval(() => this.checkAll(services, generation), intervalMs);
     // Don't prevent process exit
     if (typeof this.interval === 'object' && 'unref' in this.interval) {
       this.interval.unref();
@@ -50,6 +61,7 @@ export class HealthRegistry {
   }
 
   stop(): void {
+    this.generation += 1;
     if (this.interval) {
       clearInterval(this.interval);
       this.interval = null;
@@ -71,15 +83,15 @@ export class HealthRegistry {
     return h.status !== 'down';
   }
 
-  private async checkAll(services: Record<string, ServiceConfig>): Promise<void> {
+  private async checkAll(services: Record<string, ServiceConfig>, generation: number): Promise<void> {
     const checks = Object.entries(services)
       .filter(([, svc]) => svc.healthCheck)
-      .map(([name, svc]) => this.checkOne(name, svc.healthCheck!));
+      .map(([name, svc]) => this.checkOne(name, svc.healthCheck!, generation));
 
     await Promise.allSettled(checks);
   }
 
-  private async checkOne(name: string, url: string): Promise<void> {
+  private async checkOne(name: string, url: string, generation: number): Promise<void> {
     const start = Date.now();
     try {
       const res = await fetch(url, {
@@ -89,8 +101,10 @@ export class HealthRegistry {
       const responseTime = Date.now() - start;
 
       if (res.ok) {
+        if (generation !== this.generation) return;
         this.health.set(name, { status: 'up', lastCheck: start, responseTime });
       } else {
+        if (generation !== this.generation) return;
         this.health.set(name, {
           status: 'down',
           lastCheck: start,
@@ -99,6 +113,7 @@ export class HealthRegistry {
         });
       }
     } catch (e) {
+      if (generation !== this.generation) return;
       this.health.set(name, {
         status: 'down',
         lastCheck: start,

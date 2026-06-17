@@ -33,12 +33,12 @@ export function formatBytes(bytes: number): string {
 function percentBar(percent: number, label: string, value: number) {
   return (
     <li className="grid gap-2" key={label}>
-      <div className="flex items-center justify-between text-sm text-slate-200">
-        <span className="text-slate-400">{label}</span>
+      <div className="flex items-center justify-between text-sm text-text">
+        <span className="text-text-muted">{label}</span>
         <span className="font-medium">{formatBytes(value)}</span>
       </div>
-      <div className="h-2 rounded-full border border-white/10 bg-white/[0.06]">
-        <div className="h-full rounded-full bg-teal-300/60 transition-all" style={{ width: `${Math.min(100, Math.max(3, percent)).toFixed(0)}%` }} />
+      <div className="h-2 rounded-full border border-border bg-field/[0.06]">
+        <div className="h-full rounded-full bg-accent-solid/60 transition-all" style={{ width: `${Math.min(100, Math.max(3, percent)).toFixed(0)}%` }} />
       </div>
     </li>
   );
@@ -85,22 +85,22 @@ function MetricsChartsCard({ metrics }: { metrics: MetricsSnapshot }) {
   const requestLoad = metrics.uptime > 0 ? Math.min((metrics.requestCount / metrics.uptime) * 60, 100) : 0;
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6" aria-labelledby="metrics-charts-title">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Charts</p>
-      <h2 id="metrics-charts-title" className="mt-2 text-2xl font-semibold text-white">Memory distribution</h2>
-      <p className="mt-2 text-sm text-slate-400">Live memory profile and request throughput from /api/v1/metrics.</p>
+    <section className="rounded-3xl border border-border bg-surface-muted p-5 sm:p-6" aria-labelledby="metrics-charts-title">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Charts</p>
+      <h2 id="metrics-charts-title" className="mt-2 text-2xl font-semibold text-text">Memory distribution</h2>
+      <p className="mt-2 text-sm text-text-muted">Live memory profile and request throughput from /api/v1/metrics.</p>
 
       <div className="mt-5 grid gap-6 xl:grid-cols-2">
         <div>
-          <p className="mb-3 text-sm text-slate-300">Memory usage (bytes)</p>
+          <p className="mb-3 text-sm text-text-muted">Memory usage (bytes)</p>
           <ul className="grid gap-3" aria-label="Memory distribution bars">
             {bars.map((bar) => percentBar(bar.ratio, bar.label, bar.bytes))}
           </ul>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
-          <p className="text-sm text-slate-300">Request throughput</p>
-          <p className="mt-2 text-4xl font-semibold text-white">{requestLoad.toFixed(1)} req/min</p>
-          <p className="mt-2 text-sm text-slate-400">Derived from total request count and uptime.</p>
+        <div className="rounded-2xl border border-border bg-surface-muted p-4">
+          <p className="text-sm text-text-muted">Request throughput</p>
+          <p className="mt-2 text-4xl font-semibold text-text">{requestLoad.toFixed(1)} req/min</p>
+          <p className="mt-2 text-sm text-text-muted">Derived from total request count and uptime.</p>
         </div>
       </div>
     </section>
@@ -109,23 +109,23 @@ function MetricsChartsCard({ metrics }: { metrics: MetricsSnapshot }) {
 
 function MetricsActivityCard({ metrics }: { metrics: MetricsSnapshot }) {
   return (
-    <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6" aria-labelledby="metrics-activity-title">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Recent activity</p>
-      <h2 id="metrics-activity-title" className="mt-2 text-2xl font-semibold text-white">Runtime events</h2>
-      <ul className="mt-4 grid gap-3 text-sm text-slate-300">
-        <li className="rounded-2xl border border-white/10 p-3">
-          <p className="text-slate-400">Last restart</p>
-          <p className="mt-1 text-base font-semibold text-white">{restartLabel(metrics.lastRestart)}</p>
+    <section className="rounded-3xl border border-border bg-surface-muted p-5 sm:p-6" aria-labelledby="metrics-activity-title">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Recent activity</p>
+      <h2 id="metrics-activity-title" className="mt-2 text-2xl font-semibold text-text">Runtime events</h2>
+      <ul className="mt-4 grid gap-3 text-sm text-text-muted">
+        <li className="rounded-2xl border border-border p-3">
+          <p className="text-text-muted">Last restart</p>
+          <p className="mt-1 text-base font-semibold text-text">{restartLabel(metrics.lastRestart)}</p>
         </li>
-        <li className="rounded-2xl border border-white/10 p-3">
-          <p className="text-slate-400">Requests</p>
-          <p className="mt-1 text-base font-semibold text-white">{metrics.requestCount.toLocaleString()} total processed</p>
-          <p className="text-xs text-slate-400">{metrics.avgResponseMs} ms average response</p>
+        <li className="rounded-2xl border border-border p-3">
+          <p className="text-text-muted">Requests</p>
+          <p className="mt-1 text-base font-semibold text-text">{metrics.requestCount.toLocaleString()} total processed</p>
+          <p className="text-xs text-text-muted">{metrics.avgResponseMs} ms average response</p>
         </li>
-        <li className="rounded-2xl border border-white/10 p-3">
-          <p className="text-slate-400">Active connections</p>
-          <p className="mt-1 text-base font-semibold text-white">{metrics.activeConnections}</p>
-          <p className="text-xs text-slate-400">Currently tracked HTTP in-flight</p>
+        <li className="rounded-2xl border border-border p-3">
+          <p className="text-text-muted">Active connections</p>
+          <p className="mt-1 text-base font-semibold text-text">{metrics.activeConnections}</p>
+          <p className="text-xs text-text-muted">Currently tracked HTTP in-flight</p>
         </li>
       </ul>
     </section>
@@ -137,20 +137,20 @@ export function MetricsPage(props: MetricsPageProps) {
     const { metrics, loading } = props;
     return (
       <div className="grid gap-5">
-        <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="metrics-page-title">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Runtime metrics</p>
-          <h2 id="metrics-page-title" className="mt-2 text-3xl font-semibold text-white">Metrics dashboard</h2>
-          <p className="mt-2 text-sm text-slate-400">Runtime counters from GET /api/v1/metrics.</p>
+        <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="metrics-page-title">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Runtime metrics</p>
+          <h2 id="metrics-page-title" className="mt-2 text-3xl font-semibold text-text">Metrics dashboard</h2>
+          <p className="mt-2 text-sm text-text-muted">Runtime counters from GET /api/v1/metrics.</p>
         </section>
 
         {loading ? <div className="mt-1"><LoadingPanel title="Loading metrics" detail="Fetching /api/v1/metrics from the Elysia backend." /></div> : null}
-        {!loading && !metrics ? <p className="mt-1 text-sm text-slate-400">No metrics snapshot is available yet.</p> : null}
+        {!loading && !metrics ? <p className="mt-1 text-sm text-text-muted">No metrics snapshot is available yet.</p> : null}
 
         {metrics ? (
           <div className="grid gap-5 xl:grid-cols-3">
-            <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6 xl:col-span-2" aria-labelledby="metrics-stats-title">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Overview</p>
-              <h2 id="metrics-stats-title" className="mt-2 text-2xl font-semibold text-white">Stats snapshot</h2>
+            <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6 xl:col-span-2" aria-labelledby="metrics-stats-title">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Overview</p>
+              <h2 id="metrics-stats-title" className="mt-2 text-2xl font-semibold text-text">Stats snapshot</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <StatCard label="Total docs" value="—" detail="Not exposed by /api/v1/metrics endpoint" />
                 <StatCard label="Indexing rate" value={`${Math.min((metrics.requestCount / Math.max(1, metrics.uptime)) * 60, 9999).toFixed(1)} req/min`} detail="Proxy rate from total requests and uptime" />
@@ -164,13 +164,13 @@ export function MetricsPage(props: MetricsPageProps) {
         {metrics ? (
           <div className="grid gap-5 lg:grid-cols-2">
             <MetricsChartsCard metrics={metrics} />
-            <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="memory-stats-title">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Memory</p>
-              <h2 id="memory-stats-title" className="mt-2 text-2xl font-semibold text-white">Memory usage</h2>
-              <dl className="mt-4 grid gap-3 text-sm text-slate-300">
-                <div><dt className="text-slate-500">Heap used</dt><dd className="font-medium text-white">{formatBytes(metrics.memoryUsage.heapUsed)}</dd></div>
-                <div><dt className="text-slate-500">RSS</dt><dd className="font-medium text-white">{formatBytes(metrics.memoryUsage.rss)}</dd></div>
-                <div><dt className="text-slate-500">External + buffers</dt><dd className="font-medium text-white">{formatBytes(metrics.memoryUsage.external + metrics.memoryUsage.arrayBuffers)}</dd></div>
+            <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="memory-stats-title">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Memory</p>
+              <h2 id="memory-stats-title" className="mt-2 text-2xl font-semibold text-text">Memory usage</h2>
+              <dl className="mt-4 grid gap-3 text-sm text-text-muted">
+                <div><dt className="text-text-muted">Heap used</dt><dd className="font-medium text-text">{formatBytes(metrics.memoryUsage.heapUsed)}</dd></div>
+                <div><dt className="text-text-muted">RSS</dt><dd className="font-medium text-text">{formatBytes(metrics.memoryUsage.rss)}</dd></div>
+                <div><dt className="text-text-muted">External + buffers</dt><dd className="font-medium text-text">{formatBytes(metrics.memoryUsage.external + metrics.memoryUsage.arrayBuffers)}</dd></div>
               </dl>
             </section>
           </div>
@@ -180,10 +180,10 @@ export function MetricsPage(props: MetricsPageProps) {
   }
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="metrics-page-title">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Runtime metrics</p>
-      <h2 id="metrics-page-title" className="text-2xl font-semibold text-white">Runtime metrics</h2>
-      <p className="text-sm text-slate-400">Track dashboard and surface counts while debugging</p>
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="metrics-page-title">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Runtime metrics</p>
+      <h2 id="metrics-page-title" className="text-2xl font-semibold text-text">Runtime metrics</h2>
+      <p className="text-sm text-text-muted">Track dashboard and surface counts while debugging</p>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mt-5">
         <StatCard label="Menu entries" value={props.menuCount} detail="Items loaded from /api/menu." />
         <StatCard label="Plugins" value={props.pluginCount} detail="Active plugin registry count." />

@@ -38,4 +38,15 @@ describe('POST /api/menu/custom', () => {
     expect(created.status).toBe(201);
     expect(created.json.item).toMatchObject({ path: '/custom-one', added: true });
   });
+
+  test('rejects blank path after trimming', async () => {
+    const created = await requestJson<Record<string, any>>(createMenuApp(), 'POST', '/api/menu/custom', {
+      path: '   ',
+      label: 'Blank',
+      group: 'tools',
+    });
+
+    expect(created.status).toBe(400);
+    expect(created.json.error).toContain('path and label');
+  });
 });

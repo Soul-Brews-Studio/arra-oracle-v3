@@ -24,38 +24,40 @@ type DiskHealth = {
   error?: string;
 };
 
-const DeepHealthResponseSchema = t.Object({
-  status: t.Union([t.Literal('ok'), t.Literal('degraded'), t.Literal('down')]),
-  checked_at: t.String(),
-  db: t.Object({
-    status: t.Union([t.Literal('connected'), t.Literal('error')]),
-    path: t.String(),
-    latencyMs: t.Number(),
-    error: t.Optional(t.String()),
-  }),
-  vector: t.Object({
+function deepHealthResponseSchema() {
+  return t.Object({
     status: t.Union([t.Literal('ok'), t.Literal('degraded'), t.Literal('down')]),
     checked_at: t.String(),
-    engines: t.Array(t.Any()),
-    error: t.Optional(t.String()),
-  }),
-  disk: t.Object({
-    status: t.Union([t.Literal('ok'), t.Literal('warning'), t.Literal('error')]),
-    path: t.String(),
-    totalBytes: t.Number(),
-    freeBytes: t.Number(),
-    usedBytes: t.Number(),
-    usedPercent: t.Number(),
-    error: t.Optional(t.String()),
-  }),
-  memory: t.Object({
-    rss: t.Number(),
-    heapTotal: t.Number(),
-    heapUsed: t.Number(),
-    external: t.Number(),
-    arrayBuffers: t.Number(),
-  }),
-});
+    db: t.Object({
+      status: t.Union([t.Literal('connected'), t.Literal('error')]),
+      path: t.String(),
+      latencyMs: t.Number(),
+      error: t.Optional(t.String()),
+    }),
+    vector: t.Object({
+      status: t.Union([t.Literal('ok'), t.Literal('degraded'), t.Literal('down')]),
+      checked_at: t.String(),
+      engines: t.Array(t.Any()),
+      error: t.Optional(t.String()),
+    }),
+    disk: t.Object({
+      status: t.Union([t.Literal('ok'), t.Literal('warning'), t.Literal('error')]),
+      path: t.String(),
+      totalBytes: t.Number(),
+      freeBytes: t.Number(),
+      usedBytes: t.Number(),
+      usedPercent: t.Number(),
+      error: t.Optional(t.String()),
+    }),
+    memory: t.Object({
+      rss: t.Number(),
+      heapTotal: t.Number(),
+      heapUsed: t.Number(),
+      external: t.Number(),
+      arrayBuffers: t.Number(),
+    }),
+  });
+}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -99,6 +101,15 @@ function readDisk(path = ORACLE_DATA_DIR || dirname(DB_PATH)): DiskHealth {
   }
 }
 
+function readDiskSafe(options: DeepHealthOptions): DiskHealth {
+  const path = options.diskPath ?? (ORACLE_DATA_DIR || dirname(DB_PATH));
+  try {
+    return options.diskUsage?.() ?? readDisk(path);
+  } catch (error) {
+    return { status: 'error', path, totalBytes: 0, freeBytes: 0, usedBytes: 0, usedPercent: 0, error: errorMessage(error) };
+  }
+}
+
 async function readVector(check = readVectorBackendHealth) {
   try {
     return await check();
@@ -117,11 +128,11 @@ function overallStatus(db: { status: string }, vector: { status: ComponentStatus
 export function createDeepHealthEndpoint(options: DeepHealthOptions = {}) {
   return new Elysia().get('/health/deep', async () => {
     const [db, vector] = await Promise.all([timedDbCheck(options.dbPing), readVector(options.vectorHealth)]);
-    const disk = options.diskUsage?.() ?? readDisk(options.diskPath);
+    const disk = readDiskSafe(options);
     const memory = options.memoryUsage?.() ?? process.memoryUsage();
     return { status: overallStatus(db, vector, disk), checked_at: new Date().toISOString(), db, vector, disk, memory };
   }, {
-    response: DeepHealthResponseSchema,
+    response: deepHealthResponseSchema(),
     detail: {
       tags: ['health'],
       menu: { group: 'hidden' },

@@ -80,6 +80,36 @@ test('generic soft delete helpers filter and restore deleted rows', () => {
   expect(visibleAfterRestore).toHaveLength(1);
 });
 
+test('generic soft delete helpers ignore invalid row ids', () => {
+  const storage = createBackend();
+  const deletedAt = new Date(1700000020000);
+
+  const deleted = softDeleteById(storage.db, softDeleteMenuItems, Number.NaN, { deletedAt });
+  const restored = restoreById(storage.db, softDeleteMenuItems, -1, deletedAt);
+
+  expect(deleted).toEqual({ rows: [], count: 0, deletedAt });
+  expect(restored).toBeUndefined();
+});
+
+test('generic helpers do not re-delete or restore already-active rows', () => {
+  const storage = createBackend();
+  const inserted = insertMenu(storage);
+  const firstDeletedAt = new Date(1700000030000);
+  const secondDeletedAt = new Date(1700000040000);
+
+  const firstDelete = softDeleteById(storage.db, softDeleteMenuItems, inserted.id, { deletedAt: firstDeletedAt });
+  const secondDelete = softDeleteById(storage.db, softDeleteMenuItems, inserted.id, { deletedAt: secondDeletedAt });
+  const restored = restoreById(storage.db, softDeleteMenuItems, inserted.id, secondDeletedAt, { enabled: true });
+  const secondRestore = restoreById(storage.db, softDeleteMenuItems, inserted.id, secondDeletedAt);
+  const row = storage.db.select().from(softDeleteMenuItems)
+    .where(eq(softDeleteMenuItems.id, inserted.id)).get();
+
+  expect(firstDelete.count).toBe(1);
+  expect(secondDelete).toMatchObject({ rows: [], count: 0, deletedAt: secondDeletedAt });
+  expect(restored).toMatchObject({ id: inserted.id, enabled: true, deletedAt: null });
+  expect(secondRestore).toBeUndefined();
+  expect(row?.updatedAt?.getTime()).toBe(secondDeletedAt.getTime());
+});
 
 test('menu schema exposes deletedAt and parent metadata for Drizzle migrations', () => {
   const fkSymbol = Object.getOwnPropertySymbols(menuItems)

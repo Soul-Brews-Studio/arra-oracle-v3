@@ -59,9 +59,16 @@ export function createSmokeEnv(name: string): SmokeEnv {
       ORACLE_MENU_GIST_URL: '',
       ORACLE_NAV_DISABLE: '',
       ORACLE_EMBEDDER: 'none',
-      ARRA_SCOUT_ANNOUNCE: '0',
     },
   };
+}
+
+export function removeSmokeEnv(root: string): void {
+  try {
+    rmSync(root, { recursive: true, force: true });
+  } catch {
+    // Temp cleanup must never mask the smoke assertion that failed first.
+  }
 }
 
 export function writeOraclePlugin(home: string): void {
@@ -74,7 +81,7 @@ export function writeOraclePlugin(home: string): void {
       version: '0.1.0',
       entry: './index.ts',
       description: 'Smoke fixture plugin',
-      menu: { label: 'Smoke Orbit', path: '/smoke-orbit', group: 'tools', order: 123 },
+      menu: [{ label: 'Smoke Orbit', path: '/smoke-orbit', group: 'tools', order: 123 }],
       server: { command: 'bun', args: ['index.ts'], healthPath: '/health', autostart: false },
     }, null, 2),
   );
@@ -117,8 +124,11 @@ export async function startSmokeServer(options: {
     proc.kill();
     await proc.exited.catch(() => undefined);
     const logs = `${await stdout.catch(() => '')}\n${await stderr.catch(() => '')}`;
-    await vector?.stop();
-    rmSync(smoke.root, { recursive: true });
+    try {
+      await vector?.stop();
+    } finally {
+      removeSmokeEnv(smoke.root);
+    }
     throw new Error(`${error instanceof Error ? error.message : String(error)}\n${logs}`);
   }
 
@@ -130,13 +140,20 @@ export async function startSmokeServer(options: {
     stderr,
     stop: async () => {
       proc.kill('SIGTERM');
-      const done = await Promise.race([proc.exited.catch(() => null), sleep(1500).then(() => null)]);
-      if (done === null) {
+      const done = await Promise.race([
+        proc.exited.catch(() => null),
+        sleep(1500).then(() => 'timeout' as const),
+      ]);
+      if (done === 'timeout') {
         proc.kill('SIGKILL');
         await proc.exited.catch(() => undefined);
       }
-      await vector?.stop();
-      rmSync(smoke.root, { recursive: true });
+      try {
+        await vector?.stop();
+      } finally {
+        await Promise.all([stdout.catch(() => ''), stderr.catch(() => '')]);
+        removeSmokeEnv(smoke.root);
+      }
     },
   };
 }

@@ -34,6 +34,8 @@ function normalizeArgs(args: string[]): string[] {
 }
 
 function readShortOutput(args: string[]): string | undefined {
+  const equals = args.find((arg) => arg.startsWith('-o='));
+  if (equals) return equals.slice(3);
   const index = args.indexOf('-o');
   return index >= 0 ? args[index + 1] : undefined;
 }
@@ -44,7 +46,7 @@ export function parseExportArgs(args: string[]): ExportOptions {
   return {
     collection: flag(parsed, 'collection') || parsed.positionals[0],
     format: flag(parsed, 'format') || parsed.positionals[1],
-    output: flag(parsed, 'output') || readShortOutput(clean),
+    output: flag(parsed, 'output') || flag(parsed, 'out') || readShortOutput(clean),
     help: clean.includes('--help') || clean.includes('-h'),
   };
 }
@@ -53,6 +55,7 @@ function usage(): string {
   return [
     'maw arra export',
     'maw arra export --collection NAME --format json|csv|md|jsonl --output PATH',
+    'Aliases: --out PATH or -o PATH',
     '',
     'Without export flags, lists available export collections.',
   ].join('\n');

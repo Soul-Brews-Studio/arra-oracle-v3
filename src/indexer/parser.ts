@@ -6,7 +6,7 @@ import path from 'path';
 import type { OracleDocument } from '../types.ts';
 import { extractConcepts, mergeConceptsWithTags } from './concepts.ts';
 import { inferProjectFromPath } from './discovery.ts';
-import { parseFrontmatterTags, parseFrontmatterProject } from './frontmatter.ts';
+import { parseFrontmatterTags, parseFrontmatterProject, parseFrontmatterString, parseFrontmatterList, parseFrontmatterTime, parseFrontmatterDocType, stripFrontmatter } from './frontmatter.ts';
 
 /**
  * Parse resonance markdown into granular documents
@@ -64,13 +64,21 @@ export function parseLearningFile(filename: string, content: string, sourceFileO
   const sourceFile = sourceFileOverride || `\u03c8/memory/learnings/${filename}`;
   const now = Date.now();
 
-  const fileTags = parseFrontmatterTags(content);
+  const frontmatterId = parseFrontmatterString(content, ['arra_id', 'id']);
+  const baseId = frontmatterId || `learning_${filename.replace('.md', '')}`;
+  const docType = parseFrontmatterDocType(content, ['arra_type', 'type'], 'learning');
+  const fileTags = mergeConceptsWithTags(
+    parseFrontmatterTags(content),
+    parseFrontmatterList(content, ['arra_concepts', 'concepts']),
+  );
   const fileProject = parseFrontmatterProject(content) || inferProjectFromPath(sourceFile);
+  const createdAt = parseFrontmatterTime(content, ['arra_created', 'indexed_at', 'created']) || now;
+  const updatedAt = parseFrontmatterTime(content, ['updated_at', 'arra_created', 'indexed_at', 'created']) || createdAt;
+  const bodyContent = stripFrontmatter(content).trim() || content;
 
-  const titleMatch = content.match(/^title:\s*(.+)$/m);
-  const title = titleMatch ? titleMatch[1] : filename.replace('.md', '');
+  const title = parseFrontmatterString(content, ['title']) || filename.replace('.md', '');
 
-  const sections = content.split(/^##\s+/m).filter(s => s.trim());
+  const sections = /^##\s+/m.test(bodyContent) ? bodyContent.split(/^##\s+/m).filter(s => s.trim()) : [];
 
   sections.forEach((section, index) => {
     const lines = section.split('\n');
@@ -81,19 +89,19 @@ export function parseLearningFile(filename: string, content: string, sourceFileO
     const id = `learning_${filename.replace('.md', '')}_${index}`;
     const extracted = extractConcepts(sectionTitle, body);
     documents.push({
-      id, type: 'learning', source_file: sourceFile,
+      id: frontmatterId ? `${frontmatterId}_${index}` : id, type: docType, source_file: sourceFile,
       content: `${title} - ${sectionTitle}: ${body}`,
       concepts: mergeConceptsWithTags(extracted, fileTags),
-      created_at: now, updated_at: now, project: fileProject || undefined
+      created_at: createdAt, updated_at: updatedAt, project: fileProject || undefined
     });
   });
 
   if (documents.length === 0) {
-    const extracted = extractConcepts(title, content);
+    const extracted = extractConcepts(title, bodyContent);
     documents.push({
-      id: `learning_${filename.replace('.md', '')}`, type: 'learning', source_file: sourceFile,
-      content, concepts: mergeConceptsWithTags(extracted, fileTags),
-      created_at: now, updated_at: now, project: fileProject || undefined
+      id: baseId, type: docType, source_file: sourceFile,
+      content: bodyContent, concepts: mergeConceptsWithTags(extracted, fileTags),
+      created_at: createdAt, updated_at: updatedAt, project: fileProject || undefined
     });
   }
 

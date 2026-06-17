@@ -49,11 +49,13 @@ export function closeTenantDbsForTests(): void {
 }
 
 function tenantDbPath(tenantId: string, dataDir = ORACLE_DATA_DIR): string {
-  return path.join(dataDir, 'tenants', tenantId, 'oracle.db');
+  const root = dataDir.trim() || ORACLE_DATA_DIR;
+  return path.join(root, 'tenants', tenantId, 'oracle.db');
 }
 
 function normalizeTenantId(tenantId: string): string {
-  const trimmed = tenantId.trim() || DEFAULT_TENANT_ID;
-  if (!TENANT_PATTERN.test(trimmed)) throw new Error('invalid tenant id');
-  return trimmed;
+  const trimmed = typeof tenantId === 'string' ? tenantId.trim() : '';
+  const normalized = trimmed || DEFAULT_TENANT_ID;
+  if (!TENANT_PATTERN.test(normalized)) throw new Error('invalid tenant id');
+  return normalized;
 }

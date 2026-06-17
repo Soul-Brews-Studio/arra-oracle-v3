@@ -60,14 +60,23 @@ function sha256(text: string): string {
   return crypto.createHash('sha256').update(text).digest('hex');
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
 function readState(statePath: string): CaptureState {
   try {
     const raw = fs.readFileSync(statePath, 'utf-8');
-    const parsed = JSON.parse(raw);
-    return { captures: parsed && typeof parsed.captures === 'object' ? parsed.captures : {} };
+    const parsed: unknown = JSON.parse(raw);
+    const captures = isRecord(parsed) && isRecord(parsed.captures) ? parsed.captures : {};
+    return { captures: captures as CaptureState['captures'] };
   } catch {
     return { captures: {} };
   }
+}
+
+function isReadableFile(filePath: string): boolean {
+  try { return fs.statSync(filePath).isFile(); } catch { return false; }
 }
 
 function writeState(statePath: string, state: CaptureState): void {
@@ -77,10 +86,17 @@ function writeState(statePath: string, state: CaptureState): void {
   fs.renameSync(tmp, statePath);
 }
 
+function safeSessionId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9._-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 120);
+}
+
 function stableSessionId(transcriptPath: string, explicit?: string): string {
-  if (explicit) return explicit.replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 120);
-  const base = path.basename(transcriptPath).replace(/\.jsonl$/i, '');
-  return (base || sha256(transcriptPath).slice(0, 16)).replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 120);
+  const fallback = safeSessionId(path.basename(transcriptPath).replace(/\.jsonl$/i, ''))
+    || sha256(transcriptPath).slice(0, 16);
+  return explicit ? safeSessionId(explicit) || fallback : fallback;
 }
 
 function textFromContent(content: unknown): string {
@@ -122,11 +138,18 @@ function compact(text: string, max = 360): string {
   return text.replace(/\s+/g, ' ').trim().slice(0, max).trim();
 }
 
+function normalizeMaxItems(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 12;
+  return Math.floor(value);
+}
+
 export function mineSessionJsonl(transcriptPath: string, maxItems = 12): { moments: HuginnMoment[]; hash: string; sourceText: string } {
-  if (!fs.existsSync(transcriptPath)) return { moments: [], hash: '', sourceText: '' };
-  const raw = fs.readFileSync(transcriptPath, 'utf-8');
+  if (!isReadableFile(transcriptPath)) return { moments: [], hash: '', sourceText: '' };
+  let raw = '';
+  try { raw = fs.readFileSync(transcriptPath, 'utf-8'); } catch { return { moments: [], hash: '', sourceText: '' }; }
   const selected: HuginnMoment[] = [];
   const seen = new Set<string>();
+  const limit = normalizeMaxItems(maxItems);
 
   for (const line of raw.split(/\r?\n/)) {
     if (!line.trim()) continue;
@@ -140,7 +163,7 @@ export function mineSessionJsonl(transcriptPath: string, maxItems = 12): { momen
     if (seen.has(key)) continue;
     seen.add(key);
     selected.push({ kind: classify(clipped), text: clipped });
-    if (selected.length >= maxItems) break;
+    if (selected.length >= limit) break;
   }
 
   const sourceText = selected.map((m) => `${m.kind}: ${m.text}`).join('\n');
@@ -165,7 +188,7 @@ export function formatLearning(sessionId: string, moments: HuginnMoment[], trans
 
 export async function captureSession(options: HuginnCaptureOptions): Promise<HuginnCaptureResult> {
   const sessionId = stableSessionId(options.transcriptPath, options.sessionId);
-  if (!fs.existsSync(options.transcriptPath)) return { ok: true, skipped: 'missing-transcript', sessionId, moments: [] };
+  if (!isReadableFile(options.transcriptPath)) return { ok: true, skipped: 'missing-transcript', sessionId, moments: [] };
 
   const mined = mineSessionJsonl(options.transcriptPath, options.maxItems ?? 12);
   if (mined.moments.length === 0) return { ok: true, skipped: 'empty', sessionId, hash: mined.hash, moments: [] };

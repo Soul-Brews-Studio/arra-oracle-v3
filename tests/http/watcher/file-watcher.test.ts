@@ -23,7 +23,9 @@ CREATE TABLE oracle_documents (
   origin TEXT,
   project TEXT,
   tenant_id TEXT NOT NULL DEFAULT 'default',
-  created_by TEXT
+  created_by TEXT,
+  usage_count INTEGER NOT NULL DEFAULT 0,
+  last_accessed_at INTEGER
 );
 CREATE VIRTUAL TABLE oracle_fts USING fts5(id UNINDEXED, content, concepts, tokenize='porter unicode61');
 CREATE TABLE indexing_jobs (
@@ -123,7 +125,23 @@ describe('watcher HTTP routes', () => {
     expect(logs.some((line) => line.includes('re-indexed ψ/learn/github.com/owner/repo/watch.md'))).toBe(true);
 
     const status = await call('/api/v1/watcher/status');
-    expect(status.body.events[0]).toMatchObject({ type: 'indexed', docs: 1, jobs: 2 });
+    expect(status.body.events.some((event: any) =>
+      event.type === 'indexed' && event.docs === 1 && event.jobs === 2,
+    )).toBe(true);
+  });
+
+  test('discovers nested ψ/learn directories created after start', async () => {
+    const filePath = path.join(repoRoot, 'ψ', 'learn', 'github.com', 'owner', 'repo', 'fresh.md');
+
+    await call('/api/v1/watcher/start', { method: 'POST' });
+    await sleep(50);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, '# Fresh\n\n## Finding\n\nNew directory trees must be scanned.', 'utf8');
+
+    await waitFor(() => count('indexing_jobs') === Object.keys(MODELS).length, 2_500);
+
+    const row = db.query<{ source_file: string }, []>('SELECT source_file FROM oracle_documents').get();
+    expect(row?.source_file).toBe('ψ/learn/github.com/owner/repo/fresh.md');
   });
 
   test('debounces bursty writes into one re-index event', async () => {
@@ -137,6 +155,76 @@ describe('watcher HTTP routes', () => {
     fs.writeFileSync(filePath, '# Burst\n\n## Finding\n\nThird write.', 'utf8');
 
     await waitFor(() => count('indexing_jobs') === Object.keys(MODELS).length);
+
+    expect(count('oracle_documents')).toBe(1);
+    expect(count('indexing_jobs')).toBe(Object.keys(MODELS).length);
+  });
+
+  test('ignores schedules while stopped and clears pending work on stop', async () => {
+    const filePath = path.join(repoRoot, 'ψ', 'learn', 'github.com', 'owner', 'repo', 'manual.md');
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, '# Manual\n\n## Finding\n\nStopped watchers must not index.', 'utf8');
+
+    service.schedule(filePath);
+    await sleep(60);
+    expect(service.status()).toMatchObject({ pending: 0, events: [] });
+    expect(count('indexing_jobs')).toBe(0);
+
+    await call('/api/v1/watcher/start', { method: 'POST' });
+    service.schedule(filePath);
+    expect(service.status().pending).toBe(1);
+    await call('/api/v1/watcher/stop', { method: 'POST' });
+    await sleep(60);
+
+    expect(service.status().pending).toBe(0);
+    expect(count('oracle_documents')).toBe(0);
+    expect(count('indexing_jobs')).toBe(0);
+  });
+
+  test('skips vanished paths and caps event history', async () => {
+    service.stop();
+    service = new FileWatcherService({
+      db, repoRoot, models: MODELS, debounceMs: 20, maxEvents: 2,
+      logger: { log: (msg) => logs.push(msg), warn: (msg) => logs.push(String(msg)) },
+    });
+    const filePath = path.join(repoRoot, 'ψ', 'learn', 'github.com', 'owner', 'repo', 'gone.md');
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, '# Gone\n\n## Finding\n\nDelete before debounce.', 'utf8');
+
+    service.start();
+    service.schedule(filePath);
+    fs.rmSync(filePath);
+
+    await waitFor(() => service.status().events.some((event) => event.type === 'skipped'));
+    expect(service.status().events.map((event) => event.type)).toEqual(['skipped', 'scheduled']);
+    expect(count('oracle_documents')).toBe(0);
+  });
+
+  test('normalizes invalid timing and event history options', () => {
+    service.stop();
+    service = new FileWatcherService({
+      db, repoRoot, models: MODELS, debounceMs: Number.NaN, maxEvents: -1,
+      logger: { log: (msg) => logs.push(msg), warn: (msg) => logs.push(String(msg)) },
+    });
+
+    const status = service.start();
+    expect(status.debounceMs).toBe(2_000);
+    expect(status.events[0]).toMatchObject({ type: 'started' });
+  });
+
+  test('does not enqueue duplicate jobs while a document has active jobs', async () => {
+    const filePath = path.join(repoRoot, 'ψ', 'learn', 'github.com', 'owner', 'repo', 'active.md');
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+
+    await call('/api/v1/watcher/start', { method: 'POST' });
+    fs.writeFileSync(filePath, '# Active\n\n## Finding\n\nInitial indexing queues jobs.', 'utf8');
+    await waitFor(() => count('indexing_jobs') === Object.keys(MODELS).length);
+
+    fs.writeFileSync(filePath, '# Active\n\n## Finding\n\nSecond pass sees active jobs.', 'utf8');
+    service.schedule(filePath);
+    await waitFor(() => service.status().events.some((event) =>
+      event.type === 'indexed' && event.path?.endsWith('/active.md') && event.jobs === 0,
+    ));
 
     expect(count('oracle_documents')).toBe(1);
     expect(count('indexing_jobs')).toBe(Object.keys(MODELS).length);

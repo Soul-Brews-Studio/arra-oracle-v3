@@ -4,18 +4,28 @@ import {
   activeConfig,
   atomicWriteVectorConfig,
   inspectCollection,
+  normalizedCreate,
   resolveCollection,
+  withPrimary,
+  withoutCollection,
 } from '../../routes/vector/config-api-utils.ts';
 
-const ADAPTERS = new Set(['lancedb', 'qdrant', 'chroma', 'sqlite-vec', 'cloudflare-vectorize', 'proxy']);
-type Field = 'adapter' | 'enabled' | 'model' | 'provider';
+const ADAPTERS = new Set(['lancedb', 'qdrant', 'chroma', 'sqlite-vec', 'cloudflare-vectorize', 'proxy', 'turbovec']);
+const FIELDS = new Set(['adapter', 'collection', 'embedder', 'enabled', 'endpoint', 'model', 'primary', 'provider', 'service']);
+type Field = 'adapter' | 'collection' | 'embedder' | 'enabled' | 'endpoint' | 'model' | 'primary' | 'provider' | 'service';
 type Writer = (message: string) => void;
+type Update = Partial<Record<Field, unknown>>;
 
 function usage(out: Writer): void {
   out([
-    'usage: bun run src/cli/index.ts vector-config [--json]',
-    '       bun run src/cli/index.ts vector-config set <collection> adapter <lancedb|qdrant|chroma|sqlite-vec>',
-    '       bun run src/cli/index.ts vector-config set <collection> enabled <true|false>',
+    'usage: bun run src/cli/index.ts vector-config [list] [--json]',
+    '       bun run src/cli/index.ts vector-config get [collection] [--json]',
+    '       bun run src/cli/index.ts vector-config set <collection> <field> <value> [--json]',
+    '       bun run src/cli/index.ts vector-config set <collection> --adapter <name> [--url <url>]',
+    '       bun run src/cli/index.ts vector-config switch <adapter> [--enabled true|false]',
+    '       bun run src/cli/index.ts vector-config add <name> --model <name> [--primary]',
+    '       bun run src/cli/index.ts vector-config remove <collection> --yes',
+    '       bun run src/cli/index.ts vector-config set-primary <collection>',
     '       bun run src/cli/index.ts vector-config test <collection>',
     '       bun run src/cli/index.ts vector-config reload',
   ].join('\n') + '\n');
@@ -25,16 +35,57 @@ function flag(args: string[], name: string): boolean {
   return args.includes(name);
 }
 
-function parseValue(field: Field, value: string): string | boolean {
-  if (field === 'enabled') {
+function fieldName(raw: string): Field {
+  const field = raw.replace(/^--/, '').replace(/^url$/, 'endpoint') as Field;
+  if (!FIELDS.has(field)) throw new Error(`field must be one of ${[...FIELDS].join(', ')}`);
+  return field;
+}
+
+function parseValue(field: Field, value: string): unknown {
+  if (field === 'enabled' || field === 'primary') {
     if (value === 'true') return true;
     if (value === 'false') return false;
-    throw new Error('enabled must be true or false');
+    throw new Error(`${field} must be true or false`);
   }
   const trimmed = value.trim();
   if (!trimmed) throw new Error(`${field} must be non-empty`);
-  if (field === 'adapter' && !ADAPTERS.has(trimmed)) throw new Error(`adapter must be one of ${[...ADAPTERS].join(', ')}`);
+  if (field === 'embedder') return JSON.parse(trimmed) as unknown;
+  if (field === 'adapter') {
+    const normalized = trimmed === 'cloudflare' ? 'cloudflare-vectorize' : trimmed;
+    if (!ADAPTERS.has(normalized)) throw new Error(`adapter must be one of ${[...ADAPTERS].join(', ')}`);
+    return normalized;
+  }
   return trimmed;
+}
+
+function cleanArgs(args: string[]): string[] {
+  return args.filter((item) => !['--json', '--help', '-h'].includes(item));
+}
+
+function parseUpdates(args: string[]): Update {
+  const updates: Update = {};
+  const [field, value] = args;
+  if (field && !field.startsWith('--')) {
+    if (value === undefined) throw new Error('set field value required');
+    updates[fieldName(field)] = parseValue(fieldName(field), value);
+    args = args.slice(2);
+  }
+  for (let i = 0; i < args.length;) {
+    const rawField = args[i];
+    const rawValue = args[i + 1];
+    if (!rawField?.startsWith('--')) throw new Error('set requires <field> <value> pairs or --field <value>');
+    const parsedField = fieldName(rawField);
+    if (parsedField === 'primary' && (rawValue === undefined || rawValue.startsWith('--'))) {
+      updates.primary = true;
+      i += 1;
+      continue;
+    }
+    if (rawValue === undefined || rawValue.startsWith('--')) throw new Error(`${rawField} value required`);
+    updates[parsedField] = parseValue(parsedField, rawValue);
+    i += 2;
+  }
+  if (!Object.keys(updates).length) throw new Error('set requires at least one field');
+  return updates;
 }
 
 async function readState(json: boolean, out: Writer): Promise<number> {
@@ -50,19 +101,111 @@ async function readState(json: boolean, out: Writer): Promise<number> {
   return 0;
 }
 
-async function setField(args: string[], out: Writer): Promise<number> {
-  const [, collection, rawField, rawValue] = args;
-  if (!collection || !rawField || rawValue === undefined) throw new Error('set requires <collection> <field> <value>');
-  const field = rawField as Field;
-  if (!['adapter', 'enabled', 'model', 'provider'].includes(field)) throw new Error('field must be adapter, enabled, model, or provider');
-  const { config } = activeConfig();
+function onePayload(collection: string) {
+  const { source, config } = activeConfig();
   const resolved = resolveCollection(config, collection);
   if (!resolved) throw new Error(`unknown vector collection: ${collection}`);
   const [key, current] = resolved;
-  const next = { ...config, collections: { ...config.collections, [key]: { ...current, [field]: parseValue(field, rawValue) } } };
+  return { source, config, key, current };
+}
+
+async function getCollection(args: string[], jsonOut: boolean, out: Writer): Promise<number> {
+  const collection = args[1];
+  if (!collection) {
+    const { source, config } = activeConfig();
+    out(JSON.stringify({ source, config }, null, 2) + '\n');
+    return 0;
+  }
+  const { source, key, current } = onePayload(collection);
+  const payload = { source, key, config: current };
+  if (jsonOut) out(JSON.stringify(payload, null, 2) + '\n');
+  else out(Object.entries(payload.config).map(([name, value]) => `${name}: ${JSON.stringify(value)}`).join('\n') + `\nkey: ${key}\nsource: ${source}\n`);
+  return 0;
+}
+
+async function switchBackend(args: string[], jsonOut: boolean, out: Writer): Promise<number> {
+  const requested = args[1];
+  if (!requested) throw new Error('switch requires <adapter>');
+  const adapter = parseValue('adapter', requested) as VectorDBType;
+  if (!['lancedb', 'qdrant', 'chroma', 'sqlite-vec'].includes(adapter)) {
+    throw new Error('switch adapter must be lancedb, qdrant, chroma, or sqlite-vec');
+  }
+  const enabledIndex = args.indexOf('--enabled');
+  const enabledValue = args[enabledIndex + 1];
+  if (enabledIndex >= 0 && (!enabledValue || enabledValue.startsWith('--'))) throw new Error('--enabled value required');
+  const enabled = enabledIndex >= 0 ? parseValue('enabled', enabledValue) as boolean : undefined;
+  const { source, config } = activeConfig();
+  const collections = Object.fromEntries(Object.entries(config.collections).map(([key, current]) => [
+    key,
+    { ...current, adapter, ...(enabled !== undefined && { enabled }) },
+  ]));
+  const next: typeof config = { ...config, collections };
   const path = atomicWriteVectorConfig(next);
   await closeCachedVectorStores();
-  out(`updated ${key}: ${field}=${rawValue}\npath: ${path}\n`);
+  if (jsonOut) out(JSON.stringify({ success: true, source, path, adapter, config: next }, null, 2) + '\n');
+  else out(`switched vector backend adapter to ${adapter} across ${Object.keys(collections).length} collections\npath: ${path}\n`);
+  return 0;
+}
+
+async function setField(args: string[], jsonOut: boolean, out: Writer): Promise<number> {
+  const [, collection, ...rawUpdates] = args;
+  if (!collection) throw new Error('set requires <collection>');
+  const updates = parseUpdates(rawUpdates);
+  const { source, config, key, current } = onePayload(collection);
+  const nextBase: typeof config = { ...config, collections: { ...config.collections, [key]: { ...current, ...(updates as Partial<typeof current>) } } };
+  const next = updates.primary === true ? withPrimary(nextBase, key) : nextBase;
+  const path = atomicWriteVectorConfig(next);
+  await closeCachedVectorStores();
+  if (jsonOut) out(JSON.stringify({ success: true, source, path, collection: key, config: next }, null, 2) + '\n');
+  else out(`updated ${key}: ${Object.entries(updates).map(([name, value]) => `${name}=${JSON.stringify(value)}`).join(', ')}\npath: ${path}\n`);
+  return 0;
+}
+
+async function addCollection(args: string[], jsonOut: boolean, out: Writer): Promise<number> {
+  const [, collection, ...rawUpdates] = args;
+  if (!collection) throw new Error('add requires <collection>');
+  const updates = parseUpdates(rawUpdates);
+  const created = normalizedCreate(collection, updates as Parameters<typeof normalizedCreate>[1]);
+  if ('error' in created) throw new Error(created.error);
+  const { source, config } = activeConfig();
+  if (config.collections[collection]) throw new Error(`vector collection already exists: ${collection}`);
+  const base: typeof config = { ...config, collections: { ...config.collections, [collection]: created } };
+  const next = created.primary ? withPrimary(base, collection) : base;
+  const path = atomicWriteVectorConfig(next);
+  await closeCachedVectorStores();
+  if (jsonOut) out(JSON.stringify({ success: true, source, path, collection, config: next }, null, 2) + '\n');
+  else out(`added ${collection}: model=${JSON.stringify(created.model)}, adapter=${JSON.stringify(created.adapter ?? 'lancedb')}\npath: ${path}\n`);
+  return 0;
+}
+
+async function removeCollection(args: string[], jsonOut: boolean, out: Writer): Promise<number> {
+  const collection = args[1];
+  if (!collection) throw new Error('remove requires <collection>');
+  if (!flag(args, '--yes') && !flag(args, '-y')) throw new Error('remove requires --yes');
+  const { source, config } = activeConfig();
+  const resolved = resolveCollection(config, collection);
+  if (!resolved) throw new Error(`unknown vector collection: ${collection}`);
+  const [key] = resolved;
+  const next = withoutCollection(config, key);
+  const path = atomicWriteVectorConfig(next);
+  await closeCachedVectorStores();
+  if (jsonOut) out(JSON.stringify({ success: true, source, path, removed: key, config: next }, null, 2) + '\n');
+  else out(`removed ${key}\npath: ${path}\n`);
+  return 0;
+}
+
+async function setPrimary(args: string[], jsonOut: boolean, out: Writer): Promise<number> {
+  const collection = args[1];
+  if (!collection) throw new Error('set-primary requires <collection>');
+  const { source, config } = activeConfig();
+  const resolved = resolveCollection(config, collection);
+  if (!resolved) throw new Error(`unknown vector collection: ${collection}`);
+  const [key] = resolved;
+  const next = withPrimary(config, key);
+  const path = atomicWriteVectorConfig(next);
+  await closeCachedVectorStores();
+  if (jsonOut) out(JSON.stringify({ success: true, source, path, collection: key, config: next }, null, 2) + '\n');
+  else out(`set ${key} as primary vector collection\npath: ${path}\n`);
   return 0;
 }
 
@@ -83,9 +226,15 @@ export async function vectorConfigCommand(args: string[], stdout: Writer = proce
     const rest = args.slice(1);
     if (flag(rest, '--help') || flag(rest, '-h')) { usage(stdout); return 0; }
     const command = rest.find((item) => !item.startsWith('--'));
-    if (!command) return readState(flag(rest, '--json'), stdout);
-    if (command === 'set') return setField(rest.filter((item) => !item.startsWith('--')), stdout);
-    if (command === 'test') return testCollection(rest.filter((item) => !item.startsWith('--')), stdout);
+    if (!command) return await readState(flag(rest, '--json'), stdout);
+    if (command === 'list') return await readState(flag(rest, '--json'), stdout);
+    if (command === 'get') return await getCollection(cleanArgs(rest), flag(rest, '--json'), stdout);
+    if (command === 'set') return await setField(cleanArgs(rest), flag(rest, '--json'), stdout);
+    if (command === 'switch' || command === 'backend') return await switchBackend(cleanArgs(rest), flag(rest, '--json'), stdout);
+    if (command === 'add') return await addCollection(cleanArgs(rest), flag(rest, '--json'), stdout);
+    if (command === 'remove' || command === 'rm') return await removeCollection(cleanArgs(rest), flag(rest, '--json'), stdout);
+    if (command === 'set-primary' || command === 'primary') return await setPrimary(cleanArgs(rest), flag(rest, '--json'), stdout);
+    if (command === 'test') return await testCollection(cleanArgs(rest), stdout);
     if (command === 'reload') { await closeCachedVectorStores(); stdout('vector config runtime cache reloaded\n'); return 0; }
     throw new Error(`unknown vector-config command: ${command}`);
   } catch (error) {

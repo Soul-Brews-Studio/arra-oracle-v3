@@ -30,10 +30,13 @@ export async function serveCommand(args: string[]): Promise<number> {
   }
 
   if (sub === 'status') {
+    const bad = unknownFlags(rest, new Set(['--json']));
+    if (bad) return badFlag('serve status', bad);
     return runServerStatus(rest);
   }
 
   if (sub === 'stop') {
+    if (rest.length > 0) return badFlag('serve stop', rest[0]);
     return runServerStop();
   }
 
@@ -43,6 +46,8 @@ export async function serveCommand(args: string[]): Promise<number> {
 }
 
 async function runServerStart(mode: string | undefined, flags: string[]): Promise<number> {
+  const bad = unknownFlags(flags, new Set(['--foreground', '-f', '--background', '-b']));
+  if (bad) return badFlag('serve start', bad);
   const flagSet = new Set(flags);
   const foreground = mode === 'foreground' || flagSet.has('--foreground') || flagSet.has('-f');
   const background =
@@ -64,6 +69,16 @@ async function runServerStart(mode: string | undefined, flags: string[]): Promis
   return runServerBackground();
 }
 
+function unknownFlags(flags: string[], allowed: Set<string>): string | undefined {
+  return flags.find((flag) => !allowed.has(flag));
+}
+
+function badFlag(scope: string, flag: string): number {
+  console.error(`unknown ${scope} option: ${flag}`);
+  printUsage();
+  return 1;
+}
+
 async function runServerBackground(): Promise<number> {
   const { ensureServerRunning, getServerStatus } = await import('../../ensure-server.ts');
   const ok = await ensureServerRunning({ verbose: false, timeout: 15000 });
@@ -83,8 +98,8 @@ async function runServerBackground(): Promise<number> {
 }
 
 async function runServerForeground(): Promise<number> {
-  const { default: appSpec } = await import('../../server.ts');
-  const server = Bun.serve(appSpec);
+  const { startServer } = await import('../../server.ts');
+  const server = await startServer();
 
   console.log(`🔮 Oracle server running in foreground on http://localhost:${server.port}`);
 

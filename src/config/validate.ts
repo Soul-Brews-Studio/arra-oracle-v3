@@ -66,9 +66,7 @@ export function validateStartupEnv(): ConfigValidationResult { return validateEn
 
 function cleanEnv(env: NodeJS.ProcessEnv): RuntimeEnv {
   const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(env)) {
-    if (value !== undefined) out[key] = String(value);
-  }
+  for (const [key, value] of Object.entries(env)) if (value !== undefined) out[key] = String(value);
   return out as RuntimeEnv;
 }
 
@@ -88,26 +86,27 @@ function requireHome(env: RuntimeEnv, issues: string[]): void {
 
 function validateIntegers(env: RuntimeEnv, issues: string[]): void {
   for (const key of INTEGER_ENV_KEYS) {
-    const value = env[key];
+    const value = env[key]?.trim();
     if (!filled(value)) continue;
     if (!/^\d+$/.test(value)) {
       issues.push(`${key} must be a positive integer; received "${value}".`);
       continue;
     }
     const parsed = Number(value);
-    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    const allowsEphemeralPort = (PORT_ENV_KEYS as readonly string[]).includes(key) && parsed === 0;
+    if (!Number.isSafeInteger(parsed) || (parsed <= 0 && !allowsEphemeralPort)) {
       issues.push(`${key} must be greater than 0; received "${value}".`);
     }
   }
   for (const key of PORT_ENV_KEYS) {
-    const value = env[key];
+    const value = env[key]?.trim();
     if (filled(value) && Number(value) > 65_535) issues.push(`${key} must be <= 65535; received "${value}".`);
   }
 }
 
 function validateBooleans(env: RuntimeEnv, issues: string[]): void {
   for (const key of BOOLEAN_ENV_KEYS) {
-    const value = env[key];
+    const value = env[key]?.trim();
     if (filled(value) && !BOOL_VALUES.has(value.toLowerCase())) {
       issues.push(`${key} must be boolean-like (0/1/true/false/yes/no/on/off); received "${value}".`);
     }
@@ -116,17 +115,13 @@ function validateBooleans(env: RuntimeEnv, issues: string[]): void {
 
 function validateUrls(env: RuntimeEnv, issues: string[]): void {
   for (const key of URL_ENV_KEYS) {
-    const value = env[key];
+    const value = env[key]?.trim();
     if (!filled(value)) continue;
-    try {
-      const url = new URL(value);
-      if (!['http:', 'https:'].includes(url.protocol)) issues.push(`${key} must be http(s); received "${value}".`);
-    } catch {
-      issues.push(`${key} must be a valid URL; received "${value}".`);
-    }
+    validateHttpUrl(key, value, issues);
   }
-  if (filled(env.ORACLE_HTTP_URL) && env.ORACLE_HTTP_URL !== 'embedded') {
-    try { new URL(env.ORACLE_HTTP_URL); } catch { issues.push('ORACLE_HTTP_URL must be a valid URL or "embedded".'); }
+  const oracleHttpUrl = env.ORACLE_HTTP_URL?.trim();
+  if (filled(oracleHttpUrl) && oracleHttpUrl !== 'embedded') {
+    validateHttpUrl('ORACLE_HTTP_URL', oracleHttpUrl, issues, ' or "embedded"');
   }
 }
 
@@ -135,10 +130,11 @@ function validateEnums(env: RuntimeEnv, issues: string[]): void {
   checkEnum(env, issues, ['ORACLE_EMBEDDER', 'ORACLE_EMBEDDER_BACKEND', 'ORACLE_EMBEDDING_PROVIDER', 'EMBEDDER_TYPE'], EMBEDDER_VALUES);
   checkEnum(env, issues, ['ORACLE_VECTOR_DB'], VECTOR_DB_VALUES);
   checkEnum(env, issues, ['VECTOR_FALLBACK'], VECTOR_FALLBACK_VALUES);
+  checkEnum(env, issues, ['LOG_FORMAT'], ['nginx', 'json', 'short'] as const);
 }
 
 function validateDatabaseUrl(env: RuntimeEnv, issues: string[]): void {
-  const value = env.DATABASE_URL;
+  const value = env.DATABASE_URL?.trim();
   if (!filled(value)) return;
   try {
     const url = new URL(value);
@@ -158,31 +154,29 @@ function validateProviderRequirements(env: RuntimeEnv, issues: string[]): void {
     issues.push('Remote embedder requires ORACLE_EMBEDDER_URL or ORACLE_REMOTE_EMBEDDING_URL.');
   }
   if (embedder === 'openai' && !filled(env.OPENAI_API_KEY)) issues.push('OpenAI embedder requires OPENAI_API_KEY.');
-  if (embedder === 'gemini' && !filled(env.GEMINI_API_KEY)) issues.push('Gemini embedder requires GEMINI_API_KEY.');
+  if (embedder === 'gemini' && !filled(env.GEMINI_API_KEY) && !filled(env.GOOGLE_API_KEY)) issues.push('Gemini embedder requires GEMINI_API_KEY or GOOGLE_API_KEY.');
   const cloudflare = embedder === 'cloudflare-ai' || env.ORACLE_VECTOR_DB === 'cloudflare-vectorize';
   if (cloudflare && ((!filled(env.CLOUDFLARE_ACCOUNT_ID) && !filled(env.CF_ACCOUNT_ID)) || (!filled(env.CLOUDFLARE_API_TOKEN) && !filled(env.CF_API_TOKEN)))) {
     issues.push('Cloudflare vector/AI config requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.');
   }
 }
-
 function validateRuntimePaths(env: RuntimeEnv, issues: string[]): void {
-  const dataDir = env.ORACLE_DATA_DIR || resolve(homeDir(env) || '.', '.arra-oracle-v2');
-  const dbPath = env.ORACLE_DB_PATH || pathFromDatabaseUrl(env.DATABASE_URL) || resolve(dataDir, 'oracle.db');
+  const dataDir = firstFilled(env.ORACLE_DATA_DIR, resolve(homeDir(env) || '.', '.arra-oracle-v2'));
+  const dbPath = firstFilled(env.ORACLE_DB_PATH, pathFromDatabaseUrl(env.DATABASE_URL), resolve(dataDir, 'oracle.db'));
   validateWritablePath('ORACLE_DATA_DIR', dataDir, issues, true);
   validateWritablePath('ORACLE_DB_PATH/DATABASE_URL', dbPath, issues, false);
-  if (filled(env.ORACLE_REPO_ROOT)) validateWritablePath('ORACLE_REPO_ROOT', env.ORACLE_REPO_ROOT, issues, true);
+  if (filled(env.ORACLE_REPO_ROOT)) validateWritablePath('ORACLE_REPO_ROOT', env.ORACLE_REPO_ROOT.trim(), issues, true);
 }
-
 function validateVectorConnectionConfig(env: RuntimeEnv, issues: string[]): void {
-  const type = (env.ORACLE_VECTOR_DB || 'lancedb').toLowerCase();
+  const type = (env.ORACLE_VECTOR_DB?.trim() || 'lancedb').toLowerCase();
   if (type === 'qdrant' && !filled(env.QDRANT_URL)) issues.push('Qdrant vector DB requires QDRANT_URL.');
   if (type === 'proxy' && !filled(env.ORACLE_PROXY_VECTOR_URL)) issues.push('Proxy vector DB requires ORACLE_PROXY_VECTOR_URL.');
   if (type === 'lancedb' || type === 'sqlite-vec') {
-    const base = env.ORACLE_VECTOR_DB_PATH || resolve(env.ORACLE_DATA_DIR || resolve(homeDir(env) || '.', '.arra-oracle-v2'), type === 'lancedb' ? 'lancedb' : 'vectors.db');
+    const dataDir = firstFilled(env.ORACLE_DATA_DIR, resolve(homeDir(env) || '.', '.arra-oracle-v2'));
+    const base = firstFilled(env.ORACLE_VECTOR_DB_PATH, resolve(dataDir, type === 'lancedb' ? 'lancedb' : 'vectors.db'));
     validateWritablePath('ORACLE_VECTOR_DB_PATH', base, issues, type === 'lancedb');
   }
 }
-
 function validateWritablePath(label: string, target: string, issues: string[], directory: boolean): void {
   if (!filled(target)) return;
   try {
@@ -210,6 +204,7 @@ function nearestExistingDir(start: string): string {
 }
 
 function pathFromDatabaseUrl(value?: string): string {
+  value = value?.trim();
   if (!filled(value)) return '';
   try {
     const url = new URL(value);
@@ -219,8 +214,8 @@ function pathFromDatabaseUrl(value?: string): string {
   return value;
 }
 
-const homeDir = (env: RuntimeEnv): string => env.HOME || env.USERPROFILE || '';
-
+const homeDir = (env: RuntimeEnv): string => firstFilled(env.HOME, env.USERPROFILE);
+const firstFilled = (...values: Array<string | undefined>): string => values.map((value) => value?.trim() || '').find(Boolean) || '';
 function optionalWarnings(env: RuntimeEnv): string[] {
   return OPTIONAL_DEFAULTS
     .filter((item) => !item.keys.some((key) => filled(env[key])))
@@ -229,11 +224,16 @@ function optionalWarnings(env: RuntimeEnv): string[] {
 
 function checkEnum<T extends readonly string[]>(env: RuntimeEnv, issues: string[], keys: readonly string[], allowed: T): void {
   for (const key of keys) {
-    const value = env[key];
+    const value = env[key]?.trim();
     if (filled(value) && !(allowed as readonly string[]).includes(value.toLowerCase())) {
       issues.push(`${key} must be one of ${allowed.join(', ')}; received "${value}".`);
     }
   }
+}
+
+function validateHttpUrl(label: string, value: string, issues: string[], suffix = ''): void {
+  try { if (!['http:', 'https:'].includes(new URL(value).protocol)) throw new Error('not http(s)'); }
+  catch { issues.push(`${label} must be a valid http(s) URL${suffix}; received "${value}".`); }
 }
 
 function normalizeEmbedder(value?: string): string {

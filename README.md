@@ -1,6 +1,8 @@
 # Arra Oracle V3 — MCP Memory, Search, and Plugin Layer
 
 [![CI](https://github.com/Soul-Brews-Studio/arra-oracle-v3/actions/workflows/ci.yml/badge.svg)](https://github.com/Soul-Brews-Studio/arra-oracle-v3/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](./LICENSE) [![Bun](https://img.shields.io/badge/runtime-Bun%201.2%2B-f9f1e1)](https://bun.sh)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Soul-Brews-Studio/arra-oracle-v3)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FSoul-Brews-Studio%2Farra-oracle-v3&env=ORACLE_URL&envDescription=Oracle%20HTTP%20API%20base%20URL%20for%20the%20Studio%20API%20proxy&envLink=https%3A%2F%2Fgithub.com%2FSoul-Brews-Studio%2Farra-oracle-v3%2Fblob%2Falpha%2Fdocs%2Fdeploy-vercel.md%23environment-variables&project-name=arra-oracle-studio&repository-name=arra-oracle-studio) — [Vercel quickstart](docs/deploy-vercel.md)
 
 > "The Oracle Keeps the Human Human" — queryable through MCP, HTTP, CLI, and
 > maw-js plugin surfaces.
@@ -21,11 +23,19 @@ bunx tsc --noEmit
 bun run server                 # HTTP API on http://localhost:47778
 ```
 
-Useful checks:
+### Test the MCP locally
+
+Project scope works by opening this clone; `.mcp.json` launches `bin/mcp.ts`
+without `CLAUDE_PLUGIN_ROOT`. For user scope, add the same launcher explicitly:
 
 ```bash
+claude mcp add arra-oracle --cwd "$PWD" -- bun bin/mcp.ts
+claude mcp list              # expect connected; tools/list exposes 27 tools
+```
+
+Useful checks:
+```bash
 curl -sf http://localhost:47778/api/health
-bun test tests/http/health/
 bun run src/cli/index.ts health
 ```
 
@@ -55,15 +65,17 @@ docker run --rm -p 47778:47778 -v arra-data:/data \
 
 | Area | What ships |
 | --- | --- |
-| MCP memory tools | `oracle_search`, `oracle_read`, `oracle_list`, `oracle_learn`, `oracle_handoff`, `oracle_inbox`, trace/thread/supersede/verify tools. |
+| Modular backend | Elysia/SQLite core can run all-local, behind a maw plugin backend, behind edge proxies, or split from vector/MCP adapters. |
+| Runtime plug-in/out | Unified manifests enable/disable CLI, menu/API, MCP, proxy, server, export-format, and lifecycle surfaces without forks. |
+| MCP memory tools | 27 tools: `____IMPORTANT` plus 26 `oracle_*`, including `oracle_research_note`, `oracle_profile`, and `oracle_trace_distill`. |
+| Memory confidence + supersede | Confidence receipts, reversible supersede chains, trace context, and async dry-run consolidation preserve history while deduping. |
 | HTTP API | Elysia route clusters under `/api/*`, with health, search, knowledge, vector, menu, plugins, canvas, federation, tenants, and settings surfaces. |
-| Vector search | Configurable vector providers, LanceDB/local stores, proxy services, export formats, status/config APIs, and graceful fallback to keyword/FTS paths. |
-| Unified plugin system | One manifest can declare CLI, menu/API, MCP, proxy, server, export-format, and lifecycle surfaces. |
-| maw-js `arra` plugin | `maw arra ...` gives CLI/API/menu access to ARRA verbs, local maintenance commands, vector config/health, and server controls. |
+| Vector search | Configurable providers, LanceDB/local stores, proxy services, export formats, status/config APIs, and FTS fallback paths. |
+| maw-js `arra` plugin | `maw arra ...` gives CLI/API/menu access to ARRA verbs, maintenance commands, vector config/health, and server controls. |
+| Edge/cloud deploy | Cloudflare Workers remote MCP/canvas/studio/federation shapes, Vercel Studio proxy, Docker, and local Bun modes. |
 | Multi-tenant HTTP isolation | Tenant headers and optional tenant tokens scope reads/writes by `tenant_id` for shared HTTP deployments. |
-| Canvas subdomain | `canvas.buildwithoracle.com` worker/standalone app renders Three + React canvas plugins, registry endpoints, proxying, and cache hooks. |
-| Federation | Peer identity, TOFU pins, Scout discovery, OracleNet feed/search, and bearer-protected peer endpoints. |
-| Studio UI | React dashboard pages for search, vectors, plugins, canvas plugins, settings, MCP tools, learn, and metrics; Tauri shell for desktop use. |
+| Federation | Opt-in `/api/federation/*` mesh capability provider for registered nodes, capability discovery, Workers relay smoke, and signed tunnel workflows. |
+| Studio + canvas UI | React/Tauri Studio plus `canvas.buildwithoracle.com` workers render search, vectors, plugins, MCP tools, and canvas plugins. |
 
 ## Architecture overview
 
@@ -73,14 +85,14 @@ Clients / agents / maw-js / Studio
         ├── CLI: cli/ + maw-plugin/
         ├── MCP stdio: src/index.ts + src/tools/
         ├── HTTP: src/server.ts + src/routes/*
-        └── Canvas worker: src/workers/canvas/*
+        └── Edge/frontends: src/workers/* + workers/* + api/proxy.ts
                   │
         Unified surfaces and services
-        ├── src/plugins/      # manifest loader, routes, MCP, proxy, server surfaces
+        ├── src/plugins/      # manifest loader, runtime plug-in/out surfaces
         ├── src/vector/       # vector providers, export, registry, proxy adapters
-        ├── src/storage/      # Drizzle/SQLite backend interface
+        ├── src/storage/      # Drizzle/SQLite backend selector
         ├── src/indexer/      # collection/index jobs and workers
-        ├── src/peer/         # federation identity, registry, TOFU, search/feed
+        ├── src/federation/   # mesh capability provider and node registry
         └── src/middleware/   # auth, tenant scope, logging, content negotiation
                   │
         Data: SQLite/Drizzle + FTS + vector stores + local vault files
@@ -88,7 +100,7 @@ Clients / agents / maw-js / Studio
 
 The design goal is one capability core with thin adapters: CLI, menu/API, MCP,
 canvas, and web/desktop surfaces reuse shared registries instead of duplicating
-business logic.
+business logic; cloud adapters proxy thin edges while shared backend contracts own memory, supersede, vector, plugin, and federation behavior.
 
 ## HTTP API and auth
 
@@ -111,9 +123,10 @@ Optional auth/tenant controls:
 
 ```bash
 export ARRA_API_TOKEN=secret                 # bearer token for protected writes
-export ARRA_TENANT_TOKENS='acme=secret,*=dev'
-curl -H 'x-arra-tenant: acme' -H 'x-arra-tenant-token: secret' \
+export ORACLE_TENANT_TOKENS='acme=secret,*=dev'
+curl -H 'X-Oracle-Tenant: acme' -H 'X-Oracle-Tenant-Token: secret' \
   http://localhost:47778/api/search?q=team
+# Aliases accepted: X-Tenant-ID, X-Org-Id, X-API-Key.
 ```
 
 ## Vector backends and export
@@ -200,7 +213,7 @@ It serves:
 src/                  Elysia API, MCP tools, plugin runtime, vector, federation
 src/routes/           HTTP route clusters
 src/plugins/          Unified plugin manifests and loader
-src/workers/canvas/   Canvas subdomain worker renderer
+src/workers/          Cloudflare canvas/MCP/federation worker adapters
 maw-plugin/           maw-js `arra` plugin surface
 cli/                  Published operator CLI package
 frontend/             React Studio + Tauri desktop shell
@@ -227,12 +240,10 @@ because worktree copies under `agents/` can pollute broad discovery.
 - [docs/README.md](docs/README.md) — docs index and feature knobs.
 - [docs/INSTALL.md](docs/INSTALL.md) — Bun, Docker, and MCP Toolkit install.
 - [docs/API.md](docs/API.md) — HTTP API reference.
-- [docs/FEDERATION.md](docs/FEDERATION.md) — peer pairing, Scout, TOFU, auth.
+- [docs/FEDERATION.md](docs/FEDERATION.md) — opt-in federation mesh provider.
 - [docs/LOCAL-DEV.md](docs/LOCAL-DEV.md) — local development workflow.
 - [CHANGELOG.md](CHANGELOG.md) — alpha wave release notes.
 
 ## Acknowledgments
 
-Inspired by [claude-mem](https://github.com/thedotmack/claude-mem) by Alex
-Newman — process manager patterns, worker service architecture, and hook system
-concepts.
+Inspired by [claude-mem](https://github.com/thedotmack/claude-mem) by Alex Newman — process manager patterns, worker service architecture, and hook system concepts.

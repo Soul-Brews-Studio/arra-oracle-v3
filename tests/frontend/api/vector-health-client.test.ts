@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { createApiClient } from '../../../frontend/src/api/client';
+import { requestPath } from './_fetch';
 
 function jsonResponse(data: unknown): Response {
   return new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' } });
@@ -16,6 +17,6 @@ describe('ApiClient vectorHealth', () => {
     });
 
     await expect(client.vectorHealth()).resolves.toMatchObject({ status: 'ok', engines: [{ key: 'bge', ok: true }] });
-    expect(String(calls[0]?.input)).toBe('/api/v1/vector/health');
+    expect(requestPath(calls[0]?.input ?? '')).toBe('/api/v1/vector/health');
   });
 });

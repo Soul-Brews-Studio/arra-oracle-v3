@@ -44,15 +44,24 @@ afterAll(() => {
 test('TurboVec sidecar reference speaks the vector proxy protocol', async () => {
   const port = await freePort();
   const base = `http://127.0.0.1:${port}`;
-  sidecar = spawn('python3', ['sidecar/turbovec/server.py', '--port', String(port), '--name', 'turbovec-test'], {
+  sidecar = spawn('python3', ['sidecar/turbovec/server.py', '--port', String(port), '--name', 'turbovec-test', '--backend', 'fallback'], {
     cwd: process.cwd(),
     stdio: 'pipe',
   });
   sidecar.on('error', (error) => { throw error; });
   await waitForHealth(base);
 
-  expect(await json(`${base}/health`)).toMatchObject({ status: 'ok', name: 'turbovec-test' });
-  expect(await json(`${base}/vectors/stats`)).toMatchObject({ count: 0, name: 'turbovec-test' });
+  expect(await json(`${base}/health`)).toMatchObject({
+    status: 'ok',
+    name: 'turbovec-test',
+    protocol: 'vector-proxy-v1',
+    backend: 'fallback',
+  });
+  expect(await json(`${base}/vectors/stats`)).toMatchObject({
+    count: 0,
+    name: 'turbovec-test',
+    backend: 'fallback',
+  });
 
   const docs = [
     { id: 'doc-a', document: 'oracle memory search', metadata: { type: 'learning' } },

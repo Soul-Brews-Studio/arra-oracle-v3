@@ -1,14 +1,11 @@
 import { Elysia, t } from 'elysia';
-import { createEmbeddingProvider } from '../../vector/embeddings.ts';
 import {
-  getDetectedEmbeddingProviders,
-  type ProviderDetectionOptions,
-} from '../../vector/provider-detection.ts';
-import type { EmbeddingProviderType } from '../../vector/types.ts';
+  createEmbeddingProviderApi,
+  type ProviderApiOptions,
+  type ProviderTestRequest,
+} from '../../vector/provider-api.ts';
 
-export interface VectorProvidersEndpointOptions extends ProviderDetectionOptions {
-  createProvider?: typeof createEmbeddingProvider;
-}
+export type VectorProvidersEndpointOptions = ProviderApiOptions;
 
 const providerSchema = t.Union([
   t.Literal('none'),
@@ -22,41 +19,20 @@ const providerSchema = t.Union([
 ]);
 
 export function createVectorProvidersEndpoint(options: VectorProvidersEndpointOptions = {}) {
+  const api = createEmbeddingProviderApi(options);
+
   return new Elysia()
-    .get('/vector/providers', async () => {
-      const result = await getDetectedEmbeddingProviders(true, options);
-      return {
-        ...result,
-        providers: result.providers.map((provider) => ({
-          ...provider,
-          status: provider.available ? 'available' : 'unavailable',
-        })),
-      };
-    }, {
+    .get('/vector/providers', async ({ query }) => api.detect({ force: shouldForceRefresh(query) }), {
+      query: t.Object({
+        cached: t.Optional(t.String()),
+        force: t.Optional(t.String()),
+      }),
       detail: { tags: ['vector'], summary: 'Detected embedding providers and capabilities' },
     })
     .post('/vector/providers/test', async ({ body, set }) => {
-      const createProvider = options.createProvider ?? createEmbeddingProvider;
-      try {
-        const provider = createProvider(body.provider, body.model, {
-          url: body.url,
-          dimensions: body.dimensions,
-        });
-        const vectors = await provider.embed([body.text ?? 'oracle provider probe'], 'query');
-        return {
-          success: true,
-          provider: provider.name,
-          dimensions: vectors[0]?.length ?? provider.dimensions,
-          model: body.model,
-        };
-      } catch (error) {
-        set.status = 503;
-        return {
-          success: false,
-          provider: body.provider,
-          error: error instanceof Error ? error.message : String(error),
-        };
-      }
+      const result = await api.test(body as ProviderTestRequest);
+      if (!result.success) set.status = 503;
+      return result;
     }, {
       body: t.Object({
         provider: providerSchema,
@@ -64,9 +40,25 @@ export function createVectorProvidersEndpoint(options: VectorProvidersEndpointOp
         url: t.Optional(t.String()),
         dimensions: t.Optional(t.Number()),
         text: t.Optional(t.String()),
+        fallback: t.Optional(providerSchema),
+        fallbackChain: t.Optional(t.Array(providerSchema)),
       }),
       detail: { tags: ['vector'], summary: 'Test one embedding provider configuration' },
     });
 }
 
 export const vectorProvidersEndpoint = createVectorProvidersEndpoint();
+
+
+function shouldForceRefresh(query: { cached?: string; force?: string }): boolean {
+  if (query.force !== undefined) return parseBool(query.force, true);
+  if (query.cached !== undefined) return !parseBool(query.cached, false);
+  return true;
+}
+
+function parseBool(value: string, fallback: boolean): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'y'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'n'].includes(normalized)) return false;
+  return fallback;
+}

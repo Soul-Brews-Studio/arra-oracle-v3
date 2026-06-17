@@ -31,6 +31,7 @@ async function toToolResponse(result: unknown): Promise<ToolResponse> {
 
 export function pluginMcpToolsFrom(runtime: UnifiedRuntime, reservedNames = new Set<string>()): RuntimeMcpToolManifest[] {
   return runtime.mcpTools
+    .filter((tool) => tool.enabled !== false)
     .filter((tool) => !reservedNames.has(tool.name))
     .map((tool) => ({
       name: tool.name,

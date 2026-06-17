@@ -7,23 +7,81 @@
 
 import fs from 'fs';
 import path from 'path';
-import { eq, sql, or, inArray } from 'drizzle-orm';
+import { eq, sql, or } from 'drizzle-orm';
 import { db, sqlite, oracleDocuments, indexingStatus, isDbLockError } from '../db/index.ts';
 import { REPO_ROOT, VECTOR_URL } from '../config.ts';
 
 const currentRepoRoot = () => process.env.ORACLE_REPO_ROOT || REPO_ROOT;
 import { logSearch, logDocumentAccess, logLearning } from './logging.ts';
 import type { SearchResult, SearchResponse } from './types.ts';
-import { ensureVectorStoreConnected, EMBEDDING_MODELS } from '../vector/factory.ts';
+import { ensureVectorStoreConnected, EMBEDDING_MODELS, getVectorStoreConfigByModel } from '../vector/factory.ts';
+import { localVectorOperations } from './vector-operations.ts';
 import { detectProject } from './project-detect.ts';
 import { coerceConcepts } from '../tools/learn.ts';
 import { createVectorProxy } from './vector-proxy.ts';
+import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
+import { localNativeVectorDisabledReason, localVectorIndexMissingReason, logLocalVectorDisabled } from '../vector/cpu-capabilities.ts';
+import { isVectorSectionEnabled } from '../vector/config.ts';
 
 // Module-level proxy instance — bound to VECTOR_URL at boot. If VECTOR_URL is
 // unset, this is null and the local vector adapter runs in-process (legacy
 // behavior). When set, the vector leg of hybrid/vector search proxies to the
 // remote service; on remote failure we fall back to FTS5-only.
 const vectorProxy = createVectorProxy(VECTOR_URL);
+
+
+const FTS_TOKEN_LIMIT = 8;
+
+/**
+ * Convert natural-language input into a punctuation-safe FTS5 MATCH query.
+ *
+ * SQLite FTS5 treats punctuation such as '.', ',', ':' or parentheses as query
+ * syntax. Instead of maintaining a brittle blocklist, strip anything that is
+ * not a unicode letter/number/underscore into token boundaries, quote every
+ * token, and OR the terms. OR avoids the default implicit-AND behavior that
+ * made multi-word recall queries overly strict.
+ */
+export function buildFtsQuery(query: string): string {
+  const tokens = query
+    .replace(/<[^>]*>/g, ' ')
+    .normalize('NFKC')
+    .match(/[\p{L}\p{N}_]+/gu)
+    ?.map((token) => token.trim())
+    .filter((token) => token.length > 0)
+    .slice(0, FTS_TOKEN_LIMIT) ?? [];
+
+  const uniqueTokens = Array.from(new Set(tokens));
+  return uniqueTokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(' OR ');
+}
+
+function runFtsGet<T>(stmt: { get: (...args: any[]) => T }, args: unknown[]): T | null {
+  try {
+    return stmt.get(...args);
+  } catch (error) {
+    console.warn('[FTS5] MATCH query failed; degrading to empty keyword leg:', error instanceof Error ? error.message : String(error));
+    return null;
+  }
+}
+
+function runFtsAll<T>(stmt: { all: (...args: any[]) => T[] }, args: unknown[]): T[] {
+  try {
+    return stmt.all(...args);
+  } catch (error) {
+    console.warn('[FTS5] MATCH query failed; degrading to empty keyword leg:', error instanceof Error ? error.message : String(error));
+    return [];
+  }
+}
+
+/**
+ * LanceDB is configured for cosine distance, where nearest-neighbor distances
+ * are in the 0..2 range: 0 means identical, 2 means opposite. Convert that
+ * directly to a bounded relevance score instead of using the old L2 scaling
+ * formula, which saturated normal cosine distances around 0.99.
+ */
+export function cosineDistanceToSimilarity(distance: number): number {
+  if (!Number.isFinite(distance)) return 0;
+  return Math.max(0, Math.min(1, 1 - distance / 2));
+}
 
 /**
  * Search Oracle knowledge base with hybrid search (FTS5 + Vector)
@@ -42,19 +100,39 @@ export async function handleSearch(
   // Auto-detect project from cwd if not explicitly specified
   const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
   const startTime = Date.now();
-  // Remove FTS5 special characters and HTML: ? * + - ( ) ^ ~ " ' : < > { } [ ] ; / \
-  const safeQuery = query
-    .replace(/<[^>]*>/g, ' ')           // Strip HTML tags
-    .replace(/[?*+\-()^~"':;<>{}[\]\\\/]/g, ' ')  // Strip FTS5 + SQL special chars
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!safeQuery) {
+  const ftsQuery = buildFtsQuery(query);
+  if (!ftsQuery) {
     return { results: [], total: 0, limit, offset, query };
   }
 
   let warning: string | undefined;
+  const requestedMode = mode;
+  let effectiveMode = mode;
+  let vectorDisabledReason: string | undefined;
+  let vectorIndexMissingReason: string | undefined;
+  let vectorSectionDisabled = false;
+  if (mode !== 'fts' && !vectorProxy) {
+    const modelsToCheck = model === 'multi' ? ['bge-m3', 'nomic'] : [model];
+    for (const modelKey of modelsToCheck) {
+      const cfg = getVectorStoreConfigByModel(modelKey);
+      vectorDisabledReason = localNativeVectorDisabledReason(cfg.type);
+      if (vectorDisabledReason) break;
+      vectorIndexMissingReason = localVectorIndexMissingReason(cfg);
+      if (vectorIndexMissingReason) break;
+    }
+    if (vectorDisabledReason) {
+      effectiveMode = 'fts';
+      warning = `${vectorDisabledReason}; falling back to FTS5-only results`;
+      logLocalVectorDisabled(vectorDisabledReason);
+    } else if (!isVectorSectionEnabled()) {
+      vectorSectionDisabled = true;
+      effectiveMode = 'fts';
+    } else if (vectorIndexMissingReason) {
+      effectiveMode = 'fts';
+    }
+  }
 
-  // FTS5 search (skip if vector-only mode)
+  // FTS5 search (skip only when the effective mode is vector-only)
   let ftsResults: SearchResult[] = [];
   let ftsTotal = 0;
 
@@ -66,7 +144,7 @@ export async function handleSearch(
   const projectParams = resolvedProject ? [resolvedProject] : [];
 
   // FTS5 search must use raw SQL (Drizzle doesn't support virtual tables)
-  if (mode !== 'vector') {
+  if (effectiveMode !== 'vector') {
     if (type === 'all') {
       const countStmt = sqlite.prepare(`
         SELECT COUNT(*) as total
@@ -74,7 +152,7 @@ export async function handleSearch(
         JOIN oracle_documents d ON f.id = d.id
         WHERE oracle_fts MATCH ? AND ${projectFilter}
       `);
-      ftsTotal = (countStmt.get(safeQuery, ...projectParams) as { total: number }).total;
+      ftsTotal = (runFtsGet(countStmt, [ftsQuery, ...projectParams]) as { total: number } | null)?.total ?? 0;
 
       const stmt = sqlite.prepare(`
         SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
@@ -84,7 +162,7 @@ export async function handleSearch(
         ORDER BY rank
         LIMIT ?
       `);
-      ftsResults = stmt.all(safeQuery, ...projectParams, limit * 2).map((row: any) => ({
+      ftsResults = runFtsAll<any>(stmt, [ftsQuery, ...projectParams, limit * 3]).map((row: any) => ({
         id: row.id,
         type: row.type,
         content: row.content,
@@ -101,7 +179,7 @@ export async function handleSearch(
         JOIN oracle_documents d ON f.id = d.id
         WHERE oracle_fts MATCH ? AND d.type = ? AND ${projectFilter}
       `);
-      ftsTotal = (countStmt.get(safeQuery, type, ...projectParams) as { total: number }).total;
+      ftsTotal = (runFtsGet(countStmt, [ftsQuery, type, ...projectParams]) as { total: number } | null)?.total ?? 0;
 
       const stmt = sqlite.prepare(`
         SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
@@ -111,7 +189,7 @@ export async function handleSearch(
         ORDER BY rank
         LIMIT ?
       `);
-      ftsResults = stmt.all(safeQuery, type, ...projectParams, limit * 2).map((row: any) => ({
+      ftsResults = runFtsAll<any>(stmt, [ftsQuery, type, ...projectParams, limit * 3]).map((row: any) => ({
         id: row.id,
         type: row.type,
         content: row.content,
@@ -126,16 +204,17 @@ export async function handleSearch(
 
   // Vector search (skip if fts-only mode)
   let vectorResults: SearchResult[] = [];
+  let remoteVectorTotal: number | undefined;
   // Tracks whether the vector leg succeeded. Stays `true` when mode === 'fts'
   // (vector wasn't asked for), flips to `false` if the proxy is enabled and
   // the remote call failed — clients use this to render a "vector down" hint
   // while still getting FTS5 results.
-  let vectorAvailable = true;
+  let vectorAvailable = !vectorSectionDisabled && !vectorDisabledReason && !vectorIndexMissingReason;
 
   // VECTOR_URL set → route the vector leg through the remote service.
   // FTS5 always runs locally above. If the proxy fails we return whatever FTS5
   // produced and set vectorAvailable: false (per VECTOR_FALLBACK = 'fts5').
-  if (mode !== 'fts' && vectorProxy) {
+  if (effectiveMode !== 'fts' && vectorProxy) {
     const remote = await vectorProxy.search({
       q: query,
       type,
@@ -148,93 +227,28 @@ export async function handleSearch(
     });
     if (remote) {
       vectorResults = remote.results || [];
+      if (typeof remote.total === 'number') remoteVectorTotal = remote.total;
     } else {
       vectorAvailable = false;
       warning = 'Vector proxy unavailable — FTS5-only results';
     }
-  } else if (mode !== 'fts') {
-    // Determine which models to query
-    const isMulti = model === 'multi';
-    const modelsToQuery = isMulti
-      ? ['bge-m3', 'nomic']
-      : [model && EMBEDDING_MODELS[model] ? model : undefined];
-
-    // Query all models in parallel
-    const modelResults = await Promise.allSettled(
-      modelsToQuery.map(async (m) => {
-        const modelName = m || 'bge-m3';
-        console.log(`[Vector] Searching model=${modelName} for: "${query.substring(0, 30)}..."`);
-        const client = await ensureVectorStoreConnected(m);
-        const whereFilter = type !== 'all' ? { type } : undefined;
-        const chromaResults = await client.query(query, isMulti ? limit : limit * 2, whereFilter);
-
-        if (!chromaResults.ids || chromaResults.ids.length === 0) return [];
-
-        // Get project metadata
-        const rows = db.select({ id: oracleDocuments.id, project: oracleDocuments.project })
-          .from(oracleDocuments)
-          .where(inArray(oracleDocuments.id, chromaResults.ids))
-          .all();
-        const projectMap = new Map<string, string | null>();
-        rows.forEach(r => projectMap.set(r.id, r.project));
-
-        return chromaResults.ids
-          .map((id: string, i: number) => {
-            const distance = chromaResults.distances?.[i] || 0;
-            const similarity = 1 / (1 + distance / 100);
-            const docProject = projectMap.get(id);
-            return {
-              id,
-              type: chromaResults.metadatas?.[i]?.type || 'unknown',
-              content: chromaResults.documents?.[i] || '',
-              source_file: chromaResults.metadatas?.[i]?.source_file || '',
-              concepts: [],
-              project: docProject,
-              source: 'vector' as const,
-              score: similarity,
-              distance,
-              model: modelName
-            };
-          })
-          .filter(r => {
-            if (!resolvedProject) return true;
-            return r.project === resolvedProject || r.project === null;
-          });
-      })
-    );
-
-    // Merge results from all models
-    for (const result of modelResults) {
-      if (result.status === 'fulfilled') {
-        vectorResults.push(...result.value);
-      } else {
-        const msg = result.reason instanceof Error ? result.reason.message : String(result.reason);
-        console.error('[Vector Search Error]', msg);
-        if (!warning) warning = `Vector search error: ${msg}`;
+  } else if (effectiveMode !== 'fts') {
+    try {
+      const vector = await localVectorOperations.search({
+        query,
+        type,
+        limit,
+        project: resolvedProject,
+        model,
+      });
+      vectorResults = vector.results;
+      if (vectorResults.length > 0) {
+        console.log(`[Vector] ${vectorResults.length} results, top scores: ${vectorResults.slice(0, 3).map(r => r.score?.toFixed(3))}`);
       }
-    }
-
-    // For multi-model: deduplicate by id, keep result with best score
-    if (isMulti && vectorResults.length > 0) {
-      const bestByDoc = new Map<string, SearchResult>();
-      for (const r of vectorResults) {
-        const existing = bestByDoc.get(r.id);
-        if (!existing || (r.score || 0) > (existing.score || 0)) {
-          // If found in multiple models, boost score
-          const multiBoost = existing ? 0.05 : 0;
-          bestByDoc.set(r.id, {
-            ...r,
-            score: Math.min(1, (r.score || 0) + multiBoost),
-            source: existing ? 'hybrid' as const : r.source,
-          });
-        }
-      }
-      vectorResults = Array.from(bestByDoc.values());
-      console.log(`[Multi] Merged ${vectorResults.length} unique results from ${modelsToQuery.length} models`);
-    }
-
-    if (vectorResults.length > 0) {
-      console.log(`[Vector] ${vectorResults.length} results, top scores: ${vectorResults.slice(0, 3).map(r => r.score?.toFixed(3))}`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error('[Vector Search Error]', msg);
+      if (!warning) warning = `Vector search error: ${msg}`;
     }
   }
 
@@ -243,7 +257,9 @@ export async function handleSearch(
   // For vector-only mode, ftsTotal is 0 and combined.length is just top-N,
   // so use the vector collection count as the total for accurate display
   let total = Math.max(ftsTotal, combined.length);
-  if (mode === 'vector' && vectorResults.length > 0) {
+  if (requestedMode === 'vector' && vectorProxy && remoteVectorTotal !== undefined) {
+    total = remoteVectorTotal;
+  } else if (requestedMode === 'vector' && vectorResults.length > 0) {
     try {
       const client = await ensureVectorStoreConnected(model && EMBEDDING_MODELS[model] ? model : undefined);
       const stats = await client.getStats();
@@ -258,7 +274,7 @@ export async function handleSearch(
 
   // Log search
   const searchTime = Date.now() - startTime;
-  logSearch(query, type, mode, total, searchTime, results);
+  logSearch(query, type, requestedMode, total, searchTime, results);
   results.forEach(r => logDocumentAccess(r.id, 'search'));
 
   return {
@@ -266,9 +282,9 @@ export async function handleSearch(
     total,
     offset,
     limit,
-    mode,
+    mode: requestedMode,
     ...(model === 'multi' ? { model: 'multi' } : model && EMBEDDING_MODELS[model] ? { model } : {}),
-    ...(mode !== 'fts' ? { vectorAvailable } : {}),
+    ...(requestedMode !== 'fts' ? { vectorAvailable } : {}),
     ...(warning && { warning })
   };
 }
@@ -283,36 +299,47 @@ function normalizeRank(rank: number): number {
 }
 
 /**
- * Combine FTS and vector results with hybrid scoring
+ * Combine FTS and vector results with rank-fusion hybrid scoring.
+ *
+ * Raw FTS rank and vector similarity are not calibrated to the same scale. Use
+ * each leg's normalized score plus reciprocal rank, then boost overlap. This
+ * keeps strong keyword-only hits visible while still letting semantic-only
+ * vector hits fill gaps in natural-language recall.
  */
 function combineSearchResults(fts: SearchResult[], vector: SearchResult[]): SearchResult[] {
   const seen = new Map<string, SearchResult>();
 
-  // Add FTS results first
-  for (const r of fts) {
-    seen.set(r.id, r);
-  }
+  const addScore = (base: number | undefined, rank: number, scoreWeight: number, rankWeight: number) => {
+    const score = Math.max(0, Math.min(1, base ?? 0));
+    return score * scoreWeight + (1 / (rank + 1)) * rankWeight;
+  };
 
-  // Merge vector results (boost score if found in both)
-  for (const r of vector) {
-    if (seen.has(r.id)) {
-      const existing = seen.get(r.id)!;
-      // Use max score + bonus for appearing in both (hybrid boost)
-      const maxScore = Math.max(existing.score || 0, r.score || 0);
-      const bonus = 0.1; // Bonus for appearing in both FTS and vector
+  fts.forEach((r, index) => {
+    seen.set(r.id, {
+      ...r,
+      score: addScore(r.score, index, 0.7, 0.3),
+    });
+  });
+
+  vector.forEach((r, index) => {
+    const vectorScore = addScore(r.score, index, 0.65, 0.35);
+    const existing = seen.get(r.id);
+    if (existing) {
       seen.set(r.id, {
         ...existing,
-        score: Math.min(1, maxScore + bonus), // Cap at 1.0
+        score: Math.min(1, (existing.score || 0) + vectorScore + 0.12),
         source: 'hybrid' as const,
         distance: r.distance,
-        model: r.model
+        model: r.model,
       });
     } else {
-      seen.set(r.id, r);
+      seen.set(r.id, {
+        ...r,
+        score: vectorScore,
+      });
     }
-  }
+  });
 
-  // Sort by score descending
   return Array.from(seen.values()).sort((a, b) => (b.score || 0) - (a.score || 0));
 }
 
@@ -688,7 +715,6 @@ export function persistLearningDoc(opts: {
 }): { file: string; id: string } {
   const { pattern, subdir, filename, id } = opts;
   const now = new Date();
-  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   const dir = path.join(currentRepoRoot(), subdir);
   fs.mkdirSync(dir, { recursive: true });
@@ -700,24 +726,16 @@ export function persistLearningDoc(opts: {
 
   const title = pattern.split('\n')[0].substring(0, 80);
   const conceptsList = coerceConcepts(opts.concepts);
-  const footer = opts.footer ?? '*Added via Oracle Learn*';
-
-  const frontmatter = [
-    '---',
-    `title: ${title}`,
-    conceptsList.length > 0 ? `tags: [${conceptsList.join(', ')}]` : 'tags: []',
-    `created: ${dateStr}`,
-    `source: ${opts.source || 'Oracle Learn'}`,
-    '---',
-    '',
-    `# ${title}`,
-    '',
+  const frontmatter = buildLearningMarkdown({
+    id,
     pattern,
-    '',
-    '---',
-    footer,
-    ''
-  ].join('\n');
+    title,
+    concepts: conceptsList,
+    createdAt: now,
+    source: opts.source,
+    project: opts.project,
+    footer: opts.footer,
+  });
 
   fs.writeFileSync(filePath, frontmatter, 'utf-8');
 
@@ -758,7 +776,7 @@ export function handleLearn(
 ) {
   const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
   const d = new Date();
-  const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const dateStr = dateSlug(d);
 
   const slug = pattern
     .substring(0, 50)

@@ -1,0 +1,79 @@
+name: Deploy Studio Worker
+
+on:
+  push:
+    branches: [alpha]
+    paths:
+      - .github/workflows/deploy-studio-worker.yml
+      - workers/studio/**
+      - frontend/**
+      - tests/workers/studio-*.test.ts
+      - package.json
+      - bun.lock
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: studio-worker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy Oracle Studio Worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: studio-worker
+      url: https://arra-oracle-studio.workers.dev
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bunx tsc --noEmit
+
+      - name: Check Studio worker files
+        id: studio
+        run: |
+          if [ -f workers/studio/wrangler.jsonc ] && [ -f workers/studio/worker.ts ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "workers/studio is not complete on this ref; skipping deploy."
+          fi
+
+      - name: Build frontend
+        if: steps.studio.outputs.ready == 'true'
+        run: cd frontend && bun run build
+
+      - name: Studio worker tests
+        if: steps.studio.outputs.ready == 'true'
+        run: |
+          if ls tests/workers/studio-*.test.ts >/dev/null 2>&1; then
+            bun test tests/workers/studio-*.test.ts
+          else
+            echo "No Studio worker tests found yet."
+          fi
+
+      - name: Deploy Cloudflare Worker
+        if: steps.studio.outputs.ready == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config workers/studio/wrangler.jsonc

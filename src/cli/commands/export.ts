@@ -1,210 +1,229 @@
-import { writeFile } from "fs/promises";
-import { createDatabase, oracleDocuments, type DatabaseConnection } from "../../db/index.ts";
-import { getExportFormat, streamMarkdown } from "../../vector/export-formats.ts";
-import {
-  createVectorStoreForModel,
-  getEmbeddingModels,
-  getVectorStoreByModel,
-} from "../../vector/factory.ts";
-import { buildCollectionName, coerceRecordsForExport } from "./export-markdown.ts";
+import { mkdir, writeFile as nodeWriteFile } from "node:fs/promises";
+import { dirname } from "node:path";
+import { CLI_VERSION } from "../help.ts";
 
-const DEFAULT_COLLECTION = "bge-m3";
+const RUN_PATH = "/api/v1/export/app/run";
+const FORMATS = new Set(["markdown", "json", "jsonl", "csv"]);
+const DEFAULT_RETRY_DELAY_MS = 250;
 
-export interface DataExportOptions {
-  format: string;
-  outFile?: string;
-  source: "vault" | "vector";
-  collection: string;
+type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
+type FilePayload = string | Uint8Array;
+type RetryOptions = Pick<RemoteExportOptions, "retries" | "retryDelayMs">;
+
+export interface RemoteExportOptions {
+  url?: string;
+  collection?: string;
+  format?: string;
+  output?: string;
+  includeGraph: boolean;
+  retries: number;
+  retryDelayMs: number;
+  help: boolean;
 }
 
-type OracleDocumentRow = typeof oracleDocuments.$inferSelect;
+export interface RemoteExportDeps {
+  fetch?: Fetcher;
+  mkdir?: typeof mkdir;
+  writeFile?: (path: string, data: FilePayload) => Promise<void>;
+  env?: Record<string, string | undefined>;
+}
 
-type MarkdownSection = string;
+export function renderRemoteExportHelp(): string {
+  return [
+    "bun run export -- --url <oracle-v2-url> --collection <name> --format markdown|json|jsonl|csv --output <path>",
+    "",
+    "Exports one collection through the Oracle v2 export-app engine.",
+    "",
+    "Flags:",
+    "  --url <url>          Oracle v2 base URL, e.g. http://localhost:47778",
+    "  --collection <name>  export collection name, e.g. oracle_documents",
+    "  --format <format>    markdown, json, jsonl, or csv",
+    "  --output, --out, -o <path>",
+    "                        destination file path",
+    "  --include-graph      include relationship graph rows when supported",
+    "  --graph              alias for --include-graph",
+    "  --retries <count>    retry transient HTTP/network failures",
+    "  --retry-delay-ms <n> delay between retry attempts (default 250)",
+    "  --version, -v, -V    show export CLI version",
+    "  --help, -h           show this help",
+    "",
+  ].join("\n");
+}
 
-type MarkdownCollectionDump = Array<Record<string, unknown>>;
-
-export interface VaultJsonExport {
-  format: "json";
-  version: 1;
-  exportedAt: string;
-  tables: {
-    oracleDocuments: OracleDocumentRow[];
-  };
+export function renderRemoteExportVersion(): string {
+  return `arra export v${CLI_VERSION}`;
 }
 
 function printHelp(): void {
-  console.log("arra-cli export --format <format> [--out file] [--source vault|vector] [--collection <name>]\\n");
-  console.log("Exports vault data as JSON (default) or vector embeddings via shared export formatters.");
-  console.log("\nFlags:");
-  console.log("  --format <format>     output format (default: json)");
-  console.log("  --source <source>     export source: vault or vector (default: vault)");
-  console.log("  --collection <name>   vector collection/model key (default: bge-m3)");
-  console.log("  --out <file>         write export to a file instead of stdout");
-  console.log("  --help, -h           show this help");
+  console.log(renderRemoteExportHelp());
 }
 
 function readValue(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag);
-  if (index >= 0) return args[index + 1];
+  if (index >= 0) {
+    const value = args[index + 1];
+    if (!value || value.startsWith("--")) throw new Error(`missing value for ${flag}`);
+    return value;
+  }
   const prefix = `${flag}=`;
-  return args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+  const value = args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+  if (value === "") throw new Error(`missing value for ${flag}`);
+  return value;
 }
 
-export function parseExportOptions(args: string[]): DataExportOptions {
-  const format = readValue(args, "--format") ?? "json";
-  const source = readValue(args, "--source") as DataExportOptions["source"] | undefined;
-  const outFile = readValue(args, "--out");
-  const collection = readValue(args, "--collection") || DEFAULT_COLLECTION;
+function readNonNegativeInt(args: string[], flag: string, fallback: number): number {
+  const value = readValue(args, flag);
+  if (value === undefined) return fallback;
+  if (!/^\d+$/.test(value)) throw new Error(`${flag} must be a non-negative integer`);
+  return Number(value);
+}
 
-  if (source && source !== "vault" && source !== "vector") {
-    throw new Error(`unsupported source: ${source}`);
-  }
+function hasNewExportFlag(args: string[]): boolean {
+  return args.some((arg) => arg === "--url" || arg.startsWith("--url=")
+    || arg === "--output" || arg.startsWith("--output="));
+}
 
-  if (source === "vault" && format !== "json") {
-    throw new Error(`vault export does not support format: ${format}`);
-  }
-
-  if ((source ?? format) !== "json" && !getExportFormat(format)) {
-    throw new Error(`unsupported format: ${format}`);
-  }
-
+export function parseRemoteExportOptions(args: string[]): RemoteExportOptions {
   return {
-    format,
-    outFile,
-    source: source ?? (format === "json" ? "vault" : "vector"),
-    collection,
+    url: readValue(args, "--url"),
+    collection: readValue(args, "--collection"),
+    format: readValue(args, "--format"),
+    output: readValue(args, "--output") ?? readValue(args, "--out") ?? readValue(args, "-o"),
+    includeGraph: args.includes("--include-graph") || args.includes("--graph"),
+    retries: readNonNegativeInt(args, "--retries", 0),
+    retryDelayMs: readNonNegativeInt(args, "--retry-delay-ms", DEFAULT_RETRY_DELAY_MS),
+    help: args.includes("--help") || args.includes("-h"),
   };
 }
 
-export function buildVaultJsonExport(connection: DatabaseConnection): VaultJsonExport {
-  return {
-    format: "json",
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    tables: {
-      oracleDocuments: connection.db.select().from(oracleDocuments).all(),
-    },
-  };
+function requireRemoteOptions(options: RemoteExportOptions): asserts options is Required<RemoteExportOptions> {
+  if (!options.url) throw new Error("export requires --url <oracle-v2-url>");
+  if (!options.collection) throw new Error("export requires --collection <name>");
+  if (!options.format) throw new Error("export requires --format markdown|json|jsonl|csv");
+  if (!options.output) throw new Error("export requires --output <path>");
+  if (!FORMATS.has(options.format)) throw new Error(`unsupported format: ${options.format}`);
 }
 
-async function readStreamAsText(stream: ReadableStream<Uint8Array>): Promise<string> {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let output = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (value) output += decoder.decode(value, { stream: true });
-  }
-  return output + decoder.decode();
+function apiUrl(base: string, pathOrUrl: string): string {
+  if (/^https?:\/\//.test(pathOrUrl)) return pathOrUrl;
+  const normalizedBase = base.replace(/\/+$/, "");
+  return `${normalizedBase}${pathOrUrl.startsWith("/") ? pathOrUrl : `/${pathOrUrl}`}`;
 }
 
-function sectionHeader(name: string): string {
-  return `# Collection: ${name}\n\n`;
+function authHeaders(env: Record<string, string | undefined>): Record<string, string> {
+  const token = env.ARRA_API_TOKEN?.trim() || env.ORACLE_API_TOKEN?.trim();
+  return token ? { authorization: `Bearer ${token}` } : {};
 }
 
-export async function buildAllVectorMarkdownPayload(): Promise<MarkdownSection> {
-  const models = getEmbeddingModels();
-  const seenCollections = new Set<string>();
-  const sections: MarkdownSection[] = [];
-
-  for (const preset of Object.values(models)) {
-    if (preset.adapter && preset.adapter !== "lancedb") continue;
-    if (seenCollections.has(preset.collection)) continue;
-    seenCollections.add(preset.collection);
-
-    const store = createVectorStoreForModel(preset);
-    const collectionName = buildCollectionName(preset.collection, "vector");
-    let emittedHeader = false;
-
-    try {
-      await store.connect();
-      await store.ensureCollection();
-      sections.push(sectionHeader(collectionName));
-      emittedHeader = true;
-      
-      if (!store.getAllEmbeddings) {
-        sections.push(`Not supported for adapter ${store.name}\n\n`);
-        continue;
-      }
-
-      const stats = await store.getStats().catch(() => ({ count: 0 }));
-      const limit = stats.count > 0 ? stats.count : 50_000;
-      const dump = await store.getAllEmbeddings(limit);
-      sections.push(await readStreamAsText(streamMarkdown(dump)));
-      sections.push("\n\n");
-    } catch (err) {
-      if (!emittedHeader) sections.push(sectionHeader(collectionName));
-      sections.push(`Error: ${err instanceof Error ? err.message : String(err)}\n\n`);
-    } finally {
-      await store.close().catch(() => {});
-    }
-  }
-
-  return sections.join("");
-}
-
-export function buildOracleDocumentsMarkdownTableRows(connection: DatabaseConnection): MarkdownCollectionDump {
-  const rows = connection.db.select().from(oracleDocuments).all() as MarkdownCollectionDump;
-  return coerceRecordsForExport(rows);
-}
-
-export async function buildMarkdownExportPayload(connection: DatabaseConnection): Promise<string> {
-  const vectorPayload = await buildAllVectorMarkdownPayload();
-  const sqliteRows = buildOracleDocumentsMarkdownTableRows(connection);
-  return `${vectorPayload}${sectionHeader(buildCollectionName("oracle_documents", "sqlite"))}`
-    + `${JSON.stringify(sqliteRows, null, 2)}\n\n`;
-}
-
-export async function buildVectorExportPayload(collection: string, format: string): Promise<string> {
-  const store = getVectorStoreByModel(collection);
+async function errorText(response: Response): Promise<string> {
+  const text = await response.text();
+  if (!text) return response.statusText;
   try {
-    await store.connect();
-    await store.ensureCollection();
-    if (!store.getAllEmbeddings) {
-      throw new Error("Vector collection export is not supported by this adapter");
-    }
-    const stats = await store.getStats().catch(() => ({ count: 0 }));
-    const limit = stats.count > 0 ? stats.count : 50_000;
-    const dump = await store.getAllEmbeddings(limit);
-    const formatter = getExportFormat(format);
-    if (!formatter) throw new Error(`unsupported format: ${format}`);
-    return await new Response(formatter(dump)).text();
-  } finally {
-    await store.close().catch(() => {});
+    const data = JSON.parse(text) as Record<string, unknown>;
+    return String(data.error ?? data.message ?? text);
+  } catch {
+    return text;
   }
+}
+
+async function ensureOk(response: Response, action: string): Promise<void> {
+  if (!response.ok) throw new Error(`${action} failed: HTTP ${response.status} ${await errorText(response)}`);
+}
+
+function retryableStatus(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+async function fetchWithRetry(
+  fetcher: Fetcher,
+  input: string,
+  init: RequestInit | undefined,
+  options: RetryOptions,
+): Promise<Response> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const response = await fetcher(input, init);
+      if (attempt >= options.retries || !retryableStatus(response.status)) return response;
+      try { await response.body?.cancel(); } catch {}
+    } catch (error) {
+      if (attempt >= options.retries) throw error;
+    }
+    if (options.retryDelayMs > 0) await Bun.sleep(options.retryDelayMs);
+  }
+}
+
+function downloadUrl(data: Record<string, unknown>): string | undefined {
+  for (const key of ["downloadUrl", "download_url", "resultUrl", "result_url", "url", "href", "path"]) {
+    const value = data[key];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+}
+
+function inlinePayload(data: Record<string, unknown>): FilePayload | undefined {
+  for (const key of ["content", "result", "data"]) {
+    const value = data[key];
+    if (typeof value === "string") return value;
+    if (value !== undefined && value !== null) return `${JSON.stringify(value, null, 2)}\n`;
+  }
+}
+
+async function resultPayload(response: Response, base: string, fetcher: Fetcher, retry: RetryOptions): Promise<FilePayload> {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) return new Uint8Array(await response.arrayBuffer());
+
+  const data = await response.json() as Record<string, unknown>;
+  const inline = inlinePayload(data);
+  if (inline !== undefined) return inline;
+
+  const url = downloadUrl(data);
+  if (!url) throw new Error("export response did not include a download URL or content");
+  const download = await fetchWithRetry(fetcher, apiUrl(base, url), undefined, retry);
+  await ensureOk(download, `GET ${url}`);
+  return new Uint8Array(await download.arrayBuffer());
+}
+
+export async function runRemoteExportCommand(args: string[], deps: RemoteExportDeps = {}): Promise<string> {
+  const options = parseRemoteExportOptions(args);
+  if (options.help) return "";
+  requireRemoteOptions(options);
+
+  const env = deps.env ?? process.env;
+  const fetcher = deps.fetch ?? fetch;
+  const response = await fetchWithRetry(fetcher, apiUrl(options.url, RUN_PATH), {
+    method: "POST",
+    headers: { "content-type": "application/json", ...authHeaders(env) },
+    body: JSON.stringify({
+      collection: options.collection,
+      format: options.format,
+      ...(options.includeGraph ? { includeGraph: true } : {}),
+    }),
+  }, options);
+  await ensureOk(response, `POST ${RUN_PATH}`);
+
+  const payload = await resultPayload(response, options.url, fetcher, options);
+  await (deps.mkdir ?? mkdir)(dirname(options.output), { recursive: true });
+  await (deps.writeFile ?? nodeWriteFile)(options.output, payload);
+  return `exported ${options.collection} (${options.format}) -> ${options.output}`;
 }
 
 export async function exportCommand(args: string[]): Promise<number> {
+  if (args.includes("--version") || args.includes("-v") || args.includes("-V")) {
+    process.stdout.write(`${renderRemoteExportVersion()}\n`);
+    return 0;
+  }
   if (args.includes("--help") || args.includes("-h")) {
     printHelp();
     return 0;
   }
+  if (!hasNewExportFlag(args)) return (await import("./export-legacy.ts")).exportCommand(args);
 
-  let connection: DatabaseConnection | undefined;
   try {
-    const options = parseExportOptions(args);
-    let payload: string;
-
-    if (options.format === "markdown") {
-      connection = createDatabase();
-      payload = await buildMarkdownExportPayload(connection);
-    } else if (options.source === "vector") {
-      payload = await buildVectorExportPayload(options.collection, options.format);
-    } else {
-      connection = createDatabase();
-      payload = JSON.stringify(buildVaultJsonExport(connection), null, 2) + "\n";
-    }
-
-    if (options.outFile) await writeFile(options.outFile, payload, "utf8");
-    else process.stdout.write(payload);
-
+    process.stdout.write(`${await runRemoteExportCommand(args)}\n`);
     return 0;
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     return 1;
-  } finally {
-    connection?.storage.close();
   }
 }
+
+if (import.meta.main) process.exit(await exportCommand(Bun.argv.slice(2)));

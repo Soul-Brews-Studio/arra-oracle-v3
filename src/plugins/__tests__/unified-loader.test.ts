@@ -43,12 +43,16 @@ describe('unified plugin loader', () => {
       server: { command: 'bun', args: ['--version'], autostart: false },
       menu: [{ label: 'Surface Pack', path: '/surface-pack', group: 'tools', order: 42 }],
       cliSubcommands: [{ command: 'surface-pack', help: 'surface cli', handler: 'cli' }],
+      exportFormats: [{ name: 'surface-pack', handler: 'exporter' }],
     }, `
       export function api(ctx) {
         return { ok: true, body: { plugin: ctx.plugin, method: ctx.request.method, body: ctx.body } };
       }
       export function tool(ctx) {
         return { ok: true, body: { plugin: ctx.plugin, source: ctx.source, args: ctx.args } };
+      }
+      export function exporter() {
+        return { data: 'surface-pack' };
       }
     `);
 
@@ -62,6 +66,16 @@ describe('unified plugin loader', () => {
     expect(runtime.cliSubcommands.map((cmd) => cmd.command)).toEqual(['surface-pack']);
     expect(runtime.servers.map((server) => server.plugin)).toEqual(['surface-pack']);
     expect(runtime.routes).toHaveLength(3);
+    const registryEntry = runtime.pluginRegistry().find((plugin) => plugin.name === 'surface-pack');
+    expect(registryEntry).toMatchObject({
+      surfaces: ['mcpTools', 'apiRoutes', 'proxy', 'server', 'menu', 'cliSubcommands', 'exportFormats'],
+      mcpTools: [{ name: 'oracle_surface_pack', source: 'plugin', plugin: 'surface-pack' }],
+      apiRoutes: [{ path: '/api/surface-pack', methods: ['POST'] }],
+      proxy: [{ path: '/api/surface-proxy', targetEnv: 'SURFACE_PROXY_URL' }],
+      cliSubcommands: [{ command: 'surface-pack', help: 'surface cli' }],
+      exportFormats: [{ name: 'surface-pack', extension: 'surface-pack' }],
+    });
+    expect(registryEntry?.mcpTools[0]).not.toHaveProperty('handler');
 
     const app = new Elysia();
     for (const route of runtime.routes) app.use(route as any);
@@ -77,5 +91,25 @@ describe('unified plugin loader', () => {
       method: 'POST',
       body: { ok: true },
     });
+  });
+
+  test('does not register MCP tools disabled by plugin manifest', async () => {
+    pluginDir('mcp-switch-pack', {
+      mcpTools: [
+        { name: 'oracle_switch_on', description: 'on', inputSchema: {}, handler: 'tool' },
+        { name: 'oracle_switch_off', description: 'off', inputSchema: {}, handler: 'tool', enabled: false },
+      ],
+    }, 'export function tool() { return { ok: true, body: { called: true } }; }\n');
+
+    const runtime = await loadUnifiedPlugins({ dirs: [tmp] });
+    const toolNames = runtime.mcpTools.map((tool) => tool.name);
+    expect(toolNames).toContain('oracle_switch_on');
+    expect(toolNames).not.toContain('oracle_switch_off');
+    expect(await runtime.callMcpTool('oracle_switch_off')).toEqual({
+      ok: false,
+      error: 'MCP tool not found: oracle_switch_off',
+    });
+    const registryEntry = runtime.pluginRegistry().find((plugin) => plugin.name === 'mcp-switch-pack');
+    expect(registryEntry?.mcpTools.map((tool) => tool.name)).toEqual(['oracle_switch_on']);
   });
 });

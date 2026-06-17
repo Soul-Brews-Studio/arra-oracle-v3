@@ -27,6 +27,15 @@ function envMs(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
+function safeMs(value: number): number {
+  return Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
+function safeRetryAfterSeconds(value: number | undefined): number {
+  if (value === undefined) return 5;
+  return Number.isFinite(value) && value >= 0 ? Math.ceil(value) : 5;
+}
+
 export function isDraining(): boolean {
   return draining;
 }
@@ -45,6 +54,8 @@ export async function trackRequest<T>(handler: () => T | Promise<T>): Promise<T>
 }
 
 export async function waitForActiveRequests(timeoutMs = 10_000, minDrainMs = 250): Promise<boolean> {
+  timeoutMs = safeMs(timeoutMs);
+  minDrainMs = safeMs(minDrainMs);
   const deadline = Date.now() + timeoutMs;
   if (minDrainMs > 0) await sleep(minDrainMs);
   while (activeRequests > 0) {
@@ -64,7 +75,7 @@ export function drainingResponseFor(
   if (healthPaths.includes(pathname)) return null;
   return Response.json(
     { error: 'server is draining', status: 'draining', draining: true },
-    { status: 503, headers: { 'Retry-After': String(options.retryAfterSeconds ?? 5) } },
+    { status: 503, headers: { 'Retry-After': String(safeRetryAfterSeconds(options.retryAfterSeconds)) } },
   );
 }
 
