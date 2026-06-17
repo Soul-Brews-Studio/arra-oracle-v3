@@ -30,6 +30,7 @@ is linked here; keep new docs in the right section when adding files.
 | [BINS.md](./BINS.md) | Published command binaries and aliases. |
 | [DEPLOY-DIGITALOCEAN.md](./DEPLOY-DIGITALOCEAN.md) | Small public Arra HTTP node on DigitalOcean. |
 | [deploy-cloudflare-mcp.md](./deploy-cloudflare-mcp.md) | One-click Cloudflare Workers remote MCP deploy and Claude `/mcp` setup. |
+| [deploy-production.md](./deploy-production.md) | Production Cloudflare Workers deploy with cloudflared origin, secrets, Studio, MCP, and federation. |
 | [workers-deploy-configs.md](./workers-deploy-configs.md) | Validate Cloudflare MCP, Studio, and federation Worker configs and env vars. |
 | [deploy-vercel.md](./deploy-vercel.md) | One-click Vercel deploy for the Oracle Studio frontend and `/api/*` proxy. |
 | [DOCKER-MCP-TOOLKIT.md](./DOCKER-MCP-TOOLKIT.md) | Docker MCP Toolkit package and profile setup. |
