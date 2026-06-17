@@ -118,7 +118,12 @@ export interface MetricsSnapshot {
   uptime: number;
   requestCount: number;
   avgResponseMs: number;
+  lastResponseMs?: number;
+  maxResponseMs?: number;
   activeConnections: number;
+  errorCount?: number;
+  statusCounts?: Record<string, number>;
+  methodCounts?: Record<string, number>;
   lastRestart: string;
   memoryUsage: MemoryUsageSnapshot;
 }

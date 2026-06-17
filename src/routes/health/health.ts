@@ -10,6 +10,7 @@ import { memoryConfidenceRerankConfig } from '../memory/rerank-config.ts';
 import { mcpTools } from '../../tools/mcp-manifest.ts';
 import type { UnifiedPluginStatus } from '../../plugins/unified-loader.ts';
 import { sandboxLabel } from '../../runtime/sandbox-label.ts';
+import { healthRollupStatus } from './rollup.ts';
 import pkg from '../../../package.json' with { type: 'json' };
 
 type VectorHealth = Awaited<ReturnType<typeof readVectorBackendHealth>>;
@@ -154,11 +155,6 @@ async function readPluginStatuses(
   }
 }
 
-function aggregateStatus(db: DbStatus, pluginStatus: 'ok' | 'degraded', vectorServer: VectorServerHealth) {
-  const vectorOk = vectorServer.status !== 'down';
-  return db.status === 'connected' && pluginStatus === 'ok' && vectorOk ? 'ok' : 'degraded';
-}
-
 function vectorAvailable(
   runtime: ReturnType<typeof getVectorRuntimeStatus>,
   vector: VectorHealth,
@@ -207,7 +203,7 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
 
     const serviceUptime = Math.round(uptimeSeconds * 1000) / 1000;
     return {
-      status: aggregateStatus(dbStatus, pluginStatus, vectorServer),
+      status: healthRollupStatus(dbStatus, pluginStatus, vector, vectorServer, vectorRuntime),
       server: MCP_SERVER_NAME,
       version: pkg.version,
       port: Number(PORT),

@@ -13,7 +13,12 @@ export interface MetricsSnapshot {
   uptime: number;
   requestCount: number;
   avgResponseMs: number;
+  lastResponseMs: number;
+  maxResponseMs: number;
   activeConnections: number;
+  errorCount: number;
+  statusCounts: Record<string, number>;
+  methodCounts: Record<string, number>;
   lastRestart: string;
   memoryUsage: MemoryUsageSnapshot;
   tenant?: { id: string; scope: 'tenant_id' };
@@ -28,7 +33,7 @@ export interface MetricsTrackerOptions {
 
 export interface MetricsTracker {
   begin(request: Request): void;
-  end(request: Request): void;
+  end(request: Request, statusCode?: number): void;
   snapshot(tenantId?: string): MetricsSnapshot;
 }
 
@@ -44,14 +49,19 @@ const MetricsResponseSchema = t.Object({
   uptime: t.Number(),
   requestCount: t.Number(),
   avgResponseMs: t.Number(),
+  lastResponseMs: t.Number(),
+  maxResponseMs: t.Number(),
   activeConnections: t.Number(),
+  errorCount: t.Number(),
+  statusCounts: t.Record(t.String(), t.Number()),
+  methodCounts: t.Record(t.String(), t.Number()),
   lastRestart: t.String(),
   memoryUsage: MemoryUsageSchema,
   tenant: t.Optional(t.Object({ id: t.String(), scope: t.Literal('tenant_id') })),
 });
 
-function safeNumber(value: number): number {
-  return Number.isFinite(value) && value > 0 ? value : 0;
+function safeNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
 }
 
 function round(value: number): number {
@@ -79,11 +89,29 @@ function sanitizeMemoryUsage(snapshot: MemoryUsageSnapshot): MemoryUsageSnapshot
   };
 }
 
-type MetricsCounter = { requestCount: number; totalResponseMs: number; activeConnections: number };
-type RequestStart = { startedAt: number; tenantId?: string };
+type RequestStart = { startedAt: number; tenantId?: string; method: string };
+type MetricsCounter = {
+  requestCount: number;
+  totalResponseMs: number;
+  activeConnections: number;
+  errorCount: number;
+  lastResponseMs: number;
+  maxResponseMs: number;
+  statusCounts: Record<string, number>;
+  methodCounts: Record<string, number>;
+};
 
 function counter(): MetricsCounter {
-  return { requestCount: 0, totalResponseMs: 0, activeConnections: 0 };
+  return {
+    requestCount: 0,
+    totalResponseMs: 0,
+    activeConnections: 0,
+    errorCount: 0,
+    lastResponseMs: 0,
+    maxResponseMs: 0,
+    statusCounts: { '1xx': 0, '2xx': 0, '3xx': 0, '4xx': 0, '5xx': 0, unknown: 0 },
+    methodCounts: {},
+  };
 }
 
 function safeMemoryUsage(readMemoryUsage: () => MemoryUsageSnapshot): MemoryUsageSnapshot {
@@ -106,26 +134,59 @@ function beginCounter(metrics: MetricsCounter): void {
   metrics.activeConnections += 1;
 }
 
-function endCounter(metrics: MetricsCounter, elapsedMs: number): void {
+function endCounter(metrics: MetricsCounter, elapsedMs: number, statusCode: number | undefined, method: string): void {
+  const elapsed = safeNumber(elapsedMs);
+  const bucket = statusBucket(statusCode);
   metrics.activeConnections = Math.max(0, metrics.activeConnections - 1);
   metrics.requestCount += 1;
-  metrics.totalResponseMs += Math.max(0, elapsedMs);
+  metrics.totalResponseMs += elapsed;
+  metrics.lastResponseMs = round(elapsed);
+  metrics.maxResponseMs = Math.max(metrics.maxResponseMs, metrics.lastResponseMs);
+  metrics.statusCounts[bucket] = (metrics.statusCounts[bucket] ?? 0) + 1;
+  metrics.methodCounts[method] = (metrics.methodCounts[method] ?? 0) + 1;
+  if (bucket === '5xx') metrics.errorCount += 1;
+}
+
+function readNow(nowMs: () => number): number {
+  try { return safeNumber(nowMs()); } catch { return 0; }
+}
+
+function isoFromMs(ms: number): string {
+  try { return new Date(safeNumber(ms)).toISOString(); }
+  catch { return new Date(0).toISOString(); }
+}
+
+function statusBucket(statusCode: number | undefined): string {
+  if (!Number.isFinite(statusCode)) return 'unknown';
+  const bucket = Math.trunc(Number(statusCode) / 100);
+  return bucket >= 1 && bucket <= 5 ? `${bucket}xx` : 'unknown';
+}
+
+function statusFrom(response: unknown, setStatus: unknown, fallback: number): number {
+  if (response instanceof Response) return response.status;
+  if (typeof setStatus === 'number') return setStatus;
+  return fallback;
 }
 
 export function createMetricsTracker(options: MetricsTrackerOptions = {}): MetricsTracker {
   const nowMs = options.nowMs ?? (() => Date.now());
-  const startedAtMs = options.startedAtMs ?? nowMs();
-  const lastRestart = options.lastRestart ?? new Date(startedAtMs).toISOString();
+  const startedAtMs = safeNumber(options.startedAtMs ?? readNow(nowMs));
+  const lastRestart = options.lastRestart ?? isoFromMs(startedAtMs);
   const memoryUsage = options.memoryUsage ?? processMemoryUsage;
   const starts = new WeakMap<Request, RequestStart>();
   const globalCounter = counter();
   const tenantCounters = new Map<string, MetricsCounter>();
 
   const buildSnapshot = (metrics: MetricsCounter, tenantId?: string): MetricsSnapshot => ({
-    uptime: round((nowMs() - startedAtMs) / 1000),
+    uptime: round((readNow(nowMs) - startedAtMs) / 1000),
     requestCount: metrics.requestCount,
     avgResponseMs: metrics.requestCount === 0 ? 0 : round(metrics.totalResponseMs / metrics.requestCount),
+    lastResponseMs: metrics.lastResponseMs,
+    maxResponseMs: metrics.maxResponseMs,
     activeConnections: metrics.activeConnections,
+    errorCount: metrics.errorCount,
+    statusCounts: { ...metrics.statusCounts },
+    methodCounts: { ...metrics.methodCounts },
     lastRestart,
     memoryUsage: safeMemoryUsage(memoryUsage),
     tenant: tenantId ? { id: tenantId, scope: 'tenant_id' } : undefined,
@@ -135,17 +196,19 @@ export function createMetricsTracker(options: MetricsTrackerOptions = {}): Metri
     begin(request) {
       if (starts.has(request)) return;
       const tenantId = currentTenantId();
-      starts.set(request, { startedAt: nowMs(), tenantId });
+      starts.set(request, { startedAt: readNow(nowMs), tenantId, method: request.method.toUpperCase() });
       beginCounter(globalCounter);
       if (tenantId) beginCounter(tenantCounter(tenantCounters, tenantId));
     },
-    end(request) {
+    end(request, statusCode) {
       const started = starts.get(request);
       if (started === undefined) return;
       starts.delete(request);
-      const elapsed = nowMs() - started.startedAt;
-      endCounter(globalCounter, elapsed);
-      if (started.tenantId) endCounter(tenantCounter(tenantCounters, started.tenantId), elapsed);
+      const elapsed = readNow(nowMs) - started.startedAt;
+      endCounter(globalCounter, elapsed, statusCode, started.method);
+      if (started.tenantId) {
+        endCounter(tenantCounter(tenantCounters, started.tenantId), elapsed, statusCode, started.method);
+      }
     },
     snapshot(tenantId = currentTenantId()) {
       if (!tenantId) return buildSnapshot(globalCounter);
@@ -161,11 +224,11 @@ export function createMetricsLifecycle(tracker: MetricsTracker = serverMetrics) 
     .onRequest(({ request }) => {
       tracker.begin(request);
     })
-    .onAfterHandle({ as: 'global' }, ({ request }) => {
-      tracker.end(request);
+    .onAfterHandle({ as: 'global' }, (ctx) => {
+      tracker.end(ctx.request, statusFrom((ctx as any).response, (ctx as any).set?.status, 200));
     })
-    .onError({ as: 'global' }, ({ request }) => {
-      tracker.end(request);
+    .onError({ as: 'global' }, (ctx) => {
+      tracker.end(ctx.request, statusFrom(undefined, (ctx as any).set?.status, 500));
     });
 }
 
