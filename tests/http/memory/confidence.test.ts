@@ -90,3 +90,20 @@ test('retrieval reinforcement boosts stale docs without removing decay warnings'
   expect(reinforced.reasons).toContain('retrieval_reinforced');
   expect(reinforced.warnings).toContain('stale_unvalidated');
 });
+
+test('confidence clamps malformed signals and future access without exploding score', () => {
+  const confidence = memoryConfidence(memory({
+    createdAt: 'not-a-date',
+    updatedAt: 'not-a-date',
+    usageCount: -4.9,
+    lastAccessedAt: '2026-07-01T00:00:00.000Z',
+  }), { now, mode: 'semantic', semanticScore: Number.POSITIVE_INFINITY });
+
+  expect(confidence.score).toBeGreaterThanOrEqual(0);
+  expect(confidence.score).toBeLessThanOrEqual(1);
+  expect(confidence.components.match).toBe(0);
+  expect(confidence.usageCount).toBe(0);
+  expect(confidence.lastAccessedAgeDays).toBe(0);
+  expect(confidence.reasons).toContain('source_missing');
+  expect(confidence.warnings).toEqual(expect.arrayContaining(['missing_source', 'missing_tags']));
+});
