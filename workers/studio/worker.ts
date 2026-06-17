@@ -1,117 +1,135 @@
-export interface StudioWorkerEnv {
-  ASSETS: { fetch: (request: Request) => Promise<Response> };
+type AssetFetcher = { fetch(request: Request): Promise<Response> };
+
+export interface StudioEnv {
+  ASSETS: AssetFetcher;
   ORACLE_URL?: string;
+  ORACLE_HTTP_URL?: string;
+  ORACLE_API?: string;
 }
 
-type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-
-const WORKER_HEADER = 'x-oracle-studio-worker';
-const WORKER_NAME = 'arra-oracle-studio';
-const HASHED_ASSET = /\/(?:assets\/|[^/]+-)[A-Za-z0-9_-]{8,}\.[a-z0-9]+$/i;
-const HOP_BY_HOP_HEADERS = [
-  'connection',
-  'host',
-  'keep-alive',
-  'proxy-authenticate',
-  'proxy-authorization',
-  'te',
-  'trailer',
-  'transfer-encoding',
-  'upgrade',
-];
-
-function isApiPath(pathname: string): boolean {
-  return pathname === '/api' || pathname.startsWith('/api/');
-}
-
-function json(body: unknown, status: number): Response {
-  return Response.json(body, {
-    status,
-    headers: {
-      'cache-control': 'no-store',
-      [WORKER_HEADER]: WORKER_NAME,
-    },
-  });
-}
-
-function resolveOracleUrl(env: StudioWorkerEnv): string | null {
-  const value = env.ORACLE_URL?.trim();
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-    url.hash = '';
-    url.search = '';
-    url.pathname = url.pathname.replace(/\/+$/, '');
-    return url.toString().replace(/\/+$/, '');
-  } catch {
-    return null;
-  }
-}
-
-function proxyUrl(baseUrl: string, requestUrl: URL): string {
-  return `${baseUrl}${requestUrl.pathname}${requestUrl.search}`;
-}
-
-function proxyHeaders(request: Request): Headers {
-  const headers = new Headers(request.headers);
-  for (const header of HOP_BY_HOP_HEADERS) headers.delete(header);
-  headers.set(WORKER_HEADER, WORKER_NAME);
-  return headers;
-}
-
-async function proxyApi(request: Request, env: StudioWorkerEnv, fetcher: Fetcher): Promise<Response> {
-  const baseUrl = resolveOracleUrl(env);
-  if (!baseUrl) {
-    return json({ error: 'oracle_url_required', message: 'Set ORACLE_URL for the Studio API proxy.' }, 503);
-  }
-
-  const target = proxyUrl(baseUrl, new URL(request.url));
-  const init: RequestInit = {
-    method: request.method,
-    headers: proxyHeaders(request),
-    redirect: 'manual',
-  };
-  if (request.method !== 'GET' && request.method !== 'HEAD') init.body = request.body;
-
-  const response = await fetcher(target, init);
-  const headers = new Headers(response.headers);
-  headers.set('cache-control', 'no-store');
-  headers.set(WORKER_HEADER, WORKER_NAME);
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
-}
-
-async function serveAsset(request: Request, env: StudioWorkerEnv, pathname: string): Promise<Response> {
-  const response = await env.ASSETS.fetch(request);
-  if (!response.ok) return response;
-
-  const headers = new Headers(response.headers);
-  headers.set('cache-control', HASHED_ASSET.test(pathname)
-    ? 'public, max-age=31536000, immutable'
-    : 'public, max-age=3600, stale-while-revalidate=86400');
-  headers.set(WORKER_HEADER, WORKER_NAME);
-
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
-}
-
-export async function handleStudioRequest(
-  request: Request,
-  env: StudioWorkerEnv,
-  fetcher: Fetcher = fetch,
-): Promise<Response> {
-  const url = new URL(request.url);
-  if (isApiPath(url.pathname)) return proxyApi(request, env, fetcher);
-  return serveAsset(request, env, url.pathname);
-}
+const WORKER_HEADER = 'oracle-studio-worker';
+const API_METHODS = 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS';
 
 export default {
   fetch: handleStudioRequest,
 };
+
+export async function handleStudioRequest(request: Request, env: StudioEnv): Promise<Response> {
+  const url = new URL(request.url);
+  if (url.pathname === '/__health') return health();
+  if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
+    if (request.method === 'OPTIONS') return apiPreflight();
+    return proxyApiRequest(request, env);
+  }
+  return serveAsset(request, env);
+}
+
+async function proxyApiRequest(request: Request, env: StudioEnv): Promise<Response> {
+  try {
+    const target = apiTarget(resolveOracleUrl(env), new URL(request.url));
+    const upstream = await fetch(target, {
+      method: request.method,
+      headers: proxyHeaders(request.headers),
+      body: hasRequestBody(request.method) ? request.body : undefined,
+      redirect: 'manual',
+    });
+    return withHeaders(upstream, {
+      'cache-control': 'no-store',
+      'x-oracle-studio-worker': WORKER_HEADER,
+      'access-control-allow-origin': '*',
+      'access-control-expose-headers': 'x-oracle-studio-worker',
+    });
+  } catch (error) {
+    return json({ error: 'api proxy failed', message: message(error) }, 502);
+  }
+}
+
+function resolveOracleUrl(env: StudioEnv): string {
+  const raw = env.ORACLE_URL ?? env.ORACLE_HTTP_URL ?? env.ORACLE_API;
+  const value = raw?.trim();
+  if (!value) throw new Error('Set ORACLE_URL to the Oracle backend.');
+  const url = new URL(value);
+  if (!['http:', 'https:'].includes(url.protocol)) throw new Error('ORACLE_URL must be http(s).');
+  url.username = '';
+  url.password = '';
+  url.hash = '';
+  url.search = '';
+  url.pathname = url.pathname.replace(/\/+$/, '');
+  return url.toString().replace(/\/+$/, '');
+}
+
+function apiTarget(baseUrl: string, requestUrl: URL): string {
+  const target = new URL(`${baseUrl}${requestUrl.pathname}`);
+  target.search = requestUrl.search;
+  return target.toString();
+}
+
+function proxyHeaders(source: Headers): Headers {
+  const headers = new Headers(source);
+  headers.delete('host');
+  headers.set('x-oracle-studio-worker', WORKER_HEADER);
+  return headers;
+}
+
+async function serveAsset(request: Request, env: StudioEnv): Promise<Response> {
+  const response = await env.ASSETS.fetch(request);
+  const url = new URL(request.url);
+  const cache = cacheControlFor(url.pathname, response.headers.get('content-type'));
+  return withHeaders(response, {
+    ...(cache ? { 'cache-control': cache } : {}),
+    'x-oracle-studio-worker': WORKER_HEADER,
+  });
+}
+
+function cacheControlFor(pathname: string, contentType: string | null): string | undefined {
+  if (pathname.startsWith('/assets/')) return 'public, max-age=31536000, immutable';
+  if (contentType?.includes('text/html') || !pathname.split('/').pop()?.includes('.')) {
+    return 'public, max-age=3600, stale-while-revalidate=86400';
+  }
+  return undefined;
+}
+
+function withHeaders(response: Response, values: Record<string, string>): Response {
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(values)) headers.set(key, value);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
+function apiPreflight(): Response {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      allow: API_METHODS,
+      'access-control-allow-origin': '*',
+      'access-control-allow-methods': API_METHODS,
+      'access-control-allow-headers': 'authorization, content-type, x-oracle-tenant, x-tenant-id',
+      'access-control-expose-headers': 'x-oracle-studio-worker',
+      'cache-control': 'no-store',
+      'x-oracle-studio-worker': WORKER_HEADER,
+    },
+  });
+}
+
+function health(): Response {
+  return json({ ok: true, app: 'arra-oracle-studio-worker' }, 200);
+}
+
+function json(payload: unknown, status: number): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: {
+      'content-type': 'application/json',
+      'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
+      'x-oracle-studio-worker': WORKER_HEADER,
+    },
+  });
+}
+
+function hasRequestBody(method: string): boolean {
+  return !['GET', 'HEAD'].includes(method.toUpperCase());
+}
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
