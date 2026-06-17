@@ -61,7 +61,11 @@ export function logSearch(
 
     // Log any unexpected fields
     if (results.length > 0) {
-      const expectedFields = ['id', 'type', 'content', 'source_file', 'concepts', 'source', 'score'];
+      const expectedFields = [
+        'id', 'type', 'content', 'source_file', 'concepts', 'source', 'score',
+        'distance', 'model', 'ftsScore', 'vectorScore',
+        'superseded_by', 'superseded_at', 'superseded_reason',
+      ];
       const firstResult = results[0] as unknown as Record<string, unknown>;
       const unknownFields = Object.keys(firstResult).filter(k => !expectedFields.includes(k));
       if (unknownFields.length > 0) {
@@ -109,4 +113,3 @@ export function logLearning(documentId: string, patternPreview: string, source: 
     console.error('Failed to log learning:', e);
   }
 }
-
