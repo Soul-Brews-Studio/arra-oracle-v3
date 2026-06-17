@@ -22,6 +22,7 @@ import { pluginsRouter } from '../../routes/plugins/index.ts';
 import { sessionsRoutes } from '../../routes/sessions/index.ts';
 import { vaultRoutes } from '../../routes/vault/index.ts';
 import { createMenuRoutes } from '../../routes/menu/index.ts';
+import { createFederationRoutes } from '../../routes/federation/index.ts';
 import { gatewayPlugin } from '../../gateway/index.ts';
 
 interface BuiltinOptions {
@@ -34,8 +35,9 @@ function routePlugin(
   tier: ServerPlugin['tier'],
   routes: ServerPlugin['routes'],
   seedMenu = true,
+  enabled?: boolean,
 ): ServerPlugin {
-  return { name, tier, routes, seedMenu };
+  return { name, tier, routes, seedMenu, enabled };
 }
 
 async function optionalIndexerPlugin(): Promise<ServerPlugin | null> {
@@ -70,6 +72,7 @@ export async function createBuiltinServerPlugins(options: BuiltinOptions): Promi
   const unifiedManifestPlugins = await createUnifiedManifestServerPlugins();
   const plugins: Array<ServerPlugin | null> = [
     routePlugin('gateway', 'standard', () => gatewayRoutes, false),
+    routePlugin('federation', 'extra', () => createFederationRoutes(), false, false),
     createApiManifestExamplePlugin(),
     routePlugin('health', 'core', () => createHealthRoutes()),
     routePlugin('search', 'core', () => searchRoutes),
