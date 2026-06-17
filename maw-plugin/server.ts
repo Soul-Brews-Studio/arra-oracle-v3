@@ -19,6 +19,6 @@ function applyPortArg(args: string[]): void {
 applyPortArg(process.argv.slice(2));
 const root = repoRoot();
 const moduleUrl = pathToFileURL(join(root, 'src/server.ts')).href;
-const { default: appSpec } = await import(moduleUrl);
-const server = Bun.serve(appSpec);
+const { startServer } = await import(moduleUrl);
+const server = await startServer();
 console.log(`🔮 maw arra plugin backend → http://localhost:${server.port}`);

@@ -45,6 +45,7 @@ describe('unified plugin manifest schema', () => {
     });
 
     expect(manifest.mcpTools.map((tool) => tool.name)).toEqual(['switch_on', 'switch_off']);
+    expect(manifestSurfaces(manifest)).toEqual(['mcpTools']);
     expect(mcpToolNamesForToggle(manifest)).toEqual(['switch_on']);
   });
 

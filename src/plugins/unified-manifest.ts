@@ -229,7 +229,7 @@ export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedP
 
 export function manifestSurfaces(manifest: NormalizedUnifiedPluginManifest): UnifiedPluginSurface[] {
   const surfaces: UnifiedPluginSurface[] = [];
-  if (manifest.mcpTools.length) surfaces.push('mcpTools');
+  if (manifest.mcpTools.some((tool) => tool.enabled !== false)) surfaces.push('mcpTools');
   if (manifest.apiRoutes.length) surfaces.push('apiRoutes');
   if (manifest.proxy.length) surfaces.push('proxy');
   if (manifest.server) surfaces.push('server');

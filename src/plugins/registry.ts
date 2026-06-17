@@ -40,7 +40,9 @@ function manifestModified(plugin: LoadedUnifiedPlugin): string {
 }
 
 function publicMcpTools(manifest: PluginManifest): PublicMcpTool[] {
-  return manifest.mcpTools.map(({ handler, ...tool }) => ({ ...tool, source: 'plugin', plugin: manifest.name }));
+  return manifest.mcpTools
+    .filter((tool) => tool.enabled !== false)
+    .map(({ handler, ...tool }) => ({ ...tool, source: 'plugin', plugin: manifest.name }));
 }
 
 function publicApiRoutes(manifest: PluginManifest): PublicApiRoute[] {
