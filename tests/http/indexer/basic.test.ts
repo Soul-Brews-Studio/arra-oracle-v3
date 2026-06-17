@@ -166,7 +166,8 @@ function tenantIndexerDb() {
     CREATE TABLE oracle_documents (
       id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, type TEXT NOT NULL,
       source_file TEXT NOT NULL, concepts TEXT NOT NULL, project TEXT,
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL, usage_count INTEGER NOT NULL DEFAULT 0,
+      last_accessed_at INTEGER
     );
     CREATE TABLE oracle_fts (id TEXT, content TEXT, concepts TEXT);
     CREATE TABLE indexing_status (

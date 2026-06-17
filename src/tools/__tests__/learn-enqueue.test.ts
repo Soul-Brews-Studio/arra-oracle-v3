@@ -59,6 +59,8 @@ CREATE TABLE indexing_jobs (
 
 const ORIGINAL_ENQUEUE = process.env.ORACLE_INDEXER_ENQUEUE;
 const ORIGINAL_REPO_ROOT = process.env.ORACLE_REPO_ROOT;
+const ORIGINAL_EMBEDDER = process.env.ORACLE_EMBEDDER;
+const ORIGINAL_EMBEDDING_PROVIDER = process.env.ORACLE_EMBEDDING_PROVIDER;
 
 interface Harness {
   ctx: ToolContext;
@@ -92,10 +94,13 @@ function cleanupHarness(h: Harness): void {
 // import below — main's REPO_ROOT is module-frozen at first import.
 const SHARED_REPO_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-learn-m5-root-'));
 process.env.ORACLE_REPO_ROOT = SHARED_REPO_ROOT;
+process.env.ORACLE_EMBEDDER = 'none';
+process.env.ORACLE_EMBEDDING_PROVIDER = 'none';
 const createdMarkdownFiles = new Set<string>();
 
 function markdownPathCandidates(relativePath: string): string[] {
-  return [SHARED_REPO_ROOT, process.cwd()]
+  const dataRoot = process.env.ORACLE_DATA_DIR || path.join(os.homedir(), '.arra-oracle-v2');
+  return [SHARED_REPO_ROOT, process.cwd(), dataRoot]
     .map((root) => path.join(root, relativePath));
 }
 
@@ -134,6 +139,8 @@ describe('handleLearn — M5 enqueue branch', () => {
     createdMarkdownFiles.clear();
     if (ORIGINAL_ENQUEUE) process.env.ORACLE_INDEXER_ENQUEUE = ORIGINAL_ENQUEUE;
     else delete process.env.ORACLE_INDEXER_ENQUEUE;
+    process.env.ORACLE_EMBEDDER = 'none';
+    process.env.ORACLE_EMBEDDING_PROVIDER = 'none';
   });
 
   it('default (env unset) → does NOT enqueue any jobs (existing behavior preserved)', async () => {
@@ -222,4 +229,8 @@ describe('handleLearn — M5 enqueue branch', () => {
 process.on('exit', () => {
   try { fs.rmSync(SHARED_REPO_ROOT, { recursive: true, force: true }); } catch {}
   if (ORIGINAL_REPO_ROOT) process.env.ORACLE_REPO_ROOT = ORIGINAL_REPO_ROOT;
+  if (ORIGINAL_EMBEDDER) process.env.ORACLE_EMBEDDER = ORIGINAL_EMBEDDER;
+  else delete process.env.ORACLE_EMBEDDER;
+  if (ORIGINAL_EMBEDDING_PROVIDER) process.env.ORACLE_EMBEDDING_PROVIDER = ORIGINAL_EMBEDDING_PROVIDER;
+  else delete process.env.ORACLE_EMBEDDING_PROVIDER;
 });
