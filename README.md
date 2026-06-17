@@ -23,6 +23,16 @@ bunx tsc --noEmit
 bun run server                 # HTTP API on http://localhost:47778
 ```
 
+### Add Oracle MCP to Claude Code
+From a clone, use repo cwd instead of `${CLAUDE_PLUGIN_ROOT}`:
+```bash
+claude mcp add arra-oracle --cwd "$PWD" -- bun src/index.ts
+```
+Project `.mcp.json` equivalent:
+```json
+{"mcpServers":{"arra-oracle":{"type":"stdio","command":"bun","args":["src/index.ts"],"env":{"ORACLE_LOG_TARGET":"stderr"}}}}
+```
+
 Useful checks:
 
 ```bash
