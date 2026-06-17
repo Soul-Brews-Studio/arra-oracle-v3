@@ -5,6 +5,7 @@ const MIGRATIONS_TABLE = '__drizzle_migrations';
 
 type SqliteObjectRow = { name: string };
 type SqliteColumnRow = { name: string };
+type SqliteIndexInfoRow = { name: string };
 type MigrationRow = { created_at: number | string | null };
 
 type InsertLiteralRow = { table: string; column: string; value: string };
@@ -49,10 +50,39 @@ function addedColumn(statement: string): [string, string] | null {
   return match ? [match[1], match[2]] : null;
 }
 
-function createdIndex(statement: string): string | null {
-  return statement.match(
-    /^create(?:\s+unique)?\s+index\s+(?:if\s+not\s+exists\s+)?[`"]?([a-z_][\w]*)[`"]?\s+on\b/i,
-  )?.[1] ?? null;
+function createdIndex(statement: string): { name: string; table: string; columns: string[]; ifNotExists: boolean } | null {
+  const match = statement.match(
+    /^create(?:\s+unique)?\s+index\s+(if\s+not\s+exists\s+)?[`"]?([a-z_][\w]*)[`"]?\s+on\s+[`"]?([a-z_][\w]*)[`"]?\s*\(([^)]*)\)/i,
+  );
+  if (!match) return null;
+
+  return {
+    name: match[2],
+    table: match[3],
+    columns: match[4]
+      .split(',')
+      .map((column) => column.trim().replace(/^[`"]|[`"]$/g, '').split(/\s+/)[0])
+      .filter(Boolean),
+    ifNotExists: Boolean(match[1]),
+  };
+}
+
+function indexColumns(sqlite: Database, indexName: string): string[] | null {
+  if (!sqliteObjectExists(sqlite, 'index', indexName)) return null;
+  return sqlite.query<SqliteIndexInfoRow, []>(
+    `pragma index_info(${quoteIdentifier(indexName)})`,
+  ).all().map((row) => row.name);
+}
+
+function indexMatches(sqlite: Database, index: { name: string; table: string; columns: string[] }): boolean {
+  const info = sqlite.query<{ tbl_name: string }, [string]>(
+    "select tbl_name from sqlite_master where type = 'index' and name = ?",
+  ).get(index.name);
+  const columns = indexColumns(sqlite, index.name);
+  return info?.tbl_name === index.table
+    && columns !== null
+    && columns.length === index.columns.length
+    && columns.every((column, i) => column === index.columns[i]);
 }
 
 function createdTable(statement: string): { table: string; columns: string[] } | null {
@@ -69,6 +99,10 @@ function createdTable(statement: string): { table: string; columns: string[] } |
 
 function createdVirtualTable(statement: string): string | null {
   return statement.match(/^create\s+virtual\s+table\s+(?:if\s+not\s+exists\s+)?[`"]?([a-z_][\w]*)[`"]?\s+using\b/i)?.[1] ?? null;
+}
+
+function createdTrigger(statement: string): string | null {
+  return statement.match(/^create\s+trigger\s+(?:if\s+not\s+exists\s+)?[`"]?([a-z_][\w]*)[`"]?\s/i)?.[1] ?? null;
 }
 
 function droppedTableIfExists(statement: string): string | null {
@@ -101,8 +135,14 @@ function statementAlreadyApplied(sqlite: Database, statement: string): boolean |
   const column = addedColumn(cleanStatement);
   if (column) return tableColumnExists(sqlite, column[0], column[1]);
 
-  const indexName = createdIndex(cleanStatement);
-  if (indexName) return sqliteObjectExists(sqlite, 'index', indexName);
+  const index = createdIndex(cleanStatement);
+  if (index) {
+    if (!sqliteObjectExists(sqlite, 'index', index.name)) return false;
+    if (indexMatches(sqlite, index)) return true;
+    if (!index.ifNotExists) return null;
+    sqlite.exec(`drop index ${quoteIdentifier(index.name)}`);
+    return false;
+  }
 
   const table = createdTable(cleanStatement);
   if (table) {
@@ -112,6 +152,9 @@ function statementAlreadyApplied(sqlite: Database, statement: string): boolean |
 
   const virtualTable = createdVirtualTable(cleanStatement);
   if (virtualTable) return sqliteObjectExists(sqlite, 'table', virtualTable);
+
+  const trigger = createdTrigger(cleanStatement);
+  if (trigger) return sqliteObjectExists(sqlite, 'trigger', trigger);
 
   const inserted = insertedLiteralRow(cleanStatement);
   if (inserted) return insertAlreadyApplied(sqlite, inserted);
