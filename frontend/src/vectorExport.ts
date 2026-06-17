@@ -1,4 +1,4 @@
-import { apiUrl } from './api/oracle';
+import { apiUrl, withLocalPna } from './api/oracle';
 
 export type VectorExportFormat = string;
 
@@ -67,7 +67,7 @@ export async function fetchVectorExportFormats(deps: { fetch?: ExportFetch } = {
   const fetcher = deps.fetch ?? globalThis.fetch?.bind(globalThis);
   if (!fetcher) throw new Error('fetch is unavailable');
   const path = vectorExportFormatsPath();
-  const response = await fetcher(apiUrl(path), { headers: { accept: 'application/json' } });
+  const response = await fetcher(apiUrl(path), withLocalPna({ headers: { accept: 'application/json' } }));
   if (!response.ok) throw new Error(`${path} returned ${response.status}`);
   return normalizeVectorExportFormats(await response.json());
 }
@@ -83,9 +83,9 @@ export async function downloadVectorCollection(
 ): Promise<void> {
   const fetcher = deps.fetch ?? globalThis.fetch?.bind(globalThis);
   if (!fetcher) throw new Error('fetch is unavailable');
-  const response = await fetcher(apiUrl(vectorExportPath(collection, format)), {
+  const response = await fetcher(apiUrl(vectorExportPath(collection, format)), withLocalPna({
     headers: { accept: acceptHeader(format) },
-  });
+  }));
   if (!response.ok) throw new Error('/api/v1/vector/export returned ' + response.status);
   await (deps.saveBlob ?? saveBlobAsDownload)(await response.blob(), vectorExportFilename(collection, format));
 }

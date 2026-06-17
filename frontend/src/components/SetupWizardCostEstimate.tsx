@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiUrl } from "../api";
+import { apiFetch } from "../api";
 
 type CostEstimate = {
   estimatedUsd: number;
@@ -20,7 +20,7 @@ function formatCost(value: number): string {
 
 async function fetchEstimate(provider: string): Promise<CostEstimate> {
   const qs = new URLSearchParams({ provider });
-  const response = await fetch(apiUrl(`/api/v1/vector/cost-estimate?${qs}`), {
+  const response = await apiFetch(`/api/v1/vector/cost-estimate?${qs}`, {
     headers: { accept: "application/json" },
   });
   if (!response.ok) throw new Error(`/api/v1/vector/cost-estimate returned ${response.status}`);

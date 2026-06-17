@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { apiUrl } from '../api/oracle';
+import { apiUrl, withLocalPna } from '../api/oracle';
 
 export type ExportStatus = 'idle' | 'starting' | 'running' | 'done' | 'error';
 export type ExportRunPayload = Record<string, unknown>;
@@ -158,7 +158,7 @@ export function useExport({ fetcher = globalThis.fetch?.bind(globalThis), pollMs
     if (!fetcher) throw new Error('fetch is unavailable');
     const path = `/api/v1/export/app/download/${encodeURIComponent(jobId)}`;
     while (!signal.aborted) {
-      const response = await fetcher(apiUrl(path), { headers: { accept: 'application/json, application/octet-stream' }, signal });
+      const response = await fetcher(apiUrl(path), withLocalPna({ headers: { accept: 'application/json, application/octet-stream' }, signal }));
       const payload = await jsonOrEmpty(response);
       const jobStatus = statusFrom(payload);
       const progress = Math.min(100, Math.max(0, progressFrom(payload) ?? 0));
@@ -194,12 +194,12 @@ export function useExport({ fetcher = globalThis.fetch?.bind(globalThis), pollMs
     lastPayloadRef.current = payload;
     setState({ status: 'starting', jobId: null, progress: 0 });
     try {
-      const response = await fetcher(apiUrl('/api/v1/export/app/run'), {
+      const response = await fetcher(apiUrl('/api/v1/export/app/run'), withLocalPna({
         method: 'POST',
         headers: { accept: 'application/json', 'content-type': 'application/json' },
         body: JSON.stringify(payload),
         signal: controller.signal,
-      });
+      }));
       const body = await jsonOrEmpty(response);
       if (!response.ok) throw new Error(textValue(body.error, body.message) ?? `/api/v1/export/app/run returned ${response.status}`);
       const jobId = textValue(body.jobId, body.id);

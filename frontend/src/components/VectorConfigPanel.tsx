@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { apiUrl, fetchVectorConfig, reloadVectorConfig, updateVectorCollection } from '../api';
+import { apiFetch, fetchVectorConfig, reloadVectorConfig, updateVectorCollection } from '../api';
 import { ErrorMessage, Spinner } from './AsyncState';
 import { VectorConfigHealthSummary } from './VectorConfigHealthSummary';
 import type { SettingsEmbedderCollection, VectorConfigResponse } from '../types';
@@ -33,7 +33,7 @@ function draftFrom(key: string, item?: SettingsEmbedderCollection): Drafts[strin
 }
 
 async function testVectorCollection(key: string): Promise<{ success?: boolean; count?: number; error?: string; status?: string }> {
-  const response = await fetch(apiUrl(`/api/v1/vector/config/${encodeURIComponent(key)}/test`), { method: 'POST', headers: { accept: 'application/json' } });
+  const response = await apiFetch(`/api/v1/vector/config/${encodeURIComponent(key)}/test`, { method: 'POST', headers: { accept: 'application/json' } });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(typeof payload.error === 'string' ? payload.error : response.statusText);
   return payload;
