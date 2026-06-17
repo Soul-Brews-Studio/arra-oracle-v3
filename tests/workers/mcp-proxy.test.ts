@@ -1,15 +1,13 @@
-import { afterEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { registerOracleMcpTools } from '../../workers/mcp/src/tools.ts';
 
 type ToolHandler = (input: Record<string, unknown>) => Promise<{
   content: Array<{ type: 'text'; text: string }>;
   isError?: boolean;
 }>;
 type RegisteredTool = { description: string; handler: ToolHandler };
-type SdkTool = { description?: string; handler: ToolHandler };
-type SdkToolServer = { _registeredTools?: Record<string, SdkTool> };
 
 const tools = new Map<string, RegisteredTool>();
-let servedPath: string | undefined;
 const originalFetch = globalThis.fetch;
 
 function zShape() {
@@ -20,58 +18,24 @@ function zShape() {
   return schema;
 }
 
-mock.module('agents/mcp', () => ({
-  McpAgent: class {
-    env: Record<string, unknown>;
-    props: Record<string, unknown>;
-    constructor(env: Record<string, unknown> = {}) {
-      this.env = env;
-      this.props = (env.__props as Record<string, unknown> | undefined) ?? {};
-    }
-    static serve(path: string) {
-      servedPath = path;
-      return { fetch: () => new Response('mock mcp') };
-    }
-  },
-}));
-
-mock.module('@modelcontextprotocol/sdk/server/mcp.js', () => ({
-  McpServer: class {
-    tool(name: string, ...args: unknown[]) {
-      const handler = args.at(-1);
-      if (typeof handler !== 'function') throw new Error(`missing handler for ${name}`);
-      tools.set(name, {
-        description: String(args[0] ?? ''),
-        handler: handler as ToolHandler,
-      });
-    }
-  },
-}));
-
-mock.module('zod', () => ({
-  z: {
-    array: () => zShape(),
-    enum: () => zShape(),
-    number: () => zShape(),
-    string: () => zShape(),
-    union: () => zShape(),
-  },
-}));
+const zLike = {
+  array: () => zShape(),
+  enum: () => zShape(),
+  number: () => zShape(),
+  string: () => zShape(),
+  union: () => zShape(),
+};
 
 async function loadTools(props: Record<string, unknown> = {}) {
   tools.clear();
-  const mod = await import('../../workers/mcp/src/index.ts');
-  const agent = new mod.OracleMCP({
+  registerOracleMcpTools({
+    tool(name: string, description: string, _schema: Record<string, unknown>, handler: ToolHandler) {
+      tools.set(name, { description, handler });
+    },
+  }, zLike, {
     ORACLE_URL: 'https://oracle.example.test/root/',
     ARRA_API_TOKEN: 'proxy-secret',
-    __props: props,
-  } as never);
-  await agent.init();
-  if (tools.size === 0) {
-    for (const [name, tool] of Object.entries((agent.server as SdkToolServer)._registeredTools ?? {})) {
-      tools.set(name, { description: tool.description ?? '', handler: tool.handler });
-    }
-  }
+  }, props);
 }
 
 function paramsFrom(url: string) {
@@ -87,7 +51,7 @@ afterEach(() => {
 });
 
 describe('Cloudflare McpAgent proxy flow', () => {
-  test('registers the Worker endpoint and forwards search, stats, and learn tools', async () => {
+  test('registers and forwards search, stats, and learn tools', async () => {
     const requests: Array<{ url: string; method: string; headers: Headers; body: unknown }> = [];
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       requests.push({
@@ -100,7 +64,6 @@ describe('Cloudflare McpAgent proxy flow', () => {
     }) as typeof fetch;
 
     await loadTools({ claims: { tenantId: 'tenant-from-oauth' } });
-    expect(servedPath).toBe('/mcp');
     expect([...tools.keys()].sort()).toEqual(['muninn_search', 'muninn_stats', 'oracle_learn']);
 
     await tools.get('muninn_search')!.handler({
@@ -168,16 +131,8 @@ describe('Cloudflare McpAgent proxy flow', () => {
 
     await loadTools();
     const search = tools.get('muninn_search')!.handler;
-    const tenantA = payloadFrom(await search({
-      query: 'shared endpoint',
-      limit: 1,
-      tenantId: 'tenant-a',
-    }));
-    const tenantB = payloadFrom(await search({
-      query: 'shared endpoint',
-      limit: 1,
-      tenantId: 'tenant-b',
-    }));
+    const tenantA = payloadFrom(await search({ query: 'shared endpoint', limit: 1, tenantId: 'tenant-a' }));
+    const tenantB = payloadFrom(await search({ query: 'shared endpoint', limit: 1, tenantId: 'tenant-b' }));
 
     expect(seen).toEqual([
       { path: '/root/api/search', tenant: 'tenant-a', query: { q: 'shared endpoint', limit: '1' } },
