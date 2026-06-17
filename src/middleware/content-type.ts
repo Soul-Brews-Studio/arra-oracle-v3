@@ -2,6 +2,10 @@ import { Elysia } from 'elysia';
 
 export const JSON_CONTENT_TYPE = 'application/json';
 const WILDCARD_MEDIA = '*/*';
+const STREAMING_EXPORT_PREFIXES = [
+  '/api/vector/export',
+  '/api/v1/vector/export',
+] as const;
 
 interface MediaRange {
   type: string;
@@ -50,6 +54,18 @@ function hasContentType(headers: MutableHeaders): boolean {
   return headers['Content-Type'] !== undefined || headers['content-type'] !== undefined;
 }
 
+function responseHasContentType(response: unknown): boolean {
+  return response instanceof Response && response.headers.has('content-type');
+}
+
+function isVectorExportPath(pathname: string): boolean {
+  return STREAMING_EXPORT_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
+export function skipsJsonContentNegotiation(request: Request): boolean {
+  return isVectorExportPath(new URL(request.url).pathname);
+}
+
 export function setJsonContentType(headers: MutableHeaders): void {
   if (!hasContentType(headers)) headers['Content-Type'] = JSON_CONTENT_TYPE;
 }
@@ -66,7 +82,7 @@ export function notAcceptableBody(accept: string | null) {
 export function createContentTypeMiddleware() {
   return new Elysia({ name: 'content-type-negotiation' })
     .onBeforeHandle({ as: 'global' }, ({ request, set }) => {
-      if (request.method === 'OPTIONS') return;
+      if (request.method === 'OPTIONS' || skipsJsonContentNegotiation(request)) return;
       const accept = request.headers.get('accept');
       if (acceptsJson(accept)) return;
 
@@ -74,7 +90,8 @@ export function createContentTypeMiddleware() {
       setJsonContentType(set.headers);
       return notAcceptableBody(accept);
     })
-    .onAfterHandle({ as: 'global' }, ({ set }) => {
+    .onAfterHandle({ as: 'global' }, ({ request, response, set }) => {
+      if (skipsJsonContentNegotiation(request) || responseHasContentType(response)) return;
       setJsonContentType(set.headers);
     })
     .onError({ as: 'global' }, ({ set }) => {
