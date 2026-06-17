@@ -41,6 +41,10 @@ export type CombinedSearchResult = {
   vectorScore?: number;
   distance?: number;
   model?: string;
+  entity_score?: number;
+  entity_matches?: string[];
+  entityLinkScore?: number;
+  entityLinkMatches?: string[];
   superseded_by?: string;
   superseded_at?: string | null;
   superseded_reason?: string | null;
@@ -63,4 +67,8 @@ export type SearchProvenance = {
   vector_score?: number;
   vector_distance?: number;
   vector_model?: string;
+  entity_score?: number;
+  entity_matches?: string[];
+  entity_link_score?: number;
+  entity_link_matches?: string[];
 };

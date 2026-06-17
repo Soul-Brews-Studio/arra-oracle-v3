@@ -105,6 +105,8 @@ export function confidenceForResult(result: CombinedSearchResult): SearchConfide
   else signals.push('matched by vector search');
   if ((result.ftsScore ?? 0) >= 0.7) signals.push('strong keyword score');
   if ((result.vectorScore ?? 0) >= 0.7) signals.push('strong vector score');
+  if ((result.entity_score ?? 0) > 0) signals.push('matched by indexed entity-link ranking signal');
+  if ((result.entityLinkScore ?? 0) > 0) signals.push('matched by entity-link ranking signal');
 
   const thresholdBonus = source === 'hybrid' ? 0.05 : 0;
   const adjusted = boundedScore(score + thresholdBonus);
@@ -120,6 +122,10 @@ export function provenanceForResult(result: CombinedSearchResult): SearchProvena
     ...(result.vectorScore !== undefined ? { vector_score: Number(result.vectorScore.toFixed(3)) } : {}),
     ...(result.distance !== undefined ? { vector_distance: Number(result.distance.toFixed(3)) } : {}),
     ...(result.model ? { vector_model: result.model } : {}),
+    ...(result.entity_score !== undefined ? { entity_score: Number(result.entity_score.toFixed(3)) } : {}),
+    ...(result.entity_matches?.length ? { entity_matches: result.entity_matches } : {}),
+    ...(result.entityLinkScore !== undefined ? { entity_link_score: Number(result.entityLinkScore.toFixed(3)) } : {}),
+    ...(result.entityLinkMatches?.length ? { entity_link_matches: result.entityLinkMatches } : {}),
   };
 }
 

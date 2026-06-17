@@ -12,6 +12,10 @@ export interface SearchResult {
   score?: number;
   distance?: number;
   model?: string;
+  entity_score?: number;
+  entity_matches?: string[];
+  entityLinkScore?: number;
+  entityLinkMatches?: string[];
   superseded_by?: string;
   superseded_at?: string | null;
   superseded_reason?: string | null;

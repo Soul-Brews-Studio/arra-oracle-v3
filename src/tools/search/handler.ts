@@ -6,6 +6,7 @@ import type { SearchResult } from '../../server/types.ts';
 import { compactSearchResults, parseSearchRetrievalMode } from '../../search/compact-summary.ts';
 import { isVectorSectionEnabled } from '../../vector/config.ts';
 import type { ToolContext, ToolResponse, OracleSearchInput } from '../types.ts';
+import { applyEntityLinkBoost, hasEntityLinkSearchHook, queryEntityLinks } from './entities.ts';
 import { searchFts, mapFtsResults, enrichSupersedeFlags } from './fts.ts';
 import { attachSearchEvidence, combineResults, sanitizeFtsQuery } from './helpers.ts';
 import { vectorSearch } from './vector.ts';
@@ -72,8 +73,21 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
   const finalResults = reranked.reranked
     ? [...reranked.results, ...entityRankedResults.slice(50)]
     : entityRankedResults;
-  const totalMatches = finalResults.length;
-  let results: Array<Record<string, unknown>> = attachSearchEvidence(finalResults.slice(offset, offset + limit));
+  const hasEntityHook = hasEntityLinkSearchHook(ctx);
+  const entityLinksEnabled = requestedMode !== 'fts' && (effectiveMode !== 'fts' || hasEntityHook);
+  let entityLinkHits: Awaited<ReturnType<typeof queryEntityLinks>> = [];
+  let entityLinkWarning: string | undefined;
+  if (entityLinksEnabled && finalResults.length > 0) {
+    try {
+      entityLinkHits = await queryEntityLinks(ctx, query, Math.max(limit * 3, 10), model);
+    } catch (error) {
+      entityLinkWarning = error instanceof Error ? error.message : String(error);
+      console.error('[EntityLinkSearch]', entityLinkWarning);
+    }
+  }
+  const entityBoost = applyEntityLinkBoost(finalResults, entityLinkHits);
+  const totalMatches = entityBoost.results.length;
+  let results: Array<Record<string, unknown>> = attachSearchEvidence(entityBoost.results.slice(offset, offset + limit));
   enrichSupersedeFlags(ctx, results);
   const compact = retrieval.mode === 'compact-summary' ? compactSearchResults(results, query) : null;
   if (compact) results = compact.results;
@@ -94,6 +108,16 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
     ...(requestedMode !== 'fts' ? { vectorAvailable: vectorAvailable === true } : {}),
     reranked: reranked.reranked,
     ...(reranked.fallbackReason ? { rerankFallbackReason: reranked.fallbackReason } : {}),
+    ...(entityLinksEnabled ? {
+      entityLinks: {
+        enabled: true,
+        strategy: 'entity-link-sidecar-rank-boost',
+        graph: false,
+        hits: entityLinkHits.length,
+        boosted: entityBoost.boosted,
+        ...(entityLinkWarning ? { warning: entityLinkWarning } : {}),
+      },
+    } : {}),
     ...(compact ? { retrieval: compact.metadata } : {}),
     ...(warning ? { warning } : {}),
   };
