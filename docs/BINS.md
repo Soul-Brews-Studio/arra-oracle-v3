@@ -27,17 +27,10 @@ operator/plugin commands.
 
 ## Federation opt-in
 
-Bare `arra-oracle-v3 serve` is network-silent by default: it serves core HTTP
-APIs but does not mount maw peer discovery routes (`/info`, `/api/identity`) or
-emit Scout multicast HELLO packets.
+Bare `arra-oracle-v3 serve` serves core HTTP APIs but does not mount the
+optional `/api/federation/*` mesh capability provider.
 
-Enable federation explicitly for paired hosts:
-
-```bash
-FED_ENABLED=true arra-oracle-v3 serve
-```
-
-Equivalent plugin config also works:
+Enable federation explicitly through the plugin allow-list:
 
 ```bash
 ORACLE_ENABLED_PLUGINS=federation arra-oracle-v3 serve

@@ -53,4 +53,31 @@ describe('BackendGate shell', () => {
     expect(connectUrlForHost('http://localhost:47778/api', 'https://god.buildwithoracle.com/vector?q=1'))
       .toBe('https://god.buildwithoracle.com/vector?q=1&host=localhost%3A47778');
   });
+
+  test('connect URL replacement preserves unrelated search params and hash', () => {
+    const href = 'https://god.buildwithoracle.com/vector?host=old%3A47778&pane=menu#docs';
+
+    expect(connectUrlForHost(' https://127.0.0.1:47779/api ', href))
+      .toBe('https://god.buildwithoracle.com/vector?host=127.0.0.1%3A47779&pane=menu#docs');
+    expect(normalizeOracleHost('')).toBe('localhost:47778');
+  });
+
+  test('non-Tauri setup hides backend start while keeping retry and connect controls', () => {
+    const html = htmlFor(
+      <ConnectOracleSetup
+        isTauri={false}
+        message="offline"
+        onRetry={() => {}}
+        onStartBackend={() => {}}
+        starting={false}
+        state="unreachable"
+      />,
+    );
+
+    expect(html).toContain('Cannot reach http://localhost:47778: offline');
+    expect(html).toContain('Use this backend');
+    expect(html).toContain('Retry');
+    expect(html).not.toContain('Start Backend');
+  });
+
 });

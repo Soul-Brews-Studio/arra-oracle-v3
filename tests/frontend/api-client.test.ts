@@ -52,7 +52,9 @@ describe('frontend API client', () => {
     const client = createApiClient({
       fetch: (input, init) => {
         calls.push({ input, init });
-        return jsonResponse(payloads[String(input)] ?? { error: 'missing route' }, { status: payloads[String(input)] ? 200 : 404 });
+        const url = new URL(String(input));
+        const key = `${url.pathname}${url.search}`;
+        return jsonResponse(payloads[key] ?? { error: 'missing route' }, { status: payloads[key] ? 200 : 404 });
       },
     });
 
@@ -66,14 +68,14 @@ describe('frontend API client', () => {
     await expect(client.plugins()).resolves.toMatchObject({ plugins: [{ name: 'echo' }] });
 
     expect(calls.map((call) => String(call.input))).toEqual([
-      '/api/v1/health',
-      '/api/v1/metrics',
-      '/api/menu',
-      '/api/menu/search?q=vector',
-      '/api/v1/vector/search?q=oracle+memory&limit=5&type=docs',
-      '/api/v1/vector/index/models',
-      '/api/v1/vector/index/status',
-      '/api/plugins',
+      'http://localhost:47778/api/v1/health',
+      'http://localhost:47778/api/v1/metrics',
+      'http://localhost:47778/api/menu',
+      'http://localhost:47778/api/menu/search?q=vector',
+      'http://localhost:47778/api/v1/vector/search?q=oracle+memory&limit=5&type=docs',
+      'http://localhost:47778/api/v1/vector/index/models',
+      'http://localhost:47778/api/v1/vector/index/status',
+      'http://localhost:47778/api/plugins',
     ]);
     for (const call of calls) {
       expect(new Headers(call.init?.headers).get('accept')).toBe('application/json');

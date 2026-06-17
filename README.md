@@ -67,14 +67,14 @@ docker run --rm -p 47778:47778 -v arra-data:/data \
 | --- | --- |
 | Modular backend | Elysia/SQLite core can run all-local, behind a maw plugin backend, behind edge proxies, or split from vector/MCP adapters. |
 | Runtime plug-in/out | Unified manifests enable/disable CLI, menu/API, MCP, proxy, server, export-format, and lifecycle surfaces without forks. |
-| MCP memory tools | `oracle_search`, `oracle_read`, `oracle_list`, `oracle_learn`, `oracle_handoff`, `oracle_inbox`, trace/thread/supersede/verify tools. |
+| MCP memory tools | 27 tools: `____IMPORTANT` plus 26 `oracle_*`, including `oracle_research_note`, `oracle_profile`, and `oracle_trace_distill`. |
 | Memory confidence + supersede | Confidence receipts, reversible supersede chains, trace context, and async dry-run consolidation preserve history while deduping. |
 | HTTP API | Elysia route clusters under `/api/*`, with health, search, knowledge, vector, menu, plugins, canvas, federation, tenants, and settings surfaces. |
 | Vector search | Configurable providers, LanceDB/local stores, proxy services, export formats, status/config APIs, and FTS fallback paths. |
 | maw-js `arra` plugin | `maw arra ...` gives CLI/API/menu access to ARRA verbs, maintenance commands, vector config/health, and server controls. |
 | Edge/cloud deploy | Cloudflare Workers remote MCP/canvas/studio/federation shapes, Vercel Studio proxy, Docker, and local Bun modes. |
 | Multi-tenant HTTP isolation | Tenant headers and optional tenant tokens scope reads/writes by `tenant_id` for shared HTTP deployments. |
-| Federation | Peer identity, TOFU pins, Scout discovery, OracleNet feed/search, signed tunnels, and bearer-protected peer endpoints. |
+| Federation | Opt-in `/api/federation/*` mesh capability provider for registered nodes, capability discovery, Workers relay smoke, and signed tunnel workflows. |
 | Studio + canvas UI | React/Tauri Studio plus `canvas.buildwithoracle.com` workers render search, vectors, plugins, MCP tools, and canvas plugins. |
 
 ## Architecture overview
@@ -92,7 +92,7 @@ Clients / agents / maw-js / Studio
         ├── src/vector/       # vector providers, export, registry, proxy adapters
         ├── src/storage/      # Drizzle/SQLite backend selector
         ├── src/indexer/      # collection/index jobs and workers
-        ├── src/peer/         # federation identity, registry, TOFU, search/feed
+        ├── src/federation/   # mesh capability provider and node registry
         └── src/middleware/   # auth, tenant scope, logging, content negotiation
                   │
         Data: SQLite/Drizzle + FTS + vector stores + local vault files
@@ -123,9 +123,10 @@ Optional auth/tenant controls:
 
 ```bash
 export ARRA_API_TOKEN=secret                 # bearer token for protected writes
-export ARRA_TENANT_TOKENS='acme=secret,*=dev'
-curl -H 'x-arra-tenant: acme' -H 'x-arra-tenant-token: secret' \
+export ORACLE_TENANT_TOKENS='acme=secret,*=dev'
+curl -H 'X-Oracle-Tenant: acme' -H 'X-Oracle-Tenant-Token: secret' \
   http://localhost:47778/api/search?q=team
+# Aliases accepted: X-Tenant-ID, X-Org-Id, X-API-Key.
 ```
 
 ## Vector backends and export
@@ -239,12 +240,10 @@ because worktree copies under `agents/` can pollute broad discovery.
 - [docs/README.md](docs/README.md) — docs index and feature knobs.
 - [docs/INSTALL.md](docs/INSTALL.md) — Bun, Docker, and MCP Toolkit install.
 - [docs/API.md](docs/API.md) — HTTP API reference.
-- [docs/FEDERATION.md](docs/FEDERATION.md) — peer pairing, Scout, TOFU, auth.
+- [docs/FEDERATION.md](docs/FEDERATION.md) — opt-in federation mesh provider.
 - [docs/LOCAL-DEV.md](docs/LOCAL-DEV.md) — local development workflow.
 - [CHANGELOG.md](CHANGELOG.md) — alpha wave release notes.
 
 ## Acknowledgments
 
-Inspired by [claude-mem](https://github.com/thedotmack/claude-mem) by Alex
-Newman — process manager patterns, worker service architecture, and hook system
-concepts.
+Inspired by [claude-mem](https://github.com/thedotmack/claude-mem) by Alex Newman — process manager patterns, worker service architecture, and hook system concepts.

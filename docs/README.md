@@ -87,7 +87,7 @@ is linked here; keep new docs in the right section when adding files.
 
 | Guide | Focus |
 | --- | --- |
-| [FEDERATION.md](./FEDERATION.md) | Pair and secure Arra peers. |
+| [FEDERATION.md](./FEDERATION.md) | Opt-in `/api/federation/*` mesh capability provider. |
 | [HUGINN-MUNINN.md](./HUGINN-MUNINN.md) | Capture/recall taxonomy and naming split. |
 | [huginn-capture.md](./huginn-capture.md) | Huginn auto-capture hook behavior. |
 | [MORNING-TAPE-TEMPLATE.md](./MORNING-TAPE-TEMPLATE.md) | Challenge 2 memory bootstrapping template. |
