@@ -76,6 +76,9 @@ test('oracle_search includes inline supersede successor fields', async () => {
     id: 'old-supersede-doc',
     superseded_by: 'new-supersede-doc',
     superseded_reason: 'newer MCP memory',
+    confidence: { level: 'medium' },
+    provenance: { source: 'fts', source_file: 'ψ/memory/old.md' },
   });
+  expect(body.results[0].confidence.signals).toContain('matched by keyword search');
   expect(body.results[0].superseded_at).toMatch(/T.*Z$/);
 });

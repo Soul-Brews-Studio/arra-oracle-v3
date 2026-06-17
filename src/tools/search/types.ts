@@ -46,4 +46,21 @@ export type CombinedSearchResult = {
   superseded_reason?: string | null;
   valid_time?: string | null;
   valid_until?: string | null;
+  confidence?: SearchConfidence;
+  provenance?: SearchProvenance;
+};
+
+export type SearchConfidence = {
+  level: 'high' | 'medium' | 'low';
+  score: number;
+  signals: string[];
+};
+
+export type SearchProvenance = {
+  source: 'fts' | 'vector' | 'hybrid';
+  source_file: string;
+  fts_score?: number;
+  vector_score?: number;
+  vector_distance?: number;
+  vector_model?: string;
 };
