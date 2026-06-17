@@ -8,12 +8,15 @@ import {
   type VectorStorageConfig,
   type VectorStorageService,
 } from './config.ts';
+import { CapabilityRegistry } from './capability-registry.ts';
 import { VECTOR_PROXY_PROTOCOL_VERSION, VECTOR_PROXY_ROUTES, buildVectorProxyUrl } from './proxy-protocol.ts';
 
+export const VECTOR_CAPABILITY_KIND = 'vector';
 export type RegisteredServiceType = 'builtin' | 'proxy';
 export { buildVectorProxyUrl as vectorServiceUrl } from './proxy-protocol.ts';
 
 export interface RegisteredVectorService {
+  kind?: typeof VECTOR_CAPABILITY_KIND;
   name: string;
   type: RegisteredServiceType;
   endpoint?: string;
@@ -86,31 +89,33 @@ function seedFromConfig(config: VectorServerConfig): Map<string, RegisteredVecto
   const services = config.storage?.services ?? { lancedb: { type: 'builtin' } };
   const out = new Map<string, RegisteredVectorService>();
   for (const [name, service] of Object.entries(services)) {
-    out.set(name, { name, type: service.type, endpoint: service.endpoint, capabilities: service.capabilities });
+    out.set(name, { kind: VECTOR_CAPABILITY_KIND, name, type: service.type, endpoint: service.endpoint, capabilities: service.capabilities });
   }
-  if (!out.has('lancedb')) out.set('lancedb', { name: 'lancedb', type: 'builtin' });
+  if (!out.has('lancedb')) out.set('lancedb', { kind: VECTOR_CAPABILITY_KIND, name: 'lancedb', type: 'builtin' });
   return out;
 }
 
 function normalizeStorage(
   config: VectorServerConfig,
-  services: Map<string, RegisteredVectorService>,
+  services: RegisteredVectorService[],
 ): VectorStorageConfig {
   const storageServices: Record<string, VectorStorageService> = {};
-  for (const [name, service] of services) {
-    storageServices[name] = {
+  for (const service of services) {
+    storageServices[service.name] = {
       type: service.type,
       ...(service.endpoint && { endpoint: service.endpoint }),
       ...(service.capabilities && { capabilities: service.capabilities }),
     };
   }
-  const defaultService = config.storage?.default && services.has(config.storage.default) ? config.storage.default : 'lancedb';
+  const defaultService = config.storage?.default && services.some((service) => service.name === config.storage?.default)
+    ? config.storage.default
+    : 'lancedb';
   return { default: defaultService, services: storageServices };
 }
 
 function syncConfig(
   config: VectorServerConfig,
-  services: Map<string, RegisteredVectorService>,
+  services: RegisteredVectorService[],
 ): VectorServerConfig {
   const version: VectorServerConfig['version'] = config.version.startsWith('2') ? config.version : '2.0';
   const next = { ...config, version, storage: normalizeStorage(config, services) };
@@ -122,6 +127,7 @@ function validateService(service: RegisteredVectorService): RegisteredVectorServ
   const name = service.name?.trim();
   if (!name) throw new Error('service name is required');
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(name)) throw new Error(`invalid service name: ${name}`);
+  if (service.kind && service.kind !== VECTOR_CAPABILITY_KIND) throw new Error(`unsupported service kind: ${String(service.kind)}`);
   if (!service.type) throw new Error(`service ${name} missing type`);
   if (service.type !== 'builtin' && service.type !== 'proxy') throw new Error(`unsupported service type: ${String(service.type)}`);
   const endpoint = service.endpoint?.trim().replace(/\/+$/, '');
@@ -134,82 +140,100 @@ function validateService(service: RegisteredVectorService): RegisteredVectorServ
       throw new Error(`proxy service ${name} requires http(s) endpoint`);
     }
   }
-  return { name, type: service.type, endpoint, capabilities: service.capabilities };
+  return { kind: VECTOR_CAPABILITY_KIND, name, type: service.type, endpoint, capabilities: service.capabilities };
 }
 
 export class VectorServiceRegistry implements VectorServiceRegistryClient {
   private currentConfig: VectorServerConfig;
-  private registry: Map<string, RegisteredVectorService>;
+  private registry: CapabilityRegistry<RegisteredVectorService & { kind: typeof VECTOR_CAPABILITY_KIND }, HealthStatus>;
 
   constructor(config: VectorServerConfig = loadActiveConfig() ?? generateDefaultConfig()) {
     this.currentConfig = config;
-    this.registry = seedFromConfig(config);
+    this.registry = this.createRegistry();
+    this.resetRegistry(config);
   }
 
   private refresh(): void {
     this.currentConfig = loadActiveConfig() ?? this.currentConfig;
-    this.registry = seedFromConfig(this.currentConfig);
+    this.resetRegistry(this.currentConfig);
+  }
+
+  private createRegistry() {
+    return new CapabilityRegistry<RegisteredVectorService & { kind: typeof VECTOR_CAPABILITY_KIND }, HealthStatus>({
+      [VECTOR_CAPABILITY_KIND]: (service) => this.checkService(service),
+    });
+  }
+
+  private resetRegistry(config: VectorServerConfig): void {
+    this.registry.clear(VECTOR_CAPABILITY_KIND);
+    for (const service of seedFromConfig(config).values()) {
+      this.registry.register(service as RegisteredVectorService & { kind: typeof VECTOR_CAPABILITY_KIND });
+    }
+  }
+
+  private services(): RegisteredVectorService[] {
+    return this.registry.discover(VECTOR_CAPABILITY_KIND).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async register(service: RegisteredVectorService): Promise<RegisteredVectorService> {
     this.refresh();
     const normalized = validateService(service);
-    this.registry.set(normalized.name, normalized);
-    this.currentConfig = syncConfig(this.currentConfig, this.registry);
+    this.registry.register(normalized as RegisteredVectorService & { kind: typeof VECTOR_CAPABILITY_KIND });
+    this.currentConfig = syncConfig(this.currentConfig, this.services());
     return normalized;
   }
 
   async discover(): Promise<RegisteredVectorService[]> {
+    return this.discoverSync();
+  }
+
+  discoverSync(): RegisteredVectorService[] {
     this.refresh();
-    if (this.registry.size === 0) this.registry = seedFromConfig(this.currentConfig);
-    return [...this.registry.values()].sort((a, b) => a.name.localeCompare(b.name));
+    return this.services();
   }
 
   async unregister(name: string): Promise<boolean> {
     this.refresh();
-    const removed = this.registry.delete(name);
-    if (removed) this.currentConfig = syncConfig(this.currentConfig, this.registry);
+    const removed = this.registry.unregister(VECTOR_CAPABILITY_KIND, name);
+    if (removed) this.currentConfig = syncConfig(this.currentConfig, this.services());
     return removed;
   }
 
   async healthCheck(): Promise<Map<string, HealthStatus>> {
-    const services = await this.discover();
-    const results = new Map<string, HealthStatus>();
-    await Promise.all(services.map(async (service) => {
-      if (service.type === 'builtin') {
-        results.set(service.name, { status: 'up', checkedAt: new Date().toISOString() });
-        return;
-      }
-      const started = Date.now();
-      try {
-        const endpoint = resolveServiceEndpoint(this.currentConfig, service.name) || service.endpoint;
-        if (!endpoint) throw new Error('missing endpoint');
-        const expectedProtocol = typeof service.capabilities?.protocol === 'string' ? service.capabilities.protocol : undefined;
-        const response = await fetch(buildVectorProxyUrl(endpoint, VECTOR_PROXY_ROUTES.health), {
-          method: 'GET',
-          signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
-        });
-        const proxyHealth = await readProxyHealth(response, expectedProtocol);
-        results.set(service.name, {
-          status: proxyHealth.status ?? 'unknown',
-          checkedAt: new Date().toISOString(),
-          responseTimeMs: Date.now() - started,
-          error: proxyHealth.error,
-          name: proxyHealth.name,
-          version: proxyHealth.version,
-          protocol: proxyHealth.protocol,
-          compatible: proxyHealth.compatible,
-        });
-      } catch (error) {
-        results.set(service.name, {
-          status: 'down',
-          checkedAt: new Date().toISOString(),
-          responseTimeMs: Date.now() - started,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }));
-    return results;
+    this.refresh();
+    return this.registry.healthCheck(VECTOR_CAPABILITY_KIND);
+  }
+
+  private async checkService(service: RegisteredVectorService): Promise<HealthStatus> {
+    if (service.type === 'builtin') return { status: 'up', checkedAt: new Date().toISOString() };
+    const started = Date.now();
+    try {
+      const endpoint = resolveServiceEndpoint(this.currentConfig, service.name) || service.endpoint;
+      if (!endpoint) throw new Error('missing endpoint');
+      const expectedProtocol = typeof service.capabilities?.protocol === 'string' ? service.capabilities.protocol : undefined;
+      const response = await fetch(buildVectorProxyUrl(endpoint, VECTOR_PROXY_ROUTES.health), {
+        method: 'GET',
+        signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
+      });
+      const proxyHealth = await readProxyHealth(response, expectedProtocol);
+      return {
+        status: proxyHealth.status ?? 'unknown',
+        checkedAt: new Date().toISOString(),
+        responseTimeMs: Date.now() - started,
+        error: proxyHealth.error,
+        name: proxyHealth.name,
+        version: proxyHealth.version,
+        protocol: proxyHealth.protocol,
+        compatible: proxyHealth.compatible,
+      };
+    } catch (error) {
+      return {
+        status: 'down',
+        checkedAt: new Date().toISOString(),
+        responseTimeMs: Date.now() - started,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 }
 
