@@ -6,6 +6,7 @@ export interface ExternalMcpServerConfig {
   args?: string[];
   cwd?: string;
   env?: Record<string, string>;
+  timeoutMs?: number;
 }
 
 export interface ExternalMcpCallInput extends ExternalMcpServerConfig {
@@ -19,8 +20,19 @@ type ExternalMcpTool = {
   inputSchema?: Record<string, unknown>;
 };
 
+const DEFAULT_TIMEOUT_MS = 10_000;
+const MAX_TIMEOUT_MS = 60_000;
+
 function cleanEnv(extra?: Record<string, string>): Record<string, string> {
   return { ...getDefaultEnvironment(), ...(extra ?? {}) };
+}
+
+function timeoutMs(value: number | undefined): number {
+  if (value === undefined) return DEFAULT_TIMEOUT_MS;
+  if (!Number.isInteger(value) || value < 1 || value > MAX_TIMEOUT_MS) {
+    throw new Error(`timeoutMs must be an integer between 1 and ${MAX_TIMEOUT_MS}`);
+  }
+  return value;
 }
 
 function assertServerConfig(server: ExternalMcpServerConfig): void {
@@ -35,6 +47,30 @@ function assertServerConfig(server: ExternalMcpServerConfig): void {
   if (server.env !== undefined && (!isStringRecord(server.env))) {
     throw new Error('env must be an object with string values');
   }
+  timeoutMs(server.timeoutMs);
+}
+
+function isMissingCommand(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  return (error as { code?: unknown }).code === 'ENOENT';
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function normalizeExternalMcpError(error: unknown, command: string, limit: number): Error {
+  const message = errorMessage(error);
+  if (isMissingCommand(error) || message.includes('ENOENT')) {
+    return new Error(`failed to start external MCP server: command not found: ${command}`);
+  }
+  if (message.includes('Request timed out') || message.includes('timed out')) {
+    return new Error(`external MCP server timed out after ${limit}ms`);
+  }
+  if (message.includes('Connection closed')) {
+    return new Error('external MCP server closed before responding');
+  }
+  return new Error(`external MCP server error: ${message}`);
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {
@@ -44,8 +80,9 @@ function isStringRecord(value: unknown): value is Record<string, string> {
     Object.values(value).every((entry) => typeof entry === 'string');
 }
 
-async function withClient<T>(server: ExternalMcpServerConfig, run: (client: Client) => Promise<T>): Promise<T> {
+async function withClient<T>(server: ExternalMcpServerConfig, run: (client: Client, limit: number) => Promise<T>): Promise<T> {
   assertServerConfig(server);
+  const limit = timeoutMs(server.timeoutMs);
   const transport = new StdioClientTransport({
     command: server.command,
     args: server.args ?? [],
@@ -55,16 +92,18 @@ async function withClient<T>(server: ExternalMcpServerConfig, run: (client: Clie
   });
   const client = new Client({ name: 'arra-mcp-in', version: '0.0.0' }, { capabilities: {} });
   try {
-    await client.connect(transport);
-    return await run(client);
+    await client.connect(transport, { timeout: limit });
+    return await run(client, limit);
+  } catch (error) {
+    throw normalizeExternalMcpError(error, server.command.trim(), limit);
   } finally {
-    await client.close();
+    try { await client.close(); } catch {}
   }
 }
 
 export async function listExternalMcpTools(server: ExternalMcpServerConfig): Promise<ExternalMcpTool[]> {
-  return await withClient(server, async (client) => {
-    const result = await client.listTools();
+  return await withClient(server, async (client, limit) => {
+    const result = await client.listTools(undefined, { timeout: limit });
     return result.tools.map((tool) => ({
       name: tool.name,
       description: tool.description,
@@ -81,11 +120,11 @@ export async function callExternalMcpTool(input: ExternalMcpCallInput) {
   if (input.toolArgs !== undefined && !isStringRecordLike(input.toolArgs)) {
     throw new Error('toolArgs must be an object');
   }
-  return await withClient(input, async (client) => {
+  return await withClient(input, async (client, limit) => {
     return await client.callTool({
       name: input.toolName,
       arguments: input.toolArgs ?? {},
-    });
+    }, undefined, { timeout: limit });
   });
 }
 

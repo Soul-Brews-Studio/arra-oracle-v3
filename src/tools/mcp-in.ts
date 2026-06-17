@@ -6,6 +6,7 @@ export interface OracleMcpServerInput {
   args?: string[];
   cwd?: string;
   env?: Record<string, string>;
+  timeoutMs?: number;
 }
 
 export interface OracleMcpCallInput extends OracleMcpServerInput {
@@ -18,6 +19,7 @@ const serverProperties = {
   args: { type: 'array', items: { type: 'string' }, description: 'Arguments for the server command' },
   cwd: { type: 'string', description: 'Optional working directory for the external server' },
   env: { type: 'object', description: 'Optional environment overrides for the external server' },
+  timeoutMs: { type: 'integer', minimum: 1, maximum: 60000, description: 'Per-operation timeout in milliseconds' },
 };
 
 export const mcpListToolsToolDef = {
