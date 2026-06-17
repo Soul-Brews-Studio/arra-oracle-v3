@@ -89,7 +89,7 @@ See [PLUGIN-GUIDE.md](./PLUGIN-GUIDE.md) for authoring and packaging.
 ## Security and isolation
 
 - Protected HTTP writes use bearer tokens when `ARRA_API_TOKEN` is set.
-- Shared HTTP deployments can require `ARRA_TENANT_TOKENS` and scope reads/writes
+- Shared HTTP deployments can require `ORACLE_TENANT_TOKENS` and scope reads/writes
   by `tenant_id`.
 - MCP stdio mode sends logs to stderr with `ORACLE_LOG_TARGET=stderr`.
 - File reads resolve real paths and stay inside allowed repo/ghq/vault roots.

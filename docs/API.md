@@ -2,8 +2,9 @@
 
 Base URL defaults to `http://localhost:47778`. Frontend dev servers proxy `/api/*` to
 that backend. When `ARRA_API_TOKEN` is set, protected `/api/*` calls need
-`Authorization: Bearer <token>` or `?token=<token>`; `/api/health`,
-`/api/docs`, `/api/peer/*`, and `/api/identity` stay open.
+`Authorization: Bearer <token>` or `?token=<token>`; `/api/health` and
+`/api/docs` stay open. Federation mesh routes are opt-in via
+`ORACLE_ENABLED_PLUGINS=federation`.
 
 This page covers the active menu, plugin, vector, and MCP tool-listing surfaces.
 Swagger UI is mounted at `/api/docs`; legacy `/swagger` redirects there.
@@ -192,12 +193,13 @@ Unified plugin tools with `"enabled": false` in `plugin.json` are not registered
 listed, or callable. `enabledByDefault: false` keeps a tool registered but hides
 it unless config explicitly enables it.
 
-Core tool names: `____IMPORTANT`, `oracle_search`, `oracle_read`,
+Core tool names (27 total): `____IMPORTANT`, `oracle_search`, `oracle_read`,
 `oracle_learn`, `oracle_list`, `oracle_stats`, `oracle_concepts`,
-`oracle_supersede`, `oracle_handoff`, `oracle_inbox`, `oracle_thread`,
-`oracle_threads`, `oracle_thread_read`, `oracle_thread_update`, `oracle_trace`,
-`oracle_trace_list`, `oracle_trace_get`, `oracle_trace_link`,
-`oracle_trace_unlink`, `oracle_trace_chain`, `oracle_reflect`, `oracle_verify`,
+`oracle_supersede`, `oracle_research_note`, `oracle_handoff`, `oracle_inbox`,
+`oracle_thread`, `oracle_threads`, `oracle_thread_read`, `oracle_thread_update`,
+`oracle_profile`, `oracle_trace`, `oracle_trace_list`, `oracle_trace_get`,
+`oracle_trace_link`, `oracle_trace_unlink`, `oracle_trace_chain`,
+`oracle_trace_distill`, `oracle_reflect`, `oracle_verify`,
 `oracle_mcp_list_tools`, and `oracle_mcp_call`.
 
 Example:
