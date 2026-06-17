@@ -34,11 +34,36 @@ describe('honest recall benchmark harness', () => {
     await expect(runHonestRecallBenchmark({
       cases: [{ id: 'q1', query: 'alpha', expectedIds: ['doc-a'] }],
       corpus: { label: 'tiny', size: 4 },
-      topK: 4,
+      topK: 5,
       searcher,
       outFile,
       gitSha: 'abc123',
-    })).rejects.toThrow('top_k (4) must be smaller than corpus_size (4)');
+    })).rejects.toThrow('top_k (5) must be smaller than corpus_size (4)');
+    expect(existsSync(outFile)).toBe(false);
+  });
+
+  test('refuses empty datasets and missing corpus labels before searching', async () => {
+    const outFile = tempFile('empty.json');
+    let searchCalls = 0;
+    const searcher: Searcher = async () => { searchCalls += 1; return []; };
+
+    await expect(runHonestRecallBenchmark({
+      cases: parseDatasetText(' \n '),
+      corpus: { label: 'oracle-test', size: 10 },
+      topK: 3,
+      searcher,
+      outFile,
+      gitSha: 'abc123',
+    })).rejects.toThrow('benchmark dataset has no cases');
+    await expect(runHonestRecallBenchmark({
+      cases: [{ id: 'q1', query: 'alpha', expectedIds: ['doc-a'] }],
+      corpus: { label: '', size: 10 },
+      topK: 3,
+      searcher,
+      outFile,
+      gitSha: 'abc123',
+    })).rejects.toThrow('benchmark corpus/collection label is required');
+    expect(searchCalls).toBe(0);
     expect(existsSync(outFile)).toBe(false);
   });
 

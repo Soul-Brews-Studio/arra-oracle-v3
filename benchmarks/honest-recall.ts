@@ -5,12 +5,7 @@ export type MetricName = 'Recall@k' | 'Answer-Accuracy';
 export type BenchmarkMode = 'hybrid' | 'fts' | 'vector';
 type RecallMetricLabel = `Recall@${number}`;
 
-export type BenchmarkCase = {
-  id: string;
-  query: string;
-  expectedIds: string[];
-  expectedAnswer?: string;
-};
+export type BenchmarkCase = { id: string; query: string; expectedIds: string[]; expectedAnswer?: string };
 
 export type SearchHit = { id: string; source_file?: string; sourceFile?: string };
 export type SearchRequest = { query: string; topK: number; mode: BenchmarkMode; model: string };
@@ -56,6 +51,12 @@ export function guardTopK(topK: number, corpusSize: number): void {
   }
 }
 
+function validateBenchmarkInputs(cases: BenchmarkCase[], corpus: CorpusRef, topK: number): void {
+  if (!cases.length) throw new Error('benchmark dataset has no cases');
+  if (!stringField(corpus.label)) throw new Error('benchmark corpus/collection label is required');
+  guardTopK(topK, corpus.size);
+}
+
 export function parseDatasetText(text: string): BenchmarkCase[] {
   const trimmed = text.trim();
   if (!trimmed) return [];
@@ -93,8 +94,7 @@ export async function runHonestRecallBenchmark(options: {
   const mode = normalizeMode(options.mode ?? 'hybrid');
   const model = options.model ?? 'multi';
   const recallLabel = recallMetric(options.topK);
-  guardTopK(options.topK, options.corpus.size);
-  if (!options.cases.length) throw new Error('benchmark dataset has no cases');
+  validateBenchmarkInputs(options.cases, options.corpus, options.topK);
 
   const cases: HonestRecallReport['cases'] = [];
   for (const item of options.cases) {
