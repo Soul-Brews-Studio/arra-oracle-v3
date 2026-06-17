@@ -22,11 +22,12 @@ planes instead of running in the Worker isolate.
 
 Use `workers/mcp/wrangler.jsonc` for the deploy target; it provisions the
 `MCP_OBJECT` Durable Object binding and deploys the Worker. The root
-`wrangler.jsonc` is a legacy teardown config for `arra-oracle-remote-mcp`. The deployed MCP URL
-will be:
+`wrangler.jsonc` is a legacy teardown config for `arra-oracle-remote-mcp`.
+
+Current live MCP Worker:
 
 ```text
-https://<worker-name>.<account>.workers.dev/mcp
+https://arra-oracle-mcp.laris.workers.dev/mcp
 ```
 
 ## Worker shape
@@ -98,7 +99,7 @@ npx @modelcontextprotocol/inspector@latest
 In the inspector UI, connect to:
 
 ```text
-https://<worker-name>.<account>.workers.dev/mcp
+https://arra-oracle-mcp.laris.workers.dev/mcp
 ```
 
 Then select **List Tools**. You should see remoteable REST tools from
@@ -117,15 +118,16 @@ Desktop settings, edit the Developer MCP config, and add:
       "command": "npx",
       "args": [
         "mcp-remote",
-        "https://<worker-name>.<account>.workers.dev/mcp"
+        "https://arra-oracle-mcp.laris.workers.dev/mcp"
       ]
     }
   }
 }
 ```
 
-If your Claude client supports remote MCP URLs directly, use the same `/mcp` URL
-as the server URL.
+If your Claude client supports remote MCP URLs directly, use the same live
+`/mcp` URL as the server URL. The paired live Studio Worker is
+`https://arra-oracle-studio.laris.workers.dev`.
 
 ## Multi-tenant setup for teams and schools
 

@@ -41,31 +41,6 @@ afterEach(() => {
   if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow);
   else delete (globalThis as { window?: unknown }).window;
   globalThis.fetch = originalFetch;
-
-  test('absolute ?host values keep non-host query params while changing ports', async () => {
-    const fake = installWindow('https://god.buildwithoracle.com/vector?pane=menu&host=https://127.0.0.1:47779/api#dash');
-    const api = await loadOracleApi('absolute-host');
-    expect(api.API_HOST).toBe('127.0.0.1:47779');
-    expect(api.API_BASE).toBe('http://127.0.0.1:47779');
-    expect(fake.localStorage.getItem(api.API_HOST_STORAGE_KEY)).toBe('127.0.0.1:47779');
-    expect(fake.replaced).toBe('/vector?pane=menu#dash');
-  });
-
-  test('apiFetch targets a stored local backend with PNA metadata', async () => {
-    installWindow('https://god.buildwithoracle.com/', { 'oracle.host': 'localhost:47780' });
-    let captured: { input: RequestInfo | URL; init?: RequestInit } | null = null;
-    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      captured = { input, init };
-      return new Response('{}', { status: 200 });
-    }) as typeof fetch;
-    const api = await loadOracleApi('stored-local-fetch');
-
-    await api.apiFetch('/api/health', { headers: { accept: 'application/json' } });
-
-    expect(String(captured?.input)).toBe('http://localhost:47780/api/health');
-    expect((captured?.init as RequestInit & { targetAddressSpace?: string })?.targetAddressSpace).toBe('local');
-  });
-
 });
 
 describe('Studio local Oracle host resolution', () => {
@@ -90,10 +65,19 @@ describe('Studio local Oracle host resolution', () => {
   });
 
   test('stored host is reused when query param is absent', async () => {
-    installWindow('https://god.buildwithoracle.com/', { 'oracle.host': '127.0.0.1:47778' });
+    installWindow('https://god.buildwithoracle.com/', { 'oracle:host': '127.0.0.1:47778' });
     const api = await loadOracleApi('stored-host');
     expect(api.API_HOST).toBe('127.0.0.1:47778');
     expect(api.apiUrl('/api/v1/vector/config')).toBe('http://127.0.0.1:47778/api/v1/vector/config');
+  });
+
+
+  test('legacy stored host is migrated to oracle:host', async () => {
+    const fake = installWindow('https://god.buildwithoracle.com/', { 'oracle.host': '127.0.0.1:47781' });
+    const api = await loadOracleApi('legacy-stored-host');
+    expect(api.API_HOST_STORAGE_KEY).toBe('oracle:host');
+    expect(api.API_HOST).toBe('127.0.0.1:47781');
+    expect(fake.localStorage.getItem('oracle:host')).toBe('127.0.0.1:47781');
   });
 
   test('remote hosts do not receive local PNA metadata', async () => {
@@ -121,7 +105,7 @@ describe('Studio local Oracle host resolution', () => {
   });
 
   test('apiFetch targets a stored local backend with PNA metadata', async () => {
-    installWindow('https://god.buildwithoracle.com/', { 'oracle.host': 'localhost:47780' });
+    installWindow('https://god.buildwithoracle.com/', { 'oracle:host': 'localhost:47780' });
     let captured: { input: RequestInfo | URL; init?: RequestInit } | null = null;
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       captured = { input, init };
