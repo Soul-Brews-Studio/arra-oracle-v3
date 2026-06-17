@@ -6,7 +6,7 @@ is linked here; keep new docs in the right section when adding files.
 
 ## Navigate by task
 
-- **Deploy**: start with [architecture/deploy-topologies.md](./architecture/deploy-topologies.md), then pick [deploy-cloudflare.md](./deploy-cloudflare.md), [deploy-cloudflare-mcp.md](./deploy-cloudflare-mcp.md), [deploy-vercel.md](./deploy-vercel.md), or [DEPLOY-DIGITALOCEAN.md](./DEPLOY-DIGITALOCEAN.md).
+- **Deploy**: start with [architecture/deploy-topologies.md](./architecture/deploy-topologies.md), then pick [deploy-production.md](./deploy-production.md), [deploy-cloudflare.md](./deploy-cloudflare.md), [deploy-cloudflare-mcp.md](./deploy-cloudflare-mcp.md), [deploy-vercel.md](./deploy-vercel.md), or [DEPLOY-DIGITALOCEAN.md](./DEPLOY-DIGITALOCEAN.md).
 - **Architecture**: read [architecture.md](./architecture.md), [architecture/modular-backend.md](./architecture/modular-backend.md), and [architecture/modular-backend-current-state.md](./architecture/modular-backend-current-state.md).
 - **Memory/search**: read [architecture/memory-layer.md](./architecture/memory-layer.md), [architecture/memory-pipeline.md](./architecture/memory-pipeline.md), [HUGINN-MUNINN.md](./HUGINN-MUNINN.md), and [vector-runtime.md](./vector-runtime.md).
 - **MCP**: read [mcp-tools.md](./mcp-tools.md), [architecture/mcp-remote-transport.md](./architecture/mcp-remote-transport.md), [MCP-FROM-OPENAPI.md](./MCP-FROM-OPENAPI.md), and [deploy-cloudflare-mcp.md](./deploy-cloudflare-mcp.md).
