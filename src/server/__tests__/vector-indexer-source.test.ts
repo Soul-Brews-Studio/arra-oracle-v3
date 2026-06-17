@@ -29,7 +29,9 @@ function writeSqliteDb() {
   db.exec(`
     CREATE TABLE oracle_documents (
       id TEXT PRIMARY KEY, type TEXT, source_file TEXT,
-      concepts TEXT, project TEXT, created_at INTEGER
+      concepts TEXT, project TEXT, created_at INTEGER,
+      usage_count INTEGER NOT NULL DEFAULT 0,
+      last_accessed_at INTEGER
     );
     CREATE TABLE oracle_fts (id TEXT, content TEXT);
   `);

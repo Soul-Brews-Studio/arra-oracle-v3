@@ -39,9 +39,13 @@ test('sqlite backend repairs additive migrations already present in schema', () 
   const memoryColumns = backend.sqlite.query<{ name: string }, []>(
     'pragma table_info("oracle_memories")',
   ).all().map((column) => column.name);
+  const documentColumns = backend.sqlite.query<{ name: string }, []>(
+    'pragma table_info("oracle_documents")',
+  ).all().map((column) => column.name);
 
   expect(repaired?.count).toBeGreaterThanOrEqual(4);
   expect(memoryColumns).toContain('tenant_id');
+  expect(documentColumns).toContain('usage_count');
 });
 
 test('sqlite backend repairs migrations with if-not-exists DDL', () => {
