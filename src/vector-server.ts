@@ -18,6 +18,7 @@ import { createCorsMiddleware } from './middleware/cors.ts';
 import { loadVectorConfig, generateDefaultConfig } from './vector/config.ts';
 import { warmEmbeddingProviderDetection } from './vector/provider-detection.ts';
 import { vectorRoutes } from './routes/vector/index.ts';
+import { createVectorProxyServer } from './vector/proxy-server.ts';
 import { searchEndpoint } from './routes/search/search.ts';
 
 import pkg from '../package.json' with { type: 'json' };
@@ -50,6 +51,7 @@ export function createVectorServerApp() {
       status: 'ok',
       docs: '/swagger',
     }))
+    .use(createVectorProxyServer({ version: pkg.version }))
     .use(new Elysia({ prefix: '/api' }).use(searchEndpoint))
     .use(vectorRoutes);
 }

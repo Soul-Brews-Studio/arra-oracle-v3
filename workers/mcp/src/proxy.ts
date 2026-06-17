@@ -1,3 +1,5 @@
+import { requireActiveTenant, type TenantRegistryEnv } from './tenant-registry.ts';
+
 export type OracleProxyEnv = {
   ORACLE_URL?: string;
   ORACLE_HTTP_URL?: string;
@@ -5,7 +7,7 @@ export type OracleProxyEnv = {
   ORACLE_TENANT_ID?: string;
   ARRA_API_TOKEN?: string;
   ARRA_API_KEY?: string;
-};
+} & TenantRegistryEnv;
 
 export type TextToolResult = {
   content: Array<{ type: 'text'; text: string }>;
@@ -132,7 +134,8 @@ export async function oracleProxyTool(
   try {
     const baseUrl = resolveOracleUrl(env);
     const body = request.body === undefined ? undefined : JSON.stringify(request.body);
-    const tenantId = resolveMcpTenantId(request.authContext, request.tenantId, env);
+    const requestedTenantId = resolveMcpTenantId(request.authContext, request.tenantId, env);
+    const tenantId = await requireActiveTenant(env, requestedTenantId);
     const response = await fetcher(buildProxyUrl(baseUrl, request.path, request.query), {
       method: request.method ?? 'GET',
       headers: proxyHeaders(env, body !== undefined, tenantId),
