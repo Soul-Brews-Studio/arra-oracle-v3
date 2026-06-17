@@ -111,14 +111,16 @@ export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
   // gateway can pick up a file that's created later (unless explicitly
   // disabled via ORACLE_GATEWAY_HOT_RELOAD=0).
   const buildState = (cfg: GatewayConfig): GatewayState => {
+    const compiled = compileRoutes(cfg.routes);
+    const hooks = loadHooks(cfg.hooks);
     const registry = new HealthRegistry();
-    registry.start(cfg.services);
-    return {
-      config: cfg,
-      compiled: compileRoutes(cfg.routes),
-      hooks: loadHooks(cfg.hooks),
-      registry,
-    };
+    try {
+      registry.start(cfg.services);
+      return { config: cfg, compiled, hooks, registry };
+    } catch (error) {
+      registry.stop();
+      throw error;
+    }
   };
 
   let state: GatewayState | null = initial ? buildState(initial) : null;
@@ -128,13 +130,15 @@ export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
     watchGatewayConfig(
       dataDir,
       (next) => {
-        // Stop the old health poller before swapping — it holds a timer.
-        if (state) state.registry.stop();
+        const oldState = state;
         if (next) {
-          state = buildState(next);
-          console.log(`[Gateway] Reloaded — ${describeState(state)}`);
+          const nextState = buildState(next);
+          state = nextState;
+          oldState?.registry.stop();
+          console.log(`[Gateway] Reloaded — ${describeState(nextState)}`);
         } else {
           state = null;
+          oldState?.registry.stop();
           console.log('[Gateway] Reloaded — disabled (no config)');
         }
       },
