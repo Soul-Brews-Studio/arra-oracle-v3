@@ -12,6 +12,7 @@ const DEFAULT_ORIGINS = [
   'http://127.0.0.1:3000',
   'http://localhost:4321',
   'http://127.0.0.1:4321',
+  'https://god.buildwithoracle.com',
 ] as const;
 const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] as const;
 const ALLOWED_HEADERS = [
