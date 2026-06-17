@@ -105,13 +105,32 @@ describe('server plugin loader', () => {
     })).toThrow('Cannot disable core server plugin "search"');
   });
 
-  test('federation routes are not part of the builtin app surface', async () => {
+  test('federation capability provider is opt-in and registers mesh nodes', async () => {
+    const disabled = await appWithConfig([]);
+    expect(disabled.enabled.some((plugin) => plugin.name === 'federation')).toBe(false);
+    expect((await disabled.app.handle(new Request('http://local/api/federation/status'))).status).toBe(404);
+
     const { app, enabled } = await appWithConfig([], ['federation']);
-    expect(enabled.some((plugin) => plugin.name === 'federation')).toBe(false);
-    expect((await app.handle(new Request('http://local/info'))).status).toBe(404);
-    expect((await app.handle(new Request('http://local/api/identity'))).status).toBe(404);
-    expect((await app.handle(new Request('http://local/api/peers'))).status).toBe(404);
-    expect((await app.handle(new Request('http://local/api/health'))).status).toBe(200);
+    expect(enabled.some((plugin) => plugin.name === 'federation')).toBe(true);
+    const status = await app.handle(new Request('http://local/api/federation/status'));
+    expect(status.status).toBe(200);
+    expect(await status.json()).toMatchObject({
+      ok: true,
+      provider: 'arra-oracle-federation',
+      activeNodes: 1,
+    });
+
+    const registered = await app.handle(new Request('http://local/api/federation/mesh/nodes/register', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'mesh-relay',
+        url: 'https://relay.example.test',
+        capabilities: ['maw:hey', 'maw:peek'],
+      }),
+    }));
+    expect(registered.status).toBe(200);
+    expect(await registered.json()).toMatchObject({ success: true, node: { id: 'mesh-relay' } });
   });
 
   test('api manifest mounts a built-in example plugin under its declared path', async () => {
