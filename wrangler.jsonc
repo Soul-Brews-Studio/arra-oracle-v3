@@ -1,17 +1,25 @@
 /**
- * Legacy Cloudflare remote MCP teardown for #2227 Slice 0.
- * Canonical deploy target: workers/mcp/wrangler.jsonc (name: arra-oracle-mcp).
+ * Root Cloudflare MCP config mirrors the canonical Workers MCP deploy target.
+ * Package scripts use workers/mcp/wrangler.jsonc directly; this root config
+ * stays active so plain `wrangler dev/deploy` does not hit the retired teardown worker.
  */
 {
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
-  "name": "arra-oracle-remote-mcp",
-  "main": "src/workers/remote-mcp-teardown.ts",
+  "name": "arra-oracle-mcp",
+  "main": "workers/mcp/src/index.ts",
   "compatibility_date": "2026-06-16",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true },
+  "durable_objects": {
+    "bindings": [
+      { "name": "MCP_OBJECT", "class_name": "OracleMCP" }
+    ]
+  },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["OracleMcpAgent"] },
-    { "tag": "v2", "deleted_classes": ["OracleMcpAgent"] }
-  ]
+    { "tag": "v1", "new_sqlite_classes": ["OracleMCP"] }
+  ],
+  "vars": {
+    "ORACLE_URL": "https://replace-with-your-oracle-backend.example.com"
+  }
 }

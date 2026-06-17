@@ -113,16 +113,19 @@ describe('Cloudflare deploy metadata', () => {
     });
   });
 
-  test('root Wrangler config only tears down the retired remote MCP Durable Object', () => {
+  test('root Wrangler config points at the active MCP Worker', () => {
     const cfg = parseJsonc<Record<string, any>>(read('wrangler.jsonc'));
 
-    expect(cfg.name).toBe('arra-oracle-remote-mcp');
-    expect(cfg.main).toBe('src/workers/remote-mcp-teardown.ts');
+    expect(cfg.name).toBe('arra-oracle-mcp');
+    expect(cfg.main).toBe('workers/mcp/src/index.ts');
     expect(cfg.compatibility_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(cfg.durable_objects).toBeUndefined();
-    expect(cfg.vars).toBeUndefined();
-    expect(cfg.migrations).toContainEqual({ tag: 'v1', new_sqlite_classes: ['OracleMcpAgent'] });
-    expect(cfg.migrations).toContainEqual({ tag: 'v2', deleted_classes: ['OracleMcpAgent'] });
+    expect(cfg.compatibility_flags).toContain('nodejs_compat');
+    expect(cfg.durable_objects.bindings).toContainEqual({
+      name: 'MCP_OBJECT',
+      class_name: 'OracleMCP',
+    });
+    expect(cfg.migrations).toContainEqual({ tag: 'v1', new_sqlite_classes: ['OracleMCP'] });
+    expect(cfg.vars.ORACLE_URL).toContain('replace-with-your-oracle-backend');
   });
 
   test('workers/mcp package has explicit build and deploy scripts', () => {

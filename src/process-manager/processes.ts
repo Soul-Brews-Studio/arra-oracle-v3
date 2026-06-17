@@ -5,6 +5,7 @@ import { logger } from './logger.ts';
 const execFileAsync = promisify(execFile);
 
 export function isProcessAlive(pid: number): boolean {
+  if (!isPositiveInteger(pid)) return false;
   try {
     process.kill(pid, 0);
     return true;
