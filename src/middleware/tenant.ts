@@ -11,6 +11,7 @@ export const ORG_HEADER = 'X-Org-Id';
 export const TENANT_API_KEY_HEADER = 'X-API-Key';
 const TENANT_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
 const RESERVED_TENANT_KEYS = new Set(['constructor', 'prototype']);
+const TENANT_ID_HEADERS = [TENANT_HEADER, LEGACY_TENANT_HEADER, ORG_HEADER] as const;
 
 export const DEFAULT_TENANT_ID = 'default';
 type TenantContext = { tenantId?: string };
@@ -73,10 +74,10 @@ function isValidTenantId(tenantId: string): boolean {
   return TENANT_PATTERN.test(tenantId) && !RESERVED_TENANT_KEYS.has(tenantId.toLowerCase());
 }
 
-function tenantIdFromApiKey(headers: Headers, apiKeys = parseTenantApiKeys()): string | undefined {
+function tenantIdFromApiKey(headers: Headers, apiKeys?: TenantTokenMap): string | undefined {
   const actual = headers.get(TENANT_API_KEY_HEADER)?.trim() || bearerToken(headers);
   if (!actual) return undefined;
-  for (const [tenantId, expected] of Object.entries(apiKeys)) {
+  for (const [tenantId, expected] of Object.entries(apiKeys ?? parseTenantApiKeys())) {
     if (tenantId === '*') continue;
     if (expected && safeEqual(actual, expected)) {
       if (!isValidTenantId(tenantId)) throw new Error('invalid tenant id');
@@ -86,12 +87,25 @@ function tenantIdFromApiKey(headers: Headers, apiKeys = parseTenantApiKeys()): s
   return undefined;
 }
 
+function tenantIdFromTenantHeaders(headers: Headers): string | undefined {
+  let resolved: string | undefined;
+  for (const header of TENANT_ID_HEADERS) {
+    const tenant = headers.get(header)?.trim();
+    if (!tenant) continue;
+    if (!isValidTenantId(tenant)) throw new Error('invalid tenant id');
+    if (resolved && resolved !== tenant) throw new Error('conflicting tenant headers');
+    resolved = tenant;
+  }
+  return resolved;
+}
+
 export function tenantIdFromHeaders(headers: Headers): string | undefined {
-  const raw = headers.get(TENANT_HEADER) ?? headers.get(LEGACY_TENANT_HEADER) ?? headers.get(ORG_HEADER);
-  const tenant = raw?.trim();
-  if (!tenant) return tenantIdFromApiKey(headers);
-  if (!isValidTenantId(tenant)) throw new Error('invalid tenant id');
-  return tenant;
+  const explicitTenant = tenantIdFromTenantHeaders(headers);
+  const keyTenant = tenantIdFromApiKey(headers);
+  if (explicitTenant && keyTenant && explicitTenant !== keyTenant) {
+    throw new Error('conflicting tenant credentials');
+  }
+  return explicitTenant ?? keyTenant;
 }
 
 export function validateTenantToken(headers: Headers, tenantId: string | undefined, tokens = parseTenantTokens()): void {
@@ -108,10 +122,9 @@ export function rememberTenant(request: Request, tenantId: string | undefined): 
 }
 
 export function tenantIdFor(request: Request): string | undefined {
-  if (tenants.has(request)) return tenants.get(request);
   const tenantId = tenantIdFromHeaders(request.headers);
   validateTenantToken(request.headers, tenantId);
-  rememberTenant(request, tenantId);
+  if (!tenants.has(request) || tenants.get(request) !== tenantId) rememberTenant(request, tenantId);
   return tenantId;
 }
 
