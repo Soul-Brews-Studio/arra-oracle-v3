@@ -42,6 +42,7 @@ export interface UnifiedRuntime {
   pluginStatuses: () => UnifiedPluginStatus[];
   pluginRegistry: () => LoadedPluginRegistryEntry[];
   init: () => Promise<void>;
+  reload: () => Promise<void>;
   stop: () => Promise<void>;
 }
 
@@ -134,7 +135,9 @@ function apiRoute(plugin: LoadedUnifiedPlugin, route: UnifiedApiRouteManifest, t
   return app;
 }
 
-function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptions): UnifiedRuntime {
+function replaceAll<T>(target: T[], next: T[]): void { target.splice(0, target.length, ...next); }
+
+function runtimeFrom(initialPlugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptions): UnifiedRuntime {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const routes: ElysiaApp[] = [];
   const mcpTools: UnifiedRuntime['mcpTools'] = [];
@@ -144,29 +147,8 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
   const mcpInvokers = new Map<string, { plugin: LoadedUnifiedPlugin; tool: UnifiedMcpToolManifest }>();
   const initialized = new Set<string>();
   const pluginStatus = new Map<string, UnifiedPluginStatus>();
-
-  for (const plugin of plugins) {
-    pluginStatus.set(plugin.manifest.name, { name: plugin.manifest.name, status: 'ok' });
-    for (const tool of plugin.manifest.mcpTools) {
-      mcpTools.push({ ...tool, plugin: plugin.manifest.name });
-      mcpInvokers.set(tool.name, { plugin, tool });
-    }
-    for (const route of plugin.manifest.apiRoutes) routes.push(apiRoute(plugin, route, timeoutMs));
-    for (const proxy of plugin.manifest.proxy) routes.push(createUnifiedProxyRoute(plugin.manifest.name, proxy));
-    if (plugin.manifest.server) {
-      servers.push({
-        ...plugin.manifest.server,
-        plugin: plugin.manifest.name,
-        dir: plugin.dir,
-        routePrefix: `/api/plugins/${plugin.manifest.name}/server`,
-      });
-    }
-    for (const item of plugin.manifest.menu) menu.push({ ...item, plugin: plugin.manifest.name });
-    for (const command of plugin.manifest.cliSubcommands) {
-      cliSubcommands.push({ ...command, plugin: plugin.manifest.name });
-    }
-  }
-  if (servers.length) routes.push(unifiedPluginServerRoutes(servers));
+  let plugins: LoadedUnifiedPlugin[] = [];
+  let initRan = false;
 
   const callMcpTool = async (name: string, args?: unknown): Promise<unknown> => {
     const hit = mcpInvokers.get(name);
@@ -196,6 +178,7 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
       if (!plugin.manifest.lifecycle?.init || initialized.has(plugin.manifest.name)) continue;
       await invokeLifecycle('init', plugin);
     }
+    initRan = true;
   };
   const stop = async () => {
     for (const plugin of [...plugins].reverse()) {
@@ -204,11 +187,35 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
       await invokeLifecycle('destroy', plugin);
     }
     initialized.clear();
+    initRan = false;
   };
   const pluginStatuses = () => plugins.map((plugin) => pluginStatus.get(plugin.manifest.name)
     ?? { name: plugin.manifest.name, status: 'ok' as const });
   const pluginRegistry = () => pluginRegistryFromLoadedPlugins(plugins, pluginStatuses());
-  return { pluginCount: plugins.length, routes, mcpTools, menu, cliSubcommands, servers, callMcpTool, pluginStatuses, pluginRegistry, init, stop };
+  const rebuild = (next: LoadedUnifiedPlugin[]) => {
+    plugins = next; mcpInvokers.clear(); pluginStatus.clear(); initialized.clear();
+    replaceAll(routes, []); replaceAll(mcpTools, []); replaceAll(menu, []); replaceAll(cliSubcommands, []); replaceAll(servers, []);
+    for (const plugin of plugins) {
+      pluginStatus.set(plugin.manifest.name, { name: plugin.manifest.name, status: 'ok' });
+      for (const tool of plugin.manifest.mcpTools) { mcpTools.push({ ...tool, plugin: plugin.manifest.name }); mcpInvokers.set(tool.name, { plugin, tool }); }
+      for (const route of plugin.manifest.apiRoutes) routes.push(apiRoute(plugin, route, timeoutMs));
+      for (const proxy of plugin.manifest.proxy) routes.push(createUnifiedProxyRoute(plugin.manifest.name, proxy));
+      if (plugin.manifest.server) servers.push({ ...plugin.manifest.server, plugin: plugin.manifest.name, dir: plugin.dir, routePrefix: `/api/plugins/${plugin.manifest.name}/server` });
+      for (const item of plugin.manifest.menu) menu.push({ ...item, plugin: plugin.manifest.name });
+      for (const command of plugin.manifest.cliSubcommands) cliSubcommands.push({ ...command, plugin: plugin.manifest.name });
+    }
+    if (servers.length) routes.push(unifiedPluginServerRoutes(servers));
+    runtime.pluginCount = plugins.length;
+  };
+  const reload = async () => {
+    const shouldInit = initRan;
+    if (shouldInit) await stop();
+    rebuild(sortPluginsByDependencies(await discoverUnifiedPluginManifests(options), { warn: options.warn }));
+    if (shouldInit) await init();
+  };
+  const runtime: UnifiedRuntime = { pluginCount: 0, routes, mcpTools, menu, cliSubcommands, servers, callMcpTool, pluginStatuses, pluginRegistry, init, reload, stop };
+  rebuild(initialPlugins);
+  return runtime;
 }
 
 export async function loadUnifiedPlugins(options: UnifiedLoaderOptions = {}): Promise<UnifiedRuntime> {
