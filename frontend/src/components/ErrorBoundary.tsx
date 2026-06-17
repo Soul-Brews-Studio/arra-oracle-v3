@@ -65,7 +65,7 @@ export async function reportErrorToMetrics(
   };
 
   try {
-    const response = await fetcher(apiUrl('/api/metrics'), withLocalPna({
+    const response = await fetcher(apiUrl('/api/v1/metrics'), withLocalPna({
       method: 'POST',
       keepalive: true,
       headers: {
