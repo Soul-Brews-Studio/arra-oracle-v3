@@ -52,7 +52,7 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
   return (
     <>
       {highlightParts(text, query).map((part, index) => part.match ? (
-        <mark key={`${part.text}-${index}`} className="rounded bg-amber-300/25 px-0.5 text-amber-100">
+        <mark key={`${part.text}-${index}`} className="rounded bg-amber-300/25 px-0.5 text-[color:var(--color-warn-text,#92400e)]">
           {part.text}
         </mark>
       ) : <span key={`${part.text}-${index}`}>{part.text}</span>)}
@@ -69,7 +69,7 @@ function SearchInputCard({ query, loading, onQueryChange, onSubmit }: {
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-label="Search input card">
       <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Menu search</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Menu search</p>
         <h1 id="menu-search-title" className="mt-2 text-3xl font-semibold text-white">Full-text menu search</h1>
         <p className="mt-2 text-sm text-slate-400">Search dashboard labels and paths through /api/menu/search?q=.</p>
       </div>
@@ -103,7 +103,7 @@ export function MenuSearchResults({ query, results, state }: { query: string; re
           <a className="focus-ring block rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-teal-300/40" href={item.path}>
             <span className="text-lg font-semibold text-white"><HighlightedText text={item.label} query={query} /></span>
             <span className="mt-1 block text-sm text-slate-400"><HighlightedText text={item.path} query={query} /></span>
-            <span className="mt-3 inline-flex rounded-full bg-teal-300/10 px-2 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-teal-200">
+            <span className="mt-3 inline-flex rounded-full border border-[color:var(--color-accent,#0f766e)] px-2 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--color-accent,#0f766e)]">
               {item.group}
             </span>
           </a>
@@ -116,7 +116,7 @@ export function MenuSearchResults({ query, results, state }: { query: string; re
 function SearchScopeCard({ scope, resultGroups, total }: { scope: SearchScope; resultGroups: string[]; total: number }) {
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-label="Search scope card">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Scope</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Scope</p>
       <h2 className="mt-2 text-2xl font-semibold text-white">Search boundaries</h2>
       <p className="mt-2 text-sm text-slate-400">Current query scope is constrained to menu records.</p>
       <ul className="mt-5 grid gap-2 text-sm text-slate-300">
@@ -153,7 +153,7 @@ function SearchResultsCard({
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-label="Menu search results card">
       <div className="mb-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Results</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Results</p>
         <h2 className="mt-2 text-2xl font-semibold text-white">Search results</h2>
         <p className="mt-2 text-sm text-slate-500">{summary}</p>
       </div>

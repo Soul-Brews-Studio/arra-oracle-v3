@@ -143,7 +143,7 @@ export function PluginList({
                   <button
                     aria-label={`${enabled ? 'Disable' : 'Enable'} ${plugin.name}`}
                     aria-pressed={enabled}
-                    className="focus-ring rounded-lg border border-teal-300/30 px-3 py-2 font-semibold text-teal-100 transition hover:bg-teal-300/10"
+                    className="focus-ring rounded-lg border border-[color:var(--color-accent,#0f766e)] px-3 py-2 font-semibold text-[color:var(--color-accent,#0f766e)] transition hover:bg-[var(--color-ok-bg,#dcfce7)]"
                     type="button"
                     onClick={() => onToggle?.(plugin.name)}
                   >
@@ -154,7 +154,7 @@ export function PluginList({
               {plugin.error ? (
                 <div className="sm:col-span-2">
                   <dt className="text-slate-500">Error</dt>
-                  <dd className="text-amber-200">{plugin.error}</dd>
+                  <dd className="text-[color:var(--color-warn-text,#92400e)]">{plugin.error}</dd>
                 </div>
               ) : null}
               {surfaceRows.length ? (

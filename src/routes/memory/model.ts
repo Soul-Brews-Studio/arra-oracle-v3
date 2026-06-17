@@ -38,7 +38,9 @@ export const MemoryFanoutQuery = t.Object({
 
 
 export function parseMemoryLimit(raw: unknown, fallback = 10, max = 50): number {
-  const parsed = typeof raw === 'number' ? raw : Number.parseInt(String(raw ?? fallback), 10);
+  const value = typeof raw === 'number' ? String(raw) : String(raw ?? fallback).trim();
+  if (!/^\d+$/.test(value)) return fallback;
+  const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(max, Math.max(1, Math.trunc(parsed)));
 }

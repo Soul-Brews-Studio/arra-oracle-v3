@@ -193,7 +193,7 @@ export function GraphPreview({
           </p>
         </div>
         <button
-          className="focus-ring rounded-xl border border-teal-300/30 px-4 py-2 text-sm font-semibold text-teal-100 hover:bg-teal-300/10"
+          className="focus-ring rounded-xl border border-[color:var(--color-accent,#0f766e)] px-4 py-2 text-sm font-semibold text-[color:var(--color-accent,#0f766e)] hover:bg-[var(--color-ok-bg,#dcfce7)]"
           type="button"
           onClick={() => { if (svgRef.current) saveSvg(svgRef.current, fileName, onExportSvg); }}
         >

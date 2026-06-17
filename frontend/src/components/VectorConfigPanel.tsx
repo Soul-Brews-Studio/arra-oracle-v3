@@ -12,9 +12,9 @@ type RuntimeState = { enabled?: boolean; ready?: boolean; primary?: string; reas
 type PanelResponse = VectorConfigResponse & { enabled?: boolean; engine?: string; state?: RuntimeState };
 
 function statusClass(status: string) {
-  if (status === 'ok') return 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200';
+  if (status === 'ok') return 'border-[color:var(--color-ok-text,#166534)] bg-[var(--color-ok-bg,#dcfce7)] text-[color:var(--color-ok-text,#166534)]';
   if (status === 'disabled') return 'border-slate-600 bg-slate-900/70 text-slate-400';
-  return 'border-rose-400/30 bg-rose-400/10 text-rose-200';
+  return 'border-[color:var(--color-err-text,#991b1b)] bg-[var(--color-err-bg,#fee2e2)] text-[color:var(--color-err-text,#991b1b)]';
 }
 
 function collectionEnabled(item: SettingsEmbedderCollection): boolean {
@@ -147,14 +147,14 @@ export function VectorConfigPanel() {
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-label="Vector backend config">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300">Vector config</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--color-accent,#0f766e)]">Vector config</p>
           <h3 className="mt-2 text-lg font-semibold text-white">Active vector adapters</h3>
           <p className="mt-2 text-sm text-slate-400">Get current config, edit model/provider plus service endpoint, switch adapters, enable rows, set primary, and test health.</p>
           <p className="mt-2 text-xs text-slate-500">{summary}</p>
           <p className="mt-2 text-xs text-slate-500">
             Source {state?.source ?? 'loading'} · engine {state?.engine ?? 'loading'} · primary {runtime?.primary ?? 'none'} · {runtime?.ready ? 'ready' : 'not ready'}
           </p>
-          {runtime?.reason ? <p className="mt-1 text-xs text-amber-200">State: {runtime.reason}{runtime.recommendedAction ? ` · ${runtime.recommendedAction}` : ''}</p> : null}
+          {runtime?.reason ? <p className="mt-1 text-xs text-[color:var(--color-warn-text,#92400e)]">State: {runtime.reason}{runtime.recommendedAction ? ` · ${runtime.recommendedAction}` : ''}</p> : null}
         </div>
         <button className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" type="button" onClick={reload}>
           {loading ? <Spinner label="Reloading" /> : 'Reload vector config'}
@@ -162,7 +162,7 @@ export function VectorConfigPanel() {
       </div>
 
       {error ? <div className="mt-4"><ErrorMessage title="Vector config update failed." message={error} /></div> : null}
-      {message ? <p className="mt-4 rounded-2xl border border-white/10 bg-slate-900/70 p-3 text-sm text-teal-100">{message}</p> : null}
+      {message ? <p className="mt-4 rounded-2xl border border-white/10 bg-slate-900/70 p-3 text-sm text-[color:var(--color-accent,#0f766e)]">{message}</p> : null}
       {state ? <VectorConfigHealthSummary collections={state.config.collections} health={state.health} /> : null}
 
       <div className="mt-5 grid gap-3">
@@ -178,14 +178,14 @@ export function VectorConfigPanel() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-mono text-sm text-teal-200">{key}</p>
-                    <span className={`rounded-full border px-2 py-0.5 text-xs ${statusClass(status)}`}>{status}</span>
-                    {item.primary ? <span className="rounded-full border border-purple-300/30 px-2 py-0.5 text-xs text-purple-200">primary</span> : null}
+                    <p className="font-mono text-sm text-[color:var(--color-accent,#0f766e)]">{key}</p>
+                    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${statusClass(status)}`}><span aria-hidden="true">●</span>{status}</span>
+                    {item.primary ? <span className="rounded-full border border-[color:var(--color-accent2,#7e22ce)] px-2 py-0.5 text-xs text-[color:var(--color-accent2,#7e22ce)]">primary</span> : null}
                   </div>
                   <p className="mt-2 text-sm text-slate-100">{item.collection}</p>
                   <p className="mt-1 text-xs text-slate-500">{item.provider} · {item.model} · {state?.doc_counts[key] ?? 0} docs</p>
                   {item.service || item.endpoint ? <p className="mt-1 text-xs text-slate-500">Service {item.service || 'default'} · {item.endpoint || 'no endpoint'}</p> : null}
-                  {health?.error ? <p className="mt-2 text-xs text-rose-300">{health.error}</p> : null}
+                  {health?.error ? <p className="mt-2 text-xs text-[color:var(--color-err-text,#991b1b)]">{health.error}</p> : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -216,8 +216,8 @@ export function VectorConfigPanel() {
                     <input type="checkbox" checked={draft.enabled} onChange={(event) => updateDraft(key, { enabled: event.target.checked })} />
                     Enabled
                   </label>
-                  <button className="focus-ring rounded-xl border border-teal-300/30 px-3 py-2 text-sm font-semibold text-teal-100 disabled:opacity-50" disabled={!dirty || saving[key] === 'saving'} type="button" onClick={() => void saveAdapter(key)}>{saving[key] === 'saving' ? <Spinner label="Saving" /> : 'Save switch'}</button>
-                  <button className="focus-ring rounded-xl border border-purple-300/30 px-3 py-2 text-sm font-semibold text-purple-100 disabled:opacity-50" disabled={saving[key] === 'testing'} type="button" onClick={() => void testAdapter(key)}>{saving[key] === 'testing' ? <Spinner label="Testing" /> : 'Test'}</button>
+                  <button className="focus-ring rounded-xl border border-[color:var(--color-accent,#0f766e)] px-3 py-2 text-sm font-semibold text-[color:var(--color-accent,#0f766e)] disabled:opacity-50" disabled={!dirty || saving[key] === 'saving'} type="button" onClick={() => void saveAdapter(key)}>{saving[key] === 'saving' ? <Spinner label="Saving" /> : 'Save switch'}</button>
+                  <button className="focus-ring rounded-xl border border-[color:var(--color-accent2,#7e22ce)] px-3 py-2 text-sm font-semibold text-[color:var(--color-accent2,#7e22ce)] disabled:opacity-50" disabled={saving[key] === 'testing'} type="button" onClick={() => void testAdapter(key)}>{saving[key] === 'testing' ? <Spinner label="Testing" /> : 'Test'}</button>
                   <button className="focus-ring rounded-xl border border-cyan-300/30 px-3 py-2 text-sm font-semibold text-cyan-100 disabled:opacity-50" disabled={item.primary || saving[key] === 'primary'} type="button" onClick={() => void setPrimary(key)}>{saving[key] === 'primary' ? <Spinner label="Setting primary" /> : 'Set primary'}</button>
                 </div>
               </div>
