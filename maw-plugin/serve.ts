@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from '
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { probeVectorPreflight } from './vector-preflight.ts';
 
 export type Parsed = { pos: string[]; flags: Record<string, string | boolean> };
 export type InvokeResult = { ok: boolean; output?: string; error?: string };
@@ -192,12 +193,15 @@ export async function runServe(parsed: Parsed, runner: Runner, env: Record<strin
     mkdirSync(dirname(path), { recursive: true });
     const command = resolveServerCommand(cwd, { ...env, ORACLE_PORT: port, PORT: port });
     const startEnv = { ...env, ...command.env, ORACLE_ROOT: cwd, ORACLE_PORT: port, PORT: port };
+    const vectorPreflight = await probeVectorPreflight(startEnv, deps.fetch ?? fetch);
+    if (!vectorPreflight.ok) return { ok: false, error: vectorPreflight.error };
     const pid = (deps.start ?? startServer)(command.cwd, startEnv, command);
     if (!pid) throw new Error(`${command.command} ${command.args.join(' ')} did not return a PID`);
     writeState(path, { pid, port, root: cwd, healthPath: command.healthPath, startedAt: new Date().toISOString() });
     return { ok: true, output: [
       `arra serve: started pid=${pid} port=${port}`,
       explicitBackend && 'backend: full Oracle',
+      vectorPreflight.line,
       `root: ${cwd}`,
       `command: ${command.command} ${command.args.join(' ')}`,
       `pid: ${path}`,
