@@ -18,12 +18,12 @@ async function text(stream: ReadableStream<Uint8Array> | null): Promise<string> 
   return new Response(stream).text();
 }
 
-async function waitForMcp(baseUrl: string): Promise<Record<string, unknown>> {
+async function waitForHealth(baseUrl: string): Promise<Record<string, unknown>> {
   const deadline = Date.now() + 45_000;
   let lastError = '';
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(`${baseUrl}/mcp`, { headers: { accept: 'application/json' } });
+      const response = await fetch(`${baseUrl}/health`, { headers: { accept: 'application/json' } });
       if (response.ok) return await response.json() as Record<string, unknown>;
       lastError = `status ${response.status}: ${await response.text()}`;
     } catch (error) {
@@ -31,10 +31,10 @@ async function waitForMcp(baseUrl: string): Promise<Record<string, unknown>> {
     }
     await sleep(500);
   }
-  throw new Error(`wrangler dev did not serve /mcp in time (${lastError})`);
+  throw new Error(`wrangler dev did not serve /health in time (${lastError})`);
 }
 
-test('wrangler dev --local starts the Cloudflare Worker and serves /mcp', async () => {
+test('wrangler dev --local starts the Cloudflare Worker and exposes MCP health', async () => {
   const port = freePort();
   const proc = Bun.spawn([
     'bunx',
@@ -60,25 +60,16 @@ test('wrangler dev --local starts the Cloudflare Worker and serves /mcp', async 
   const output = Promise.all([text(proc.stdout), text(proc.stderr)]).then((parts) => parts.join('\n'));
 
   try {
-    const mcp = await waitForMcp(`http://127.0.0.1:${port}`);
-    expect(mcp).toMatchObject({
+    const health = await waitForHealth(`http://127.0.0.1:${port}`);
+    expect(health).toMatchObject({
       ok: true,
-      transport: 'streamable-http',
-      path: '/mcp',
-      capabilities: { tools: {} },
+      service: 'Arra Oracle Remote MCP',
+      transports: { streamableHttp: '/mcp' },
     });
 
-    const init = await fetch(`http://127.0.0.1:${port}/mcp`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }),
-    });
-    expect(init.status).toBe(200);
-    expect(await init.json()).toMatchObject({
-      jsonrpc: '2.0',
-      id: 1,
-      result: { serverInfo: { name: 'arra-oracle-remote-mcp' } },
-    });
+    const mcp = await fetch(`http://127.0.0.1:${port}/mcp`, { headers: { accept: 'application/json' } });
+    expect(mcp.status).toBe(406);
+    expect(await mcp.text()).toContain('Client must accept text/event-stream');
   } catch (error) {
     proc.kill();
     await proc.exited.catch(() => {});

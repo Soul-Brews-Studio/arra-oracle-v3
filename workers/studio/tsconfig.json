@@ -2,12 +2,12 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
+    "moduleResolution": "Bundler",
     "lib": ["ES2022", "WebWorker"],
-    "moduleResolution": "bundler",
     "strict": true,
-    "noEmit": true,
     "skipLibCheck": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "noEmit": true
   },
   "include": ["worker.ts"]
 }

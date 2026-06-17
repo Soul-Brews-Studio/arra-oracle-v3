@@ -48,6 +48,12 @@
       "ARRA_API_TOKEN": {
         "description": "Optional bearer token for protected Oracle HTTP/MCP writes. Generate a random value such as `openssl rand -hex 32`."
       },
+      "ORACLE_HTTP_URL": {
+        "description": "HTTPS base URL for the remote Arra Oracle HTTP backend used by the Cloudflare MCP proxy."
+      },
+      "ORACLE_REMOTE_MCP_NAME": {
+        "description": "Display name advertised by the remote Cloudflare MCP server during initialization."
+      },
       "ORACLE_MCP_PATH": {
         "description": "Remote MCP mount path. Keep `/mcp` unless your Worker route needs a different Streamable HTTP endpoint."
       },
@@ -95,7 +101,9 @@
     "test:huginn": "bun test src/huginn/__tests__/capture.test.ts src/huginn/__tests__/sweep.test.ts",
     "huginn:sweep": "bun scripts/huginn-sweep.ts",
     "bench": "bun run benchmarks/run-all.ts",
-    "export": "bun src/cli/commands/export.ts"
+    "export": "bun src/cli/commands/export.ts",
+    "cloudflare:mcp:dev": "wrangler dev --config wrangler.jsonc",
+    "cloudflare:mcp:deploy": "wrangler deploy --config wrangler.jsonc"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
@@ -103,20 +111,24 @@
     "@lancedb/lancedb": "^0.27.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@qdrant/js-client-rest": "^1.17.0",
+    "agents": "^0.16.1",
     "commander": "^14.0.3",
     "drizzle-orm": "^0.45.2",
     "elysia": "^1.4.28",
     "hook-menu": "github:Soul-Brews-Studio/hook-menu",
     "sqlite-vec": "^0.1.9",
-    "std-env": "^4.1.0"
+    "std-env": "^4.1.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260616.1",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.17.9",
     "better-sqlite3": "^12.9.0",
     "bun-types": "^1.3.12",
     "drizzle-kit": "^0.31.10",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "wrangler": "^4.101.0"
   },
   "keywords": [
     "oracle",

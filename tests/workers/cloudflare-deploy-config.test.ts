@@ -65,15 +65,17 @@ describe('Cloudflare deploy metadata', () => {
     const cfg = parseJsonc<Record<string, any>>(read('wrangler.jsonc'));
 
     expect(cfg.name).toBe('arra-oracle-remote-mcp');
-    expect(cfg.main).toBe('./src/workers/oracle-mcp.ts');
+    expect(cfg.main).toBe('src/workers/cloudflare-mcp/index.ts');
     expect(cfg.compatibility_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(cfg.compatibility_flags).toContain('nodejs_compat');
     expect(cfg.workers_dev).toBe(true);
     expect(cfg.observability).toMatchObject({ enabled: true });
     expect(cfg.vars).toMatchObject({
+      ORACLE_HTTP_URL: '',
+      ORACLE_REMOTE_MCP_NAME: 'Arra Oracle Remote MCP',
       ORACLE_MCP_PATH: '/mcp',
-      ORACLE_STORAGE_BACKEND: 'd1',
-      ORACLE_VECTOR_BACKEND: 'cloudflare-vectorize',
+      ORACLE_STORAGE_BACKEND: 'http-proxy',
+      ORACLE_VECTOR_BACKEND: 'http-proxy',
     });
   });
 
