@@ -124,6 +124,22 @@ test('tenant middleware can derive tenant from configured API key', async () => 
   }
 });
 
+test('tenant middleware ignores wildcard API keys when deriving a tenant', async () => {
+  const previous = process.env.ORACLE_TENANT_API_KEYS;
+  process.env.ORACLE_TENANT_API_KEYS = '*=shared-key';
+  try {
+    const res = await request('/notes', {
+      headers: { [TENANT_API_KEY_HEADER]: 'shared-key' },
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'tenant required' });
+  } finally {
+    if (previous === undefined) delete process.env.ORACLE_TENANT_API_KEYS;
+    else process.env.ORACLE_TENANT_API_KEYS = previous;
+  }
+});
+
 test('tenant middleware returns a structured 400 for invalid tenant headers', async () => {
   const res = await request('/notes', {
     headers: { [TENANT_HEADER]: 'bad/tenant' },
@@ -167,6 +183,8 @@ test('tenant helpers parse token maps and sanitize tenant data paths', () => {
   expect(parseTenantTokens('{"tenant-a":"json-secret"}')).toEqual({
     'tenant-a': 'json-secret',
   });
+  expect(() => parseTenantTokens('constructor=secret')).toThrow('invalid tenant token config');
+  expect(() => parseTenantTokens('{"prototype":"secret"}')).toThrow('invalid tenant token config');
 
   const scoped = runWithTenant('tenant/a', () => tenantDataPath('/tmp/oracle.db'));
   expect(scoped).toBe(path.join('/tmp', 'tenants', 'tenant_a', 'oracle.db'));
