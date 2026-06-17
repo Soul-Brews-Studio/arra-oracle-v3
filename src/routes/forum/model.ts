@@ -17,6 +17,7 @@ export const threadCreateBody = t.Object({
   thread_id: t.Optional(t.Union([t.Number(), t.String()])),
   title: t.Optional(t.String()),
   role: t.Optional(t.String()),
+  reopen: t.Optional(t.Boolean()),
 });
 
 export const threadStatusBody = t.Object({

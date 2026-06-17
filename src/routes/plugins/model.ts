@@ -196,8 +196,8 @@ export function resolveWasmPath(name: string, dir = currentPluginDir()): string 
   return null;
 }
 
-export function scanPlugins(dir = currentPluginDir()): { plugins: PluginEntry[]; dir: string } {
-  if (!existsSync(dir)) return { plugins: [], dir };
+export function scanPlugins(dir = currentPluginDir()): { plugins: PluginEntry[]; count: number; dir: string } {
+  if (!existsSync(dir)) return { plugins: [], count: 0, dir };
   const plugins: PluginEntry[] = [];
   for (const entry of readdirSync(dir)) {
     const fullPath = join(dir, entry);
@@ -214,7 +214,7 @@ export function scanPlugins(dir = currentPluginDir()): { plugins: PluginEntry[];
       plugins.push(readFlatPlugin(entry, dir));
     }
   }
-  return { plugins, dir };
+  return { plugins, count: plugins.length, dir };
 }
 
 export function getPluginMenuItems(dir = currentPluginDir()): MenuItem[] {

@@ -24,6 +24,24 @@ test.describe('Frontend pages render and interact through the Vite proxy', () =>
     await openFrontendPage(page, '/mcp', 'Tool browser');
   });
 
+  test('renders operational and vector utility pages', async ({ page }) => {
+    const pages: Array<[string, string | RegExp]> = [
+      ['/status', 'Health overview'],
+      ['/metrics', 'Metrics dashboard'],
+      ['/storage', 'Storage backend'],
+      ['/learn', 'Learn entries'],
+      ['/canvas/plugins', 'Canvas plugin registry'],
+      ['/vector/search', 'Vector search preview'],
+      ['/vector/documents', 'Vector documents'],
+      ['/vector/index', 'Index jobs and collections'],
+      ['/vector/export', 'Vector export'],
+      ['/vector/settings', 'Vector settings'],
+      ['/export', 'Export app'],
+    ];
+
+    for (const [path, heading] of pages) await openFrontendPage(page, path, heading);
+  });
+
   test('toggles the shell theme from a rendered menu page', async ({ page }) => {
     await openFrontendPage(page, '/menu', 'Menu catalog');
 
