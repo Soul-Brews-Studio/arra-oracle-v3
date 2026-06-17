@@ -89,7 +89,7 @@
   ],
   "artifact": {
     "path": "./index.ts",
-    "sha256": "615c401bd7c31aabc710d3fab246b0dfc0260db72727dbff07e20187b94a0703"
+    "sha256": "36d6299d1c600e55a2435e16b4f18ad2950af7685e72bea70d85c2d7a044d788"
   },
   "mcpTools": [
     {
