@@ -13,6 +13,7 @@ is linked here; keep new docs in the right section when adding files.
 | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) | Diagnose install, MCP, HTTP, vector, plugin, and Docker issues | health checks, auth, tenants, logs |
 | [FAQ.md](./FAQ.md) | Answer common operator and contributor questions | install path, binaries, data, vectors, tenants |
 | [architecture.md](./architecture.md) | Understand the installable runtime architecture | HTTP, MCP, CLI, plugins, storage |
+| [architecture/modular-backend.md](./architecture/modular-backend.md) | Modular backend target: CF Workers edge, maw plugin backend, vector server, MCP plugins. |
 | [PLUGIN-GUIDE.md](./PLUGIN-GUIDE.md) | Author installable Oracle plugins | `plugin.json`, CLI/MCP/menu/API surfaces |
 | [API-REFERENCE-INDEX.md](./API-REFERENCE-INDEX.md) | Choose the right API reference | `/api/docs`, `openapi.json`, route family map |
 

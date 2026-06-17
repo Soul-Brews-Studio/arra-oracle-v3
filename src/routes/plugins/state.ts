@@ -59,7 +59,7 @@ export function readPluginEnabled(name: string): boolean | undefined {
   return manifest.enabled !== false;
 }
 
-function writePluginEnabled(name: string, enabled: boolean) {
+export function writePluginEnabled(name: string, enabled: boolean) {
   const path = manifestPathFor(name);
   if (!path) return null;
   const manifest = readJson(path);

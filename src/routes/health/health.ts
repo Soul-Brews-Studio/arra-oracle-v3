@@ -5,6 +5,7 @@ import { sqlite } from '../../db/index.ts';
 import { scanPlugins } from '../plugins/model.ts';
 import { readVectorBackendHealth } from '../../vector/health.ts';
 import { getVectorRuntimeStatus } from '../../vector/runtime-status.ts';
+import { readVectorServerHealth, type VectorServerHealth } from './vector-server.ts';
 import { mcpTools } from '../../tools/mcp-manifest.ts';
 import type { UnifiedPluginStatus } from '../../plugins/unified-loader.ts';
 import { sandboxLabel } from '../../runtime/sandbox-label.ts';
@@ -96,6 +97,7 @@ export interface HealthEndpointOptions {
   isDraining?: () => boolean;
   uptimeSeconds?: () => number;
   vectorHealth?: () => Promise<VectorHealth>;
+  vectorServerHealth?: () => Promise<VectorServerHealth>;
   pluginStatuses?: () => UnifiedPluginStatus[] | Promise<UnifiedPluginStatus[]>;
   dbPing?: DbPing;
   diskPath?: string;
@@ -149,8 +151,14 @@ async function readPluginStatuses(
   }
 }
 
-function aggregateStatus(db: DbStatus, pluginStatus: 'ok' | 'degraded') {
-  return db.status === 'connected' && pluginStatus === 'ok' ? 'ok' : 'degraded';
+function aggregateStatus(db: DbStatus, pluginStatus: 'ok' | 'degraded', vectorServer: VectorServerHealth) {
+  const vectorOk = vectorServer.status !== 'down';
+  return db.status === 'connected' && pluginStatus === 'ok' && vectorOk ? 'ok' : 'degraded';
+}
+
+async function readSafeVectorServerHealth(read = readVectorServerHealth): Promise<VectorServerHealth> {
+  try { return await read(); }
+  catch (error) { return { configured: true, status: 'down', error: errorMessage(error) }; }
 }
 
 function installedPluginCount(): number {
@@ -178,6 +186,7 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
     const dbStatus = await readDbStatus(options.dbPing);
     const vector = await readVectorStatus(options.vectorHealth);
     const pluginItems = await readPluginStatuses(options.pluginStatuses);
+    const vectorServer = await readSafeVectorServerHealth(options.vectorServerHealth);
     const pluginCount = options.pluginCount ?? (pluginItems.length || installedPluginCount());
     const pluginStatus = pluginItems.some((plugin) => plugin.status === 'degraded') ? 'degraded' : 'ok';
     const toolCount = mcpTools.length + (options.pluginMcpToolCount ?? 0);
@@ -185,7 +194,7 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
 
     const serviceUptime = Math.round(uptimeSeconds * 1000) / 1000;
     return {
-      status: aggregateStatus(dbStatus, pluginStatus),
+      status: aggregateStatus(dbStatus, pluginStatus, vectorServer),
       server: MCP_SERVER_NAME,
       version: pkg.version,
       port: Number(PORT),
@@ -203,6 +212,7 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
       uptimeSecondsBreakdown: { seconds: serviceUptime },
       dbCheck: { ...dbStatus, path: DB_PATH },
       vector,
+      vectorServer,
       mcp: { toolCount },
       plugins: { count: pluginCount, status: pluginStatus, items: pluginItems },
     };
