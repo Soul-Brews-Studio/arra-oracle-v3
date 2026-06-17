@@ -8,11 +8,11 @@ export default defineConfig({
   testMatch: /.*\.e2e\.ts$/,
   timeout: 30000,
   use: {
-    baseURL: 'http://localhost:47778',
+    baseURL: 'http://127.0.0.1:47778',
   },
   webServer: {
     command: 'bun run src/server.ts',
-    url: 'http://localhost:47778/api/health',
+    url: 'http://127.0.0.1:47778/api/health',
     reuseExistingServer: !process.env.CI,
     timeout: 30000,
   },
