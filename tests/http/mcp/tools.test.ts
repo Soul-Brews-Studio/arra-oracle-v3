@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createMcpRoutes } from '../../../src/routes/mcp/index.ts';
 import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant.ts';
+import { mcpRestMap } from '../../../src/tools/mcp-rest-map.ts';
 
 test('GET /api/mcp/tools returns core and plugin tool metadata', async () => {
   const app = createMcpRoutes([{
@@ -24,6 +25,22 @@ test('GET /api/mcp/tools returns core and plugin tool metadata', async () => {
     readOnly: true,
   }));
   expect(body.tools.some((tool) => 'handler' in tool)).toBe(false);
+});
+
+test('GET /api/mcp/tools drives core tools from the pure MCP REST map', async () => {
+  const res = await createMcpRoutes().handle(new Request('http://local/api/mcp/tools'));
+  const body = await res.json() as { tools: Array<Record<string, unknown>> };
+  const coreTools = body.tools.filter((tool) => tool.source === 'core');
+
+  expect(coreTools.map((tool) => tool.name)).toEqual(mcpRestMap.map((entry) => entry.name));
+  expect(coreTools.find((tool) => tool.name === 'oracle_search')).toMatchObject({
+    remoteable: true,
+    rest: { method: 'GET', path: '/api/search' },
+  });
+  expect(coreTools.find((tool) => tool.name === 'oracle_mcp_call')).toMatchObject({
+    remoteable: false,
+    localOnlyReason: expect.stringContaining('recurse'),
+  });
 });
 
 test('GET /api/mcp/tools reports active tenant scope', async () => {
