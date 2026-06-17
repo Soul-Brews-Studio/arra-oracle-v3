@@ -12,6 +12,12 @@ export interface StudioEnv {
 }
 
 const WORKER_HEADER = 'oracle-studio-worker';
+const STRIPPED_PROXY_HEADERS = [
+  'host', 'content-length', 'connection', 'keep-alive', 'proxy-authenticate',
+  'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade',
+  'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor', 'x-forwarded-for',
+  'x-real-ip',
+] as const;
 const API_METHODS = 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS';
 const MCP_METHODS = 'GET, HEAD, POST, DELETE, OPTIONS';
 
@@ -123,10 +129,7 @@ function prefixedTarget(baseUrl: string, requestUrl: URL, prefix: string): strin
 
 function proxyHeaders(source: Headers, env: StudioEnv): Headers {
   const headers = new Headers(source);
-  headers.delete('host');
-  headers.delete('cf-connecting-ip');
-  headers.delete('cf-ipcountry');
-  headers.delete('cf-ray');
+  for (const key of STRIPPED_PROXY_HEADERS) headers.delete(key);
   headers.set('x-oracle-studio-worker', WORKER_HEADER);
   const bearer = authToken(env);
   if (bearer) headers.set('authorization', `Bearer ${bearer}`);
