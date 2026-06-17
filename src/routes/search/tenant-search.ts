@@ -124,18 +124,29 @@ export function handleTenantReflect(): Record<string, unknown> | null {
   const row = sqlite.prepare(`
     SELECT d.id, d.type, d.source_file, d.concepts, f.content
     FROM oracle_documents d
-    JOIN oracle_fts f ON d.id = f.id
+    LEFT JOIN oracle_fts f ON d.id = f.id
     WHERE d.tenant_id = ? AND d.type IN ('principle', 'learning')
     ORDER BY RANDOM()
     LIMIT 1
   `).get(tenantId) as ListRow | undefined;
 
-  if (!row) return { error: 'No documents found' };
+  if (!row) return { error: 'No documents found', fts_status: 'empty' };
+  if (!row.content) {
+    return {
+      error: 'Document content not found in FTS index',
+      id: row.id,
+      type: row.type,
+      source_file: row.source_file,
+      concepts: parseConcepts(row.concepts),
+      fts_status: 'missing',
+    };
+  }
   return {
     id: row.id,
     type: row.type,
     content: row.content,
     source_file: row.source_file,
     concepts: parseConcepts(row.concepts),
+    fts_status: 'healthy',
   };
 }
