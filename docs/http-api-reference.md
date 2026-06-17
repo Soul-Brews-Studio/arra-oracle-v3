@@ -174,16 +174,17 @@ Protected routes may require API token/session auth; tenant-aware routes honor `
 | POST | `/api/tenants` | `{ id, name?, status? }` | Upserted tenant. |
 | GET | `/api/tenants/:id` | `id` path. | Tenant detail. |
 
-## Peer and daemon-local routes
+## Federation mesh and daemon-local routes
+
+Federation routes are mounted only when `ORACLE_ENABLED_PLUGINS=federation` is
+set.
 
 | Method | Path | Request | Response |
 |---|---|---|---|
-| GET | `/info` | None. | Peer node info. |
-| GET | `/identity` | None. | Peer identity. |
-| GET | `/peers` | None. | Known peers. |
-| GET | `/peer/feed` | Query filters optional. | Peer feed. |
-| POST | `/peer/search` | Peer search body. | Federated search results. |
-| POST | `/search` | Peer search alias body. | Federated search results. |
+| GET | `/api/federation/status` | None. | Provider status and active capabilities. |
+| GET | `/api/federation/capabilities` | None. | Capability list and mesh node count. |
+| GET | `/api/federation/mesh/nodes` | None. | Registered mesh nodes. |
+| POST | `/api/federation/mesh/nodes/register` | Mesh node body. | Registered mesh node or 400 error. |
 | GET | `/health` | Daemon-local only. | Indexer daemon health/queue depth. |
 | POST | `/index` | `{ doc_id, model_key? }` | Enqueued daemon jobs. |
 | GET | `/jobs` | `status?, model?, limit?` | Recent daemon jobs. |

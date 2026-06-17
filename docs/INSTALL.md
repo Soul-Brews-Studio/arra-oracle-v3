@@ -180,7 +180,7 @@ docker mcp client connect claude-desktop --profile arra_oracle
 | Data directory | `ORACLE_DATA_DIR=$HOME/.oracle` |
 | HTTP port | `ORACLE_PORT=47778` or `--port 47778` |
 | Protected HTTP writes | `ARRA_API_TOKEN=<token>` |
-| Tenant-scoped HTTP | `ARRA_TENANT_TOKENS='team=<token>'` + `x-arra-tenant` |
+| Tenant-scoped HTTP | `ORACLE_TENANT_TOKENS='team=<token>'` + `X-Oracle-Tenant` |
 | MCP proxy mode | `ORACLE_HTTP_URL=http://localhost:47778` |
 | Stdio-safe logs | `ORACLE_LOG_TARGET=stderr` |
 | Disable embeddings | `ORACLE_EMBEDDER=none` |
