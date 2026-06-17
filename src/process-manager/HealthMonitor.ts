@@ -30,19 +30,36 @@ const defaultOptions: Required<HealthCheckOptions> = {
   shutdownPath: '/shutdown'
 };
 
-function normalizePath(value: string): string {
+function normalizePath(value: unknown, fallback = '/'): string {
+  if (typeof value !== 'string') return fallback;
   const trimmed = value.trim();
   if (!trimmed) return '/';
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 }
 
+function optionString(
+  options: unknown,
+  key: keyof Required<HealthCheckOptions>,
+  fallback: string,
+): string {
+  if (!options || typeof options !== 'object') return fallback;
+  try {
+    const value = (options as Record<string, unknown>)[key];
+    return typeof value === 'string' ? value : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function normalizeOptions(options: HealthCheckOptions = {}): Required<HealthCheckOptions> {
-  const opts = { ...defaultOptions, ...options };
+  const baseUrl = optionString(options, 'baseUrl', defaultOptions.baseUrl)
+    .trim()
+    .replace(/\/+$/, '');
   return {
-    baseUrl: opts.baseUrl.replace(/\/+$/, ''),
-    healthPath: normalizePath(opts.healthPath),
-    readinessPath: normalizePath(opts.readinessPath),
-    shutdownPath: normalizePath(opts.shutdownPath),
+    baseUrl: baseUrl || defaultOptions.baseUrl,
+    healthPath: normalizePath(optionString(options, 'healthPath', defaultOptions.healthPath)),
+    readinessPath: normalizePath(optionString(options, 'readinessPath', defaultOptions.readinessPath)),
+    shutdownPath: normalizePath(optionString(options, 'shutdownPath', defaultOptions.shutdownPath)),
   };
 }
 
@@ -173,7 +190,7 @@ export async function getWorkerVersion(
   const opts = normalizeOptions(options);
 
   try {
-    const response = await fetch(`${opts.baseUrl}:${port}${normalizePath(versionPath)}`);
+    const response = await fetch(`${opts.baseUrl}:${port}${normalizePath(versionPath, '/version')}`);
     if (!response.ok) return null;
     const data = await response.json() as { version?: unknown };
     return typeof data.version === 'string' && data.version.trim() ? data.version.trim() : null;

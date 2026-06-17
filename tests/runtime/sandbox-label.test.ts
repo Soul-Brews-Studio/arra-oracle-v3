@@ -30,4 +30,14 @@ describe('runtime sandbox label', () => {
     expect(sandboxLabel({ ARRA_ENV: 'stage' })).toBe('staging');
     expect(sandboxLabel({ NODE_ENV: 'production' })).toBe('dev');
   });
+
+  test('falls back safely when env-like objects throw during lookup', () => {
+    const env = new Proxy({}, {
+      get() {
+        throw new Error('env unavailable');
+      },
+    });
+
+    expect(sandboxLabel(env)).toBe('dev');
+  });
 });
