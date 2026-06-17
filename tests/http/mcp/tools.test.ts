@@ -2,6 +2,9 @@ import { expect, test } from 'bun:test';
 import { createMcpRoutes } from '../../../src/routes/mcp/index.ts';
 import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant.ts';
 import { mcpRestMap } from '../../../src/tools/mcp-rest-map.ts';
+import type { UnifiedRuntime } from '../../../src/plugins/unified-loader.ts';
+
+type PluginTool = UnifiedRuntime['mcpTools'][number];
 
 test('GET /api/mcp/tools returns core and plugin tool metadata', async () => {
   const app = createMcpRoutes([{
@@ -25,6 +28,29 @@ test('GET /api/mcp/tools returns core and plugin tool metadata', async () => {
     readOnly: true,
   }));
   expect(body.tools.some((tool) => 'handler' in tool)).toBe(false);
+});
+
+test('GET /api/mcp/tools reads plugin tools from a live source', async () => {
+  let pluginTools: PluginTool[] = [];
+  const app = createMcpRoutes(() => pluginTools);
+
+  const before = await app.handle(new Request('http://local/api/mcp/tools'));
+  expect((await before.json() as { tools: Array<Record<string, unknown>> }).tools.some((tool) => tool.name === 'oracle_live_source')).toBe(false);
+
+  pluginTools = [{
+    name: 'oracle_live_source',
+    description: 'Live source tool.',
+    inputSchema: { type: 'object' },
+    handler: 'run',
+    plugin: 'live-source',
+  }];
+
+  const after = await app.handle(new Request('http://local/api/mcp/tools'));
+  expect((await after.json() as { tools: Array<Record<string, unknown>> }).tools).toContainEqual(expect.objectContaining({
+    name: 'oracle_live_source',
+    source: 'plugin',
+    plugin: 'live-source',
+  }));
 });
 
 test('GET /api/mcp/tools drives core tools from the pure MCP REST map', async () => {

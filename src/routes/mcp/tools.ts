@@ -5,6 +5,7 @@ import { mcpToolByName, toMcpToolDefinition, type RuntimeMcpToolManifest } from 
 import { mcpRestMap, type McpRestMapEntry } from '../../tools/mcp-rest-map.ts';
 
 type PluginTool = UnifiedRuntime['mcpTools'][number];
+type PluginToolSource = PluginTool[] | (() => PluginTool[]);
 
 type PublicTool = ReturnType<typeof toMcpToolDefinition> & {
   group?: string;
@@ -55,10 +56,15 @@ function pluginTool(tool: PluginTool): PublicTool {
   };
 }
 
-export function createMcpRoutes(pluginTools: PluginTool[] = []) {
+function currentPluginTools(source: PluginToolSource): PluginTool[] {
+  return typeof source === 'function' ? source() : source;
+}
+
+export function createMcpRoutes(pluginTools: PluginToolSource = []) {
   return new Elysia({ prefix: '/api' }).get('/mcp/tools', () => {
     const coreTools = mcpRestMap.map(coreTool).filter((tool): tool is PublicTool => !!tool);
-    const tools = [...coreTools, ...pluginTools.filter(isValidPluginTool).map(pluginTool)];
+    const pluginToolDefinitions = currentPluginTools(pluginTools).filter(isValidPluginTool).map(pluginTool);
+    const tools = [...coreTools, ...pluginToolDefinitions];
     const tenantId = currentTenantId();
     return { tools, total: tools.length, ...(tenantId ? { tenant: { id: tenantId, scope: 'tenant_id' } } : {}) };
   }, {
