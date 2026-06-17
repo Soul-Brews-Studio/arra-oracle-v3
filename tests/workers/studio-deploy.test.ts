@@ -26,7 +26,8 @@ describe('Oracle Studio Worker deploy surface', () => {
     const pkg = readJson('workers/studio/package.json');
 
     expect(pkg.scripts.build).toBe('cd ../../frontend && bun run build');
-    expect(pkg.scripts.deploy).toBe('bun run build && wrangler deploy');
+    expect(pkg.scripts.deploy).toBe('bun run build && wrangler deploy --config wrangler.jsonc');
+    expect(pkg.scripts['dry-run']).toBe('bun run build && wrangler deploy --dry-run --config wrangler.jsonc');
     expect(pkg.type).toBe('module');
     expect(pkg.private).toBe(true);
   });

@@ -62,6 +62,8 @@ describe('workers/mcp deploy package', () => {
     expect(pkg.scripts.deploy).toContain('tsc --noEmit');
     expect(pkg.scripts.deploy).toContain('wrangler deploy');
     expect(pkg.scripts.deploy).toContain('--config wrangler.jsonc');
+    expect(pkg.scripts['dry-run']).toContain('wrangler deploy --dry-run');
+    expect(pkg.scripts['dry-run']).toContain('--config wrangler.jsonc');
     expect(pkg.dependencies).toMatchObject({
       '@modelcontextprotocol/sdk': expect.any(String),
       agents: expect.any(String),

@@ -47,7 +47,7 @@ function Field({ label, value }: { label: string; value: string | number | undef
 
 function StatusBadge({ label, status }: { label: string; status?: string }) {
   return (
-    <div className={`rounded-2xl border p-4 ${statusClass(status)}`}>
+    <div className={`rounded-2xl border p-4 ${statusClass(status)}`} data-contrast-badge>
       <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-80">{label}</p>
       <p className="mt-2 text-2xl font-semibold">{status ?? 'unknown'}</p>
     </div>
@@ -85,7 +85,7 @@ function PluginRows({ health }: { health: HealthResponse }) {
       {items.map((plugin) => (
         <li key={plugin.name} className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center sm:justify-between">
           <a className="focus-ring font-mono text-sm text-teal-100 hover:text-teal-200" href={pluginHealthPath(plugin)}>{plugin.name}</a>
-          <span className={`rounded-full border px-2 py-1 text-xs ${statusClass(plugin.status)}`}>{plugin.status}</span>
+          <span className={`rounded-full border px-2 py-1 text-xs ${statusClass(plugin.status)}`} data-contrast-badge>{plugin.status}</span>
           {plugin.error ? <span className="text-sm text-amber-200">{plugin.error}</span> : null}
         </li>
       ))}
@@ -102,7 +102,7 @@ function ProxyRows({ vector }: { vector: VectorHealthForStatus | null }) {
         <li key={`${row.name}-${row.endpoint}`} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span className="font-mono text-sm text-teal-100">{row.name}</span>
-            <span className={`rounded-full border px-2 py-1 text-xs ${statusClass(row.status === 'up' ? 'ok' : row.status)}`}>{row.status}</span>
+            <span className={`rounded-full border px-2 py-1 text-xs ${statusClass(row.status === 'up' ? 'ok' : row.status)}`} data-contrast-badge>{row.status}</span>
           </div>
           <p className="mt-2 break-words font-mono text-xs text-slate-300">{row.endpoint}</p>
           <p className="mt-1 text-sm text-slate-400">{row.detail}</p>

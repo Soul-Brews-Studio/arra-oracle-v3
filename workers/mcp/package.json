@@ -6,7 +6,8 @@
     "build": "tsc --noEmit",
     "dev": "wrangler dev --config wrangler.jsonc",
     "deploy": "tsc --noEmit && wrangler deploy --config wrangler.jsonc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dry-run": "tsc --noEmit && wrangler deploy --dry-run --config wrangler.jsonc"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
