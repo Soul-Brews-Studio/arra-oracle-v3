@@ -82,6 +82,9 @@ export interface DashboardSummary {
 export type RuntimeStatus = 'ok' | 'down' | 'degraded' | 'draining' | string;
 export type PublicHealthStatus = 'healthy' | 'starting' | 'degraded' | 'down';
 export type HealthSubsystemName = 'backend' | 'database' | 'db' | 'fts' | 'vector' | 'embedder' | 'mcp' | 'plugins' | 'plugin';
+export type HealthUptimeSeconds = number | { seconds: number };
+export type VectorRuntimeMode = 'embedded' | 'proxied' | 'disabled';
+
 
 export interface VectorHealthResponse {
   status: RuntimeStatus;
@@ -107,18 +110,34 @@ export interface HealthResponse {
   server: string;
   version: string;
   port?: number;
+  sandbox?: string;
   oracle?: 'connected' | 'degraded';
   uptimeSeconds?: number;
+  uptimeSecondsBreakdown?: HealthUptimeSeconds;
   dbStatus?: 'connected' | 'error';
   vectorStatus?: RuntimeStatus;
+  vectorMode?: VectorRuntimeMode;
+  vectorAvailable?: boolean;
+  vectorUrl?: string;
+  vectorDisabledReason?: string;
   pluginStatus?: 'ok' | 'degraded';
   mcpToolCount?: number;
   pluginCount?: number;
   draining?: boolean;
-  uptime?: number;
+  uptime?: HealthUptimeSeconds;
   db?: 'connected' | 'error';
-  dbCheck?: { status: 'connected'; path: string } | { status: 'error'; error: string; path: string };
+  dbCheck?: { status: 'connected'; path?: string } | { status: 'error'; error?: string; path?: string };
   vector?: VectorHealthResponse;
+  vectorServer?: {
+    configured: boolean;
+    status: 'ok' | 'down' | 'unconfigured';
+    url?: string;
+    httpStatus?: number;
+    protocol?: string;
+    name?: string;
+    version?: string;
+    error?: string;
+  };
   mcp?: { toolCount: number };
   plugins?: {
     count: number;

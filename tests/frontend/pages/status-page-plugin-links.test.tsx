@@ -8,7 +8,7 @@ const health: HealthResponse = {
   healthStatus: 'degraded',
   server: 'oracle',
   version: '1.0.0',
-  uptime: 90,
+  uptimeSecondsBreakdown: { seconds: 90 },
   dbStatus: 'connected',
   dbCheck: { status: 'connected', path: '/tmp/oracle.db' },
   vectorStatus: 'ok',
@@ -35,6 +35,7 @@ describe('StatusPage plugin health links', () => {
 
     const html = htmlFor(<StatusPage initialHealth={health} />);
     expect(html).toContain('Plugin health');
+    expect(html).toContain('1m 30s');
     expect(html).toContain('href="/plugins?q=echo"');
     expect(html).toContain('href="/plugins?q=broken&amp;visibility=unhealthy"');
   });

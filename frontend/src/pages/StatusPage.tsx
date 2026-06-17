@@ -29,6 +29,15 @@ function statusClass(status?: string): string {
   return 'border-err-border bg-err-bg text-err-text';
 }
 
+function rawSeconds(value: HealthResponse['uptime'] | undefined): number | undefined {
+  if (typeof value === 'number') return value;
+  return value?.seconds;
+}
+
+function healthUptimeSeconds(health: HealthResponse | null): number | undefined {
+  return health?.uptimeSeconds ?? rawSeconds(health?.uptimeSecondsBreakdown) ?? rawSeconds(health?.uptime);
+}
+
 function formatSeconds(seconds?: number): string {
   if (typeof seconds !== 'number' || !Number.isFinite(seconds)) return 'unknown';
   if (seconds < 60) return `${Math.round(seconds)}s`;
@@ -161,7 +170,7 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
     return () => { cancelled = true; };
   }, [client, initialHealth]);
 
-  const uptime = useMemo(() => formatSeconds(health?.uptimeSeconds ?? health?.uptime), [health]);
+  const uptime = useMemo(() => formatSeconds(healthUptimeSeconds(health)), [health]);
   const isLoading = state === 'loading';
 
   return (
