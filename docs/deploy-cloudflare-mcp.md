@@ -20,8 +20,9 @@ planes instead of running in the Worker isolate.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Soul-Brews-Studio/arra-oracle-v3)
 
-Cloudflare clones the public repository, reads `wrangler.jsonc`, provisions the
-`MCP_OBJECT` Durable Object binding, and deploys the Worker. The deployed MCP URL
+Use `workers/mcp/wrangler.jsonc` for the deploy target; it provisions the
+`MCP_OBJECT` Durable Object binding and deploys the Worker. The root
+`wrangler.jsonc` is a legacy teardown config for `arra-oracle-remote-mcp`. The deployed MCP URL
 will be:
 
 ```text
@@ -51,14 +52,15 @@ transport contract.
 | `ORACLE_API_TOKEN` | Optional Bearer token for protected backend calls. |
 | D1/Vectorize/R2 | Future edge-native persistence/search replacements. |
 
-Without `ORACLE_HTTP_URL`, `/health` stays green but `oracle_search` returns a
-clear MCP tool error that explains how to configure the backend.
+Without `ORACLE_ORIGIN_URL` or fallback `ORACLE_URL`, proxy tools return a clear
+MCP tool error that explains how to configure the backend.
 
 ## Manual Wrangler deploy fallback
 
 Use this when the button is not ready or you need to test a branch preview:
 
 ```bash
+cd workers/mcp
 bun install
 bunx tsc --noEmit
 bunx wrangler deploy --config wrangler.jsonc
@@ -74,6 +76,7 @@ curl -sf http://localhost:8787/health
 Store secrets with Wrangler or the Cloudflare dashboard, not in git:
 
 ```bash
+cd workers/mcp
 bunx wrangler secret put ORACLE_API_TOKEN --config wrangler.jsonc
 ```
 
@@ -156,9 +159,9 @@ embedding runtimes. Follow-up slices should add Cloudflare-native storage:
 ## Troubleshooting
 
 - **Deploy button fails early:** confirm the repo is public and points to the
-  directory containing `package.json` and `wrangler.jsonc`.
+  the `workers/mcp` package and `workers/mcp/wrangler.jsonc`.
 - **Build cannot find bindings:** confirm `MCP_OBJECT` exists in
-  `durable_objects.bindings` and migrations list `OracleMcpAgent`.
+  `durable_objects.bindings` and migrations list `OracleMCP`.
 - **`/mcp` returns a browser error:** use MCP Inspector or `mcp-remote`; direct
   browser navigation is not a valid MCP request.
 - **Claude shows no tools:** verify the deployed URL ends in `/mcp`, restart the

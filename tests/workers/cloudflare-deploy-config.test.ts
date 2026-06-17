@@ -64,31 +64,16 @@ function stripTrailingCommas(source: string): string {
 }
 
 describe('Cloudflare deploy metadata', () => {
-  test('root wrangler.jsonc stays parseable and points at the remote MCP worker', () => {
+  test('root Wrangler config only tears down the retired remote MCP Durable Object', () => {
     const cfg = parseJsonc<Record<string, any>>(read('wrangler.jsonc'));
 
     expect(cfg.name).toBe('arra-oracle-remote-mcp');
-    expect(cfg.main).toBe('./src/workers/oracle-mcp.ts');
+    expect(cfg.main).toBe('src/workers/remote-mcp-teardown.ts');
     expect(cfg.compatibility_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(cfg.compatibility_flags).toContain('nodejs_compat');
-    expect(cfg.workers_dev).toBe(true);
-    expect(cfg.observability).toMatchObject({ enabled: true });
-    expect(cfg.vars).toMatchObject({
-      ORACLE_MCP_PATH: '/mcp',
-      ORACLE_STORAGE_BACKEND: 'd1',
-      ORACLE_VECTOR_BACKEND: 'cloudflare-vectorize',
-    });
-  });
-
-  test('package metadata describes each root Wrangler deploy var', () => {
-    const cfg = parseJsonc<Record<string, any>>(read('wrangler.jsonc'));
-    const pkg = readJson<Record<string, any>>('package.json');
-    const bindings = pkg.cloudflare?.bindings ?? {};
-
-    for (const key of Object.keys(cfg.vars ?? {})) {
-      expect(typeof bindings[key]?.description).toBe('string');
-      expect(bindings[key].description.trim().length).toBeGreaterThan(20);
-    }
+    expect(cfg.durable_objects).toBeUndefined();
+    expect(cfg.vars).toBeUndefined();
+    expect(cfg.migrations).toContainEqual({ tag: 'v1', new_sqlite_classes: ['OracleMcpAgent'] });
+    expect(cfg.migrations).toContainEqual({ tag: 'v2', deleted_classes: ['OracleMcpAgent'] });
   });
 
   test('workers/mcp package has explicit build and deploy scripts', () => {
