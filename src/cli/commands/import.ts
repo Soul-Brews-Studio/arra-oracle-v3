@@ -100,6 +100,8 @@ function parseDocument(value: unknown): OracleDocumentInsert {
     origin: optionalString(row, "origin"),
     project: optionalString(row, "project"),
     createdBy: optionalString(row, "createdBy"),
+    usageCount: optionalNumber(row, "usageCount") ?? 0,
+    lastAccessedAt: optionalNumber(row, "lastAccessedAt"),
   };
 }
 
@@ -126,6 +128,8 @@ function updateSet(row: OracleDocumentInsert): Omit<OracleDocumentRow, "id"> {
     origin: row.origin ?? null,
     project: row.project ?? null,
     createdBy: row.createdBy ?? null,
+    usageCount: row.usageCount ?? 0,
+    lastAccessedAt: row.lastAccessedAt ?? null,
   };
 }
 

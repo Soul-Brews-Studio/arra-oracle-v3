@@ -17,6 +17,8 @@ export type MemoryRecord = MemoryInput & {
   tenantId?: string;
   createdAt: string;
   updatedAt: string;
+  usageCount?: number;
+  lastAccessedAt?: string;
 };
 
 type OracleDb = BunSQLiteDatabase<typeof schema>;

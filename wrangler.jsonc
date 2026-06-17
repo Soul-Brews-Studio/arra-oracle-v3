@@ -1,44 +1,17 @@
 /**
- * Cloudflare remote MCP deployment for Arra Oracle.
- * Docs: docs/deploy-cloudflare-mcp.md
+ * Legacy Cloudflare remote MCP teardown for #2227 Slice 0.
+ * Canonical deploy target: workers/mcp/wrangler.jsonc (name: arra-oracle-mcp).
  */
 {
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
   "name": "arra-oracle-remote-mcp",
-  "main": "src/workers/cloudflare-mcp/index.ts",
+  "main": "src/workers/remote-mcp-teardown.ts",
   "compatibility_date": "2026-06-16",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true },
   "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": ["OracleMcpAgent"]
-    }
-  ],
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "MCP_OBJECT",
-        "class_name": "OracleMcpAgent"
-      }
-    ]
-  },
-  "vars": {
-    "ORACLE_HTTP_URL": "",
-    "ORACLE_REMOTE_MCP_NAME": "Arra Oracle Remote MCP",
-    "ORACLE_MCP_PATH": "/mcp",
-    "ORACLE_STORAGE_BACKEND": "http-proxy",
-    "ORACLE_VECTOR_BACKEND": "http-proxy"
-  }
-
-  // Future edge-native storage bindings for follow-up slices:
-  // "ai": { "binding": "AI" },
-  // "d1_databases": [
-  //   { "binding": "ORACLE_DB", "database_name": "arra-oracle", "database_id": "<created-by-cloudflare>" }
-  // ],
-  // "vectorize": [
-  //   { "binding": "ORACLE_VECTORIZE", "index_name": "arra-oracle-vector" }
-  // ],
-  // "secrets": { "required": ["ORACLE_API_TOKEN"] }
+    { "tag": "v1", "new_sqlite_classes": ["OracleMcpAgent"] },
+    { "tag": "v2", "deleted_classes": ["OracleMcpAgent"] }
+  ]
 }
