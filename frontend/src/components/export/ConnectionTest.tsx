@@ -68,9 +68,9 @@ async function readJson(response: Response): Promise<unknown> {
 }
 
 function statusClass(state: TestState): string {
-  if (state === 'connected') return 'border-[color:var(--color-ok-text,#166534)] bg-[var(--color-ok-bg,#dcfce7)] text-[color:var(--color-ok-text,#166534)]';
-  if (state === 'failed') return 'border-[color:var(--color-err-text,#991b1b)] bg-[var(--color-err-bg,#fee2e2)] text-[color:var(--color-err-text,#991b1b)]';
-  return 'border-[color:var(--color-warn-text,#92400e)] bg-[var(--color-warn-bg,#fef3c7)] text-[color:var(--color-warn-text,#92400e)]';
+  if (state === 'connected') return 'border-ok-border bg-ok-bg text-ok-text';
+  if (state === 'failed') return 'border-err-border bg-err-bg text-err-text';
+  return 'border-warn-border bg-warn-bg text-warn-text';
 }
 
 function statusLabel(state: TestState): string {
@@ -81,17 +81,17 @@ function statusLabel(state: TestState): string {
 }
 
 function CollectionList({ collections }: { collections: ExportAppCollection[] }) {
-  if (!collections.length) return <p className="text-sm text-slate-500">No export collections were returned.</p>;
+  if (!collections.length) return <p className="text-sm text-text-muted">No export collections were returned.</p>;
   return (
     <ul className="grid gap-2" aria-label="Available export collections">
       {collections.map((collection) => (
-        <li key={collection.name} className="rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3">
+        <li key={collection.name} className="rounded-xl border border-border bg-surface px-4 py-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate font-semibold text-white">{collection.name}</p>
-              {collection.description ? <p className="mt-1 text-xs text-slate-500">{collection.description}</p> : null}
+              <p className="truncate font-semibold text-text">{collection.name}</p>
+              {collection.description ? <p className="mt-1 text-xs text-text-muted">{collection.description}</p> : null}
             </div>
-            <span className="rounded-full border border-white/10 px-2 py-1 text-xs text-slate-300">
+            <span className="rounded-full border border-border px-2 py-1 text-xs text-text-muted">
               {collection.count.toLocaleString()} docs
             </span>
           </div>
@@ -148,12 +148,12 @@ export function ConnectionTest({ initialBackendUrl = DEFAULT_BACKEND_URL, fetche
   }, []);
 
   return (
-    <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="export-connection-title">
+    <section className="grid gap-4 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="export-connection-title">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Export app</p>
-          <h2 id="export-connection-title" className="mt-2 text-2xl font-semibold text-white">Backend connection</h2>
-          <p className="mt-2 text-sm text-slate-400">Test export app access and inspect available collections.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Export app</p>
+          <h2 id="export-connection-title" className="mt-2 text-2xl font-semibold text-text">Backend connection</h2>
+          <p className="mt-2 text-sm text-text-muted">Test export app access and inspect available collections.</p>
         </div>
         <span className={`inline-flex w-fit items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${statusClass(state)}`}>
           <span aria-hidden="true">●</span>{statusLabel(state)}
@@ -163,23 +163,23 @@ export function ConnectionTest({ initialBackendUrl = DEFAULT_BACKEND_URL, fetche
       <BackendSelector value={backendUrl} onChange={setBackendUrl} />
       <div className="flex flex-wrap items-center gap-3">
         <button
-          className="focus-ring rounded-xl bg-teal-300 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-60"
+          className="focus-ring rounded-xl bg-accent-solid px-5 py-3 text-sm font-semibold text-on-accent hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
           disabled={state === 'testing'}
           type="button"
           onClick={() => void testConnection()}
         >
           {state === 'testing' ? <Spinner label="Testing" /> : 'Test connection'}
         </button>
-        <p className="text-sm text-slate-500">{message}</p>
+        <p className="text-sm text-text-muted">{message}</p>
       </div>
 
       {state === 'testing' ? <LoadingPanel title="Testing backend..." detail="Checking /api/v1/export/test-connection." /> : null}
       {state === 'failed' ? <ErrorMessage title="Connection failed." message={message} /> : null}
 
-      <section className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4" aria-label="Export collections">
+      <section className="grid gap-3 rounded-2xl border border-border bg-surface-muted p-4" aria-label="Export collections">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-lg font-semibold text-white">Collections</h3>
-          <span className="rounded-full border border-white/10 px-2 py-1 text-xs text-slate-300">
+          <h3 className="text-lg font-semibold text-text">Collections</h3>
+          <span className="rounded-full border border-border px-2 py-1 text-xs text-text-muted">
             {totalDocs.toLocaleString()} docs
           </span>
         </div>

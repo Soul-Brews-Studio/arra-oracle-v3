@@ -69,13 +69,13 @@ function ResultCard({ result }: { result: VectorSearchResult }) {
   const percent = distancePercent(result);
   const concepts = conceptsFor(result);
   return (
-    <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 shadow-lg shadow-black/20">
+    <article className="rounded-2xl border border-border bg-slate-900/70 p-4 shadow-lg shadow-black/20">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-base font-semibold text-white">{titleFor(result)}</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-300">{contentPreview(result.content)}</p>
+          <h2 className="text-base font-semibold text-text">{titleFor(result)}</h2>
+          <p className="mt-1 text-sm leading-6 text-text-muted">{contentPreview(result.content)}</p>
         </div>
-        <span className="rounded-full border border-[color:var(--color-accent,#0f766e)] px-2 py-1 text-xs font-semibold text-[color:var(--color-accent,#0f766e)]">
+        <span className="rounded-full border border-accent-border px-2 py-1 text-xs font-semibold text-accent">
           distance {distanceLabel(result)}
         </span>
       </div>
@@ -84,11 +84,11 @@ function ResultCard({ result }: { result: VectorSearchResult }) {
           <span className="block h-full rounded-full bg-gradient-to-r from-teal-400 to-cyan-300" style={{ width: `${percent}%` }} />
         </div>
       </div>
-      <dl aria-label="Vector result metadata" className="mt-4 grid gap-2 text-xs text-slate-400 sm:grid-cols-3">
-        <div><dt className="font-semibold text-slate-300">type</dt><dd>{result.type || '—'}</dd></div>
-        <div><dt className="font-semibold text-slate-300">source_file</dt><dd className="break-all">{result.source_file || '—'}</dd></div>
-        <div><dt className="font-semibold text-slate-300">model</dt><dd>{result.model || 'selected collection'}</dd></div>
-        {concepts.length ? <div className="sm:col-span-3"><dt className="font-semibold text-slate-300">concepts</dt><dd className="mt-1 flex flex-wrap gap-1">{concepts.map((concept) => <span key={concept} className="rounded-full border border-[color:var(--color-accent,#0f766e)] px-2 py-0.5 text-[color:var(--color-accent,#0f766e)]">{concept}</span>)}</dd></div> : null}
+      <dl aria-label="Vector result metadata" className="mt-4 grid gap-2 text-xs text-text-muted sm:grid-cols-3">
+        <div><dt className="font-semibold text-text-muted">type</dt><dd>{result.type || '—'}</dd></div>
+        <div><dt className="font-semibold text-text-muted">source_file</dt><dd className="break-all">{result.source_file || '—'}</dd></div>
+        <div><dt className="font-semibold text-text-muted">model</dt><dd>{result.model || 'selected collection'}</dd></div>
+        {concepts.length ? <div className="sm:col-span-3"><dt className="font-semibold text-text-muted">concepts</dt><dd className="mt-1 flex flex-wrap gap-1">{concepts.map((concept) => <span key={concept} className="rounded-full border border-accent-border px-2 py-0.5 text-accent">{concept}</span>)}</dd></div> : null}
       </dl>
     </article>
   );
@@ -146,25 +146,25 @@ export function VectorSearchPage({ client = apiClient }: { client?: VectorSearch
   }
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-search-preview-title">
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-search-preview-title">
       <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Vector</p>
-        <h1 id="vector-search-preview-title" className="mt-2 text-3xl font-semibold text-white">Vector search preview</h1>
-        <p className="mt-2 text-sm text-slate-400">Preview semantic matches from /api/v1/vector/search by collection.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Vector</p>
+        <h1 id="vector-search-preview-title" className="mt-2 text-3xl font-semibold text-text">Vector search preview</h1>
+        <p className="mt-2 text-sm text-text-muted">Preview semantic matches from /api/v1/vector/search by collection.</p>
       </div>
 
       <form aria-label="Vector search preview form" onSubmit={submit} className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_18rem_auto]">
-        <input aria-label="Vector search query" className="focus-ring min-w-0 rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100 placeholder:text-slate-600" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search vector memory…" type="search" />
-        <select aria-label="Vector collection" className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100" value={collectionKey} onChange={(event) => setCollectionKey(event.target.value)}>
+        <input aria-label="Vector search query" className="focus-ring min-w-0 rounded-xl border border-border bg-field px-4 py-3 text-text placeholder:text-slate-600" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search vector memory…" type="search" />
+        <select aria-label="Vector collection" className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-text" value={collectionKey} onChange={(event) => setCollectionKey(event.target.value)}>
           {collections.map((collection) => <option key={collection.key} value={collection.key}>{collectionLabel(collection)}</option>)}
         </select>
-        <button aria-label="Submit vector search" className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-50" disabled={state === 'loading' || !query.trim()} type="submit">
+        <button aria-label="Submit vector search" className="focus-ring rounded-xl bg-accent-solid px-5 py-3 font-semibold text-on-accent transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50" disabled={state === 'loading' || !query.trim()} type="submit">
           {state === 'loading' ? 'Searching…' : 'Search'}
         </button>
       </form>
 
-      <p className="mt-4 text-sm text-slate-500">{status}</p>
-      {error ? <p role="alert" className="mt-3 rounded-xl border border-[color:var(--color-err-text,#991b1b)] bg-[var(--color-err-bg,#fee2e2)] p-3 text-sm text-[color:var(--color-err-text,#991b1b)]">{error}</p> : null}
+      <p className="mt-4 text-sm text-text-muted">{status}</p>
+      {error ? <p role="alert" className="mt-3 rounded-xl border border-err-border bg-err-bg p-3 text-sm text-err-text">{error}</p> : null}
       <div className="mt-5 grid gap-3 lg:grid-cols-2" aria-busy={state === 'loading'}>
         {state !== 'loading' ? results.map((result) => <ResultCard key={result.id} result={result} />) : null}
       </div>

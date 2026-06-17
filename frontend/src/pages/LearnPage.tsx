@@ -55,23 +55,23 @@ function LearnForm({ editing, form, saving, onChange, onCancel, onSubmit }: {
 }) {
   const disabled = saving || !patternFromForm(form);
   return (
-    <form className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4" aria-label="Learn entry form" onSubmit={onSubmit}>
+    <form className="grid gap-3 rounded-2xl border border-border bg-surface-muted p-4" aria-label="Learn entry form" onSubmit={onSubmit}>
       <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-        <label className="grid gap-2 text-sm font-medium text-slate-300">
+        <label className="grid gap-2 text-sm font-medium text-text-muted">
           Learning title
-          <input className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100" value={form.title} onChange={(event) => onChange({ ...form, title: event.currentTarget.value })} />
+          <input className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-text" value={form.title} onChange={(event) => onChange({ ...form, title: event.currentTarget.value })} />
         </label>
-        {editing ? <button className="focus-ring rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold text-slate-200" type="button" onClick={onCancel}>Cancel edit</button> : null}
+        {editing ? <button className="focus-ring rounded-xl border border-border px-4 py-3 text-sm font-semibold text-text" type="button" onClick={onCancel}>Cancel edit</button> : null}
       </div>
-      <label className="grid gap-2 text-sm font-medium text-slate-300">
+      <label className="grid gap-2 text-sm font-medium text-text-muted">
         Content
-        <textarea className="focus-ring min-h-36 rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100" value={form.content} onChange={(event) => onChange({ ...form, content: event.currentTarget.value })} />
+        <textarea className="focus-ring min-h-36 rounded-xl border border-border bg-field px-4 py-3 text-text" value={form.content} onChange={(event) => onChange({ ...form, content: event.currentTarget.value })} />
       </label>
-      <label className="grid gap-2 text-sm font-medium text-slate-300">
+      <label className="grid gap-2 text-sm font-medium text-text-muted">
         Concepts
-        <input className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100" placeholder="comma, separated, concepts" value={form.concepts} onChange={(event) => onChange({ ...form, concepts: event.currentTarget.value })} />
+        <input className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-text" placeholder="comma, separated, concepts" value={form.concepts} onChange={(event) => onChange({ ...form, concepts: event.currentTarget.value })} />
       </label>
-      <button className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-50" disabled={disabled} type="submit">
+      <button className="focus-ring rounded-xl bg-accent-solid px-5 py-3 font-semibold text-on-accent transition hover:bg-accent-solid disabled:cursor-not-allowed disabled:opacity-50" disabled={disabled} type="submit">
         {saving ? 'Saving…' : editing ? 'Update learning' : 'Add learning'}
       </button>
     </form>
@@ -88,19 +88,19 @@ export function LearnEntryList({ entries, busy, onDelete, onEdit }: {
   return (
     <ul className="grid gap-3" aria-label="Learn entries">
       {entries.map((entry) => (
-        <li key={entry.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <li key={entry.id} className="rounded-2xl border border-border bg-surface-muted p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-white">{entry.title}</h2>
-              <p className="mt-1 text-xs text-slate-500">{entry.sourceFile}</p>
+              <h2 className="text-xl font-semibold text-text">{entry.title}</h2>
+              <p className="mt-1 text-xs text-text-muted">{entry.sourceFile}</p>
             </div>
             <div className="flex gap-2">
-              <button className="focus-ring rounded-lg border border-white/10 px-3 py-2 text-sm font-semibold text-slate-200" disabled={busy} type="button" onClick={() => onEdit(entry)}>Edit</button>
-              <button className="focus-ring rounded-lg border border-red-300/30 px-3 py-2 text-sm font-semibold text-red-100" disabled={busy} type="button" onClick={() => onDelete(entry)}>Soft-delete</button>
+              <button className="focus-ring rounded-lg border border-border px-3 py-2 text-sm font-semibold text-text" disabled={busy} type="button" onClick={() => onEdit(entry)}>Edit</button>
+              <button className="focus-ring rounded-lg border border-err-border/30 px-3 py-2 text-sm font-semibold text-err-text" disabled={busy} type="button" onClick={() => onDelete(entry)}>Soft-delete</button>
             </div>
           </div>
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-300">{entry.content}</p>
-          {entry.concepts.length ? <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-teal-200">{entry.concepts.join(' · ')}</p> : null}
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-text-muted">{entry.content}</p>
+          {entry.concepts.length ? <p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-accent">{entry.concepts.join(' · ')}</p> : null}
         </li>
       ))}
     </ul>
@@ -159,14 +159,14 @@ export function LearnPage({ client = apiClient }: { client?: LearnClient }) {
 
   const busy = state === 'loading' || state === 'saving';
   return (
-    <section className="grid gap-5 rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="learn-page-title">
+    <section className="grid gap-5 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="learn-page-title">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Learn</p>
-        <h1 id="learn-page-title" className="mt-2 text-3xl font-semibold text-white">Learn entries</h1>
-        <p className="mt-2 text-sm text-slate-400">List, add, edit, and soft-delete Oracle learnings through /api/v1/learn.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Learn</p>
+        <h1 id="learn-page-title" className="mt-2 text-3xl font-semibold text-text">Learn entries</h1>
+        <p className="mt-2 text-sm text-text-muted">List, add, edit, and soft-delete Oracle learnings through /api/v1/learn.</p>
       </div>
       <LearnForm editing={Boolean(editingId)} form={form} saving={state === 'saving'} onChange={setForm} onCancel={() => { setEditingId(null); setForm(emptyForm); }} onSubmit={submit} />
-      <p className="text-sm text-slate-500">{learnSummary(state, entries.length)}</p>
+      <p className="text-sm text-text-muted">{learnSummary(state, entries.length)}</p>
       {state === 'loading' ? <LoadingPanel title="Loading learn entries…" detail="Fetching /api/v1/learn from the Elysia backend." /> : null}
       {state === 'error' ? <ErrorMessage title="Learn operation failed." message={error} /> : null}
       {state !== 'loading' ? <LearnEntryList entries={entries} busy={busy} onDelete={(entry) => void remove(entry)} onEdit={(entry) => { setEditingId(entry.id); setForm(formFromEntry(entry)); }} /> : null}

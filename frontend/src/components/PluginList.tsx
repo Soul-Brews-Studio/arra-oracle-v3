@@ -98,11 +98,11 @@ export function PluginList({
         const health = pluginHealthLabel(plugin, enabled);
         const surfaceRows = pluginSurfaceRows(plugin);
         return (
-          <article key={plugin.name} className="rounded-2xl border border-white/10 bg-slate-950/60 p-5">
+          <article key={plugin.name} className="rounded-2xl border border-border bg-surface p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-white">{plugin.name}</h3>
-                <p className="mt-1 text-sm text-slate-400">{plugin.description ?? 'No description supplied.'}</p>
+                <h3 className="text-lg font-semibold text-text">{plugin.name}</h3>
+                <p className="mt-1 text-sm text-text-muted">{plugin.description ?? 'No description supplied.'}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge>{status}</Badge>
@@ -122,28 +122,28 @@ export function PluginList({
             </div>
             <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-slate-500">Version</dt>
-                <dd className="font-mono text-slate-200">{plugin.version ?? 'unknown'}</dd>
+                <dt className="text-text-muted">Version</dt>
+                <dd className="font-mono text-text">{plugin.version ?? 'unknown'}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Status</dt>
-                <dd className="font-mono text-slate-200">{status}</dd>
+                <dt className="text-text-muted">Status</dt>
+                <dd className="font-mono text-text">{status}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Health</dt>
-                <dd className="font-mono text-slate-200">{health}</dd>
+                <dt className="text-text-muted">Health</dt>
+                <dd className="font-mono text-text">{health}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Artifact</dt>
-                <dd className="font-mono text-slate-200">{plugin.file || 'server-only'}</dd>
+                <dt className="text-text-muted">Artifact</dt>
+                <dd className="font-mono text-text">{plugin.file || 'server-only'}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Admin</dt>
+                <dt className="text-text-muted">Admin</dt>
                 <dd>
                   <button
                     aria-label={`${enabled ? 'Disable' : 'Enable'} ${plugin.name}`}
                     aria-pressed={enabled}
-                    className="focus-ring rounded-lg border border-[color:var(--color-accent,#0f766e)] px-3 py-2 font-semibold text-[color:var(--color-accent,#0f766e)] transition hover:bg-[var(--color-ok-bg,#dcfce7)]"
+                    className="focus-ring rounded-lg border border-accent-border px-3 py-2 font-semibold text-accent transition hover:bg-ok-bg"
                     type="button"
                     onClick={() => onToggle?.(plugin.name)}
                   >
@@ -153,17 +153,17 @@ export function PluginList({
               </div>
               {plugin.error ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-slate-500">Error</dt>
-                  <dd className="text-[color:var(--color-warn-text,#92400e)]">{plugin.error}</dd>
+                  <dt className="text-text-muted">Error</dt>
+                  <dd className="text-warn-text">{plugin.error}</dd>
                 </div>
               ) : null}
               {surfaceRows.length ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-slate-500">Surface details</dt>
+                  <dt className="text-text-muted">Surface details</dt>
                   <dd className="mt-2 grid gap-2">
                     {surfaceRows.map((row) => (
-                      <a key={`${row.label}:${row.value}`} className="focus-ring rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 font-mono text-xs text-slate-200 hover:border-teal-300/40" href={row.href}>
-                        <span className="font-sans text-slate-500">{row.label}: </span>{row.value}
+                      <a key={`${row.label}:${row.value}`} className="focus-ring rounded-lg border border-border bg-surface-muted px-3 py-2 font-mono text-xs text-text hover:border-teal-300/40" href={row.href}>
+                        <span className="font-sans text-text-muted">{row.label}: </span>{row.value}
                       </a>
                     ))}
                   </dd>

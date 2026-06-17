@@ -65,14 +65,14 @@ export function VectorSearchResultsPage() {
   }
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-results-title">
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-results-title">
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Vector</p>
-          <h1 id="vector-results-title" className="mt-2 text-3xl font-semibold text-white">Vector search results</h1>
-          <p className="mt-2 text-sm text-slate-400">Full-page results from /api/search?mode=vector.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Vector</p>
+          <h1 id="vector-results-title" className="mt-2 text-3xl font-semibold text-text">Vector search results</h1>
+          <p className="mt-2 text-sm text-text-muted">Full-page results from /api/search?mode=vector.</p>
         </div>
-        <Link className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" to="/vector">
+        <Link className="focus-ring rounded-xl border border-border px-4 py-2 text-sm text-text hover:border-accent-border" to="/vector">
           Back to vector search
         </Link>
       </div>
@@ -80,19 +80,19 @@ export function VectorSearchResultsPage() {
       <form aria-label="Full-page vector search form" onSubmit={submit} className="flex flex-col gap-3 sm:flex-row">
         <input
           aria-label="Vector search query"
-          className="focus-ring min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100 placeholder:text-slate-600"
+          className="focus-ring min-w-0 flex-1 rounded-xl border border-border bg-field px-4 py-3 text-text placeholder:text-text-muted"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search vector memory…"
           type="search"
         />
-        <button aria-label="Run vector search" className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-50" disabled={state === 'loading' || !query.trim()} type="submit">
+        <button aria-label="Run vector search" className="focus-ring rounded-xl bg-accent-solid px-5 py-3 font-semibold text-on-accent transition hover:bg-accent-solid disabled:cursor-not-allowed disabled:opacity-50" disabled={state === 'loading' || !query.trim()} type="submit">
           {state === 'loading' ? 'Searching…' : 'Search'}
         </button>
       </form>
 
-      <p className="mt-4 text-sm text-slate-500">{status}</p>
-      {error ? <p role="alert" className="mt-3 rounded-xl border border-red-400/30 bg-red-950/40 p-3 text-sm text-red-100">{error}</p> : null}
+      <p className="mt-4 text-sm text-text-muted">{status}</p>
+      {error ? <p role="alert" className="mt-3 rounded-xl border border-err-border bg-err-bg p-3 text-sm text-err-text">{error}</p> : null}
       <div className="mt-5 grid gap-3 lg:grid-cols-2">{results.map((result) => <SearchResultCard key={result.id} result={result} />)}</div>
     </section>
   );

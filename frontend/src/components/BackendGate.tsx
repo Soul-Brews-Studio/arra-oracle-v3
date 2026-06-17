@@ -86,42 +86,42 @@ export function ConnectOracleSetup({
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-950 p-6 text-slate-100">
-      <section className="w-full max-w-xl rounded-3xl border border-white/10 bg-white/[0.04] p-8 shadow-2xl">
-        <p className="text-sm font-semibold uppercase tracking-[0.3em] text-teal-300">
+    <main className="flex min-h-screen items-center justify-center bg-field p-6 text-text">
+      <section className="w-full max-w-xl rounded-3xl border border-border bg-surface-muted p-8 shadow-2xl">
+        <p className="text-sm font-semibold uppercase tracking-[0.3em] text-accent">
           ARRA Oracle
         </p>
         <h1 className="mt-3 text-3xl font-bold">{state === "unreachable" ? "Backend unavailable" : "Connect to your Oracle"}</h1>
-        <p className="mt-4 text-sm text-slate-300">
+        <p className="mt-4 text-sm text-text-muted">
           {state === "checking"
             ? `Checking backend health at ${target}.`
             : `Cannot reach ${target}: ${message}`}
         </p>
         <form className="mt-6 space-y-3" onSubmit={connect}>
-          <label className="block text-sm font-semibold text-slate-200" htmlFor="oracle-host">
+          <label className="block text-sm font-semibold text-text" htmlFor="oracle-host">
             Local Oracle host
           </label>
           <input
             id="oracle-host"
-            className="w-full rounded-2xl border border-white/15 bg-slate-900 px-4 py-3 text-sm text-slate-100 outline-none focus:border-teal-300"
+            className="w-full rounded-2xl border border-border bg-field px-4 py-3 text-sm text-text outline-none focus:border-accent"
             placeholder={DEFAULT_ORACLE_HOST}
             value={host}
             onChange={(event) => setHost(event.currentTarget.value)}
           />
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-text-muted">
             Start your backend with <code>arra-oracle-v3 serve</code>, then connect from hosted Studio.
             {!hasStoredApiHost() ? " The default is localhost:47778." : null}
           </p>
           <div className="flex flex-wrap gap-3">
             <button
-              className="focus-ring rounded-full bg-teal-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-teal-300"
+              className="focus-ring rounded-full bg-accent-solid px-4 py-2 text-sm font-semibold text-on-accent hover:bg-accent-solid"
               type="submit"
             >
               Use this backend
             </button>
             {state === "unreachable" && isTauri && (
               <button
-                className="focus-ring rounded-full border border-teal-300/60 px-4 py-2 text-sm font-semibold text-teal-100 hover:bg-teal-300/10 disabled:opacity-60"
+                className="focus-ring rounded-full border border-accent-border px-4 py-2 text-sm font-semibold text-accent hover:bg-accent-solid/10 disabled:opacity-60"
                 disabled={starting}
                 type="button"
                 onClick={onStartBackend}
@@ -130,7 +130,7 @@ export function ConnectOracleSetup({
               </button>
             )}
             <button
-              className="focus-ring rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-white/10"
+              className="focus-ring rounded-full border border-border px-4 py-2 text-sm font-semibold text-text hover:bg-surface-muted"
               type="button"
               onClick={onRetry}
             >

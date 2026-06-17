@@ -166,42 +166,42 @@ export function VectorDocumentsPage() {
   }
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-documents-title">
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-documents-title">
       <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Vector</p>
-        <h1 id="vector-documents-title" className="mt-2 text-3xl font-semibold text-white">Vector documents</h1>
-        <p className="mt-2 text-sm text-slate-400">Browse indexed document content and metadata by collection.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Vector</p>
+        <h1 id="vector-documents-title" className="mt-2 text-3xl font-semibold text-text">Vector documents</h1>
+        <p className="mt-2 text-sm text-text-muted">Browse indexed document content and metadata by collection.</p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-        <label className="grid gap-2 text-sm font-medium text-slate-300">
+        <label className="grid gap-2 text-sm font-medium text-text-muted">
           Collection
-          <select aria-label="Vector collection" className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100" value={collection} onChange={(event) => chooseCollection(event.target.value)}>
+          <select aria-label="Vector collection" className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-text" value={collection} onChange={(event) => chooseCollection(event.target.value)}>
             {collections.length ? collections.map((item) => (
               <option key={item.collection} value={item.collection}>{item.key} · {item.collection}{item.count !== undefined ? ` (${item.count})` : ''}</option>
             )) : <option value="">No collections loaded</option>}
           </select>
         </label>
-        <p className="text-sm text-slate-500">Page {page} · limit {PAGE_LIMIT}</p>
+        <p className="text-sm text-text-muted">Page {page} · limit {PAGE_LIMIT}</p>
       </div>
 
-      <p className="mt-4 text-sm text-slate-500">{status}</p>
-      {error ? <p role="alert" className="mt-3 rounded-xl border border-red-400/30 bg-red-950/40 p-3 text-sm text-red-100">{error}</p> : null}
+      <p className="mt-4 text-sm text-text-muted">{status}</p>
+      {error ? <p role="alert" className="mt-3 rounded-xl border border-err-border bg-err-bg p-3 text-sm text-err-text">{error}</p> : null}
 
-      <div className="mt-5 overflow-x-auto rounded-2xl border border-white/10">
-        <table className="min-w-full divide-y divide-white/10 text-left text-sm">
-          <thead className="bg-white/5 text-xs uppercase tracking-[0.18em] text-slate-400">
+      <div className="mt-5 overflow-x-auto rounded-2xl border border-border">
+        <table className="min-w-full divide-y divide-border text-left text-sm">
+          <thead className="bg-surface-muted text-xs uppercase tracking-[0.18em] text-text-muted">
             <tr><th className="px-4 py-3">ID</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Source file</th><th className="px-4 py-3">Preview</th></tr>
           </thead>
-          <tbody className="divide-y divide-white/10 text-slate-200" aria-busy={state === 'loading'}>
+          <tbody className="divide-y divide-border text-text" aria-busy={state === 'loading'}>
             {documents.map((document) => {
               const expanded = expandedId === document.id;
               return (
-                <tr key={document.id} role="button" tabIndex={0} aria-expanded={expanded} className="cursor-pointer align-top hover:bg-white/[0.04]" onClick={() => setExpandedId(expanded ? null : document.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setExpandedId(expanded ? null : document.id); } }}>
-                  <td className="px-4 py-3 font-mono text-xs text-teal-200">{document.id}</td>
-                  <td className="px-4 py-3 text-slate-300">{document.type || '—'}</td>
-                  <td className="px-4 py-3 text-slate-300">{document.source_file || '—'}</td>
-                  <td className="px-4 py-3 text-slate-400">{expanded ? <div className="grid gap-3"><p className="whitespace-pre-wrap text-slate-200">{document.content}</p><pre className="overflow-x-auto rounded-xl bg-slate-900 p-3 text-xs text-slate-300">{metadataText(document)}</pre></div> : contentPreview(document.content)}</td>
+                <tr key={document.id} role="button" tabIndex={0} aria-expanded={expanded} className="cursor-pointer align-top hover:bg-surface-muted" onClick={() => setExpandedId(expanded ? null : document.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setExpandedId(expanded ? null : document.id); } }}>
+                  <td className="px-4 py-3 font-mono text-xs text-accent">{document.id}</td>
+                  <td className="px-4 py-3 text-text-muted">{document.type || '—'}</td>
+                  <td className="px-4 py-3 text-text-muted">{document.source_file || '—'}</td>
+                  <td className="px-4 py-3 text-text-muted">{expanded ? <div className="grid gap-3"><p className="whitespace-pre-wrap text-text">{document.content}</p><pre className="overflow-x-auto rounded-xl bg-field p-3 text-xs text-text-muted">{metadataText(document)}</pre></div> : contentPreview(document.content)}</td>
                 </tr>
               );
             })}
@@ -210,9 +210,9 @@ export function VectorDocumentsPage() {
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-3">
-        <button className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 disabled:cursor-not-allowed disabled:opacity-50" disabled={page <= 1 || state === 'loading'} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</button>
-        <span className="text-sm text-slate-500">{total ? `Rows ${(page - 1) * PAGE_LIMIT + 1}-${Math.min(page * PAGE_LIMIT, total)} of ${total}` : 'No rows'}</span>
-        <button className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 disabled:cursor-not-allowed disabled:opacity-50" disabled={!hasNext || state === 'loading'} type="button" onClick={() => setPage((value) => value + 1)}>Next</button>
+        <button className="focus-ring rounded-xl border border-border px-4 py-2 text-sm text-text disabled:cursor-not-allowed disabled:opacity-50" disabled={page <= 1 || state === 'loading'} type="button" onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</button>
+        <span className="text-sm text-text-muted">{total ? `Rows ${(page - 1) * PAGE_LIMIT + 1}-${Math.min(page * PAGE_LIMIT, total)} of ${total}` : 'No rows'}</span>
+        <button className="focus-ring rounded-xl border border-border px-4 py-2 text-sm text-text disabled:cursor-not-allowed disabled:opacity-50" disabled={!hasNext || state === 'loading'} type="button" onClick={() => setPage((value) => value + 1)}>Next</button>
       </div>
     </section>
   );
