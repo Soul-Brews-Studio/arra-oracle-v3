@@ -56,7 +56,7 @@ export function proxyRequestFromEntry(
 ): ProxyRequest | null {
   const path = pathFor(entry, input);
   if (!path) return null;
-  const body = bodyFor(entry.body, input);
+  const body = bodyFor(entry, input);
   return {
     method: entry.method,
     path,
@@ -127,16 +127,22 @@ function pathFor(entry: RemoteableMcpRestEntry, input: ToolInput): string | null
   return path;
 }
 
-function bodyFor(mode: McpRestBodyMode | undefined, input: ToolInput): unknown {
+function bodyFor(entry: RemoteableMcpRestEntry, input: ToolInput): unknown {
+  const mode = entry.body;
   if (!mode) return undefined;
   if (mode === 'thread-message') {
     return { message: input.message, thread_id: input.threadId, title: input.title, role: input.role ?? 'claude', model: input.model, reopen: input.reopen };
   }
   if (mode === 'thread-status') return { status: input.status };
   if (mode === 'trace-link') return { nextId: input.nextTraceId };
-  const body = { ...input };
-  delete body[TENANT_ARG];
+  const body = pickBody(bodyArgs(entry.name, mode), input);
   if (mode === 'trace-distill') delete body.traceId;
+  return body;
+}
+
+function pickBody(keys: readonly string[], input: ToolInput): ToolInput {
+  const body: ToolInput = {};
+  for (const key of keys) if (key !== TENANT_ARG && key in input) body[key] = input[key];
   return body;
 }
 

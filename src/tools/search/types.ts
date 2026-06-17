@@ -44,4 +44,6 @@ export type CombinedSearchResult = {
   superseded_by?: string;
   superseded_at?: string | null;
   superseded_reason?: string | null;
+  valid_time?: string | null;
+  valid_until?: string | null;
 };

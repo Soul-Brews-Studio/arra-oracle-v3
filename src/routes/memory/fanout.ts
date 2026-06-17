@@ -103,6 +103,9 @@ function toSearchResults(collection: string, result: VectorQueryResult): FanoutS
       updatedAt: dateText(metadata.updatedAt ?? metadata.updated_at),
       usageCount: numberValue(metadata.usageCount ?? metadata.usage_count),
       lastAccessedAt: dateText(metadata.lastAccessedAt ?? metadata.last_accessed_at),
+      superseded_by: text(metadata.superseded_by ?? metadata.supersededBy),
+      superseded_at: dateText(metadata.superseded_at ?? metadata.supersededAt),
+      superseded_reason: text(metadata.superseded_reason ?? metadata.supersededReason),
     };
   });
 }

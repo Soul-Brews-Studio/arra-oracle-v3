@@ -71,6 +71,28 @@ describe('studio Cloudflare Worker API proxy edge cases', () => {
     expect(seen).toEqual([{ method: 'POST', contentType: 'application/json', body: '{"pattern":"deploy"}' }]);
   });
 
+  test('strips spoofable proxy headers before forwarding API requests', async () => {
+    const seen: Headers[] = [];
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      seen.push(new Headers(init?.headers));
+      return Response.json({ ok: true });
+    }) as typeof fetch;
+
+    await handleStudioRequest(new Request('https://studio.example/api/search', {
+      headers: {
+        host: 'evil.example',
+        connection: 'upgrade',
+        'cf-connecting-ip': '203.0.113.10',
+        'x-forwarded-for': '203.0.113.11',
+      },
+    }), env());
+
+    expect(seen[0].get('host')).toBeNull();
+    expect(seen[0].get('connection')).toBeNull();
+    expect(seen[0].get('cf-connecting-ip')).toBeNull();
+    expect(seen[0].get('x-forwarded-for')).toBeNull();
+  });
+
   test('returns a no-store proxy error when ORACLE_URL is not configured', async () => {
     globalThis.fetch = (async () => { throw new Error('should not fetch upstream'); }) as typeof fetch;
 

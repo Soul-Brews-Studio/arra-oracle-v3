@@ -23,7 +23,9 @@ CREATE TABLE oracle_documents (
   origin TEXT,
   project TEXT,
   tenant_id TEXT NOT NULL DEFAULT 'default',
-  created_by TEXT
+  created_by TEXT,
+  usage_count INTEGER NOT NULL DEFAULT 0,
+  last_accessed_at INTEGER
 );
 CREATE VIRTUAL TABLE oracle_fts USING fts5(id UNINDEXED, content, concepts, tokenize='porter unicode61');
 CREATE TABLE indexing_jobs (

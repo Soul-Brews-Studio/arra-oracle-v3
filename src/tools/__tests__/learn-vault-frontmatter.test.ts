@@ -19,6 +19,7 @@ CREATE TABLE oracle_documents (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   indexed_at INTEGER NOT NULL,
+  valid_time INTEGER,
   superseded_by TEXT,
   superseded_at INTEGER,
   superseded_reason TEXT,

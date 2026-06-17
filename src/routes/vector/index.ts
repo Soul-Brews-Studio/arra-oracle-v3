@@ -24,6 +24,7 @@
 
 import { Elysia } from 'elysia';
 import { vectorSearchEndpoint } from './search.ts';
+import { entitySearchEndpoint } from './entity-search.ts';
 import { fanoutEndpoint } from './fanout.ts';
 import { similarEndpoint } from './similar.ts';
 import { compareEndpoint } from './compare.ts';
@@ -45,6 +46,7 @@ import { vectorCollectionsEndpoint } from './collections.ts';
 export const vectorRoutes = new Elysia({ prefix: '/api' })
   .use(vectorProxyEndpoint)
   .use(vectorSearchEndpoint)
+  .use(entitySearchEndpoint)
   .use(fanoutEndpoint)
   .use(similarEndpoint)
   .use(compareEndpoint)

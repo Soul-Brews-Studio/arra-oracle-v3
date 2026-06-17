@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test';
+import type { Elysia } from 'elysia';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,6 +14,8 @@ const originalEnv = snapshotEnv([
   'ORACLE_DATA_DIR', 'ORACLE_DB_PATH', 'ORACLE_REPO_ROOT', 'ORACLE_VECTOR_DB',
   'ORACLE_PROXY_VECTOR_URL', 'ORACLE_VECTOR_ENABLED', 'ORACLE_EMBEDDER',
   'ORACLE_EMBEDDER_URL', 'ORACLE_EMBEDDING_DIMENSIONS', 'ARRA_FORCE_AVX',
+  'VECTOR_URL', 'ORACLE_VECTOR_DB_PATH', 'ARRA_API_TOKEN', 'ARRA_API_KEY',
+  'ORACLE_TENANT_TOKENS', 'ORACLE_TENANT_API_KEYS',
 ]);
 
 process.env.ORACLE_DATA_DIR = backendData;
@@ -22,13 +25,20 @@ process.env.ORACLE_VECTOR_DB = 'proxy';
 process.env.ORACLE_PROXY_VECTOR_URL = 'http://127.0.0.1:1';
 process.env.ORACLE_VECTOR_ENABLED = '1';
 process.env.ARRA_FORCE_AVX = '0';
+delete process.env.VECTOR_URL;
+delete process.env.ORACLE_VECTOR_DB_PATH;
+delete process.env.ARRA_API_TOKEN;
+delete process.env.ARRA_API_KEY;
+delete process.env.ORACLE_TENANT_TOKENS;
+delete process.env.ORACLE_TENANT_API_KEYS;
 
 const { db, sqlite, oracleDocuments, closeDb, resetDefaultDatabaseForTests } = await import('../../src/db/index.ts');
 resetDefaultDatabaseForTests(process.env.ORACLE_DB_PATH);
-const { handleSearch } = await import('../../src/server/handlers.ts');
+const { createApp } = await import('../../src/server.ts');
+const { loadUnifiedPlugins } = await import('../../src/plugins/unified-loader.ts');
 
 describe('backend to vector sidecar wiring', () => {
-  test('bun run vector:proxy sidecar serves proxy adapter search for backend vector mode', async () => {
+  test('createApp search reaches bun run vector:proxy through proxy adapter', async () => {
     const embedder = fixedEmbedder();
     const port = await freePort();
     const sidecar = Bun.spawn(['bun', 'run', 'vector:proxy'], {
@@ -69,11 +79,16 @@ describe('backend to vector sidecar wiring', () => {
       });
       expect(add.status).toBe(200);
 
-      const result = await handleSearch('sidecar wiring', 'learning', 5, 0, 'vector');
+      const app = await createBackendApp();
+      const response = await app.handle(new Request(
+        'http://backend.local/api/search?q=sidecar+wiring&type=learning&limit=5&mode=vector',
+      ));
+      const result = await response.json() as { vectorAvailable?: boolean; results?: Array<Record<string, unknown>> };
 
+      expect(response.status).toBe(200);
       expect(result.vectorAvailable).toBe(true);
-      expect(result.results.map((item) => item.id)).toContain('wire-doc');
-      expect(result.results[0]).toMatchObject({ source: 'vector', source_file: 'docs/wire.md' });
+      expect(result.results?.map((item) => item.id)).toContain('wire-doc');
+      expect(result.results?.[0]).toMatchObject({ source: 'vector', source_file: 'docs/wire.md' });
     } finally {
       sidecar.kill();
       embedder.stop(true);
@@ -81,6 +96,12 @@ describe('backend to vector sidecar wiring', () => {
     }
   });
 });
+
+
+async function createBackendApp(): Promise<Elysia> {
+  const unifiedPlugins = await loadUnifiedPlugins({ dirs: [] });
+  return createApp({ unifiedPlugins, dataDir: backendData, vectorUrl: '' }) as unknown as Elysia;
+}
 
 function writeBackendVectorConfig(endpoint: string) {
   fs.mkdirSync(backendData, { recursive: true });

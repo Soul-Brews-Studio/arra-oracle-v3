@@ -16,6 +16,7 @@ export const SearchQuery = t.Object({
   project: t.Optional(t.String()),
   cwd: t.Optional(t.String()),
   model: t.Optional(t.String()),
+  asOf: t.Optional(t.String()),
 });
 
 export const ListQuery = t.Object({
