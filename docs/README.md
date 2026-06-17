@@ -4,6 +4,13 @@ Use this page as the one-hop navigation map for Arra Oracle install, plugin,
 HTTP/MCP, operations, and contributor docs. Every Markdown guide under `docs/`
 is linked here; keep new docs in the right section when adding files.
 
+## Navigate by task
+
+- **Deploy**: start with [architecture/deploy-topologies.md](./architecture/deploy-topologies.md), then pick [deploy-production.md](./deploy-production.md), [deploy-cloudflare.md](./deploy-cloudflare.md), [deploy-cloudflare-mcp.md](./deploy-cloudflare-mcp.md), [deploy-vercel.md](./deploy-vercel.md), or [DEPLOY-DIGITALOCEAN.md](./DEPLOY-DIGITALOCEAN.md).
+- **Architecture**: read [architecture.md](./architecture.md), [architecture/modular-backend.md](./architecture/modular-backend.md), and [architecture/modular-backend-current-state.md](./architecture/modular-backend-current-state.md).
+- **Memory/search**: read [architecture/memory-layer.md](./architecture/memory-layer.md), [architecture/memory-pipeline.md](./architecture/memory-pipeline.md), [HUGINN-MUNINN.md](./HUGINN-MUNINN.md), and [vector-runtime.md](./vector-runtime.md).
+- **MCP**: read [mcp-tools.md](./mcp-tools.md), [architecture/mcp-remote-transport.md](./architecture/mcp-remote-transport.md), [MCP-FROM-OPENAPI.md](./MCP-FROM-OPENAPI.md), and [deploy-cloudflare-mcp.md](./deploy-cloudflare-mcp.md).
+
 ## Start here
 
 | Guide | Use when you need | Key surfaces |
@@ -13,8 +20,9 @@ is linked here; keep new docs in the right section when adding files.
 | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) | Diagnose install, MCP, HTTP, vector, plugin, and Docker issues | health checks, auth, tenants, logs |
 | [FAQ.md](./FAQ.md) | Answer common operator and contributor questions | install path, binaries, data, vectors, tenants |
 | [architecture.md](./architecture.md) | Understand the installable runtime architecture | HTTP, MCP, CLI, plugins, storage |
-| [architecture/modular-backend.md](./architecture/modular-backend.md) | Modular backend target: CF Workers edge, maw plugin backend, vector server, MCP plugins. |
-| [architecture/mcp-remote-transport.md](./architecture/mcp-remote-transport.md) | Remote MCP Worker transport and `mcp-remote` client bridge contract. |
+| [architecture/modular-backend.md](./architecture/modular-backend.md) | Modular backend target: CF Workers edge, maw plugin backend, vector server, MCP plugins | backend split, edge, vector, MCP |
+| [architecture/modular-backend-current-state.md](./architecture/modular-backend-current-state.md) | Current modular-backend extraction status and boundaries | backend split, current state |
+| [architecture/mcp-remote-transport.md](./architecture/mcp-remote-transport.md) | Remote MCP Worker transport and `mcp-remote` client bridge contract | Workers, MCP bridge, OAuth |
 | [architecture/deploy-topologies.md](./architecture/deploy-topologies.md) | Choose all-local, Cloudflare edge, Vercel, or federation tunnel deployment. | deploy options, edge/backend/vector split |
 | [architecture/memory-layer.md](./architecture/memory-layer.md) | Memory confidence ranking, retrieval reinforcement, supersede, and consolidation contracts from #2251. | memory, confidence, supersede, consolidation |
 | [architecture/memory-pipeline.md](./architecture/memory-pipeline.md) | Diagram the write, FTS, async consolidation, confidence ranking, and bi-temporal read pipeline. | memory pipeline, FTS, asOf, ranking |
@@ -29,6 +37,7 @@ is linked here; keep new docs in the right section when adding files.
 | --- | --- |
 | [BINS.md](./BINS.md) | Published command binaries and aliases. |
 | [DEPLOY-DIGITALOCEAN.md](./DEPLOY-DIGITALOCEAN.md) | Small public Arra HTTP node on DigitalOcean. |
+| [deploy-cloudflare.md](./deploy-cloudflare.md) | Cloudflare deployment guide for Oracle surfaces. |
 | [deploy-cloudflare-mcp.md](./deploy-cloudflare-mcp.md) | One-click Cloudflare Workers remote MCP deploy and Claude `/mcp` setup. |
 | [deploy-production.md](./deploy-production.md) | Production Cloudflare Workers deploy with cloudflared origin, secrets, Studio, MCP, and federation. |
 | [workers-deploy-configs.md](./workers-deploy-configs.md) | Validate Cloudflare MCP, Studio, and federation Worker configs and env vars. |
@@ -52,6 +61,7 @@ is linked here; keep new docs in the right section when adding files.
 | [MIDDLEWARE.md](./MIDDLEWARE.md) | HTTP middleware order and request lifecycle. |
 | [DB-MIGRATIONS.md](./DB-MIGRATIONS.md) | Drizzle migration workflow. |
 | [CLOUD-VECTOR-PROXY.md](./CLOUD-VECTOR-PROXY.md) | Cloud vector proxy runbook. |
+| [cloudflare-vector-backend.md](./cloudflare-vector-backend.md) | Cloudflare vector backend configuration and tradeoffs. |
 | [vector-runtime.md](./vector-runtime.md) | Vector runtime mode reference. |
 | [openapi.json](./openapi.json) | Machine-readable OpenAPI export. |
 
@@ -89,6 +99,8 @@ is linked here; keep new docs in the right section when adding files.
 | [GITHUB-ISSUE-UPDATES.md](./GITHUB-ISSUE-UPDATES.md) | Polished issue update format. |
 | [CHANGELOG.md](../CHANGELOG.md) | Release notes and alpha wave changes. |
 | [issues/1598-hermes-agent-desktop-codex-3.md](./issues/1598-hermes-agent-desktop-codex-3.md) | #1598 desktop architecture review. |
+| [issues/2227-maw-arra-serve-findings.md](./issues/2227-maw-arra-serve-findings.md) | #2227 maw arra serve capability findings. |
+| [issues/2227-vector-proxy-audit.md](./issues/2227-vector-proxy-audit.md) | #2227 vector proxy audit notes. |
 | [issues/hermes-agent-architecture-review-1598.md](./issues/hermes-agent-architecture-review-1598.md) | #1598 Hermes desktop review. |
 | [issues/memory-systems-ai-agents-1648.md](./issues/memory-systems-ai-agents-1648.md) | #1648 memory-systems research. |
 | [issues/multi-tenant-http-isolation-design.md](./issues/multi-tenant-http-isolation-design.md) | Multi-tenant HTTP isolation design. |
