@@ -29,6 +29,7 @@ describe('Studio Worker deploy config', () => {
     const config = studioConfig();
 
     expect(config.vars.ORACLE_URL).toContain('replace-with-your-oracle-backend');
+    expect(config.vars.ORACLE_ORIGIN_URL).toBeUndefined();
     expect(config.vars.ORACLE_MCP_URL).toBe('https://arra-oracle-mcp.laris.workers.dev/mcp');
   });
 });

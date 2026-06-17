@@ -1,5 +1,6 @@
 import { sqlite } from '../../db/index.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
+import { BI_TEMPORAL_JOIN, BI_TEMPORAL_WHERE, biTemporalParams } from '../../search/bitemporal.ts';
 import { logDocumentAccess } from '../../server/logging.ts';
 import type { SearchResponse } from '../../server/types.ts';
 import { buildTenantFtsQuery, parseConcepts } from '../../search/query.ts';
@@ -18,7 +19,7 @@ function runFtsAll<T>(stmt: { all: (...args: any[]) => T[] }, args: unknown[]): 
   try { return stmt.all(...args); } catch { return []; }
 }
 
-export function handleTenantSearch(query: string, type = 'all', limit = 10, offset = 0): SearchRouteResponse | null {
+export function handleTenantSearch(query: string, type = 'all', limit = 10, offset = 0, asOfMs?: number): SearchRouteResponse | null {
   const tenantId = currentTenantId();
   if (!tenantId) return null;
 
@@ -26,18 +27,26 @@ export function handleTenantSearch(query: string, type = 'all', limit = 10, offs
   if (!safeQuery) return { results: [], total: 0, limit, offset, query, mode: 'fts', vectorAvailable: false };
 
   const typeClause = type === 'all' ? '' : 'AND d.type = ?';
-  const params = type === 'all' ? [safeQuery, tenantId] : [safeQuery, type, tenantId];
+  const temporalJoin = asOfMs ? BI_TEMPORAL_JOIN : '';
+  const temporalClause = asOfMs ? `AND ${BI_TEMPORAL_WHERE}` : '';
+  const temporalSelect = asOfMs ? ', d.valid_time, COALESCE(s.valid_time, d.superseded_at) as valid_until' : '';
+  const temporalParams = asOfMs ? biTemporalParams(asOfMs) : [];
+  const params = type === 'all'
+    ? [safeQuery, tenantId, ...temporalParams]
+    : [safeQuery, type, tenantId, ...temporalParams];
   const count = runFtsGet(sqlite.prepare(`
     SELECT COUNT(*) as total
     FROM oracle_fts f
     JOIN oracle_documents d ON f.id = d.id
-    WHERE oracle_fts MATCH ? ${typeClause} AND d.tenant_id = ?
+    ${temporalJoin}
+    WHERE oracle_fts MATCH ? ${typeClause} AND d.tenant_id = ? ${temporalClause}
   `), params) as { total: number } | null;
   const rows = runFtsAll(sqlite.prepare(`
-    SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
+    SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project${temporalSelect}, rank as score
     FROM oracle_fts f
     JOIN oracle_documents d ON f.id = d.id
-    WHERE oracle_fts MATCH ? ${typeClause} AND d.tenant_id = ?
+    ${temporalJoin}
+    WHERE oracle_fts MATCH ? ${typeClause} AND d.tenant_id = ? ${temporalClause}
     ORDER BY rank
     LIMIT ? OFFSET ?
   `), [...params, limit, offset]) as ListRow[];
@@ -52,6 +61,7 @@ export function handleTenantSearch(query: string, type = 'all', limit = 10, offs
       source_file: row.source_file,
       concepts: parseConcepts(row.concepts),
       project: row.project,
+      ...(asOfMs ? { valid_time: isoTimestamp(row.valid_time), valid_until: isoTimestamp(row.valid_until) } : {}),
       source: 'fts' as const,
       score: normalizeRank(row.score),
     })),
@@ -63,6 +73,13 @@ export function handleTenantSearch(query: string, type = 'all', limit = 10, offs
     vectorAvailable: false,
     warning: 'Tenant-scoped HTTP search uses SQLite/FTS isolation for this request',
   };
+}
+
+function isoTimestamp(value: number | string | null): string | null {
+  const ms = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  const date = new Date(ms);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 export function handleTenantList(type = 'all', limit = 10, offset = 0, groupByFile = true): SearchResponse | null {

@@ -9,6 +9,7 @@ import type { StorageBackend } from '../../src/storage/types.ts';
 const FIRST_TENANT_MEMORY_MIGRATION = 1781628166154;
 const INDEXING_JOBS_MIGRATION = 1780185600000;
 const FTS5_BOOTSTRAP_MIGRATION = 1746547200000;
+
 let tempDir = '';
 let backend: StorageBackend | undefined;
 

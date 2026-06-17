@@ -14,25 +14,11 @@ const RELAY_ROUTES: RelayRoute[] = [
   { methods: ['GET'], path: '/api/sessions' },
   { methods: ['GET'], path: '/api/federation/status' },
 ];
-const STRIPPED_HEADERS = new Set([
-  'cf-connecting-ip',
-  'cf-ipcountry',
-  'cf-ray',
-  'cf-visitor',
-  'connection',
-  'content-length',
-  'host',
-  'keep-alive',
-  'proxy-authenticate',
-  'proxy-authorization',
-  'te',
-  'trailer',
-  'transfer-encoding',
-  'upgrade',
-  'x-forwarded-for',
-  'x-maw-auth-version',
-  'x-maw-signature',
-  'x-maw-timestamp',
+const STRIPPED_PROXY_HEADERS = new Set([
+  'host', 'content-length', 'connection', 'keep-alive', 'proxy-authenticate',
+  'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade',
+  'cf-connecting-ip', 'cf-ipcountry', 'cf-ray', 'cf-visitor', 'x-forwarded-for',
+  'x-maw-auth-version', 'x-maw-signature', 'x-maw-timestamp', 'x-real-ip',
 ]);
 
 function trim(value: string | undefined): string {
@@ -110,7 +96,7 @@ function responseJson(payload: unknown, status: number): Response {
 
 function forwardedHeaders(request: Request): Headers {
   const headers = new Headers(request.headers);
-  for (const key of STRIPPED_HEADERS) headers.delete(key);
+  for (const key of STRIPPED_PROXY_HEADERS) headers.delete(key);
   headers.set('accept', headers.get('accept') || 'application/json');
   headers.set('x-oracle-federation-proxy', 'cloudflare-workers');
   return headers;
