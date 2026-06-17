@@ -7,7 +7,7 @@ is linked here; keep new docs in the right section when adding files.
 ## Navigate by task
 
 - **Deploy**: start with [architecture/deploy-topologies.md](./architecture/deploy-topologies.md), then pick [deploy-production.md](./deploy-production.md), [deploy-cloudflare.md](./deploy-cloudflare.md), [deploy-cloudflare-mcp.md](./deploy-cloudflare-mcp.md), [deploy-vercel.md](./deploy-vercel.md), or [DEPLOY-DIGITALOCEAN.md](./DEPLOY-DIGITALOCEAN.md).
-- **Architecture**: read [architecture.md](./architecture.md), [architecture/modular-backend.md](./architecture/modular-backend.md), and [architecture/modular-backend-current-state.md](./architecture/modular-backend-current-state.md).
+- **Architecture**: read [architecture.md](./architecture.md), [architecture/modular-backend.md](./architecture/modular-backend.md), [architecture/https-localhost-vector-flow.md](./architecture/https-localhost-vector-flow.md), and [architecture/modular-backend-current-state.md](./architecture/modular-backend-current-state.md).
 - **Memory/search**: read [architecture/memory-layer.md](./architecture/memory-layer.md), [architecture/memory-pipeline.md](./architecture/memory-pipeline.md), [HUGINN-MUNINN.md](./HUGINN-MUNINN.md), and [vector-runtime.md](./vector-runtime.md).
 - **MCP**: read [mcp-tools.md](./mcp-tools.md), [architecture/mcp-remote-transport.md](./architecture/mcp-remote-transport.md), [MCP-FROM-OPENAPI.md](./MCP-FROM-OPENAPI.md), and [deploy-cloudflare-mcp.md](./deploy-cloudflare-mcp.md).
 
@@ -24,6 +24,7 @@ is linked here; keep new docs in the right section when adding files.
 | [architecture/modular-backend-current-state.md](./architecture/modular-backend-current-state.md) | Current modular-backend extraction status and boundaries | backend split, current state |
 | [architecture/mcp-remote-transport.md](./architecture/mcp-remote-transport.md) | Remote MCP Worker transport and `mcp-remote` client bridge contract | Workers, MCP bridge, OAuth |
 | [architecture/deploy-topologies.md](./architecture/deploy-topologies.md) | Choose all-local, Cloudflare edge, Vercel, or federation tunnel deployment. | deploy options, edge/backend/vector split |
+| [architecture/https-localhost-vector-flow.md](./architecture/https-localhost-vector-flow.md) | Sequence diagram for hosted HTTPS Studio calling a localhost Oracle backend and local vector flow. | #2312, localhost, PNA, vector |
 | [architecture/memory-layer.md](./architecture/memory-layer.md) | Memory confidence ranking, retrieval reinforcement, supersede, and consolidation contracts from #2251. | memory, confidence, supersede, consolidation |
 | [architecture/memory-pipeline.md](./architecture/memory-pipeline.md) | Diagram the write, FTS, async consolidation, confidence ranking, and bi-temporal read pipeline. | memory pipeline, FTS, asOf, ranking |
 | [architecture/cloudflared-origin-contract.md](./architecture/cloudflared-origin-contract.md) | `ORACLE_ORIGIN_URL` secret and Cloudflare Tunnel origin contract for Workers. | Cloudflare Tunnel, origin URL, Workers secrets |
