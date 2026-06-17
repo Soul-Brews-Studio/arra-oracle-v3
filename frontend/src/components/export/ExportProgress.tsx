@@ -30,6 +30,19 @@ function statusText(state: ExportProgressState): string {
   return 'Ready to export';
 }
 
+function statusClass(state: ExportProgressState): string {
+  if (state.status === 'done') return 'border-ok-border bg-ok-bg text-ok-text';
+  if (state.status === 'error') return 'border-err-border bg-err-bg text-err-text';
+  if (state.status === 'starting' || state.status === 'running') return 'border-accent-border bg-accent-soft text-accent';
+  return 'border-warn-border bg-warn-bg text-warn-text';
+}
+
+function progressBarClass(state: ExportProgressState): string {
+  if (state.status === 'done') return 'bg-ok-text';
+  if (state.status === 'error') return 'bg-err-text';
+  return 'bg-accent-solid';
+}
+
 function retryButton(onRetry?: () => void) {
   if (!onRetry) return null;
   return (
@@ -65,7 +78,9 @@ export function ExportProgress({ state, title = 'Export app', onRetry, onDownloa
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent dark:text-accent">Export</p>
           <h3 id="export-progress-title" className="mt-2 text-xl font-semibold text-on-accent dark:text-text">{title}</h3>
-          <p className="mt-2 text-sm text-text-muted dark:text-text-muted">{statusText(state)}</p>
+          <p className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(state)}`}>
+            {statusText(state)}
+          </p>
         </div>
         {active ? <Spinner label="Exporting" /> : downloadControl(state, onDownload)}
       </div>
@@ -76,7 +91,7 @@ export function ExportProgress({ state, title = 'Export app', onRetry, onDownloa
           <span className="font-medium text-text dark:text-text">{active || state.status === 'done' ? `${Math.round(progress)}%` : 'idle'}</span>
         </div>
         <div className="h-2 rounded-full border border-border bg-surface-muted dark:border-border dark:bg-field/[0.06]" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)} aria-valuetext={statusText(state)}>
-          <div className="h-full rounded-full bg-accent-solid transition-all dark:bg-accent-solid/70" style={{ width: `${active || state.status === 'done' ? progress : 0}%` }} />
+          <div className={`h-full rounded-full transition-all ${progressBarClass(state)}`} style={{ width: `${active || state.status === 'done' ? progress : 0}%` }} />
         </div>
         <dl className="grid gap-3 text-sm sm:grid-cols-3">
           <div><dt className="text-text-muted">Job</dt><dd className="break-all font-mono text-text dark:text-text">{state.jobId ?? 'not started'}</dd></div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { apiFetch } from "../api";
-import { Spinner } from "./AsyncState";
+import { ErrorMessage, Spinner } from "./AsyncState";
+import { StateNotice } from "./StateNotice";
 import { StepBody, setupSteps } from "./SetupWizardContent";
 import { shouldShowSetupWizard } from "./setupWizardDetection";
 import { buildIndexStartBody, requestVectorIndexStart } from "./setupWizardIndex";
@@ -11,6 +12,8 @@ export { shouldShowSetupWizard } from "./setupWizardDetection";
 
 type SetupState = "checking" | "hidden" | "visible";
 const DISMISS_KEY = "arra.vector.setup.dismissed";
+
+function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await apiFetch(path, {
@@ -30,6 +33,7 @@ export function SetupWizard({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<VectorConfig | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (
@@ -41,25 +45,19 @@ export function SetupWizard({ children }: { children: ReactNode }) {
     }
     let active = true;
     Promise.allSettled([
-      getJson<Stats>("/api/stats"),
-      getJson<VectorConfig>("/api/v1/vector/config"),
-      getJson<{ providers?: Provider[] }>("/api/v1/vector/providers"),
+      getJson<Stats>("/api/stats"), getJson<VectorConfig>("/api/v1/vector/config"), getJson<{ providers?: Provider[] }>("/api/v1/vector/providers"),
     ])
       .then(([statsResult, configResult, providersResult]) => {
         if (!active) return;
-        const stats =
-          statsResult.status === "fulfilled" ? statsResult.value : null;
-        const vectorConfig =
-          configResult.status === "fulfilled" ? configResult.value : null;
+        const stats = statsResult.status === "fulfilled" ? statsResult.value : null;
+        const vectorConfig = configResult.status === "fulfilled" ? configResult.value : null;
         if (providersResult.status === "fulfilled") {
           const nextProviders = providersResult.value.providers ?? [];
           setProviders(nextProviders);
           setSelectedProvider((current) => current || recommendedProvider(nextProviders)?.type || "");
         }
         if (vectorConfig) setConfig(vectorConfig);
-        setState(
-          shouldShowSetupWizard(stats, vectorConfig) ? "visible" : "hidden",
-        );
+        setState(shouldShowSetupWizard(stats, vectorConfig) ? "visible" : "hidden");
       })
       .catch(() => {
         if (active) setState("hidden");
@@ -73,6 +71,7 @@ export function SetupWizard({ children }: { children: ReactNode }) {
 
   async function refreshDetection() {
     setBusy(true);
+    setError("");
     try {
       const [providerBody, vectorConfig] = await Promise.all([
         getJson<{ providers?: Provider[] }>("/api/v1/vector/providers"),
@@ -83,6 +82,9 @@ export function SetupWizard({ children }: { children: ReactNode }) {
       setSelectedProvider((current) => current || recommendedProvider(nextProviders)?.type || "");
       setConfig(vectorConfig);
       setMessage("Auto-detect refreshed. Choose a provider and continue.");
+    } catch (cause) {
+      setMessage("");
+      setError(errorMessage(cause));
     } finally {
       setBusy(false);
     }
@@ -91,6 +93,7 @@ export function SetupWizard({ children }: { children: ReactNode }) {
   async function applyProvider() {
     if (!selectedProvider) return setMessage("Choose an embedding provider first.");
     setBusy(true);
+    setError("");
     try {
       const response = await apiFetch("/api/v1/vector/config", {
         method: "PATCH",
@@ -102,6 +105,9 @@ export function SetupWizard({ children }: { children: ReactNode }) {
       setConfig(await getJson<VectorConfig>("/api/v1/vector/config"));
       setStep(2);
       setMessage(`Applied ${selectedProvider} as the first-run embedding provider.`);
+    } catch (cause) {
+      setMessage("");
+      setError(errorMessage(cause));
     } finally {
       setBusy(false);
     }
@@ -111,10 +117,14 @@ export function SetupWizard({ children }: { children: ReactNode }) {
     const body = buildIndexStartBody(config, indexSource, repoRoot);
     if ('error' in body) return setMessage(body.error);
     setBusy(true);
+    setError("");
     try {
       await requestVectorIndexStart(body);
       setStep(3);
       setMessage(`Started indexing ${body.model} from ${body.source}. Continue to the dashboard or watch /vector/settings.`);
+    } catch (cause) {
+      setMessage("");
+      setError(errorMessage(cause));
     } finally {
       setBusy(false);
     }
@@ -130,15 +140,9 @@ export function SetupWizard({ children }: { children: ReactNode }) {
   return (
     <main className="min-h-screen bg-field p-6 text-text">
       <section className="mx-auto max-w-4xl rounded-3xl border border-accent2-border bg-accent2-soft p-6 shadow-2xl">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent2">
-          First-run wizard
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent2">First-run wizard</p>
         <h1 className="mt-3 text-3xl font-bold">Set up vector search</h1>
-        <p className="mt-3 text-sm text-accent2">
-          No full-text documents and no active vector index were detected.
-          Configure a provider, choose the initial vault source, then start
-          indexing.
-        </p>
+        <p className="mt-3 text-sm text-accent2">No full-text documents and no active vector index were detected. Configure a provider, choose the initial vault source, then start indexing.</p>
         <ol className="mt-5 flex gap-2" aria-label="Setup steps">
           {setupSteps.map((label, index) => (
             <li
@@ -148,9 +152,7 @@ export function SetupWizard({ children }: { children: ReactNode }) {
           ))}
         </ol>
         <div className="mt-6 rounded-2xl border border-border bg-surface p-5">
-          <h2 className="text-xl font-semibold text-text">
-            {setupSteps[step]}
-          </h2>
+          <h2 className="text-xl font-semibold text-text">{setupSteps[step]}</h2>
           <StepBody
             step={step}
             providers={providers}
@@ -164,11 +166,8 @@ export function SetupWizard({ children }: { children: ReactNode }) {
             onRepoRoot={setRepoRoot}
           />
         </div>
-        {message ? (
-          <p className="mt-4 rounded-2xl border border-border bg-surface p-3 text-sm text-accent2">
-            {message}
-          </p>
-        ) : null}
+        {error ? <div className="mt-4"><ErrorMessage title="Setup action failed." message={error} /></div> : null}
+        {message ? <div className="mt-4"><StateNotice tone="success" title="Setup status" detail={message} /></div> : null}
         <div className="mt-5 flex flex-wrap gap-3">
           <button
             className="focus-ring rounded-xl border border-border px-4 py-2 text-sm text-accent2 disabled:opacity-50"

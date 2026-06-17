@@ -10,6 +10,9 @@ describe('vector config component loading shells', () => {
     expect(html).toContain('Vector config');
     expect(html).toContain('Active vector adapters');
     expect(html).toContain('Source loading · engine loading · primary none · not ready');
+    expect(html).toContain('Loading vector config');
+    expect(html).toContain('border-accent-border bg-accent-soft');
+    expect(html).toContain('text-accent');
     expect(html).toContain('Reloading');
     expect(html).not.toContain('No vector collections configured.');
   });
