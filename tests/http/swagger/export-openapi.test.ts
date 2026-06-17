@@ -35,6 +35,8 @@ describe('OpenAPI export', () => {
       expect(spec.info.title).toBe('Arra Oracle API');
       expect(spec.paths['/api/health']).toBeDefined();
       expect(spec.paths['/api/docs/json']).toBeUndefined();
+      expect(spec.tags.some((tag: { name: string }) => tag.name === 'gateway')).toBe(true);
+      expect(spec.paths['/api/health'].get.responses['200'].content['application/json'].example).toBeDefined();
     } finally {
       rmSync(dir, { recursive: true });
     }
