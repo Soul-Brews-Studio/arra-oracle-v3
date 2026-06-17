@@ -28,6 +28,10 @@ test('GET /api/health reports uptime, DB, vector, MCP, and plugin status', async
   expect(body.dbCheck).toMatchObject({ status: 'connected', path: DB_PATH });
   expect(body.vectorStatus).toBe('ok');
   expect(body.vector).toMatchObject({ status: 'ok', engines: [{ key: 'bge-m3', ok: true }] });
+  expect(body.memory.fanoutReranking).toMatchObject({ strategy: 'confidence_weighted_rrf', confidenceSource: 'query-time-confidence' });
+  expect(body.memory.fanoutReranking.enabled).toBe(body.memory.fanoutReranking.confidenceWeight > 0);
+  expect(body.memory.fanoutReranking.confidenceWeight).toBeGreaterThanOrEqual(0);
+  expect(body.memory.fanoutReranking.confidenceWeight).toBeLessThanOrEqual(1);
   expect(body.mcpToolCount).toBe(mcpTools.length + 2);
   expect(body.mcp.toolCount).toBe(mcpTools.length + 2);
   expect(body.pluginCount).toBe(5);
