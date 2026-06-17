@@ -2,9 +2,12 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 
 const REPO_URL = 'https://github.com/Soul-Brews-Studio/arra-oracle-v3';
+const STUDIO_URL = `${REPO_URL}/tree/alpha/workers/studio`;
 const BUTTON_IMAGE = 'https://deploy.workers.cloudflare.com/button';
-const BUTTON_URL = `https://deploy.workers.cloudflare.com/?url=${REPO_URL}`;
-const BUTTON_MARKDOWN = `[![Deploy to Cloudflare](${BUTTON_IMAGE})](${BUTTON_URL})`;
+const MCP_BUTTON_URL = `https://deploy.workers.cloudflare.com/?url=${REPO_URL}`;
+const STUDIO_BUTTON_URL = `https://deploy.workers.cloudflare.com/?url=${STUDIO_URL}`;
+const MCP_BUTTON_MARKDOWN = `[![Deploy MCP Worker](${BUTTON_IMAGE})](${MCP_BUTTON_URL})`;
+const STUDIO_BUTTON_MARKDOWN = `[![Deploy Studio Worker](${BUTTON_IMAGE})](${STUDIO_BUTTON_URL})`;
 
 function read(path: string): string {
   return readFileSync(path, 'utf8');
@@ -76,14 +79,17 @@ describe('Cloudflare deploy metadata', () => {
     });
   });
 
-  test('README deploy button uses the canonical Cloudflare Workers URL', () => {
+  test('README deploy buttons use canonical Cloudflare Workers URLs', () => {
     const readme = read('README.md');
-    const matches = readme.match(/\[!\[Deploy to Cloudflare\]\(([^)]+)\)\]\(([^)]+)\)/g) ?? [];
-    expect(matches).toEqual([BUTTON_MARKDOWN]);
+    const matches = readme.match(/\[!\[Deploy (?:MCP|Studio) Worker\]\(([^)]+)\)\]\(([^)]+)\)/g) ?? [];
+    expect(matches).toEqual([MCP_BUTTON_MARKDOWN, STUDIO_BUTTON_MARKDOWN]);
 
-    const target = new URL(BUTTON_URL);
-    expect(target.origin).toBe('https://deploy.workers.cloudflare.com');
-    expect(target.searchParams.get('url')).toBe(REPO_URL);
-    expect(readme).toContain(`[![Deploy to Cloudflare](${BUTTON_IMAGE})]`);
+    const mcpTarget = new URL(MCP_BUTTON_URL);
+    const studioTarget = new URL(STUDIO_BUTTON_URL);
+    expect(mcpTarget.origin).toBe('https://deploy.workers.cloudflare.com');
+    expect(studioTarget.origin).toBe('https://deploy.workers.cloudflare.com');
+    expect(mcpTarget.searchParams.get('url')).toBe(REPO_URL);
+    expect(studioTarget.searchParams.get('url')).toBe(STUDIO_URL);
+    expect(readme).toContain(`[![Deploy Studio Worker](${BUTTON_IMAGE})]`);
   });
 });

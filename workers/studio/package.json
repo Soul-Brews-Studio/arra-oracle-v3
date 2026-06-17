@@ -1,0 +1,28 @@
+{
+  "name": "@soul-brews/arra-oracle-studio-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "cd ../../frontend && bun run build",
+    "dev": "bun run build && wrangler dev",
+    "deploy": "bun run build && wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "cloudflare": {
+    "bindings": {
+      "ORACLE_URL": {
+        "description": "HTTPS base URL for the Arra Oracle HTTP backend that receives /api/* proxy traffic."
+      },
+      "MCP_URL": {
+        "description": "Remote MCP Worker URL mounted at /mcp, for example https://arra-oracle-mcp.<account>.workers.dev/mcp."
+      },
+      "ARRA_API_TOKEN": {
+        "description": "Optional bearer token forwarded to the Oracle backend when requests do not include Authorization."
+      }
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "wrangler": "^4.101.0"
+  }
+}
