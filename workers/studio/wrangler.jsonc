@@ -13,6 +13,6 @@
   },
   "vars": {
     "ORACLE_URL": "https://replace-with-your-oracle-backend.example.com",
-    "MCP_URL": "https://arra-oracle-mcp.laris.workers.dev/mcp"
+    "ORACLE_MCP_URL": "https://arra-oracle-mcp.laris.workers.dev/mcp"
   }
 }

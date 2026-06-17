@@ -3,8 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "build": "tsc --noEmit",
+    "dev": "wrangler dev --config wrangler.jsonc",
+    "deploy": "tsc --noEmit && wrangler deploy --config wrangler.jsonc",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -32,7 +32,7 @@ describe('workers/studio deploy readiness', () => {
       run_worker_first: true,
     });
     expect(cfg.vars.ORACLE_URL).toContain('replace-with-your-oracle-backend');
-    expect(cfg.vars.MCP_URL).toBe('https://arra-oracle-mcp.laris.workers.dev/mcp');
+    expect(cfg.vars.ORACLE_MCP_URL).toBe('https://arra-oracle-mcp.laris.workers.dev/mcp');
   });
 
   test('package scripts build the Vite frontend before wrangler deploy', () => {
@@ -41,7 +41,7 @@ describe('workers/studio deploy readiness', () => {
     expect(pkg.scripts.build).toBe('cd ../../frontend && bun run build');
     expect(pkg.scripts.deploy).toBe('bun run build && wrangler deploy');
     expect(pkg.scripts.typecheck).toBe('tsc --noEmit');
-    expect(Object.keys(pkg.cloudflare.bindings)).toEqual(['ORACLE_URL', 'MCP_URL', 'ARRA_API_TOKEN']);
+    expect(Object.keys(pkg.cloudflare.bindings)).toEqual(['ORACLE_URL', 'ORACLE_MCP_URL', 'ARRA_API_TOKEN']);
     expect(pkg.devDependencies).toMatchObject({
       typescript: expect.any(String),
       wrangler: expect.any(String),

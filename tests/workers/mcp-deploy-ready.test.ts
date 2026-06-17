@@ -40,7 +40,7 @@ describe('workers/mcp deploy readiness', () => {
   test('worker package keeps the dependencies needed by wrangler deploy', () => {
     const pkg = JSON.parse(read('workers/mcp/package.json')) as Record<string, any>;
 
-    expect(pkg.scripts.deploy).toBe('wrangler deploy');
+    expect(pkg.scripts.deploy).toBe('tsc --noEmit && wrangler deploy --config wrangler.jsonc');
     expect(pkg.dependencies).toMatchObject({
       '@modelcontextprotocol/sdk': expect.any(String),
       agents: expect.any(String),

@@ -13,7 +13,7 @@
       "ORACLE_URL": {
         "description": "HTTPS base URL for the Arra Oracle HTTP backend that receives /api/* proxy traffic."
       },
-      "MCP_URL": {
+      "ORACLE_MCP_URL": {
         "description": "Remote MCP Worker URL mounted at /mcp, for example https://arra-oracle-mcp.<account>.workers.dev/mcp."
       },
       "ARRA_API_TOKEN": {

@@ -13,6 +13,10 @@ function read(path: string): string {
   return readFileSync(path, 'utf8');
 }
 
+function readJson<T>(path: string): T {
+  return JSON.parse(read(path)) as T;
+}
+
 function parseJsonc<T>(source: string): T {
   return JSON.parse(stripTrailingCommas(stripComments(source))) as T;
 }
@@ -26,34 +30,24 @@ function stripComments(source: string): string {
     const next = source[i + 1];
     if (inString) {
       out += char;
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (char === '\\') {
-        escaped = true;
-        continue;
-      }
-      if (char === '"') inString = false;
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === '"') inString = false;
       continue;
     }
     if (char === '"') {
       inString = true;
       out += char;
-      continue;
-    }
-    if (char === '/' && next === '/') {
+    } else if (char === '/' && next === '/') {
       while (i < source.length && source[i] !== '\n') i++;
       out += '\n';
-      continue;
-    }
-    if (char === '/' && next === '*') {
+    } else if (char === '/' && next === '*') {
       i += 2;
       while (i < source.length && !(source[i] === '*' && source[i + 1] === '/')) i++;
       i++;
-      continue;
+    } else {
+      out += char;
     }
-    out += char;
   }
   return out;
 }
@@ -77,6 +71,17 @@ describe('Cloudflare deploy metadata', () => {
       ORACLE_STORAGE_BACKEND: 'd1',
       ORACLE_VECTOR_BACKEND: 'cloudflare-vectorize',
     });
+  });
+
+  test('package metadata describes each root Wrangler deploy var', () => {
+    const cfg = parseJsonc<Record<string, any>>(read('wrangler.jsonc'));
+    const pkg = readJson<Record<string, any>>('package.json');
+    const bindings = pkg.cloudflare?.bindings ?? {};
+
+    for (const key of Object.keys(cfg.vars ?? {})) {
+      expect(typeof bindings[key]?.description).toBe('string');
+      expect(bindings[key].description.trim().length).toBeGreaterThan(20);
+    }
   });
 
   test('README deploy buttons use canonical Cloudflare Workers URLs', () => {
