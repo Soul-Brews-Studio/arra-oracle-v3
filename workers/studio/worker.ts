@@ -12,6 +12,7 @@ export interface StudioEnv {
 
 const WORKER_HEADER = 'oracle-studio-worker';
 const API_METHODS = 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS';
+const MCP_METHODS = 'GET, HEAD, POST, DELETE, OPTIONS';
 
 export default {
   fetch: handleStudioRequest,
@@ -24,7 +25,10 @@ export async function handleStudioRequest(request: Request, env: StudioEnv): Pro
     if (request.method === 'OPTIONS') return apiPreflight();
     return proxyApiRequest(request, env);
   }
-  if (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/')) return proxyMcpRequest(request, env);
+  if (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/')) {
+    if (request.method === 'OPTIONS') return mcpPreflight();
+    return proxyMcpRequest(request, env);
+  }
   return serveAsset(request, env);
 }
 
@@ -39,7 +43,10 @@ async function proxyApiRequest(request: Request, env: StudioEnv): Promise<Respon
 
 async function proxyMcpRequest(request: Request, env: StudioEnv): Promise<Response> {
   try {
-    return proxyRequest(request, env, mcpTarget(env, new URL(request.url)), {});
+    return proxyRequest(request, env, mcpTarget(env, new URL(request.url)), {
+      'access-control-allow-origin': '*',
+      'access-control-expose-headers': 'mcp-session-id, x-oracle-studio-worker',
+    });
   } catch (error) {
     return json({ error: 'mcp proxy failed', message: message(error) }, 502);
   }
@@ -65,12 +72,22 @@ async function proxyRequest(
   });
 }
 
+function resolveMcpUrl(env: StudioEnv): string {
+  const direct = env.ORACLE_MCP_URL?.trim();
+  if (direct) return sanitizedHttpUrl(direct, 'ORACLE_MCP_URL');
+  return `${resolveOracleUrl(env)}/mcp`;
+}
+
 function resolveOracleUrl(env: StudioEnv): string {
   const raw = env.ORACLE_URL ?? env.ORACLE_HTTP_URL ?? env.ORACLE_API;
   const value = raw?.trim();
   if (!value) throw new Error('Set ORACLE_URL to the Oracle backend.');
+  return sanitizedHttpUrl(value, 'ORACLE_URL');
+}
+
+function sanitizedHttpUrl(value: string, label: string): string {
   const url = new URL(value);
-  if (!['http:', 'https:'].includes(url.protocol)) throw new Error('ORACLE_URL must be http(s).');
+  if (!['http:', 'https:'].includes(url.protocol)) throw new Error(`${label} must be http(s).`);
   url.username = '';
   url.password = '';
   url.hash = '';
@@ -80,19 +97,20 @@ function resolveOracleUrl(env: StudioEnv): string {
 }
 
 function apiTarget(baseUrl: string, requestUrl: URL): string {
-  const target = new URL(`${baseUrl}${requestUrl.pathname}`);
-  target.search = requestUrl.search;
-  return target.toString();
+  return prefixedTarget(baseUrl, requestUrl, '');
 }
 
 function mcpTarget(env: StudioEnv, requestUrl: URL): string {
-  const configured = env.ORACLE_MCP_URL?.trim();
-  const baseUrl = configured || `${resolveOracleUrl(env)}/mcp`;
+  return prefixedTarget(resolveMcpUrl(env), requestUrl, '/mcp');
+}
+
+function prefixedTarget(baseUrl: string, requestUrl: URL, prefix: string): string {
+  const suffix = prefix ? requestUrl.pathname.slice(prefix.length) : requestUrl.pathname;
   const target = new URL(baseUrl);
-  const suffix = requestUrl.pathname.replace(/^\/mcp\/?/, '');
-  if (suffix) target.pathname = `${target.pathname.replace(/\/+$/, '')}/${suffix}`;
+  const basePath = target.pathname.replace(/\/+$/, '');
+  const cleanSuffix = suffix.replace(/^\/+/, '');
+  target.pathname = cleanSuffix ? `${basePath}/${cleanSuffix}`.replace(/\/+/g, '/') : basePath || '/';
   target.search = requestUrl.search;
-  target.hash = '';
   return target.toString();
 }
 
@@ -134,6 +152,21 @@ function withHeaders(response: Response, values: Record<string, string>): Respon
   const headers = new Headers(response.headers);
   for (const [key, value] of Object.entries(values)) headers.set(key, value);
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
+function mcpPreflight(): Response {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      allow: MCP_METHODS,
+      'access-control-allow-origin': '*',
+      'access-control-allow-methods': MCP_METHODS,
+      'access-control-allow-headers': 'authorization, content-type, accept, mcp-session-id, mcp-protocol-version',
+      'access-control-expose-headers': 'mcp-session-id, x-oracle-studio-worker',
+      'cache-control': 'no-store',
+      'x-oracle-studio-worker': WORKER_HEADER,
+    },
+  });
 }
 
 function apiPreflight(): Response {
