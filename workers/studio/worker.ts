@@ -2,6 +2,7 @@ type AssetFetcher = { fetch(request: Request): Promise<Response> };
 
 export interface StudioEnv {
   ASSETS: AssetFetcher;
+  ORACLE_ORIGIN_URL?: string;
   ORACLE_URL?: string;
   ORACLE_HTTP_URL?: string;
   ORACLE_API?: string;
@@ -79,10 +80,16 @@ function resolveMcpUrl(env: StudioEnv): string {
 }
 
 function resolveOracleUrl(env: StudioEnv): string {
-  const raw = env.ORACLE_URL ?? env.ORACLE_HTTP_URL ?? env.ORACLE_API;
-  const value = raw?.trim();
-  if (!value) throw new Error('Set ORACLE_URL to the Oracle backend.');
-  return sanitizedHttpUrl(value, 'ORACLE_URL');
+  const candidates = [
+    ['ORACLE_ORIGIN_URL', env.ORACLE_ORIGIN_URL],
+    ['ORACLE_URL', env.ORACLE_URL],
+    ['ORACLE_HTTP_URL', env.ORACLE_HTTP_URL],
+    ['ORACLE_API', env.ORACLE_API],
+  ] as const;
+  const match = candidates.find(([, value]) => value?.trim());
+  if (!match) throw new Error('Set ORACLE_ORIGIN_URL to the Oracle backend.');
+  const [label, raw] = match;
+  return sanitizedHttpUrl(raw!.trim(), label);
 }
 
 function sanitizedHttpUrl(value: string, label: string): string {

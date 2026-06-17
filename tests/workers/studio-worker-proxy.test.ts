@@ -33,6 +33,22 @@ describe('studio Cloudflare Worker API proxy edge cases', () => {
     expect(await response.json()).toEqual({ ok: true });
   });
 
+  test('prefers ORACLE_ORIGIN_URL secret over legacy ORACLE_URL', async () => {
+    const seen: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      seen.push(String(input));
+      return Response.json({ ok: true });
+    }) as typeof fetch;
+
+    const response = await handleStudioRequest(new Request('https://studio.example/api/health'), env({
+      ORACLE_ORIGIN_URL: 'https://origin.example/root/',
+      ORACLE_URL: 'https://legacy.example',
+    }));
+
+    expect(response.status).toBe(200);
+    expect(seen).toEqual(['https://origin.example/root/api/health']);
+  });
+
   test('preserves method, body, and content headers for API writes', async () => {
     const seen: Array<{ body: string; contentType: string | null; method: string }> = [];
     globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
