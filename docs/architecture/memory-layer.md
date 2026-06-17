@@ -48,19 +48,26 @@ rankingScore = normalizedRrf * (1 - confidenceWeight)
              + confidence.score * confidenceWeight
 ```
 
+`src/routes/memory/rerank-config.ts` owns the operator-facing config.
 Operational knobs:
 
 - `ORACLE_MEMORY_FANOUT_CONFIDENCE_WEIGHT`
 - legacy fallback: `ARRA_MEMORY_FANOUT_CONFIDENCE_WEIGHT`
-- default: `0.25`; values are clamped to `0..1`
+- default: `0.25`; values are clamped to `0..1`; `0` disables confidence
+  reranking without disabling confidence labels.
 
-The response exposes the ranking contract so clients can explain ordering:
+`/api/health` exposes `memory.fanoutReranking` with the effective weight,
+source, env key, and `confidence_weighted_rrf` strategy for operators.
+
+The fan-out response also exposes the ranking contract so clients can explain ordering:
 
 ```json
 {
   "ranking": {
     "rrfK": 60,
     "confidenceWeight": 0.25,
+    "confidenceRerankingEnabled": true,
+    "confidenceWeightSource": "default",
     "confidenceSource": "query-time-confidence"
   }
 }
