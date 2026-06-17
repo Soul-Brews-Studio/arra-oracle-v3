@@ -21,7 +21,7 @@ export type MethodNotAllowedResponse = {
   };
 };
 
-type RouteLike = { method?: string; path: string };
+export type RouteLike = { method?: string; path: string };
 type RouteMatcher = { path: string; allowedMethods: Set<string> };
 
 const METHOD_ORDER = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
@@ -91,10 +91,12 @@ function allowedMethodsFor(matchers: RouteMatcher[], request: Request): string[]
   return null;
 }
 
-export function createNotFoundMiddleware(routes: RouteLike[] = []) {
-  const matchers = routeMatchers([...routes]);
+type RouteSource = RouteLike[] | (() => RouteLike[]);
+
+export function createNotFoundMiddleware(routes: RouteSource = []) {
   return new Elysia({ name: 'not-found' }).all('*', ({ request, set }) => {
-    const allowedMethods = allowedMethodsFor(matchers, request);
+    const source = typeof routes === 'function' ? routes() : routes;
+    const allowedMethods = allowedMethodsFor(routeMatchers([...source]), request);
     if (allowedMethods) {
       set.status = 405;
       set.headers.Allow = allowedMethods.join(', ');

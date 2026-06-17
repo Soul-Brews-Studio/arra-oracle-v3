@@ -1,10 +1,14 @@
 import { Elysia, t } from 'elysia';
 import type { UnifiedRuntime } from '../../plugins/unified-loader.ts';
+import type { UnifiedRuntimeRef } from '../../plugins/runtime-routes.ts';
 import { sanitizePluginName } from './model.ts';
 import { readPluginEnabled, writePluginEnabled } from './state.ts';
 
+type ToggleRuntime = Pick<UnifiedRuntime, 'mcpTools' | 'reload'>;
+
 export interface PluginToggleRouteOptions {
-  runtime?: Pick<UnifiedRuntime, 'mcpTools' | 'reload'>;
+  runtime?: ToggleRuntime;
+  runtimeRef?: UnifiedRuntimeRef<ToggleRuntime>;
 }
 
 type ToggleBody = { enabled?: boolean } | undefined;
@@ -20,7 +24,8 @@ export function createPluginToggleRoute(options: PluginToggleRouteOptions = {}) 
   return new Elysia().post(
     '/api/plugins/:name/toggle',
     async ({ params, body, set }) => {
-      if (!options.runtime) {
+      const runtime = options.runtimeRef?.current ?? options.runtime;
+      if (!runtime) {
         set.status = 503;
         return { ok: false, error: 'plugin runtime unavailable' };
       }
@@ -33,7 +38,7 @@ export function createPluginToggleRoute(options: PluginToggleRouteOptions = {}) 
         return { ok: false, error: 'plugin manifest not found', name: sanitizePluginName(params.name) };
       }
       try {
-        await options.runtime.reload();
+        await runtime.reload();
       } catch (error) {
         set.status = 500;
         return {
@@ -44,7 +49,7 @@ export function createPluginToggleRoute(options: PluginToggleRouteOptions = {}) 
           message: error instanceof Error ? error.message : String(error),
         };
       }
-      const mcpTools = mcpToolNames(options.runtime, result.name);
+      const mcpTools = mcpToolNames(runtime, result.name);
       return { ok: true, plugin: result.name, enabled: result.enabled, reloaded: true, mcpTools, mcpToolCount: mcpTools.length };
     },
     {
