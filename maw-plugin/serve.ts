@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export type Parsed = { pos: string[]; flags: Record<string, string | boolean> };
 export type InvokeResult = { ok: boolean; output?: string; error?: string };
@@ -13,12 +14,14 @@ export type ServeDeps = {
   isAlive?: (pid: number) => boolean;
   kill?: (pid: number, signal?: NodeJS.Signals) => void;
   sleep?: (ms: number) => Promise<void>;
-  start?: (cwd: string, env: Record<string, string | undefined>) => number | undefined;
+  start?: (cwd: string, env: Record<string, string | undefined>, command: ServerCommand) => number | undefined;
 };
 
 const DEFAULT_PORT = '47778';
 const PID_FILE_NAME = 'server.pid';
-type ServeState = { pid: number; port?: string; root?: string; startedAt?: string };
+type ServeState = { pid: number; port?: string; root?: string; healthPath?: string; startedAt?: string };
+type ServerManifest = { command?: string; args?: string[]; env?: Record<string, string>; healthPath?: string };
+export type ServerCommand = { command: string; args: string[]; cwd: string; env: Record<string, string>; healthPath: string };
 const REPO_SLUGS = ['Soul-Brews-Studio/arra-oracle-v3', 'github.com/Soul-Brews-Studio/arra-oracle-v3'];
 
 function flag(parsed: Parsed, name: string): string | undefined {
@@ -88,14 +91,41 @@ async function resolveRoot(env: Record<string, string | undefined>, runner: Runn
   throw new Error('ORACLE_ROOT is not set and ghq locate could not find Soul-Brews-Studio/arra-oracle-v3');
 }
 
-function startServer(cwd: string, env: Record<string, string | undefined>): number | undefined {
-  const child = spawn('bun', ['run', 'server'], { cwd, env: { ...process.env, ...env }, detached: true, stdio: 'ignore' });
+function pluginDir(): string {
+  return dirname(fileURLToPath(import.meta.url));
+}
+
+function readServerManifest(dir = pluginDir()): ServerManifest | undefined {
+  try {
+    const manifest = JSON.parse(readFileSync(join(dir, 'plugin.json'), 'utf8')) as { server?: ServerManifest };
+    return manifest.server;
+  } catch {
+    return undefined;
+  }
+}
+
+export function resolveServerCommand(root: string, env: Record<string, string | undefined>, dir = pluginDir()): ServerCommand {
+  const server = readServerManifest(dir);
+  if (!server?.command) {
+    return { command: 'bun', args: ['run', 'server'], cwd: root, env: {}, healthPath: '/api/health' };
+  }
+  return {
+    command: server.command,
+    args: Array.isArray(server.args) ? server.args : [],
+    cwd: dir,
+    env: { ...(server.env ?? {}), ORACLE_ROOT: root, ORACLE_PORT: parsePort({ pos: [], flags: {} }, env), PORT: parsePort({ pos: [], flags: {} }, env) },
+    healthPath: server.healthPath ?? '/api/health',
+  };
+}
+
+function startServer(cwd: string, env: Record<string, string | undefined>, command: ServerCommand): number | undefined {
+  const child = spawn(command.command, command.args, { cwd, env: { ...process.env, ...env }, detached: true, stdio: 'ignore' });
   child.unref();
   return child.pid;
 }
 
-async function health(port: string, fetcher: typeof fetch): Promise<string> {
-  const url = `http://127.0.0.1:${port}/api/health`;
+async function health(port: string, healthPath: string, fetcher: typeof fetch): Promise<string> {
+  const url = `http://127.0.0.1:${port}${healthPath}`;
   try {
     const res = await fetcher(url, { signal: AbortSignal.timeout(2000) });
     const text = await res.text();
@@ -131,9 +161,11 @@ export async function runServe(parsed: Parsed, runner: Runner, env: Record<strin
 
     if (action === 'status') {
       const healthPort = flag(parsed, 'port') ? port : state?.port ?? port;
+      const server = resolveServerCommand(state?.root ?? env.ORACLE_ROOT ?? process.cwd(), env);
+      const healthPath = state?.healthPath ?? server.healthPath;
       const pidState = currentPid ? `${isAlive(currentPid) ? 'alive' : 'dead'} pid=${currentPid}` : 'missing pid';
       const details = [state?.root && `root: ${state.root}`, `port: ${healthPort}`].filter(Boolean).join('\n');
-      return { ok: true, output: `arra serve: ${pidState}${details ? `\n${details}` : ''}\nhealth: ${await health(healthPort, deps.fetch ?? fetch)}` };
+      return { ok: true, output: `arra serve: ${pidState}${details ? `\n${details}` : ''}\nhealth: ${await health(healthPort, healthPath, deps.fetch ?? fetch)}` };
     }
 
     if (action === 'stop') {
@@ -145,15 +177,19 @@ export async function runServe(parsed: Parsed, runner: Runner, env: Record<strin
 
     if (currentPid && isAlive(currentPid)) {
       const healthPort = flag(parsed, 'port') ? port : state?.port ?? port;
-      return { ok: true, output: `arra serve: already running pid=${currentPid}\nport: ${healthPort}\nhealth: ${await health(healthPort, deps.fetch ?? fetch)}` };
+      const server = resolveServerCommand(state.root ?? env.ORACLE_ROOT ?? process.cwd(), env);
+      const healthPath = state.healthPath ?? server.healthPath;
+      return { ok: true, output: `arra serve: already running pid=${currentPid}\nport: ${healthPort}\nhealth: ${await health(healthPort, healthPath, deps.fetch ?? fetch)}` };
     }
 
     const cwd = await resolveRoot(env, runner);
     mkdirSync(dirname(path), { recursive: true });
-    const pid = (deps.start ?? startServer)(cwd, { ...env, ORACLE_PORT: port });
-    if (!pid) throw new Error('bun run server did not return a PID');
-    writeState(path, { pid, port, root: cwd, startedAt: new Date().toISOString() });
-    return { ok: true, output: `arra serve: started pid=${pid} port=${port}\nroot: ${cwd}\npid: ${path}` };
+    const command = resolveServerCommand(cwd, { ...env, ORACLE_PORT: port, PORT: port });
+    const startEnv = { ...env, ...command.env, ORACLE_ROOT: cwd, ORACLE_PORT: port, PORT: port };
+    const pid = (deps.start ?? startServer)(command.cwd, startEnv, command);
+    if (!pid) throw new Error(`${command.command} ${command.args.join(' ')} did not return a PID`);
+    writeState(path, { pid, port, root: cwd, healthPath: command.healthPath, startedAt: new Date().toISOString() });
+    return { ok: true, output: `arra serve: started pid=${pid} port=${port}\nroot: ${cwd}\ncommand: ${command.command} ${command.args.join(' ')}\npid: ${path}` };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
