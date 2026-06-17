@@ -5,6 +5,9 @@ export interface StudioEnv {
   ORACLE_URL?: string;
   ORACLE_HTTP_URL?: string;
   ORACLE_API?: string;
+  ORACLE_MCP_URL?: string;
+  ARRA_API_TOKEN?: string;
+  ARRA_API_KEY?: string;
 }
 
 const WORKER_HEADER = 'oracle-studio-worker';
@@ -21,27 +24,45 @@ export async function handleStudioRequest(request: Request, env: StudioEnv): Pro
     if (request.method === 'OPTIONS') return apiPreflight();
     return proxyApiRequest(request, env);
   }
+  if (url.pathname === '/mcp' || url.pathname.startsWith('/mcp/')) return proxyMcpRequest(request, env);
   return serveAsset(request, env);
 }
 
 async function proxyApiRequest(request: Request, env: StudioEnv): Promise<Response> {
   try {
     const target = apiTarget(resolveOracleUrl(env), new URL(request.url));
-    const upstream = await fetch(target, {
-      method: request.method,
-      headers: proxyHeaders(request.headers),
-      body: hasRequestBody(request.method) ? request.body : undefined,
-      redirect: 'manual',
-    });
-    return withHeaders(upstream, {
-      'cache-control': 'no-store',
-      'x-oracle-studio-worker': WORKER_HEADER,
-      'access-control-allow-origin': '*',
-      'access-control-expose-headers': 'x-oracle-studio-worker',
-    });
+    return proxyRequest(request, env, target, { 'access-control-allow-origin': '*' });
   } catch (error) {
     return json({ error: 'api proxy failed', message: message(error) }, 502);
   }
+}
+
+async function proxyMcpRequest(request: Request, env: StudioEnv): Promise<Response> {
+  try {
+    return proxyRequest(request, env, mcpTarget(env, new URL(request.url)), {});
+  } catch (error) {
+    return json({ error: 'mcp proxy failed', message: message(error) }, 502);
+  }
+}
+
+async function proxyRequest(
+  request: Request,
+  env: StudioEnv,
+  target: string,
+  extraHeaders: Record<string, string>,
+): Promise<Response> {
+  const upstream = await fetch(target, {
+    method: request.method,
+    headers: proxyHeaders(request.headers, env),
+    body: hasRequestBody(request.method) ? request.body : undefined,
+    redirect: 'manual',
+  });
+  return withHeaders(upstream, {
+    'cache-control': 'no-store',
+    'x-oracle-studio-worker': WORKER_HEADER,
+    'access-control-expose-headers': 'x-oracle-studio-worker',
+    ...extraHeaders,
+  });
 }
 
 function resolveOracleUrl(env: StudioEnv): string {
@@ -64,11 +85,31 @@ function apiTarget(baseUrl: string, requestUrl: URL): string {
   return target.toString();
 }
 
-function proxyHeaders(source: Headers): Headers {
+function mcpTarget(env: StudioEnv, requestUrl: URL): string {
+  const configured = env.ORACLE_MCP_URL?.trim();
+  const baseUrl = configured || `${resolveOracleUrl(env)}/mcp`;
+  const target = new URL(baseUrl);
+  const suffix = requestUrl.pathname.replace(/^\/mcp\/?/, '');
+  if (suffix) target.pathname = `${target.pathname.replace(/\/+$/, '')}/${suffix}`;
+  target.search = requestUrl.search;
+  target.hash = '';
+  return target.toString();
+}
+
+function proxyHeaders(source: Headers, env: StudioEnv): Headers {
   const headers = new Headers(source);
   headers.delete('host');
+  headers.delete('cf-connecting-ip');
+  headers.delete('cf-ipcountry');
+  headers.delete('cf-ray');
   headers.set('x-oracle-studio-worker', WORKER_HEADER);
+  const bearer = authToken(env);
+  if (bearer) headers.set('authorization', `Bearer ${bearer}`);
   return headers;
+}
+
+function authToken(env: StudioEnv): string | undefined {
+  return env.ARRA_API_TOKEN?.trim() || env.ARRA_API_KEY?.trim() || undefined;
 }
 
 async function serveAsset(request: Request, env: StudioEnv): Promise<Response> {

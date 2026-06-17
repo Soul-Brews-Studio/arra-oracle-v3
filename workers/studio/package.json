@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "cd ../../frontend && bun run build",
-    "deploy": "bun run build && bunx wrangler deploy",
+    "deploy": "bun run build && wrangler deploy",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
