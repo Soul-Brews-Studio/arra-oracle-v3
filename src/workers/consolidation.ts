@@ -34,21 +34,30 @@ export type ConsolidationResult = {
 };
 
 const DAY_MS = 86_400_000;
-const DEFAULTS = {
-  dryRun: true,
-  limit: 250,
-  minCosine: 0.94,
-  minFtsOverlap: 0.86,
-  staleDays: 45,
-};
+const DEFAULTS = { dryRun: true, limit: 250, minCosine: 0.94, minFtsOverlap: 0.86, staleDays: 45 };
+const MAX_SCAN_LIMIT = 1_000;
+const MIN_EVIDENCE_TOKENS = 6;
 const STOP_WORDS = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'into', 'are', 'was']);
 
-function clamp(value: number, min = 0, max = 1): number {
-  return Math.min(max, Math.max(min, value));
+function clamp(value: number, min = 0, max = 1): number { return Math.min(max, Math.max(min, value)); }
+
+function round(value: number): number { return Number(value.toFixed(4)); }
+
+function finiteNumber(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
-function round(value: number): number {
-  return Number(value.toFixed(4));
+function resolveOptions(input: ConsolidationOptions): ResolvedOptions {
+  const tenantId = typeof input.tenantId === 'string' ? input.tenantId.trim() : undefined;
+  return {
+    dryRun: input.dryRun ?? DEFAULTS.dryRun,
+    limit: Math.max(0, Math.min(MAX_SCAN_LIMIT, Math.floor(finiteNumber(input.limit, DEFAULTS.limit)))),
+    minCosine: clamp(finiteNumber(input.minCosine, DEFAULTS.minCosine)),
+    minFtsOverlap: clamp(finiteNumber(input.minFtsOverlap, DEFAULTS.minFtsOverlap)),
+    staleDays: Math.max(1, Math.floor(finiteNumber(input.staleDays, DEFAULTS.staleDays))),
+    now: finiteNumber(input.now, Date.now()),
+    ...(tenantId ? { tenantId } : {}),
+  };
 }
 
 function tokenize(text: string): string[] {
@@ -158,6 +167,7 @@ function planDocs(docs: CandidateDoc[], options: ResolvedOptions): Consolidation
       const right = docs[j];
       if (left.tenantId !== right.tenantId || left.type !== right.type) continue;
       if (used.has(left.id) || used.has(right.id)) continue;
+      if (Math.min(left.tokenSet.size, right.tokenSet.size) < MIN_EVIDENCE_TOKENS) continue;
       const sim = cosine(left.tokens, right.tokens);
       const overlap = ftsOverlap(left.tokenSet, right.tokenSet);
       if (sim < options.minCosine || overlap < options.minFtsOverlap) continue;
@@ -188,7 +198,7 @@ export async function runConsolidationWorker(
     const { runLlmConsolidationWorker } = await import('./consolidation-llm.ts');
     return runLlmConsolidationWorker(db, sqlite, input as any);
   }
-  const options = { ...DEFAULTS, now: Date.now(), tenantId: undefined, ...input };
+  const options = resolveOptions(input);
   const logger = input.logger ?? console;
   const docs = loadDocs(sqlite, options);
   const plans = planDocs(docs, options);
@@ -211,13 +221,8 @@ export async function runConsolidationWorker(
     }
   }
   return {
-    dryRun: options.dryRun,
-    scanned: docs.length,
-    planned: plans.length,
-    applied,
-    skipped: plans.length - applied,
-    deleted: 0,
-    plans,
+    dryRun: options.dryRun, scanned: docs.length, planned: plans.length, applied,
+    skipped: plans.length - applied, deleted: 0, plans,
     confidence: docs.map((doc) => doc.confidence).filter((receipt) => receipt.stale),
   };
 }
