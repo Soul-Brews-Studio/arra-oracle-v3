@@ -178,17 +178,17 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
   useEffect(() => () => closeProgress(), []);
 
   return (
-    <div className="grid gap-5">
-      <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="export-app-title">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Legacy Oracle v2</p>
+    <div className="grid min-w-0 gap-5">
+      <section className="min-w-0 rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="export-app-title">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Legacy Oracle v2</p>
         <h1 id="export-app-title" className="mt-2 text-3xl font-semibold text-white">Export app</h1>
         <p className="mt-2 text-sm text-slate-400">Connect to an old Oracle v2 backend, list collections, and prepare JSON or Markdown backups before migration.</p>
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="backend-title">
+      <section className="min-w-0 rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="backend-title">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Backend URL</p>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Backend URL</p>
             <h2 id="backend-title" className="mt-2 text-2xl font-semibold text-white">Old Oracle backend</h2>
             <p className="mt-2 text-sm text-slate-400">Use the source Oracle v2 HTTP URL, for example {DEFAULT_BACKEND_URL}.</p>
           </div>
@@ -209,26 +209,26 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
       ) : null}
       {exportState === 'error' ? <ErrorMessage title="Could not start export." message={error} /> : null}
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6" aria-labelledby="collection-title">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Collections</p>
+      <section className="grid min-w-0 gap-4 lg:grid-cols-2">
+        <div className="min-w-0 rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6" aria-labelledby="collection-title">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Collections</p>
           <h2 id="collection-title" className="mt-2 text-2xl font-semibold text-white">Choose data</h2>
-          <label className="mt-5 grid gap-2 text-sm font-medium text-slate-300">
+          <label className="mt-5 grid min-w-0 gap-2 text-sm font-medium text-slate-300">
             Collection
-            <select className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100" disabled={!collections.length} value={selected?.id ?? ''} onChange={(event) => { setCollection(event.currentTarget.value); setDownload(null); }}>
+            <select className="focus-ring w-full min-w-0 rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100" disabled={!collections.length} value={selected?.id ?? ''} onChange={(event) => { setCollection(event.currentTarget.value); setDownload(null); }}>
               {collections.length ? collections.map((item) => <option key={item.id} value={item.id}>{collectionLabel(item)}</option>) : <option value="">No collections loaded</option>}
             </select>
           </label>
           <ul className="mt-4 grid max-h-72 gap-2 overflow-auto" aria-label="Legacy export collections">
-            {collections.map((item) => <li key={item.id} className="rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">{collectionLabel(item)}</li>)}
+            {collections.map((item) => <li key={item.id} className="break-words rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">{collectionLabel(item)}</li>)}
           </ul>
           {loadState === 'ready' && !collections.length ? (
             <p className="mt-4 rounded-xl border border-dashed border-white/10 p-4 text-sm text-slate-500">No collections are available from this backend. Check the URL, then reload collections.</p>
           ) : null}
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="format-title">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Export</p>
+        <div className="min-w-0 rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="format-title">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Export</p>
           <h2 id="format-title" className="mt-2 text-2xl font-semibold text-white">Format and download</h2>
           <div className="mt-5 grid gap-3" role="radiogroup" aria-label="Export format">
             {exportAppFormats.map((item) => (

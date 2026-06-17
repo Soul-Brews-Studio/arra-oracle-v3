@@ -86,7 +86,7 @@ export function AppShell({
   );
 
   return (
-    <main className="oracle-shell min-h-screen text-slate-900 transition-colors dark:text-slate-100">
+    <main className="oracle-shell min-h-screen overflow-x-hidden text-slate-900 transition-colors dark:text-slate-100">
       <a
         className="focus-ring sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-teal-300 focus:px-4 focus:py-3 focus:font-semibold focus:text-slate-950"
         href="#main-content"
@@ -125,7 +125,7 @@ export function AppShell({
           </section>
 
           {error ? <ErrorMessage title="Could not load backend data." message={error} action={retry} /> : null}
-          <div id="main-content" ref={contentRef} tabIndex={-1} className="focus:outline-none">
+          <div id="main-content" ref={contentRef} tabIndex={-1} className="min-w-0 focus:outline-none">
             {children}
           </div>
         </div>
