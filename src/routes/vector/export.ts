@@ -130,9 +130,13 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
           },
         });
       } catch (error) {
-        set.status = 500;
+        const status = errorStatus(error);
+        set.status = status;
         const message = error instanceof Error ? error.message : String(error);
-        return { error: 'Vector export failed', message };
+        const label = status === 501
+          ? 'Vector collection export is not supported by this adapter'
+          : 'Vector export failed';
+        return { error: label, message };
       }
     }, {
       query: t.Object({
@@ -145,6 +149,12 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
         summary: 'Export a vector collection in a registered format',
       },
     });
+}
+
+function errorStatus(error: unknown): number {
+  const status = (error as { status?: unknown; statusCode?: unknown })?.status
+    ?? (error as { statusCode?: unknown })?.statusCode;
+  return typeof status === 'number' && Number.isInteger(status) && status >= 400 && status < 600 ? status : 500;
 }
 
 export const vectorExportEndpoint = createVectorExportEndpoint();

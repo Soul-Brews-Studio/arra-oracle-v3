@@ -94,6 +94,10 @@ describe('config env validation', () => {
       env: { HOME: '/tmp/arra-home', ORACLE_HTTP_URL: 'file:///tmp/oracle.sock' },
       emitOptionalWarnings: false,
     })).toThrow(/ORACLE_HTTP_URL must be a valid http\(s\) URL or "embedded"/);
+    expect(() => validateEnv({
+      env: { HOME: '/tmp/arra-home', ORACLE_ORIGIN_URL: 'file:///tmp/oracle.sock' },
+      emitOptionalWarnings: false,
+    })).toThrow(/ORACLE_ORIGIN_URL must be a valid http\(s\) URL/);
   });
 
   test('accepts provider env aliases during startup validation', () => {

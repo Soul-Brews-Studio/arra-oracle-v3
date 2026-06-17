@@ -7,6 +7,7 @@ import {
   VECTOR_PROXY_PROTOCOL_VERSION,
   VECTOR_PROXY_ROUTES,
   type VectorProxyAddRequest,
+  type VectorProxyExportResponse,
   type VectorProxyHealthResponse,
   type VectorProxyQueryRequest,
 } from './proxy-protocol.ts';
@@ -61,6 +62,13 @@ export function createVectorProxyServer(options: VectorProxyServerOptions = {}) 
       const info = await connected.getCollectionInfo();
       return { count: nonNegative(info.count), name: info.name || collectionName };
     }))
+    .get(VECTOR_PROXY_ROUTES.export, async ({ query, set }) => withStore(async (connected) => {
+      if (!connected.getAllEmbeddings) {
+        set.status = 501;
+        return { error: 'Vector export is not supported by this adapter' };
+      }
+      return connected.getAllEmbeddings(exportLimit((query as { limit?: unknown }).limit)) as Promise<VectorProxyExportResponse>;
+    }))
     .delete(VECTOR_PROXY_ROUTES.collection, async () => {
       await withStore((connected) => connected.deleteCollection());
       state.ready = false;
@@ -111,6 +119,12 @@ function badRequest(set: { status?: number | string }, messageText: string) {
 
 function normalizeLimit(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 10;
+}
+
+function exportLimit(value: unknown): number | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const parsed = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() ? Number(raw) : undefined;
+  return typeof parsed === 'number' && Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : undefined;
 }
 
 function nonNegative(value: unknown): number {
