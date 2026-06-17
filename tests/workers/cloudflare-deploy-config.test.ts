@@ -10,6 +10,10 @@ function read(path: string): string {
   return readFileSync(path, 'utf8');
 }
 
+function readJson<T>(path: string): T {
+  return JSON.parse(read(path)) as T;
+}
+
 function parseJsonc<T>(source: string): T {
   return JSON.parse(stripTrailingCommas(stripComments(source))) as T;
 }
@@ -76,6 +80,42 @@ describe('Cloudflare deploy metadata', () => {
     });
   });
 
+  test('package metadata describes each root Wrangler deploy var', () => {
+    const cfg = parseJsonc<Record<string, any>>(read('wrangler.jsonc'));
+    const pkg = readJson<Record<string, any>>('package.json');
+    const bindings = pkg.cloudflare?.bindings ?? {};
+
+    for (const key of Object.keys(cfg.vars ?? {})) {
+      expect(typeof bindings[key]?.description).toBe('string');
+      expect(bindings[key].description.trim().length).toBeGreaterThan(20);
+    }
+  });
+
+  test('workers/mcp package has explicit build and deploy scripts', () => {
+    const pkg = readJson<Record<string, any>>('workers/mcp/package.json');
+
+    expect(pkg.scripts).toMatchObject({
+      build: 'tsc --noEmit',
+      dev: 'wrangler dev --config wrangler.jsonc',
+      deploy: 'tsc --noEmit && wrangler deploy --config wrangler.jsonc',
+      typecheck: 'tsc --noEmit',
+    });
+  });
+
+  test('workers/mcp Wrangler config keeps the backend proxy var', () => {
+    const cfg = parseJsonc<Record<string, any>>(read('workers/mcp/wrangler.jsonc'));
+
+    expect(cfg.main).toBe('src/index.ts');
+    expect(cfg.compatibility_flags).toContain('nodejs_compat');
+    expect(cfg.durable_objects.bindings).toContainEqual({
+      name: 'MCP_OBJECT',
+      class_name: 'OracleMCP',
+    });
+    expect(cfg.vars).toEqual({
+      ORACLE_URL: 'https://replace-with-your-oracle-backend.example.com',
+    });
+  });
+
   test('README deploy button uses the canonical Cloudflare Workers URL', () => {
     const readme = read('README.md');
     const matches = readme.match(/\[!\[Deploy to Cloudflare\]\(([^)]+)\)\]\(([^)]+)\)/g) ?? [];
@@ -85,5 +125,27 @@ describe('Cloudflare deploy metadata', () => {
     expect(target.origin).toBe('https://deploy.workers.cloudflare.com');
     expect(target.searchParams.get('url')).toBe(REPO_URL);
     expect(readme).toContain(`[![Deploy to Cloudflare](${BUTTON_IMAGE})]`);
+  });
+
+  test('workers/mcp package stays deploy-ready for Wrangler', () => {
+    const cfg = parseJsonc<Record<string, any>>(read('workers/mcp/wrangler.jsonc'));
+    const pkg = JSON.parse(read('workers/mcp/package.json')) as Record<string, any>;
+
+    expect(pkg.scripts.deploy).toBe('wrangler deploy');
+    expect(pkg.dependencies).toMatchObject({
+      '@modelcontextprotocol/sdk': expect.any(String),
+      agents: expect.any(String),
+      zod: expect.any(String),
+    });
+    expect(pkg.devDependencies).toMatchObject({
+      '@cloudflare/workers-types': expect.any(String),
+      wrangler: expect.any(String),
+    });
+
+    expect(cfg.name).toBe('arra-oracle-mcp');
+    expect(cfg.main).toBe('src/index.ts');
+    expect(cfg.durable_objects.bindings).toContainEqual({ name: 'MCP_OBJECT', class_name: 'OracleMCP' });
+    expect(cfg.migrations).toContainEqual({ tag: 'v1', new_sqlite_classes: ['OracleMCP'] });
+    expect(cfg.vars.ORACLE_URL).toContain('replace-with-your-oracle-backend');
   });
 });
