@@ -9,10 +9,11 @@ function env(overrides: Partial<FederationEnv> = {}): FederationEnv {
 
 describe('federation Worker proxy', () => {
   test('normalizes tunnel URLs and preserves relayed path/query', () => {
-    expect(resolveTunnelUrl({ TUNNEL_URL: ' https://tunnel.example.test/root/?x=1#hash ' })).toBe('https://tunnel.example.test/root');
+    expect(resolveTunnelUrl({ TUNNEL_URL: ' https://user:pass@tunnel.example.test/root/?x=1#hash ' })).toBe('https://tunnel.example.test/root');
     expect(resolveTunnelUrl({})).toBeNull();
+    expect(resolveTunnelUrl({ TUNNEL_URL: 'ftp://tunnel.example.test/root/' })).toBeNull();
     expect(resolveTunnelUrl({ TUNNEL_URL: 'not a url' })).toBeNull();
-    expect(buildTunnelUrl('https://tunnel.example.test/root', 'https://worker.example/api/sessions?local=true')).toBe('https://tunnel.example.test/root/api/sessions?local=true');
+    expect(buildTunnelUrl('https://user:pass@tunnel.example.test/root?debug=1#secret', 'https://worker.example/api/sessions?local=true')).toBe('https://tunnel.example.test/root/api/sessions?local=true');
   });
 
   test('signs maw-compatible v1 and v2 HMAC headers', async () => {
@@ -28,11 +29,12 @@ describe('federation Worker proxy', () => {
   });
 
   test('relays send and sessions to the tunnel with HMAC headers', async () => {
-    const seen: Array<{ url: string; method: string; version: string | null; body: string }> = [];
+    const seen: Array<{ url: string; method: string; host: string | null; version: string | null; body: string }> = [];
     const fetcher = async (request: Request) => {
       seen.push({
         url: request.url,
         method: request.method,
+        host: request.headers.get('host'),
         version: request.headers.get('x-maw-auth-version'),
         body: await request.text(),
       });
@@ -42,13 +44,15 @@ describe('federation Worker proxy', () => {
     };
 
     const send = await proxyFederationRequest(new Request('https://worker.example/api/send', { method: 'POST', body: JSON.stringify({ target: 'codex-1', text: 'hi' }) }), env(), fetcher);
-    const sessions = await proxyFederationRequest(new Request('https://worker.example/api/sessions?local=true'), env(), fetcher);
+    const sessions = await proxyFederationRequest(new Request('https://worker.example/api/sessions?local=true', {
+      headers: { host: 'spoofed.example', 'x-maw-auth-version': 'v2' },
+    }), env(), fetcher);
 
     expect(send.headers.get('cache-control')).toBe('no-store');
     expect(sessions.status).toBe(200);
     expect(seen).toEqual([
-      { url: 'https://tunnel.example.test/root/api/send', method: 'POST', version: 'v2', body: '{"target":"codex-1","text":"hi"}' },
-      { url: 'https://tunnel.example.test/root/api/sessions?local=true', method: 'GET', version: null, body: '' },
+      { url: 'https://tunnel.example.test/root/api/send', method: 'POST', host: null, version: 'v2', body: '{"target":"codex-1","text":"hi"}' },
+      { url: 'https://tunnel.example.test/root/api/sessions?local=true', method: 'GET', host: null, version: null, body: '' },
     ]);
   });
 

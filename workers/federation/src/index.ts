@@ -14,7 +14,26 @@ const RELAY_ROUTES: RelayRoute[] = [
   { methods: ['GET'], path: '/api/sessions' },
   { methods: ['GET'], path: '/api/federation/status' },
 ];
-const HOP_BY_HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade']);
+const STRIPPED_HEADERS = new Set([
+  'cf-connecting-ip',
+  'cf-ipcountry',
+  'cf-ray',
+  'cf-visitor',
+  'connection',
+  'content-length',
+  'host',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+  'x-forwarded-for',
+  'x-maw-auth-version',
+  'x-maw-signature',
+  'x-maw-timestamp',
+]);
 
 function trim(value: string | undefined): string {
   return value?.trim() ?? '';
@@ -30,6 +49,9 @@ export function resolveTunnelUrl(env: Pick<FederationEnv, 'TUNNEL_URL'>): string
   if (!raw) return null;
   try {
     const url = new URL(raw);
+    if (!['http:', 'https:'].includes(url.protocol)) return null;
+    url.username = '';
+    url.password = '';
     url.hash = '';
     url.search = '';
     url.pathname = url.pathname.replace(/\/+$/, '');
@@ -42,6 +64,10 @@ export function resolveTunnelUrl(env: Pick<FederationEnv, 'TUNNEL_URL'>): string
 export function buildTunnelUrl(baseUrl: string, requestUrl: string): string {
   const incoming = new URL(requestUrl);
   const base = new URL(baseUrl);
+  base.username = '';
+  base.password = '';
+  base.hash = '';
+  base.search = '';
   const basePath = base.pathname.replace(/\/+$/, '');
   base.pathname = `${basePath}${incoming.pathname}`;
   base.search = incoming.search;
@@ -84,7 +110,7 @@ function responseJson(payload: unknown, status: number): Response {
 
 function forwardedHeaders(request: Request): Headers {
   const headers = new Headers(request.headers);
-  for (const key of HOP_BY_HOP) headers.delete(key);
+  for (const key of STRIPPED_HEADERS) headers.delete(key);
   headers.set('accept', headers.get('accept') || 'application/json');
   headers.set('x-oracle-federation-proxy', 'cloudflare-workers');
   return headers;

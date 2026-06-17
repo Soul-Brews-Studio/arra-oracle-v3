@@ -124,9 +124,12 @@ function prefixedTarget(baseUrl: string, requestUrl: URL, prefix: string): strin
 function proxyHeaders(source: Headers, env: StudioEnv): Headers {
   const headers = new Headers(source);
   headers.delete('host');
+  headers.delete('content-length');
   headers.delete('cf-connecting-ip');
   headers.delete('cf-ipcountry');
   headers.delete('cf-ray');
+  headers.delete('cf-visitor');
+  headers.delete('x-forwarded-for');
   headers.set('x-oracle-studio-worker', WORKER_HEADER);
   const bearer = authToken(env);
   if (bearer) headers.set('authorization', `Bearer ${bearer}`);
