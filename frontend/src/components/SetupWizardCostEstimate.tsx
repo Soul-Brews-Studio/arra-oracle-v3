@@ -40,14 +40,14 @@ export function SetupWizardCostEstimate({ initialEstimate, provider }: Props) {
     return () => { active = false; };
   }, [initialEstimate, provider]);
 
-  if (error) return <p className="text-sm text-[color:var(--color-warn-text,#92400e)]">Preflight cost unavailable: {error}</p>;
-  if (!estimate) return <p className="text-sm text-slate-400">Loading preflight cost estimate…</p>;
+  if (error) return <p className="text-sm text-warn-text">Preflight cost unavailable: {error}</p>;
+  if (!estimate) return <p className="text-sm text-text-muted">Loading preflight cost estimate…</p>;
   return (
-    <div className="rounded-2xl border border-[color:var(--color-accent,#0f766e)] p-3 text-sm text-[color:var(--color-accent,#0f766e)]">
-      <p className="font-semibold text-[color:var(--color-accent,#0f766e)]">Preflight cost before Start indexing</p>
+    <div className="rounded-2xl border border-accent-border p-3 text-sm text-accent">
+      <p className="font-semibold text-accent">Preflight cost before Start indexing</p>
       <p className="mt-1">{estimate.formula} · {estimate.provider}: {formatCost(estimate.estimatedUsd)}</p>
-      {estimate.recommendation ? <p className="mt-1 text-[color:var(--color-accent,#0f766e)] opacity-75">{estimate.recommendation}</p> : null}
-      {estimate.fallbackSummary ? <p className="mt-1 text-[color:var(--color-accent,#0f766e)] opacity-75">{estimate.fallbackSummary}</p> : null}
+      {estimate.recommendation ? <p className="mt-1 text-accent opacity-75">{estimate.recommendation}</p> : null}
+      {estimate.fallbackSummary ? <p className="mt-1 text-accent opacity-75">{estimate.fallbackSummary}</p> : null}
     </div>
   );
 }

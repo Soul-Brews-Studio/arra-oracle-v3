@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { fetchPluginsFromEndpoint, usePlugins } from '../../../frontend/src/hooks/usePlugins';
 import type { PluginEntry } from '../../../frontend/src/types';
 import { htmlFor } from '../_render';
+import { requestPath } from '../api/_fetch';
 
 const plugin: PluginEntry = { name: 'echo', file: 'echo.ts', size: 42, modified: '2026-06-16T00:00:00Z' };
 
@@ -27,7 +28,7 @@ describe('usePlugins hook and endpoint store', () => {
     });
 
     expect(response).toEqual({ plugins: [plugin], dir: '', count: 1 });
-    expect(calls[0]?.input).toBe('/api/plugins?surface=ui');
+    expect(requestPath(calls[0]?.input ?? '')).toBe('/api/plugins?surface=ui');
     expect((calls[0]?.init?.headers as Record<string, string>).accept).toBe('application/json');
   });
 

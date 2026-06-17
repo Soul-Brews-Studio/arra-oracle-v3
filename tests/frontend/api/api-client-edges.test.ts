@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { ApiClientError, createApiClient } from '../../../frontend/src/api/client';
+import { requestPath } from './_fetch';
 
 function jsonResponse(data: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(data), {
@@ -12,7 +13,7 @@ function jsonResponse(data: unknown, init: ResponseInit = {}): Response {
 describe('ApiClient edge cases', () => {
   test('preserves zero vector offsets and omits empty optional filters', async () => {
     const calls: string[] = [];
-    const client = createApiClient({ fetch: (input) => { calls.push(String(input)); return jsonResponse({ results: [], total: 0 }); } });
+    const client = createApiClient({ fetch: (input) => { calls.push(requestPath(input)); return jsonResponse({ results: [], total: 0 }); } });
 
     await client.vectorSearch({ q: 'oracle', limit: 0, offset: 0, type: '', project: 'repo', cwd: '/tmp/oracle' });
 

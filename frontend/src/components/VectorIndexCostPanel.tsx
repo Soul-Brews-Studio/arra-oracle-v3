@@ -89,28 +89,28 @@ export function VectorIndexCostPanel({
   return (
     <>
       {costEstimate ? (
-        <div className="mb-4 rounded-2xl border border-[color:var(--color-accent,#0f766e)] p-4 text-sm text-[color:var(--color-accent,#0f766e)]">
-          <p className="font-semibold text-[color:var(--color-accent,#0f766e)]">Preflight cost before Index Now</p>
+        <div className="mb-4 rounded-2xl border border-accent-border p-4 text-sm text-accent">
+          <p className="font-semibold text-accent">Preflight cost before Index Now</p>
           <p className="mt-1">{costEstimate.formula} · {costEstimate.provider}: {formatCost(costEstimate.estimatedUsd)}</p>
-          {costEstimate.fallbackSummary ? <p className="mt-1 text-[color:var(--color-accent,#0f766e)] opacity-75">{costEstimate.fallbackSummary}</p> : null}
-          {costEstimate.recommendation ? <p className="mt-1 text-[color:var(--color-accent,#0f766e)] opacity-75">{costEstimate.recommendation}</p> : null}
+          {costEstimate.fallbackSummary ? <p className="mt-1 text-accent opacity-75">{costEstimate.fallbackSummary}</p> : null}
+          {costEstimate.recommendation ? <p className="mt-1 text-accent opacity-75">{costEstimate.recommendation}</p> : null}
         </div>
-      ) : costError ? <p className="mb-4 text-sm text-[color:var(--color-warn-text,#92400e)]">Cost estimate unavailable: {costError}</p> : null}
+      ) : costError ? <p className="mb-4 text-sm text-warn-text">Cost estimate unavailable: {costError}</p> : null}
 
       {costTracking ? (
         <div className="mb-4 rounded-2xl border border-cyan-200/20 bg-cyan-200/10 p-4 text-sm text-cyan-50/90">
-          <p className="font-semibold text-cyan-100">Live cost tracking</p>
+          <p className="font-semibold text-accent">Live cost tracking</p>
           <p className="mt-1">
             {(daily?.inputTokens ?? 0).toLocaleString()} tokens · {(daily?.apiCalls ?? 0).toLocaleString()} API calls · {formatCost(daily?.estimatedUsd ?? 0)} today
           </p>
           {providers.map((provider, index) => (
-            <p key={provider.provider ?? index} className="mt-1 text-cyan-100/75">
+            <p key={provider.provider ?? index} className="mt-1 text-accent/75">
               {provider.provider ?? 'provider'}: {provider.inputTokens.toLocaleString()} tokens · {formatCost(provider.estimatedUsd)}
             </p>
           ))}
-          {(daily?.inputTokens ?? 0) === 0 ? <p className="mt-1 text-cyan-100/70">No metered indexing usage recorded yet.</p> : null}
+          {(daily?.inputTokens ?? 0) === 0 ? <p className="mt-1 text-accent/70">No metered indexing usage recorded yet.</p> : null}
         </div>
-      ) : trackingError ? <p className="mb-4 text-sm text-[color:var(--color-warn-text,#92400e)]">Live cost tracking unavailable: {trackingError}</p> : null}
+      ) : trackingError ? <p className="mb-4 text-sm text-warn-text">Live cost tracking unavailable: {trackingError}</p> : null}
     </>
   );
 }

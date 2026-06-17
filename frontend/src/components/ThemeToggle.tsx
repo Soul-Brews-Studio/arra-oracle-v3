@@ -18,7 +18,7 @@ export function ThemeToggle() {
 
   return (
     <button
-      className="focus-ring rounded-xl border border-slate-300/70 bg-white/70 px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-white dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200 dark:hover:border-teal-300/40"
+      className="focus-ring rounded-xl border border-border/70 bg-surface px-4 py-3 text-sm font-semibold text-text shadow-sm transition hover:bg-field dark:border-border dark:bg-surface-muted dark:text-text dark:hover:border-accent-border"
       type="button"
       aria-label="Dark mode"
       aria-pressed={theme === 'dark'}

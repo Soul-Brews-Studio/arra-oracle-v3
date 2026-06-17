@@ -130,7 +130,7 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
     <div>
       <button
         aria-label="Open command palette"
-        className="focus-ring rounded-xl border border-slate-300/80 bg-white/80 px-4 py-3 text-left text-sm text-slate-700 transition hover:bg-white dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-200 dark:hover:border-teal-300/40"
+        className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-left text-sm text-text transition hover:bg-field dark:border-border dark:bg-surface-muted dark:text-text dark:hover:border-accent-border"
         type="button"
         onClick={() => setOpen(true)}
       >
@@ -139,14 +139,14 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
 
       {open ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-3"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-surface p-3"
           aria-label="Command palette modal"
           role="presentation"
           onClick={() => setOpen(false)}
         >
           <section
             ref={overlayRef}
-            className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-900/20 dark:border-white/10 dark:bg-slate-950"
+            className="w-full max-w-xl rounded-2xl border border-border bg-field p-4 shadow-2xl shadow-slate-900/20 dark:border-border dark:bg-field"
             onClick={(event) => event.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -155,7 +155,7 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
             <input
               ref={inputRef}
               aria-label="Search command palette"
-              className="focus-ring mb-3 min-w-0 w-full rounded-xl border border-slate-300/80 bg-white/80 px-3 py-2 text-sm text-slate-950 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-100"
+              className="focus-ring mb-3 min-w-0 w-full rounded-xl border border-border bg-field px-3 py-2 text-sm text-on-accent dark:border-border dark:bg-surface-muted dark:text-text"
               value={query}
               onChange={(event) => {
                 setQuery(event.currentTarget.value);
@@ -174,24 +174,24 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
                     {command.href ? (
                       <Link
                         aria-selected={selected}
-                        className={`focus-ring flex w-full items-start justify-between rounded-xl border border-slate-200 bg-white/70 p-3 text-left transition ${selected ? 'border-teal-500 bg-teal-100/80' : 'hover:bg-white'}`}
+                        className={`focus-ring flex w-full items-start justify-between rounded-xl border border-border bg-surface p-3 text-left transition ${selected ? 'border-accent-border bg-accent-soft' : 'hover:bg-field'}`}
                         onMouseEnter={() => setSelectedIndex(index)}
                         onClick={() => execute(command)}
                         to={command.href}
                       >
-                        <span className="font-semibold text-slate-900 dark:text-white">{command.label}</span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">{command.description}</span>
+                        <span className="font-semibold text-text dark:text-text">{command.label}</span>
+                        <span className="text-xs text-text-muted dark:text-text-muted">{command.description}</span>
                       </Link>
                     ) : (
                       <button
                         type="button"
-                        className={`focus-ring flex w-full items-start justify-between rounded-xl border border-slate-200 bg-white/70 p-3 text-left transition ${selected ? 'border-teal-500 bg-teal-100/80' : 'hover:bg-white'}`}
+                        className={`focus-ring flex w-full items-start justify-between rounded-xl border border-border bg-surface p-3 text-left transition ${selected ? 'border-accent-border bg-accent-soft' : 'hover:bg-field'}`}
                         aria-selected={selected}
                         onMouseEnter={() => setSelectedIndex(index)}
                         onClick={() => execute(command)}
                       >
-                        <span className="font-semibold text-slate-900 dark:text-white">{command.label}</span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400">{command.description}</span>
+                        <span className="font-semibold text-text dark:text-text">{command.label}</span>
+                        <span className="text-xs text-text-muted dark:text-text-muted">{command.description}</span>
                       </button>
                     )}
                   </li>

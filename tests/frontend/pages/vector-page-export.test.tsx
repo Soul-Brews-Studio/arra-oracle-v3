@@ -13,6 +13,7 @@ import {
   type VectorCollectionCard,
 } from '../../../frontend/src/pages/VectorPage';
 import { htmlFor } from '../_render';
+import { requestPath } from '../api/_fetch';
 
 const card: VectorCollectionCard = {
   key: 'bge-m3',
@@ -72,7 +73,7 @@ describe('VectorPage export buttons', () => {
     const saved: Array<{ blob: Blob; filename: string }> = [];
     await downloadVectorCollection('oracle_knowledge_bge_m3', 'csv', {
       fetch: (input) => {
-        calls.push(String(input));
+        calls.push(requestPath(input));
         return new Response('id,content\n1,oracle\n', { status: 200, headers: { 'content-type': 'text/csv' } });
       },
       saveBlob: (blob, filename) => saved.push({ blob, filename }),

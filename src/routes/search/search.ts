@@ -8,6 +8,7 @@ import { filterResultsAsOf, parseAsOf } from '../../search/bitemporal.ts';
 import { attachSupersedeStatus } from '../../search/supersede-status.ts';
 import { handleSearch } from '../../server/handlers.ts';
 import { SearchQuery } from './model.ts';
+import { parseOptionalSearchModel } from './model-key.ts';
 import { parseOffset, parsePositiveInt, parseSearchMode } from './query.ts';
 import { handleTenantSearch } from './tenant-search.ts';
 
@@ -44,7 +45,12 @@ export const searchEndpoint = new Elysia().get(
     }
     const project = query.project;
     const cwd = query.cwd;
-    const model = query.model;
+    const parsedModel = parseOptionalSearchModel(query.model);
+    if (!parsedModel.ok) {
+      set.status = 400;
+      return { error: parsedModel.error };
+    }
+    const model = parsedModel.value;
 
     try {
       const tenantResult = handleTenantSearch(sanitizedQ, type, limit, offset, asOf.value);

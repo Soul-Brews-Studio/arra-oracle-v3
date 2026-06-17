@@ -179,20 +179,20 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
 
   return (
     <div className="grid gap-5">
-      <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="export-app-title">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Legacy Oracle v2</p>
-        <h1 id="export-app-title" className="mt-2 text-3xl font-semibold text-white">Export app</h1>
-        <p className="mt-2 text-sm text-slate-400">Connect to an old Oracle v2 backend, list collections, and prepare JSON or Markdown backups before migration.</p>
+      <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="export-app-title">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Legacy Oracle v2</p>
+        <h1 id="export-app-title" className="mt-2 text-3xl font-semibold text-text">Export app</h1>
+        <p className="mt-2 text-sm text-text-muted">Connect to an old Oracle v2 backend, list collections, and prepare JSON or Markdown backups before migration.</p>
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="backend-title">
+      <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="backend-title">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Backend URL</p>
-            <h2 id="backend-title" className="mt-2 text-2xl font-semibold text-white">Old Oracle backend</h2>
-            <p className="mt-2 text-sm text-slate-400">Use the source Oracle v2 HTTP URL, for example {DEFAULT_BACKEND_URL}.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Backend URL</p>
+            <h2 id="backend-title" className="mt-2 text-2xl font-semibold text-text">Old Oracle backend</h2>
+            <p className="mt-2 text-sm text-text-muted">Use the source Oracle v2 HTTP URL, for example {DEFAULT_BACKEND_URL}.</p>
           </div>
-          <button className="focus-ring rounded-xl bg-teal-300 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-teal-200 disabled:opacity-60" disabled={loadState === 'loading'} type="button" onClick={() => void loadCollections()}>
+          <button className="focus-ring rounded-xl bg-accent-solid px-5 py-3 text-sm font-semibold text-on-accent hover:bg-accent-hover disabled:opacity-60" disabled={loadState === 'loading'} type="button" onClick={() => void loadCollections()}>
             {loadState === 'loading' ? <Spinner label="Loading collections" /> : 'List collections'}
           </button>
         </div>
@@ -204,41 +204,41 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
         <ErrorMessage
           title="Could not load legacy backend collections."
           message={error}
-          action={<button className="focus-ring rounded-lg border border-[color:var(--color-err-text,#991b1b)] px-3 py-2 font-semibold text-[color:var(--color-err-text,#991b1b)] hover:bg-[var(--color-err-bg,#fee2e2)]" type="button" onClick={() => void loadCollections()}>Retry loading collections</button>}
+          action={<button className="focus-ring rounded-lg border border-err-border px-3 py-2 font-semibold text-err-text hover:bg-err-bg" type="button" onClick={() => void loadCollections()}>Retry loading collections</button>}
         />
       ) : null}
       {exportState === 'error' ? <ErrorMessage title="Could not start export." message={error} /> : null}
 
       <section className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 sm:p-6" aria-labelledby="collection-title">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Collections</p>
-          <h2 id="collection-title" className="mt-2 text-2xl font-semibold text-white">Choose data</h2>
-          <label className="mt-5 grid gap-2 text-sm font-medium text-slate-300">
+        <div className="rounded-3xl border border-border bg-surface-muted p-5 sm:p-6" aria-labelledby="collection-title">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Collections</p>
+          <h2 id="collection-title" className="mt-2 text-2xl font-semibold text-text">Choose data</h2>
+          <label className="mt-5 grid gap-2 text-sm font-medium text-text-muted">
             Collection
-            <select className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100" disabled={!collections.length} value={selected?.id ?? ''} onChange={(event) => { setCollection(event.currentTarget.value); setDownload(null); }}>
+            <select className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-text" disabled={!collections.length} value={selected?.id ?? ''} onChange={(event) => { setCollection(event.currentTarget.value); setDownload(null); }}>
               {collections.length ? collections.map((item) => <option key={item.id} value={item.id}>{collectionLabel(item)}</option>) : <option value="">No collections loaded</option>}
             </select>
           </label>
           <ul className="mt-4 grid max-h-72 gap-2 overflow-auto" aria-label="Legacy export collections">
-            {collections.map((item) => <li key={item.id} className="rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">{collectionLabel(item)}</li>)}
+            {collections.map((item) => <li key={item.id} className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text-muted">{collectionLabel(item)}</li>)}
           </ul>
           {loadState === 'ready' && !collections.length ? (
-            <p className="mt-4 rounded-xl border border-dashed border-white/10 p-4 text-sm text-slate-500">No collections are available from this backend. Check the URL, then reload collections.</p>
+            <p className="mt-4 rounded-xl border border-dashed border-border p-4 text-sm text-text-muted">No collections are available from this backend. Check the URL, then reload collections.</p>
           ) : null}
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="format-title">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Export</p>
-          <h2 id="format-title" className="mt-2 text-2xl font-semibold text-white">Format and download</h2>
+        <div className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="format-title">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Export</p>
+          <h2 id="format-title" className="mt-2 text-2xl font-semibold text-text">Format and download</h2>
           <div className="mt-5 grid gap-3" role="radiogroup" aria-label="Export format">
             {exportAppFormats.map((item) => (
-              <label key={item.value} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
+              <label key={item.value} className="flex items-start gap-3 rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm text-text-muted">
                 <input className="mt-1 h-4 w-4 accent-teal-300" checked={format === item.value} name="legacy-export-format" type="radio" value={item.value} onChange={() => { setFormat(item.value); setDownload(null); }} />
-                <span><span className="block font-semibold text-white">{item.label}</span><span>{item.detail}</span></span>
+                <span><span className="block font-semibold text-text">{item.label}</span><span>{item.detail}</span></span>
               </label>
             ))}
           </div>
-          <button className="focus-ring mt-5 rounded-xl bg-teal-300 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-60" disabled={!selected || exportState === 'exporting'} type="button" onClick={() => void triggerExport()}>
+          <button className="focus-ring mt-5 rounded-xl bg-accent-solid px-5 py-3 text-sm font-semibold text-on-accent hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60" disabled={!selected || exportState === 'exporting'} type="button" onClick={() => void triggerExport()}>
             {exportState === 'exporting' ? <Spinner label="Starting export" /> : 'Trigger export'}
           </button>
           <div className="mt-4"><DownloadCard link={download} /></div>

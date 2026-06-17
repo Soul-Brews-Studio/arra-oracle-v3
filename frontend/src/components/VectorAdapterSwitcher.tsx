@@ -62,17 +62,17 @@ export function VectorAdapterSwitcher({ rows, onRefresh }: VectorAdapterSwitcher
   }
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-adapter-switcher-title">
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-adapter-switcher-title">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-300">Adapter switcher</p>
-          <h2 id="vector-adapter-switcher-title" className="mt-2 text-2xl font-semibold text-white">Vector backend adapter</h2>
-          <p className="mt-2 text-sm text-slate-400">Switch all vector collections across built-in and proxy-capable adapters.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Adapter switcher</p>
+          <h2 id="vector-adapter-switcher-title" className="mt-2 text-2xl font-semibold text-text">Vector backend adapter</h2>
+          <p className="mt-2 text-sm text-text-muted">Switch all vector collections across built-in and proxy-capable adapters.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {ADAPTER_OPTIONS.map((adapter) => (
             <button
-              className="focus-ring rounded-xl border border-cyan-300/30 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+              className="focus-ring rounded-xl border border-accent-border px-3 py-2 text-sm font-semibold text-accent hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50"
               disabled={Boolean(saving) || !rows.length}
               key={adapter}
               type="button"
@@ -85,17 +85,17 @@ export function VectorAdapterSwitcher({ rows, onRefresh }: VectorAdapterSwitcher
       </div>
 
       <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <dt className="text-slate-500">Current adapter</dt>
-          <dd className="mt-1 text-lg font-semibold text-cyan-100">{activeAdapter}</dd>
+        <div className="rounded-2xl border border-border bg-surface-muted p-4">
+          <dt className="text-text-muted">Current adapter</dt>
+          <dd className="mt-1 text-lg font-semibold text-accent">{activeAdapter}</dd>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <dt className="text-slate-500">Status</dt>
-          <dd className="mt-1 text-sm font-semibold text-slate-200">{summary}</dd>
+        <div className="rounded-2xl border border-border bg-surface-muted p-4">
+          <dt className="text-text-muted">Status</dt>
+          <dd className="mt-1 text-sm font-semibold text-text">{summary}</dd>
         </div>
       </dl>
 
-      {message ? <p className="mt-4 text-sm text-emerald-200">{message}</p> : null}
+      {message ? <p className="mt-4 text-sm text-ok-text">{message}</p> : null}
       {error ? <div className="mt-4"><ErrorMessage title="Adapter switch failed." message={error} /></div> : null}
     </section>
   );

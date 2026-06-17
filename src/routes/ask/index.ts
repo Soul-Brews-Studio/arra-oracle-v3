@@ -2,6 +2,8 @@ import { Elysia } from 'elysia';
 import { sqlite } from '../../db/index.ts';
 import { attachSupersedeStatus } from '../../search/supersede-status.ts';
 import { handleSearch } from '../../server/handlers.ts';
+import { parseOptionalSearchModel } from '../search/model-key.ts';
+import { handleTenantSearch } from '../search/tenant-search.ts';
 import { AskBody } from './model.ts';
 import { envAskClient, sourcesFrom, synthesize, type AskClient } from './synthesis.ts';
 
@@ -25,7 +27,13 @@ export function createAskRoutes(deps: AskDeps = {}) {
     }
 
     const limit = limitOf(body.limit);
-    const result = await handleSearch(q, body.type ?? 'all', limit, 0, 'hybrid', body.project, body.cwd, body.model);
+    const parsedModel = parseOptionalSearchModel(body.model);
+    if (!parsedModel.ok) {
+      set.status = 400;
+      return { error: parsedModel.error };
+    }
+    const result = handleTenantSearch(q, body.type ?? 'all', limit, 0)
+      ?? await handleSearch(q, body.type ?? 'all', limit, 0, 'hybrid', body.project, body.cwd, parsedModel.value);
     attachSupersedeStatus(sqlite, result.results as unknown as Array<Record<string, unknown>>);
     const sources = sourcesFrom(result.results, limit);
     const client = body.llm === false ? undefined : deps.client ?? envAskClient();
