@@ -67,7 +67,7 @@ afterAll(() => {
 });
 
 describe('standalone export app', () => {
-  test('exports every Drizzle collection as json, csv, markdown plus graph relationships', async () => {
+  test('exports every Drizzle collection as json, jsonl, csv, markdown plus graph relationships', async () => {
     const connection = createDatabase(dbPath);
     const outputDir = join(root, 'backup');
     const progress: string[] = [];
@@ -82,7 +82,7 @@ describe('standalone export app', () => {
       expect(result.documentCount).toBe(2);
       expect(progress.some((line) => line.includes('oracle_documents'))).toBe(true);
 
-      for (const ext of ['json', 'csv', 'md']) expect(existsSync(join(outputDir, 'collections', `oracle_documents.${ext}`))).toBe(true);
+      for (const ext of ['json', 'jsonl', 'csv', 'md']) expect(existsSync(join(outputDir, 'collections', `oracle_documents.${ext}`))).toBe(true);
       expect(readFileSync(join(outputDir, 'collections', 'oracle_documents.md'), 'utf8')).toContain('doc-old');
       const csv = readFileSync(join(outputDir, 'collections', 'oracle_documents.csv'), 'utf8');
       expect(csv.split('\n')[0]).toBe('id,title,content_preview,collection,created_at');

@@ -50,7 +50,7 @@ describe('export bundle verifier', () => {
     await writeBundle(outputDir);
 
     const verified = await verifyExportBundle(outputDir);
-    expect(verified).toMatchObject({ ok: true, errors: [], documentCount: 1, relationshipFileCount: 3 });
+    expect(verified).toMatchObject({ ok: true, errors: [], documentCount: 1, relationshipFileCount: 4 });
     expect(verified.collectionCount).toBeGreaterThan(5);
     expect(verified.checkedFiles).toBeGreaterThan(verified.collectionCount ?? 0);
     expect(verified.bytes).toBeGreaterThan(0);

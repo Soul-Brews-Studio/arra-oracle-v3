@@ -1,10 +1,11 @@
 import { exportFormatInfo } from '../../src/vector/export-formats.ts';
 import { formatCsvCollection } from './format-csv.ts';
 import { formatJsonCollection } from './format-json.ts';
+import { formatJsonlCollection } from './format-jsonl.ts';
 
 export type ExportRecord = Record<string, unknown>;
 
-export const EXPORT_FORMATS = ['json', 'csv', 'markdown'] as const;
+export const EXPORT_FORMATS = ['json', 'jsonl', 'csv', 'markdown'] as const;
 export type ExportFormat = typeof EXPORT_FORMATS[number];
 
 export function extensionFor(format: ExportFormat): string {
@@ -28,6 +29,7 @@ export function normalizeRecords(records: ExportRecord[]): ExportRecord[] {
 
 export function formatCollection(name: string, rows: ExportRecord[], format: ExportFormat): string {
   if (format === 'json') return formatJsonCollection(name, rows);
+  if (format === 'jsonl') return formatJsonlCollection(name, rows);
   if (format === 'csv') return formatCsvCollection(name, rows);
   return toMarkdown(name, rows);
 }

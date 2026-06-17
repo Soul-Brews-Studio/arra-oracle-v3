@@ -44,7 +44,7 @@ test('writes a manifest JSON schema with required export fields', async () => {
   const schema = JSON.parse(readFileSync(join(outputDir, 'manifest.schema.json'), 'utf8'));
   expect(schema).toEqual(EXPORT_MANIFEST_SCHEMA);
   expect(schema.required).toEqual(Object.keys(manifest));
-  expect(schema.properties.formats.items.enum).toEqual(['json', 'csv', 'markdown']);
+  expect(schema.properties.formats.items.enum).toEqual(['json', 'jsonl', 'csv', 'markdown']);
   expect(manifest.collections.oracle_documents).toEqual({ rowCount: 0 });
   expect(schema.properties.collections.additionalProperties.required).toEqual(['rowCount']);
   expect(manifest.files).toContainEqual(expect.objectContaining({
@@ -52,6 +52,11 @@ test('writes a manifest JSON schema with required export fields', async () => {
     bytes: expect.any(Number),
     sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
   }));
+  expect(manifest.backup).toMatchObject({
+    path: 'backup.sql',
+    tableCount: expect.any(Number),
+    rowCount: expect.any(Number),
+  });
   expect(manifest.files.some((file: { path: string }) => file.path === 'manifest.json')).toBe(false);
   expect(schema.properties.files.items.properties.sha256.pattern).toBe('^[a-f0-9]{64}$');
 });

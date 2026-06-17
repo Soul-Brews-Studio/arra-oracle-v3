@@ -11,9 +11,9 @@ describe('CommandPalette', () => {
       </MemoryRouter>,
     );
     expect(html).toContain('Open command palette');
-    expect(html).toContain('Search actions (⌘K)');
-    expect(html).toContain('aria-haspopup="dialog"');
     expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('aria-haspopup="dialog"');
+    expect(html).toContain('Search actions (⌘K)');
   });
 
   test('renders semantic empty command state inside the dialog', () => {
@@ -24,7 +24,7 @@ describe('CommandPalette', () => {
     );
 
     expect(html).toContain('role="dialog"');
-    expect(html).toContain('aria-controls="command-palette-listbox"');
+    expect(html).toContain('aria-controls="command-palette-options"');
     expect(html).toContain('No matching command actions.');
     expect(html).toContain('border-warn-border bg-warn-bg text-warn-text');
   });

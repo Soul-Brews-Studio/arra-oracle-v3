@@ -157,7 +157,7 @@ test('aria labels and keyboard route changes remain intact', async ({ page }) =>
 
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K');
   await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible();
-  await expectVisibleFocus(page.getByRole('searchbox', { name: 'Search command palette' }));
+  await expectVisibleFocus(page.getByRole('combobox', { name: 'Search command palette' }));
 
   await openUi(page, '/search', 'light');
   const search = page.getByRole('searchbox', { name: 'Menu search query' });
@@ -166,4 +166,36 @@ test('aria labels and keyboard route changes remain intact', async ({ page }) =>
   await search.fill('status');
   await menuSearchForm.getByRole('button', { name: 'Search' }).press('Enter');
   await expect(page.getByText('1 menu result for “status”.')).toBeVisible();
+});
+
+test('command palette and global search expose keyboard-operable result lists', async ({ page }) => {
+  await openUi(page, '/menu', 'light');
+
+  const paletteButton = page.getByRole('button', { name: 'Open command palette' });
+  await tabUntil(page, paletteButton);
+  await expectVisibleFocus(paletteButton);
+  await paletteButton.press('Enter');
+  const commandInput = page.getByRole('combobox', { name: 'Search command palette' });
+  await expectVisibleFocus(commandInput);
+  await expect(commandInput).toHaveAttribute('aria-controls', 'command-palette-options');
+  await commandInput.fill('plugins');
+  const pluginOption = page.getByRole('option', { name: /Plugins/ });
+  await expect(pluginOption).toBeVisible();
+  await expect(pluginOption).toHaveAttribute('aria-selected', 'true');
+  await commandInput.press('Enter');
+  await expect(page).toHaveURL(/\/plugins$/);
+  await expect(page.locator('#main-content')).toBeFocused();
+
+  await openUi(page, '/menu', 'light');
+  const globalSearch = page.getByRole('searchbox', { name: 'Search all surfaces' });
+  await tabUntil(page, globalSearch);
+  await expectVisibleFocus(globalSearch);
+  await expect(globalSearch).toHaveAttribute('aria-controls', 'global-search-results');
+  await globalSearch.fill('muninn');
+  await page.getByLabel('Global frontend search').getByRole('button', { name: 'Search' }).press('Enter');
+  const results = page.getByRole('region', { name: 'Global search results' });
+  await expect(results).toContainText('muninn-search');
+  const firstResult = results.getByRole('link').first();
+  await tabUntil(page, firstResult);
+  await expectVisibleFocus(firstResult);
 });
