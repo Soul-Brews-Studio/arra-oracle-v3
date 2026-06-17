@@ -26,6 +26,8 @@ import {
   type VectorProxyStatsResponse,
 } from '../proxy-protocol.ts';
 
+const MAX_PROXY_LIMIT = 1000;
+
 function tenantHeaders(json = false): Record<string, string> {
   const headers: Record<string, string> = json ? { 'Content-Type': 'application/json' } : {};
   const tenantId = currentTenantId();
@@ -163,7 +165,7 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
 }
 
 function normalizeLimit(limit: number): number {
-  return Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 10;
+  return Number.isFinite(limit) && limit > 0 ? Math.min(MAX_PROXY_LIMIT, Math.floor(limit)) : 10;
 }
 
 function nonNegativeCount(value: unknown): number {
@@ -175,6 +177,8 @@ function displayName(value: unknown, fallback: string): string {
 }
 
 function exportPath(limit: number | undefined): string {
-  const normalized = Number.isFinite(limit) && Number(limit) > 0 ? Math.floor(Number(limit)) : undefined;
+  const normalized = Number.isFinite(limit) && Number(limit) > 0
+    ? Math.min(MAX_PROXY_LIMIT, Math.floor(Number(limit)))
+    : undefined;
   return normalized ? `${VECTOR_PROXY_ROUTES.export}?limit=${normalized}` : VECTOR_PROXY_ROUTES.export;
 }

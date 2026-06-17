@@ -125,6 +125,7 @@ function syncConfig(
 
 function validateService(service: RegisteredVectorService): RegisteredVectorService {
   const name = service.name?.trim();
+  const capabilities = record(service.capabilities);
   if (!name) throw new Error('service name is required');
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(name)) throw new Error(`invalid service name: ${name}`);
   if (service.kind && service.kind !== VECTOR_CAPABILITY_KIND) throw new Error(`unsupported service kind: ${String(service.kind)}`);
@@ -140,7 +141,7 @@ function validateService(service: RegisteredVectorService): RegisteredVectorServ
       throw new Error(`proxy service ${name} requires http(s) endpoint`);
     }
   }
-  return { kind: VECTOR_CAPABILITY_KIND, name, type: service.type, endpoint, capabilities: service.capabilities };
+  return { kind: VECTOR_CAPABILITY_KIND, name, type: service.type, endpoint, ...(Object.keys(capabilities).length && { capabilities }) };
 }
 
 export class VectorServiceRegistry implements VectorServiceRegistryClient {

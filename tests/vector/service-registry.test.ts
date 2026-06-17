@@ -112,3 +112,17 @@ test('VectorServiceRegistry verifies declared proxy protocol capability', async 
     server.stop(true);
   }
 });
+
+test('VectorServiceRegistry drops non-record capabilities before persisting', async () => {
+  useTempDataDir();
+  const registry = new VectorServiceRegistry();
+
+  const service = await registry.register({
+    name: 'arraycaps',
+    type: 'builtin',
+    capabilities: ['not', 'record'] as any,
+  });
+
+  expect(service).toEqual({ kind: 'vector', name: 'arraycaps', type: 'builtin', endpoint: undefined });
+  expect((await registry.discover()).find((item) => item.name === 'arraycaps')?.capabilities).toBeUndefined();
+});

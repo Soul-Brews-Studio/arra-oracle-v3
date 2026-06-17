@@ -109,14 +109,18 @@ export function createVectorDocumentsEndpoint(deps: VectorDocumentsDeps = {}) {
         let listed: { items: DocumentItem[]; totalFallback: number };
 
         if (store.getAllEmbeddings) {
-          const all = await store.getAllEmbeddings(currentTenantId() ? MAX_LIMIT : offset + limit);
-          const docs = (all as { documents?: unknown[] }).documents;
-          listed = Array.isArray(docs)
-            ? (() => {
-                const scoped = filterTenantItems(pageItems(all.ids, docs, all.metadatas));
-                return { items: scoped.slice(offset, offset + limit), totalFallback: scoped.length };
-              })()
-            : await listWithQuery(store, offset, limit);
+          try {
+            const all = await store.getAllEmbeddings(currentTenantId() ? MAX_LIMIT : offset + limit);
+            const docs = (all as { documents?: unknown[] }).documents;
+            listed = Array.isArray(docs)
+              ? (() => {
+                  const scoped = filterTenantItems(pageItems(all.ids, docs, all.metadatas));
+                  return { items: scoped.slice(offset, offset + limit), totalFallback: scoped.length };
+                })()
+              : await listWithQuery(store, offset, limit);
+          } catch {
+            listed = await listWithQuery(store, offset, limit);
+          }
         } else {
           listed = await listWithQuery(store, offset, limit);
         }

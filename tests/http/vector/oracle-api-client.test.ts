@@ -30,8 +30,8 @@ test('Studio vector API helpers call provider endpoints', async () => {
   await expect(getVectorProviders()).resolves.toEqual([{ type: 'gemini', available: true }]);
   await expect(testVectorProvider({ provider: 'gemini', text: 'hello' })).resolves.toMatchObject({ success: true });
   expect(calls.map((call) => `${call.method} ${call.url}`)).toEqual([
-    'GET /api/v1/vector/providers',
-    'POST /api/v1/vector/providers/test',
+    'GET http://localhost:47778/api/v1/vector/providers',
+    'POST http://localhost:47778/api/v1/vector/providers/test',
   ]);
 });
 
@@ -49,9 +49,9 @@ test('Studio vector API helpers call service registry endpoints', async () => {
   await expect(testVectorService('qdrant')).resolves.toMatchObject({ status: 'up' });
   await expect(unregisterVectorService('qdrant')).resolves.toBeUndefined();
   expect(calls.map((call) => `${call.method} ${call.url}`)).toEqual([
-    'GET /api/v1/vector/services',
-    'POST /api/v1/vector/services/register',
-    'POST /api/v1/vector/services/qdrant/test',
-    'DELETE /api/v1/vector/services/qdrant',
+    'GET http://localhost:47778/api/v1/vector/services',
+    'POST http://localhost:47778/api/v1/vector/services/register',
+    'POST http://localhost:47778/api/v1/vector/services/qdrant/test',
+    'DELETE http://localhost:47778/api/v1/vector/services/qdrant',
   ]);
 });

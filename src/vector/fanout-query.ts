@@ -76,14 +76,16 @@ export async function queryFanout(options: FanoutQueryOptions): Promise<FanoutQu
 export function mergeFanoutResults(results: SearchResult[]): SearchResult[] {
   const best = new Map<string, SearchResult & { _hits?: number }>();
   for (const result of results) {
+    const resultScore = finiteScore(result.score);
     const existing = best.get(result.id);
     if (!existing) {
-      best.set(result.id, { ...result, _hits: 1 });
+      best.set(result.id, { ...result, score: resultScore, _hits: 1 });
       continue;
     }
     const hits = (existing._hits ?? 1) + 1;
-    const score = Math.min(1, Math.max(existing.score ?? 0, result.score ?? 0) + 0.05 * (hits - 1));
-    best.set(result.id, { ...(score >= (result.score ?? 0) ? existing : result), score, source: 'hybrid', _hits: hits });
+    const existingScore = finiteScore(existing.score);
+    const score = Math.min(1, Math.max(existingScore, resultScore) + 0.05 * (hits - 1));
+    best.set(result.id, { ...(resultScore > existingScore ? result : existing), score, source: 'hybrid', _hits: hits });
   }
   return [...best.values()]
     .map(({ _hits, ...result }) => result)
@@ -114,6 +116,12 @@ function normalizeFanoutLimit(limit: number): number {
 
 function finiteDistance(distance: unknown): number {
   return typeof distance === 'number' && Number.isFinite(distance) && distance >= 0 ? distance : 0;
+}
+
+function finiteScore(score: unknown): number {
+  return typeof score === 'number' && Number.isFinite(score)
+    ? Math.max(0, Math.min(1, score))
+    : 0;
 }
 
 function scoreFromDistance(distance: number): number {
