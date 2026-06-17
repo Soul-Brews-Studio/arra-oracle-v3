@@ -55,11 +55,16 @@ The unified runtime scans `~/.arra/plugins/<name>/plugin.json` and
       "description": "Return a hello payload",
       "inputSchema": { "type": "object", "properties": {} },
       "handler": "tool",
+      "enabled": true,
       "readOnly": true
     }
   ]
 }
 ```
+
+Set `"enabled": false` on an `mcpTools[]` item to plug that tool out completely.
+Use `"enabledByDefault": false` when the tool should stay registered but require
+explicit config opt-in before it is listed by default.
 
 ## Entry module
 

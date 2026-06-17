@@ -183,6 +183,10 @@ type PublicTool = {
 };
 ```
 
+Unified plugin tools with `"enabled": false` in `plugin.json` are not registered,
+listed, or callable. `enabledByDefault: false` keeps a tool registered but hides
+it unless config explicitly enables it.
+
 Core tool names: `____IMPORTANT`, `oracle_search`, `oracle_read`,
 `oracle_learn`, `oracle_list`, `oracle_stats`, `oracle_concepts`,
 `oracle_supersede`, `oracle_handoff`, `oracle_inbox`, `oracle_thread`,

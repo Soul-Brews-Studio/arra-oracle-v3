@@ -148,6 +148,7 @@ function runtimeFrom(plugins: LoadedUnifiedPlugin[], options: UnifiedLoaderOptio
   for (const plugin of plugins) {
     pluginStatus.set(plugin.manifest.name, { name: plugin.manifest.name, status: 'ok' });
     for (const tool of plugin.manifest.mcpTools) {
+      if (tool.enabled === false) continue;
       mcpTools.push({ ...tool, plugin: plugin.manifest.name });
       mcpInvokers.set(tool.name, { plugin, tool });
     }
