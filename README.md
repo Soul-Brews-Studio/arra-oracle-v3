@@ -31,6 +31,9 @@ bun test tests/http/health/
 bun run src/cli/index.ts health
 ```
 
+Claude Code project scope: open this clone directly and the checked-in `.mcp.json`
+starts `bin/mcp.ts`, which resolves this repo without `CLAUDE_PLUGIN_ROOT`.
+
 Run the React Studio UI:
 
 ```bash

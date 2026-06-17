@@ -3,7 +3,10 @@
     "arra-oracle": {
       "type": "stdio",
       "command": "bun",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/src/index.ts"],
+      "args": [
+        "-e",
+        "const { join } = await import('node:path'); const { pathToFileURL } = await import('node:url'); const root = process.env.CLAUDE_PLUGIN_ROOT || process.cwd(); const mod = await import(pathToFileURL(join(root, 'bin/mcp.ts')).href); await mod.main();"
+      ],
       "env": {}
     }
   }
