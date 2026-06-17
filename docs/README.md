@@ -15,6 +15,7 @@ is linked here; keep new docs in the right section when adding files.
 | [architecture.md](./architecture.md) | Understand the installable runtime architecture | HTTP, MCP, CLI, plugins, storage |
 | [architecture/modular-backend.md](./architecture/modular-backend.md) | Modular backend target: CF Workers edge, maw plugin backend, vector server, MCP plugins. |
 | [architecture/deploy-topologies.md](./architecture/deploy-topologies.md) | Choose all-local, Cloudflare edge, Vercel, or federation tunnel deployment. | deploy options, edge/backend/vector split |
+| [architecture/proxy-terminology.md](./architecture/proxy-terminology.md) | Disambiguate request-tier, storage-tier, and manifest passthrough proxy meanings. | proxy vocabulary, external-only adapters |
 | [PLUGIN-GUIDE.md](./PLUGIN-GUIDE.md) | Author installable Oracle plugins | `plugin.json`, CLI/MCP/menu/API surfaces |
 | [API-REFERENCE-INDEX.md](./API-REFERENCE-INDEX.md) | Choose the right API reference | `/api/docs`, `openapi.json`, route family map |
 
