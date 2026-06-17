@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="560" viewBox="0 0 1120 560" role="img" aria-labelledby="title desc">
+  <title id="title">Arra Oracle Cloudflare Remote MCP deploy flow</title>
+  <desc id="desc">Deploy button to Cloudflare Workers, configure backend variables, then connect MCP clients.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#101827"/>
+      <stop offset="100%" stop-color="#25113f"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+    <style>
+      .title{font:700 34px Inter,Arial,sans-serif;fill:#fff}.sub{font:500 18px Inter,Arial,sans-serif;fill:#cbd5e1}
+      .card{fill:#fff;filter:url(#shadow)}.h{font:700 22px Inter,Arial,sans-serif;fill:#111827}.p{font:500 16px Inter,Arial,sans-serif;fill:#475569}
+      .code{font:600 15px ui-monospace,SFMono-Regular,Menlo,monospace;fill:#1e293b}.pill{fill:#f97316}.pillText{font:700 18px Inter,Arial,sans-serif;fill:#fff}
+      .arrow{stroke:#f97316;stroke-width:5;fill:none;marker-end:url(#arrow)}
+    </style>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#f97316"/>
+    </marker>
+  </defs>
+  <rect width="1120" height="560" fill="url(#bg)"/>
+  <text x="56" y="70" class="title">One-click Arra Oracle Remote MCP on Cloudflare Workers</text>
+  <text x="56" y="105" class="sub">McpAgent + Streamable HTTP + Durable Object session state + HTTP proxy search</text>
+
+  <rect x="64" y="170" width="240" height="220" rx="24" class="card"/>
+  <rect x="96" y="205" width="176" height="48" rx="24" class="pill"/>
+  <text x="121" y="236" class="pillText">Deploy to Cloudflare</text>
+  <text x="94" y="292" class="h">1. Click button</text>
+  <text x="94" y="326" class="p">Cloudflare clones repo</text>
+  <text x="94" y="354" class="p">and reads wrangler.jsonc</text>
+
+  <path d="M315 280 H395" class="arrow"/>
+
+  <rect x="416" y="170" width="288" height="220" rx="24" class="card"/>
+  <text x="452" y="224" class="h">2. Worker deploys</text>
+  <text x="452" y="262" class="code">/mcp  Streamable HTTP</text>
+  <text x="452" y="294" class="code">/sse  legacy transport</text>
+  <text x="452" y="326" class="code">/health readiness</text>
+  <text x="452" y="358" class="p">Durable Object: MCP_OBJECT</text>
+
+  <path d="M716 280 H796" class="arrow"/>
+
+  <rect x="816" y="170" width="240" height="220" rx="24" class="card"/>
+  <text x="850" y="224" class="h">3. Connect clients</text>
+  <text x="850" y="262" class="code">mcp-remote .../mcp</text>
+  <text x="850" y="300" class="p">Claude / Cursor / AI</text>
+  <text x="850" y="328" class="p">Playground call tools</text>
+
+  <rect x="250" y="430" width="620" height="70" rx="20" fill="#0f172a" stroke="#f97316" stroke-width="2"/>
+  <text x="286" y="463" class="code" fill="#fff">Set ORACLE_HTTP_URL to enable oracle_search → /api/search</text>
+  <text x="286" y="489" class="code" fill="#fff">Future: D1 metadata/FTS + Vectorize embeddings + OAuth</text>
+</svg>
