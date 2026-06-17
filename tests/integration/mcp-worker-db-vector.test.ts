@@ -75,7 +75,7 @@ describe('McpAgent proxy + createDb + VectorStoreAdapter integration', () => {
   let close: (() => void) | undefined;
   afterEach(() => { close?.(); close = undefined; });
 
-  test('proxies OAuth tenant search through SQLite-backed VectorStoreAdapter atomically', async () => {
+  test('keeps two OAuth tenants isolated through one MCP search endpoint', async () => {
     const connection = await createDb({}, { runtime: 'bun', dbPath: ':memory:' });
     close = connection.close;
     await createVectorTable(connection.db);
@@ -93,25 +93,42 @@ describe('McpAgent proxy + createDb + VectorStoreAdapter integration', () => {
       { id: 'school-b-doc', document: 'beta private note', metadata: { tenantId: 'school-b' }, vector: [0, 1, 0] },
     ]);
 
+    const seen: Array<{ path: string; tenant: string | null; query: string | null }> = [];
     const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input));
       const tenant = new Headers(init?.headers).get('X-Oracle-Tenant');
+      seen.push({ path: url.pathname, tenant, query: url.searchParams.get('q') });
       const result = await store.query(url.searchParams.get('q') ?? '', 5, tenant ? { tenantId: tenant } : undefined);
       return Response.json({ tenant, ids: result.ids, documents: result.documents });
     }) as typeof fetch;
 
-    const result = await oracleProxyTool({ ORACLE_URL: 'https://oracle.test/root' }, {
-      path: '/api/search',
-      query: { q: 'private', limit: 5 },
-      tenantId: 'school-b',
-      authContext: { claims: { tenant_id: 'school-a' } },
-    }, fetcher);
+    async function searchAs(authTenant: string, toolTenant: string) {
+      return payload(await oracleProxyTool({ ORACLE_URL: 'https://oracle.test/root' }, {
+        path: '/api/search',
+        query: { q: 'private', limit: 5 },
+        tenantId: toolTenant,
+        authContext: { claims: { tenant_id: authTenant } },
+      }, fetcher));
+    }
 
-    expect(payload(result)).toEqual({
+    const tenantA = await searchAs('school-a', 'school-b');
+    const tenantB = await searchAs('school-b', 'school-a');
+
+    expect(seen).toEqual([
+      { path: '/root/api/search', tenant: 'school-a', query: 'private' },
+      { path: '/root/api/search', tenant: 'school-b', query: 'private' },
+    ]);
+    expect(tenantA).toEqual({
       tenant: 'school-a',
       ids: ['school-a-doc'],
       documents: ['alpha private note'],
     });
+    expect(tenantB).toEqual({
+      tenant: 'school-b',
+      ids: ['school-b-doc'],
+      documents: ['beta private note'],
+    });
+    expect(tenantA.ids).not.toEqual(tenantB.ids);
     expect(await store.getStats()).toEqual({ count: 2 });
   });
 });

@@ -8,6 +8,7 @@ import { LanceDBAdapter } from './adapters/lancedb.ts';
 import { QdrantAdapter } from './adapters/qdrant.ts';
 import { createCloudflareVectorStore, type CloudflareAIWorkerBinding, type CloudflareD1Database, type CloudflareVectorizeBinding } from './adapters/cloudflare.ts';
 import { ProxyVectorAdapter } from './adapters/proxy.ts';
+import { requireVectorProxyContract } from './proxy-contract.ts';
 import { TurboVecAdapter } from './adapters/turbovec.ts';
 import { createEmbeddingProvider, FallbackEmbeddings } from './embeddings.ts';
 import { GeminiEmbeddings } from './providers/gemini.ts';
@@ -80,11 +81,12 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
       return createCloudflareVectorStore(collectionName, config);
     }
     case 'proxy': {
-      const proxyUrl = clean(config.proxyEndpoint) || clean(process.env.ORACLE_PROXY_VECTOR_URL);
-      if (!proxyUrl) {
-        throw new Error('proxy vector adapter requires proxyEndpoint or ORACLE_PROXY_VECTOR_URL');
-      }
-      return new ProxyVectorAdapter(collectionName, proxyUrl);
+      const contract = requireVectorProxyContract({
+        endpoint: config.proxyEndpoint,
+        collectionName,
+        backend: config.type,
+      });
+      return new ProxyVectorAdapter(collectionName, contract.baseUrl, contract.timeoutMs);
     }
     case 'turbovec': {
       return new TurboVecAdapter(collectionName, clean(config.proxyEndpoint));
