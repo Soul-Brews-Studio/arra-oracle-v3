@@ -19,10 +19,11 @@ async function restorePreviousRuntime(
   previous: UnifiedRuntime,
   state: UnifiedRuntimeLifecycleState,
   options: Required<Pick<SwapUnifiedRuntimeOptions, 'startServers'>> & SwapUnifiedRuntimeOptions,
+  restartServers = true,
 ): Promise<void> {
   try {
     await previous.init();
-    state.servers = await options.startServers(previous.servers, options.warn);
+    if (restartServers) state.servers = await options.startServers(previous.servers, options.warn);
   } catch (error) {
     warn(options, `failed to restore previous runtime: ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -38,8 +39,13 @@ export async function swapUnifiedRuntimeWithLifecycle(
   const previous = runtimeRef.current;
   let nextServers: UnifiedServerRuntime | undefined;
 
-  await previous.stop();
-  await state.servers.stop();
+  try {
+    await previous.stop();
+    await state.servers.stop();
+  } catch (error) {
+    await restorePreviousRuntime(previous, state, { ...options, startServers }, false);
+    throw error;
+  }
 
   try {
     await next.init();

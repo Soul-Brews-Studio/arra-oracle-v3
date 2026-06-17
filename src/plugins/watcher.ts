@@ -46,11 +46,18 @@ export function watchPluginManifests(options: PluginManifestWatcherOptions): Plu
   const watchImpl = options.watch ?? (fsWatch as unknown as PluginWatchFn);
   const watchers: Array<{ close: () => void }> = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let reloadChain: Promise<void> = Promise.resolve();
 
-  const reload = async (): Promise<UnifiedRuntime> => {
+  const runReload = async (): Promise<UnifiedRuntime> => {
     const runtime = await loader({ dirs, timeoutMs: options.timeoutMs, warn: options.warn });
     await options.onReload(runtime);
     return runtime;
+  };
+
+  const reload = (): Promise<UnifiedRuntime> => {
+    const run = reloadChain.then(runReload, runReload);
+    reloadChain = run.then(() => undefined, () => undefined);
+    return run;
   };
 
   const scheduleReload = () => {

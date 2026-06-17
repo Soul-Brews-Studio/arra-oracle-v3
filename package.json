@@ -97,8 +97,15 @@
     "huginn:sweep": "bun scripts/huginn-sweep.ts",
     "bench": "bun run benchmarks/run-all.ts",
     "export": "bun src/cli/commands/export.ts",
-    "cloudflare:mcp:dev": "wrangler dev --config wrangler.jsonc",
-    "cloudflare:mcp:deploy": "wrangler deploy --config wrangler.jsonc"
+    "cloudflare:mcp:dev": "wrangler dev --config workers/mcp/wrangler.jsonc",
+    "cloudflare:mcp:deploy": "wrangler deploy --config workers/mcp/wrangler.jsonc",
+    "cloudflare:mcp:dry-run": "wrangler deploy --dry-run --config workers/mcp/wrangler.jsonc",
+    "cloudflare:studio:dev": "cd frontend && bun run build && cd .. && wrangler dev --config workers/studio/wrangler.jsonc",
+    "cloudflare:studio:dry-run": "cd frontend && bun run build && cd .. && wrangler deploy --dry-run --config workers/studio/wrangler.jsonc",
+    "cloudflare:studio:deploy": "cd frontend && bun run build && cd .. && wrangler deploy --config workers/studio/wrangler.jsonc",
+    "cloudflare:federation:dev": "wrangler dev --config workers/federation/wrangler.jsonc",
+    "cloudflare:federation:dry-run": "wrangler deploy --dry-run --config workers/federation/wrangler.jsonc",
+    "cloudflare:federation:deploy": "wrangler deploy --config workers/federation/wrangler.jsonc"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",

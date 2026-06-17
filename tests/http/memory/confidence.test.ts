@@ -91,6 +91,19 @@ test('retrieval reinforcement boosts stale docs without removing decay warnings'
   expect(reinforced.warnings).toContain('stale_unvalidated');
 });
 
+test('malformed usage signals do not create NaN confidence or fake recency boosts', () => {
+  const confidence = memoryConfidence(memory({
+    usageCount: Number.NaN,
+    lastAccessedAt: 'not-a-date',
+  }), { now, mode: 'semantic', semanticScore: Number.POSITIVE_INFINITY });
+
+  expect(confidence.usageCount).toBe(0);
+  expect(confidence.lastAccessedAgeDays).toBeUndefined();
+  expect(confidence.components.match).toBe(0);
+  expect(confidence.components.usage).toBe(0);
+  expect(Number.isFinite(confidence.score)).toBe(true);
+});
+
 test('confidence clamps malformed signals and future access without exploding score', () => {
   const confidence = memoryConfidence(memory({
     createdAt: 'not-a-date',

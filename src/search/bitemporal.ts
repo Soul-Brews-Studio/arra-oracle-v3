@@ -1,22 +1,34 @@
 import type { Database } from 'bun:sqlite';
 import { currentTenantId } from '../middleware/tenant.ts';
+import { isoTimestamp } from './timestamp.ts';
 
 export type AsOfParseResult = { ok: true; value?: number } | { ok: false; error: string };
 
 type SearchResultRecord = Record<string, unknown>;
 type TemporalRow = { id: string; valid_time: number | string | null; valid_until: number | string | null };
 
+const validStart = timestampSql('COALESCE(d.valid_time, d.updated_at, d.created_at, d.indexed_at)');
+const validUntil = timestampSql('COALESCE(s.valid_time, d.superseded_at)');
+
 export const BI_TEMPORAL_JOIN = `
 LEFT JOIN oracle_documents s
   ON d.superseded_by = s.id AND s.tenant_id = d.tenant_id`;
 
 export const BI_TEMPORAL_WHERE = `
-COALESCE(d.valid_time, d.updated_at, d.created_at, d.indexed_at) <= ?
+${validStart} <= ?
 AND (
   d.superseded_by IS NULL
   OR COALESCE(s.valid_time, d.superseded_at) IS NULL
-  OR COALESCE(s.valid_time, d.superseded_at) > ?
+  OR ${validUntil} > ?
 )`;
+
+function timestampSql(expr: string): string {
+  return `CASE
+    WHEN typeof(${expr}) = 'text' AND ${expr} GLOB '*[^0-9]*'
+      THEN CAST(strftime('%s', ${expr}) AS INTEGER) * 1000
+    ELSE CAST(${expr} AS INTEGER)
+  END`;
+}
 
 export function parseAsOf(raw: string | undefined): AsOfParseResult {
   const value = raw?.trim();
@@ -58,11 +70,4 @@ export function filterResultsAsOf(
     item.valid_until = isoTimestamp(row.valid_until);
     return true;
   });
-}
-
-function isoTimestamp(value: number | string | null): string | null {
-  const ms = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(ms) || ms <= 0) return null;
-  const date = new Date(ms);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
