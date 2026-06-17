@@ -32,6 +32,7 @@ test('GET /api/health includes separate vector-server health when configured', a
     url: 'http://127.0.0.1:8081',
     protocol: 'vector-proxy-v1',
   });
+  expect(body.vectorAvailable).toBe(true);
 });
 
 test('GET /api/health degrades when configured vector-server is down', async () => {
@@ -47,6 +48,7 @@ test('GET /api/health degrades when configured vector-server is down', async () 
 
   expect(body.status).toBe('degraded');
   expect(body.vectorServer).toMatchObject({ status: 'down', error: 'unreachable' });
+  expect(body.vectorAvailable).toBe(false);
 });
 
 test('readVectorServerHealth probes VECTOR_URL health endpoint', async () => {

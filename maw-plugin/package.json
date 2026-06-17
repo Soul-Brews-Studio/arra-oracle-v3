@@ -15,6 +15,7 @@
     "mcp-client.ts",
     "server.ts",
     "serve.ts",
+    "vector-preflight.ts",
     "vector-config.ts"
   ]
 }

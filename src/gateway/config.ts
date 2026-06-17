@@ -9,6 +9,8 @@
 import fs from 'fs';
 import path from 'path';
 import type { HooksConfig } from './hooks.ts';
+import { mergeVectorServicesIntoGatewayConfig } from '../vector/gateway-services.ts';
+import { vectorServiceRegistry, type RegisteredVectorService } from '../vector/service-registry.ts';
 
 export interface ServiceConfig {
   url: string;
@@ -36,13 +38,22 @@ export interface GatewayConfig {
 
 function configFileName(): string { return 'oracle-gateway.json'; }
 
-export function loadGatewayConfig(dataDir: string, vectorUrl?: string): GatewayConfig | null {
+function discoveredVectorServices(): RegisteredVectorService[] {
+  return vectorServiceRegistry.discoverSync();
+}
+export { discoveredVectorServices as discoverGatewayVectorServices };
+
+export function loadGatewayConfig(
+  dataDir: string,
+  vectorUrl?: string,
+  vectorServices: RegisteredVectorService[] = [],
+): GatewayConfig | null {
   const configPath = path.join(dataDir, configFileName());
 
   if (fs.existsSync(configPath)) {
     try {
       const raw = fs.readFileSync(configPath, 'utf-8');
-      return JSON.parse(raw) as GatewayConfig;
+      return mergeVectorServicesIntoGatewayConfig(JSON.parse(raw) as GatewayConfig, vectorServices);
     } catch (e) {
       console.warn(`[Gateway] Failed to parse ${configPath}:`, e);
       return null;
@@ -54,7 +65,7 @@ export function loadGatewayConfig(dataDir: string, vectorUrl?: string): GatewayC
   // vector routes must not fall back to local LanceDB inside the core process.
   if (vectorUrl) {
     const vectorBase = vectorUrl.replace(/\/+$/, '');
-    return {
+    return mergeVectorServicesIntoGatewayConfig({
       services: {
         vector: {
           url: vectorUrl,
@@ -70,9 +81,11 @@ export function loadGatewayConfig(dataDir: string, vectorUrl?: string): GatewayC
         { match: '/api/map3d', service: 'vector', fallback: 'empty' },
         { match: '/api/vector/**', service: 'vector', fallback: 'error' },
       ],
-    };
+    }, vectorServices);
   }
 
+  const vectorOnly = mergeVectorServicesIntoGatewayConfig({ services: {}, routes: [] }, vectorServices);
+  if (Object.keys(vectorOnly.services).length > 0) return vectorOnly;
   return null;
 }
 
@@ -87,12 +100,13 @@ export function watchGatewayConfig(
   dataDir: string,
   onChange: (next: GatewayConfig | null) => void,
   vectorUrl?: string,
+  vectorServices: () => RegisteredVectorService[] = () => [],
 ): () => void {
   const configPath = path.join(dataDir, configFileName());
   const watchers: fs.FSWatcher[] = [];
   let timer: ReturnType<typeof setTimeout> | null = null;
   let poller: ReturnType<typeof setInterval> | null = null;
-  let last = JSON.stringify(loadGatewayConfig(dataDir, vectorUrl));
+  let last = JSON.stringify(loadGatewayConfig(dataDir, vectorUrl, vectorServices()));
 
   const reloadIfChanged = (): void => {
     // Malformed JSON survival: if the file exists but failed to parse,
@@ -102,7 +116,7 @@ export function watchGatewayConfig(
     // are silently ignored so the running gateway keeps its last good
     // state until the user saves a valid file.
     const fileMissing = !fs.existsSync(configPath);
-    const next = loadGatewayConfig(dataDir, vectorUrl);
+    const next = loadGatewayConfig(dataDir, vectorUrl, vectorServices());
     if (next === null && !fileMissing) {
       // file exists but failed to parse — hold last good
       return;

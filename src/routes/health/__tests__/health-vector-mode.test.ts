@@ -7,5 +7,6 @@ describe('/api/health vector mode', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(['embedded', 'proxied', 'disabled']).toContain(body.vectorMode);
+    expect(typeof body.vectorAvailable).toBe('boolean');
   });
 });
