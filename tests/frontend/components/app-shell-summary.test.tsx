@@ -22,4 +22,21 @@ describe('AppShell summary', () => {
       restore();
     }
   });
+
+  test('exposes the Simple Mode header link', () => {
+    const restore = installBrowserLocation('/menu');
+    try {
+      const html = htmlFor(
+        <MemoryRouter initialEntries={['/menu']}>
+          <AppShell error="" loading={false} menuCount={2} pluginCount={1} surfaceCount={4} updatedAt="10:00" onRefresh={() => {}}>
+            <p>child content</p>
+          </AppShell>
+        </MemoryRouter>,
+      );
+      expect(html).toContain('href="/simple"');
+      expect(html).toContain('Simple Mode');
+    } finally {
+      restore();
+    }
+  });
 });

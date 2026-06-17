@@ -109,6 +109,12 @@ export function AppShell({
               <CommandPalette onRefresh={onRefresh} />
               <GlobalSearch />
               <div className="flex flex-wrap items-center justify-start gap-3 sm:justify-end">
+                <a
+                  className="focus-ring rounded-xl border border-accent-border px-4 py-3 font-semibold text-accent transition hover:bg-accent-soft"
+                  href="/simple"
+                >
+                  Simple Mode
+                </a>
                 <TauriBadge connected={!error} />
                 <ThemeToggle />
                 <button
