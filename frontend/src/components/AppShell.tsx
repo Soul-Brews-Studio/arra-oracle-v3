@@ -38,6 +38,8 @@ export function AppShell({
 }: AppShellProps) {
   const location = useLocation();
   const contentRef = useRef<HTMLDivElement>(null);
+  const routeKey = `${location.pathname}${location.search}`;
+  const lastFocusedRouteRef = useRef(routeKey);
   const meta = useMemo(() => routeMeta(location.pathname, location.search), [location.pathname, location.search]);
 
   useEffect(() => {
@@ -45,8 +47,12 @@ export function AppShell({
   }, [meta.title]);
 
   useEffect(() => {
+    if (lastFocusedRouteRef.current === routeKey) {
+      return;
+    }
+    lastFocusedRouteRef.current = routeKey;
     contentRef.current?.focus({ preventScroll: true });
-  }, [location.pathname, location.search]);
+  }, [routeKey]);
 
   const navItems: NavItem[] = [
     { to: '/', label: 'Menu', description: 'Navigation rows from /api/menu', badge: loading ? '…' : menuCount },
