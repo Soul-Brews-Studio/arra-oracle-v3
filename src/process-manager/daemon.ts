@@ -26,6 +26,11 @@ export function spawnDaemon(options: SpawnDaemonOptions): number | undefined {
     spawnOptions = {},
   } = options;
 
+  if (typeof scriptPath !== 'string' || !scriptPath.trim()) {
+    logger.warn('SYSTEM', 'Failed to spawn daemon', { scriptPath: '<empty>' });
+    return undefined;
+  }
+
   const envVars: Record<string, string | undefined> = { ...process.env, ...env };
   if (port !== undefined) envVars[portEnvVar] = String(port);
 
