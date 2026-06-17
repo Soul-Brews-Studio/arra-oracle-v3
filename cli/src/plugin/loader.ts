@@ -39,8 +39,10 @@ async function loadPluginDir(dir: string): Promise<LoadedPlugin | null> {
 }
 
 function fromUnifiedPlugin(plugin: LoadedUnifiedPlugin): LoadedPlugin {
+  const { cli: _cli, api: _api, seedMenu: _seedMenu, ...manifest } =
+    plugin.manifest as typeof plugin.manifest & { api?: unknown; cli?: unknown; seedMenu?: unknown };
   return {
-    manifest: plugin.manifest,
+    manifest,
     dir: plugin.dir,
     entryPath: plugin.entryPath,
   };

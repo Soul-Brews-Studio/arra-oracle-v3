@@ -89,6 +89,9 @@ async function vectorPreflight(fetcher: typeof fetch = fetch): Promise<{ ok: boo
 async function stopServer(options: ServeOptions): Promise<CliResult> {
   const info = readPidFile();
   if (!info?.pid) return { ok: true, output: `Oracle server not running on http://${DEFAULT_HOST}:${options.port}` };
+  if (info.port !== options.port) {
+    return { ok: true, output: `Oracle server not running on http://${DEFAULT_HOST}:${options.port} (PID file tracks port ${info.port})` };
+  }
   if (!isProcessAlive(info.pid)) {
     removePidFile();
     return { ok: true, output: `Removed stale PID file (pid=${info.pid})` };
@@ -105,11 +108,12 @@ async function stopServer(options: ServeOptions): Promise<CliResult> {
 
 async function serverStatus(port: number, fetcher: typeof fetch = fetch) {
   const info = readPidFile();
-  const processAlive = info?.pid ? isProcessAlive(info.pid) : false;
+  const pidMatchesPort = info?.port === port;
+  const processAlive = pidMatchesPort && info?.pid ? isProcessAlive(info.pid) : false;
   const healthy = await isHealthy(port, fetcher);
   return {
     running: processAlive || healthy,
-    pid: info?.pid,
+    pid: processAlive ? info?.pid : undefined,
     port,
     healthy,
     url: `http://${DEFAULT_HOST}:${port}`,
