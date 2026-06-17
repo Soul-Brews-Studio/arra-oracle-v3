@@ -62,182 +62,128 @@ import { memoryRoutes } from './routes/memory/index.ts';
 import { canvasRoutes } from './routes/canvas/index.ts';
 import { tenantsRoutes } from './routes/tenants/index.ts';
 import { watcherRoutes } from './routes/watcher/index.ts';
+import { indexerRoutes } from './routes/indexer/index.ts';
 import { fileWatcherService } from './services/file-watcher.ts';
-let indexerRoutes: any = null;
-try {
-  indexerRoutes = (await import('./routes/indexer/index.ts')).indexerRoutes;
-} catch {
-  console.log('[Indexer] Routes not loaded — indexer is optional');
-}
 import { gatewayPlugin } from './gateway/index.ts';
 import pkg from '../package.json' with { type: 'json' };
 
-const startupConfig = validateStartupEnv();
-try {
-  db.update(indexingStatus).set({ isIndexing: 0 }).where(eq(indexingStatus.id, 1)).run();
-  console.log('🔮 Reset indexing status on startup');
-} catch (e) {
-  // table might not exist yet — fine on first boot
+type UnifiedRuntime = Awaited<ReturnType<typeof loadUnifiedPlugins>>;
+type ServerSpec = { port: number; fetch(request: Request): Response | Promise<Response> };
+
+export interface CreateAppOptions {
+  unifiedPlugins: UnifiedRuntime;
+  dataDir?: string;
+  vectorUrl?: string;
 }
 
-console.log('[Vector] mode:', VECTOR_URL ? 'proxy → ' + VECTOR_URL : 'local');
-void warmEmbeddingProviderDetection().catch((error) =>
-  console.warn('[Vector] embedding provider auto-detect failed:', error instanceof Error ? error.message : String(error)));
+export function createApp({ unifiedPlugins, dataDir = ORACLE_DATA_DIR, vectorUrl = VECTOR_URL }: CreateAppOptions) {
+  const app = new Elysia()
+    .use(createRequestLoggingMiddleware())
+    .use(createCorrelationMiddleware())
+    .use(createTenantMiddleware())
+    .use(createPrivateNetworkPreflightMiddleware())
+    .use(createCorsMiddleware())
+    .use(createApiVersionHeaderMiddleware())
+    .use(createSecurityHeadersMiddleware())
+    .use(createContentTypeMiddleware())
+    .use(createBodyLimitMiddleware())
+    .use(createApiKeyAuthMiddleware())
+    .use(createRateLimiterMiddleware())
+    .use(createMetricsLifecycle())
+    .use(swagger({ provider: 'swagger-ui', path: '/api/docs', specPath: '/api/docs/json', swaggerOptions: { url: '/api/docs/json' } as any, documentation: { info: { title: 'Arra Oracle API', version: pkg.version, description: 'HTTP API for the Arra Oracle MCP memory layer.' } } }))
+    .use(createResponseFormatMiddleware())
+    .use(createCompressMiddleware())
+    .use(createEtagMiddleware())
+    .onBeforeHandle(({ request, set }) => {
+      const pathname = new URL(request.url).pathname;
+      if (isApiPathProtected(pathname) && !isApiAuthorized(request)) { set.status = 401; return unauthorizedApiResponse(); }
+    })
+    .onAfterHandle(({ set }) => {
+      set.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+      set.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
+    })
+    .use(createErrorMiddleware())
+    .use(gatewayPlugin(dataDir, vectorUrl || undefined))
+    .get('/swagger', () => Response.redirect('/api/docs', 308), { detail: { hide: true } })
+    .get('/swagger/json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
+    .get('/api/openapi.json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
+    .get('/', () => ({ server: MCP_SERVER_NAME, version: pkg.version, status: 'ok', docs: '/api/docs', api: '/api/v1' }));
 
-try {
-  console.log(`[DB] busy_timeout = ${JSON.stringify(sqlite.prepare('PRAGMA busy_timeout').get())}`);
-} catch {}
-configure({ dataDir: ORACLE_DATA_DIR, pidFileName: 'oracle-http.pid' });
-writePidFile({ pid: process.pid, port: Number(PORT), startedAt: new Date().toISOString(), name: 'oracle-http' });
-if (process.env.ORACLE_FILE_WATCHER !== '0') fileWatcherService.start();
-
-const unifiedPlugins = await loadUnifiedPlugins({
-  dirs: defaultUnifiedPluginDirs([join(import.meta.dir, 'plugins')]),
-  warn: (message) => console.warn(message),
-});
-await unifiedPlugins.init();
-const unifiedServers = await startUnifiedPluginServers(unifiedPlugins.servers);
-registerGracefulShutdown({
-  close: async () => {
-    console.log('\n🔮 Shutting down gracefully...');
-    await runShutdownSteps([
-      { name: 'file-watcher', run: () => { fileWatcherService.stop(); } },
-      { name: 'unified-plugins', run: () => unifiedPlugins.stop() },
-      { name: 'unified-plugin-servers', run: () => unifiedServers.stop() },
-      { name: 'vector-stores', run: () => closeCachedVectorStores() },
-      { name: 'database', run: () => closeDb() },
-      { name: 'pid-file', run: () => removePidFile() },
-    ], console.warn);
-    console.log('👋 Arra Oracle HTTP Server stopped.');
-  },
-});
-const app = new Elysia()
-  .use(createRequestLoggingMiddleware())
-  .use(createCorrelationMiddleware())
-  .use(createTenantMiddleware())
-  .use(createPrivateNetworkPreflightMiddleware())
-  .use(createCorsMiddleware())
-  .use(createApiVersionHeaderMiddleware())
-  .use(createSecurityHeadersMiddleware())
-  .use(createContentTypeMiddleware())
-  .use(createBodyLimitMiddleware())
-  .use(createApiKeyAuthMiddleware())
-  .use(createRateLimiterMiddleware())
-  .use(createMetricsLifecycle())
-  .use(
-    swagger({
-      provider: 'swagger-ui',
-      path: '/api/docs',
-      specPath: '/api/docs/json',
-      swaggerOptions: { url: '/api/docs/json' } as any,
-      documentation: {
-        info: {
-          title: 'Arra Oracle API',
-          version: pkg.version,
-          description: 'HTTP API for the Arra Oracle MCP memory layer.',
-        },
-      },
-    }),
-  )
-  .use(createResponseFormatMiddleware())
-  .use(createCompressMiddleware())
-  .use(createEtagMiddleware())
-  .onBeforeHandle(({ request, set }) => {
-    const pathname = new URL(request.url).pathname;
-    if (isApiPathProtected(pathname) && !isApiAuthorized(request)) {
-      set.status = 401;
-      return unauthorizedApiResponse();
-    }
-  })
-  .onAfterHandle(({ set }) => {
-    set.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-    set.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
-  })
-  .use(createErrorMiddleware())
-  .use(gatewayPlugin(ORACLE_DATA_DIR, VECTOR_URL || undefined))
-  .get('/swagger', () => Response.redirect('/api/docs', 308), { detail: { hide: true } })
-  .get('/swagger/json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
-  .get('/api/openapi.json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
-  .get('/', () => ({
-    server: MCP_SERVER_NAME,
-    version: pkg.version,
-    status: 'ok',
-    docs: '/api/docs',
-    api: '/api/v1',
-  }));
-const healthRoutes = createHealthRoutes({
-  pluginCount: unifiedPlugins.pluginCount,
-  pluginMcpToolCount: unifiedPlugins.mcpTools.length,
-  pluginStatuses: unifiedPlugins.pluginStatuses,
-  isDraining,
-});
-const apiModules = [
-  authRoutes,
-  settingsRoutes,
-  feedRoutes,
-  healthRoutes,
-  dashboardRoutes,
-  searchRoutes,
-  vectorRoutes,
-  vectorConfigApiRoutes,
-  conceptsRoutes,
-  knowledgeRoutes,
-  verifyRoutes,
-  supersedeRoutes,
-  forumApi,
-  tracesApi,
-  scheduleApi,
-  filesRouter,
-  createPluginsRouter({ registry: unifiedPlugins.pluginRegistry, runtime: unifiedPlugins }),
-  sessionsRoutes,
-  vaultRoutes,
-  metricsRoutes,
-  exportRoutes,
-  memoryRoutes,
-  canvasRoutes,
-  tenantsRoutes,
-  watcherRoutes,
-  ...(indexerRoutes ? [indexerRoutes] : []),
-  ...unifiedPlugins.routes,
-];
-try {
-  const result = seedMenuItems(apiModules as unknown as SeedHasRoutes[]);
-  await seedUnifiedPluginMenuItems(unifiedPlugins.menu);
-  console.log(
-    `🔮 Menu seeded: ${result.inserted} inserted, ${result.updated} updated, ${result.preserved} preserved`,
-  );
-} catch (e) {
-  console.error('⚠️  Menu seeder failed:', e);
+  const healthRoutes = createHealthRoutes({ pluginCount: unifiedPlugins.pluginCount, pluginMcpToolCount: unifiedPlugins.mcpTools.length, pluginStatuses: unifiedPlugins.pluginStatuses, isDraining });
+  const apiModules = [authRoutes, settingsRoutes, feedRoutes, healthRoutes, dashboardRoutes, searchRoutes, vectorRoutes, vectorConfigApiRoutes, conceptsRoutes, knowledgeRoutes, verifyRoutes, supersedeRoutes, forumApi, tracesApi, scheduleApi, filesRouter, createPluginsRouter({ registry: unifiedPlugins.pluginRegistry, runtime: unifiedPlugins }), sessionsRoutes, vaultRoutes, metricsRoutes, exportRoutes, memoryRoutes, canvasRoutes, tenantsRoutes, watcherRoutes, indexerRoutes, ...unifiedPlugins.routes];
+  const modules = [...apiModules, createMcpRoutes(unifiedPlugins.mcpTools), createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu))];
+  for (const mod of modules) app.use(mod as any);
+  app.use(createNotFoundMiddleware(app.routes));
+  return app;
 }
 
-const menuRoutes = createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu));
-const mcpRoutes = createMcpRoutes(unifiedPlugins.mcpTools);
-const modules = [...apiModules, mcpRoutes, menuRoutes];
-for (const mod of modules) app.use(mod as any);
-app.use(createNotFoundMiddleware(app.routes));
+export async function startServer(): Promise<ReturnType<typeof Bun.serve>> {
+  const app = await createStartedApp();
+  return Bun.serve(app);
+}
 
-const dbStatus = () => readStartupDbStatus(() => db.select({ key: settings.key }).from(settings).limit(1).all());
-const middleware = runtimeMiddleware({
-  rateLimitTokensPerWindow: startupConfig.profile.rateLimit.tokensPerWindow,
-  gatewayEnabled: Boolean(VECTOR_URL) || process.env.ORACLE_GATEWAY_HOT_RELOAD !== '0',
-});
-printStartupBanner({
-  version: pkg.version,
-  port: Number(PORT),
-  profile: startupConfig.profile.env,
-  middleware,
-  dbStatus: dbStatus(),
-});
-await runStartupSelfTest({
-  checks: createStartupSelfTest({
-    dbPing: dbStatus,
-    healthFetch: () => app.fetch(new Request(`http://127.0.0.1:${PORT}/api/health`)),
-  }),
-});
-const serverFetch = createRequestTimeoutFetch(
-  createRequestDedupFetch(createApiVersionedFetch(createTenantFetch(createDbContextFetch((request: Request) => app.fetch(request))))),
-);
-export default {
-  port: Number(PORT),
-  fetch: (request: Request) => drainingResponseFor(request) ?? trackRequest(() => serverFetch(request)),
-};
+export async function createStartedApp(): Promise<ServerSpec> {
+  const startupConfig = validateStartupEnv();
+  resetIndexerStatus();
+  console.log('[Vector] mode:', VECTOR_URL ? 'proxy → ' + VECTOR_URL : 'local');
+  void warmEmbeddingProviderDetection().catch((error) => console.warn('[Vector] embedding provider auto-detect failed:', error instanceof Error ? error.message : String(error)));
+  logBusyTimeout();
+  configure({ dataDir: ORACLE_DATA_DIR, pidFileName: 'oracle-http.pid' });
+  writePidFile({ pid: process.pid, port: Number(PORT), startedAt: new Date().toISOString(), name: 'oracle-http' });
+  if (process.env.ORACLE_FILE_WATCHER !== '0') fileWatcherService.start();
+
+  const unifiedPlugins = await loadUnifiedPlugins({ dirs: defaultUnifiedPluginDirs([join(import.meta.dir, 'plugins')]), warn: (message) => console.warn(message) });
+  await unifiedPlugins.init();
+  const unifiedServers = await startUnifiedPluginServers(unifiedPlugins.servers);
+  registerGracefulShutdown({ close: async () => shutdown(unifiedPlugins, unifiedServers) });
+
+  const app = createApp({ unifiedPlugins });
+  await seedMenus(app, unifiedPlugins);
+  await announceStartup(app, startupConfig);
+  const serverFetch = createRequestTimeoutFetch(createRequestDedupFetch(createApiVersionedFetch(createTenantFetch(createDbContextFetch((request: Request) => app.fetch(request))))));
+  return { port: Number(PORT), fetch: (request) => drainingResponseFor(request) ?? trackRequest(() => serverFetch(request)) };
+}
+
+function resetIndexerStatus(): void {
+  try {
+    db.update(indexingStatus).set({ isIndexing: 0 }).where(eq(indexingStatus.id, 1)).run();
+    console.log('🔮 Reset indexing status on startup');
+  } catch {}
+}
+
+function logBusyTimeout(): void {
+  try { console.log(`[DB] busy_timeout = ${JSON.stringify(sqlite.prepare('PRAGMA busy_timeout').get())}`); } catch {}
+}
+
+async function seedMenus(app: any, unifiedPlugins: UnifiedRuntime): Promise<void> {
+  try {
+    const result = seedMenuItems([app] as unknown as SeedHasRoutes[]);
+    await seedUnifiedPluginMenuItems(unifiedPlugins.menu);
+    console.log(`🔮 Menu seeded: ${result.inserted} inserted, ${result.updated} updated, ${result.preserved} preserved`);
+  } catch (e) { console.error('⚠️  Menu seeder failed:', e); }
+}
+
+async function announceStartup(app: any, startupConfig: ReturnType<typeof validateStartupEnv>): Promise<void> {
+  const dbStatus = () => readStartupDbStatus(() => db.select({ key: settings.key }).from(settings).limit(1).all());
+  const middleware = runtimeMiddleware({ rateLimitTokensPerWindow: startupConfig.profile.rateLimit.tokensPerWindow, gatewayEnabled: Boolean(VECTOR_URL) || process.env.ORACLE_GATEWAY_HOT_RELOAD !== '0' });
+  printStartupBanner({ version: pkg.version, port: Number(PORT), profile: startupConfig.profile.env, middleware, dbStatus: dbStatus() });
+  await runStartupSelfTest({ checks: createStartupSelfTest({ dbPing: dbStatus, healthFetch: () => app.fetch(new Request(`http://127.0.0.1:${PORT}/api/health`)) }) });
+}
+
+async function shutdown(unifiedPlugins: UnifiedRuntime, unifiedServers: Awaited<ReturnType<typeof startUnifiedPluginServers>>): Promise<void> {
+  console.log('\n🔮 Shutting down gracefully...');
+  await runShutdownSteps([
+    { name: 'file-watcher', run: () => { fileWatcherService.stop(); } },
+    { name: 'unified-plugins', run: () => unifiedPlugins.stop() },
+    { name: 'unified-plugin-servers', run: () => unifiedServers.stop() },
+    { name: 'vector-stores', run: () => closeCachedVectorStores() },
+    { name: 'database', run: () => closeDb() },
+    { name: 'pid-file', run: () => removePidFile() },
+  ], console.warn);
+  console.log('👋 Arra Oracle HTTP Server stopped.');
+}
+
+if (import.meta.main) {
+  const server = await startServer();
+  console.log(`🔮 Oracle HTTP Server listening on http://localhost:${server.port}`);
+}
