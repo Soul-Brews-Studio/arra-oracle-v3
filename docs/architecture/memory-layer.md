@@ -2,7 +2,8 @@
 
 This document records the memory-layer contracts added by the #2251 waves that
 are present on `alpha`: confidence-ranked retrieval, retrieval reinforcement,
-supersede-not-delete, and the async consolidation worker. The guiding rule is:
+supersede-not-delete, the async consolidation worker, and bi-temporal reads.
+The guiding rule is:
 **reads stay fast and LLM-free; curation is explicit, auditable, and never
 physically deletes memories.**
 
@@ -17,16 +18,19 @@ physically deletes memories.**
   `SUPERSEDE` actions.
 - Keep every path tenant-aware and compatible with SQLite/FTS5 plus vector
   adapters.
+- Answer historical searches with `valid_time` / `asOf` without deleting old
+  rows.
 
 ## End-to-end shape
 
 ```text
 write/index
   -> oracle_documents + oracle_fts + vector collections
-  -> usage_count / last_accessed_at start cold
+  -> valid_time + usage_count / last_accessed_at start cold
 
 read/search
   -> FTS/vector/fan-out retrieval
+  -> optional asOf filter uses valid_time / valid_until
   -> query-time confidence score
   -> rankingScore = normalized RRF blended with confidence
   -> logDocumentAccess() bumps usage_count + last_accessed_at
@@ -187,6 +191,16 @@ This adopts the useful part of LLM write-time curation while preserving the
 project invariant: wrong curation remains reversible/auditable because no row is
 hard-deleted.
 
+## Bi-temporal reads
+
+`oracle_documents.valid_time` records world-valid time. `/api/search?asOf=...`
+uses `src/search/bitemporal.ts` to include rows where the coalesced valid start
+is at or before `asOf`, and the successor's `valid_time` or `superseded_at` is
+after `asOf`. Returned rows can expose `valid_time` and `valid_until` alongside
+supersede metadata.
+
+See [`memory-pipeline.md`](./memory-pipeline.md) for the full write/read flow.
+
 ## Wave status and follow-ups
 
 Implemented on current `alpha`:
@@ -195,15 +209,15 @@ Implemented on current `alpha`:
 - search access reinforces confidence through usage heat;
 - supersede metadata is returned with search results;
 - async consolidation can plan/apply supersede-only cleanup;
-- optional LLM consolidation is isolated from read paths.
+- optional LLM consolidation is isolated from read paths;
+- bi-temporal `valid_time` / `asOf` reads return `valid_time` and `valid_until`.
 
 Tracked by #2251 but not a current `alpha` contract in this branch:
 
-- bi-temporal `valid_time` / `asOf` reads from PR #2282;
 - entity-linking sidecar collections from PR #2285.
 
-When those land, extend this document with the valid-time semantics and entity
-fusion/ranking contract, but keep the same non-goals below.
+When that lands, extend this document with the entity fusion/ranking contract,
+but keep the same non-goals below.
 
 ## Non-goals
 

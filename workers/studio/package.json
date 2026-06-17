@@ -4,8 +4,9 @@
   "type": "module",
   "scripts": {
     "build": "cd ../../frontend && bun run build",
-    "deploy": "bun run build && wrangler deploy",
-    "typecheck": "tsc --noEmit"
+    "deploy": "bun run build && wrangler deploy --config wrangler.jsonc",
+    "typecheck": "tsc --noEmit",
+    "dry-run": "bun run build && wrangler deploy --dry-run --config wrangler.jsonc"
   },
   "devDependencies": {
     "typescript": "^5.7.2",
