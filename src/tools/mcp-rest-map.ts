@@ -69,7 +69,7 @@ const mcpRestMapEntries = [
   { name: 'oracle_stats', remoteable: true, method: 'GET', path: '/api/stats' },
   { name: 'oracle_concepts', remoteable: true, method: 'GET', path: '/api/concepts', query: [{ arg: 'type', param: 'type' }, { arg: 'limit', param: 'limit' }] },
   { name: 'oracle_supersede', remoteable: true, method: 'POST', path: '/api/supersede/document', body: 'args' },
-  { name: 'oracle_research_note', remoteable: false, reason: 'requires Bun-side research rendering before learn storage' },
+  { name: 'oracle_research_note', remoteable: true, method: 'POST', path: '/api/research/note', body: 'args' },
   { name: 'oracle_handoff', remoteable: true, method: 'POST', path: '/api/handoff', body: 'args' },
   { name: 'oracle_inbox', remoteable: true, method: 'GET', path: '/api/inbox', query: pagingQuery },
   { name: 'oracle_thread', remoteable: true, method: 'POST', path: '/api/thread', body: 'thread-message' },
