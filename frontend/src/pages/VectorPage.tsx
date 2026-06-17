@@ -85,11 +85,11 @@ export function vectorDashboardSummary(cards: VectorCollectionCard[], state: Pag
 
 function VectorDocumentsCard() {
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-documents-title">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Documents</p>
-      <h2 id="vector-documents-title" className="mt-2 text-2xl font-semibold text-white">Browse indexed documents</h2>
-      <p className="mt-2 text-sm text-slate-400">Open the collection-level document browser for full content and metadata.</p>
-      <Link className="focus-ring mt-4 inline-flex rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40" to={vectorDocumentsPath()}>
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-documents-title">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Documents</p>
+      <h2 id="vector-documents-title" className="mt-2 text-2xl font-semibold text-text">Browse indexed documents</h2>
+      <p className="mt-2 text-sm text-text-muted">Open the collection-level document browser for full content and metadata.</p>
+      <Link className="focus-ring mt-4 inline-flex rounded-xl border border-border px-4 py-2 text-sm text-text hover:border-accent-border" to={vectorDocumentsPath()}>
         Open document browser
       </Link>
     </section>
@@ -154,14 +154,14 @@ export function VectorPage({
 
   return (
     <div className="grid gap-5">
-      <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-status-title">
+      <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-status-title">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Vector status</p>
-            <h1 id="vector-status-title" className="mt-2 text-3xl font-semibold text-white">Vector dashboard</h1>
-            <p className="mt-2 text-sm text-slate-400">Collection health from /api/v1/vector/index/models and /api/v1/vector/health.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Vector status</p>
+            <h1 id="vector-status-title" className="mt-2 text-3xl font-semibold text-text">Vector dashboard</h1>
+            <p className="mt-2 text-sm text-text-muted">Collection health from /api/v1/vector/index/models and /api/v1/vector/health.</p>
           </div>
-          <p className="rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300">{summary}</p>
+          <p className="rounded-full border border-border px-3 py-2 text-sm text-text-muted">{summary}</p>
         </div>
 
         {isLoading ? <LoadingPanel title="Loading vector status…" detail="Fetching /api/v1/vector/index/models and /api/v1/vector/health." /> : null}
@@ -170,11 +170,11 @@ export function VectorPage({
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" aria-label="Vector dashboard cards">
-        <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Collection health</p>
-          <h2 className="mt-2 text-2xl font-semibold text-white">Vector collections</h2>
-          <p className="mt-2 text-sm text-slate-400">Status, model, and adapter details by collection.</p>
-          {!isLoading && state !== 'error' && cards.length === 0 ? <p className="mt-4 text-sm text-slate-400">No vector collections are registered.</p> : null}
+        <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Collection health</p>
+          <h2 className="mt-2 text-2xl font-semibold text-text">Vector collections</h2>
+          <p className="mt-2 text-sm text-text-muted">Status, model, and adapter details by collection.</p>
+          {!isLoading && state !== 'error' && cards.length === 0 ? <p className="mt-4 text-sm text-text-muted">No vector collections are registered.</p> : null}
           {cards.length ? <VectorCollectionCards cards={cards} formats={formats} downloads={downloads} onExport={onExport} /> : null}
         </section>
 

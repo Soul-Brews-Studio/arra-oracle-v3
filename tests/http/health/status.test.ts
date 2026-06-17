@@ -53,5 +53,26 @@ test('GET /api/health reflects database ping result in status and db field', asy
   expect(res.status).toBe(200);
   expect(body.status).toBe('degraded');
   expect(body.db).toBe('error');
+  expect(body.oracle).toBe('degraded');
+  expect(body.dbStatus).toBe('error');
   expect(body.dbCheck).toMatchObject({ status: 'error', error: 'db offline' });
+});
+
+test('GET /api/health catches dbPing exceptions and keeps response shaped', async () => {
+  const app = createHealthRoutes({
+    uptimeSeconds: () => 0.3333,
+    dbPing: async () => { throw 'db locked'; },
+    vectorHealth: async () => ({ status: 'ok', engines: [], checked_at: '2026-06-16T00:00:00.000Z' }),
+    vectorServerHealth: async () => ({ configured: false, status: 'unconfigured' }),
+  });
+  const res = await app.handle(new Request('http://local/api/health'));
+  const body = await res.json() as Record<string, any>;
+
+  expect(res.status).toBe(200);
+  expect(body.status).toBe('degraded');
+  expect(body.uptimeSeconds).toBe(0.333);
+  expect(body.db).toBe('error');
+  expect(body.oracle).toBe('degraded');
+  expect(body.dbCheck).toMatchObject({ status: 'error', error: 'db locked' });
+  expect(body.vectorStatus).toBe('ok');
 });

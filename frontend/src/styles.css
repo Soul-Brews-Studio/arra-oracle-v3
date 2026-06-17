@@ -1,70 +1,113 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
-:root {
-  color-scheme: light;
-  background: #f8fafc;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+@theme {
+  --font-sans: "Fira Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "Fira Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --color-bg: oklch(0.985 0.004 257);
+  --color-surface: oklch(1 0 0 / 0.86);
+  --color-surface-muted: oklch(1 0 0 / 0.72);
+  --color-field: oklch(1 0 0 / 0.96);
+  --color-border: oklch(0.86 0.01 257);
+  --color-text: oklch(0.21 0.04 257);
+  --color-text-muted: oklch(0.45 0.04 257);
+  --color-accent: oklch(0.50 0.11 178);
+  --color-accent2: oklch(0.50 0.20 300);
+  --color-accent2-soft: oklch(0.94 0.05 300 / 0.72);
+  --color-accent2-border: oklch(0.50 0.20 300 / 0.36);
+  --color-accent2-solid: oklch(0.82 0.12 300);
+  --color-accent2-hover: oklch(0.88 0.09 300);
+  --color-accent-soft: oklch(0.94 0.05 178 / 0.72);
+  --color-accent-border: oklch(0.50 0.11 178 / 0.36);
+  --color-accent-solid: oklch(0.79 0.14 178);
+  --color-accent-hover: oklch(0.86 0.10 178);
+  --color-on-accent: oklch(0.13 0.02 265);
+  --color-ok-bg: oklch(0.94 0.05 156);
+  --color-ok-text: oklch(0.43 0.13 156);
+  --color-ok-border: oklch(0.68 0.12 156 / 0.45);
+  --color-warn-bg: oklch(0.94 0.08 85);
+  --color-warn-text: oklch(0.45 0.12 70);
+  --color-warn-border: oklch(0.68 0.13 70 / 0.45);
+  --color-err-bg: oklch(0.94 0.06 25);
+  --color-err-text: oklch(0.50 0.20 25);
+  --color-err-border: oklch(0.62 0.20 25 / 0.45);
 }
 
-:root.dark {
-  color-scheme: dark;
-  background: #030712;
+.dark {
+  --color-bg: oklch(0.13 0.02 265);
+  --color-surface: oklch(0.21 0.02 265 / 0.7);
+  --color-surface-muted: oklch(0.25 0.02 265 / 0.58);
+  --color-field: oklch(0.18 0.02 265);
+  --color-border: oklch(0.34 0.02 265);
+  --color-text: oklch(0.96 0.01 257);
+  --color-text-muted: oklch(0.71 0.04 257);
+  --color-accent: oklch(0.82 0.13 178);
+  --color-accent2: oklch(0.78 0.16 300);
+  --color-accent2-soft: oklch(0.50 0.12 300 / 0.18);
+  --color-accent2-border: oklch(0.78 0.16 300 / 0.36);
+  --color-accent2-solid: oklch(0.82 0.12 300);
+  --color-accent2-hover: oklch(0.88 0.09 300);
+  --color-accent-soft: oklch(0.50 0.10 178 / 0.18);
+  --color-accent-border: oklch(0.82 0.13 178 / 0.36);
+  --color-accent-solid: oklch(0.82 0.13 178);
+  --color-accent-hover: oklch(0.88 0.10 178);
+  --color-ok-bg: oklch(0.50 0.10 156 / 0.18);
+  --color-ok-text: oklch(0.85 0.13 156);
+  --color-ok-border: oklch(0.85 0.13 156 / 0.36);
+  --color-warn-bg: oklch(0.54 0.12 70 / 0.20);
+  --color-warn-text: oklch(0.84 0.14 85);
+  --color-warn-border: oklch(0.84 0.14 85 / 0.36);
+  --color-err-bg: oklch(0.54 0.17 25 / 0.20);
+  --color-err-text: oklch(0.82 0.15 25);
+  --color-err-border: oklch(0.82 0.15 25 / 0.36);
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #f8fafc;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
 }
 
-.dark body { background: #030712; }
-
 #root { min-height: 100vh; }
+.font-mono, code, pre { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
 .oracle-shell {
   background:
-    radial-gradient(circle at top left, rgba(13, 148, 136, 0.14), transparent 32rem),
-    radial-gradient(circle at bottom right, rgba(124, 58, 237, 0.08), transparent 30rem),
-    #f8fafc;
-}
-
-.dark .oracle-shell {
-  background:
-    radial-gradient(circle at top left, rgba(45, 212, 191, 0.18), transparent 32rem),
-    radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.14), transparent 30rem),
-    #030712;
+    radial-gradient(circle at top left, color-mix(in oklch, var(--color-accent) 18%, transparent), transparent 32rem),
+    radial-gradient(circle at bottom right, color-mix(in oklch, var(--color-accent2) 12%, transparent), transparent 30rem),
+    var(--color-bg);
 }
 
 .focus-ring:focus-visible {
-  outline: 2px solid #0d9488;
+  outline: 2px solid var(--color-accent);
   outline-offset: 3px;
 }
 
-.light .border-white\/10 { border-color: rgb(203 213 225 / 0.85); }
-.light .bg-slate-950\/70,
-.light .bg-slate-950\/60,
-.light .bg-slate-950\/80 { background-color: rgb(255 255 255 / 0.86); }
-.light .bg-slate-950 { background-color: rgb(255 255 255 / 0.96); }
-.light .bg-white\/\[0\.03\],
-.light .bg-white\/\[0\.04\] { background-color: rgb(255 255 255 / 0.72); }
-.light .bg-black\/30 { background-color: rgb(15 23 42 / 0.08); }
-.light .text-white,
-.light .text-slate-100 { color: #0f172a; }
-.light .text-slate-200,
-.light .text-slate-300 { color: #334155; }
-.light .text-slate-400 { color: #475569; }
-.light .text-slate-500 { color: #64748b; }
-.light .text-teal-100,
-.light .text-teal-200,
-.light .text-teal-300 { color: #0f766e; }
-.light .text-emerald-100,
-.light .text-emerald-200 { color: #065f46; }
-.light .text-amber-100,
-.light .text-amber-200 { color: #92400e; }
-.light .text-red-100,
-.light .text-red-200 { color: #b91c1c; }
-.light .text-purple-200,
-.light .text-purple-300 { color: #7e22ce; }
-.light .hover\:bg-slate-900:hover { background-color: rgb(241 245 249 / 0.95); }
+
+.status-success,
+.status-ok {
+  border-color: var(--color-ok-border);
+  background-color: var(--color-ok-bg);
+  color: var(--color-ok-text);
+}
+
+.status-warn {
+  border-color: var(--color-warn-border);
+  background-color: var(--color-warn-bg);
+  color: var(--color-warn-text);
+}
+
+.status-error {
+  border-color: var(--color-err-border);
+  background-color: var(--color-err-bg);
+  color: var(--color-err-text);
+}
+
+.status-success-dot,
+.status-ok-dot { background-color: var(--color-ok-text); }
+.status-warn-dot { background-color: var(--color-warn-text); }
+.status-error-dot { background-color: var(--color-err-text); }
+

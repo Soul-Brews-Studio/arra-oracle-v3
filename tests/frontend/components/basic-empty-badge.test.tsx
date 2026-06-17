@@ -9,7 +9,7 @@ describe('basic component shells', () => {
 
     expect(html).toContain('Plugin surface');
     expect(html).toContain('rounded-full');
-    expect(html).toContain('text-[color:var(--color-accent,#0f766e)]');
+    expect(html).toContain('text-ok-text');
   });
 
   test('renders empty-state text with dashed fallback styling', () => {
@@ -17,6 +17,6 @@ describe('basic component shells', () => {
 
     expect(html).toContain('No plugins matched the filters.');
     expect(html).toContain('border-dashed');
-    expect(html).toContain('text-slate-400');
+    expect(html).toContain('text-text-muted');
   });
 });

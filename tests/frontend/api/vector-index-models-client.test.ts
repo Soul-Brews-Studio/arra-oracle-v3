@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { createApiClient } from '../../../frontend/src/api/client';
+import { requestPath } from './_fetch';
 
 function jsonResponse(data: unknown): Response {
   return new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' } });
@@ -16,7 +17,7 @@ describe('ApiClient vectorIndexModels', () => {
     });
 
     await expect(client.vectorIndexModels()).resolves.toMatchObject({ models: { bge: { count: 4 } } });
-    expect(String(calls[0]?.input)).toBe('/api/v1/vector/index/models');
+    expect(requestPath(calls[0]?.input ?? '')).toBe('/api/v1/vector/index/models');
     expect(new Headers(calls[0]?.init?.headers).get('accept')).toBe('application/json');
   });
 });

@@ -4,7 +4,7 @@ import type { SearchResult } from '../../server/types.ts';
 import { isVectorSectionEnabled } from '../../vector/config.ts';
 import type { ToolContext, ToolResponse, OracleSearchInput } from '../types.ts';
 import { searchFts, mapFtsResults, enrichSupersedeFlags } from './fts.ts';
-import { combineResults, sanitizeFtsQuery } from './helpers.ts';
+import { attachSearchEvidence, combineResults, sanitizeFtsQuery } from './helpers.ts';
 import { vectorSearch } from './vector.ts';
 
 let logSearchFn: typeof import('../../server/logging.ts').logSearch | null = null;
@@ -67,7 +67,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
     ? [...reranked.results, ...combinedResults.slice(50)]
     : combinedResults;
   const totalMatches = finalResults.length;
-  const results: Array<Record<string, unknown>> = finalResults.slice(offset, offset + limit);
+  const results: Array<Record<string, unknown>> = attachSearchEvidence(finalResults.slice(offset, offset + limit));
   enrichSupersedeFlags(ctx, results);
 
   const ftsCount = results.filter((result) => result.source === 'fts').length;

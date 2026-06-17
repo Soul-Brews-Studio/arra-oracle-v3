@@ -77,7 +77,7 @@ export function AppShell({
   const retry = (
     <button
       aria-label="Retry loading backend dashboard data"
-      className="focus-ring rounded-lg border border-[color:var(--color-err-text,#991b1b)] px-3 py-2 font-semibold text-[color:var(--color-err-text,#991b1b)] hover:bg-[var(--color-err-bg,#fee2e2)]"
+      className="focus-ring rounded-lg border border-err-border px-3 py-2 font-semibold text-err-text hover:bg-err-bg"
       type="button"
       onClick={onRefresh}
     >
@@ -86,9 +86,9 @@ export function AppShell({
   );
 
   return (
-    <main className="oracle-shell min-h-screen text-slate-900 transition-colors dark:text-slate-100">
+    <main className="oracle-shell min-h-screen text-slate-900 transition-colors dark:text-text">
       <a
-        className="focus-ring sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-teal-300 focus:px-4 focus:py-3 focus:font-semibold focus:text-slate-950"
+        className="focus-ring sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-accent-solid focus:px-4 focus:py-3 focus:font-semibold focus:text-on-accent"
         href="#main-content"
       >
         Skip to main content
@@ -96,7 +96,7 @@ export function AppShell({
       <div className="mx-auto grid w-full max-w-7xl gap-4 px-3 py-3 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[18rem_1fr] lg:px-8">
         <NavSidebar items={navItems} />
         <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
-          <header className="flex flex-col gap-5 rounded-3xl border border-slate-200 bg-white/85 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur sm:p-6 lg:flex-row lg:items-end lg:justify-between dark:border-white/10 dark:bg-slate-950/70 dark:shadow-black/30">
+          <header className="flex flex-col gap-5 rounded-3xl border border-slate-200 bg-white/85 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur sm:p-6 lg:flex-row lg:items-end lg:justify-between dark:border-border dark:bg-surface dark:shadow-black/30">
             <PageChrome meta={meta} />
             <div className="grid w-full gap-3 lg:max-w-md">
               <CommandPalette onRefresh={onRefresh} />
@@ -105,7 +105,7 @@ export function AppShell({
                 <TauriBadge connected={!error} />
                 <ThemeToggle />
                 <button
-                  className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="focus-ring rounded-xl bg-accent-solid px-5 py-3 font-semibold text-on-accent transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={loading}
                   type="button"
                   onClick={onRefresh}

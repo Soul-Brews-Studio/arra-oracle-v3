@@ -128,13 +128,13 @@ export function SetupWizard({ children }: { children: ReactNode }) {
 
   if (state !== "visible") return <>{children}</>;
   return (
-    <main className="min-h-screen bg-slate-950 p-6 text-slate-100">
-      <section className="mx-auto max-w-4xl rounded-3xl border border-purple-300/20 bg-purple-300/10 p-6 shadow-2xl">
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-purple-200">
+    <main className="min-h-screen bg-field p-6 text-text">
+      <section className="mx-auto max-w-4xl rounded-3xl border border-accent2-border bg-accent2-soft p-6 shadow-2xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent2">
           First-run wizard
         </p>
         <h1 className="mt-3 text-3xl font-bold">Set up vector search</h1>
-        <p className="mt-3 text-sm text-purple-100/80">
+        <p className="mt-3 text-sm text-accent2">
           No full-text documents and no active vector index were detected.
           Configure a provider, choose the initial vault source, then start
           indexing.
@@ -143,12 +143,12 @@ export function SetupWizard({ children }: { children: ReactNode }) {
           {setupSteps.map((label, index) => (
             <li
               key={label}
-              className={`h-2 flex-1 rounded-full ${index <= step ? "bg-purple-200" : "bg-white/20"}`}
+              className={`h-2 flex-1 rounded-full ${index <= step ? "bg-accent2-solid" : "bg-field/20"}`}
             />
           ))}
         </ol>
-        <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/60 p-5">
-          <h2 className="text-xl font-semibold text-white">
+        <div className="mt-6 rounded-2xl border border-border bg-surface p-5">
+          <h2 className="text-xl font-semibold text-text">
             {setupSteps[step]}
           </h2>
           <StepBody
@@ -165,13 +165,13 @@ export function SetupWizard({ children }: { children: ReactNode }) {
           />
         </div>
         {message ? (
-          <p className="mt-4 rounded-2xl border border-white/10 bg-slate-950/60 p-3 text-sm text-purple-100">
+          <p className="mt-4 rounded-2xl border border-border bg-surface p-3 text-sm text-accent2">
             {message}
           </p>
         ) : null}
         <div className="mt-5 flex flex-wrap gap-3">
           <button
-            className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-purple-100 disabled:opacity-50"
+            className="focus-ring rounded-xl border border-border px-4 py-2 text-sm text-accent2 disabled:opacity-50"
             disabled={step === 0}
             type="button"
             onClick={() => setStep((step - 1) as Step)}
@@ -180,7 +180,7 @@ export function SetupWizard({ children }: { children: ReactNode }) {
           </button>
           {step === 0 ? (
             <button
-              className="focus-ring rounded-xl bg-purple-200 px-4 py-2 text-sm font-semibold text-slate-950"
+              className="focus-ring rounded-xl bg-accent2-solid px-4 py-2 text-sm font-semibold text-on-accent"
               type="button"
               onClick={() => void refreshDetection()}
             >
@@ -189,7 +189,7 @@ export function SetupWizard({ children }: { children: ReactNode }) {
           ) : null}
           {step === 1 ? (
             <button
-              className="focus-ring rounded-xl bg-teal-200 px-4 py-2 text-sm font-semibold text-slate-950"
+              className="focus-ring rounded-xl bg-accent-solid px-4 py-2 text-sm font-semibold text-on-accent"
               type="button"
               onClick={() => void applyProvider()}
             >
@@ -198,7 +198,7 @@ export function SetupWizard({ children }: { children: ReactNode }) {
           ) : null}
           {step === 2 ? (
             <button
-              className="focus-ring rounded-xl bg-teal-200 px-4 py-2 text-sm font-semibold text-slate-950"
+              className="focus-ring rounded-xl bg-accent-solid px-4 py-2 text-sm font-semibold text-on-accent"
               type="button"
               onClick={() => void startIndex()}
             >
@@ -206,7 +206,7 @@ export function SetupWizard({ children }: { children: ReactNode }) {
             </button>
           ) : null}
           <button
-            className="focus-ring rounded-xl border border-purple-200/40 px-4 py-2 text-sm font-semibold text-purple-100 disabled:opacity-50"
+            className="focus-ring rounded-xl border border-accent2-border px-4 py-2 text-sm font-semibold text-accent2 disabled:opacity-50"
             disabled={step === 3}
             type="button"
             onClick={() => setStep((step + 1) as Step)}
@@ -215,20 +215,20 @@ export function SetupWizard({ children }: { children: ReactNode }) {
           </button>
           {step === 3 ? (
             <a
-              className="focus-ring rounded-xl bg-teal-200 px-4 py-2 text-sm font-semibold text-slate-950"
+              className="focus-ring rounded-xl bg-accent-solid px-4 py-2 text-sm font-semibold text-on-accent"
               href="/vector"
             >
               Continue to dashboard
             </a>
           ) : null}
           <a
-            className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200"
+            className="focus-ring rounded-xl border border-border px-4 py-2 text-sm text-text"
             href="/vector/settings"
           >
             Open Vector Settings
           </a>
           <button
-            className="focus-ring rounded-xl px-4 py-2 text-sm text-slate-400 hover:text-slate-100"
+            className="focus-ring rounded-xl px-4 py-2 text-sm text-text-muted hover:text-text"
             type="button"
             onClick={dismiss}
           >

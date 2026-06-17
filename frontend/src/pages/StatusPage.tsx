@@ -23,9 +23,9 @@ export interface StatusPageProps {
 }
 
 function statusClass(status?: string): string {
-  if (status === 'ok' || status === 'connected') return 'border-[color:var(--color-ok-text,#166534)] bg-[var(--color-ok-bg,#dcfce7)] text-[color:var(--color-ok-text,#166534)]';
-  if (status === 'degraded' || status === 'draining') return 'border-[color:var(--color-warn-text,#92400e)] bg-[var(--color-warn-bg,#fef3c7)] text-[color:var(--color-warn-text,#92400e)]';
-  return 'border-[color:var(--color-err-text,#991b1b)] bg-[var(--color-err-bg,#fee2e2)] text-[color:var(--color-err-text,#991b1b)]';
+  if (status === 'ok' || status === 'connected') return 'border-ok-border bg-ok-bg text-ok-text';
+  if (status === 'degraded' || status === 'draining') return 'border-warn-border bg-warn-bg text-warn-text';
+  return 'border-err-border bg-err-bg text-err-text';
 }
 
 function formatSeconds(seconds?: number): string {
@@ -38,9 +38,9 @@ function formatSeconds(seconds?: number): string {
 
 function Field({ label, value }: { label: string; value: string | number | undefined }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</dt>
-      <dd className="mt-2 font-mono text-sm text-slate-100">{value ?? 'unknown'}</dd>
+    <div className="rounded-2xl border border-border bg-surface-muted p-4">
+      <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">{label}</dt>
+      <dd className="mt-2 font-mono text-sm text-text">{value ?? 'unknown'}</dd>
     </div>
   );
 }
@@ -79,14 +79,14 @@ export function pluginHealthPath(plugin: { name: string; status?: string; error?
 
 function PluginRows({ health }: { health: HealthResponse }) {
   const items = health.plugins?.items ?? [];
-  if (!items.length) return <p className="text-sm text-slate-400">No plugin health rows returned.</p>;
+  if (!items.length) return <p className="text-sm text-text-muted">No plugin health rows returned.</p>;
   return (
     <ul className="grid gap-2">
       {items.map((plugin) => (
-        <li key={plugin.name} className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 sm:flex-row sm:items-center sm:justify-between">
-          <a className="focus-ring font-mono text-sm text-[color:var(--color-accent,#0f766e)] hover:text-[color:var(--color-accent,#0f766e)]" href={pluginHealthPath(plugin)}>{plugin.name}</a>
+        <li key={plugin.name} className="flex flex-col gap-2 rounded-xl border border-border bg-surface-muted p-3 sm:flex-row sm:items-center sm:justify-between">
+          <a className="focus-ring font-mono text-sm text-accent hover:text-accent" href={pluginHealthPath(plugin)}>{plugin.name}</a>
           <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${statusClass(plugin.status)}`} data-contrast-badge><span aria-hidden="true">●</span>{plugin.status}</span>
-          {plugin.error ? <span className="text-sm text-[color:var(--color-warn-text,#92400e)]">{plugin.error}</span> : null}
+          {plugin.error ? <span className="text-sm text-warn-text">{plugin.error}</span> : null}
         </li>
       ))}
     </ul>
@@ -95,17 +95,17 @@ function PluginRows({ health }: { health: HealthResponse }) {
 
 function ProxyRows({ vector }: { vector: VectorHealthForStatus | null }) {
   const rows = vectorProxyRows(vector);
-  if (!rows.length) return <p className="text-sm text-slate-400">No proxy service rows returned by /api/v1/vector/health.</p>;
+  if (!rows.length) return <p className="text-sm text-text-muted">No proxy service rows returned by /api/v1/vector/health.</p>;
   return (
     <ul className="grid gap-2">
       {rows.map((row) => (
-        <li key={`${row.name}-${row.endpoint}`} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+        <li key={`${row.name}-${row.endpoint}`} className="rounded-xl border border-border bg-surface-muted p-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span className="font-mono text-sm text-[color:var(--color-accent,#0f766e)]">{row.name}</span>
+            <span className="font-mono text-sm text-accent">{row.name}</span>
             <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${statusClass(row.status === 'up' ? 'ok' : row.status)}`} data-contrast-badge><span aria-hidden="true">●</span>{row.status}</span>
           </div>
-          <p className="mt-2 break-words font-mono text-xs text-slate-300">{row.endpoint}</p>
-          <p className="mt-1 text-sm text-slate-400">{row.detail}</p>
+          <p className="mt-2 break-words font-mono text-xs text-text-muted">{row.endpoint}</p>
+          <p className="mt-1 text-sm text-text-muted">{row.detail}</p>
         </li>
       ))}
     </ul>
@@ -147,10 +147,10 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
 
   return (
     <section className="grid gap-5" aria-labelledby="status-page-title">
-      <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Server status</p>
-        <h2 id="status-page-title" className="mt-2 text-2xl font-semibold text-white">Health overview</h2>
-        <p className="mt-2 text-sm text-slate-400">Live health from GET /api/v1/health.</p>
+      <div className="rounded-3xl border border-border bg-surface p-5 sm:p-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Server status</p>
+        <h2 id="status-page-title" className="mt-2 text-2xl font-semibold text-text">Health overview</h2>
+        <p className="mt-2 text-sm text-text-muted">Live health from GET /api/v1/health.</p>
       </div>
 
       {isLoading ? <LoadingPanel title="Loading server health…" detail="Fetching /api/v1/health from the Elysia backend." /> : null}
@@ -174,14 +174,14 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
             <Field label="Oracle" value={health.oracle} />
             <Field label="DB path" value={health.db?.path} />
           </dl>
-          <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-label="Plugin health rows">
-            <h3 className="text-lg font-semibold text-white">Plugin health</h3>
+          <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-label="Plugin health rows">
+            <h3 className="text-lg font-semibold text-text">Plugin health</h3>
             <div className="mt-4"><PluginRows health={health} /></div>
           </section>
-          <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-label="Proxy status rows">
-            <h3 className="text-lg font-semibold text-white">Proxy status</h3>
-            <p className="mt-2 text-sm text-slate-400">Vector proxy and registered proxy services from /api/v1/vector/health.</p>
-            {vectorError ? <p className="mt-3 rounded-xl border border-[color:var(--color-warn-text,#92400e)] bg-[var(--color-warn-bg,#fef3c7)] p-3 text-sm text-[color:var(--color-warn-text,#92400e)]">{vectorError}</p> : null}
+          <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-label="Proxy status rows">
+            <h3 className="text-lg font-semibold text-text">Proxy status</h3>
+            <p className="mt-2 text-sm text-text-muted">Vector proxy and registered proxy services from /api/v1/vector/health.</p>
+            {vectorError ? <p className="mt-3 rounded-xl border border-warn-border bg-warn-bg p-3 text-sm text-warn-text">{vectorError}</p> : null}
             <div className="mt-4"><ProxyRows vector={vectorHealth} /></div>
           </section>
         </>

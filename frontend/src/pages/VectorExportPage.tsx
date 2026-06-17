@@ -110,22 +110,22 @@ export function VectorExportPage({
   }
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-export-title">
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-export-title">
       <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Vector</p>
-        <h1 id="vector-export-title" className="mt-2 text-3xl font-semibold text-white">Vector export</h1>
-        <p className="mt-2 text-sm text-slate-400">Download vector collections from /api/v1/vector/export in any available format.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Vector</p>
+        <h1 id="vector-export-title" className="mt-2 text-3xl font-semibold text-text">Vector export</h1>
+        <p className="mt-2 text-sm text-text-muted">Download vector collections from /api/v1/vector/export in any available format.</p>
       </div>
 
       {state === 'loading' ? <LoadingPanel title="Loading vector collections…" detail="Fetching /api/v1/vector/index/models." /> : null}
       {state === 'error' ? <ErrorMessage title="Could not load vector export options." message={error} /> : null}
 
-      <div className="mt-5 grid gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <label className="grid gap-2 text-sm font-medium text-slate-300">
+      <div className="mt-5 grid gap-4 rounded-2xl border border-border bg-surface-muted p-4">
+        <label className="grid gap-2 text-sm font-medium text-text-muted">
           Collection
           <select
             aria-label="Export collection"
-            className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100"
+            className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-text"
             value={collection}
             onChange={(event) => setCollection(event.target.value)}
           >
@@ -134,21 +134,21 @@ export function VectorExportPage({
             )) : <option value="">No collections loaded</option>}
           </select>
         </label>
-        <label className="grid gap-2 text-sm font-medium text-slate-300">
+        <label className="grid gap-2 text-sm font-medium text-text-muted">
           Format
           <select
             aria-label="Export format"
-            className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100"
+            className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-text"
             value={format}
             onChange={(event) => setFormat(event.target.value)}
           >
             {formatOptions.map((item) => <option key={item.format} value={item.format}>{item.label}</option>)}
           </select>
         </label>
-        <p className="text-sm text-slate-500">{status}</p>
+        <p className="text-sm text-text-muted">{status}</p>
         {downloadError ? <ErrorMessage title="Vector export failed." message={downloadError} /> : null}
         <div className="flex flex-wrap gap-2">
-          <button className="focus-ring rounded-xl border border-[color:var(--color-accent,#0f766e)] px-4 py-2 text-sm font-semibold text-[color:var(--color-accent,#0f766e)] hover:bg-[var(--color-ok-bg,#dcfce7)] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[color:var(--color-accent,#5eead4)] dark:text-[color:var(--color-accent,#5eead4)] dark:hover:bg-[var(--color-ok-bg,#064e3b)]" data-contrast-badge disabled={!collection || Boolean(downloading) || formatOptions.length === 0} type="button" onClick={() => void exportSelected()}>
+          <button className="focus-ring rounded-xl border border-accent-border px-4 py-2 text-sm font-semibold text-accent hover:bg-ok-bg disabled:cursor-not-allowed disabled:opacity-50 dark:border-accent-border dark:text-accent dark:hover:bg-ok-bg" data-contrast-badge disabled={!collection || Boolean(downloading) || formatOptions.length === 0} type="button" onClick={() => void exportSelected()}>
             {downloading ? <Spinner label={`Downloading ${formatLabelFor(formatOptions, downloading)}`} /> : 'Export'}
           </button>
         </div>
