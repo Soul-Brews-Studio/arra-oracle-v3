@@ -1,4 +1,4 @@
-import { apiUrl, withOracleFetchInit } from './oracle';
+import { apiFetch } from './oracle';
 
 export interface PluginStateResponse {
   ok: boolean;
@@ -18,11 +18,11 @@ function errorMessage(payload: unknown, fallback: string): string {
 
 export async function setPluginEnabled(name: string, enabled: boolean): Promise<PluginStateResponse> {
   const path = `/api/plugins/${encodeURIComponent(name)}/state`;
-  const response = await fetch(apiUrl(path), withOracleFetchInit({
+  const response = await apiFetch(path, {
     method: 'PATCH',
     headers: { accept: 'application/json', 'content-type': 'application/json' },
     body: JSON.stringify({ enabled }),
-  }));
+  });
   const text = await response.text();
   const payload = text ? JSON.parse(text) as unknown : {};
   if (!response.ok) throw new Error(`${path} returned ${response.status}: ${errorMessage(payload, response.statusText)}`);

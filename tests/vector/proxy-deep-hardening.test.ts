@@ -35,3 +35,27 @@ test('proxy adapter skips empty add batches and normalizes stats/query edges', a
   expect(info).toEqual({ name: 'docs', count: 0 });
   expect(queryPayload).toMatchObject({ text: 'oracle', limit: 10 });
 });
+
+test('proxy adapter caps oversized query and export limits', async () => {
+  const paths: string[] = [];
+  let queryPayload: any;
+  const target = startServer(async (req) => {
+    const url = new URL(req.url);
+    paths.push(`${req.method} ${url.pathname}${url.search}`);
+    if (url.pathname === '/vectors/query') {
+      queryPayload = await req.json();
+      return Response.json({ ids: [], documents: [], distances: [], metadatas: [] });
+    }
+    if (url.pathname === '/vectors/export') {
+      return Response.json({ ids: [], embeddings: [], metadatas: [], documents: [] });
+    }
+    return Response.json({ status: 'ok', name: 'proxy', version: 'test' });
+  });
+  const adapter = new ProxyVectorAdapter('docs', target);
+
+  await adapter.query('oracle', 999999);
+  await adapter.getAllEmbeddings(999999);
+
+  expect(queryPayload.limit).toBe(1000);
+  expect(paths).toContain('GET /vectors/export?limit=1000');
+});

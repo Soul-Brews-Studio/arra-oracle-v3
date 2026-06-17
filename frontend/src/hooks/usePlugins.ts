@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { apiUrl } from '../api/oracle';
+import { apiUrl, withLocalPna } from '../api/oracle';
 import type { PluginEntry, PluginsResponse } from '../types';
 
 export const PLUGINS_ENDPOINT = '/api/plugins';
@@ -48,7 +48,7 @@ export async function fetchPluginsFromEndpoint({
 
   let response: Response;
   try {
-    response = await request(apiUrl(endpoint), { headers: { accept: 'application/json' } });
+    response = await request(apiUrl(endpoint), withLocalPna({ headers: { accept: 'application/json' } }));
   } catch (error) {
     throw new Error(`${endpoint} is unreachable: ${messageFor(error)}`);
   }

@@ -1,4 +1,4 @@
-import { apiUrl, withOracleFetchInit } from '../api/oracle';
+import { apiFetch } from '../api/oracle';
 
 export const ADAPTER_OPTIONS = ['chroma', 'sqlite-vec', 'lancedb', 'qdrant', 'cloudflare-vectorize', 'proxy', 'turbovec'] as const;
 export type VectorConfigAdapter = (typeof ADAPTER_OPTIONS)[number];
@@ -177,10 +177,10 @@ export function toRows(response: VectorConfigResponse): VectorConfigRow[] {
 }
 
 export async function fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(apiUrl(path), withOracleFetchInit({
-    ...init,
+  const response = await apiFetch(path, {
     headers: { accept: 'application/json', 'content-type': 'application/json', ...(init.headers ?? {}) },
-  }));
+    ...init,
+  });
   const text = await response.text();
   let payload: unknown = {};
   try {

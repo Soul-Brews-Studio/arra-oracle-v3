@@ -7,7 +7,7 @@ import type {
   VectorSearchResponse,
 } from '../../../src/server/types';
 import type { LearnCreateResponse, LearnDeleteResponse, LearnListResponse, LearnMutationPayload, LearnUpdateResponse } from '../types';
-import { API_BASE, withOracleFetchInit } from './oracle';
+import { API_BASE, apiFetch } from './oracle';
 
 export interface MenuSearchResponse {
   data: MenuItem[];
@@ -219,13 +219,12 @@ export class ApiClient {
   }
 
   private async fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const fetcher = this.options.fetch ?? globalThis.fetch?.bind(globalThis);
-    if (!fetcher) throw new ApiClientError(0, path, `${path} is unreachable: fetch is unavailable`);
+    const fetcher = this.options.fetch ?? apiFetch;
 
     const headers = withJsonHeaders(this.options.headers, init);
     let response: Response;
     try {
-      response = await fetcher(urlFor(path, this.options.baseUrl), withOracleFetchInit({ ...init, headers }, this.options.baseUrl ?? API_BASE));
+      response = await fetcher(urlFor(path, this.options.baseUrl), { ...init, headers });
     } catch (error) {
       throw new ApiClientError(0, path, `${path} is unreachable: ${messageFor(error)}`);
     }

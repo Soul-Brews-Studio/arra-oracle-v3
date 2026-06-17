@@ -6,6 +6,14 @@ import { watchGatewayConfig, type GatewayConfig } from '../config.ts';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+async function waitFor(predicate: () => boolean, timeoutMs = 1500): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await wait(50);
+  }
+}
+
 describe('watchGatewayConfig', () => {
   it('fires onChange when the config file is created', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-gateway-watch-'));
@@ -90,6 +98,30 @@ describe('watchGatewayConfig', () => {
       await wait(450);
       expect(calls.length).toBe(count);
       expect(calls[calls.length - 1]?.services.v.url).toBe('http://localhost:1');
+    } finally {
+      stop();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('retries a hot-reload change when the reload callback throws', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-gateway-watch-'));
+    const file = path.join(dir, 'oracle-gateway.json');
+    let calls = 0;
+    const applied: Array<GatewayConfig | null> = [];
+    const stop = watchGatewayConfig(dir, (next) => {
+      calls += 1;
+      if (calls === 1) throw new Error('reload failed');
+      applied.push(next);
+    });
+    try {
+      fs.writeFileSync(file, JSON.stringify({
+        services: { v: { url: 'http://localhost:1', timeout: 1000 } },
+        routes: [{ match: '/api/search', service: 'v', fallback: 'fts5' }],
+      }));
+      await waitFor(() => calls >= 2);
+      expect(calls).toBeGreaterThanOrEqual(2);
+      expect(applied[0]?.services.v.url).toBe('http://localhost:1');
     } finally {
       stop();
       fs.rmSync(dir, { recursive: true, force: true });

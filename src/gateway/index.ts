@@ -99,16 +99,10 @@ export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
       (next) => {
         if (next) {
           const previous = state;
-          let replacement: GatewayState;
-          try {
-            replacement = createGatewayState(next);
-          } catch (error) {
-            console.warn('[Gateway] reload failed:', error);
-            return;
-          }
+          const replacement = createGatewayState(next);
           state = replacement;
           previous?.registry.stop();
-          console.log(`[Gateway] Reloaded — ${describeGatewayState(state)}`);
+          console.log(`[Gateway] Reloaded — ${describeGatewayState(replacement)}`);
         } else {
           state?.registry.stop();
           state = null;

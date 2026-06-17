@@ -1,19 +1,6 @@
 export const TAURI_API_BASE = 'http://localhost:47778';
-export const DEFAULT_ORACLE_HOST = 'localhost:47778';
-export const ORACLE_HOST_STORAGE_KEY = 'oracle.host';
-
-export type PrivateNetworkRequestInit = RequestInit & { targetAddressSpace?: 'local' };
-
-type LocationLike = Pick<Location, 'protocol' | 'search' | 'pathname' | 'hash'>;
-type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
-type HistoryLike = Pick<History, 'replaceState'>;
-
-export interface OracleApiBaseEnvironment {
-  history?: HistoryLike;
-  isTauri?: boolean;
-  location?: LocationLike;
-  localStorage?: StorageLike;
-}
+export const DEFAULT_API_HOST = 'localhost:47778';
+export const API_HOST_STORAGE_KEY = 'oracle.host';
 
 declare global {
   interface Window {
@@ -21,95 +8,69 @@ declare global {
   }
 }
 
-function browserStorage(): StorageLike | undefined {
-  if (typeof window === 'undefined') return undefined;
-  try {
-    return window.localStorage;
-  } catch {
-    return undefined;
-  }
+type PrivateNetworkRequestInit = RequestInit & { targetAddressSpace?: 'local' };
+
+function browserWindow(): Window | undefined {
+  return typeof window === 'undefined' ? undefined : window;
 }
 
-function browserEnv(): OracleApiBaseEnvironment {
-  if (typeof window === 'undefined') return {};
-  return { history: window.history, isTauri: isTauri(), location: window.location, localStorage: browserStorage() };
-}
-
-function storageGet(storage: StorageLike | undefined, key: string): string | null {
+function storage(): Storage | null {
   try {
-    return storage?.getItem(key) ?? null;
+    return browserWindow()?.localStorage ?? null;
   } catch {
     return null;
   }
 }
 
-function storageSet(storage: StorageLike | undefined, key: string, value: string): void {
+function normalizeApiHost(value: string | null | undefined): string {
+  const raw = value?.trim();
+  if (!raw) return DEFAULT_API_HOST;
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`;
   try {
-    storage?.setItem(key, value);
+    return new URL(withProtocol).host || DEFAULT_API_HOST;
   } catch {
-    // Ignore storage failures in private/locked-down browser contexts.
+    return raw.replace(/^https?:\/\//i, '').replace(/^\/+/, '').split('/')[0] || DEFAULT_API_HOST;
   }
 }
 
-function cleanHostQuery(env: OracleApiBaseEnvironment): void {
-  if (!env.location?.search?.includes('host=')) return;
-  try {
-    const params = new URLSearchParams(env.location.search);
-    params.delete('host');
-    const query = params.toString();
-    env.history?.replaceState(null, '', `${env.location.pathname}${query ? `?${query}` : ''}${env.location.hash}`);
-  } catch {
-    // Keep the original URL if history or URLSearchParams are unavailable.
+function cleanHostParam(url: URL): void {
+  if (!url.searchParams.has('host')) return;
+  url.searchParams.delete('host');
+  const clean = `${url.pathname}${url.search}${url.hash}`;
+  browserWindow()?.history.replaceState({}, '', clean || '/');
+}
+
+function resolveBrowserApiHost(): string {
+  const win = browserWindow();
+  if (!win) return DEFAULT_API_HOST;
+  const url = new URL(win.location.href);
+  const queryHost = url.searchParams.get('host');
+  const host = normalizeApiHost(queryHost || storage()?.getItem(API_HOST_STORAGE_KEY));
+  if (queryHost) {
+    storage()?.setItem(API_HOST_STORAGE_KEY, host);
+    cleanHostParam(url);
   }
+  return host;
+}
+
+function isLocalAddress(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.localhost');
 }
 
 export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI__' in window;
 }
 
-export function normalizeOracleHost(value: string | null | undefined): string {
-  const trimmed = value?.trim() ?? '';
-  if (!trimmed) return '';
-  if (/^https?:\/\//i.test(trimmed)) {
-    try {
-      return new URL(trimmed).host;
-    } catch {
-      return trimmed.replace(/^https?:\/\//i, '').replace(/^\/+/, '').split('/')[0]?.trim() ?? '';
-    }
+export const API_HOST = isTauri() ? 'localhost:47778' : resolveBrowserApiHost();
+export const API_BASE = isTauri() ? TAURI_API_BASE : `http://${API_HOST}`;
+export const USE_LOCAL_PNA = (() => {
+  try {
+    return !isTauri() && isLocalAddress(new URL(API_BASE).hostname);
+  } catch {
+    return false;
   }
-  return trimmed.replace(/^\/+/, '').split('/')[0]?.trim() ?? '';
-}
-
-export function oracleApiBaseForHost(host = DEFAULT_ORACLE_HOST): string {
-  return `http://${normalizeOracleHost(host) || DEFAULT_ORACLE_HOST}`;
-}
-
-export function resolveOracleApiBase(env: OracleApiBaseEnvironment = browserEnv()): string {
-  if (env.isTauri ?? isTauri()) return TAURI_API_BASE;
-  if (!env.location) return '';
-
-  const queryHost = normalizeOracleHost(new URLSearchParams(env.location.search).get('host'));
-  if (queryHost) {
-    storageSet(env.localStorage, ORACLE_HOST_STORAGE_KEY, queryHost);
-    cleanHostQuery(env);
-    return oracleApiBaseForHost(queryHost);
-  }
-
-  const storedHost = normalizeOracleHost(storageGet(env.localStorage, ORACLE_HOST_STORAGE_KEY));
-  if (storedHost) return oracleApiBaseForHost(storedHost);
-  return env.location.protocol === 'https:' ? oracleApiBaseForHost(DEFAULT_ORACLE_HOST) : '';
-}
-
-export const API_BASE = resolveOracleApiBase();
-
-export function apiUrl(path: string): string {
-  return API_BASE ? new URL(path, API_BASE).toString() : path;
-}
-
-export function withOracleFetchInit(init: RequestInit = {}, baseUrl = API_BASE): PrivateNetworkRequestInit {
-  if (!baseUrl.startsWith('http://')) return init;
-  return { ...init, targetAddressSpace: 'local' };
-}
+})();
 
 export type VectorProvider = {
   type: string;
@@ -152,11 +113,42 @@ export type VectorHealthStatus = {
   error?: string;
 };
 
+export function hasStoredApiHost(): boolean {
+  return Boolean(storage()?.getItem(API_HOST_STORAGE_KEY));
+}
+
+export function persistApiHost(host: string): string {
+  const normalized = normalizeApiHost(host);
+  storage()?.setItem(API_HOST_STORAGE_KEY, normalized);
+  return normalized;
+}
+
+export function connectToApiHost(host: string): void {
+  const normalized = persistApiHost(host);
+  const url = new URL(browserWindow()?.location.href ?? 'http://localhost/');
+  url.searchParams.delete('host');
+  url.searchParams.set('host', normalized);
+  browserWindow()?.location.assign(`${url.pathname}${url.search}${url.hash}`);
+}
+
+export function apiUrl(path: string): string {
+  return API_BASE ? new URL(path, API_BASE).toString() : path;
+}
+
+export function withLocalPna(init: RequestInit = {}): RequestInit {
+  if (!USE_LOCAL_PNA) return init;
+  return { ...init, targetAddressSpace: 'local' } as PrivateNetworkRequestInit;
+}
+
+export function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(apiUrl(path), withLocalPna(init));
+}
+
 async function fetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(apiUrl(path), withOracleFetchInit({
+  const response = await apiFetch(path, {
     ...init,
     headers: { accept: 'application/json', 'content-type': 'application/json', ...(init.headers ?? {}) },
-  }));
+  });
   const text = await response.text();
   const payload = text ? JSON.parse(text) as unknown : {};
   if (!response.ok) {
