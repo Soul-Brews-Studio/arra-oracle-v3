@@ -48,12 +48,6 @@
       "ARRA_API_TOKEN": {
         "description": "Optional bearer token for protected Oracle HTTP/MCP writes. Generate a random value such as `openssl rand -hex 32`."
       },
-      "ORACLE_HTTP_URL": {
-        "description": "HTTPS base URL for the remote Arra Oracle HTTP backend used by the Cloudflare MCP proxy."
-      },
-      "ORACLE_REMOTE_MCP_NAME": {
-        "description": "Display name advertised by the remote Cloudflare MCP server during initialization."
-      },
       "ORACLE_MCP_PATH": {
         "description": "Remote MCP mount path. Keep `/mcp` unless your Worker route needs a different Streamable HTTP endpoint."
       },

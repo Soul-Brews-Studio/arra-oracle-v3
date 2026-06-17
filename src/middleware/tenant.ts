@@ -16,6 +16,7 @@ type TenantContext = { tenantId?: string };
 type ProjectColumn = { project: unknown };
 type FetchHandler = (request: Request) => Response | Promise<Response>;
 type TenantTokenMap = Record<string, string>;
+type TokenEntry = [string, unknown];
 
 const tenantStore = new AsyncLocalStorage<TenantContext>();
 const tenants = new WeakMap<Request, string | undefined>();
@@ -29,11 +30,19 @@ function safeEqual(a: string, b: string): boolean {
 export function parseTenantTokens(raw = process.env.ORACLE_TENANT_TOKENS ?? ''): TenantTokenMap {
   const value = raw.trim();
   if (!value) return {};
-  if (value.startsWith('{')) return JSON.parse(value) as TenantTokenMap;
-  return Object.fromEntries(value.split(',').map((entry) => {
+  if (value.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error('object expected');
+      return tokenMapFromEntries(Object.entries(parsed));
+    } catch {
+      throw new Error('invalid tenant token config');
+    }
+  }
+  return tokenMapFromEntries(value.split(',').map((entry) => {
     const [tenant, ...tokenParts] = entry.split('=');
     return [tenant.trim(), tokenParts.join('=').trim()];
-  }).filter(([tenant, token]) => tenant && token));
+  }));
 }
 
 export function parseTenantApiKeys(raw = process.env.ORACLE_TENANT_API_KEYS ?? ''): TenantTokenMap {
@@ -43,6 +52,20 @@ export function parseTenantApiKeys(raw = process.env.ORACLE_TENANT_API_KEYS ?? '
 function bearerToken(headers: Headers): string {
   const value = headers.get('authorization') ?? '';
   return value.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ?? '';
+}
+
+function tokenMapFromEntries(entries: TokenEntry[]): TenantTokenMap {
+  const map: TenantTokenMap = {};
+  for (const [rawTenant, rawToken] of entries) {
+    const tenant = rawTenant.trim();
+    const token = typeof rawToken === 'string' ? rawToken.trim() : '';
+    if (!tenant && !token) continue;
+    if (!tenant || !token || (tenant !== '*' && !TENANT_PATTERN.test(tenant))) {
+      throw new Error('invalid tenant token config');
+    }
+    map[tenant] = token;
+  }
+  return map;
 }
 
 function tenantIdFromApiKey(headers: Headers, apiKeys = parseTenantApiKeys()): string | undefined {

@@ -11,7 +11,6 @@ afterEach(() => {
 function env(overrides: Partial<StudioEnv> = {}): StudioEnv {
   return {
     ORACLE_URL: 'https://oracle.example.test/root/',
-    ORACLE_MCP_URL: 'https://mcp.example.test/mcp',
     ASSETS: {
       fetch: async (request) => new Response(`<html>${new URL(request.url).pathname}</html>`, {
         headers: { 'content-type': 'text/html' },
@@ -39,7 +38,7 @@ describe('Oracle Studio Worker static assets proxy', () => {
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const upstream = new Request(input, init);
       seen.push({
-        url: upstream.url,
+        url: String(input),
         method: upstream.method,
         host: upstream.headers.get('host'),
         marker: upstream.headers.get('x-oracle-studio-worker'),
@@ -64,21 +63,6 @@ describe('Oracle Studio Worker static assets proxy', () => {
       marker: 'oracle-studio-worker',
       body: '{"limit":3}',
     }]);
-  });
-
-  test('adds configured bearer token when proxying without Authorization', async () => {
-    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      const upstream = new Request(input, init);
-      expect(upstream.headers.get('authorization')).toBe('Bearer secret-token');
-      return Response.json({ ok: true });
-    }) as typeof fetch;
-
-    const response = await handleStudioRequest(
-      new Request('https://studio.example/api/stats'),
-      env({ ARRA_API_TOKEN: 'secret-token' }),
-    );
-
-    expect(response.status).toBe(200);
   });
 
   test('proxies /mcp requests to ORACLE_MCP_URL and preserves protocol headers', async () => {
@@ -162,17 +146,5 @@ describe('Oracle Studio Worker static assets proxy', () => {
     expect(response.status).toBe(204);
     expect(response.headers.get('access-control-allow-methods')).toContain('POST');
     expect(response.headers.get('x-oracle-studio-worker')).toBe('oracle-studio-worker');
-  });
-
-  test('placeholder ORACLE_URL returns a no-store proxy error', async () => {
-    const response = await handleStudioRequest(new Request('https://studio.example/api/search'), env({
-      ORACLE_URL: 'https://replace-with-your-oracle-backend.example.com',
-    }));
-    const body = await response.json() as { error: string; message: string };
-
-    expect(response.status).toBe(502);
-    expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(body.error).toBe('api proxy failed');
-    expect(body.message).toContain('Set ORACLE_URL');
   });
 });

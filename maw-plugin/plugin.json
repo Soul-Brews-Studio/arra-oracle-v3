@@ -27,6 +27,17 @@
       "POST"
     ]
   },
+  "server": {
+    "command": "bun",
+    "args": [
+      "server.ts"
+    ],
+    "healthPath": "/api/health",
+    "autostart": false,
+    "env": {
+      "ARRA_BACKEND_SOURCE": "maw-plugin"
+    }
+  },
   "config": {
     "dbBackend": "http",
     "embedderBackend": "none",

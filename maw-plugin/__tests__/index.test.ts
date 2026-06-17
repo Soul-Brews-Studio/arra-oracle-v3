@@ -103,7 +103,11 @@ describe('maw arra plugin', () => {
     expect(start.ok).toBe(true);
     expect(start.output).toContain('started pid=12345 port=49999');
     expect(calls).toContainEqual(expect.objectContaining({ cmd: 'ghq', args: ['locate', 'Soul-Brews-Studio/arra-oracle-v3'] }));
-    expect(calls).toContainEqual(expect.objectContaining({ cmd: 'start', cwd: '/repo/arra-oracle-v3' }));
+    expect(calls).toContainEqual(expect.objectContaining({
+      cmd: 'start',
+      cwd: expect.stringContaining('maw-plugin'),
+      env: expect.objectContaining({ ORACLE_ROOT: '/repo/arra-oracle-v3', ARRA_BACKEND_SOURCE: 'maw-plugin' }),
+    }));
 
     expect(resolveBaseUrl(env)).toBe('http://localhost:49999');
     expect(resolveBaseUrl({ ...env, ORACLE_API: 'http://localhost:47778' })).toBe('http://localhost:47778');

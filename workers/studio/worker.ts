@@ -6,7 +6,6 @@ export interface StudioEnv {
   ORACLE_HTTP_URL?: string;
   ORACLE_API?: string;
   ORACLE_MCP_URL?: string;
-  MCP_URL?: string;
   ARRA_API_TOKEN?: string;
   ARRA_API_KEY?: string;
 }
@@ -14,10 +13,10 @@ export interface StudioEnv {
 const WORKER_HEADER = 'oracle-studio-worker';
 const API_METHODS = 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS';
 const MCP_METHODS = 'GET, HEAD, POST, DELETE, OPTIONS';
-const PLACEHOLDER = 'replace-with-your-oracle-backend';
-const HASHED_ASSET = /\/(?:assets\/|[^/]+-)[A-Za-z0-9_-]{8,}\.[a-z0-9]+$/i;
 
-export default { fetch: handleStudioRequest };
+export default {
+  fetch: handleStudioRequest,
+};
 
 export async function handleStudioRequest(request: Request, env: StudioEnv): Promise<Response> {
   const url = new URL(request.url);
@@ -35,9 +34,8 @@ export async function handleStudioRequest(request: Request, env: StudioEnv): Pro
 
 async function proxyApiRequest(request: Request, env: StudioEnv): Promise<Response> {
   try {
-    return proxyRequest(request, env, apiTarget(resolveOracleUrl(env), new URL(request.url)), {
-      'access-control-allow-origin': '*',
-    });
+    const target = apiTarget(resolveOracleUrl(env), new URL(request.url));
+    return proxyRequest(request, env, target, { 'access-control-allow-origin': '*' });
   } catch (error) {
     return json({ error: 'api proxy failed', message: message(error) }, 502);
   }
@@ -75,7 +73,7 @@ async function proxyRequest(
 }
 
 function resolveMcpUrl(env: StudioEnv): string {
-  const direct = env.ORACLE_MCP_URL?.trim() || env.MCP_URL?.trim();
+  const direct = env.ORACLE_MCP_URL?.trim();
   if (direct) return sanitizedHttpUrl(direct, 'ORACLE_MCP_URL');
   return `${resolveOracleUrl(env)}/mcp`;
 }
@@ -83,7 +81,7 @@ function resolveMcpUrl(env: StudioEnv): string {
 function resolveOracleUrl(env: StudioEnv): string {
   const raw = env.ORACLE_URL ?? env.ORACLE_HTTP_URL ?? env.ORACLE_API;
   const value = raw?.trim();
-  if (!value || value.includes(PLACEHOLDER)) throw new Error('Set ORACLE_URL to the Oracle backend.');
+  if (!value) throw new Error('Set ORACLE_URL to the Oracle backend.');
   return sanitizedHttpUrl(value, 'ORACLE_URL');
 }
 
@@ -124,7 +122,7 @@ function proxyHeaders(source: Headers, env: StudioEnv): Headers {
   headers.delete('cf-ray');
   headers.set('x-oracle-studio-worker', WORKER_HEADER);
   const bearer = authToken(env);
-  if (bearer && !headers.has('authorization')) headers.set('authorization', `Bearer ${bearer}`);
+  if (bearer) headers.set('authorization', `Bearer ${bearer}`);
   return headers;
 }
 
@@ -143,9 +141,7 @@ async function serveAsset(request: Request, env: StudioEnv): Promise<Response> {
 }
 
 function cacheControlFor(pathname: string, contentType: string | null): string | undefined {
-  if (pathname.startsWith('/assets/') || HASHED_ASSET.test(pathname)) {
-    return 'public, max-age=31536000, immutable';
-  }
+  if (pathname.startsWith('/assets/')) return 'public, max-age=31536000, immutable';
   if (contentType?.includes('text/html') || !pathname.split('/').pop()?.includes('.')) {
     return 'public, max-age=3600, stale-while-revalidate=86400';
   }

@@ -2,12 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 
 const REPO_URL = 'https://github.com/Soul-Brews-Studio/arra-oracle-v3';
-const STUDIO_URL = `${REPO_URL}/tree/alpha/workers/studio`;
 const BUTTON_IMAGE = 'https://deploy.workers.cloudflare.com/button';
-const MCP_BUTTON_URL = `https://deploy.workers.cloudflare.com/?url=${REPO_URL}`;
-const STUDIO_BUTTON_URL = `https://deploy.workers.cloudflare.com/?url=${STUDIO_URL}`;
-const MCP_BUTTON_MARKDOWN = `[![Deploy MCP Worker](${BUTTON_IMAGE})](${MCP_BUTTON_URL})`;
-const STUDIO_BUTTON_MARKDOWN = `[![Deploy Studio Worker](${BUTTON_IMAGE})](${STUDIO_BUTTON_URL})`;
+const BUTTON_URL = `https://deploy.workers.cloudflare.com/?url=${REPO_URL}`;
+const BUTTON_MARKDOWN = `[![Deploy to Cloudflare](${BUTTON_IMAGE})](${BUTTON_URL})`;
 
 function read(path: string): string {
   return readFileSync(path, 'utf8');
@@ -32,26 +29,32 @@ function stripComments(source: string): string {
       out += char;
       if (escaped) {
         escaped = false;
-      } else if (char === '\\') {
-        escaped = true;
-      } else if (char === '"') {
-        inString = false;
+        continue;
       }
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (char === '"') inString = false;
       continue;
     }
     if (char === '"') {
       inString = true;
       out += char;
-    } else if (char === '/' && next === '/') {
+      continue;
+    }
+    if (char === '/' && next === '/') {
       while (i < source.length && source[i] !== '\n') i++;
       out += '\n';
-    } else if (char === '/' && next === '*') {
+      continue;
+    }
+    if (char === '/' && next === '*') {
       i += 2;
       while (i < source.length && !(source[i] === '*' && source[i + 1] === '/')) i++;
       i++;
-    } else {
-      out += char;
+      continue;
     }
+    out += char;
   }
   return out;
 }
@@ -65,17 +68,15 @@ describe('Cloudflare deploy metadata', () => {
     const cfg = parseJsonc<Record<string, any>>(read('wrangler.jsonc'));
 
     expect(cfg.name).toBe('arra-oracle-remote-mcp');
-    expect(cfg.main).toBe('src/workers/cloudflare-mcp/index.ts');
+    expect(cfg.main).toBe('./src/workers/oracle-mcp.ts');
     expect(cfg.compatibility_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(cfg.compatibility_flags).toContain('nodejs_compat');
     expect(cfg.workers_dev).toBe(true);
     expect(cfg.observability).toMatchObject({ enabled: true });
     expect(cfg.vars).toMatchObject({
-      ORACLE_HTTP_URL: '',
-      ORACLE_REMOTE_MCP_NAME: 'Arra Oracle Remote MCP',
       ORACLE_MCP_PATH: '/mcp',
-      ORACLE_STORAGE_BACKEND: 'http-proxy',
-      ORACLE_VECTOR_BACKEND: 'http-proxy',
+      ORACLE_STORAGE_BACKEND: 'd1',
+      ORACLE_VECTOR_BACKEND: 'cloudflare-vectorize',
     });
   });
 
@@ -115,18 +116,15 @@ describe('Cloudflare deploy metadata', () => {
     });
   });
 
-  test('README deploy buttons use canonical Cloudflare Workers URLs', () => {
+  test('README deploy button uses the canonical Cloudflare Workers URL', () => {
     const readme = read('README.md');
-    const matches = readme.match(/\[!\[Deploy (?:MCP|Studio) Worker\]\(([^)]+)\)\]\(([^)]+)\)/g) ?? [];
-    expect(matches).toEqual([MCP_BUTTON_MARKDOWN, STUDIO_BUTTON_MARKDOWN]);
+    const matches = readme.match(/\[!\[Deploy to Cloudflare\]\(([^)]+)\)\]\(([^)]+)\)/g) ?? [];
+    expect(matches).toEqual([BUTTON_MARKDOWN]);
 
-    const mcpTarget = new URL(MCP_BUTTON_URL);
-    const studioTarget = new URL(STUDIO_BUTTON_URL);
-    expect(mcpTarget.origin).toBe('https://deploy.workers.cloudflare.com');
-    expect(studioTarget.origin).toBe('https://deploy.workers.cloudflare.com');
-    expect(mcpTarget.searchParams.get('url')).toBe(REPO_URL);
-    expect(studioTarget.searchParams.get('url')).toBe(STUDIO_URL);
-    expect(readme).toContain(`[![Deploy Studio Worker](${BUTTON_IMAGE})]`);
+    const target = new URL(BUTTON_URL);
+    expect(target.origin).toBe('https://deploy.workers.cloudflare.com');
+    expect(target.searchParams.get('url')).toBe(REPO_URL);
+    expect(readme).toContain(`[![Deploy to Cloudflare](${BUTTON_IMAGE})]`);
   });
 
   test('workers/mcp package stays deploy-ready for Wrangler', () => {

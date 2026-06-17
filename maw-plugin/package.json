@@ -13,6 +13,7 @@
     "api.ts",
     "local-cli.ts",
     "mcp-client.ts",
+    "server.ts",
     "serve.ts",
     "vector-config.ts"
   ]

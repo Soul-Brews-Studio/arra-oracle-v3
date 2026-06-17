@@ -14,6 +14,7 @@ test('maw plugin build emits dist manifest, tgz, sha, and plugins.lock', async (
   const entry = join(tmp, 'index.js');
   const manifest = JSON.parse(readFileSync(result.manifestPath, 'utf8')) as {
     entry: string;
+    server?: { args?: string[] };
     artifact: { path: string; sha256: string };
   };
   const lock = JSON.parse(readFileSync(result.lockPath, 'utf8')) as {
@@ -23,10 +24,12 @@ test('maw plugin build emits dist manifest, tgz, sha, and plugins.lock', async (
   const packageSha256 = createHash('sha256').update(readFileSync(result.tgzPath)).digest('hex');
 
   expect(manifest.entry).toBe('./index.js');
+  expect(manifest.server?.args).toEqual(['server.js']);
   expect(manifest.artifact).toEqual({ path: './index.js', sha256 });
   expect(result.sha256).toBe(sha256);
   expect(result.packageSha256).toBe(packageSha256);
   expect(existsSync(result.tgzPath)).toBe(true);
+  expect(existsSync(join(tmp, 'server.js'))).toBe(true);
   expect(lock.plugins.arra).toMatchObject({ version: '1.0.0', package: 'arra-1.0.0.tgz', pinned: true });
   expect(lock.plugins.arra.artifact.sha256).toBe(sha256);
   expect(lock.plugins.arra.packageSha256).toBe(packageSha256);
