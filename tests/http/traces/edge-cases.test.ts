@@ -20,7 +20,12 @@ const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const traceA = `trace-edge-a-${stamp}`;
 const traceB = `trace-edge-b-${stamp}`;
 const cyclicTrace = `trace-edge-cycle-${stamp}`;
-const traceIds = [traceA, traceB, cyclicTrace];
+const brokenPrevTrace = `trace-edge-broken-prev-${stamp}`;
+const missingPrevTrace = `trace-edge-missing-prev-${stamp}`;
+const linkA = `trace-edge-link-a-${stamp}`;
+const linkB = `trace-edge-link-b-${stamp}`;
+const linkC = `trace-edge-link-c-${stamp}`;
+const traceIds = [traceA, traceB, cyclicTrace, brokenPrevTrace, linkA, linkB, linkC];
 const now = Date.now();
 
 dbMod.db.insert(dbMod.traceLog).values([
@@ -35,10 +40,17 @@ dbMod.db.insert(dbMod.traceLog).values([
     createdAt: now + 2,
     updatedAt: now + 2,
   },
+  { traceId: brokenPrevTrace, query: `trace edge ${stamp} broken prev`, prevTraceId: missingPrevTrace, childTraceIds: '[]', createdAt: now + 3, updatedAt: now + 3 },
+  { traceId: linkA, query: `trace edge ${stamp} link a`, childTraceIds: '[]', createdAt: now + 4, updatedAt: now + 4 },
+  { traceId: linkB, query: `trace edge ${stamp} link b`, childTraceIds: '[]', createdAt: now + 5, updatedAt: now + 5 },
+  { traceId: linkC, query: `trace edge ${stamp} link c`, childTraceIds: '[]', createdAt: now + 6, updatedAt: now + 6 },
 ]).run();
 
-function request(pathname: string) {
-  return tracesApi.handle(new Request(`http://local${pathname}`));
+function request(pathname: string, init: RequestInit = {}) {
+  return tracesApi.handle(new Request(`http://local${pathname}`, {
+    ...init,
+    headers: { 'content-type': 'application/json', ...((init.headers as Record<string, string>) ?? {}) },
+  }));
 }
 
 function restore(name: string, value: string | undefined) {
@@ -85,5 +97,61 @@ describe('trace route edge cases', () => {
 
     expect(res.status).toBe(200);
     expect(body.chain.map((trace) => trace.traceId)).toEqual([cyclicTrace]);
+  });
+
+  test('GET /api/traces/:id/linked-chain keeps the anchor when a prev link is stale', async () => {
+    const res = await request(`/api/traces/${brokenPrevTrace}/linked-chain`);
+    const body = await res.json() as { chain: Array<{ traceId: string }>; position: number };
+
+    expect(res.status).toBe(200);
+    expect(body.chain.map((trace) => trace.traceId)).toEqual([brokenPrevTrace]);
+    expect(body.position).toBe(0);
+  });
+
+  test('link/unlink routes reject duplicate, self, cycle, and missing-link edges', async () => {
+    const linked = await request(`/api/traces/${linkA}/link`, {
+      method: 'POST',
+      body: JSON.stringify({ nextId: linkB }),
+    });
+    expect(linked.status).toBe(200);
+
+    const duplicateNext = await request(`/api/traces/${linkA}/link`, {
+      method: 'POST',
+      body: JSON.stringify({ nextId: linkC }),
+    });
+    expect(duplicateNext.status).toBe(400);
+    expect((await duplicateNext.json() as { error: string }).error).toContain('already has a next link');
+
+    const duplicatePrev = await request(`/api/traces/${linkC}/link`, {
+      method: 'POST',
+      body: JSON.stringify({ nextId: linkB }),
+    });
+    expect(duplicatePrev.status).toBe(400);
+    expect((await duplicatePrev.json() as { error: string }).error).toContain('already has a prev link');
+
+    const selfLink = await request(`/api/traces/${linkC}/link`, {
+      method: 'POST',
+      body: JSON.stringify({ nextId: linkC }),
+    });
+    expect(selfLink.status).toBe(400);
+    expect((await selfLink.json() as { error: string }).error).toContain('itself');
+
+    const cycle = await request(`/api/traces/${linkB}/link`, {
+      method: 'POST',
+      body: JSON.stringify({ nextId: linkA }),
+    });
+    expect(cycle.status).toBe(400);
+    expect((await cycle.json() as { error: string }).error).toContain('create a cycle');
+
+    const missingLink = await request(`/api/traces/${linkC}/link?direction=next`, { method: 'DELETE' });
+    expect(missingLink.status).toBe(400);
+    expect((await missingLink.json() as { error: string }).error).toContain('No next link');
+
+    const unlinked = await request(`/api/traces/${linkB}/link?direction=prev`, { method: 'DELETE' });
+    expect(unlinked.status).toBe(200);
+
+    const chain = await request(`/api/traces/${linkA}/linked-chain`);
+    const body = await chain.json() as { chain: Array<{ traceId: string }> };
+    expect(body.chain.map((trace) => trace.traceId)).toEqual([linkA]);
   });
 });
