@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import type { DatabaseConnection } from './index.ts';
 import { createDatabase } from './index.ts';
@@ -49,7 +50,8 @@ export function closeTenantDbsForTests(): void {
 }
 
 function tenantDbPath(tenantId: string, dataDir = ORACLE_DATA_DIR): string {
-  const root = dataDir.trim() || ORACLE_DATA_DIR;
+  const input = dataDir.trim() || ORACLE_DATA_DIR;
+  const root = fs.existsSync(input) ? fs.realpathSync(input) : path.resolve(input);
   return path.join(root, 'tenants', tenantId, 'oracle.db');
 }
 

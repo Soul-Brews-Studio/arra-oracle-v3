@@ -7,7 +7,7 @@ import { createServer } from 'node:net';
 const REPO_ROOT = new URL('../../../', import.meta.url).pathname.replace(/\/$/, '');
 
 describe('GET /api/docs', () => {
-  test('redirects legacy docs path to canonical API version', async () => {
+  test('serves Swagger UI and augmented OpenAPI at the canonical API version', async () => {
     const scratch = mkdtempSync(join(tmpdir(), 'arra-docs-test-'));
     const port = String(await freePort());
     const proc = Bun.spawn(['bun', 'src/server.ts'], {
@@ -28,9 +28,16 @@ describe('GET /api/docs', () => {
 
     try {
       const response = await waitForOk(`http://127.0.0.1:${port}/api/docs`, 'manual');
+      const ui = await waitForOk(`http://127.0.0.1:${port}/api/v1/docs`);
+      const specResponse = await waitForOk(`http://127.0.0.1:${port}/api/v1/docs/json`);
+      const spec = await specResponse.json();
 
       expect(response.status).toBe(308);
       expect(response.headers.get('location')).toBe(`http://127.0.0.1:${port}/api/v1/docs`);
+      expect(await ui.text()).toContain('SwaggerUIBundle');
+      expect(spec.openapi).toBe('3.0.3');
+      expect(spec.paths['/api/health'].get.summary).toBeDefined();
+      expect(spec.paths['/api/health'].get.responses['200'].content['application/json'].example).toBeDefined();
     } finally {
       proc.kill('SIGTERM');
       await Promise.race([proc.exited, Bun.sleep(3000)]);
