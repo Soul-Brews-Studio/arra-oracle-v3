@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
 import { eq } from 'drizzle-orm';
-import { existsSync, mkdirSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -118,6 +118,25 @@ describe('POST/DELETE /api/learn edge cases', () => {
 
     const read = await call('GET', '/api/learn/learning_safe_source');
     expect(read.json.sourceFile).toBe('ψ/memory/learnings/safe-source.md');
+  });
+
+  test('sanitizes markdown frontmatter scalars when creating learnings', async () => {
+    const created = await call('POST', '/api/learn', {
+      id: 'learning_injection_safe',
+      pattern: 'Frontmatter title\nproject: evil\n---\nbody stays in markdown',
+      concepts: ['alpha, beta', 'gamma\nproject: evil'],
+      source: 'ui\nhash: fake',
+      sourceFile: 'ψ/memory/learnings/injection-safe.md',
+    });
+    expect(created.status).toBe(200);
+
+    const markdown = readFileSync(join(repoRoot, 'ψ/memory/learnings/injection-safe.md'), 'utf-8');
+    const frontmatter = markdown.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? '';
+    expect(frontmatter.match(/^source:/gm)).toHaveLength(1);
+    expect(frontmatter.match(/^hash:/gm)).toBeNull();
+    expect(frontmatter.match(/^project:/gm)).toBeNull();
+    expect(frontmatter).toContain('tags: [alpha beta, gamma project evil]');
+    expect(markdown).toContain('body stays in markdown');
   });
 });
 
