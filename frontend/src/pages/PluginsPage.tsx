@@ -47,9 +47,9 @@ function browserSearch(): string {
 
 function toneClass(tone: Tone): string {
   const tones: Record<Tone, string> = {
-    ok: 'border-emerald-300/30 bg-emerald-400/10 text-emerald-100',
-    warn: 'border-amber-300/30 bg-amber-400/10 text-amber-100',
-    bad: 'border-red-300/30 bg-red-400/10 text-red-100',
+    ok: 'border-[color:var(--color-ok-text,#166534)] bg-[var(--color-ok-bg,#dcfce7)] text-[color:var(--color-ok-text,#166534)]',
+    warn: 'border-[color:var(--color-warn-text,#92400e)] bg-[var(--color-warn-bg,#fef3c7)] text-[color:var(--color-warn-text,#92400e)]',
+    bad: 'border-[color:var(--color-err-text,#991b1b)] bg-[var(--color-err-bg,#fee2e2)] text-[color:var(--color-err-text,#991b1b)]',
     idle: 'border-slate-500/40 bg-slate-800 text-slate-200',
   };
   return tones[tone];
@@ -59,7 +59,7 @@ function MetricCard({ label, value, detail, tone = 'idle' }: { label: string; va
   return (
     <article className={`rounded-lg border p-4 ${toneClass(tone)}`}>
       <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-80">{label}</p>
-      <p className="mt-2 text-2xl font-semibold">{value}</p>
+      <p className="mt-2 flex items-center gap-2 text-2xl font-semibold">{tone !== 'idle' ? <span aria-hidden="true">●</span> : null}{value}</p>
       <p className="mt-1 text-sm opacity-75">{detail}</p>
     </article>
   );
@@ -123,7 +123,7 @@ export function PluginsPage({
   return (
     <section className="grid gap-5" aria-labelledby="plugins-page-title">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Plugin management</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Plugin management</p>
         <h1 id="plugins-page-title" className="mt-2 text-3xl font-semibold text-white">Unified plugin surfaces</h1>
         <p className="mt-2 text-sm text-slate-400">Registered plugins, backend surfaces, and enable/disable controls from GET {endpoint}.</p>
       </header>
@@ -141,7 +141,7 @@ export function PluginsPage({
         </div>
       ) : null}
 
-      {adminMessage ? <p className="rounded-lg border border-teal-300/20 bg-teal-300/10 p-3 text-sm text-teal-100">{adminMessage}</p> : null}
+      {adminMessage ? <p className="rounded-lg border border-[color:var(--color-accent,#0f766e)] p-3 text-sm text-[color:var(--color-accent,#0f766e)]">{adminMessage}</p> : null}
       {adminError ? <ErrorMessage title="Could not update plugin state." message={adminError} /> : null}
 
       {showInventory ? <UnifiedPluginSurfaceOverview plugins={plugins} /> : null}
@@ -150,7 +150,7 @@ export function PluginsPage({
         <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-4" aria-labelledby="plugin-filters-title">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">Inventory filters</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-accent,#0f766e)]">Inventory filters</p>
               <h2 id="plugin-filters-title" className="mt-1 text-lg font-semibold text-white">Find plugin surfaces</h2>
               <p className="mt-1 text-sm text-slate-400">Showing {visiblePlugins.length} of {plugins.length} plugins · {summary}</p>
             </div>
@@ -198,7 +198,7 @@ export function PluginsPage({
               >
                 Clear filters
               </button>
-              <a className="focus-ring self-end rounded-xl border border-teal-300/20 px-3 py-2 text-sm font-semibold text-teal-100 hover:border-teal-300/50" href={pluginInventoryPath({ q: query, visibility, surface })}>
+              <a className="focus-ring self-end rounded-xl border border-[color:var(--color-accent,#0f766e)] px-3 py-2 text-sm font-semibold text-[color:var(--color-accent,#0f766e)] hover:border-[color:var(--color-accent,#0f766e)]" href={pluginInventoryPath({ q: query, visibility, surface })}>
                 Share view
               </a>
             </div>

@@ -58,16 +58,18 @@ function uniqueCollections(collections: string[]): string[] {
 }
 
 function scoreFor(hit: FanOutHit): number {
-  if (typeof hit.score === 'number' && Number.isFinite(hit.score)) return hit.score;
+  if (typeof hit.score === 'number' && Number.isFinite(hit.score)) return clampScore(hit.score);
   if (typeof hit.distance === 'number' && Number.isFinite(hit.distance)) {
-    return 1 / (1 + Math.max(0, hit.distance));
+    return clampScore(1 / (1 + Math.max(0, hit.distance)));
   }
   return 0;
 }
 
 function mergeHit(acc: Accumulator, collection: string, hit: FanOutHit, score: number): void {
-  acc.combinedScore += score;
-  acc.collectionScores[collection] = (acc.collectionScores[collection] ?? 0) + score;
+  const previous = acc.collectionScores[collection] ?? 0;
+  const next = Math.max(previous, score);
+  acc.combinedScore += next - previous;
+  acc.collectionScores[collection] = next;
   if (!acc.sourceCollections.includes(collection)) acc.sourceCollections.push(collection);
   if (score > acc.bestScore) {
     acc.bestHit = hit;
@@ -117,7 +119,7 @@ export class FanOutQuery {
     const byId = new Map<string, Accumulator>();
     for (const { collection, hits } of batches) {
       for (const hit of hits) {
-        const id = hit.id.trim();
+        const id = hitId(hit.id);
         if (!id) continue;
         const score = scoreFor(hit);
         const existing = byId.get(id);
@@ -141,4 +143,12 @@ export class FanOutQuery {
       .map(toResult)
       .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id));
   }
+}
+
+function hitId(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(1, value));
 }

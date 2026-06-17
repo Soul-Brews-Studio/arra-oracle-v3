@@ -167,12 +167,12 @@ function copyFor(step: WizardStep, firstRun: boolean, provider?: Provider): stri
 
 function DoneActions() {
   return (
-    <div className="mt-4 rounded-2xl border border-teal-200/20 bg-teal-200/10 p-4 text-sm text-teal-50/90">
-      <p className="font-semibold text-teal-100">Vector setup is underway</p>
+    <div className="mt-4 rounded-2xl border border-[color:var(--color-accent,#0f766e)] p-4 text-sm text-[color:var(--color-accent,#0f766e)]">
+      <p className="font-semibold text-[color:var(--color-accent,#0f766e)]">Vector setup is underway</p>
       <p className="mt-1">Continue to the Vector dashboard for collection health, or open the Index Manager for live progress.</p>
       <div className="mt-3 flex flex-wrap gap-2">
         <a className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-slate-950" href="/vector">Open Vector dashboard</a>
-        <a className="focus-ring rounded-xl border border-teal-200/40 px-3 py-2 text-sm font-semibold text-teal-100" href="/vector/index">Open Index Manager</a>
+        <a className="focus-ring rounded-xl border border-[color:var(--color-accent,#0f766e)] px-3 py-2 text-sm font-semibold text-[color:var(--color-accent,#0f766e)]" href="/vector/index">Open Index Manager</a>
       </div>
     </div>
   );
@@ -191,9 +191,9 @@ function VaultPlan({ rows, cost }: { rows: VectorConfigRow[]; cost: CostEstimate
         <p>Primary collection: <span className="font-semibold">{primary?.collection ?? 'none'}</span></p>
         <p className="mt-1 text-purple-100/70">Vault selection is represented by indexed source documents; use Index now to backfill vectors for the primary model.</p>
       </div>
-      <div className="rounded-2xl border border-teal-200/20 bg-teal-200/10 p-4">
-        <p className="font-semibold text-teal-100">Estimated embedding cost</p>
-        {cost ? <CostSummary cost={cost} /> : <p className="mt-2 text-teal-100/70">Cost estimate will appear after provider detection completes.</p>}
+      <div className="rounded-2xl border border-[color:var(--color-accent,#0f766e)] p-4">
+        <p className="font-semibold text-[color:var(--color-accent,#0f766e)]">Estimated embedding cost</p>
+        {cost ? <CostSummary cost={cost} /> : <p className="mt-2 text-[color:var(--color-accent,#0f766e)] opacity-70">Cost estimate will appear after provider detection completes.</p>}
       </div>
     </div>
   );
@@ -201,13 +201,13 @@ function VaultPlan({ rows, cost }: { rows: VectorConfigRow[]; cost: CostEstimate
 
 function CostSummary({ cost }: { cost: CostEstimate }) {
   return (
-    <div className="mt-2 space-y-2 text-teal-50/85">
+    <div className="mt-2 space-y-2 text-[color:var(--color-accent,#0f766e)] opacity-85">
       <p>{cost.docs.toLocaleString()} docs · {cost.tokensPerDoc.toLocaleString()} tokens/doc · {cost.totalTokens.toLocaleString()} tokens total</p>
-      <p>{cost.provider} / {cost.model}: <span className="font-semibold text-teal-100">${cost.estimatedUsd.toFixed(4)}</span></p>
-      <p className="text-teal-100/70">{cost.formula}</p>
-      {cost.fallbackSummary ? <p className="text-teal-100/70">{cost.fallbackSummary}</p> : null}
-      <p><span className="font-semibold text-teal-100">Recommendation:</span> {cost.recommendation}</p>
-      <p className="text-teal-100/70">{cost.note}</p>
+      <p>{cost.provider} / {cost.model}: <span className="font-semibold text-[color:var(--color-accent,#0f766e)]">${cost.estimatedUsd.toFixed(4)}</span></p>
+      <p className="text-[color:var(--color-accent,#0f766e)] opacity-70">{cost.formula}</p>
+      {cost.fallbackSummary ? <p className="text-[color:var(--color-accent,#0f766e)] opacity-70">{cost.fallbackSummary}</p> : null}
+      <p><span className="font-semibold text-[color:var(--color-accent,#0f766e)]">Recommendation:</span> {cost.recommendation}</p>
+      <p className="text-[color:var(--color-accent,#0f766e)] opacity-70">{cost.note}</p>
     </div>
   );
 }

@@ -42,8 +42,8 @@ export function memoryConfidence(
   const freshness = clamp(0.5 ** (ageDays / halfLife));
   const match = clamp(options.semanticScore ?? (options.mode === 'semantic' ? 0.6 : 0.65));
   const provenance = Math.min(1, (hasSource ? 0.45 : 0) + (hasTags ? 0.35 : 0) + (hasTitle ? 0.2 : 0));
-  const usageCount = Math.max(0, Math.floor(Number(memory.usageCount ?? 0)));
-  const lastAccessedAgeDays = memory.lastAccessedAt ? daysSince(memory.lastAccessedAt, now) : undefined;
+  const usageCount = safeUsageCount(memory.usageCount);
+  const lastAccessedAgeDays = memory.lastAccessedAt ? optionalDaysSince(memory.lastAccessedAt, now) : undefined;
   const usage = usageSignal(usageCount, lastAccessedAgeDays);
   const score = round(clamp((match * 0.5) + (freshness * 0.3) + (provenance * 0.2) + (usage * 0.1)));
 
@@ -75,6 +75,17 @@ function daysSince(value: string, now: Date): number {
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) return 0;
   return Math.max(0, (now.getTime() - timestamp) / DAY_MS);
+}
+
+function optionalDaysSince(value: string, now: Date): number | undefined {
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? Math.max(0, (now.getTime() - timestamp) / DAY_MS) : undefined;
+}
+
+function safeUsageCount(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return Math.floor(parsed);
 }
 
 function reasons(

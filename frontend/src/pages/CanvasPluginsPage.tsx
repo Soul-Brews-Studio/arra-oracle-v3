@@ -33,8 +33,8 @@ function pluginHref(plugin: CanvasPluginEntry, host?: string): string {
 }
 
 function statusClass(plugin: CanvasPluginEntry): string {
-  if (plugin.kind === 'react') return 'border-purple-300/30 bg-purple-300/10 text-purple-100';
-  return 'border-teal-300/30 bg-teal-300/10 text-teal-100';
+  if (plugin.kind === 'react') return 'border-[color:var(--color-accent2,#7e22ce)] text-[color:var(--color-accent2,#7e22ce)]';
+  return 'border-[color:var(--color-accent,#0f766e)] text-[color:var(--color-accent,#0f766e)]';
 }
 
 function PluginCard({ plugin, host }: { plugin: CanvasPluginEntry; host?: string }) {
@@ -50,12 +50,12 @@ function PluginCard({ plugin, host }: { plugin: CanvasPluginEntry; host?: string
       </div>
       <p className="text-sm text-slate-300">{plugin.description}</p>
       <dl className="mt-4 grid gap-3 text-sm">
-        <div><dt className="text-slate-500">Status</dt><dd className="font-semibold text-emerald-200">registered</dd></div>
+        <div><dt className="text-slate-500">Status</dt><dd className="font-semibold text-[color:var(--color-ok-text,#166534)]">registered</dd></div>
         <div><dt className="text-slate-500">Canvas target</dt><dd className="break-all font-mono text-slate-100">{target}</dd></div>
         <div><dt className="text-slate-500">Runtime hook</dt><dd className="font-mono text-slate-100">{'renderer' in plugin ? plugin.renderer : plugin.mount}</dd></div>
         {'apiPath' in plugin && plugin.apiPath ? <div><dt className="text-slate-500">Data API</dt><dd className="font-mono text-slate-100">{plugin.apiPath}</dd></div> : null}
       </dl>
-      <a className="focus-ring mt-4 inline-flex rounded-xl border border-teal-300/30 px-3 py-2 text-sm font-semibold text-teal-100 hover:bg-teal-300/10" href={target}>Open canvas</a>
+      <a className="focus-ring mt-4 inline-flex rounded-xl border border-[color:var(--color-accent,#0f766e)] px-3 py-2 text-sm font-semibold text-[color:var(--color-accent,#0f766e)] hover:bg-[var(--color-ok-bg,#dcfce7)]" href={target}>Open canvas</a>
     </article>
   );
 }
@@ -97,7 +97,7 @@ export function CanvasPluginsPage({ plugins: initialPlugins = [], loading = true
   return (
     <section className="grid gap-5" aria-labelledby="canvas-plugins-title">
       <header className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Canvas plugins</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Canvas plugins</p>
         <h1 id="canvas-plugins-title" className="mt-2 text-3xl font-semibold text-white">Canvas plugin registry</h1>
         <p className="mt-2 text-sm text-slate-400">Filter the standalone registry by runtime while keeping canvas.buildwithoracle.com targets visible.</p>
         <p className="mt-2 font-mono text-xs text-slate-500">Registry endpoint: {endpointHint}</p>
@@ -107,7 +107,7 @@ export function CanvasPluginsPage({ plugins: initialPlugins = [], loading = true
             <button
               key={option.kind}
               aria-pressed={kindFilter === option.kind}
-              className={`focus-ring rounded-xl border px-3 py-2 text-left text-sm ${kindFilter === option.kind ? 'border-teal-300/40 bg-teal-300/10 text-teal-100' : 'border-white/10 text-slate-300 hover:border-teal-300/30'}`}
+              className={`focus-ring rounded-xl border px-3 py-2 text-left text-sm ${kindFilter === option.kind ? 'border-[color:var(--color-accent,#0f766e)] bg-[var(--color-ok-bg,#dcfce7)] text-[color:var(--color-accent,#0f766e)]' : 'border-white/10 text-slate-300 hover:border-[color:var(--color-accent,#0f766e)]'}`}
               type="button"
               onClick={() => setKindFilter(option.kind)}
             >

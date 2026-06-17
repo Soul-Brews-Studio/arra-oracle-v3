@@ -68,9 +68,9 @@ async function readJson(response: Response): Promise<unknown> {
 }
 
 function statusClass(state: TestState): string {
-  if (state === 'connected') return 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100';
-  if (state === 'failed') return 'border-red-300/30 bg-red-300/10 text-red-100';
-  return 'border-amber-300/30 bg-amber-300/10 text-amber-100';
+  if (state === 'connected') return 'border-[color:var(--color-ok-text,#166534)] bg-[var(--color-ok-bg,#dcfce7)] text-[color:var(--color-ok-text,#166534)]';
+  if (state === 'failed') return 'border-[color:var(--color-err-text,#991b1b)] bg-[var(--color-err-bg,#fee2e2)] text-[color:var(--color-err-text,#991b1b)]';
+  return 'border-[color:var(--color-warn-text,#92400e)] bg-[var(--color-warn-bg,#fef3c7)] text-[color:var(--color-warn-text,#92400e)]';
 }
 
 function statusLabel(state: TestState): string {
@@ -151,12 +151,12 @@ export function ConnectionTest({ initialBackendUrl = DEFAULT_BACKEND_URL, fetche
     <section className="grid gap-4 rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="export-connection-title">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Export app</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Export app</p>
           <h2 id="export-connection-title" className="mt-2 text-2xl font-semibold text-white">Backend connection</h2>
           <p className="mt-2 text-sm text-slate-400">Test export app access and inspect available collections.</p>
         </div>
-        <span className={`inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${statusClass(state)}`}>
-          {statusLabel(state)}
+        <span className={`inline-flex w-fit items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${statusClass(state)}`}>
+          <span aria-hidden="true">●</span>{statusLabel(state)}
         </span>
       </div>
 

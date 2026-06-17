@@ -53,6 +53,8 @@ vault-data.json
 
 services/**/__pycache__/
 services/**/*.pyc
+sidecar/**/__pycache__/
+sidecar/**/*.pyc
 
 # Codex agent worktrees (git worktree, registered in .git/worktrees — not tracked)
 agents/
