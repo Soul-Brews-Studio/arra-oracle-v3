@@ -28,10 +28,19 @@ export function handoffFilename(slug: string, now = new Date()): string {
 }
 
 export function writeHandoffFile(dirPath: string, content: string, slug: string, now = new Date()): string {
-  const filePath = containedHandoffFile(dirPath, handoffFilename(slug, now));
   fs.mkdirSync(dirPath, { recursive: true });
-  fs.writeFileSync(filePath, content, 'utf-8');
-  return filePath;
+  const base = handoffFilename(slug, now);
+  for (let i = 0; i < 100; i += 1) {
+    const suffix = i === 0 ? '' : `-${i}`;
+    const filePath = containedHandoffFile(dirPath, base.replace(/\.md$/, `${suffix}.md`));
+    try {
+      fs.writeFileSync(filePath, content, { encoding: 'utf-8', flag: 'wx' });
+      return filePath;
+    } catch (error) {
+      if ((error as { code?: string }).code !== 'EEXIST') throw error;
+    }
+  }
+  throw new Error('Unable to allocate unique handoff filename');
 }
 
 export function relativeKnowledgePath(repoRoot: string, filePath: string): string {
