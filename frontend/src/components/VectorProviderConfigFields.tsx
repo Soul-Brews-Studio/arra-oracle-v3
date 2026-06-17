@@ -41,7 +41,7 @@ export function VectorProviderConfigFields({ provider }: { provider?: VectorProv
   if (type === 'gemini') {
     return (
       <label className="mt-3 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-        Google Gemini API key <span className="rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] text-amber-100">Free tier available!</span>
+        Google Gemini API key <span className="rounded-full border border-[color:var(--color-warn-text,#92400e)] bg-[var(--color-warn-bg,#fef3c7)] px-2 py-0.5 text-[10px] text-[color:var(--color-warn-text,#92400e)]">Free tier available!</span>
         <input className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100" placeholder="AIza…" type="password" value={geminiKey} onChange={(event) => setGeminiKey(event.target.value)} />
       </label>
     );

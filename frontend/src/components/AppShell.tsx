@@ -77,7 +77,7 @@ export function AppShell({
   const retry = (
     <button
       aria-label="Retry loading backend dashboard data"
-      className="focus-ring rounded-lg border border-red-200/30 px-3 py-2 font-semibold text-red-50 hover:bg-red-200/10"
+      className="focus-ring rounded-lg border border-[color:var(--color-err-text,#991b1b)] px-3 py-2 font-semibold text-[color:var(--color-err-text,#991b1b)] hover:bg-[var(--color-err-bg,#fee2e2)]"
       type="button"
       onClick={onRefresh}
     >

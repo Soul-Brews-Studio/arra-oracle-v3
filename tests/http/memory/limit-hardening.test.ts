@@ -50,8 +50,9 @@ test('memory routes fall back from malformed limit query values', async () => {
   await fetcher(new Request('http://local/api/v1/memory/morning-tape?limit=nope'));
   await fetcher(new Request('http://local/api/v1/memory/recall?limit=nope'));
   await fetcher(new Request('http://local/api/v1/memory/search?q=oracle&limit=nope'));
+  await fetcher(new Request('http://local/api/v1/memory/recall?limit=2abc'));
 
-  expect(recallLimits).toEqual([8, 10]);
+  expect(recallLimits).toEqual([8, 10, 10]);
   expect(searchLimits).toEqual([10]);
 });
 
@@ -68,7 +69,8 @@ test('memory routes clamp out-of-range limit query values', async () => {
 test('memory fanout normalizes malformed and large limits', async () => {
   const { fetcher, limits } = fanoutHarness();
   await fetcher(new Request('http://local/api/v1/memory/fanout?q=oracle&limit=nope'));
+  await fetcher(new Request('http://local/api/v1/memory/fanout?q=oracle&limit=2abc'));
   await fetcher(new Request('http://local/api/v1/memory/fanout?q=oracle&limit=999'));
 
-  expect(limits).toEqual([10, 50]);
+  expect(limits).toEqual([10, 10, 50]);
 });

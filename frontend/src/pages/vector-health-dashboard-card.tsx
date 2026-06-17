@@ -18,8 +18,8 @@ export type VectorFreshnessCard = {
 
 function statusClasses(healthy: boolean): string {
   return healthy
-    ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-200'
-    : 'border-red-300/30 bg-red-300/10 text-red-100';
+    ? 'border-[color:var(--color-ok-text,#166534)] bg-[var(--color-ok-bg,#dcfce7)] text-[color:var(--color-ok-text,#166534)]'
+    : 'border-[color:var(--color-err-text,#991b1b)] bg-[var(--color-err-bg,#fee2e2)] text-[color:var(--color-err-text,#991b1b)]';
 }
 
 function freshnessLine(freshness: VectorFreshnessCard): string {
@@ -60,7 +60,7 @@ export function VectorHealthDashboardCard({
     : 'Storage status unavailable';
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-health-dashboard-title">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Health</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Health</p>
       <h2 id="vector-health-dashboard-title" className="mt-2 text-2xl font-semibold text-white">Vector health dashboard</h2>
       <dl className="mt-4 grid gap-3 text-sm text-slate-300">
         <div><dt className="text-slate-500">Embedding providers</dt><dd className="text-lg font-semibold text-white">{providerSummary}</dd></div>
@@ -70,9 +70,9 @@ export function VectorHealthDashboardCard({
         <div><dt className="text-slate-500">Docs pending</dt><dd className="text-lg font-semibold text-white">{pendingLine(freshness)}</dd></div>
         <div><dt className="text-slate-500">Last indexed</dt><dd className="text-lg font-semibold text-white">{freshness?.lastIndexed ?? 'Unknown'}</dd></div>
       </dl>
-      {providers.length ? <div className="mt-4 flex flex-wrap gap-2">{providers.map((provider) => <span key={provider.type} className={`rounded-full border px-2 py-1 text-xs font-semibold ${statusClasses(provider.available)}`}>{provider.type}: {provider.status}</span>)}</div> : null}
-      {services.length ? <div className="mt-2 flex flex-wrap gap-2">{services.map((service) => <span key={service.name} className={`rounded-full border px-2 py-1 text-xs font-semibold ${statusClasses(service.status === 'green')}`}>{serviceDetail(service)}</span>)}</div> : null}
-      {storage.length ? <div className="mt-2 flex flex-wrap gap-2">{storage.map((item) => <span key={item.adapter} className={`rounded-full border px-2 py-1 text-xs font-semibold ${statusClasses(item.status === 'green')}`}>{item.adapter}: {item.healthy}/{item.total}</span>)}</div> : null}
+      {providers.length ? <div className="mt-4 flex flex-wrap gap-2">{providers.map((provider) => <span key={provider.type} className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold ${statusClasses(provider.available)}`}><span aria-hidden="true">●</span>{provider.type}: {provider.status}</span>)}</div> : null}
+      {services.length ? <div className="mt-2 flex flex-wrap gap-2">{services.map((service) => <span key={service.name} className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold ${statusClasses(service.status === 'green')}`}><span aria-hidden="true">●</span>{serviceDetail(service)}</span>)}</div> : null}
+      {storage.length ? <div className="mt-2 flex flex-wrap gap-2">{storage.map((item) => <span key={item.adapter} className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold ${statusClasses(item.status === 'green')}`}><span aria-hidden="true">●</span>{item.adapter}: {item.healthy}/{item.total}</span>)}</div> : null}
     </section>
   );
 }
