@@ -5,6 +5,13 @@ one trusted backend host. Cloudflare Workers serve Studio, remote MCP, and the
 federation relay; `cloudflared` exposes the Bun backend through a stable HTTPS
 origin consumed by `ORACLE_ORIGIN_URL`.
 
+## Live Worker URLs
+
+```text
+Studio: https://arra-oracle-studio.laris.workers.dev
+MCP:    https://arra-oracle-mcp.laris.workers.dev/mcp
+```
+
 ## Production shape
 
 ```text
@@ -28,10 +35,9 @@ indexing on the backend/vector plane.
 - `bun`, `cloudflared`, and `wrangler` available locally.
 - `wrangler login` completed for the target Cloudflare account.
 - A backend host that can keep `maw arra serve` and `cloudflared` running.
-- DNS names chosen, for example:
-  - `oracle-origin.example.com` for the tunnel origin.
-  - `studio.example.com` for Studio, if not using `workers.dev`.
-  - `mcp.example.com` for remote MCP, if not using `workers.dev`.
+- DNS names chosen for the origin; current live Workers already use
+  `https://arra-oracle-studio.laris.workers.dev` and
+  `https://arra-oracle-mcp.laris.workers.dev/mcp`.
 
 ## 1. Start the Oracle backend
 
@@ -126,7 +132,7 @@ If Studio should connect directly to a separate MCP Worker, set this after the
 MCP deploy URL is known:
 
 ```bash
-export ORACLE_MCP_URL="https://arra-oracle-mcp.<account>.workers.dev/mcp"
+export ORACLE_MCP_URL="https://arra-oracle-mcp.laris.workers.dev/mcp"
 printf '%s' "$ORACLE_MCP_URL" |
   bunx wrangler secret put ORACLE_MCP_URL --config workers/studio/wrangler.jsonc
 ```
@@ -140,10 +146,10 @@ bunx tsc --noEmit
 bunx wrangler deploy --config wrangler.jsonc
 ```
 
-Record the deployed MCP URL:
+Record or verify the deployed MCP URL:
 
 ```text
-https://<mcp-worker-host>/mcp
+https://arra-oracle-mcp.laris.workers.dev/mcp
 ```
 
 Smoke test the deployed `/mcp` URL with MCP Inspector or a remote-capable MCP
@@ -171,8 +177,8 @@ bunx wrangler deploy --config wrangler.jsonc
 Smoke checks:
 
 ```bash
-curl -sf https://<studio-worker-host>/__health
-curl -sf https://<studio-worker-host>/api/health
+curl -sf https://arra-oracle-studio.laris.workers.dev/__health
+curl -sf https://arra-oracle-studio.laris.workers.dev/api/health
 ```
 
 Open the Studio URL and confirm dashboard/search calls succeed. If `/mcp` should
@@ -204,8 +210,10 @@ being forwarded to `TUNNEL_URL`.
 
 - `curl -sf "$ORACLE_ORIGIN_URL/api/health"` succeeds from outside the origin
   host.
-- Studio `GET /__health` and proxied `GET /api/health` both succeed.
-- MCP Inspector can list tools at the deployed `/mcp` URL; no Worker `/health` probe is expected.
+- Studio `GET /__health` and proxied `GET /api/health` both succeed at
+  `https://arra-oracle-studio.laris.workers.dev`.
+- MCP Inspector can list tools at
+  `https://arra-oracle-mcp.laris.workers.dev/mcp`; no Worker `/health` probe is expected.
 - MCP tenant forwarding is configured through auth props/claims, optional D1 tenants, or `ORACLE_TENANT_ID`.
 - Federation `GET /__health` reports `tunnelConfigured: true`.
 - Worker secrets are set with Wrangler or the Cloudflare dashboard; real URLs and
