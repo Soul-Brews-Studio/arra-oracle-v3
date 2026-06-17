@@ -94,12 +94,12 @@ describe('unified plugin loader', () => {
   });
 
   test('does not register MCP tools disabled by plugin manifest', async () => {
-    pluginDir('mcp-switches', {
+    pluginDir('mcp-switch-pack', {
       mcpTools: [
         { name: 'oracle_switch_on', description: 'on', inputSchema: {}, handler: 'tool' },
         { name: 'oracle_switch_off', description: 'off', inputSchema: {}, handler: 'tool', enabled: false },
       ],
-    }, 'export function tool() { return { ok: true }; }\n');
+    }, 'export function tool() { return { ok: true, body: { called: true } }; }\n');
 
     const runtime = await loadUnifiedPlugins({ dirs: [tmp] });
     const toolNames = runtime.mcpTools.map((tool) => tool.name);
@@ -109,7 +109,7 @@ describe('unified plugin loader', () => {
       ok: false,
       error: 'MCP tool not found: oracle_switch_off',
     });
-    const registryEntry = runtime.pluginRegistry().find((plugin) => plugin.name === 'mcp-switches');
+    const registryEntry = runtime.pluginRegistry().find((plugin) => plugin.name === 'mcp-switch-pack');
     expect(registryEntry?.mcpTools.map((tool) => tool.name)).toEqual(['oracle_switch_on']);
   });
 });

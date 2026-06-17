@@ -12,7 +12,15 @@ import {
 describe('tenant auth middleware', () => {
   test('parses JSON and comma tenant token config', () => {
     expect(parseTenantTokens('{"acme":"secret"}')).toEqual({ acme: 'secret' });
+    expect(parseTenantTokens('{"*":"global"," acme ":" secret "}')).toEqual({ '*': 'global', acme: 'secret' });
     expect(parseTenantTokens('acme=secret, beta=two=parts')).toEqual({ acme: 'secret', beta: 'two=parts' });
+  });
+
+  test('rejects malformed tenant token config instead of failing open', () => {
+    expect(() => parseTenantTokens('{"acme":42}')).toThrow('invalid tenant token config');
+    expect(() => parseTenantTokens('{"bad tenant":"secret"}')).toThrow('invalid tenant token config');
+    expect(() => parseTenantTokens('{"acme":""}')).toThrow('invalid tenant token config');
+    expect(() => parseTenantTokens('{not-json')).toThrow('invalid tenant token config');
   });
 
   test('validates configured tenant token header', () => {

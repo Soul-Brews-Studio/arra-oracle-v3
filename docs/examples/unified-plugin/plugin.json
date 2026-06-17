@@ -20,6 +20,7 @@
       },
       "handler": "inspectCanvasPlugin",
       "group": "canvas",
+      "enabled": true,
       "readOnly": true,
       "enabledByDefault": false
     }

@@ -3,7 +3,9 @@ import { validatePluginConfig, type JsonSchema } from './config-schema.ts';
 import { validateExportFormatManifests, type UnifiedExportFormatManifest } from './export-format-manifest.ts';
 
 export type UnifiedPluginSurface = 'mcpTools' | 'apiRoutes' | 'proxy' | 'server' | 'menu' | 'cliSubcommands' | 'exportFormats';
+
 export type UnifiedHttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'HEAD' | 'ALL';
+
 export interface UnifiedMcpToolManifest {
   name: string;
   description: string;
@@ -52,12 +54,7 @@ export interface UnifiedCliSubcommandManifest {
   handler?: string;
 }
 
-export interface UnifiedLifecycleManifest {
-  init?: string;
-  destroy?: string;
-  start?: boolean;
-  stop?: boolean;
-}
+export interface UnifiedLifecycleManifest { init?: string; destroy?: string; start?: boolean; stop?: boolean; }
 
 export interface UnifiedPluginManifest {
   name: string;
@@ -77,6 +74,7 @@ export interface UnifiedPluginManifest {
   menu?: UnifiedMenuManifest[];
   cliSubcommands?: UnifiedCliSubcommandManifest[];
   exportFormats?: UnifiedExportFormatManifest[];
+
   api?: { path: string; methods?: UnifiedHttpMethod[] };
   lifecycle?: UnifiedLifecycleManifest;
   seedMenu?: boolean;
@@ -138,6 +136,7 @@ function isNonBlankString(value: unknown): value is string {
 function assertOptionalHandler(value: unknown, field: string): void {
   if (value !== undefined && !isNonBlankString(value)) throw new Error(`${field} must be a string`);
 }
+
 function assertOptionalBoolean(value: unknown, field: string): void { if (value !== undefined && typeof value !== 'boolean') throw new Error(`${field} must be a boolean`); }
 
 export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedPluginManifest {

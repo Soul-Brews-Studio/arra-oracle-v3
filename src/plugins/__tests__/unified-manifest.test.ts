@@ -33,9 +33,9 @@ describe('unified plugin manifest schema', () => {
     expect(manifestSurfaces(manifest)).toEqual(['apiRoutes', 'cliSubcommands']);
   });
 
-  test('keeps disabled MCP declarations out of runtime toggle names', () => {
+  test('keeps disabled MCP declarations but excludes them from toggles', () => {
     const manifest = normalizeUnifiedPluginManifest({
-      name: 'tool-switches',
+      name: 'switch-pack',
       version: '1.0.0',
       entry: './index.ts',
       mcpTools: [

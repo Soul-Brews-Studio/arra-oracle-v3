@@ -4,7 +4,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join, resolve } from 'node:path';
 
 type Artifact = { path: string; sha256: string };
-type Manifest = { name: string; version: string; entry: string; artifact?: Artifact; [key: string]: unknown };
+type ServerManifest = { command?: string; args?: string[] };
+type Manifest = { name: string; version: string; entry: string; artifact?: Artifact; server?: ServerManifest; [key: string]: unknown };
 type BuildOptions = { root?: string; outDir?: string };
 type BuildResult = {
   outDir: string;
@@ -54,11 +55,29 @@ function writeLock(outDir: string, manifest: Manifest, tgzName: string, artifact
 function pack(outDir: string, manifest: Manifest): string {
   const tgzName = `${manifest.name}-${manifest.version}.tgz`;
   const tgzPath = join(outDir, tgzName);
-  const result = spawnSync('tar', ['-czf', tgzPath, '-C', outDir, 'index.js', 'plugin.json'], {
+  const files = ['index.js', 'plugin.json'];
+  if (existsSync(join(outDir, 'server.js'))) files.push('server.js');
+  const result = spawnSync('tar', ['-czf', tgzPath, '-C', outDir, ...files], {
     encoding: 'utf8',
   });
   if (result.status !== 0) throw new Error(result.stderr || 'tar failed');
   return tgzPath;
+}
+
+async function buildServerLauncher(root: string, outDir: string, manifest: Manifest): Promise<Manifest> {
+  const serverEntry = join(root, 'server.ts');
+  if (!existsSync(serverEntry)) return manifest;
+  const build = await Bun.build({
+    entrypoints: [serverEntry],
+    outdir: outDir,
+    target: 'bun',
+    format: 'esm',
+    minify: true,
+    naming: 'server.js',
+  });
+  if (!build.success) throw new Error(build.logs.map(log => log.message).join('\n') || 'Bun.build server failed');
+  if (!manifest.server?.args?.includes('server.ts')) return manifest;
+  return { ...manifest, server: { ...manifest.server, args: manifest.server.args.map(arg => arg === 'server.ts' ? 'server.js' : arg) } };
 }
 
 export async function buildPlugin(options: BuildOptions = {}): Promise<BuildResult> {
@@ -80,8 +99,9 @@ export async function buildPlugin(options: BuildOptions = {}): Promise<BuildResu
   });
   if (!build.success) throw new Error(build.logs.map(log => log.message).join('\n') || 'Bun.build failed');
 
+  const distSourceManifest = await buildServerLauncher(root, outDir, manifest);
   const artifact = { path: './index.js', sha256: sha256(join(outDir, 'index.js')) };
-  const distManifest = { ...manifest, entry: './index.js', artifact };
+  const distManifest = { ...distSourceManifest, entry: './index.js', artifact };
   const manifestPath = join(outDir, 'plugin.json');
   writeFileSync(manifestPath, `${JSON.stringify(distManifest, null, 2)}\n`);
   const tgzPath = pack(outDir, manifest);

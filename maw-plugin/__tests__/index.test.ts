@@ -60,7 +60,7 @@ describe('maw arra plugin', () => {
     expect(help.output).toContain('enabled <true|false>');
     expect(help.output).toContain('trace_chain');
     expect(help.output).toContain('thread_update');
-    expect(help.output).toContain('serve [--stop|--status] [--port N]');
+    expect(help.output).toContain('serve [--backend] [--stop|--status] [--port N]');
     expect(help.output).toContain('schedule-add');
     expect(help.output).toContain('vault-sync');
     expect(help.output).toContain('verify');
@@ -93,7 +93,7 @@ describe('maw arra plugin', () => {
     };
     let alive = true;
     const env = { HOME: home };
-    const start = await runArra(['serve', '--port', '49999'], async () => ({}), () => {}, env, runner, {
+    const start = await runArra(['serve', '--backend', '--port', '49999'], async () => ({}), () => {}, env, runner, {
       start: (cwd, startEnv) => {
         calls.push({ cmd: 'start', cwd, env: startEnv });
         return 12345;
@@ -102,8 +102,13 @@ describe('maw arra plugin', () => {
     });
     expect(start.ok).toBe(true);
     expect(start.output).toContain('started pid=12345 port=49999');
+    expect(start.output).toContain('backend: full Oracle');
     expect(calls).toContainEqual(expect.objectContaining({ cmd: 'ghq', args: ['locate', 'Soul-Brews-Studio/arra-oracle-v3'] }));
-    expect(calls).toContainEqual(expect.objectContaining({ cmd: 'start', cwd: '/repo/arra-oracle-v3' }));
+    expect(calls).toContainEqual(expect.objectContaining({
+      cmd: 'start',
+      cwd: expect.stringContaining('maw-plugin'),
+      env: expect.objectContaining({ ORACLE_ROOT: '/repo/arra-oracle-v3', ARRA_BACKEND_SOURCE: 'maw-plugin' }),
+    }));
 
     expect(resolveBaseUrl(env)).toBe('http://localhost:49999');
     expect(resolveBaseUrl({ ...env, ORACLE_API: 'http://localhost:47778' })).toBe('http://localhost:47778');
