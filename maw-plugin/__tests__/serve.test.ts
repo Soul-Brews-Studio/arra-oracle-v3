@@ -29,7 +29,7 @@ describe('maw arra serve command', () => {
 
   test('starts with ORACLE_ROOT and port override', async () => {
     const started: unknown[] = [];
-    const result = await runServe({ pos: [], flags: { port: '47779' } }, runner, env(), {
+    const result = await runServe({ pos: [], flags: { backend: true, port: '47779' } }, runner, env(), {
       start: (cwd, startEnv, command) => {
         started.push({ cwd, port: startEnv.ORACLE_PORT, root: startEnv.ORACLE_ROOT, command });
         return 43210;
@@ -39,6 +39,7 @@ describe('maw arra serve command', () => {
 
     expect(result.ok).toBe(true);
     expect(result.output).toContain('started pid=43210 port=47779');
+    expect(result.output).toContain('backend: full Oracle');
     expect(started).toEqual([expect.objectContaining({
       cwd: expect.stringContaining('maw-plugin'),
       port: '47779',
