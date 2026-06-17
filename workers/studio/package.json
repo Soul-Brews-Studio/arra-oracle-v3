@@ -1,0 +1,15 @@
+{
+  "name": "@soul-brews/arra-oracle-studio-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "cd ../../frontend && bun run build",
+    "deploy": "bun run build && wrangler deploy",
+    "dev": "bun run build && wrangler dev --local",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "wrangler": "^4.101.0"
+  }
+}
