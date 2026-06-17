@@ -1,261 +1,111 @@
-# Deploying `/swagger` Publicly
+# Deploying `/api/docs` Publicly
 
-The Elysia server ships a Scalar UI at `http://localhost:47778/swagger` and
-the raw spec at `http://localhost:47778/swagger/json`. This doc describes
-how to expose that documentation to the public internet without leaking the
-oracle's private HTTP API.
+Verified against `src/server.ts`, `src/server/api-token-auth.ts`,
+`scripts/export-openapi.ts`, and `tests/http/swagger/export-openapi.test.ts`.
+The main Elysia app uses `@elysiajs/swagger` with `provider: 'swagger-ui'`.
 
-> Status: **not yet deployed.** This is a choose-your-path reference.
+## Live routes
 
-## TL;DR
+| Route | Behavior |
+| --- | --- |
+| `/api/docs` | Swagger UI. Public even when `ARRA_API_TOKEN` is set. |
+| `/api/docs/json` | Canonical OpenAPI JSON. |
+| `/swagger` | `308` redirect to `/api/docs`. |
+| `/swagger/json` | `308` redirect to `/api/docs/json`. |
+| `/api/openapi.json` | `308` redirect to `/api/docs/json`. |
 
-1. Run `bun scripts/export-openapi.ts` to produce `docs/openapi.json`.
-2. Pick one of the three options below. **Option B (static Scalar on CF
-   Workers) is the recommended path.**
-3. Update the CI / release flow to re-run the export on every API change.
-
----
+`/api/docs-malicious` is not public; the API-token guard only exempts
+`/api/docs` and descendants.
 
 ## Export the spec
 
-`scripts/export-openapi.ts`:
+`scripts/export-openapi.ts` starts `bun src/server.ts` on a scratch port,
+polls `/`, fetches a spec path, validates OpenAPI 3 metadata, writes JSON, then
+stops the child process.
 
-- boots `bun src/server.ts` on a scratch port (default `48900`),
-- polls `/` until the server is ready,
-- fetches `/swagger/json`,
-- validates `openapi` starts with `3.`, `info.title`, `info.version`, and
-  `paths` exist,
-- writes pretty-printed JSON to `docs/openapi.json`,
-- kills the subprocess on success, failure, or SIGINT/SIGTERM.
+Use the canonical path when exporting fresh docs:
 
 ```bash
-bun scripts/export-openapi.ts
-# → ✓ wrote /…/docs/openapi.json
-#     openapi: 3.1.0
-#     title:   Arra Oracle API
-#     paths:   NN
+bun scripts/export-openapi.ts --spec-path /api/docs/json --out docs/openapi.json
 ```
 
-Flags: `--port <n>` (default `48900`), `--out <path>` (default
-`docs/openapi.json`).
+The script default currently asks `/api/openapi.json`, which works only because
+that route redirects to `/api/docs/json`.
 
-The script does not require a build step — it runs the TypeScript server
-directly via Bun.
+## Option A — proxy live docs
 
----
-
-## Option A — Proxy `/swagger` through studio.buildwithoracle.com
-
-Forward `/swagger` and `/swagger/json` on the public studio host straight
-to the Oracle HTTP API.
-
-### Pros
-- Always live, always matches the running server.
-- No extra build/publish step; new routes show up immediately.
-
-### Cons
-- **Requires backend access on `studio.buildwithoracle.com`** — not always
-  available in the current dev fleet.
-- Exposes a live API surface to the internet even if only the docs are
-  linked. The proxy must be locked down to `GET /swagger*` only.
-- Couples studio uptime to oracle uptime.
-
-### Sketch (Caddyfile)
+Forward only `GET`/`HEAD` for `/api/docs` and `/api/docs/json` to the Oracle
+HTTP backend. Do not expose the whole `/api/*` surface just to publish docs.
 
 ```caddy
 studio.buildwithoracle.com {
-  @swagger path /swagger /swagger/* /swagger/json
-  reverse_proxy @swagger http://oracle-world.wg:47778 {
-    header_up Host oracle-world.wg
-  }
+  @docs path /api/docs /api/docs/json
+  reverse_proxy @docs http://oracle-world.wg:47778
 
-  # Everything else → studio app
   reverse_proxy http://127.0.0.1:3000
 }
 ```
 
-### Sketch (Cloudflare Workers, fetch-style)
+Cloudflare Worker sketch:
 
 ```ts
 export default {
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
-    if (req.method === 'GET' && url.pathname.startsWith('/swagger')) {
-      const upstream = new URL(url.pathname + url.search, 'https://oracle.internal');
-      return fetch(upstream, { headers: req.headers });
-    }
-    return new Response('not found', { status: 404 });
+    const allowed = url.pathname === '/api/docs' || url.pathname === '/api/docs/json';
+    if (req.method !== 'GET' && req.method !== 'HEAD') return new Response('method not allowed', { status: 405 });
+    if (!allowed) return new Response('not found', { status: 404 });
+    return fetch(new URL(url.pathname + url.search, 'https://oracle-origin.example.com'));
   },
 };
 ```
 
-Use this when the oracle host is reachable from studio's network (WireGuard
-tunnel, internal Cloudflare Tunnel, etc.). Reject any method other than
-`GET` at the proxy.
+## Option B — static OpenAPI artifact on Workers
 
----
+Serve `docs/openapi.json` plus a viewer shell as static Worker assets. This does
+not expose the live backend, but the artifact must be regenerated whenever API
+routes or schemas change.
 
-## Option B — Static export + Scalar on Cloudflare Workers (recommended)
+Minimal layout:
 
-Serve `docs/openapi.json` and a Scalar HTML shell as a static site on a
-Worker. Nothing of the live server is exposed.
-
-### Pros
-- No backend access needed.
-- Cheap, fast, cached at the edge.
-- Docs site is a pure artifact of the repo; previewable per-PR.
-- Matches the house rule: **CF Workers, not Pages** (use `wrangler deploy`
-  with `assets.directory`, never `wrangler pages`).
-
-### Cons
-- Requires re-running the export on every API change.
-- Docs drift if the export is skipped; guard with CI.
-
-### Layout
-
-```
+```text
 docs/
-├── openapi.json          # generated
+├── openapi.json
 └── site/
-    ├── index.html        # Scalar UI shell
-    └── _headers          # optional CF headers
+    └── index.html
 ```
 
-`docs/site/index.html`:
+A viewer shell can point to `/openapi.json` with Swagger UI, Scalar, or Redoc.
+The live backend UI is Swagger UI; static docs are just an OpenAPI artifact.
 
-```html
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Arra Oracle API</title>
-  </head>
-  <body>
-    <script
-      id="api-reference"
-      data-url="/openapi.json"
-      data-proxy-url=""
-    ></script>
-    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
-  </body>
-</html>
-```
-
-Prefer pinning a Scalar version (e.g. `@scalar/api-reference@1`) in
-production.
-
-### `wrangler.json`
+`wrangler.jsonc` shape:
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
   "name": "arra-oracle-docs",
-  "compatibility_date": "2026-04-19",
   "main": "docs/worker.ts",
-  "assets": {
-    "directory": "docs/",
-    "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
-  },
-  "routes": [
-    { "pattern": "docs.buildwithoracle.com", "custom_domain": true }
-  ],
+  "compatibility_date": "2026-06-17",
+  "assets": { "directory": "docs/", "binding": "ASSETS" },
   "observability": { "enabled": true }
 }
 ```
 
-Minimal `docs/worker.ts` (optional — Workers-only assets works without a
-worker, but this keeps a place to add redirects/headers later):
+`docs/worker.ts` can serve `/site/index.html` for `/` and otherwise delegate to
+`ASSETS`.
 
-```ts
-export interface Env { ASSETS: Fetcher }
-
-export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
-    const url = new URL(req.url);
-    if (url.pathname === '/' || url.pathname === '/index.html') {
-      return env.ASSETS.fetch(new Request(new URL('/site/index.html', url), req));
-    }
-    return env.ASSETS.fetch(req);
-  },
-};
-```
-
-### Deploy (not executed)
+## Verification
 
 ```bash
-bun scripts/export-openapi.ts
-wrangler deploy
+bun scripts/export-openapi.ts --spec-path /api/docs/json --out docs/openapi.json
+bun test --isolate tests/http/swagger/export-openapi.test.ts src/integration/api-token-auth.test.ts
+bunx tsc --noEmit
 ```
 
-### Alternative UI: Redoc
+Manual route checks on a running server:
 
-Swap the Scalar shell for Redoc if you prefer its layout:
-
-```html
-<redoc spec-url="/openapi.json"></redoc>
-<script src="https://cdn.jsdelivr.net/npm/redoc/bundles/redoc.standalone.js"></script>
+```bash
+curl -i http://127.0.0.1:47778/api/docs
+curl -i http://127.0.0.1:47778/api/docs/json
+curl -i http://127.0.0.1:47778/swagger
+curl -i http://127.0.0.1:47778/api/openapi.json
 ```
-
-Everything else (wrangler config, export script) is unchanged.
-
----
-
-## Option C — GitHub Pages
-
-Drop the same `docs/openapi.json` + Scalar HTML into a `gh-pages` branch
-(or the `docs/` folder on main with Pages configured to serve from it).
-
-### Pros
-- Zero infra: repo settings + an Action.
-- Free, versioned alongside source.
-
-### Cons
-- URL lives under `github.io` unless a custom domain is wired up.
-- Pages is a separate publish target from the CF Workers used elsewhere in
-  the fleet — adds a deploy surface.
-
-### Sketch (`.github/workflows/docs.yml`)
-
-```yaml
-name: docs
-on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/routes/**'
-      - 'src/server.ts'
-      - 'scripts/export-openapi.ts'
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun scripts/export-openapi.ts
-      - run: cp docs/site/index.html docs/index.html
-      - uses: actions/upload-pages-artifact@v3
-        with: { path: docs }
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment: { name: github-pages, url: "${{ steps.d.outputs.page_url }}" }
-    steps:
-      - id: d
-        uses: actions/deploy-pages@v4
-```
-
----
-
-## Recommendation
-
-Go with **Option B**. It matches the CF Workers house rule, needs no
-studio backend access, and keeps the public surface to a pure static
-artifact. Run `bun scripts/export-openapi.ts` in CI on any change to
-`src/routes/**` or `src/server.ts` so the docs never drift.

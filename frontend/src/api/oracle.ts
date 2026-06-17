@@ -1,6 +1,7 @@
 export const TAURI_API_BASE = 'http://localhost:47778';
 export const DEFAULT_API_HOST = 'localhost:47778';
-export const API_HOST_STORAGE_KEY = 'oracle.host';
+export const API_HOST_STORAGE_KEY = 'oracle:host';
+const LEGACY_API_HOST_STORAGE_KEY = 'oracle.host';
 
 declare global {
   interface Window {
@@ -45,9 +46,11 @@ function resolveBrowserApiHost(): string {
   if (!win) return DEFAULT_API_HOST;
   const url = new URL(win.location.href);
   const queryHost = url.searchParams.get('host');
-  const host = normalizeApiHost(queryHost || storage()?.getItem(API_HOST_STORAGE_KEY));
-  if (queryHost) {
-    storage()?.setItem(API_HOST_STORAGE_KEY, host);
+  const store = storage();
+  const storedHost = store?.getItem(API_HOST_STORAGE_KEY) ?? store?.getItem(LEGACY_API_HOST_STORAGE_KEY);
+  const host = normalizeApiHost(queryHost || storedHost);
+  if (queryHost || storedHost) {
+    store?.setItem(API_HOST_STORAGE_KEY, host);
     cleanHostParam(url);
   }
   return host;
@@ -114,7 +117,8 @@ export type VectorHealthStatus = {
 };
 
 export function hasStoredApiHost(): boolean {
-  return Boolean(storage()?.getItem(API_HOST_STORAGE_KEY));
+  const store = storage();
+  return Boolean(store?.getItem(API_HOST_STORAGE_KEY) ?? store?.getItem(LEGACY_API_HOST_STORAGE_KEY));
 }
 
 export function persistApiHost(host: string): string {

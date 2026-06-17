@@ -59,4 +59,30 @@ describe('GET /api/health/deep', () => {
     expect(body.vector).toMatchObject({ status: 'down', error: 'vector offline' });
     expect(body.disk).toMatchObject({ status: 'warning', usedPercent: 95 });
   });
+
+  test('captures thrown dbPing errors with latency while preserving resource details', async () => {
+    const app = createHealthRoutes({
+      dbPing: async () => { throw new Error('sqlite busy'); },
+      vectorHealth: async () => ({ status: 'ok', checked_at: 'now', engines: [] }),
+      diskUsage: () => ({
+        status: 'ok',
+        path: '/tmp/oracle',
+        totalBytes: 200,
+        freeBytes: 150,
+        usedBytes: 50,
+        usedPercent: 25,
+      }),
+      memoryUsage: () => ({ rss: 2, heapTotal: 2, heapUsed: 1, external: 0, arrayBuffers: 0 }),
+    });
+
+    const res = await app.handle(new Request('http://local/api/health/deep'));
+    const body = await res.json() as Record<string, any>;
+
+    expect(res.status).toBe(200);
+    expect(body.status).toBe('down');
+    expect(body.db).toMatchObject({ status: 'error', error: 'sqlite busy' });
+    expect(body.db.latencyMs).toBeGreaterThanOrEqual(0);
+    expect(body.vector.status).toBe('ok');
+    expect(body.disk).toMatchObject({ status: 'ok', usedPercent: 25 });
+  });
 });

@@ -64,6 +64,18 @@ describe('FileWatcherService edge cases', () => {
     expect(watcher.status().pending).toBe(0);
   });
 
+  test('manual schedule ignores files outside the ψ/learn watch root', () => {
+    const watcher = createService();
+    watcher.start();
+    const outside = path.join(repoRoot, 'notes.md');
+    fs.writeFileSync(outside, '# Outside', 'utf8');
+
+    watcher.schedule(outside);
+
+    expect(watcher.status().pending).toBe(0);
+    expect(watcher.status().events.some((event) => event.type === 'scheduled')).toBe(false);
+  });
+
   test('scheduled callback errors are recorded instead of escaping the timer', async () => {
     const watcher = createService();
     watcher.start();
