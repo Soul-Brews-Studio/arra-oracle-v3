@@ -73,25 +73,39 @@ Use the #2167 Wrangler config as source of truth. The likely minimum is:
 | `ARRA_API_TOKEN` | Secret for protected backend calls; never commit real values. |
 | D1/Vectorize/R2 bindings | Edge-native persistence/search replacements as tools expand. |
 
-If auth is enabled, wrap `/mcp` with Cloudflare's OAuth provider or Access and
-keep tool authorization tenant-aware.
+## Multi-tenant setup for teams and schools
 
-## OAuth setup for team and school tenants
+For #2193 shared deployments, run one Worker endpoint for the organization and
+map each authenticated user to exactly one trusted tenant before proxying tools
+to Arra Oracle. Example models:
 
-For #2193 shared deployments, do not rely on caller-supplied `tenantId` as the
-security boundary. Put OAuth in front of `/mcp`, resolve the authenticated user
-to a trusted tenant, and forward that tenant to the Arra Oracle backend.
+| Model | Tenant example | Mapping source |
+| --- | --- | --- |
+| School | `grade-8`, `science-dept`, `library` | Google Workspace group, Access group, or D1 roster row |
+| Team | `platform`, `design`, `support` | GitHub org/team, WorkOS org, or Auth0 organization |
+| SaaS | `customer-acme`, `customer-river` | Billing/customer table or D1 tenant registry |
+
+Do not treat caller-supplied `tenantId` as authorization. Put OAuth or
+Cloudflare Access in front of `/mcp`, resolve the signed-in identity to a tenant,
+and forward only that trusted tenant to `ORACLE_URL`. Backend routes already scope
+by tenant ID from #1650.
 
 Recommended rollout:
 
 1. Keep the Phase 1 proxy private or token-protected until OAuth is wired.
-2. Add Cloudflare's OAuth Provider Library around `OracleMCP.serve('/mcp')`.
-   Cloudflare supports Access, GitHub/Google, or providers such as Auth0/WorkOS.
+2. Choose a tenant registry: static `wrangler.jsonc` vars for a small class/team,
+   or D1 for self-serve tenants and roster changes.
 3. Store a tenant claim in `McpAgent` props. Supported claim names are
    `tenantId`, `tenant_id`, `tenant`, `orgId`, `org_id`, `organizationId`, and
    `organization_id` either at the top level or under `claims`.
-4. Ignore user-supplied tenant IDs once OAuth is enabled. Forward only the
-   trusted auth-context tenant to the backend:
+4. Reject users without a tenant mapping instead of falling back to a shared
+   default tenant.
+5. Forward backend-compatible tenant headers to `ORACLE_URL`:
+
+```text
+X-Tenant-ID: <tenant>
+X-Oracle-Tenant: <tenant>
+```
 
 ```ts
 type AuthContext = { claims: { sub: string; email?: string }; tenantId: string };
@@ -108,15 +122,13 @@ export class OracleMCP extends McpAgent<Env, unknown, AuthContext> {
 }
 ```
 
-5. Forward backend-compatible tenant headers to `ORACLE_URL` and keep backend
-   routes scoped by that tenant:
+For a school pilot, create one tenant per class or department, invite users into
+matching OAuth/Access groups, and test two users against the same `/mcp` URL.
+Each should list the same tools but receive only tenant-scoped search, files,
+traces, and learn entries. Companies can use teams or org units as tenants and
+audit tenant-resolution failures.
 
-```text
-X-Tenant-ID: <tenant>
-X-Oracle-Tenant: <tenant>
-```
-
-6. Store secrets with `wrangler secret put`, not in `wrangler.jsonc`:
+Store secrets with `wrangler secret put`, not in `wrangler.jsonc`:
 
 ```bash
 cd workers/mcp
