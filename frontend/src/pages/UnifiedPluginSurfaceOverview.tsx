@@ -141,20 +141,20 @@ export function UnifiedPluginSurfaceOverview({ plugins }: { plugins: PluginEntry
   const capabilities = useMemo(() => pluginCapabilityLinks(plugins), [plugins]);
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="unified-surfaces-title">
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="unified-surfaces-title">
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-purple-300">Unified backend surfaces</p>
-          <h3 id="unified-surfaces-title" className="mt-2 text-xl font-semibold text-white">Plugin system map</h3>
-          <p className="mt-2 text-sm text-slate-400">Menu, plugin list, MCP tools, vector search, server health, and storage config in one view.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Unified backend surfaces</p>
+          <h3 id="unified-surfaces-title" className="mt-2 text-xl font-semibold text-text">Plugin system map</h3>
+          <p className="mt-2 text-sm text-text-muted">Menu, plugin list, MCP tools, vector search, server health, and storage config in one view.</p>
         </div>
         {countLinks.length ? (
           <div className="flex flex-wrap gap-2 text-sm">
-            {countLinks.map((item) => <a key={item.href} className="focus-ring rounded-full border border-white/10 px-2 py-1 text-slate-300 hover:border-teal-300/40" href={item.href}>{item.label}</a>)}
+            {countLinks.map((item) => <a key={item.href} className="focus-ring rounded-full border border-border px-2 py-1 text-text-muted hover:border-accent-border" href={item.href}>{item.label}</a>)}
           </div>
-        ) : <p className="text-sm text-slate-500">metadata only</p>}
+        ) : <p className="text-sm text-text-muted">metadata only</p>}
       </div>
-      {error ? <p className="mb-3 text-sm text-amber-200">{error}</p> : null}
+      {error ? <p className="mb-3 text-sm text-warn-text">{error}</p> : null}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{cards.map((card) => <SurfaceCard key={card.label} card={card} />)}</div>
       <div className="mt-4 grid gap-3 xl:grid-cols-5">
         <SurfaceList title="Menu items" items={state.menu.slice(0, 5).map((item) => ({ label: `${item.label} → ${item.path}`, href: item.path }))} empty="No /api/menu items loaded yet." />
@@ -168,13 +168,13 @@ export function UnifiedPluginSurfaceOverview({ plugins }: { plugins: PluginEntry
 }
 
 function SurfaceCard({ card }: { card: Card }) {
-  const tone = card.tone === 'warn' ? 'text-amber-100' : 'text-teal-100';
+  const tone = card.tone === 'warn' ? 'text-warn-text' : 'text-accent';
   return (
-    <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{card.label}</p>
+    <article className="rounded-2xl border border-border bg-surface-muted p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">{card.label}</p>
       <p className={`mt-2 text-2xl font-semibold ${tone}`}>{card.value}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-400">{card.detail}</p>
-      <a className="focus-ring mt-3 inline-flex text-sm font-semibold text-teal-200 hover:text-teal-100" href={card.href}>
+      <p className="mt-2 text-sm leading-6 text-text-muted">{card.detail}</p>
+      <a className="focus-ring mt-3 inline-flex text-sm font-semibold text-accent hover:text-accent" href={card.href}>
         Open {card.label}
       </a>
     </article>
@@ -184,17 +184,17 @@ function SurfaceCard({ card }: { card: Card }) {
 function SurfaceList({ title, items, empty }: { title: string; items: SurfaceListItem[]; empty: string }) {
   const visible = items.filter(Boolean);
   return (
-    <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{title}</p>
+    <article className="rounded-2xl border border-border bg-surface-muted p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">{title}</p>
       {visible.length ? (
-        <ul className="mt-3 space-y-2 text-sm text-slate-300">
+        <ul className="mt-3 space-y-2 text-sm text-text-muted">
           {visible.map((item) => (
             <li key={typeof item === 'string' ? item : `${item.href}:${item.label}`} className="truncate font-mono">
-              {typeof item === 'string' ? item : <a className="focus-ring text-teal-100 hover:text-teal-200" href={item.href}>{item.label}</a>}
+              {typeof item === 'string' ? item : <a className="focus-ring text-accent hover:text-accent" href={item.href}>{item.label}</a>}
             </li>
           ))}
         </ul>
-      ) : <p className="mt-3 text-sm text-slate-500">{empty}</p>}
+      ) : <p className="mt-3 text-sm text-text-muted">{empty}</p>}
     </article>
   );
 }

@@ -110,19 +110,19 @@ export function VectorProviderServicePanel({ client = defaultClient, initialProv
   );
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-provider-services-title">
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-provider-services-title">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Provider + service registry</p>
-          <h2 id="vector-provider-services-title" className="mt-2 text-2xl font-semibold text-white">Embedding providers and storage services</h2>
-          <p className="mt-2 text-sm text-slate-400">Auto-detect embedding providers, test the selected provider, and register proxy vector services.</p>
-          <p className="mt-2 text-xs text-slate-500">{availableCount}/{providers.length} providers available · {services.length} services registered</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Provider + service registry</p>
+          <h2 id="vector-provider-services-title" className="mt-2 text-2xl font-semibold text-text">Embedding providers and storage services</h2>
+          <p className="mt-2 text-sm text-text-muted">Auto-detect embedding providers, test the selected provider, and register proxy vector services.</p>
+          <p className="mt-2 text-xs text-text-muted">{availableCount}/{providers.length} providers available · {services.length} services registered</p>
         </div>
-        <button className="focus-ring rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-200" type="button" onClick={() => void load()}>Refresh providers</button>
+        <button className="focus-ring rounded-xl border border-border px-3 py-2 text-sm text-text" type="button" onClick={() => void load()}>Refresh providers</button>
       </div>
 
       {error ? <div className="mt-4"><ErrorMessage title="Vector provider registry failed." message={error} /></div> : null}
-      {message ? <p className="mt-4 rounded-2xl border border-white/10 bg-slate-900/70 p-3 text-sm text-teal-100">{message}</p> : null}
+      {message ? <p className="mt-4 rounded-2xl border border-border bg-surface p-3 text-sm text-accent">{message}</p> : null}
 
       <div className="mt-5 grid gap-4 xl:grid-cols-2">
         <ProviderSelector providers={providers} selectedProvider={selectedProvider} selected={selected} busy={busy} onSelect={setSelectedProvider} onTest={testProvider} />
@@ -152,19 +152,19 @@ function ProviderSelector({ providers, selectedProvider, selected, busy, onSelec
   onTest: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <h3 className="font-semibold text-teal-100">Embedding provider selector</h3>
+    <div className="rounded-2xl border border-border bg-surface-muted p-4">
+      <h3 className="font-semibold text-accent">Embedding provider selector</h3>
       <div className="mt-3 grid gap-2">
         {providers.map((provider) => (
-          <label key={provider.type} className="flex items-start gap-3 rounded-xl border border-white/10 bg-slate-950/50 p-3 text-sm text-slate-200">
+          <label key={provider.type} className="flex items-start gap-3 rounded-xl border border-border bg-surface-muted p-3 text-sm text-text">
             <input type="radio" checked={selectedProvider === provider.type} onChange={() => onSelect(provider.type)} />
-            <span><span className="font-semibold text-white">{provider.type}</span><br /><span className="text-slate-400">{providerDetail(provider)}</span></span>
+            <span><span className="font-semibold text-text">{provider.type}</span><br /><span className="text-text-muted">{providerDetail(provider)}</span></span>
           </label>
         ))}
-        {!providers.length ? <p className="text-sm text-slate-500">Provider detection has not returned results yet.</p> : null}
+        {!providers.length ? <p className="text-sm text-text-muted">Provider detection has not returned results yet.</p> : null}
       </div>
       <VectorProviderConfigFields provider={selected} />
-      <button className="focus-ring mt-3 rounded-xl bg-teal-300 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50" disabled={!selectedProvider || Boolean(busy)} type="button" onClick={onTest}>{busy.startsWith('provider:') ? <Spinner label="Testing" /> : 'Test selected provider'}</button>
+      <button className="focus-ring mt-3 rounded-xl bg-accent-solid px-3 py-2 text-sm font-semibold text-on-accent disabled:opacity-50" disabled={!selectedProvider || Boolean(busy)} type="button" onClick={onTest}>{busy.startsWith('provider:') ? <Spinner label="Testing" /> : 'Test selected provider'}</button>
     </div>
   );
 }
@@ -181,16 +181,16 @@ function ServiceRegistry({ busy, serviceEndpoint, serviceName, services, onEndpo
   onTest: (name: string) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <h3 className="font-semibold text-purple-100">Register vector service</h3>
+    <div className="rounded-2xl border border-border bg-surface-muted p-4">
+      <h3 className="font-semibold text-accent2">Register vector service</h3>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Name<input className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100" value={serviceName} onChange={(event) => onName(event.target.value)} /></label>
-        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Endpoint<input className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100" value={serviceEndpoint} onChange={(event) => onEndpoint(event.target.value)} /></label>
+        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Name<input className="mt-1 w-full rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" value={serviceName} onChange={(event) => onName(event.target.value)} /></label>
+        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Endpoint<input className="mt-1 w-full rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" value={serviceEndpoint} onChange={(event) => onEndpoint(event.target.value)} /></label>
       </div>
-      <button className="focus-ring mt-3 rounded-xl bg-purple-300 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50" disabled={!serviceName.trim() || Boolean(busy)} type="button" onClick={onRegister}>{busy === 'register-service' ? <Spinner label="Registering" /> : '[+ Register Service]'}</button>
+      <button className="focus-ring mt-3 rounded-xl bg-accent2-solid px-3 py-2 text-sm font-semibold text-on-accent disabled:opacity-50" disabled={!serviceName.trim() || Boolean(busy)} type="button" onClick={onRegister}>{busy === 'register-service' ? <Spinner label="Registering" /> : '[+ Register Service]'}</button>
       <div className="mt-4 grid gap-2">
         {services.map((service) => <ServiceRow busy={busy} key={service.name} service={service} onRemove={onRemove} onTest={onTest} />)}
-        {!services.length ? <p className="text-sm text-slate-500">No vector services registered.</p> : null}
+        {!services.length ? <p className="text-sm text-text-muted">No vector services registered.</p> : null}
       </div>
     </div>
   );
@@ -198,12 +198,12 @@ function ServiceRegistry({ busy, serviceEndpoint, serviceName, services, onEndpo
 
 function ServiceRow({ busy, service, onRemove, onTest }: { busy: string; service: VectorService; onRemove: (name: string) => void; onTest: (name: string) => void }) {
   return (
-    <article className="rounded-xl border border-white/10 bg-slate-950/50 p-3 text-sm text-slate-200">
+    <article className="rounded-xl border border-border bg-surface-muted p-3 text-sm text-text">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p><span className="font-semibold text-white">{service.name}</span><br /><span className="text-slate-400">{serviceDetail(service)}</span></p>
+        <p><span className="font-semibold text-text">{service.name}</span><br /><span className="text-text-muted">{serviceDetail(service)}</span></p>
         <div className="flex gap-2">
-          <button className="focus-ring rounded-lg border border-teal-300/30 px-2 py-1 text-xs text-teal-100 disabled:opacity-50" disabled={Boolean(busy)} type="button" onClick={() => onTest(service.name)}>{busy === `service:${service.name}` ? 'Testing…' : 'Test'}</button>
-          <button className="focus-ring rounded-lg border border-red-300/30 px-2 py-1 text-xs text-red-100 disabled:opacity-50" disabled={Boolean(busy)} type="button" onClick={() => onRemove(service.name)}>{busy === `remove:${service.name}` ? 'Removing…' : 'Remove'}</button>
+          <button className="focus-ring rounded-lg border border-accent-border px-2 py-1 text-xs text-accent disabled:opacity-50" disabled={Boolean(busy)} type="button" onClick={() => onTest(service.name)}>{busy === `service:${service.name}` ? 'Testing…' : 'Test'}</button>
+          <button className="focus-ring rounded-lg border border-err-border/30 px-2 py-1 text-xs text-err-text disabled:opacity-50" disabled={Boolean(busy)} type="button" onClick={() => onRemove(service.name)}>{busy === `remove:${service.name}` ? 'Removing…' : 'Remove'}</button>
         </div>
       </div>
     </article>

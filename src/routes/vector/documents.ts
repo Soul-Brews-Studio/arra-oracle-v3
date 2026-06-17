@@ -4,7 +4,7 @@
 
 import { Elysia, t } from 'elysia';
 import { currentTenantId } from '../../middleware/tenant.ts';
-import { getVectorStoreByModel } from '../../vector/factory.ts';
+import { getEmbeddingModels, getVectorStoreByModel } from '../../vector/factory.ts';
 import type { VectorQueryResult, VectorStoreAdapter } from '../../vector/types.ts';
 
 interface DocumentItem {
@@ -15,6 +15,7 @@ interface DocumentItem {
 
 interface VectorDocumentsDeps {
   getStore?: (collection?: string) => VectorStoreAdapter;
+  getModels?: () => Record<string, unknown>;
 }
 
 const DEFAULT_COLLECTION = 'bge-m3';
@@ -31,6 +32,11 @@ function parsePositiveInt(value: string | undefined, fallback: number, max?: num
 function parseOffset(value: string | undefined, fallback: number): number {
   const parsed = Number.parseInt(value ?? '', 10);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function resolveCollection(collection: string | undefined, getModels?: () => Record<string, unknown>): string | null {
+  const name = (collection || DEFAULT_COLLECTION).trim() || DEFAULT_COLLECTION;
+  return !getModels || name in getModels() ? name : null;
 }
 
 function normalizeMetadata(metadata: unknown): Record<string, unknown> {
@@ -90,15 +96,20 @@ async function listWithQuery(
 
 export function createVectorDocumentsEndpoint(deps: VectorDocumentsDeps = {}) {
   const getStore = deps.getStore ?? getVectorStoreByModel;
+  const getModels = deps.getModels ?? (deps.getStore ? undefined : getEmbeddingModels);
 
   return new Elysia().get(
     '/vector/documents',
     async ({ query, set }) => {
-      const collection = query.collection || DEFAULT_COLLECTION;
       const limit = parsePositiveInt(query.limit, DEFAULT_LIMIT, MAX_LIMIT);
       const pageFallback = parsePositiveInt(query.page, DEFAULT_PAGE);
       const offset = parseOffset(query.offset, (pageFallback - 1) * limit);
       const page = query.page ? pageFallback : Math.floor(offset / limit) + 1;
+      const collection = resolveCollection(query.collection, getModels);
+      if (!collection) {
+        set.status = 404;
+        return { error: `Unknown vector collection: ${query.collection}`, items: [], total: 0, page, limit, offset };
+      }
 
       try {
         const store = getStore(collection);

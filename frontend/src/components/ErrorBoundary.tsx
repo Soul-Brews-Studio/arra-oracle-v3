@@ -89,17 +89,17 @@ export function ErrorBoundaryFallback({
   onRetry,
 }: ErrorBoundaryFallbackProps) {
   return (
-    <main className="oracle-shell min-h-screen p-6 text-slate-100">
-      <section className="mx-auto max-w-2xl rounded-3xl border border-red-400/30 bg-red-950/50 p-6 shadow-2xl shadow-black/30" role="alert">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-200">Frontend error boundary</p>
-        <h1 className="mt-3 text-3xl font-semibold text-white">The dashboard hit a rendering error.</h1>
-        <p className="mt-3 text-red-100/80">{error.message || 'Unknown rendering error'}</p>
-        <p className="mt-4 text-sm text-red-100/70">Report status: {reportStatus}</p>
-        <p className="mt-1 text-sm text-red-100/70">Auto-retry attempts: {retryCount}</p>
-        {componentStack ? <pre className="mt-4 max-h-48 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-red-50/80">{componentStack}</pre> : null}
+    <main className="oracle-shell min-h-screen p-6 text-text">
+      <section className="mx-auto max-w-2xl rounded-3xl border border-err-border bg-err-bg p-6 shadow-2xl shadow-black/30" role="alert">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-err-text">Frontend error boundary</p>
+        <h1 className="mt-3 text-3xl font-semibold text-text">The dashboard hit a rendering error.</h1>
+        <p className="mt-3 text-err-text">{error.message || 'Unknown rendering error'}</p>
+        <p className="mt-4 text-sm text-err-text">Report status: {reportStatus}</p>
+        <p className="mt-1 text-sm text-err-text">Auto-retry attempts: {retryCount}</p>
+        {componentStack ? <pre className="mt-4 max-h-48 overflow-auto rounded-xl bg-surface-muted p-3 text-xs text-err-text">{componentStack}</pre> : null}
         <button
           aria-label="Auto-retry rendering after error"
-          className="mt-5 rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200"
+          className="mt-5 rounded-xl bg-accent-solid px-5 py-3 font-semibold text-on-accent transition hover:bg-accent-solid"
           type="button"
           onClick={onRetry}
         >

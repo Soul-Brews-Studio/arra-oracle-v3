@@ -60,10 +60,10 @@ export function storageSummaryRows(settings: SettingsSystemResponse): DetailRow[
 
 function DetailCard({ row }: { row: DetailRow }) {
   return (
-    <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{row.label}</p>
-      <p className="mt-2 break-words font-mono text-sm text-teal-200">{row.value}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-400">{row.detail}</p>
+    <article className="rounded-2xl border border-border bg-surface-muted p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">{row.label}</p>
+      <p className="mt-2 break-words font-mono text-sm text-accent">{row.value}</p>
+      <p className="mt-2 text-sm leading-6 text-text-muted">{row.detail}</p>
     </article>
   );
 }
@@ -94,17 +94,17 @@ export function StoragePage({ initialSettings, fetcher = fetchSettingsSystem }: 
 
   return (
     <div className="grid gap-5">
-      <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="storage-page-title">
+      <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="storage-page-title">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-purple-300">Storage</p>
-            <h2 id="storage-page-title" className="mt-2 text-2xl font-semibold text-white">Storage backend</h2>
-            <p className="mt-2 text-sm text-slate-400">Backend config viewer for /api/settings/system.</p>
-            <p className="mt-2 text-sm text-slate-500">Review active backend, resolved paths, and migration readiness before enabling plugins.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Storage</p>
+            <h2 id="storage-page-title" className="mt-2 text-2xl font-semibold text-text">Storage backend</h2>
+            <p className="mt-2 text-sm text-text-muted">Backend config viewer for /api/settings/system.</p>
+            <p className="mt-2 text-sm text-text-muted">Review active backend, resolved paths, and migration readiness before enabling plugins.</p>
           </div>
           <button
             aria-label="Refresh storage backend config"
-            className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40"
+            className="focus-ring rounded-xl border border-border px-4 py-2 text-sm text-text hover:border-accent-border"
             type="button"
             onClick={refresh}
           >
