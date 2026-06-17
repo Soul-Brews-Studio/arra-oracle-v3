@@ -12,6 +12,9 @@ export interface SearchResult {
   score?: number;
   distance?: number;
   model?: string;
+  superseded_by?: string;
+  superseded_at?: string | null;
+  superseded_reason?: string | null;
 }
 
 export interface SearchResponse {
