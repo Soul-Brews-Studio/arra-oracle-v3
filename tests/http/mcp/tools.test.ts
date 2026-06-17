@@ -2,9 +2,11 @@ import { expect, test } from 'bun:test';
 import { createMcpRoutes } from '../../../src/routes/mcp/index.ts';
 import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant.ts';
 import { mcpRestMap } from '../../../src/tools/mcp-rest-map.ts';
-import type { UnifiedRuntime } from '../../../src/plugins/unified-loader.ts';
+import { createUnifiedRuntimeRef } from '../../../src/plugins/runtime-routes.ts';
 
-type PluginTool = UnifiedRuntime['mcpTools'][number];
+function pluginTool(name: string) {
+  return { name, description: `${name} tool`, inputSchema: { type: 'object' }, handler: 'run', plugin: 'demo' };
+}
 
 test('GET /api/mcp/tools returns core and plugin tool metadata', async () => {
   const app = createMcpRoutes([{
@@ -28,29 +30,6 @@ test('GET /api/mcp/tools returns core and plugin tool metadata', async () => {
     readOnly: true,
   }));
   expect(body.tools.some((tool) => 'handler' in tool)).toBe(false);
-});
-
-test('GET /api/mcp/tools reads plugin tools from a live source', async () => {
-  let pluginTools: PluginTool[] = [];
-  const app = createMcpRoutes(() => pluginTools);
-
-  const before = await app.handle(new Request('http://local/api/mcp/tools'));
-  expect((await before.json() as { tools: Array<Record<string, unknown>> }).tools.some((tool) => tool.name === 'oracle_live_source')).toBe(false);
-
-  pluginTools = [{
-    name: 'oracle_live_source',
-    description: 'Live source tool.',
-    inputSchema: { type: 'object' },
-    handler: 'run',
-    plugin: 'live-source',
-  }];
-
-  const after = await app.handle(new Request('http://local/api/mcp/tools'));
-  expect((await after.json() as { tools: Array<Record<string, unknown>> }).tools).toContainEqual(expect.objectContaining({
-    name: 'oracle_live_source',
-    source: 'plugin',
-    plugin: 'live-source',
-  }));
 });
 
 test('GET /api/mcp/tools drives core tools from the pure MCP REST map', async () => {
@@ -111,4 +90,20 @@ test('GET /api/mcp/tools filters malformed plugin tool metadata', async () => {
   expect(res.status).toBe(200);
   expect(pluginNames).toEqual(['oracle_valid_plugin']);
   expect(body.tools.some((tool) => tool.name === '')).toBe(false);
+});
+
+test('GET /api/mcp/tools re-reads plugin tools from the runtime ref after reload', async () => {
+  const runtimeRef = createUnifiedRuntimeRef({ mcpTools: [pluginTool('oracle_before_reload')] });
+  const app = createMcpRoutes({ runtimeRef });
+
+  let res = await app.handle(new Request('http://local/api/mcp/tools'));
+  let body = await res.json() as { tools: Array<Record<string, unknown>> };
+  expect(body.tools.filter((tool) => tool.source === 'plugin').map((tool) => tool.name)).toEqual(['oracle_before_reload']);
+
+  runtimeRef.current = { mcpTools: [pluginTool('oracle_after_reload')] };
+  res = await app.handle(new Request('http://local/api/mcp/tools'));
+  body = await res.json() as { tools: Array<Record<string, unknown>> };
+
+  expect(body.tools.filter((tool) => tool.source === 'plugin').map((tool) => tool.name)).toEqual(['oracle_after_reload']);
+  expect(body.tools.some((tool) => tool.name === 'oracle_before_reload')).toBe(false);
 });

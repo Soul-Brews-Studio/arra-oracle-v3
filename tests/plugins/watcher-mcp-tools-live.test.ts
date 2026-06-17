@@ -6,6 +6,7 @@ import { Elysia } from 'elysia';
 import { createMcpRoutes } from '../../src/routes/mcp/index.ts';
 import { loadUnifiedPlugins, type UnifiedRuntime } from '../../src/plugins/unified-loader.ts';
 import { createUnifiedPluginRouteMount, createUnifiedRuntimeRef } from '../../src/plugins/runtime-routes.ts';
+import { swapUnifiedRuntimeWithLifecycle } from '../../src/plugins/runtime-reload.ts';
 import { watchPluginManifests, type PluginWatchFn } from '../../src/plugins/watcher.ts';
 import { createNotFoundMiddleware } from '../../src/middleware/not-found.ts';
 
@@ -23,7 +24,7 @@ function tempRoot(): string {
 
 function appFor(ref: ReturnType<typeof createUnifiedRuntimeRef<UnifiedRuntime>>) {
   const app = new Elysia()
-    .use(createMcpRoutes(() => ref.current.mcpTools))
+    .use(createMcpRoutes({ runtimeRef: ref }))
     .get('/api/core', () => ({ source: 'core' }));
   app.use(createUnifiedPluginRouteMount(ref, { localRoutes: () => app.routes }));
   app.use(createNotFoundMiddleware(() => app.routes));
@@ -67,6 +68,7 @@ describe('watchPluginManifests live MCP plug-in/out', () => {
     mkdirSync(plugin, { recursive: true });
     const ref = createUnifiedRuntimeRef(await loadUnifiedPlugins({ dirs: [root] }));
     const app = appFor(ref);
+    const lifecycle = { servers: { started: 0, stop: async () => undefined } };
     const reloads: string[][] = [];
     let emit: ((event: string, filename: string | Buffer | null) => void) | undefined;
     const watch: PluginWatchFn = (_path, _options, listener) => {
@@ -78,9 +80,9 @@ describe('watchPluginManifests live MCP plug-in/out', () => {
       debounceMs: 1,
       watch,
       onReload: async (next) => {
-        await ref.current.stop();
-        await next.init();
-        ref.current = next;
+        await swapUnifiedRuntimeWithLifecycle(ref, lifecycle, next, {
+          startServers: async () => ({ started: 0, stop: async () => undefined }),
+        });
         reloads.push(next.pluginStatuses().map((status) => status.name).sort());
       },
     });
