@@ -14,7 +14,9 @@ import { createApiKeyAuthMiddleware } from './middleware/auth.ts';
 import { createCorrelationMiddleware } from './middleware/correlation.ts';
 import { defaultUnifiedPluginDirs, loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
 import { createUnifiedPluginRouteMount, createUnifiedRuntimeRef, type UnifiedRuntimeRef } from './plugins/runtime-routes.ts';
+import { swapUnifiedRuntimeWithLifecycle } from './plugins/runtime-reload.ts';
 import { startUnifiedPluginServers } from './plugins/unified-server.ts';
+import { watchPluginManifests, type PluginManifestWatcher } from './plugins/watcher.ts';
 import { closeCachedVectorStores } from './vector/factory.ts';
 import { warmEmbeddingProviderDetection } from './vector/provider-detection.ts';
 import { preflightVectorRuntime } from './vector/preflight.ts';
@@ -141,12 +143,20 @@ export async function createStartedApp(options: StartServerOptions = {}): Promis
   }
   if (process.env.ORACLE_FILE_WATCHER !== '0') fileWatcherService.start();
 
-  const unifiedPlugins = await loadUnifiedPlugins({ dirs: defaultUnifiedPluginDirs([join(import.meta.dir, 'plugins')]), warn: (message) => console.warn(message) });
+  const pluginDirs = defaultUnifiedPluginDirs([join(import.meta.dir, 'plugins')]);
+  const pluginWarn = (message: string) => console.warn(message);
+  const unifiedPlugins = await loadUnifiedPlugins({ dirs: pluginDirs, warn: pluginWarn });
   await unifiedPlugins.init();
-  const unifiedServers = await startUnifiedPluginServers(unifiedPlugins.servers);
-  registerGracefulShutdown({ close: async () => shutdown(unifiedPlugins, unifiedServers, ownsPidFile) });
+  const runtimeRef = createUnifiedRuntimeRef(unifiedPlugins);
+  const runtimeLifecycle = { servers: await startUnifiedPluginServers(unifiedPlugins.servers, pluginWarn) };
+  const pluginWatcher = watchPluginManifests({
+    dirs: pluginDirs,
+    warn: pluginWarn,
+    onReload: (runtime) => swapUnifiedRuntimeWithLifecycle(runtimeRef, runtimeLifecycle, runtime, { warn: pluginWarn }),
+  });
+  registerGracefulShutdown({ close: async () => shutdown(runtimeRef.current, runtimeLifecycle.servers, pluginWatcher, ownsPidFile) });
 
-  const app = createApp({ unifiedPlugins });
+  const app = createApp({ unifiedPlugins, runtimeRef });
   await seedMenus(app, unifiedPlugins);
   await announceStartup(app, startupConfig);
   const serverFetch = createRequestTimeoutFetch(createRequestDedupFetch(createApiVersionedFetch(createTenantFetch(createDbContextFetch((request: Request) => app.fetch(request))))));
@@ -179,10 +189,11 @@ async function announceStartup(app: any, startupConfig: ReturnType<typeof valida
   await runStartupSelfTest({ checks: createStartupSelfTest({ dbPing: dbStatus, healthFetch: () => app.fetch(new Request(`http://127.0.0.1:${PORT}/api/health`)) }) });
 }
 
-async function shutdown(unifiedPlugins: UnifiedRuntime, unifiedServers: Awaited<ReturnType<typeof startUnifiedPluginServers>>, ownsPidFile: boolean): Promise<void> {
+async function shutdown(unifiedPlugins: UnifiedRuntime, unifiedServers: Awaited<ReturnType<typeof startUnifiedPluginServers>>, pluginWatcher: PluginManifestWatcher, ownsPidFile: boolean): Promise<void> {
   console.log('\n🔮 Shutting down gracefully...');
   await runShutdownSteps([
     { name: 'file-watcher', run: () => { fileWatcherService.stop(); } },
+    { name: 'unified-plugin-watcher', run: () => { pluginWatcher.close(); } },
     { name: 'unified-plugins', run: () => unifiedPlugins.stop() },
     { name: 'unified-plugin-servers', run: () => unifiedServers.stop() },
     { name: 'vector-stores', run: () => closeCachedVectorStores() },

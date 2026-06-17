@@ -1,6 +1,7 @@
 import { sqlite } from '../../db/index.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
 import { BI_TEMPORAL_JOIN, BI_TEMPORAL_WHERE, biTemporalParams } from '../../search/bitemporal.ts';
+import { logDocumentAccess } from '../../server/logging.ts';
 import type { SearchResponse } from '../../server/types.ts';
 import { buildTenantFtsQuery, parseConcepts } from '../../search/query.ts';
 
@@ -49,6 +50,8 @@ export function handleTenantSearch(query: string, type = 'all', limit = 10, offs
     ORDER BY rank
     LIMIT ? OFFSET ?
   `), [...params, limit, offset]) as ListRow[];
+
+  rows.forEach((row) => logDocumentAccess(row.id, 'search', row.project));
 
   return {
     results: rows.map((row) => ({

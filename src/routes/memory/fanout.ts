@@ -21,6 +21,8 @@ type FanoutSearchResult = SearchResult & {
   memorySource?: string;
   createdAt?: string;
   updatedAt?: string;
+  usageCount?: number;
+  lastAccessedAt?: string;
 };
 
 type RankedResult = SearchResult & {
@@ -59,6 +61,16 @@ function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
+function numberValue(value: unknown): number | undefined {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function dateText(value: unknown): string | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return new Date(value).toISOString();
+  return text(value);
+}
+
 function textList(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
   if (typeof value !== 'string' || !value.trim()) return [];
@@ -87,8 +99,10 @@ function toSearchResults(collection: string, result: VectorQueryResult): FanoutS
       title: text(metadata.title),
       tags,
       memorySource: text(metadata.source ?? metadata.memory_source ?? metadata.source_file ?? metadata.path),
-      createdAt: text(metadata.createdAt ?? metadata.created_at),
-      updatedAt: text(metadata.updatedAt ?? metadata.updated_at),
+      createdAt: dateText(metadata.createdAt ?? metadata.created_at),
+      updatedAt: dateText(metadata.updatedAt ?? metadata.updated_at),
+      usageCount: numberValue(metadata.usageCount ?? metadata.usage_count),
+      lastAccessedAt: dateText(metadata.lastAccessedAt ?? metadata.last_accessed_at),
     };
   });
 }
@@ -103,6 +117,8 @@ function confidenceFor(result: FanoutSearchResult, now: Date): MemoryConfidence 
     source: result.memorySource,
     createdAt: result.createdAt ?? timestamp,
     updatedAt: result.updatedAt ?? timestamp,
+    usageCount: result.usageCount,
+    lastAccessedAt: result.lastAccessedAt,
   };
   return memoryConfidence(memory, { mode: 'semantic', semanticScore: result.score ?? 0, now });
 }

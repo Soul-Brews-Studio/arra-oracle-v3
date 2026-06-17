@@ -5,10 +5,13 @@ export type MemoryConfidence = {
   label: 'high' | 'medium' | 'low';
   ageDays: number;
   freshness: number;
+  usageCount: number;
+  lastAccessedAgeDays?: number;
   components: {
     match: number;
     freshness: number;
     provenance: number;
+    usage: number;
   };
   warnings: string[];
   reasons: string[];
@@ -39,27 +42,33 @@ export function memoryConfidence(
   const freshness = clamp(0.5 ** (ageDays / halfLife));
   const match = clamp(options.semanticScore ?? (options.mode === 'semantic' ? 0.6 : 0.65));
   const provenance = Math.min(1, (hasSource ? 0.45 : 0) + (hasTags ? 0.35 : 0) + (hasTitle ? 0.2 : 0));
-  const score = round(clamp((match * 0.5) + (freshness * 0.3) + (provenance * 0.2)));
+  const usageCount = Math.max(0, Math.floor(Number(memory.usageCount ?? 0)));
+  const lastAccessedAgeDays = memory.lastAccessedAt ? daysSince(memory.lastAccessedAt, now) : undefined;
+  const usage = usageSignal(usageCount, lastAccessedAgeDays);
+  const score = round(clamp((match * 0.5) + (freshness * 0.3) + (provenance * 0.2) + (usage * 0.1)));
 
   return {
     score,
     label: score >= 0.75 ? 'high' : score >= 0.45 ? 'medium' : 'low',
     ageDays: round(ageDays),
     freshness: round(freshness),
+    usageCount,
+    lastAccessedAgeDays: lastAccessedAgeDays === undefined ? undefined : round(lastAccessedAgeDays),
     components: {
       match: round(match),
       freshness: round(freshness),
       provenance: round(provenance),
+      usage: round(usage),
     },
     warnings: warnings(ageDays, match, hasSource, hasTags),
-    reasons: reasons(options.mode ?? 'keyword', hasSource, hasTags, halfLife),
+    reasons: reasons(options.mode ?? 'keyword', hasSource, hasTags, halfLife, usageCount),
   };
 }
 
 export const MEMORY_CONFIDENCE_STRATEGY = {
   stored: false,
   strategy: 'query-time-confidence',
-  signals: ['match_score', 'freshness_decay', 'source', 'tags', 'title'],
+  signals: ['match_score', 'freshness_decay', 'source', 'tags', 'title', 'usage_count', 'last_accessed_at'],
 };
 
 function daysSince(value: string, now: Date): number {
@@ -68,14 +77,29 @@ function daysSince(value: string, now: Date): number {
   return Math.max(0, (now.getTime() - timestamp) / DAY_MS);
 }
 
-function reasons(mode: ConfidenceMode, hasSource: boolean, hasTags: boolean, halfLifeDays: number): string[] {
-  return [
+function reasons(
+  mode: ConfidenceMode,
+  hasSource: boolean,
+  hasTags: boolean,
+  halfLifeDays: number,
+  usageCount: number,
+): string[] {
+  const list = [
     'computed_at_query_time',
     `${mode}_match`,
     hasSource ? 'source_present' : 'source_missing',
     hasTags ? 'tags_present' : 'tags_missing',
     `freshness_half_life_${halfLifeDays}d`,
   ];
+  if (usageCount > 0) list.push('retrieval_reinforced');
+  return list;
+}
+
+function usageSignal(usageCount: number, lastAccessedAgeDays: number | undefined): number {
+  if (!usageCount && lastAccessedAgeDays === undefined) return 0;
+  const visitScore = usageCount ? clamp(Math.log1p(usageCount) / Math.log1p(20)) : 0;
+  const recencyScore = lastAccessedAgeDays === undefined ? 0 : clamp(0.5 ** (lastAccessedAgeDays / 30));
+  return clamp((visitScore * 0.7) + (recencyScore * 0.3));
 }
 
 function warnings(ageDays: number, match: number, hasSource: boolean, hasTags: boolean): string[] {
