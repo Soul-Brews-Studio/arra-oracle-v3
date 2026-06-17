@@ -14,7 +14,7 @@ See [README.md](./README.md) for the docs index that links every guide in this w
 | Vector adapter selection | `alpha` | `ORACLE_VECTOR_DB`, `ORACLE_VECTOR_DB_PATH`, `QDRANT_URL`, `VECTOR_URL` | `ORACLE_VECTOR_DB=qdrant QDRANT_URL=http://localhost:6333 bun run server` |
 | Docker/GHCR | `alpha` | Docker targets `http-server`, `mcp-stdio` | `docker run --rm -p 47778:47778 ghcr.io/soul-brews-studio/arra-oracle-v3:http` |
 | Docker MCP Toolkit catalog | `alpha` | `catalog/arra-oracle.yaml` | `docker mcp profile create --server file://$(pwd)/catalog/arra-oracle.yaml` |
-| Federation / peer identity | shipped on `alpha` | `ARRA_SCOUT_ANNOUNCE`, `ARRA_PEER_TOKEN`, `ARRA_NAMED_PEERS` | see [FEDERATION.md](./FEDERATION.md) |
+| Federation mesh provider | opt-in on `alpha` | `ORACLE_ENABLED_PLUGINS=federation` | `curl /api/federation/status` |
 
 ## MCP modes: embedded vs HTTP-proxy
 
@@ -84,12 +84,14 @@ Current built-in MCP plugin map:
 | --- | --- | --- |
 | `guide` | `core` | `____IMPORTANT` |
 | `search` | `core` | `oracle_search`, `oracle_read`, `oracle_list`, `oracle_concepts` |
-| `knowledge` | `core` | `oracle_learn`, `oracle_stats`, `oracle_supersede` |
+| `knowledge` | `core` | `oracle_learn`, `oracle_stats`, `oracle_supersede`, `oracle_research_note` |
+| `oracle` | `standard` | `oracle_profile` |
 | `session` | `standard` | `oracle_handoff`, `oracle_inbox` |
 | `forum` | `standard` | `oracle_thread`, `oracle_threads`, `oracle_thread_read`, `oracle_thread_update` |
-| `trace` | `standard` | `oracle_trace` |
+| `trace` | `standard` | `oracle_trace`, `oracle_trace_distill` |
 | `dig` | `standard` | `oracle_trace_list`, `oracle_trace_get`, `oracle_trace_link`, `oracle_trace_unlink`, `oracle_trace_chain` |
 | `standalone` | `extra` | `oracle_reflect`, `oracle_verify` |
+| `mcp` | runtime tail | `oracle_mcp_list_tools`, `oracle_mcp_call` |
 
 ## Operator CLI: `arra`, targets, config, doctor, plugins
 
@@ -201,42 +203,31 @@ cp catalog/arra-oracle.yaml ~/.docker/mcp/catalogs/
 
 The catalog image is `ghcr.io/soul-brews-studio/arra-oracle-v3:stdio`, so click-to-install flows do not need a local build once GHCR publishing has run.
 
-## Federation / peer identity
+## Federation mesh provider
 
-Federation is now mounted in the `alpha` source tree. Use the full operator
-guide in [FEDERATION.md](./FEDERATION.md) for pairing, Scout discovery,
-TOFU pinning, peer feed/search, and the Arra↔mawjs worked example.
+Federation is now an opt-in `/api/federation/*` mesh capability provider, not
+the removed peer-pairing stack. Enable it with `ORACLE_ENABLED_PLUGINS=federation`
+and use [FEDERATION.md](./FEDERATION.md) for operator details.
 
 | Feature | Source path | Knob / endpoint |
 | --- | --- | --- |
-| Maw peer info | `src/routes/peer/info.ts` | `GET /info` |
-| Stable identity | `src/routes/peer/identity.ts`, `src/peer/identity-key.ts` | `GET /api/identity`, `$ORACLE_DATA_DIR/peer-key.hex` |
-| Named peer probing | `src/routes/peer/peers.ts`, `src/peer/peer-query.ts` | `GET /api/peers`, `arra peers --token <token>` |
-| Peer feed | `src/routes/peer/feed.ts` | `GET /api/peer/feed` (**not** `/api/feed`) |
-| Peer search | `src/routes/peer/search.ts` | `POST /api/peer/search` |
-| Static peer config | `src/peer/peer-registry.ts` | `ARRA_NAMED_PEERS`, `$ORACLE_DATA_DIR/peers.json`, `ARRA_PEERS_CONFIG` |
-| TOFU trust store | `src/peer/peer-tofu.ts` | `$ORACLE_DATA_DIR/peers-tofu.json`, `ARRA_PEERS_TOFU_PATH` |
-| Peer auth | `src/peer/peer-auth.ts` | `ARRA_PEER_TOKEN` bearer auth or `?token=` for feed/search |
-| Scout HELLO multicast | `src/peer/scout-announcer.ts` | `ARRA_SCOUT_ANNOUNCE=1` |
+| Route plugin | `src/routes/federation/index.ts` | `/api/federation/*` |
+| Provider | `src/federation/capability-provider.ts` | `arra-oracle-federation` |
+| Plugin gate | `src/server/plugin/builtin.ts` | `ORACLE_ENABLED_PLUGINS=federation` |
+| Mesh status | route plugin | `GET /api/federation/status` |
+| Capabilities | route plugin | `GET /api/federation/capabilities` |
+| Node registry | route plugin | `GET/POST /api/federation/mesh/nodes` |
 
 Quick smoke:
 
 ```bash
-ARRA_SCOUT_ANNOUNCE=1 \
-ARRA_PEER_TOKEN=<shared-token> \
-bun run server
-
-curl http://localhost:47778/info
-curl http://localhost:47778/api/identity
-curl 'http://localhost:47778/api/peer/feed?token=<shared-token>&limit=20'
-curl -X POST http://localhost:47778/api/peer/search \
-  -H 'content-type: application/json' \
-  -H 'Authorization: Bearer <shared-token>' \
-  -d '{"query":"federation","limit":5}'
+ORACLE_ENABLED_PLUGINS=federation bun run server
+curl -sf http://localhost:47778/api/federation/status | jq
+curl -sf http://localhost:47778/api/federation/mesh/nodes | jq
 ```
 
-Treat first-seen peer keys as TOFU pins: verify unexpected key changes
-out-of-band before trusting search/feed results from that peer.
+Do not document the removed peer-pairing stack as current guidance; those
+source paths are absent from `alpha`.
 
 ## Verification checklist for this wave
 

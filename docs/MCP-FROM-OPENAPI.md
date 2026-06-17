@@ -9,7 +9,7 @@ Script: [`scripts/mcp-from-openapi.ts`](../scripts/mcp-from-openapi.ts).
 
 ## Why
 
-`src/index.ts` currently hand-registers 22 MCP tools, but the HTTP server
+`src/tools/mcp-manifest.ts` currently exposes 27 core MCP tools, while the HTTP server
 already describes 50+ endpoints through Elysia's TypeBox models, surfaced
 at `/swagger/json`. Every time a new route lands we duplicate the schema
 by hand in a tool def. The OpenAPI doc is the source of truth; the MCP
@@ -32,7 +32,7 @@ bun scripts/mcp-from-openapi.ts --compact
 ```
 
 JSON tool defs go to stdout. A progress line (generated count, path count,
-comparison to the hand-rolled 22) goes to stderr. Exit code 2 if the
+comparison to the 27-tool core manifest) goes to stderr. Exit code 2 if the
 generated count drops below the current baseline.
 
 If the live fetch fails, the script falls back to the committed fixture at
@@ -88,9 +88,13 @@ tell path from body when reconstructing the URL.
 
 ## Current numbers (fixture 2026-04-19)
 
+Current core MCP manifest count is 27: `____IMPORTANT` plus 26 `oracle_*`
+tools, including `oracle_research_note`, `oracle_profile`, and
+`oracle_trace_distill`.
+
 - 51 paths in `/swagger/json`
 - **55 tools generated** (4 paths expose both GET and POST)
-- 22 tools in current hand-rolled `src/index.ts` → **+33 net**
+- 27 tools in the current core manifest → **+28 net**
 
 ## Known gaps (Phase 1)
 
@@ -101,8 +105,8 @@ tell path from body when reconstructing the URL.
   TypeBox models from source. Phase 2 should either (a) teach Elysia's
   swagger plugin to emit the schemas, or (b) import the TypeBox models
   directly and run `Value.Compile` → JSON Schema on them.
-- **No `____IMPORTANT` meta tool.** The current server ships a pseudo-tool
-  that describes the workflow. A generator pass can't synthesise this —
+- **No `____IMPORTANT` meta tool.** The current manifest prepends this guide
+  tool before the 26 `oracle_*` tools. A generator pass can't synthesise it —
   wire it in at the composition layer, not at generation time.
 - **`operationId` is ignored.** Elysia autogenerates names like
   `getApiSearch`. The slug-based name is stabler across route renames and
@@ -124,8 +128,8 @@ tell path from body when reconstructing the URL.
 3. Fold `WRITE_TOOLS` and `disabledTools` filtering into a post-generation
    pass, keyed by OpenAPI `tags` (we already tag routes with
    `nav:hidden`, `order:10`, etc.).
-4. Keep the hand-rolled `____IMPORTANT` meta-tool; prepend it to the
-   generated list at compose time.
+4. Keep `____IMPORTANT` plus hand-written tools such as `oracle_research_note`,
+   `oracle_profile`, and `oracle_trace_distill` until generator parity exists.
 5. Delete `*ToolDef` constants from `src/tools/*` — the def is now
    derived, only the handler body remains.
 

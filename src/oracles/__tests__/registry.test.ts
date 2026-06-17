@@ -5,7 +5,9 @@ import { thorOracleProfile } from '../thor.ts';
 describe('oracle profile registry edge handling', () => {
   test('matches Thor by trimmed/case-insensitive id, slug, name, and short name', () => {
     expect(getOracleProfile(' THOR-ORACLE ')?.slug).toBe('thor');
+    expect(getOracleProfile(' THOR_ORACLE ')?.slug).toBe('thor');
     expect(getOracleProfile('thor')?.id).toBe('thor-oracle');
+    expect(getOracleProfile('ＴＨＯＲ')?.id).toBe('thor-oracle');
     expect(getOracleProfile('ThOr OrAcLe')?.theme).toBe('stormforge');
     expect(getOracleProfile(' Thor   Oracle ')?.id).toBe('thor-oracle');
     expect(getOracleProfile('thor')?.name).toBe('Thor Oracle');
