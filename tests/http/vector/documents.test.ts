@@ -82,3 +82,28 @@ test('GET /api/v1/vector/documents returns offset-paged vector documents', async
   });
   expect(store.getAllEmbeddings).toHaveBeenCalledWith(4);
 });
+
+test('GET /api/v1/vector/documents falls back to query when export is unsupported', async () => {
+  const store = createStore();
+  store.getAllEmbeddings = mock(async () => {
+    const error = new Error('Proxy vector request failed: 501 Not Implemented');
+    Object.assign(error, { status: 501 });
+    throw error;
+  });
+  const collections: string[] = [];
+  const fetcher = createFetch(store, collections);
+
+  const res = await fetcher(new Request(
+    'http://local/api/v1/vector/documents?collection=proxy&limit=2',
+  ));
+  const body = await res.json() as {
+    items: Array<{ id: string; document: string; metadata: Record<string, unknown> }>;
+    total: number;
+  };
+
+  expect(res.status).toBe(200);
+  expect(collections).toEqual(['proxy']);
+  expect(body.items.map((item) => item.id)).toEqual(['doc-1', 'doc-2']);
+  expect(body.total).toBe(5);
+  expect(store.query).toHaveBeenCalledWith('', 2);
+});
