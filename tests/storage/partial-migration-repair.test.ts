@@ -9,8 +9,16 @@ import type { StorageBackend } from '../../src/storage/types.ts';
 const FIRST_TENANT_MEMORY_MIGRATION = 1781628166154;
 const INDEXING_JOBS_MIGRATION = 1780185600000;
 const FTS5_BOOTSTRAP_MIGRATION = 1746547200000;
+const MIGRATION_JOURNAL = path.join(import.meta.dir, '../../src/db/migrations/meta/_journal.json');
 let tempDir = '';
 let backend: StorageBackend | undefined;
+
+function migrationCountSince(createdAt: number) {
+  const journal = JSON.parse(fs.readFileSync(MIGRATION_JOURNAL, 'utf8')) as {
+    entries: { when: number }[];
+  };
+  return journal.entries.filter((entry) => entry.when >= createdAt).length;
+}
 
 afterEach(() => {
   backend?.close();
@@ -39,7 +47,7 @@ test('sqlite backend repairs additive migrations already present in schema', () 
     'pragma table_info("oracle_memories")',
   ).all().map((column) => column.name);
 
-  expect(repaired?.count).toBe(4);
+  expect(repaired?.count).toBe(migrationCountSince(FIRST_TENANT_MEMORY_MIGRATION));
   expect(memoryColumns).toContain('tenant_id');
 });
 
