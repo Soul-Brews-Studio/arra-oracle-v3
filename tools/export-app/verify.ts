@@ -23,6 +23,7 @@ type Manifest = {
   exportedAt?: string;
   files?: ExportFileInventoryEntry[];
   formats?: unknown;
+  backup?: { path?: unknown; tableCount?: unknown; rowCount?: unknown };
   collectionCount?: number;
   rowCount?: number;
   relationshipCount?: number;
@@ -43,6 +44,7 @@ export async function verifyExportBundle(bundleDir: string): Promise<ExportBundl
   for (const entry of actual) if (!expectedPaths.has(entry.path)) errors.push(`unexpected file not listed in manifest: ${entry.path}`);
 
   const formats = readFormats(manifest, errors);
+  verifyBackup(manifest, expectedPaths, errors);
   const collectionCount = await verifyCollections(root, manifest, formats, expectedPaths, errors);
   const documentCount = await verifyDocuments(root, manifest, expectedPaths, errors);
   const relationshipFileCount = verifyRelationships(formats, expectedPaths, errors);
@@ -100,9 +102,20 @@ function verifyEntry(expected: ExportFileInventoryEntry, actual: ExportFileInven
 function readFormats(manifest: Manifest, errors: string[]): string[] {
   if (!Array.isArray(manifest.formats) || manifest.formats.some((format) => typeof format !== 'string')) {
     errors.push('manifest.formats must be a string array');
-    return ['json', 'csv', 'markdown'];
+    return ['json', 'jsonl', 'csv', 'markdown'];
   }
   return manifest.formats;
+}
+
+function verifyBackup(manifest: Manifest, expectedPaths: Set<string>, errors: string[]): void {
+  if (!manifest.backup) {
+    errors.push('manifest.backup must be present');
+    return;
+  }
+  if (typeof manifest.backup.path !== 'string') errors.push('manifest.backup.path must be a string');
+  else expectManifestPath(expectedPaths, manifest.backup.path, errors);
+  if (typeof manifest.backup.tableCount !== 'number') errors.push('manifest.backup.tableCount must be a number');
+  if (typeof manifest.backup.rowCount !== 'number') errors.push('manifest.backup.rowCount must be a number');
 }
 
 async function verifyCollections(

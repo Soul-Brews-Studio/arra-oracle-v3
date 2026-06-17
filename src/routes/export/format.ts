@@ -1,7 +1,7 @@
 import { exportFormatInfo } from '../../vector/export-formats.ts';
 
 export type ExportRecord = Record<string, unknown>;
-export const EXPORT_FORMATS = ['json', 'csv', 'markdown'] as const;
+export const EXPORT_FORMATS = ['json', 'jsonl', 'csv', 'markdown'] as const;
 export type ExportFormat = typeof EXPORT_FORMATS[number];
 
 const CSV_COLUMNS = ['id', 'title', 'content_preview', 'collection', 'created_at'] as const;
@@ -29,6 +29,7 @@ export function formatCollection(name: string, rows: ExportRecord[], format: Exp
   if (format === 'json') {
     return `${JSON.stringify({ collection: name, rowCount: rows.length, rows }, null, 2)}\n`;
   }
+  if (format === 'jsonl') return rows.map((row) => JSON.stringify(row)).join('\n') + (rows.length > 0 ? '\n' : '');
   if (format === 'csv') return formatCsvCollection(name, rows);
   return toMarkdown(name, rows);
 }
@@ -53,7 +54,11 @@ function preview(value: unknown): string {
 }
 
 function csvCell(value: unknown): string {
-  return `"${text(value).replaceAll('"', '""')}"`;
+  return `"${spreadsheetSafe(text(value)).replaceAll('"', '""')}"`;
+}
+
+function spreadsheetSafe(value: string): string {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
 }
 
 function csvRow(collection: string, row: ExportRecord): string[] {

@@ -29,6 +29,7 @@ export function exportBundleReadme(input: ExportBundleReadmeInput): string {
     '- `collections/` contains every Drizzle collection in each export format.',
     '- `relationships.*` contains graph edges for preview and migration checks.',
     '- `all-collections.json` contains the full normalized collection snapshot.',
+    '- `backup.sql` contains a standalone SQLite restore/preflight dump.',
     '- `manifest.json` contains counts plus the SHA-256 file inventory.',
     '- `manifest.schema.json` describes the manifest contract.',
     '',

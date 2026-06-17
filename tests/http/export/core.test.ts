@@ -84,7 +84,7 @@ describe('export core HTTP routes', () => {
       rowCount: 2,
       documentsUrl: '/api/v1/export/documents/oracle_documents',
     }));
-    expect(body.formats).toEqual(['json', 'csv', 'markdown']);
+    expect(body.formats).toEqual(['json', 'jsonl', 'csv', 'markdown']);
   });
 
   test('GET /api/export/documents/:collection returns content-rich Oracle docs', async () => {

@@ -51,11 +51,12 @@ function plugin(name: string, entry: string, format: string, handler = 'register
 }
 
 describe('ExportFormatter registry hardening', () => {
-  test('built-in json/jsonl/csv/markdown format empty collections safely', async () => {
+  test('built-in json/jsonl/csv/markdown/v2 format empty collections safely', async () => {
     expect(await streamText('json')).toBe('[]');
     expect(await streamText('jsonl')).toBe('');
     expect(await streamText('csv')).toBe('id,document,type,source_file,concepts\n');
     expect(await streamText('markdown')).toBe('');
+    expect(await streamText('v2')).toBe('{"version":1,"documents":[]}');
   });
 
   test('rejects invalid format names before registry lookup or registration', () => {
@@ -90,5 +91,27 @@ describe('ExportFormatter registry hardening', () => {
 
     expect(result).toBe(`export format not registered: ${format}`);
     expect(getExportFormat(format)).toBeUndefined();
+  });
+
+  test('plugin export handlers receive the registration context seam', async () => {
+    const format = `c10-context-${Date.now().toString(36)}`;
+    const result = await registerPluginExportFormats(plugin('context-format', `
+      const encoder = new TextEncoder();
+      export function register(ctx) {
+        if (ctx.source !== 'exportFormat' || ctx.plugin !== 'context-format' || ctx.format !== '${format}') {
+          throw new Error('bad export format context');
+        }
+        ctx.registerExportFormat(ctx.format, Object.assign((dump) => new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(ctx.config.mode + ':' + dump.ids.length));
+            controller.close();
+          },
+        }), { contentType: 'text/plain; charset=utf-8', extension: 'ctx', label: 'Context Format' }));
+      }
+    `, format), 500);
+
+    expect(result).toBeUndefined();
+    expect(exportFormatInfo(format)).toMatchObject({ extension: 'ctx', label: 'Context Format' });
+    expect(await streamText(format, { ids: ['one'], embeddings: [], metadatas: [], documents: [] })).toBe('undefined:1');
   });
 });
