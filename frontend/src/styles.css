@@ -56,8 +56,15 @@ body {
 .light .text-slate-300 { color: #334155; }
 .light .text-slate-400 { color: #475569; }
 .light .text-slate-500 { color: #64748b; }
+.light .text-teal-100,
 .light .text-teal-200,
 .light .text-teal-300 { color: #0f766e; }
+.light .text-emerald-100,
+.light .text-emerald-200 { color: #065f46; }
+.light .text-amber-100,
+.light .text-amber-200 { color: #92400e; }
+.light .text-red-100,
+.light .text-red-200 { color: #b91c1c; }
 .light .text-purple-200,
 .light .text-purple-300 { color: #7e22ce; }
 .light .hover\:bg-slate-900:hover { background-color: rgb(241 245 249 / 0.95); }

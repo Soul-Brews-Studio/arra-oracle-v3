@@ -64,6 +64,55 @@ function stripTrailingCommas(source: string): string {
 }
 
 describe('Cloudflare deploy metadata', () => {
+  test('deploy docs list dry-run commands and required Worker environment', () => {
+    const docs = read('docs/workers-deploy-configs.md');
+
+    for (const command of [
+      'bun run cloudflare:mcp:dry-run',
+      'bun run cloudflare:studio:dry-run',
+      'bun run cloudflare:federation:dry-run',
+    ]) {
+      expect(docs).toContain(command);
+    }
+
+    for (const envName of [
+      'MCP_OBJECT',
+      'ORACLE_ORIGIN_URL',
+      'ORACLE_URL',
+      'ORACLE_HTTP_URL',
+      'ORACLE_API',
+      'ORACLE_MCP_URL',
+      'ARRA_API_TOKEN',
+      'ARRA_API_KEY',
+      'ORACLE_TENANT_ID',
+      'ORACLE_DB',
+      'ORACLE_TENANTS_TABLE',
+      'ASSETS',
+      'TUNNEL_URL',
+      'FEDERATION_TOKEN',
+      'federationToken',
+    ]) {
+      expect(docs).toContain(`\`${envName}\``);
+    }
+  });
+
+  test('root package scripts point at the active Worker configs', () => {
+    const pkg = readJson<Record<string, any>>('package.json');
+
+    expect(pkg.scripts).toMatchObject({
+      'cloudflare:mcp:dev': 'wrangler dev --config workers/mcp/wrangler.jsonc',
+      'cloudflare:mcp:deploy': 'wrangler deploy --config workers/mcp/wrangler.jsonc',
+      'cloudflare:mcp:dry-run': 'wrangler deploy --dry-run --config workers/mcp/wrangler.jsonc',
+      'cloudflare:studio:dev': 'cd frontend && bun run build && cd .. && wrangler dev --config workers/studio/wrangler.jsonc',
+      'cloudflare:studio:deploy': 'cd frontend && bun run build && cd .. && wrangler deploy --config workers/studio/wrangler.jsonc',
+      'cloudflare:studio:dry-run':
+        'cd frontend && bun run build && cd .. && wrangler deploy --dry-run --config workers/studio/wrangler.jsonc',
+      'cloudflare:federation:dev': 'wrangler dev --config workers/federation/wrangler.jsonc',
+      'cloudflare:federation:deploy': 'wrangler deploy --config workers/federation/wrangler.jsonc',
+      'cloudflare:federation:dry-run': 'wrangler deploy --dry-run --config workers/federation/wrangler.jsonc',
+    });
+  });
+
   test('root Wrangler config only tears down the retired remote MCP Durable Object', () => {
     const cfg = parseJsonc<Record<string, any>>(read('wrangler.jsonc'));
 
@@ -83,6 +132,7 @@ describe('Cloudflare deploy metadata', () => {
       build: 'tsc --noEmit',
       dev: 'wrangler dev --config wrangler.jsonc',
       deploy: 'tsc --noEmit && wrangler deploy --config wrangler.jsonc',
+      'dry-run': 'tsc --noEmit && wrangler deploy --dry-run --config wrangler.jsonc',
       typecheck: 'tsc --noEmit',
     });
   });
@@ -117,6 +167,7 @@ describe('Cloudflare deploy metadata', () => {
     const pkg = JSON.parse(read('workers/mcp/package.json')) as Record<string, any>;
 
     expect(pkg.scripts.deploy).toBe('tsc --noEmit && wrangler deploy --config wrangler.jsonc');
+    expect(pkg.scripts['dry-run']).toBe('tsc --noEmit && wrangler deploy --dry-run --config wrangler.jsonc');
     expect(pkg.dependencies).toMatchObject({
       '@modelcontextprotocol/sdk': expect.any(String),
       agents: expect.any(String),

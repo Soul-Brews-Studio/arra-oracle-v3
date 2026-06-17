@@ -12,9 +12,10 @@ describe('federation Worker proxy', () => {
   test('normalizes tunnel URLs and preserves relayed path/query', () => {
     expect(resolveTunnelUrl({ TUNNEL_URL: ' https://user:pass@tunnel.example.test/root/?x=1#hash ' })).toBe('https://tunnel.example.test/root');
     expect(resolveTunnelUrl({})).toBeNull();
-    expect(resolveTunnelUrl({ TUNNEL_URL: 'not a url' })).toBeNull();
+    expect(resolveTunnelUrl({ TUNNEL_URL: 'ftp://tunnel.example.test/root/' })).toBeNull();
     expect(resolveTunnelUrl({ TUNNEL_URL: 'file:///tmp/tunnel.sock' })).toBeNull();
-    expect(buildTunnelUrl('https://tunnel.example.test/root', 'https://worker.example/api/sessions?local=true')).toBe('https://tunnel.example.test/root/api/sessions?local=true');
+    expect(resolveTunnelUrl({ TUNNEL_URL: 'not a url' })).toBeNull();
+    expect(buildTunnelUrl('https://user:pass@tunnel.example.test/root?debug=1#secret', 'https://worker.example/api/sessions?local=true')).toBe('https://tunnel.example.test/root/api/sessions?local=true');
   });
 
   test('signs maw-compatible v1 and v2 HMAC headers', async () => {

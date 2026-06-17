@@ -50,6 +50,10 @@ export function resolveTunnelUrl(env: Pick<FederationEnv, 'TUNNEL_URL'>): string
 export function buildTunnelUrl(baseUrl: string, requestUrl: string): string {
   const incoming = new URL(requestUrl);
   const base = new URL(baseUrl);
+  base.username = '';
+  base.password = '';
+  base.hash = '';
+  base.search = '';
   const basePath = base.pathname.replace(/\/+$/, '');
   base.pathname = `${basePath}${incoming.pathname}`;
   base.search = incoming.search;

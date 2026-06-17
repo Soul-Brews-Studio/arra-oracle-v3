@@ -49,6 +49,15 @@ describe('Cloudflare MCP proxy tools', () => {
     expect(() => resolveOracleUrl({ ORACLE_ORIGIN_URL: 'file:///tmp/oracle.sock' })).toThrow('ORACLE_ORIGIN_URL must be http(s).');
   });
 
+  test('strips deploy-time URL credentials before proxying', () => {
+    const base = resolveOracleUrl({
+      ORACLE_ORIGIN_URL: 'https://user:pass@origin.example.test/root/?debug=1#secret',
+    });
+
+    expect(base).toBe('https://origin.example.test/root');
+    expect(buildProxyUrl(base, '/api/stats')).toBe('https://origin.example.test/root/api/stats');
+  });
+
   test('proxies oracle_stats with auth and tenant headers', async () => {
     const captured: Array<{ url: string; init?: RequestInit }> = [];
     const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
