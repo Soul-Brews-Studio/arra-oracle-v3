@@ -84,6 +84,12 @@ function extractProject(filePath: string): { project: string; remainder: string 
   return null;
 }
 
+function tenantPathOwner(filePath: string): string | null {
+  const parts = filePath.split(/[\\/]+/);
+  const index = parts.findIndex((part, i) => part === 'tenants' && parts[i - 1] === 'ψ');
+  return index >= 0 ? parts[index + 1] ?? null : null;
+}
+
 function isWithinPath(child: string, parent: string): boolean {
   const relative = path.relative(parent, child);
   return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative));
@@ -178,6 +184,8 @@ export async function handleRead(ctx: ToolContext, input: OracleReadInput): Prom
   if (tenantId && sourceProject && !projectMatchesTenant(sourceProject, tenantId)) {
     return notFound(id || sourceFile || 'file');
   }
+  const pathTenant = tenantId && sourceFile ? tenantPathOwner(sourceFile) : null;
+  if (tenantId && pathTenant && pathTenant !== tenantId) return notFound(id || sourceFile || 'file');
 
   const ghqRoot = detectGhqRoot(ctx.repoRoot);
   const resolvedPath = await resolveFilePath(sourceFile!, ctx.repoRoot, ghqRoot);
