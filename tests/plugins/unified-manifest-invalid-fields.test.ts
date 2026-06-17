@@ -15,6 +15,7 @@ describe('unified manifest field validation', () => {
       [{ ...base, mcpTools: [{ name: 'ok_tool', inputSchema: {}, handler: 'h' }] }, /description/],
       [{ ...base, mcpTools: [{ name: 'ok_tool', description: 'x', inputSchema: [], handler: 'h' }] }, /inputSchema/],
       [{ ...base, mcpTools: [{ name: 'ok_tool', description: 'x', inputSchema: {}, handler: 1 }] }, /handler/],
+      [{ ...base, mcpTools: [{ name: 'ok_tool', description: 'x', inputSchema: {}, handler: 'h', enabled: 'no' }] }, /enabled/],
       [{ ...base, apiRoutes: [{ path: 'relative' }] }, /apiRoutes.path/],
       [{ ...base, apiRoutes: [{ path: '/ok', methods: 'GET' }] }, /apiRoutes.methods/],
       [{ ...base, apiRoutes: [{ path: '/ok', methods: ['BREW'] }] }, /invalid method/],

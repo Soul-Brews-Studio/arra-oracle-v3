@@ -83,6 +83,7 @@ type RegisteredMcpTool = {
   inputSchema: Record<string, unknown>;
   group: string;              // e.g. "canvas" or "plugin:<name>"
   readOnly: boolean;
+  enabled?: boolean;          // false = do not register/call this tool
   enabledByDefault: boolean;
   call(args, ctx): Promise<ToolResponse>;
 };
@@ -91,7 +92,7 @@ type RegisteredMcpTool = {
 Runtime flow:
 
 1. `loadUnifiedPlugins()` discovers and normalizes plugin manifests.
-2. For each `mcpTools[]` item, the runtime records public metadata and a
+2. For each enabled `mcpTools[]` item, the runtime records public metadata and a
    `(plugin, handler)` invoker.
 3. HTTP browsers see core + plugin tools at `GET /api/mcp/tools`.
 4. MCP stdio builds a fresh registry for each list/call, so plugin tools can be
@@ -105,6 +106,8 @@ reload for MCP tool in/out and restart/remount for newly added route surfaces.
 
 ### Toggle integration (#1372)
 
+Set `enabled: false` on a plugin MCP tool to keep it declared but completely
+plugged out of runtime registration, registry metadata, and invocation.
 Static tool toggles remain backed by `TOOL_GROUPS`. Plugin tools are filtered at
 MCP registry time by their own `enabledByDefault` flag and by explicit
 `disabled_tools` / `enabled_tools` entries when the runtime tool name is present.

@@ -33,6 +33,22 @@ describe('unified plugin manifest schema', () => {
     expect(manifestSurfaces(manifest)).toEqual(['apiRoutes', 'cliSubcommands']);
   });
 
+  test('keeps disabled MCP declarations out of runtime toggle names', () => {
+    const manifest = normalizeUnifiedPluginManifest({
+      name: 'tool-switches',
+      version: '1.0.0',
+      entry: './index.ts',
+      mcpTools: [
+        { name: 'switch_on', description: 'on', inputSchema: {}, handler: 'run' },
+        { name: 'switch_off', description: 'off', inputSchema: {}, handler: 'run', enabled: false },
+      ],
+    });
+
+    expect(manifest.mcpTools.map((tool) => tool.name)).toEqual(['switch_on', 'switch_off']);
+    expect(manifestSurfaces(manifest)).toEqual(['mcpTools']);
+    expect(mcpToolNamesForToggle(manifest)).toEqual(['switch_on']);
+  });
+
   test('rejects invalid MCP tool names before registry wiring', () => {
     expect(() => normalizeUnifiedPluginManifest({
       name: 'bad-tool',

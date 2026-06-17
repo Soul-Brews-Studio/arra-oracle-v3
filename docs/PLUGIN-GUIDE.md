@@ -55,11 +55,15 @@ The unified runtime scans `~/.arra/plugins/<name>/plugin.json` and
       "description": "Return a hello payload",
       "inputSchema": { "type": "object", "properties": {} },
       "handler": "tool",
+      "enabled": true,
       "readOnly": true
     }
   ]
 }
 ```
+
+Set `"enabled": false` on one `mcpTools[]` item to keep it in the manifest but
+fully plug it out of MCP registration, listing, and invocation.
 
 ## Entry module
 
