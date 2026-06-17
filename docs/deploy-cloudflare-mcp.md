@@ -36,10 +36,11 @@ The entry uses Cloudflare `McpAgent` and Durable Object session state. At init,
 registers only REST-proxyable tools. The Worker must not import the Bun-side
 `src/tools/mcp-manifest.ts`, DB modules, or vector adapters.
 
-`/health` is a normal HTTP readiness endpoint. `/mcp` expects MCP protocol
-messages, so use MCP Inspector, `mcp-remote`, or a remote-capable client instead
-of browser navigation. See `docs/architecture/mcp-remote-transport.md` for the
-transport contract.
+The deployed Worker exposes `/mcp` only via `OracleMCP.serve('/mcp')`; it does
+not ship a plain `/health` route. `/mcp` expects MCP protocol messages, so use
+MCP Inspector, `mcp-remote`, or a remote-capable client instead of browser
+navigation. See `docs/architecture/mcp-remote-transport.md` for the transport
+contract.
 
 ## Required configuration
 
@@ -48,12 +49,18 @@ transport contract.
 | `main` | `workers/mcp/src/index.ts` via `workers/mcp/wrangler.jsonc`. |
 | `compatibility_flags` | Includes `nodejs_compat` for Agents SDK/runtime compatibility. |
 | `MCP_OBJECT` | Durable Object binding required by `McpAgent` session state. |
-| `ORACLE_URL` | Backend URL for proxying remoteable tools to a full Arra Oracle server. |
-| `ORACLE_API_TOKEN` | Optional Bearer token for protected backend calls. |
-| D1/Vectorize/R2 | Future edge-native persistence/search replacements. |
+| `ORACLE_ORIGIN_URL` | Preferred backend URL for proxying remoteable tools to a full Arra Oracle server. |
+| `ORACLE_URL` | Legacy fallback backend URL from `workers/mcp/wrangler.jsonc`. |
+| `ORACLE_HTTP_URL` | Fallback after `ORACLE_ORIGIN_URL` and `ORACLE_URL`. |
+| `ORACLE_API` | Last legacy fallback backend URL. |
+| `ARRA_API_TOKEN` / `ARRA_API_KEY` | Optional Bearer token for protected backend calls. |
+| `ORACLE_TENANT_ID` | Optional single-tenant fallback when auth props do not provide a tenant. |
+| `ORACLE_DB` / `ORACLE_TENANTS_TABLE` | Optional D1 tenant registry used to require active tenants. |
 
-Without `ORACLE_ORIGIN_URL` or fallback `ORACLE_URL`, proxy tools return a clear
-MCP tool error that explains how to configure the backend.
+`resolveOracleUrl()` precedence is `ORACLE_ORIGIN_URL` > `ORACLE_URL` >
+`ORACLE_HTTP_URL` > `ORACLE_API`. It strips credentials, query strings, hashes,
+and trailing slashes. Without one of those URLs, proxy tools return a clear MCP
+tool error that explains how to configure the backend.
 
 ## Manual Wrangler deploy fallback
 
@@ -70,14 +77,16 @@ For local Workers testing:
 
 ```bash
 bun run cloudflare:mcp:dev
-curl -sf http://localhost:8787/health
+# Then connect MCP Inspector or mcp-remote to http://localhost:8787/mcp.
 ```
 
 Store secrets with Wrangler or the Cloudflare dashboard, not in git:
 
 ```bash
 cd workers/mcp
-bunx wrangler secret put ORACLE_API_TOKEN --config wrangler.jsonc
+bunx wrangler secret put ARRA_API_TOKEN --config wrangler.jsonc
+# Optional compatibility secret:
+# bunx wrangler secret put ARRA_API_KEY --config wrangler.jsonc
 ```
 
 ## Smoke test with MCP Inspector
@@ -130,31 +139,32 @@ Oracle. Example models:
 | Team | `platform`, `design`, `support` | GitHub org/team, WorkOS org, or Auth0 organization |
 | SaaS | `customer-acme`, `customer-river` | Billing/customer table or D1 tenant registry |
 
-Do not treat caller-supplied `tenantId` as authorization. Put OAuth or
-Cloudflare Access in front of `/mcp`, resolve the signed-in identity to a tenant,
-and forward only that trusted tenant to `ORACLE_HTTP_URL`. Backend routes already
-scope by tenant ID from #1650.
+Multi-tenant forwarding is shipped in `workers/mcp/src/proxy.ts`. The Worker
+resolves tenant IDs from `McpAgent` auth props/claims before tool arguments,
+falls back to `ORACLE_TENANT_ID`, validates tenant ID syntax, optionally checks
+a D1 tenant registry, then forwards backend-compatible tenant headers:
+`X-Tenant-ID`, `X-Oracle-Tenant`, and `X-Oracle-Tenant-ID`. Do not treat a raw
+tool argument as authorization in shared deployments; put OAuth or Cloudflare
+Access in front of `/mcp` and write the trusted tenant into auth props or D1.
 
 Recommended rollout:
 
 1. Keep the Phase 1 proxy private or token-protected until OAuth is wired.
 2. Choose a tenant registry: static `wrangler.jsonc` vars for small teams, or D1
    for self-serve tenants and roster changes.
-3. Store a tenant claim in `McpAgent` props.
-4. Reject users without a tenant mapping instead of falling back to a shared
-   default tenant.
-5. Forward backend-compatible tenant headers to `ORACLE_HTTP_URL` when the proxy
-   adds authenticated tenant support.
+3. Store a tenant claim in `McpAgent` props, or use D1 tenants for active/disabled status.
+4. Reject users without a tenant mapping instead of falling back to a shared default tenant.
+5. Verify backend logs show `X-Oracle-Tenant` and `X-Oracle-Tenant-ID`.
 
 ## Storage roadmap
 
 This Worker intentionally avoids importing local SQLite, Drizzle, LanceDB, or
 embedding runtimes. Follow-up slices should add Cloudflare-native storage:
 
-- D1 for metadata and FTS-style document lookup.
+- D1-backed edge reads beyond the shipped tenant registry.
 - Vectorize for embedding search.
 - Workers AI or a remote embedding service for indexing.
-- OAuth/Cloudflare Access before exposing write tools.
+- OAuth/Cloudflare Access policies for production tenant identity.
 
 ## Troubleshooting
 
@@ -166,8 +176,8 @@ embedding runtimes. Follow-up slices should add Cloudflare-native storage:
   browser navigation is not a valid MCP request.
 - **Claude shows no tools:** verify the deployed URL ends in `/mcp`, restart the
   client, and run MCP Inspector to separate client config from server issues.
-- **Search fails:** set `ORACLE_URL` or `ORACLE_HTTP_URL`; if protected, also
-  set `ORACLE_API_TOKEN`.
+- **Search fails:** set `ORACLE_ORIGIN_URL` or fallback `ORACLE_URL`,
+  `ORACLE_HTTP_URL`, or `ORACLE_API`; if protected, also set `ARRA_API_TOKEN`.
 
 ## References
 
