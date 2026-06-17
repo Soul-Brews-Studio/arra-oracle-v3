@@ -145,6 +145,20 @@ bunx tsc --noEmit
 For fixture-driven tests, call `loadUnifiedPlugins({ dirs: [fixtureDir] })` so a
 user's local plugins do not affect the result.
 
+## MCP tool in/out during development
+
+Unified plugin MCP tools can be added or removed without editing core code. The
+runtime keeps a mutable MCP registry:
+
+```ts
+const runtime = await loadUnifiedPlugins({ dirs: ['~/.oracle/plugins'] });
+await runtime.reload(); // re-scan plugin.json files and update mcpTools in place
+```
+
+After reload, MCP `tools/list`, `/api/mcp/tools`, and `callMcpTool()` see the
+new tool set. API route surfaces still require remounting or restarting the HTTP
+app because Elysia routes are bound when the app is composed.
+
 ## Good plugin README
 
 Include:
