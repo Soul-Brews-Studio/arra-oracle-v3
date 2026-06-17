@@ -86,6 +86,7 @@ Current implementation:
 - Factory: `src/vector/factory.ts`
 - Config: `src/vector/config.ts`, `src/vector/config-models.ts`
 - Proxy protocol: `src/vector/proxy-protocol.ts`
+- Proxy contract resolver: `src/vector/proxy-contract.ts`
 - Proxy adapter: `src/vector/adapters/proxy.ts`
 - Proxy route manifest bridge: `src/vector/proxy-manifest.ts`
 - Service registry: `src/vector/service-registry.ts`
@@ -98,6 +99,9 @@ Capabilities present:
   default bge-m3/nomic/qwen3 LanceDB collections.
 - `configToModels()` can route a collection to a proxy service endpoint through
   `storage.services[*].type = "proxy"`.
+- `resolveVectorProxyContract()` resolves explicit endpoints,
+  `ORACLE_PROXY_VECTOR_URL`, fallback `VECTOR_DB_URL`, and
+  `ORACLE_PROXY_VECTOR_TIMEOUT_MS`.
 - `ProxyVectorAdapter` implements the standard proxy protocol:
   `POST /vectors/add`, `POST /vectors/query`, `GET /vectors/stats`,
   `DELETE /vectors/collection`, and `GET /health`.
