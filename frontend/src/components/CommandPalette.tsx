@@ -29,8 +29,10 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const restoredRef = useRef(false);
 
   const commands = useMemo<CommandPaletteAction[]>(() => commandPaletteActions(onRefresh), [onRefresh]);
 
@@ -42,6 +44,8 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
       return searchable.includes(normalized);
     });
   }, [commands, query]);
+  const listboxId = 'command-palette-options';
+  const activeOptionId = visibleCommands[selectedIndex] ? `command-palette-option-${visibleCommands[selectedIndex].id}` : undefined;
 
   useEffect(() => {
     const isTextInput = (target: EventTarget | null): boolean => {
@@ -74,7 +78,11 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      if (restoredRef.current) buttonRef.current?.focus();
+      return;
+    }
+    restoredRef.current = true;
     setQuery('');
     setSelectedIndex(0);
     inputRef.current?.focus();
@@ -129,8 +137,11 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
   return (
     <div>
       <button
+        ref={buttonRef}
         aria-label="Open command palette"
-        className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-left text-sm text-text transition hover:bg-field dark:border-border dark:bg-surface-muted dark:text-text dark:hover:border-accent-border"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        className="focus-ring w-full rounded-xl border border-border bg-field px-4 py-3 text-left text-sm text-text transition hover:border-accent-border hover:bg-surface-muted"
         type="button"
         onClick={() => setOpen(true)}
       >
@@ -139,14 +150,13 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
 
       {open ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-surface p-3"
-          aria-label="Command palette modal"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-surface/85 p-3 pt-20 backdrop-blur sm:items-center sm:pt-3"
           role="presentation"
           onClick={() => setOpen(false)}
         >
           <section
             ref={overlayRef}
-            className="w-full max-w-xl rounded-2xl border border-border bg-field p-4 shadow-2xl shadow-slate-900/20 dark:border-border dark:bg-field"
+            className="max-h-[min(42rem,calc(100vh-2rem))] w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-field p-4 shadow-2xl shadow-black/20"
             onClick={(event) => event.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -155,7 +165,12 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
             <input
               ref={inputRef}
               aria-label="Search command palette"
-              className="focus-ring mb-3 min-w-0 w-full rounded-xl border border-border bg-field px-3 py-2 text-sm text-on-accent dark:border-border dark:bg-surface-muted dark:text-text"
+              aria-activedescendant={activeOptionId}
+              aria-autocomplete="list"
+              aria-controls={listboxId}
+              aria-expanded={open}
+              className="focus-ring mb-3 min-w-0 w-full rounded-xl border border-border bg-field px-3 py-2 text-sm text-text placeholder:text-text-muted"
+              role="combobox"
               value={query}
               onChange={(event) => {
                 setQuery(event.currentTarget.value);
@@ -166,32 +181,38 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
               type="search"
             />
 
-            <ul className="grid gap-2" role="listbox" aria-label="Commands">
+            <ul id={listboxId} className="grid max-h-[28rem] gap-2 overflow-y-auto pr-1" role="listbox" aria-label="Commands">
               {visibleCommands.map((command, index) => {
                 const selected = index === selectedIndex;
+                const optionId = `command-palette-option-${command.id}`;
+                const optionClass = `focus-ring grid w-full gap-1 rounded-xl border border-border bg-surface p-3 text-left transition sm:grid-cols-[minmax(0,1fr)_minmax(12rem,1.3fr)] ${selected ? 'border-accent-border bg-accent-soft' : 'hover:bg-surface-muted'}`;
                 return (
                   <li key={command.id}>
                     {command.href ? (
                       <Link
                         aria-selected={selected}
-                        className={`focus-ring flex w-full items-start justify-between rounded-xl border border-border bg-surface p-3 text-left transition ${selected ? 'border-accent-border bg-accent-soft' : 'hover:bg-field'}`}
+                        className={optionClass}
+                        id={optionId}
                         onMouseEnter={() => setSelectedIndex(index)}
                         onClick={() => execute(command)}
+                        role="option"
                         to={command.href}
                       >
-                        <span className="font-semibold text-text dark:text-text">{command.label}</span>
-                        <span className="text-xs text-text-muted dark:text-text-muted">{command.description}</span>
+                        <span className="font-semibold text-text">{command.label}</span>
+                        <span className="text-xs text-text-muted">{command.description}</span>
                       </Link>
                     ) : (
                       <button
                         type="button"
-                        className={`focus-ring flex w-full items-start justify-between rounded-xl border border-border bg-surface p-3 text-left transition ${selected ? 'border-accent-border bg-accent-soft' : 'hover:bg-field'}`}
+                        className={optionClass}
                         aria-selected={selected}
+                        id={optionId}
                         onMouseEnter={() => setSelectedIndex(index)}
                         onClick={() => execute(command)}
+                        role="option"
                       >
-                        <span className="font-semibold text-text dark:text-text">{command.label}</span>
-                        <span className="text-xs text-text-muted dark:text-text-muted">{command.description}</span>
+                        <span className="font-semibold text-text">{command.label}</span>
+                        <span className="text-xs text-text-muted">{command.description}</span>
                       </button>
                     )}
                   </li>

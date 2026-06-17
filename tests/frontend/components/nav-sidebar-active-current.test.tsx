@@ -17,6 +17,8 @@ describe('NavSidebar active route a11y', () => {
     expect(html).toContain('aria-label="Frontend sections"');
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('aria-label="Plugins: Registered plugin surfaces"');
+    expect(html).toContain('bg-accent-soft text-accent');
+    expect(html).toContain('aria-label="3 items"');
     expect(html).toContain('>3</span>');
   });
 });

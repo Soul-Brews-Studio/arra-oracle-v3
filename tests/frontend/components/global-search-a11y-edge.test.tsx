@@ -11,6 +11,8 @@ describe('GlobalSearch a11y edges', () => {
     expect(html).toContain('role="search"');
     expect(html).toContain('for="global-search"');
     expect(html).toContain('id="global-search"');
+    expect(html).toContain('aria-controls="global-search-results"');
+    expect(html).toContain('aria-label="Global search results"');
     expect(html).toContain('disabled=""');
   });
 });
