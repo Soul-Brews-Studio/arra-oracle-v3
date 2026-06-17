@@ -65,6 +65,59 @@ describe('Oracle Studio Worker static assets proxy', () => {
     }]);
   });
 
+  test('proxies /mcp requests to ORACLE_MCP_URL and preserves protocol headers', async () => {
+    const seen: Array<{ url: string; method: string; session: string | null; body: string }> = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const upstream = new Request(input, init);
+      seen.push({
+        url: String(input),
+        method: upstream.method,
+        session: upstream.headers.get('mcp-session-id'),
+        body: await upstream.text(),
+      });
+      return new Response('event: message\n\ndata: ok\n', {
+        headers: { 'content-type': 'text/event-stream', 'mcp-session-id': 'upstream-session' },
+      });
+    }) as typeof fetch;
+
+    const response = await handleStudioRequest(new Request('https://studio.example/mcp?trace=1', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'mcp-session-id': 'client-session' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    }), env({ ORACLE_MCP_URL: 'https://mcp.example.test/mcp/' }));
+
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('mcp-session-id')).toBe('upstream-session');
+    expect(response.headers.get('access-control-expose-headers')).toContain('mcp-session-id');
+    expect(await response.text()).toContain('data: ok');
+    expect(seen).toEqual([{
+      url: 'https://mcp.example.test/mcp?trace=1',
+      method: 'POST',
+      session: 'client-session',
+      body: '{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
+    }]);
+  });
+
+  test('falls back to ORACLE_URL /mcp and handles MCP preflight locally', async () => {
+    const seen: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      seen.push(String(input));
+      return Response.json({ ok: true });
+    }) as typeof fetch;
+
+    const proxied = await handleStudioRequest(new Request('https://studio.example/mcp/sessions/a?probe=1'), env({
+      ORACLE_MCP_URL: undefined,
+      ORACLE_URL: 'https://oracle.example.test/root/',
+    }));
+    const preflight = await handleStudioRequest(new Request('https://studio.example/mcp', { method: 'OPTIONS' }), env());
+
+    expect(seen).toEqual(['https://oracle.example.test/root/mcp/sessions/a?probe=1']);
+    expect(proxied.headers.get('cache-control')).toBe('no-store');
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get('access-control-allow-headers')).toContain('mcp-session-id');
+    expect(preflight.headers.get('access-control-allow-methods')).toContain('DELETE');
+  });
+
   test('serves non-api requests through the ASSETS binding with SPA cache headers', async () => {
     const requested: string[] = [];
     const response = await handleStudioRequest(new Request('https://studio.example/dashboard'), env({
