@@ -85,4 +85,25 @@ describe('GET /api/health/deep', () => {
     expect(body.vector.status).toBe('ok');
     expect(body.disk).toMatchObject({ status: 'ok', usedPercent: 25 });
   });
+
+  test('degrades instead of failing when disk usage check throws', async () => {
+    const app = createHealthRoutes({
+      dbPing: () => ({ status: 'connected' }),
+      vectorHealth: async () => ({ status: 'ok', checked_at: 'now', engines: [] }),
+      diskPath: '/tmp/oracle-health',
+      diskUsage: () => { throw new Error('statfs denied'); },
+      memoryUsage: () => ({ rss: 3, heapTotal: 3, heapUsed: 2, external: 0, arrayBuffers: 0 }),
+    });
+
+    const res = await app.handle(new Request('http://local/api/health/deep'));
+    const body = await res.json() as Record<string, any>;
+
+    expect(res.status).toBe(200);
+    expect(body.status).toBe('degraded');
+    expect(body.disk).toMatchObject({
+      status: 'error',
+      path: '/tmp/oracle-health',
+      error: 'statfs denied',
+    });
+  });
 });

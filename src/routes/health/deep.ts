@@ -101,6 +101,15 @@ function readDisk(path = ORACLE_DATA_DIR || dirname(DB_PATH)): DiskHealth {
   }
 }
 
+function readDiskSafe(options: DeepHealthOptions): DiskHealth {
+  const path = options.diskPath ?? (ORACLE_DATA_DIR || dirname(DB_PATH));
+  try {
+    return options.diskUsage?.() ?? readDisk(path);
+  } catch (error) {
+    return { status: 'error', path, totalBytes: 0, freeBytes: 0, usedBytes: 0, usedPercent: 0, error: errorMessage(error) };
+  }
+}
+
 async function readVector(check = readVectorBackendHealth) {
   try {
     return await check();
@@ -119,7 +128,7 @@ function overallStatus(db: { status: string }, vector: { status: ComponentStatus
 export function createDeepHealthEndpoint(options: DeepHealthOptions = {}) {
   return new Elysia().get('/health/deep', async () => {
     const [db, vector] = await Promise.all([timedDbCheck(options.dbPing), readVector(options.vectorHealth)]);
-    const disk = options.diskUsage?.() ?? readDisk(options.diskPath);
+    const disk = readDiskSafe(options);
     const memory = options.memoryUsage?.() ?? process.memoryUsage();
     return { status: overallStatus(db, vector, disk), checked_at: new Date().toISOString(), db, vector, disk, memory };
   }, {

@@ -154,9 +154,10 @@ async function readPluginStatuses(
   }
 }
 
-function aggregateStatus(db: DbStatus, pluginStatus: 'ok' | 'degraded', vectorServer: VectorServerHealth) {
-  const vectorOk = vectorServer.status !== 'down';
-  return db.status === 'connected' && pluginStatus === 'ok' && vectorOk ? 'ok' : 'degraded';
+function aggregateStatus(db: DbStatus, pluginStatus: 'ok' | 'degraded', vector: VectorHealth, vectorServer: VectorServerHealth) {
+  const vectorOk = vector.status === 'ok';
+  const vectorServerOk = !vectorServer.configured || vectorServer.status === 'ok';
+  return db.status === 'connected' && pluginStatus === 'ok' && vectorOk && vectorServerOk ? 'ok' : 'degraded';
 }
 
 function vectorAvailable(
@@ -207,7 +208,7 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
 
     const serviceUptime = Math.round(uptimeSeconds * 1000) / 1000;
     return {
-      status: aggregateStatus(dbStatus, pluginStatus, vectorServer),
+      status: aggregateStatus(dbStatus, pluginStatus, vector, vectorServer),
       server: MCP_SERVER_NAME,
       version: pkg.version,
       port: Number(PORT),
