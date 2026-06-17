@@ -1,6 +1,7 @@
 import { sqlite } from '../../db/index.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
 import { BI_TEMPORAL_JOIN, BI_TEMPORAL_WHERE, biTemporalParams } from '../../search/bitemporal.ts';
+import { isoTimestamp } from '../../search/timestamp.ts';
 import { logDocumentAccess } from '../../server/logging.ts';
 import type { SearchResponse } from '../../server/types.ts';
 import { buildTenantFtsQuery, parseConcepts } from '../../search/query.ts';
@@ -73,13 +74,6 @@ export function handleTenantSearch(query: string, type = 'all', limit = 10, offs
     vectorAvailable: false,
     warning: 'Tenant-scoped HTTP search uses SQLite/FTS isolation for this request',
   };
-}
-
-function isoTimestamp(value: number | string | null): string | null {
-  const ms = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(ms) || ms <= 0) return null;
-  const date = new Date(ms);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 export function handleTenantList(type = 'all', limit = 10, offset = 0, groupByFile = true): SearchResponse | null {

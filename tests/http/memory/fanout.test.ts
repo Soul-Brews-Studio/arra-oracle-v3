@@ -94,6 +94,33 @@ test('GET /api/v1/memory/fanout preserves partial collection errors', async () =
   expect(body.errors).toEqual({ beta: 'beta unavailable' });
 });
 
+test('GET /api/v1/memory/fanout clamps malformed vector distances before scoring', async () => {
+  const app = new Elysia({ prefix: '/api' }).use(createMemoryFanoutEndpoint({
+    models: () => ({ alpha: models.alpha }),
+    connect: async () => ({
+      query: async () => ({
+        ids: ['nan-distance', 'negative-distance'],
+        documents: ['NaN distance memory', 'negative distance memory'],
+        distances: [Number.NaN, -100],
+        metadatas: [{ type: 'memory' }, { type: 'memory' }],
+      }),
+    }),
+  }));
+  const fetcher = createApiVersionedFetch((request) => app.handle(request));
+  const response = await fetcher(new Request('http://local/api/v1/memory/fanout?q=oracle&limit=2'));
+  const body = await json(response);
+
+  expect(response.status).toBe(200);
+  expect(body.results).toHaveLength(2);
+  for (const item of body.results as Array<{ score: unknown; confidence: { components: { match: unknown } } }>) {
+    expect(typeof item.score).toBe('number');
+    expect(Number.isFinite(item.score)).toBe(true);
+    expect(item.score).toBeGreaterThanOrEqual(0);
+    expect(item.score).toBeLessThanOrEqual(1);
+    expect(typeof item.confidence.components.match).toBe('number');
+  }
+});
+
 test('GET /api/v1/memory/fanout uses confidence to reorder fresh high-provenance matches', async () => {
   const app = new Elysia({ prefix: '/api' }).use(createMemoryFanoutEndpoint({
     models: () => ({ alpha: models.alpha }),

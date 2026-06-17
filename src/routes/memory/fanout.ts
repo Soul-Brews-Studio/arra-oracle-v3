@@ -3,6 +3,7 @@ import type { SearchResult } from '../../server/types.ts';
 import { ensureVectorStoreConnected, getEmbeddingModels, type EmbeddingModelConfig } from '../../vector/factory.ts';
 import type { VectorQueryResult, VectorStoreAdapter } from '../../vector/types.ts';
 import { memoryConfidence, type MemoryConfidence } from './confidence.ts';
+import { safeVectorDistance, scoreFromVectorDistance } from './fanout-score.ts';
 import { MemoryFanoutQuery, parseMemoryLimit } from './model.ts';
 import { clampMemoryConfidenceWeight, memoryConfidenceRerankConfig, memoryFanoutConfidenceWeight } from './rerank-config.ts';
 import type { MemoryRecord } from './store.ts';
@@ -84,7 +85,7 @@ function textList(value: unknown): string[] {
 function toSearchResults(collection: string, result: VectorQueryResult): FanoutSearchResult[] {
   return result.ids.map((id, index) => {
     const metadata = result.metadatas?.[index] ?? {};
-    const distance = result.distances?.[index] ?? 0;
+    const distance = safeVectorDistance(result.distances?.[index]);
     const tags = textList(metadata.tags).length ? textList(metadata.tags) : textList(metadata.concepts);
     return {
       id,
@@ -93,7 +94,7 @@ function toSearchResults(collection: string, result: VectorQueryResult): FanoutS
       source_file: metadata.source_file ?? metadata.path ?? '',
       concepts: textList(metadata.concepts),
       source: 'vector',
-      score: 1 / (1 + distance / 100),
+      score: scoreFromVectorDistance(distance),
       distance,
       model: collection,
       title: text(metadata.title),
