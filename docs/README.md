@@ -16,6 +16,7 @@ is linked here; keep new docs in the right section when adding files.
 | Guide | Use when you need | Key surfaces |
 | --- | --- | --- |
 | [INSTALL.md](./INSTALL.md) | Install from Bun, plugins, Docker, or Docker MCP Toolkit | `bun add -g`, `arra plugin install`, GHCR |
+| [CLI-GUIDE.md](./CLI-GUIDE.md) | Full CLI, MCP, HTTP, scripts, deploy, and env usage guide | `arra`, `arra-oracle-v3`, Claude MCP |
 | [QUICKSTART.md](./QUICKSTART.md) | Complete a five-minute first run | `arra-oracle-v3 serve`, `arra health`, MCP config |
 | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) | Diagnose install, MCP, HTTP, vector, plugin, and Docker issues | health checks, auth, tenants, logs |
 | [FAQ.md](./FAQ.md) | Answer common operator and contributor questions | install path, binaries, data, vectors, tenants |
@@ -36,6 +37,7 @@ is linked here; keep new docs in the right section when adding files.
 | Guide | Focus |
 | --- | --- |
 | [BINS.md](./BINS.md) | Published command binaries and aliases. |
+| [CLI-GUIDE.md](./CLI-GUIDE.md) | Full CLI and usage guide across local, MCP, HTTP, scripts, Workers, and env vars. |
 | [DEPLOY-DIGITALOCEAN.md](./DEPLOY-DIGITALOCEAN.md) | Small public Arra HTTP node on DigitalOcean. |
 | [deploy-cloudflare.md](./deploy-cloudflare.md) | Cloudflare deployment guide for Oracle surfaces. |
 | [deploy-cloudflare-mcp.md](./deploy-cloudflare-mcp.md) | One-click Cloudflare Workers remote MCP deploy and Claude `/mcp` setup. |
