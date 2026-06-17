@@ -12,13 +12,14 @@ function ResultAnchor({ result }: { result: GlobalSearchResult }) {
         {globalSearchSurfaceLabel(result.surface)}
       </span>
       <span className="min-w-0">
-        <span className="block truncate font-semibold text-on-accent dark:text-text">{result.title}</span>
+        <span className="block truncate font-semibold text-text">{result.title}</span>
         <span className="block truncate text-xs text-text-muted dark:text-text-muted">{result.detail}</span>
       </span>
     </>
   );
-  const className = 'focus-ring grid grid-cols-[auto_1fr] gap-3 rounded-xl border border-border bg-field p-3 text-left transition hover:border-accent-border dark:border-border dark:bg-surface dark:hover:border-accent-border';
-  return result.href ? <Link className={className} to={result.href}>{body}</Link> : <div className={className}>{body}</div>;
+  const className = 'focus-ring grid grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-xl border border-border bg-field p-3 text-left transition hover:border-accent-border hover:bg-surface-muted';
+  const label = `Open ${result.title} ${globalSearchSurfaceLabel(result.surface)} result`;
+  return result.href ? <Link aria-label={label} className={className} to={result.href}>{body}</Link> : <div className={className}>{body}</div>;
 }
 
 export function GlobalSearchResults({ results }: { results: GlobalSearchResult[] }) {
@@ -31,6 +32,7 @@ export function GlobalSearchResults({ results }: { results: GlobalSearchResult[]
 }
 
 export function GlobalSearch() {
+  const resultsId = 'global-search-results';
   const [query, setQuery] = useState('');
   const [lastQuery, setLastQuery] = useState('');
   const [results, setResults] = useState<GlobalSearchResult[]>([]);
@@ -61,11 +63,12 @@ export function GlobalSearch() {
   }
 
   return (
-    <section className="grid gap-3" aria-label="Global frontend search">
-      <form className="grid gap-2 sm:grid-cols-[1fr_auto]" role="search" onSubmit={submit}>
+    <section className="grid min-w-0 gap-3" aria-label="Global frontend search">
+      <form className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]" role="search" onSubmit={submit}>
         <label className="sr-only" htmlFor="global-search">Search all surfaces</label>
         <input
-          className="focus-ring min-w-0 rounded-xl border border-border bg-field px-4 py-3 text-sm text-on-accent placeholder:text-text-muted dark:border-border dark:bg-surface-muted dark:text-text dark:placeholder:text-text-muted"
+          aria-controls={resultsId}
+          className="focus-ring min-w-0 rounded-xl border border-border bg-field px-4 py-3 text-sm text-text placeholder:text-text-muted"
           id="global-search"
           placeholder="Search menu, plugins, MCP tools…"
           type="search"
@@ -73,22 +76,24 @@ export function GlobalSearch() {
           onChange={(event) => setQuery(event.currentTarget.value)}
         />
         <button
-          className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-sm font-semibold text-text transition hover:bg-field disabled:cursor-not-allowed disabled:opacity-60 dark:border-border dark:bg-surface-muted dark:text-text dark:hover:border-accent-border"
+          className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-sm font-semibold text-text transition hover:border-accent-border hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60"
           disabled={state === 'loading' || !trimmed}
           type="submit"
         >
           {state === 'loading' ? <Spinner label="Searching" /> : 'Search'}
         </button>
       </form>
-      {state === 'error' ? <p className="rounded-xl border border-err-border bg-err-bg p-3 text-sm text-err-text">{error}</p> : null}
-      {state === 'ready' ? (
-        <div className="grid gap-2">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-muted dark:text-text-muted">
-            {results.length ? `${results.length} unified result${results.length === 1 ? '' : 's'} for “${lastQuery}”` : `No results for “${lastQuery}”`}
-          </p>
-          <GlobalSearchResults results={results} />
-        </div>
-      ) : null}
+      <div id={resultsId} className="grid gap-2" role="region" aria-busy={state === 'loading'} aria-live="polite" aria-label="Global search results">
+        {state === 'error' ? <p className="rounded-xl border border-err-border bg-err-bg p-3 text-sm text-err-text">{error}</p> : null}
+        {state === 'ready' ? (
+          <>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-muted dark:text-text-muted">
+              {results.length ? `${results.length} unified result${results.length === 1 ? '' : 's'} for “${lastQuery}”` : `No results for “${lastQuery}”`}
+            </p>
+            <GlobalSearchResults results={results} />
+          </>
+        ) : null}
+      </div>
     </section>
   );
 }

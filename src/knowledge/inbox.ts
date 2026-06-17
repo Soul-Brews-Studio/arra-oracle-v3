@@ -17,11 +17,24 @@ function createdFromFilename(file: string): string {
   return dateMatch ? `${dateMatch[1]}T${dateMatch[2].replace('-', ':')}:00` : 'unknown';
 }
 
+function compareHandoffFiles(a: string, b: string): number {
+  const ap = parts(a);
+  const bp = parts(b);
+  if (ap.stamp !== bp.stamp) return bp.stamp.localeCompare(ap.stamp);
+  if (ap.suffix !== bp.suffix) return bp.suffix - ap.suffix;
+  return b.localeCompare(a);
+}
+
+function parts(file: string): { stamp: string; suffix: number } {
+  const match = file.match(/^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2})_[\s\S]*?(?:-(\d+))?\.md$/);
+  return { stamp: match?.[1] ?? '', suffix: Number(match?.[2] ?? 0) };
+}
+
 export function listHandoffFiles(handoffDir: string, repoRoot: string): InboxFile[] {
   if (!fs.existsSync(handoffDir)) return [];
   let files: string[] = [];
   try {
-    files = fs.readdirSync(handoffDir).filter((file) => file.endsWith('.md')).sort().reverse();
+    files = fs.readdirSync(handoffDir).filter((file) => file.endsWith('.md')).sort(compareHandoffFiles);
   } catch {
     return [];
   }

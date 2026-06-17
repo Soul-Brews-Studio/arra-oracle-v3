@@ -210,6 +210,7 @@ export function createExportBatchRoutes(deps: ExportBatchDeps = {}) {
         ReturnType<typeof t.Literal>,
         ReturnType<typeof t.Literal>,
         ReturnType<typeof t.Literal>,
+        ReturnType<typeof t.Literal>,
       ]),
       includeGraph: t.Optional(t.Boolean()),
     }),

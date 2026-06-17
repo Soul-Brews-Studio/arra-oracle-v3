@@ -92,9 +92,11 @@ The batch output includes:
 - `documents/documents.csv`
 - `documents/index.json`
 - `collections/<collection>.json`
+- `collections/<collection>.jsonl`
 - `collections/<collection>.csv`
 - `collections/<collection>.md`
 - `relationships.<ext>`
+- `backup.sql`
 - `all-collections.json`
 - `manifest.json`
 - `manifest.schema.json`

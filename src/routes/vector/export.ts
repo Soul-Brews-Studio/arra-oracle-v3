@@ -25,8 +25,9 @@ function progressEvent(event: string, payload: Record<string, unknown>): Uint8Ar
 function progressStream(getStore: GetStore, collection: string): ReadableStream<Uint8Array> {
   return new ReadableStream({
     async start(controller) {
+      let store: VectorStoreAdapter | undefined;
       try {
-        const store = getStore(collection);
+        store = getStore(collection);
         await store.connect();
         await store.ensureCollection();
         if (!store.getAllEmbeddings) {
@@ -48,6 +49,7 @@ function progressStream(getStore: GetStore, collection: string): ReadableStream<
         const message = error instanceof Error ? error.message : String(error);
         controller.enqueue(progressEvent('error', { error: 'Vector export progress failed', message }));
       } finally {
+        await store?.close().catch(() => {});
         controller.close();
       }
     },
@@ -61,7 +63,7 @@ function resolveCollection(collection: string | undefined, getModels?: () => Rec
 
 export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
   const getStore = deps.getStore ?? getVectorStoreByModel;
-  const getModels = deps.getModels ?? (deps.getStore ? undefined : getEmbeddingModels);
+  const getModels = deps.getModels ?? getEmbeddingModels;
 
   return new Elysia()
     .get('/vector/export/formats', () => ({ formats: availableExportFormats() }), {
@@ -110,8 +112,8 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
         return { error: `Unknown vector collection: ${query.collection}` };
       }
 
+      const store = getStore(collection);
       try {
-        const store = getStore(collection);
         await store.connect();
         await store.ensureCollection();
         if (!store.getAllEmbeddings) {
@@ -138,6 +140,8 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
           ? 'Vector collection export is not supported by this adapter'
           : 'Vector export failed';
         return { error: label, message };
+      } finally {
+        await store.close().catch(() => {});
       }
     }, {
       query: t.Object({
