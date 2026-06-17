@@ -9,6 +9,7 @@ import { ORACLE_DATA_DIR } from '../config.ts';
 import { walkFiles, resolveVaultPath, cleanEmptyDirs } from './discovery.ts';
 import { mapToVaultPath, ensureFrontmatterProject, isProjectCategory, UNIVERSAL_CATEGORIES } from './path-mapping.ts';
 import { parseGitStatus } from './git.ts';
+import { ghqGet, ghqListPaths, normalizeGhqRepo } from './ghq.ts';
 
 // Re-export sub-modules for backward compatibility
 export { mapToVaultPath, mapFromVaultPath, ensureFrontmatterProject } from './path-mapping.ts';
@@ -18,16 +19,17 @@ export { getVaultPsiRoot } from './discovery.ts';
 export interface InitResult { repo: string; vaultPath: string; created: boolean }
 
 export function initVault(repo: string): InitResult {
+  const normalizedRepo = normalizeGhqRepo(repo);
   let created = false;
   try {
-    const existing = execSync(`ghq list -p ${repo}`, { encoding: 'utf-8' }).trim();
-    if (!existing) throw new Error('not found');
+    const existing = ghqListPaths(normalizedRepo);
+    if (existing.length === 0) throw new Error('not found');
   } catch {
-    execSync(`ghq get ${repo}`, { encoding: 'utf-8', stdio: 'pipe' });
+    ghqGet(normalizedRepo);
     created = true;
   }
-  const vaultPath = resolveVaultPath(repo);
-  setSetting('vault_repo', repo);
+  const vaultPath = resolveVaultPath(normalizedRepo);
+  setSetting('vault_repo', normalizedRepo);
   setSetting('vault_enabled', 'true');
 
   const psiSymlink = path.join(ORACLE_DATA_DIR, 'ψ');
@@ -38,8 +40,8 @@ export function initVault(repo: string): InitResult {
     console.error(`[Vault] Symlink: ${psiSymlink} → ${vaultPsiDir}`);
   }
 
-  console.error(`[Vault] Initialized: ${repo} → ${vaultPath}`);
-  return { repo, vaultPath, created };
+  console.error(`[Vault] Initialized: ${normalizedRepo} → ${vaultPath}`);
+  return { repo: normalizedRepo, vaultPath, created };
 }
 
 export interface SyncResult {

@@ -3,6 +3,7 @@
  */
 
 import { Elysia } from 'elysia';
+import { normalizeLearningPattern } from '../../learn/markdown.ts';
 import { handleLearn } from '../../server/handlers.ts';
 import { LearnBody } from './model.ts';
 
@@ -12,12 +13,15 @@ export const learnEndpoint = new Elysia()
     ({ body, set }) => {
       try {
         const data = (body ?? {}) as Record<string, any>;
-        if (!data.pattern) {
+        let pattern: string;
+        try {
+          pattern = normalizeLearningPattern(data.pattern);
+        } catch {
           set.status = 400;
           return { error: 'Missing required field: pattern' };
         }
         return handleLearn(
-          data.pattern,
+          pattern,
           data.source,
           data.concepts,
           data.origin,

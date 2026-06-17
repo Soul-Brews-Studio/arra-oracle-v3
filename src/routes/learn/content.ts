@@ -17,7 +17,8 @@ export function conceptsFrom(value: LearnConceptInput): string[] {
 }
 
 export function slugFor(pattern: string): string {
-  const slug = pattern
+  const slug = String(pattern)
+    .trim()
     .slice(0, 50)
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
@@ -28,22 +29,38 @@ export function slugFor(pattern: string): string {
 }
 
 export function learningContent(pattern: string, concepts: string[], source?: string): string {
-  const title = pattern.split('\n')[0].slice(0, 80);
+  const cleanPattern = String(pattern).trim();
+  const title = oneLine(cleanPattern.split('\n')[0]).slice(0, 80) || 'Untitled learning';
+  const sourceValue = yamlScalar(oneLine(source || 'Oracle Learn'));
+  const tags = yamlList(concepts);
   const today = new Date().toISOString().slice(0, 10);
   return [
     '---',
-    `title: ${title}`,
-    concepts.length ? `tags: [${concepts.join(', ')}]` : 'tags: []',
+    `title: ${yamlScalar(title)}`,
+    `tags: ${tags}`,
     `created: ${today}`,
-    `source: ${source || 'Oracle Learn'}`,
+    `source: ${sourceValue}`,
     '---',
     '',
     `# ${title}`,
     '',
-    pattern,
+    cleanPattern,
     '',
     '---',
     '*Added via Oracle Learn*',
     '',
   ].join('\n');
+}
+
+function yamlList(values: string[]): string {
+  const clean = values.map((value) => oneLine(value).replace(/[:,[\]]/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
+  return clean.length > 0 ? `[${clean.join(', ')}]` : '[]';
+}
+
+function oneLine(value: string): string {
+  return String(value ?? '').replace(/\r\n?/g, '\n').split('\n').map((part) => part.trim()).filter(Boolean).join(' ');
+}
+
+function yamlScalar(value: string): string {
+  return /^[A-Za-z0-9][A-Za-z0-9._/@+-]*(?: [A-Za-z0-9._/@+-]+)*$/.test(value) ? value : JSON.stringify(value);
 }

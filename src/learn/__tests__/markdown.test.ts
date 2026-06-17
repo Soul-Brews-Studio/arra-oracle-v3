@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { buildLearningMarkdown, dateSlug } from '../markdown.ts';
+import { buildLearningMarkdown, dateSlug, learningSlug, normalizeLearningPattern } from '../markdown.ts';
 import { parseLearningFile } from '../../indexer/parser.ts';
 
 const createdAt = new Date('2026-06-01T01:02:03.000Z');
@@ -24,6 +24,22 @@ describe('learning markdown builder hardening', () => {
       concepts: [],
       createdAt,
     })).toThrow(/id is required/);
+  });
+
+  test('requires a non-empty pattern after trimming null bytes', () => {
+    expect(() => normalizeLearningPattern(' \0 \n')).toThrow(/pattern is required/);
+    expect(() => buildLearningMarkdown({
+      id: 'learn-empty-pattern',
+      title: 'Empty pattern',
+      pattern: ' \0 \n',
+      concepts: [],
+      createdAt,
+    })).toThrow(/pattern is required/);
+  });
+
+  test('provides a safe slug fallback for punctuation-only learnings', () => {
+    expect(learningSlug('!!!')).toBe('learning');
+    expect(learningSlug('  Edge: Pattern / Replay  ')).toBe('edge-pattern-replay');
   });
 
   test('collapses frontmatter scalars to one line to prevent injection', () => {
