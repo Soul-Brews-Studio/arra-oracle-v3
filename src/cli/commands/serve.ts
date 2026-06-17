@@ -83,8 +83,8 @@ async function runServerBackground(): Promise<number> {
 }
 
 async function runServerForeground(): Promise<number> {
-  const { default: appSpec } = await import('../../server.ts');
-  const server = Bun.serve(appSpec);
+  const { startServer } = await import('../../server.ts');
+  const server = await startServer();
 
   console.log(`🔮 Oracle server running in foreground on http://localhost:${server.port}`);
 

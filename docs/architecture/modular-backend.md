@@ -90,6 +90,11 @@ aliases. The backend remains responsible for tenant headers, timeout policy, and
 fallback behavior; the vector server remains responsible for collection-specific
 storage/search.
 
+Terminology note: `proxy` can mean the request-tier `gatewayPlugin()` route
+proxy, the storage-tier vector proxy adapter, or plugin manifest passthrough
+routes. See [`proxy-terminology.md`](./proxy-terminology.md) for the required
+qualified names and external-only adapter labels.
+
 ## Layer 4: MCP plugin system
 
 MCP tools are a runtime projection of plugin packages, not a hardcoded edge list.
