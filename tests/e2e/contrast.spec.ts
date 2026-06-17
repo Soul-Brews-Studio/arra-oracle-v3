@@ -76,11 +76,15 @@ test.describe('frontend WCAG AA contrast', () => {
 });
 
 async function setTheme(page: Page, theme: 'light' | 'dark') {
-  await page.addInitScript((mode) => {
+  const frontendHost = new URL(process.env.PLAYWRIGHT_FRONTEND_URL ?? 'http://127.0.0.1:3310').host;
+  await page.addInitScript(({ mode, host }) => {
+    localStorage.setItem('arra.vector.setup.dismissed', '1');
+    localStorage.setItem('arra-oracle-setup-complete', '1');
+    localStorage.setItem('oracle.host', host);
     localStorage.setItem('ARRA_FRONTEND_THEME', mode);
     document.documentElement.classList.toggle('dark', mode === 'dark');
     document.documentElement.classList.toggle('light', mode === 'light');
-  }, theme);
+  }, { mode: theme, host: frontendHost });
 }
 
 function formatFailures(failures: Failure[]): string {

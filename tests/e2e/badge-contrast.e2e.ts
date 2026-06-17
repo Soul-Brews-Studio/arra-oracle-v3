@@ -24,6 +24,14 @@ test.afterAll(() => {
   frontend?.kill();
 });
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript((host) => {
+    localStorage.setItem('arra.vector.setup.dismissed', '1');
+    localStorage.setItem('arra-oracle-setup-complete', '1');
+    localStorage.setItem('oracle.host', host);
+  }, new URL(frontendUrl).host);
+});
+
 for (const theme of ['light', 'dark'] as const) {
   test(`status badges meet 4.5:1 contrast in ${theme} theme`, async ({ page }) => {
     await mockApi(page);
@@ -43,6 +51,18 @@ for (const theme of ['light', 'dark'] as const) {
     await expectContrast(page, theme, 'vector export');
   });
 }
+
+test('export surfaces stay contained at desktop widths', async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  for (const path of ['/export', '/vector/export']) {
+    await page.goto(`${frontendUrl}${path}`);
+    await setTheme(page, 'light');
+    await expect(page.getByRole('heading', { name: path === '/export' ? 'Export app' : 'Vector export' }).last()).toBeVisible();
+    await expectNoHorizontalOverflow(page, path);
+  }
+});
 
 async function freePort(): Promise<number> {
   return await new Promise((resolve, reject) => {
@@ -74,6 +94,7 @@ async function mockApi(page: Page): Promise<void> {
   const now = new Date('2026-06-17T00:00:00.000Z').toISOString();
   await fulfill(page, '**/api/menu*', { items: [] });
   await fulfill(page, '**/api/plugins*', { plugins: [], dir: '/tmp/oracle/plugins', count: 0 });
+  await fulfill(page, '**/api/health*', { status: 'ok' });
   await fulfill(page, '**/api/v1/metrics*', {
     uptime: 12,
     requestCount: 2,
@@ -104,13 +125,20 @@ async function mockApi(page: Page): Promise<void> {
     services: [{ name: 'vector-proxy', type: 'proxy', endpoint: 'http://127.0.0.1:47779', status: 'up', available: true, health: { status: 'ok', checkedAt: now } }],
   });
   await fulfill(page, '**/api/v1/vector/index/models*', {
-    models: { qwen3: { collection: 'oracle_knowledge_qwen3', model: 'qwen3', adapter: 'proxy', count: 12 } },
+    models: { qwen3: { collection: 'oracle_knowledge_qwen3_with_long_desktop_safe_name', model: 'qwen3', adapter: 'proxy', count: 12 } },
   });
   await fulfill(page, '**/api/v1/vector/export/formats*', {
     formats: [
       { format: 'json', label: 'JSON', mimeType: 'application/json', extension: 'json' },
       { format: 'markdown', label: 'Markdown', mimeType: 'text/markdown', extension: 'md' },
     ],
+  });
+  await fulfill(page, '**/api/v1/export/oracle-v2/collections*', {
+    collections: [{ name: 'oracle_documents_long_desktop_safe_export_collection_name', rowCount: 12 }],
+  });
+  await fulfill(page, '**/api/v1/export/app/collections*', {
+    collections: [{ name: 'oracle_documents_long_desktop_safe_export_collection_name', rowCount: 12 }],
+    formats: ['json', 'jsonl', 'csv', 'markdown'],
   });
 }
 
@@ -126,6 +154,19 @@ async function setTheme(page: Page, theme: 'light' | 'dark'): Promise<void> {
     document.documentElement.style.colorScheme = next;
     localStorage.setItem('ARRA_FRONTEND_THEME', next);
   }, theme);
+}
+
+async function expectNoHorizontalOverflow(page: Page, path: string): Promise<void> {
+  const result = await page.evaluate(() => {
+    const width = document.documentElement.clientWidth;
+    const offenders = [...document.querySelectorAll('body *')]
+      .map((node) => ({ text: (node.textContent ?? '').trim().slice(0, 48), right: Math.ceil(node.getBoundingClientRect().right) }))
+      .filter((item) => item.right > width + 1)
+      .slice(0, 5);
+    return { overflow: Math.ceil(document.documentElement.scrollWidth - width), offenders };
+  });
+  expect(result, `${path} horizontal overflow`).toMatchObject({ overflow: expect.any(Number) });
+  expect(result.overflow, `${path} overflow offenders: ${JSON.stringify(result.offenders)}`).toBeLessThanOrEqual(1);
 }
 
 async function expectContrast(page: Page, theme: string, surface: string): Promise<void> {

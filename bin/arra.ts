@@ -27,12 +27,30 @@ if (args.includes("--help") || args.includes("-h")) {
 }
 
 if (command === "mcp") {
+  const bad = args.slice(1).find((arg) => arg !== "--read-only");
+  if (bad) {
+    console.error(`Error: unknown mcp option: ${bad}`);
+    showHelp();
+    process.exit(1);
+  }
   process.env.ORACLE_LOG_TARGET ??= "stderr";
   console.log = (...data: unknown[]) => console.error(...data);
   const { main } = await import("../src/index.ts");
   await main();
 } else {
   const serveArgs = command === "serve" ? args.slice(1) : args;
+  for (let i = 0; i < serveArgs.length; i++) {
+    const arg = serveArgs[i];
+    if (arg === "--port") {
+      i++;
+      continue;
+    }
+    if (arg?.startsWith("-")) {
+      console.error(`Error: unknown serve option: ${arg}`);
+      showHelp();
+      process.exit(1);
+    }
+  }
   const portIdx = serveArgs.indexOf("--port");
   if (portIdx !== -1) {
     const val = serveArgs[portIdx + 1];

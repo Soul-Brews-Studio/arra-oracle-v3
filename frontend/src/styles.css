@@ -110,4 +110,3 @@ body {
 .status-ok-dot { background-color: var(--color-ok-text); }
 .status-warn-dot { background-color: var(--color-warn-text); }
 .status-error-dot { background-color: var(--color-err-text); }
-

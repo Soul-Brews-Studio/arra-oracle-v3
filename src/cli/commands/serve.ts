@@ -1,55 +1,100 @@
-import { serveCli } from '../../plugins/arra/serve-cli.ts';
+import { configure, forceKillProcess, isProcessAlive, readPidFile, removePidFile, waitForProcessesExit } from '../../process-manager/index.ts';
+import { ORACLE_DATA_DIR } from '../../config.ts';
 
-type ServePlan =
-  | { kind: 'delegate'; args: string[] }
-  | { kind: 'foreground' }
-  | { kind: 'usage'; exitCode: number }
-  | { kind: 'error'; message: string };
+type StopReason =
+  | 'not_running'
+  | 'already_stopped'
+  | 'stale_pid'
+  | 'killed'
+  | 'force_killed'
+  | 'kill_failed'
+  | 'timeout';
 
-const BACKGROUND_FLAGS = new Set(['--background', '-b']);
-const FOREGROUND_FLAGS = new Set(['--foreground', '-f']);
-const START_ALIASES = new Set(['start', 'background', 'daemon', 'bg']);
+interface StopResult {
+  stopped: boolean;
+  reason?: StopReason;
+  pid?: number;
+}
 
 export async function serveCommand(args: string[]): Promise<number> {
-  const plan = serveCommandPlan(args);
-  if (plan.kind === 'usage') {
+  if (!args[0] || args[0] !== 'serve' || args.includes('--help') || args.includes('-h')) {
     printUsage();
-    return plan.exitCode;
+    return args[0] === 'serve' ? 0 : 1;
   }
-  if (plan.kind === 'error') {
-    console.error(plan.message);
-    printUsage();
-    return 1;
-  }
-  if (plan.kind === 'foreground') return runServerForeground();
-
-  const result = await serveCli(plan.args);
-  if (result.output) console.log(result.output);
-  if (result.error) console.error(result.error);
-  return result.ok ? 0 : 1;
-}
-
-export function serveCommandPlan(args: string[]): ServePlan {
-  if (args[0] !== 'serve') return { kind: 'usage', exitCode: 1 };
-  if (args.includes('--help') || args.includes('-h')) return { kind: 'usage', exitCode: 0 };
 
   const sub = args[1]?.toLowerCase();
-  const rest = args.slice(sub ? 2 : 1);
-  const foreground = sub === 'foreground' || rest.some((arg) => FOREGROUND_FLAGS.has(arg));
-  const background = START_ALIASES.has(sub ?? 'start') || rest.some((arg) => BACKGROUND_FLAGS.has(arg));
+  const rest = args.slice(2);
 
-  if (foreground && background && (sub === 'foreground' || rest.some((arg) => BACKGROUND_FLAGS.has(arg)))) {
-    return { kind: 'error', message: 'Cannot use --foreground and --background together' };
+  if (!sub || sub === 'start' || sub === 'foreground' || sub === 'background' || sub === 'daemon' || sub === 'bg') {
+    return runServerStart(sub, args.slice(sub ? 2 : 1));
   }
-  if (foreground) return { kind: 'foreground' };
-  if (!sub) return { kind: 'delegate', args: filterCliOnlyFlags(rest) };
-  if (START_ALIASES.has(sub)) return { kind: 'delegate', args: ['start', ...filterCliOnlyFlags(rest)] };
-  if (sub === 'status' || sub === 'stop') return { kind: 'delegate', args: [sub, ...rest] };
-  return { kind: 'error', message: `unknown serve subcommand: ${sub}` };
+
+  if (sub === 'status') {
+    const bad = unknownFlags(rest, new Set(['--json']));
+    if (bad) return badFlag('serve status', bad);
+    return runServerStatus(rest);
+  }
+
+  if (sub === 'stop') {
+    if (rest.length > 0) return badFlag('serve stop', rest[0]);
+    return runServerStop();
+  }
+
+  console.error(`unknown serve subcommand: ${sub}`);
+  printUsage();
+  return 1;
 }
 
-function filterCliOnlyFlags(args: string[]): string[] {
-  return args.filter((arg) => !BACKGROUND_FLAGS.has(arg));
+async function runServerStart(mode: string | undefined, flags: string[]): Promise<number> {
+  const bad = unknownFlags(flags, new Set(['--foreground', '-f', '--background', '-b']));
+  if (bad) return badFlag('serve start', bad);
+  const flagSet = new Set(flags);
+  const foreground = mode === 'foreground' || flagSet.has('--foreground') || flagSet.has('-f');
+  const background =
+    mode === 'background' ||
+    mode === 'daemon' ||
+    mode === 'bg' ||
+    flagSet.has('--background') ||
+    flagSet.has('-b');
+
+  if (foreground && background) {
+    console.error('Cannot use --foreground and --background together');
+    return 1;
+  }
+
+  if (foreground && !background) {
+    return runServerForeground();
+  }
+
+  return runServerBackground();
+}
+
+function unknownFlags(flags: string[], allowed: Set<string>): string | undefined {
+  return flags.find((flag) => !allowed.has(flag));
+}
+
+function badFlag(scope: string, flag: string): number {
+  console.error(`unknown ${scope} option: ${flag}`);
+  printUsage();
+  return 1;
+}
+
+async function runServerBackground(): Promise<number> {
+  const { ensureServerRunning, getServerStatus } = await import('../../ensure-server.ts');
+  const ok = await ensureServerRunning({ verbose: false, timeout: 15000 });
+  if (!ok) {
+    console.error('failed to start server');
+    return 1;
+  }
+
+  const status = await getServerStatus();
+  if (status.running) {
+    console.log(`Oracle server running on ${status.url} (pid=${status.pid ?? 'unknown'}, healthy=${status.healthy})`);
+    return 0;
+  }
+
+  console.log(`Oracle server start requested; check status at ${status.url}`);
+  return 1;
 }
 
 async function runServerForeground(): Promise<number> {
@@ -68,12 +113,106 @@ async function runServerForeground(): Promise<number> {
   });
 }
 
+async function runServerStatus(args: string[]): Promise<number> {
+  const withJson = args.includes('--json');
+  const { getServerStatus } = await import('../../ensure-server.ts');
+  const status = await getServerStatus();
+
+  if (withJson) {
+    console.log(JSON.stringify(status, null, 2));
+    return status.running && status.healthy ? 0 : 1;
+  }
+
+  if (!status.running) {
+    console.log(`Oracle server not running on ${status.url}`);
+    return 1;
+  }
+
+  const health = status.healthy ? 'healthy' : 'not healthy';
+  console.log(`Oracle server running on ${status.url} (pid=${status.pid ?? 'unknown'}, ${health})`);
+  return status.healthy ? 0 : 1;
+}
+
+async function runServerStop(): Promise<number> {
+  configure({ dataDir: ORACLE_DATA_DIR, pidFileName: 'oracle-http.pid' });
+
+  const pidInfo = readPidFile();
+  if (!pidInfo?.pid) {
+    console.log('Oracle server not running');
+    return 0;
+  }
+
+  const result = await stopByPid(pidInfo.pid);
+  console.log(formatStopResult(result));
+
+  return result.stopped || result.reason === 'not_running' || result.reason === 'already_stopped' || result.reason === 'stale_pid'
+    ? 0
+    : 1;
+}
+
+function formatStopResult(result: StopResult): string {
+  if (result.stopped) {
+    return `Stopped server (pid=${result.pid ?? 'unknown'}, reason=${result.reason})`;
+  }
+
+  if (result.reason === 'not_running' || result.reason === 'already_stopped') {
+    return 'Oracle server not running';
+  }
+
+  if (result.reason === 'stale_pid') {
+    return `Removed stale PID file (pid=${result.pid ?? 'unknown'})`;
+  }
+
+  if (result.reason === 'kill_failed') {
+    return `Failed to signal server (pid=${result.pid ?? 'unknown'})`;
+  }
+
+  if (result.reason === 'timeout') {
+    return `Timed out waiting for server to stop (pid=${result.pid ?? 'unknown'})`;
+  }
+
+  return `Unable to stop server (pid=${result.pid ?? 'unknown'}, reason=${result.reason})`;
+}
+
+async function stopByPid(pid: number): Promise<StopResult> {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    removePidFile();
+    return { stopped: false, reason: 'stale_pid', pid };
+  }
+
+  if (!isProcessAlive(pid)) {
+    removePidFile();
+    return { stopped: false, reason: 'already_stopped', pid };
+  }
+
+  try {
+    process.kill(pid, 'SIGTERM');
+  } catch {
+    removePidFile();
+    return { stopped: false, reason: 'kill_failed', pid };
+  }
+
+  const exited = await waitForProcessesExit([pid], 5000);
+  if (exited) {
+    removePidFile();
+    return { stopped: true, reason: 'killed', pid };
+  }
+
+  await forceKillProcess(pid);
+  const forceExited = await waitForProcessesExit([pid], 2000);
+  if (!forceExited) {
+    return { stopped: false, reason: 'timeout', pid };
+  }
+
+  removePidFile();
+  return { stopped: true, reason: 'force_killed', pid };
+}
+
 function printUsage(): void {
-  console.log('Usage: bun run src/cli/index.ts serve <start|stop|status> [--port N] [--foreground|--background] [--json]');
+  console.log('Usage: bun run src/cli/index.ts serve <start|stop|status> [--foreground|--background] [--json]');
   console.log('');
   console.log('Commands:');
-  console.log('  start [--port N] [--background]     Start server in background (default)');
-  console.log('  start --foreground                  Start server in this process');
-  console.log('  status [--port N] [--json]          Show running status');
-  console.log('  stop [--port N]                     Stop running server');
+  console.log('  start [--foreground|--background]   Start server (background default)');
+  console.log('  status [--json]                      Show running status');
+  console.log('  stop                                 Stop running server');
 }
