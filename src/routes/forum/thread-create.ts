@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { handleThreadMessage } from '../../forum/handler.ts';
+import { getThread, handleThreadMessage } from '../../forum/handler.ts';
 import { optionalThreadId, parseMessageRole, threadCreateBody, trimmedString } from './model.ts';
 
 export const threadCreateRoute = new Elysia().post('/api/thread', async ({ body, set }) => {
@@ -19,6 +19,14 @@ export const threadCreateRoute = new Elysia().post('/api/thread', async ({ body,
     if (role === null) {
       set.status = 400;
       return { error: 'Invalid role (human|oracle|claude)' };
+    }
+    const existing = threadId === undefined ? null : getThread(threadId);
+    if (existing?.status === 'closed' && data.reopen !== true) {
+      set.status = 409;
+      return {
+        error: `Thread ${threadId} is closed. Pass reopen=true to add a new message.`,
+        status: 'closed',
+      };
     }
     const result = await handleThreadMessage({
       message,

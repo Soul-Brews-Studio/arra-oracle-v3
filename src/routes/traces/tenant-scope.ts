@@ -153,7 +153,9 @@ export function getTenantTraceLinkedChain(traceId: string): { chain: TraceRecord
   const backwardVisited = new Set<string>();
   while (current?.prevTraceId && !backwardVisited.has(current.prevTraceId)) {
     backwardVisited.add(current.traceId);
-    current = getTenantTrace(current.prevTraceId);
+    const previous = getTenantTrace(current.prevTraceId);
+    if (!previous) break;
+    current = previous;
   }
   const forwardVisited = new Set<string>();
   while (current && !forwardVisited.has(current.traceId)) {

@@ -26,8 +26,17 @@ export interface VerifyResult {
   orphaned: string[];
   drifted: string[];
   untracked: string[];
+  mismatches: VerifyMismatch[];
   recommendation: string;
   fixedOrphans?: number;
+}
+
+export interface VerifyMismatch {
+  kind: 'missing' | 'orphaned' | 'drifted' | 'untracked';
+  sourceFile: string;
+  ids?: string[];
+  indexedAt?: number;
+  mtimeMs?: number;
 }
 
 export function verifyKnowledgeBase(opts: {
@@ -196,6 +205,19 @@ export function verifyKnowledgeBase(opts: {
     recommendation += `. Flagged ${fixedOrphans} orphaned entries as '_verified_orphan'.`;
   }
 
+  const dbDetails = (sourceFile: string) => dbFileMap.get(sourceFile) ?? {};
+  const mismatches: VerifyMismatch[] = [
+    ...missing.map((sourceFile) => ({ kind: 'missing' as const, sourceFile, mtimeMs: diskFiles.get(sourceFile) })),
+    ...orphaned.map((sourceFile) => ({ kind: 'orphaned' as const, sourceFile, ...dbDetails(sourceFile) })),
+    ...drifted.map((sourceFile) => ({
+      kind: 'drifted' as const,
+      sourceFile,
+      mtimeMs: diskFiles.get(sourceFile),
+      ...dbDetails(sourceFile),
+    })),
+    ...untracked.map((sourceFile) => ({ kind: 'untracked' as const, sourceFile })),
+  ];
+
   return {
     counts: {
       healthy: healthy.length,
@@ -208,6 +230,7 @@ export function verifyKnowledgeBase(opts: {
     orphaned,
     drifted,
     untracked,
+    mismatches,
     recommendation,
     ...(fixedOrphans > 0 ? { fixedOrphans } : {}),
   };

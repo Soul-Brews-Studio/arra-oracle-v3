@@ -28,6 +28,7 @@ const ALLOWED_HEADERS = [
   LEGACY_TENANT_HEADER.toLowerCase(),
 ] as const;
 const MAX_AGE_SECONDS = '86400';
+const PNA_REQUEST_HEADER = 'access-control-request-private-network';
 
 export interface CorsPolicy {
   wildcard: false;
@@ -66,7 +67,11 @@ function allowedRequestHeaders(request: Request): string[] | null {
 function allowsRequestMethod(request: Request): boolean {
   const requested = request.headers.get('access-control-request-method');
   if (!requested) return true;
-  return ALLOWED_METHODS.includes(requested.toUpperCase() as typeof ALLOWED_METHODS[number]);
+  return ALLOWED_METHODS.includes(requested.trim().toUpperCase() as typeof ALLOWED_METHODS[number]);
+}
+
+function wantsPrivateNetwork(request: Request): boolean {
+  return request.headers.get(PNA_REQUEST_HEADER)?.trim().toLowerCase() === 'true';
 }
 
 export function parseCorsOrigins(value = configuredOrigins()): CorsPolicy {
@@ -118,7 +123,10 @@ function preflightResponse(request: Request, policy: CorsPolicy): Response {
     'Access-Control-Max-Age': MAX_AGE_SECONDS,
   };
   const allowed = applyCorsHeaders(headers, request, policy);
-  if (allowed && request.headers.get('access-control-request-private-network') === 'true') {
+  appendVary(headers, 'Access-Control-Request-Method');
+  appendVary(headers, 'Access-Control-Request-Headers');
+  appendVary(headers, 'Access-Control-Request-Private-Network');
+  if (allowed && wantsPrivateNetwork(request)) {
     headers['Access-Control-Allow-Private-Network'] = 'true';
   }
   return new Response(null, { status: 204, headers });
@@ -139,10 +147,7 @@ export function createCorsMiddleware(policy = parseCorsOrigins()) {
 
 export function createPrivateNetworkPreflightMiddleware(policy = parseCorsOrigins()) {
   return new Elysia({ name: 'private-network-preflight' }).onRequest(({ request }) => {
-    if (
-      request.method === 'OPTIONS' &&
-      request.headers.get('access-control-request-private-network') === 'true'
-    ) {
+    if (request.method === 'OPTIONS' && wantsPrivateNetwork(request)) {
       return preflightResponse(request, policy);
     }
   });

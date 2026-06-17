@@ -10,6 +10,7 @@ export const LEGACY_TENANT_HEADER = 'X-Tenant-ID';
 export const ORG_HEADER = 'X-Org-Id';
 export const TENANT_API_KEY_HEADER = 'X-API-Key';
 const TENANT_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/;
+const RESERVED_TENANT_KEYS = new Set(['constructor', 'prototype']);
 
 export const DEFAULT_TENANT_ID = 'default';
 type TenantContext = { tenantId?: string };
@@ -60,7 +61,7 @@ function tokenMapFromEntries(entries: TokenEntry[]): TenantTokenMap {
     const tenant = rawTenant.trim();
     const token = typeof rawToken === 'string' ? rawToken.trim() : '';
     if (!tenant && !token) continue;
-    if (!tenant || !token || (tenant !== '*' && !TENANT_PATTERN.test(tenant))) {
+    if (!tenant || !token || (tenant !== '*' && !isValidTenantId(tenant))) {
       throw new Error('invalid tenant token config');
     }
     map[tenant] = token;
@@ -68,12 +69,17 @@ function tokenMapFromEntries(entries: TokenEntry[]): TenantTokenMap {
   return map;
 }
 
+function isValidTenantId(tenantId: string): boolean {
+  return TENANT_PATTERN.test(tenantId) && !RESERVED_TENANT_KEYS.has(tenantId.toLowerCase());
+}
+
 function tenantIdFromApiKey(headers: Headers, apiKeys = parseTenantApiKeys()): string | undefined {
   const actual = headers.get(TENANT_API_KEY_HEADER)?.trim() || bearerToken(headers);
   if (!actual) return undefined;
   for (const [tenantId, expected] of Object.entries(apiKeys)) {
+    if (tenantId === '*') continue;
     if (expected && safeEqual(actual, expected)) {
-      if (!TENANT_PATTERN.test(tenantId)) throw new Error('invalid tenant id');
+      if (!isValidTenantId(tenantId)) throw new Error('invalid tenant id');
       return tenantId;
     }
   }
@@ -84,7 +90,7 @@ export function tenantIdFromHeaders(headers: Headers): string | undefined {
   const raw = headers.get(TENANT_HEADER) ?? headers.get(LEGACY_TENANT_HEADER) ?? headers.get(ORG_HEADER);
   const tenant = raw?.trim();
   if (!tenant) return tenantIdFromApiKey(headers);
-  if (!TENANT_PATTERN.test(tenant)) throw new Error('invalid tenant id');
+  if (!isValidTenantId(tenant)) throw new Error('invalid tenant id');
   return tenant;
 }
 
