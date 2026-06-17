@@ -91,7 +91,7 @@ export function ConnectOracleSetup({
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-teal-300">
           ARRA Oracle
         </p>
-        <h1 className="mt-3 text-3xl font-bold">Connect to your Oracle</h1>
+        <h1 className="mt-3 text-3xl font-bold">{state === "unreachable" ? "Backend unavailable" : "Connect to your Oracle"}</h1>
         <p className="mt-4 text-sm text-slate-300">
           {state === "checking"
             ? `Checking backend health at ${target}.`
