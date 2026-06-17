@@ -215,7 +215,7 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
       uptime: serviceUptime,
       uptimeSeconds: serviceUptime,
       db: dbStatus.status,
-      oracle: dbStatus.status === 'connected' ? 'connected' : 'error',
+      oracle: dbStatus.status === 'connected' ? 'connected' : 'degraded',
       dbStatus: dbStatus.status,
       vectorStatus: vector.status,
       ...vectorRuntime,
