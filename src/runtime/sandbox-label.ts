@@ -16,8 +16,12 @@ const labels: Record<string, SandboxLabel> = {
 function envValue(env: unknown): string | undefined {
   if (typeof env === 'string') return env;
   if (!env || typeof env !== 'object') return undefined;
-  const value = (env as Record<string, unknown>).ARRA_ENV;
-  return typeof value === 'string' ? value : undefined;
+  try {
+    const value = (env as Record<string, unknown>).ARRA_ENV;
+    return typeof value === 'string' ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function sandboxLabel(env: unknown = process.env.ARRA_ENV): SandboxLabel {

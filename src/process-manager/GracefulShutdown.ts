@@ -53,7 +53,11 @@ export interface GracefulShutdownConfig {
  */
 async function closeHttpServer(server: http.Server): Promise<void> {
   // Close all active connections
-  server.closeAllConnections();
+  try {
+    server.closeAllConnections();
+  } catch (error) {
+    logger.warn('SYSTEM', 'HTTP server connection cleanup error', {}, error as Error);
+  }
 
   // Give Windows time to close connections before closing server
   if (process.platform === 'win32') {
