@@ -1,6 +1,7 @@
 import { resolveVectorUrl } from '../config.ts';
 import { getVectorStoreConfigByModel, type VectorStoreConfig } from './factory.ts';
 import { localNativeVectorDisabledReason, localVectorIndexMissingReason } from './cpu-capabilities.ts';
+import { resolveVectorProxyContract } from './proxy-contract.ts';
 
 export type VectorMode = 'embedded' | 'proxied' | 'disabled';
 
@@ -27,6 +28,8 @@ export function getVectorRuntimeStatus(options: VectorRuntimeStatusOptions = {})
   const argv = options.argv || process.argv;
   const vectorUrl = resolveVectorUrl(env, argv).trim();
   if (vectorUrl) return { vectorMode: 'proxied', vectorUrl };
+  const proxyContract = resolveVectorProxyContract({ env });
+  if (proxyContract) return { vectorMode: 'proxied', vectorUrl: proxyContract.baseUrl };
 
   const cfg = options.localConfig || getVectorStoreConfigByModel(undefined);
   const disabledReason = localNativeVectorDisabledReason(cfg.type);

@@ -22,6 +22,12 @@ describe('vector runtime status', () => {
     expect(status.vectorUrl).toBe('http://127.0.0.1:48080');
   });
 
+  test('reports proxied when storage-tier proxy endpoint is configured', () => {
+    const status = getVectorRuntimeStatus({ env: { ORACLE_PROXY_VECTOR_URL: 'http://127.0.0.1:48081' }, argv: ['bun', 'src/index.ts'] });
+    expect(status.vectorMode).toBe('proxied');
+    expect(status.vectorUrl).toBe('http://127.0.0.1:48081');
+  });
+
   test('reports disabled when local native vector is gated off', () => {
     process.env.ARRA_FORCE_AVX = '0';
     resetCpuCapabilityCacheForTests();

@@ -13,6 +13,7 @@ import { createContentTypeMiddleware } from './middleware/content-type.ts';
 import { createApiKeyAuthMiddleware } from './middleware/auth.ts';
 import { createCorrelationMiddleware } from './middleware/correlation.ts';
 import { defaultUnifiedPluginDirs, loadUnifiedPlugins, seedUnifiedPluginMenuItems } from './plugins/unified-loader.ts';
+import { createUnifiedPluginRouteMount, createUnifiedRuntimeRef, type UnifiedRuntimeRef } from './plugins/runtime-routes.ts';
 import { startUnifiedPluginServers } from './plugins/unified-server.ts';
 import { closeCachedVectorStores } from './vector/factory.ts';
 import { warmEmbeddingProviderDetection } from './vector/provider-detection.ts';
@@ -73,11 +74,12 @@ export interface StartServerOptions { writePidFile?: boolean }
 
 export interface CreateAppOptions {
   unifiedPlugins: UnifiedRuntime;
+  runtimeRef?: UnifiedRuntimeRef<UnifiedRuntime>;
   dataDir?: string;
   vectorUrl?: string;
 }
 
-export function createApp({ unifiedPlugins, dataDir = ORACLE_DATA_DIR, vectorUrl = VECTOR_URL }: CreateAppOptions) {
+export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef(unifiedPlugins), dataDir = ORACLE_DATA_DIR, vectorUrl = VECTOR_URL }: CreateAppOptions) {
   const app = new Elysia()
     .use(createRequestLoggingMiddleware())
     .use(createCorrelationMiddleware())
@@ -111,10 +113,11 @@ export function createApp({ unifiedPlugins, dataDir = ORACLE_DATA_DIR, vectorUrl
     .get('/', () => ({ server: MCP_SERVER_NAME, version: pkg.version, status: 'ok', docs: '/api/docs', api: '/api/v1' }));
 
   const healthRoutes = createHealthRoutes({ pluginCount: unifiedPlugins.pluginCount, pluginMcpToolCount: unifiedPlugins.mcpTools.length, pluginStatuses: unifiedPlugins.pluginStatuses, isDraining });
-  const apiModules = [authRoutes, settingsRoutes, feedRoutes, healthRoutes, dashboardRoutes, searchRoutes, vectorRoutes, vectorConfigApiRoutes, conceptsRoutes, knowledgeRoutes, verifyRoutes, supersedeRoutes, forumApi, tracesApi, scheduleApi, filesRouter, createPluginsRouter({ registry: unifiedPlugins.pluginRegistry, runtime: unifiedPlugins }), sessionsRoutes, vaultRoutes, metricsRoutes, exportRoutes, memoryRoutes, canvasRoutes, tenantsRoutes, watcherRoutes, indexerRoutes, ...unifiedPlugins.routes];
+  const apiModules = [authRoutes, settingsRoutes, feedRoutes, healthRoutes, dashboardRoutes, searchRoutes, vectorRoutes, vectorConfigApiRoutes, conceptsRoutes, knowledgeRoutes, verifyRoutes, supersedeRoutes, forumApi, tracesApi, scheduleApi, filesRouter, createPluginsRouter({ registry: () => runtimeRef.current.pluginRegistry(), runtimeRef }), sessionsRoutes, vaultRoutes, metricsRoutes, exportRoutes, memoryRoutes, canvasRoutes, tenantsRoutes, watcherRoutes, indexerRoutes];
   const modules = [...apiModules, createMcpRoutes(unifiedPlugins.mcpTools), createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu))];
   for (const mod of modules) app.use(mod as any);
-  app.use(createNotFoundMiddleware(app.routes));
+  app.use(createUnifiedPluginRouteMount(runtimeRef, { localRoutes: () => app.routes }));
+  app.use(createNotFoundMiddleware(() => app.routes));
   return app;
 }
 
