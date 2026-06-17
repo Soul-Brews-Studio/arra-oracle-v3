@@ -69,3 +69,24 @@ test('weak semantic matches expose warnings without storing confidence', () => {
   expect(confidence.warnings).toEqual(expect.arrayContaining(['missing_tags', 'low_match_score']));
   expect(confidence.warnings).not.toContain('stale_unvalidated');
 });
+
+
+test('retrieval reinforcement boosts stale docs without removing decay warnings', () => {
+  const staleBase = memory({
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  });
+  const unused = memoryConfidence(staleBase, { now, mode: 'keyword' });
+  const reinforced = memoryConfidence({
+    ...staleBase,
+    usageCount: 12,
+    lastAccessedAt: '2026-06-15T00:00:00.000Z',
+  }, { now, mode: 'keyword' });
+
+  expect(reinforced.score).toBeGreaterThan(unused.score);
+  expect(reinforced.usageCount).toBe(12);
+  expect(reinforced.lastAccessedAgeDays).toBe(1);
+  expect(reinforced.components.usage).toBeGreaterThan(0.5);
+  expect(reinforced.reasons).toContain('retrieval_reinforced');
+  expect(reinforced.warnings).toContain('stale_unvalidated');
+});

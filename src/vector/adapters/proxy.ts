@@ -19,6 +19,7 @@ import {
   buildVectorProxyUrl,
   isHealthyVectorProxy,
   type VectorProxyAddRequest,
+  type VectorProxyExportResponse,
   type VectorProxyHealthResponse,
   type VectorProxyQueryRequest,
   type VectorProxyQueryResponse,
@@ -96,14 +97,7 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
     metadatas: any[];
     documents?: string[];
   }> {
-    // Not part of proxy protocol. Return empty to preserve compatibility
-    // when callers can proceed without full embedding matrices.
-    return {
-      ids: [],
-      embeddings: [],
-      metadatas: [],
-      documents: [],
-    };
+    return this.fetchJson<VectorProxyExportResponse>(exportPath(limit));
   }
 
   private async proxyStats(): Promise<VectorProxyStatsResponse> {
@@ -162,7 +156,9 @@ export class ProxyVectorAdapter implements VectorStoreAdapter {
   private async assertResponse(res: Response): Promise<void> {
     if (res.ok) return;
     const body = await res.text().catch(() => '');
-    throw new Error(`Proxy vector request failed: ${res.status} ${res.statusText} ${body}`);
+    const error = new Error(`Proxy vector request failed: ${res.status} ${res.statusText} ${body}`);
+    Object.assign(error, { status: res.status, statusCode: res.status });
+    throw error;
   }
 }
 
@@ -176,4 +172,9 @@ function nonNegativeCount(value: unknown): number {
 
 function displayName(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function exportPath(limit: number | undefined): string {
+  const normalized = Number.isFinite(limit) && Number(limit) > 0 ? Math.floor(Number(limit)) : undefined;
+  return normalized ? `${VECTOR_PROXY_ROUTES.export}?limit=${normalized}` : VECTOR_PROXY_ROUTES.export;
 }

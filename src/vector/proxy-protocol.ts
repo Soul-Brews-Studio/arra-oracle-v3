@@ -6,6 +6,7 @@ export const VECTOR_PROXY_ROUTES = {
   add: '/vectors/add',
   query: '/vectors/query',
   stats: '/vectors/stats',
+  export: '/vectors/export',
   collection: '/vectors/collection',
   health: '/health',
 } as const;
@@ -27,6 +28,13 @@ export type VectorProxyQueryResponse = VectorQueryResult;
 export interface VectorProxyStatsResponse {
   count: number;
   name: string;
+}
+
+export interface VectorProxyExportResponse {
+  ids: string[];
+  embeddings: number[][];
+  metadatas: any[];
+  documents?: string[];
 }
 
 export type VectorProxyHealthStatus = 'ok' | 'degraded' | 'down';
