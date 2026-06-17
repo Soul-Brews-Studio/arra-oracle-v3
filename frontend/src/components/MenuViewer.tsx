@@ -18,7 +18,7 @@ export function MenuViewer({ items }: { items: MenuItem[] }) {
     <div className="space-y-5">
       {orderedGroups.map((group) => (
         <section key={group} aria-labelledby={`menu-${group}`}>
-          <h3 id={`menu-${group}`} className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+          <h3 id={`menu-${group}`} className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-text-muted">
             {group}
           </h3>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -28,16 +28,16 @@ export function MenuViewer({ items }: { items: MenuItem[] }) {
                 <a
                   key={`${item.path}-${item.label}`}
                   href={item.path}
-                  className="focus-ring rounded-xl border border-white/10 bg-slate-950/60 p-4 transition hover:border-teal-300/40 hover:bg-slate-900"
+                  className="focus-ring rounded-xl border border-border bg-surface p-4 transition hover:border-accent-border hover:bg-field"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-medium text-white">{item.label}</p>
-                      <p className="mt-1 font-mono text-xs text-teal-200">{item.path}</p>
+                      <p className="font-medium text-text">{item.label}</p>
+                      <p className="mt-1 font-mono text-xs text-accent">{item.path}</p>
                     </div>
-                    <span className="rounded-full bg-white/5 px-2 py-1 text-xs text-slate-400">#{item.order ?? 999}</span>
+                    <span className="rounded-full bg-surface-muted px-2 py-1 text-xs text-text-muted">#{item.order ?? 999}</span>
                   </div>
-                  <p className="mt-3 text-xs text-slate-500">
+                  <p className="mt-3 text-xs text-text-muted">
                     {item.sourceName ? `${item.source ?? 'source'}:${item.sourceName}` : item.source ?? 'route'}
                   </p>
                 </a>

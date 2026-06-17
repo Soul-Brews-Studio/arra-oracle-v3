@@ -125,13 +125,13 @@ export function FirstRunWizard() {
 
   return (
     <section className="grid gap-5" aria-labelledby="first-run-wizard-title">
-      <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">First-run setup</p>
-        <h1 id="first-run-wizard-title" className="mt-2 text-3xl font-semibold text-white">{steps[step]}</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-400">{copyFor(step)}</p>
+      <div className="rounded-3xl border border-border bg-surface p-5 sm:p-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">First-run setup</p>
+        <h1 id="first-run-wizard-title" className="mt-2 text-3xl font-semibold text-text">{steps[step]}</h1>
+        <p className="mt-2 max-w-3xl text-sm text-text-muted">{copyFor(step)}</p>
         <ol className="mt-5 grid gap-2 sm:grid-cols-4" aria-label="First-run steps">
           {steps.map((label, index) => (
-            <li key={label} className={`h-2 rounded-full ${index <= step ? 'bg-teal-300' : 'bg-white/15'}`} />
+            <li key={label} className={`h-2 rounded-full ${index <= step ? 'bg-accent-solid' : 'bg-white/15'}`} />
           ))}
         </ol>
       </div>
@@ -146,28 +146,28 @@ export function FirstRunWizard() {
         <ConfirmCard active={step === 3} provider={selectedProvider} providerType={providerType} selected={selected} busy={busy} onStart={() => void startInitialIndexing()} />
       </div>
 
-      {message ? <p className="rounded-2xl border border-[color:var(--color-accent,#0f766e)] p-4 text-sm text-[color:var(--color-accent,#0f766e)]">{message}</p> : null}
+      {message ? <p className="rounded-2xl border border-accent-border p-4 text-sm text-accent">{message}</p> : null}
       {error && state !== 'error' ? <ErrorMessage title="First-run setup failed." message={error} /> : null}
 
       <div className="flex flex-wrap gap-3">
-        <button className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 disabled:opacity-50" disabled={step === 0} type="button" onClick={() => setStep((step - 1) as Step)}>Back</button>
-        <button className="focus-ring rounded-xl bg-teal-300 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50" disabled={step === 3} type="button" onClick={() => setStep((step + 1) as Step)}>Next</button>
+        <button className="focus-ring rounded-xl border border-border px-4 py-2 text-sm text-text disabled:opacity-50" disabled={step === 0} type="button" onClick={() => setStep((step - 1) as Step)}>Back</button>
+        <button className="focus-ring rounded-xl bg-accent-solid px-4 py-2 text-sm font-semibold text-on-accent disabled:opacity-50" disabled={step === 3} type="button" onClick={() => setStep((step + 1) as Step)}>Next</button>
       </div>
     </section>
   );
 }
 
 function cardClass(active: boolean): string {
-  return `rounded-3xl border p-5 sm:p-6 ${active ? 'border-teal-300/40 bg-teal-300/10' : 'border-white/10 bg-white/[0.03]'}`;
+  return `rounded-3xl border p-5 sm:p-6 ${active ? 'border-teal-300/40 bg-accent-solid/10' : 'border-border bg-surface-muted'}`;
 }
 
 function WelcomeCard({ active, complete }: { active: boolean; complete: boolean }) {
   return (
     <article className={`${cardClass(active)} lg:col-span-2`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Welcome</p>
-      <h2 className="mt-2 text-2xl font-semibold text-white">Oracle memory layer</h2>
-      <p className="mt-3 text-sm leading-6 text-slate-300">Oracle indexes operational knowledge, embeds it into vector collections, and exposes fast search through the dashboard and MCP tools.</p>
-      <p className="mt-4 text-sm text-slate-400">{complete ? 'Setup was already marked complete on this device.' : 'Setup has not been completed on this device.'}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Welcome</p>
+      <h2 className="mt-2 text-2xl font-semibold text-text">Oracle memory layer</h2>
+      <p className="mt-3 text-sm leading-6 text-text-muted">Oracle indexes operational knowledge, embeds it into vector collections, and exposes fast search through the dashboard and MCP tools.</p>
+      <p className="mt-4 text-sm text-text-muted">{complete ? 'Setup was already marked complete on this device.' : 'Setup has not been completed on this device.'}</p>
     </article>
   );
 }
@@ -175,12 +175,12 @@ function WelcomeCard({ active, complete }: { active: boolean; complete: boolean 
 function ProviderCard({ active, providers, providerType, onChange }: { active: boolean; providers: VectorProvider[]; providerType: string; onChange: (value: string) => void }) {
   return (
     <article className={`${cardClass(active)} lg:col-span-2`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Provider</p>
-      <h2 className="mt-2 text-2xl font-semibold text-white">Embedding provider</h2>
-      <select className="focus-ring mt-5 w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100" value={providerType} onChange={(event) => onChange(event.target.value)}>
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Provider</p>
+      <h2 className="mt-2 text-2xl font-semibold text-text">Embedding provider</h2>
+      <select className="focus-ring mt-5 w-full rounded-xl border border-border bg-field px-4 py-3 text-text" value={providerType} onChange={(event) => onChange(event.target.value)}>
         {providers.length ? providers.map((provider) => <option key={provider.type} value={provider.type}>{providerLabel(provider)}</option>) : <option value="none">No providers loaded</option>}
       </select>
-      <p className="mt-3 text-sm text-slate-400">{providerModels(providers.find((provider) => provider.type === providerType))}</p>
+      <p className="mt-3 text-sm text-text-muted">{providerModels(providers.find((provider) => provider.type === providerType))}</p>
     </article>
   );
 }
@@ -188,12 +188,12 @@ function ProviderCard({ active, providers, providerType, onChange }: { active: b
 function CollectionsCard({ active, plans, onToggle }: { active: boolean; plans: CollectionPlan[]; onToggle: (key: string) => void }) {
   return (
     <article className={`${cardClass(active)} lg:col-span-2`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Collections</p>
-      <h2 className="mt-2 text-2xl font-semibold text-white">Collections to create</h2>
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Collections</p>
+      <h2 className="mt-2 text-2xl font-semibold text-text">Collections to create</h2>
       <div className="mt-5 grid gap-3">
         {plans.map((plan) => (
-          <label key={plan.key} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-slate-200">
-            <span><span className="font-semibold">{plan.label}</span><span className="block text-xs text-slate-500">{plan.collection}</span></span>
+          <label key={plan.key} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-text">
+            <span><span className="font-semibold">{plan.label}</span><span className="block text-xs text-text-muted">{plan.collection}</span></span>
             <input className="h-5 w-5 accent-teal-300" checked={plan.selected} type="checkbox" onChange={() => onToggle(plan.key)} />
           </label>
         ))}
@@ -205,13 +205,13 @@ function CollectionsCard({ active, plans, onToggle }: { active: boolean; plans: 
 function ConfirmCard({ active, provider, providerType, selected, busy, onStart }: { active: boolean; provider?: VectorProvider; providerType: string; selected: CollectionPlan[]; busy: boolean; onStart: () => void }) {
   return (
     <article className={`${cardClass(active)} lg:col-span-2`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Confirm</p>
-      <h2 className="mt-2 text-2xl font-semibold text-white">Start initial indexing</h2>
-      <dl className="mt-4 grid gap-2 text-sm text-slate-300">
-        <div><dt className="text-slate-500">Provider</dt><dd className="font-medium text-white">{providerLabel(provider) || providerType}</dd></div>
-        <div><dt className="text-slate-500">Collections</dt><dd className="font-medium text-white">{selected.map((plan) => plan.key).join(', ') || 'none selected'}</dd></div>
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Confirm</p>
+      <h2 className="mt-2 text-2xl font-semibold text-text">Start initial indexing</h2>
+      <dl className="mt-4 grid gap-2 text-sm text-text-muted">
+        <div><dt className="text-text-muted">Provider</dt><dd className="font-medium text-text">{providerLabel(provider) || providerType}</dd></div>
+        <div><dt className="text-text-muted">Collections</dt><dd className="font-medium text-text">{selected.map((plan) => plan.key).join(', ') || 'none selected'}</dd></div>
       </dl>
-      <button className="focus-ring mt-5 rounded-xl bg-teal-300 px-4 py-3 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50" disabled={busy || !selected.length} type="button" onClick={onStart}>
+      <button className="focus-ring mt-5 rounded-xl bg-accent-solid px-4 py-3 text-sm font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-50" disabled={busy || !selected.length} type="button" onClick={onStart}>
         {busy ? <Spinner label="Starting index" /> : 'Create collections and index'}
       </button>
     </article>

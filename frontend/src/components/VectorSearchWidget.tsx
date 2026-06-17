@@ -44,24 +44,24 @@ export function VectorSearchWidget({ onOpenResults }: { onOpenResults?: (query: 
   }
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-search-title">
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-search-title">
       <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Vector</p>
-        <h2 id="vector-search-title" className="mt-2 text-2xl font-semibold text-white">Vector search</h2>
-        <p className="mt-2 text-sm text-slate-400">Semantic search against Oracle memory through the Elysia API.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Vector</p>
+        <h2 id="vector-search-title" className="mt-2 text-2xl font-semibold text-text">Vector search</h2>
+        <p className="mt-2 text-sm text-text-muted">Semantic search against Oracle memory through the Elysia API.</p>
       </div>
 
       <form aria-label="Vector search form" onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row">
         <input
           aria-label="Vector search query"
-          className="focus-ring min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100 placeholder:text-slate-600"
+          className="focus-ring min-w-0 flex-1 rounded-xl border border-border bg-field px-4 py-3 text-text placeholder:text-slate-600"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search vector memory…"
           type="search"
         />
         <button
-          className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-50"
+          className="focus-ring rounded-xl bg-accent-solid px-5 py-3 font-semibold text-on-accent transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
           disabled={state === 'loading' || !query.trim()}
           type="submit"
         >
@@ -70,10 +70,10 @@ export function VectorSearchWidget({ onOpenResults }: { onOpenResults?: (query: 
       </form>
 
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-slate-500">{status}</p>
+        <p className="text-sm text-text-muted">{status}</p>
         <button
           aria-label="Open full vector search results page"
-          className="focus-ring rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-200 hover:border-teal-300/40 disabled:cursor-not-allowed disabled:opacity-50"
+          className="focus-ring rounded-xl border border-border px-3 py-2 text-sm text-text hover:border-teal-300/40 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={!query.trim()}
           type="button"
           onClick={() => onOpenResults?.(query.trim())}
@@ -87,7 +87,7 @@ export function VectorSearchWidget({ onOpenResults }: { onOpenResults?: (query: 
           <ErrorMessage
             title="Vector search failed."
             message={error}
-            action={lastQuery ? <button aria-label={`Retry vector search for ${lastQuery}`} className="focus-ring rounded-lg border border-[color:var(--color-err-text,#991b1b)] px-3 py-2 font-semibold text-[color:var(--color-err-text,#991b1b)] hover:bg-[var(--color-err-bg,#fee2e2)]" type="button" onClick={() => void runSearch(lastQuery)}>Retry search</button> : null}
+            action={lastQuery ? <button aria-label={`Retry vector search for ${lastQuery}`} className="focus-ring rounded-lg border border-err-border px-3 py-2 font-semibold text-err-text hover:bg-err-bg" type="button" onClick={() => void runSearch(lastQuery)}>Retry search</button> : null}
           />
         </div>
       ) : null}

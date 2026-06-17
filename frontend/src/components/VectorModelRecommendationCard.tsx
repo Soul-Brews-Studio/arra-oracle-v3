@@ -61,34 +61,34 @@ export function VectorModelRecommendationCard({ defaultProvider = 'openai', init
   }, [defaultProvider, initialEstimate]);
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-model-recommendation-title">
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-model-recommendation-title">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-300">Model recommendation</p>
-          <h2 id="vector-model-recommendation-title" className="mt-2 text-2xl font-semibold text-white">Pick the best embedding model</h2>
-          <p className="mt-2 text-sm text-slate-400">Uses corpus size, detected providers, and estimated remote cost before indexing.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Model recommendation</p>
+          <h2 id="vector-model-recommendation-title" className="mt-2 text-2xl font-semibold text-text">Pick the best embedding model</h2>
+          <p className="mt-2 text-sm text-text-muted">Uses corpus size, detected providers, and estimated remote cost before indexing.</p>
         </div>
         {loading ? <Spinner label="Loading recommendation" /> : null}
       </div>
 
       {error ? <div className="mt-4"><ErrorMessage title="Model recommendation unavailable." message={error} /></div> : null}
-      {!loading && !estimate ? <p className="mt-4 text-sm text-slate-500">Run provider auto-detect to load a recommendation.</p> : null}
+      {!loading && !estimate ? <p className="mt-4 text-sm text-text-muted">Run provider auto-detect to load a recommendation.</p> : null}
       {estimate ? (
         <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-          <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4 text-sm text-cyan-50/90">
-            <p className="font-semibold text-cyan-100">Recommendation</p>
+          <div className="rounded-2xl border border-accent-border bg-accent-soft p-4 text-sm text-accent">
+            <p className="font-semibold text-accent">Recommendation</p>
             <p className="mt-2">{estimate.recommendation}</p>
-            <p className="mt-2 text-cyan-100/75">{estimate.formula}</p>
-            <p className="mt-2 text-cyan-100/75">{providerSummary(estimate.availableProviders)}</p>
-            {estimate.fallbackSummary ? <p className="mt-2 text-cyan-100/75">{estimate.fallbackSummary}</p> : null}
-            {estimate.trackingEndpoint ? <p className="mt-2 text-cyan-100/70">Live usage: {estimate.trackingEndpoint}</p> : null}
+            <p className="mt-2 text-accent">{estimate.formula}</p>
+            <p className="mt-2 text-accent">{providerSummary(estimate.availableProviders)}</p>
+            {estimate.fallbackSummary ? <p className="mt-2 text-accent">{estimate.fallbackSummary}</p> : null}
+            {estimate.trackingEndpoint ? <p className="mt-2 text-accent">Live usage: {estimate.trackingEndpoint}</p> : null}
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-sm font-semibold text-white">Cost comparison</p>
+          <div className="rounded-2xl border border-border bg-surface-muted p-4">
+            <p className="text-sm font-semibold text-text">Cost comparison</p>
             <div className="mt-3 grid gap-2">
               {comparisonRows.map(([provider, item]) => (
-                <p key={provider} className="rounded-xl border border-white/10 bg-slate-950/60 p-3 text-sm text-slate-300">
-                  <span className="font-semibold text-teal-100">{provider}</span> · {item.model ?? 'default model'} · {formatUsd(item.estimatedUsd)}
+                <p key={provider} className="rounded-xl border border-border bg-surface p-3 text-sm text-text-muted">
+                  <span className="font-semibold text-accent">{provider}</span> · {item.model ?? 'default model'} · {formatUsd(item.estimatedUsd)}
                 </p>
               ))}
             </div>

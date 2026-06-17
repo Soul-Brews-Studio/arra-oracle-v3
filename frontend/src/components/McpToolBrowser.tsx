@@ -70,24 +70,24 @@ export function filterMcpTools(tools: McpTool[], query: string, source: McpToolS
 function SourceBadge({ tool }: { tool: McpTool }) {
   const label = mcpToolSourceLabel(tool);
   const href = mcpToolPluginInventoryPath(tool);
-  const className = 'rounded-full border border-[color:var(--color-accent,#0f766e)] px-2 py-1 text-xs text-[color:var(--color-accent,#0f766e)]';
+  const className = 'rounded-full border border-accent-border px-2 py-1 text-xs text-accent';
   return href ? <a className={`focus-ring ${className}`} href={href}>{label}</a> : <span className={className}>{label}</span>;
 }
 
 function ToolCard({ tool, onOpen }: { tool: McpTool; onOpen?: (tool: McpTool) => void }) {
   return (
-    <article className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+    <article className="rounded-2xl border border-border bg-surface p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h3 className="font-mono text-sm text-[color:var(--color-accent,#0f766e)]">{tool.name}</h3>
-        <span className="rounded-full bg-white/5 px-2 py-1 text-xs text-slate-400">{groupLabel(tool)}</span>
-        <span className="rounded-full border border-[color:var(--color-accent2,#7e22ce)] px-2 py-1 text-xs text-[color:var(--color-accent2,#7e22ce)]">{toolMode(tool)}</span>
+        <h3 className="font-mono text-sm text-accent">{tool.name}</h3>
+        <span className="rounded-full bg-white/5 px-2 py-1 text-xs text-text-muted">{groupLabel(tool)}</span>
+        <span className="rounded-full border border-accent2-border px-2 py-1 text-xs text-accent2">{toolMode(tool)}</span>
         <SourceBadge tool={tool} />
       </div>
-      <p className="mt-3 text-sm leading-6 text-slate-400">{tool.description || 'No description supplied.'}</p>
+      <p className="mt-3 text-sm leading-6 text-text-muted">{tool.description || 'No description supplied.'}</p>
       {onOpen ? (
         <button
           aria-label={`Open schema detail for ${tool.name}`}
-          className="focus-ring mt-4 rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-200 hover:border-teal-300/40"
+          className="focus-ring mt-4 rounded-xl border border-border px-3 py-2 text-sm text-text hover:border-teal-300/40"
           type="button"
           onClick={() => onOpen(tool)}
         >
@@ -145,16 +145,16 @@ export function McpToolBrowser({
   const loading = state === 'loading';
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="mcp-tools-title">
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="mcp-tools-title">
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent2,#7e22ce)]">MCP</p>
-          <h2 id="mcp-tools-title" className="mt-2 text-2xl font-semibold text-white">Tool browser</h2>
-          <p className="mt-2 text-sm text-slate-400">Live tool schemas from /api/mcp/tools.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">MCP</p>
+          <h2 id="mcp-tools-title" className="mt-2 text-2xl font-semibold text-text">Tool browser</h2>
+          <p className="mt-2 text-sm text-text-muted">Live tool schemas from /api/mcp/tools.</p>
         </div>
         <button
           aria-label="Reload MCP tool list"
-          className="focus-ring rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-200 hover:border-teal-300/40 disabled:cursor-not-allowed disabled:opacity-60"
+          className="focus-ring rounded-xl border border-border px-4 py-2 text-sm text-text hover:border-teal-300/40 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={loading}
           type="button"
           onClick={() => void load()}
@@ -166,7 +166,7 @@ export function McpToolBrowser({
       <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(12rem,1fr)_12rem_auto] lg:items-center">
         <input
           aria-label="Filter MCP tools"
-          className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-600"
+          className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-sm text-text placeholder:text-slate-600"
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
           placeholder="Filter tools, groups, descriptions…"
@@ -174,7 +174,7 @@ export function McpToolBrowser({
         />
         <select
           aria-label="Filter MCP tool source"
-          className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-3 text-sm text-slate-100"
+          className="focus-ring rounded-xl border border-border bg-field px-3 py-3 text-sm text-text"
           value={source}
           onChange={(event) => setSource(event.currentTarget.value as McpToolSourceFilter)}
         >
@@ -182,12 +182,12 @@ export function McpToolBrowser({
           <option value="plugin">Plugin tools</option>
           <option value="core">Core tools</option>
         </select>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-text-muted">
           {loading ? <Spinner label="Loading tools" /> : `${visible.length}/${tools.length} tools · ${groups} groups · ${sourceCounts.plugin} plugin · ${sourceCounts.core} core`}
         </p>
       </div>
       <div className="mb-4 flex justify-end">
-        <a className="focus-ring rounded-xl border border-[color:var(--color-accent,#0f766e)] px-3 py-2 text-sm font-semibold text-[color:var(--color-accent,#0f766e)] hover:border-[color:var(--color-accent,#0f766e)]" href={mcpToolsPath({ q: filter, source })}>
+        <a className="focus-ring rounded-xl border border-accent-border px-3 py-2 text-sm font-semibold text-accent hover:border-accent-border" href={mcpToolsPath({ q: filter, source })}>
           Share tool view
         </a>
       </div>
@@ -197,10 +197,10 @@ export function McpToolBrowser({
         <ErrorMessage
           title="Could not load MCP tools."
           message={error}
-          action={<button aria-label="Retry loading MCP tools" className="focus-ring rounded-lg border border-[color:var(--color-err-text,#991b1b)] px-3 py-2 font-semibold text-[color:var(--color-err-text,#991b1b)] hover:bg-[var(--color-err-bg,#fee2e2)]" type="button" onClick={() => void load()}>Retry</button>}
+          action={<button aria-label="Retry loading MCP tools" className="focus-ring rounded-lg border border-err-border px-3 py-2 font-semibold text-err-text hover:bg-err-bg" type="button" onClick={() => void load()}>Retry</button>}
         />
       ) : null}
-      {state === 'ready' && !visible.length ? <p className="rounded-xl border border-dashed border-white/10 p-6 text-sm text-slate-400">No MCP tools matched.</p> : null}
+      {state === 'ready' && !visible.length ? <p className="rounded-xl border border-dashed border-border p-6 text-sm text-text-muted">No MCP tools matched.</p> : null}
       <div className="grid gap-3 lg:grid-cols-2" aria-busy={loading}>
         {!loading ? visible.map((tool) => <ToolCard key={`${tool.source ?? 'core'}:${tool.name}`} tool={tool} onOpen={onOpenTool} />) : null}
       </div>

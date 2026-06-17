@@ -22,31 +22,31 @@ export function VectorStorageSelector({ services }: { services: VectorService[] 
   const activeServices = useMemo(() => serviceCount(services), [services]);
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <h3 className="font-semibold text-cyan-100">Storage Backend selector</h3>
-      <p className="mt-1 text-sm text-slate-400">Choose a vector store target before registering or testing a service.</p>
+    <div className="rounded-2xl border border-border bg-surface-muted p-4">
+      <h3 className="font-semibold text-accent">Storage Backend selector</h3>
+      <p className="mt-1 text-sm text-text-muted">Choose a vector store target before registering or testing a service.</p>
       <div className="mt-3 grid gap-2">
         {BACKENDS.map((item) => (
-          <label key={item.key} className="flex items-start gap-3 rounded-xl border border-white/10 bg-slate-950/50 p-3 text-sm text-slate-200">
+          <label key={item.key} className="flex items-start gap-3 rounded-xl border border-border bg-surface-muted p-3 text-sm text-text">
             <input checked={backend === item.key} type="radio" onChange={() => setBackend(item.key)} />
-            <span><span className="font-semibold text-white">{item.label}</span><br /><span className="text-slate-400">{item.detail}</span></span>
+            <span><span className="font-semibold text-text">{item.label}</span><br /><span className="text-text-muted">{item.detail}</span></span>
           </label>
         ))}
       </div>
-      {backend === 'lancedb' ? <p className="mt-3 text-sm text-slate-300">Vector count available from {activeServices} healthy built-in/service registry entries.</p> : null}
+      {backend === 'lancedb' ? <p className="mt-3 text-sm text-text-muted">Vector count available from {activeServices} healthy built-in/service registry entries.</p> : null}
       {backend === 'qdrant' || backend === 'turbovec' ? (
-        <label className="mt-3 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+        <label className="mt-3 block text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
           Endpoint URL
-          <input className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100" value={endpoint} onChange={(event) => setEndpoint(event.target.value)} />
+          <input className="mt-1 w-full rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" value={endpoint} onChange={(event) => setEndpoint(event.target.value)} />
         </label>
       ) : null}
       {backend === 'cloudflare-vectorize' ? (
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Account ID<input className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100" value={accountId} onChange={(event) => setAccountId(event.target.value)} /></label>
-          <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Vectorize index<input className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-slate-100" value={indexName} onChange={(event) => setIndexName(event.target.value)} /></label>
+          <label className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Account ID<input className="mt-1 w-full rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" value={accountId} onChange={(event) => setAccountId(event.target.value)} /></label>
+          <label className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Vectorize index<input className="mt-1 w-full rounded-xl border border-border bg-field px-3 py-2 text-sm text-text" value={indexName} onChange={(event) => setIndexName(event.target.value)} /></label>
         </div>
       ) : null}
-      <p className="mt-3 text-xs text-slate-500">Use [+ Register Service] below to save a name, endpoint, and test the service.</p>
+      <p className="mt-3 text-xs text-text-muted">Use [+ Register Service] below to save a name, endpoint, and test the service.</p>
     </div>
   );
 }

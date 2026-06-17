@@ -47,10 +47,10 @@ function browserSearch(): string {
 
 function toneClass(tone: Tone): string {
   const tones: Record<Tone, string> = {
-    ok: 'border-[color:var(--color-ok-text,#166534)] bg-[var(--color-ok-bg,#dcfce7)] text-[color:var(--color-ok-text,#166534)]',
-    warn: 'border-[color:var(--color-warn-text,#92400e)] bg-[var(--color-warn-bg,#fef3c7)] text-[color:var(--color-warn-text,#92400e)]',
-    bad: 'border-[color:var(--color-err-text,#991b1b)] bg-[var(--color-err-bg,#fee2e2)] text-[color:var(--color-err-text,#991b1b)]',
-    idle: 'border-slate-500/40 bg-slate-800 text-slate-200',
+    ok: 'border-ok-border bg-ok-bg text-ok-text',
+    warn: 'border-warn-border bg-warn-bg text-warn-text',
+    bad: 'border-err-border bg-err-bg text-err-text',
+    idle: 'border-slate-500/40 bg-slate-800 text-text',
   };
   return tones[tone];
 }
@@ -123,9 +123,9 @@ export function PluginsPage({
   return (
     <section className="grid gap-5" aria-labelledby="plugins-page-title">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Plugin management</p>
-        <h1 id="plugins-page-title" className="mt-2 text-3xl font-semibold text-white">Unified plugin surfaces</h1>
-        <p className="mt-2 text-sm text-slate-400">Registered plugins, backend surfaces, and enable/disable controls from GET {endpoint}.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Plugin management</p>
+        <h1 id="plugins-page-title" className="mt-2 text-3xl font-semibold text-text">Unified plugin surfaces</h1>
+        <p className="mt-2 text-sm text-text-muted">Registered plugins, backend surfaces, and enable/disable controls from GET {endpoint}.</p>
       </header>
 
       {fetching ? <LoadingPanel title="Loading plugins…" detail={`Fetching ${endpoint} and plugin health metadata.`} /> : null}
@@ -141,34 +141,34 @@ export function PluginsPage({
         </div>
       ) : null}
 
-      {adminMessage ? <p className="rounded-lg border border-[color:var(--color-accent,#0f766e)] p-3 text-sm text-[color:var(--color-accent,#0f766e)]">{adminMessage}</p> : null}
+      {adminMessage ? <p className="rounded-lg border border-accent-border p-3 text-sm text-accent">{adminMessage}</p> : null}
       {adminError ? <ErrorMessage title="Could not update plugin state." message={adminError} /> : null}
 
       {showInventory ? <UnifiedPluginSurfaceOverview plugins={plugins} /> : null}
 
       {plugins.length ? (
-        <section className="rounded-2xl border border-white/10 bg-slate-950/70 p-4" aria-labelledby="plugin-filters-title">
+        <section className="rounded-2xl border border-border bg-surface p-4" aria-labelledby="plugin-filters-title">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-accent,#0f766e)]">Inventory filters</p>
-              <h2 id="plugin-filters-title" className="mt-1 text-lg font-semibold text-white">Find plugin surfaces</h2>
-              <p className="mt-1 text-sm text-slate-400">Showing {visiblePlugins.length} of {plugins.length} plugins · {summary}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Inventory filters</p>
+              <h2 id="plugin-filters-title" className="mt-1 text-lg font-semibold text-text">Find plugin surfaces</h2>
+              <p className="mt-1 text-sm text-text-muted">Showing {visiblePlugins.length} of {plugins.length} plugins · {summary}</p>
             </div>
             <div className="grid gap-2 sm:grid-cols-[minmax(12rem,1fr)_10rem_10rem_auto_auto]">
-              <label className="grid gap-1 text-sm font-medium text-slate-300">
+              <label className="grid gap-1 text-sm font-medium text-text-muted">
                 Search plugins
                 <input
-                  className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-100"
+                  className="focus-ring rounded-xl border border-border bg-field px-3 py-2 text-text"
                   placeholder="name, route, MCP tool, surface"
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.currentTarget.value)}
                 />
               </label>
-              <label className="grid gap-1 text-sm font-medium text-slate-300">
+              <label className="grid gap-1 text-sm font-medium text-text-muted">
                 Visibility
                 <select
-                  className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-100"
+                  className="focus-ring rounded-xl border border-border bg-field px-3 py-2 text-text"
                   value={visibility}
                   onChange={(event) => setVisibility(event.currentTarget.value as PluginVisibilityFilter)}
                 >
@@ -178,10 +178,10 @@ export function PluginsPage({
                   <option value="unhealthy">Needs attention</option>
                 </select>
               </label>
-              <label className="grid gap-1 text-sm font-medium text-slate-300">
+              <label className="grid gap-1 text-sm font-medium text-text-muted">
                 Surface
                 <select
-                  className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-100"
+                  className="focus-ring rounded-xl border border-border bg-field px-3 py-2 text-text"
                   value={surface}
                   onChange={(event) => setSurface(event.currentTarget.value as PluginSurfaceFilter)}
                 >
@@ -191,14 +191,14 @@ export function PluginsPage({
                 </select>
               </label>
               <button
-                className="focus-ring self-end rounded-xl border border-white/10 px-3 py-2 text-sm font-semibold text-slate-200 hover:border-teal-300/40 disabled:opacity-40"
+                className="focus-ring self-end rounded-xl border border-border px-3 py-2 text-sm font-semibold text-text hover:border-teal-300/40 disabled:opacity-40"
                 disabled={!hasFilters}
                 type="button"
                 onClick={() => { setQuery(''); setVisibility('all'); setSurface('all'); }}
               >
                 Clear filters
               </button>
-              <a className="focus-ring self-end rounded-xl border border-[color:var(--color-accent,#0f766e)] px-3 py-2 text-sm font-semibold text-[color:var(--color-accent,#0f766e)] hover:border-[color:var(--color-accent,#0f766e)]" href={pluginInventoryPath({ q: query, visibility, surface })}>
+              <a className="focus-ring self-end rounded-xl border border-accent-border px-3 py-2 text-sm font-semibold text-accent hover:border-accent-border" href={pluginInventoryPath({ q: query, visibility, surface })}>
                 Share view
               </a>
             </div>
@@ -209,11 +209,11 @@ export function PluginsPage({
       {visiblePlugins.length ? (
         <PluginList plugins={visiblePlugins} enabledState={enabledState} onToggle={(name) => void togglePlugin(name)} />
       ) : plugins.length && showInventory ? (
-        <p className="rounded-lg border border-white/10 bg-slate-950/70 p-5 text-sm text-slate-400">
+        <p className="rounded-lg border border-border bg-surface p-5 text-sm text-text-muted">
           No plugins match the current filters. Clear filters or reload plugin manifests.
         </p>
       ) : showInventory ? (
-        <p className="rounded-lg border border-white/10 bg-slate-950/70 p-5 text-sm text-slate-400">
+        <p className="rounded-lg border border-border bg-surface p-5 text-sm text-text-muted">
           No installed plugins returned by {endpoint}.
         </p>
       ) : null}

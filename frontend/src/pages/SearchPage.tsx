@@ -52,7 +52,7 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
   return (
     <>
       {highlightParts(text, query).map((part, index) => part.match ? (
-        <mark key={`${part.text}-${index}`} className="rounded bg-amber-300/25 px-0.5 text-[color:var(--color-warn-text,#92400e)]">
+        <mark key={`${part.text}-${index}`} className="rounded bg-amber-300/25 px-0.5 text-warn-text">
           {part.text}
         </mark>
       ) : <span key={`${part.text}-${index}`}>{part.text}</span>)}
@@ -67,22 +67,22 @@ function SearchInputCard({ query, loading, onQueryChange, onSubmit }: {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-label="Search input card">
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-label="Search input card">
       <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Menu search</p>
-        <h1 id="menu-search-title" className="mt-2 text-3xl font-semibold text-white">Full-text menu search</h1>
-        <p className="mt-2 text-sm text-slate-400">Search dashboard labels and paths through /api/menu/search?q=.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Menu search</p>
+        <h1 id="menu-search-title" className="mt-2 text-3xl font-semibold text-text">Full-text menu search</h1>
+        <p className="mt-2 text-sm text-text-muted">Search dashboard labels and paths through /api/menu/search?q=.</p>
       </div>
       <form aria-label="Menu search form" className="flex flex-col gap-3 sm:flex-row" role="search" onSubmit={onSubmit}>
         <input
           aria-label="Menu search query"
-          className="focus-ring min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-slate-100 placeholder:text-slate-600"
+          className="focus-ring min-w-0 flex-1 rounded-xl border border-border bg-field px-4 py-3 text-text placeholder:text-slate-600"
           placeholder="Search menu items…"
           type="search"
           value={query}
           onChange={(event) => onQueryChange(event.currentTarget.value)}
         />
-        <button className="focus-ring rounded-xl bg-teal-300 px-5 py-3 font-semibold text-slate-950 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-50" disabled={loading || !query.trim()} type="submit">
+        <button className="focus-ring rounded-xl bg-accent-solid px-5 py-3 font-semibold text-on-accent transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50" disabled={loading || !query.trim()} type="submit">
           {loading ? 'Searching…' : 'Search'}
         </button>
       </form>
@@ -100,10 +100,10 @@ export function MenuSearchResults({ query, results, state }: { query: string; re
     <ul className="grid gap-3" aria-label="Menu search results">
       {results.map((item) => (
         <li key={`${item.source ?? 'api'}:${item.path}:${item.label}`}>
-          <a className="focus-ring block rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-teal-300/40" href={item.path}>
-            <span className="text-lg font-semibold text-white"><HighlightedText text={item.label} query={query} /></span>
-            <span className="mt-1 block text-sm text-slate-400"><HighlightedText text={item.path} query={query} /></span>
-            <span className="mt-3 inline-flex rounded-full border border-[color:var(--color-accent,#0f766e)] px-2 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--color-accent,#0f766e)]">
+          <a className="focus-ring block rounded-2xl border border-border bg-surface-muted p-4 transition hover:border-teal-300/40" href={item.path}>
+            <span className="text-lg font-semibold text-text"><HighlightedText text={item.label} query={query} /></span>
+            <span className="mt-1 block text-sm text-text-muted"><HighlightedText text={item.path} query={query} /></span>
+            <span className="mt-3 inline-flex rounded-full border border-accent-border px-2 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-accent">
               {item.group}
             </span>
           </a>
@@ -115,22 +115,22 @@ export function MenuSearchResults({ query, results, state }: { query: string; re
 
 function SearchScopeCard({ scope, resultGroups, total }: { scope: SearchScope; resultGroups: string[]; total: number }) {
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-label="Search scope card">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Scope</p>
-      <h2 className="mt-2 text-2xl font-semibold text-white">Search boundaries</h2>
-      <p className="mt-2 text-sm text-slate-400">Current query scope is constrained to menu records.</p>
-      <ul className="mt-5 grid gap-2 text-sm text-slate-300">
-        <li className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-          <span className="text-xs uppercase tracking-[0.16em] text-slate-500">Mode</span>
-          <p className="mt-1 font-semibold text-white capitalize">{scope}</p>
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-label="Search scope card">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Scope</p>
+      <h2 className="mt-2 text-2xl font-semibold text-text">Search boundaries</h2>
+      <p className="mt-2 text-sm text-text-muted">Current query scope is constrained to menu records.</p>
+      <ul className="mt-5 grid gap-2 text-sm text-text-muted">
+        <li className="rounded-xl border border-border bg-surface-muted p-3">
+          <span className="text-xs uppercase tracking-[0.16em] text-text-muted">Mode</span>
+          <p className="mt-1 font-semibold text-text capitalize">{scope}</p>
         </li>
-        <li className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-          <span className="text-xs uppercase tracking-[0.16em] text-slate-500">Result groups</span>
-          <p className="mt-1 font-semibold text-white">{resultGroups.length || '-'}{resultGroups.length ? ` (${resultGroups.join(', ')})` : ''}</p>
+        <li className="rounded-xl border border-border bg-surface-muted p-3">
+          <span className="text-xs uppercase tracking-[0.16em] text-text-muted">Result groups</span>
+          <p className="mt-1 font-semibold text-text">{resultGroups.length || '-'}{resultGroups.length ? ` (${resultGroups.join(', ')})` : ''}</p>
         </li>
-        <li className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-          <span className="text-xs uppercase tracking-[0.16em] text-slate-500">Matches</span>
-          <p className="mt-1 font-semibold text-white">{total}</p>
+        <li className="rounded-xl border border-border bg-surface-muted p-3">
+          <span className="text-xs uppercase tracking-[0.16em] text-text-muted">Matches</span>
+          <p className="mt-1 font-semibold text-text">{total}</p>
         </li>
       </ul>
     </section>
@@ -151,11 +151,11 @@ function SearchResultsCard({
   errorMessage: string;
 }) {
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-label="Menu search results card">
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-label="Menu search results card">
       <div className="mb-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Results</p>
-        <h2 className="mt-2 text-2xl font-semibold text-white">Search results</h2>
-        <p className="mt-2 text-sm text-slate-500">{summary}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Results</p>
+        <h2 className="mt-2 text-2xl font-semibold text-text">Search results</h2>
+        <p className="mt-2 text-sm text-text-muted">{summary}</p>
       </div>
       {state === 'error' ? <ErrorMessage title="Menu search failed." message={errorMessage} /> : null}
       <MenuSearchResults query={query} results={results} state={state} />
