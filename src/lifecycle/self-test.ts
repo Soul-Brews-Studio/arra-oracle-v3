@@ -18,6 +18,7 @@ export interface StartupSelfTestResult {
 export interface StartupSelfTestOptions {
   checks: readonly StartupSelfTestCheck[];
   log?: (message: string) => void;
+  timeoutMs?: number;
 }
 
 export interface StartupSelfTestDependencies {
@@ -36,10 +37,11 @@ export function createStartupSelfTest(deps: StartupSelfTestDependencies): Startu
 
 export async function runStartupSelfTest(options: StartupSelfTestOptions): Promise<StartupSelfTestResult[]> {
   const log = options.log ?? console.log;
+  const timeoutMs = normalizedTimeout(options.timeoutMs);
   const results: StartupSelfTestResult[] = [];
   for (const check of options.checks) {
     try {
-      await check.run();
+      await runCheck(check, timeoutMs);
       results.push({ name: check.name, status: 'pass', message: 'ok' });
       log(`[SelfTest] PASS ${check.name}`);
     } catch (error) {
@@ -51,6 +53,21 @@ export async function runStartupSelfTest(options: StartupSelfTestOptions): Promi
   const passed = results.filter((result) => result.status === 'pass').length;
   log(`[SelfTest] summary: ${passed} passed, ${results.length - passed} failed`);
   return results;
+}
+
+async function runCheck(check: StartupSelfTestCheck, timeoutMs?: number): Promise<void> {
+  if (timeoutMs === undefined) return await check.run();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      Promise.resolve().then(() => check.run()),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 export function validateVectorConfig(config: unknown): asserts config is VectorServerConfig {
@@ -104,4 +121,10 @@ function filled(value: unknown): value is string {
 
 function validPort(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 65_535;
+}
+
+function normalizedTimeout(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? Math.ceil(value)
+    : undefined;
 }
