@@ -34,8 +34,9 @@ test('VectorServiceRegistry registers and discovers configured vector backends',
   });
 
   expect(await registry.discover()).toEqual([
-    { name: 'lancedb', type: 'builtin', endpoint: undefined, capabilities: undefined },
+    { kind: 'vector', name: 'lancedb', type: 'builtin', endpoint: undefined, capabilities: undefined },
     {
+      kind: 'vector',
       name: 'turbovec',
       type: 'proxy',
       endpoint: 'http://127.0.0.1:8082',

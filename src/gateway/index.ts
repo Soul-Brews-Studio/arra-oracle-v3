@@ -11,7 +11,7 @@
  *   onError    → runs when proxy or hook throws
  */
 import { Elysia } from 'elysia';
-import { loadGatewayConfig, watchGatewayConfig, type GatewayConfig } from './config.ts';
+import { discoverGatewayVectorServices, loadGatewayConfig, watchGatewayConfig, type GatewayConfig } from './config.ts';
 import { compileRoutes, matchRoute, type CompiledRoute } from './matcher.ts';
 import { proxyToService } from './proxy.ts';
 import { HealthRegistry, type ServiceHealth } from './health.ts';
@@ -100,7 +100,7 @@ async function runErrorHooks(state: GatewayState, ctx: GatewayContext): Promise<
 }
 
 export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
-  const initial = loadGatewayConfig(dataDir, vectorUrl);
+  const initial = loadGatewayConfig(dataDir, vectorUrl, discoverGatewayVectorServices());
 
   if (!initial && process.env.ORACLE_GATEWAY_HOT_RELOAD === '0') {
     // No config + no hot-reload — pure no-op
@@ -139,6 +139,7 @@ export function gatewayPlugin(dataDir: string, vectorUrl?: string) {
         }
       },
       vectorUrl,
+      discoverGatewayVectorServices,
     );
   }
 
