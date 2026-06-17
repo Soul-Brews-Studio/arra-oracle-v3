@@ -26,6 +26,15 @@ class FakeStore implements VectorStoreAdapter {
   async queryById(): Promise<VectorQueryResult> { return { ids: [], documents: [], distances: [], metadatas: [] }; }
   async getStats() { return { count: this.docs.length }; }
   async getCollectionInfo() { return { count: this.docs.length, name: 'oracle_test' }; }
+  async getAllEmbeddings(limit = 5000) {
+    const docs = this.docs.slice(0, limit);
+    return {
+      ids: docs.map((doc) => doc.id),
+      embeddings: docs.map((doc) => doc.vector || []),
+      metadatas: docs.map((doc) => doc.metadata),
+      documents: docs.map((doc) => doc.document),
+    };
+  }
 }
 
 function request(path: string, init?: RequestInit) {
@@ -63,6 +72,14 @@ describe('standalone vector proxy server', () => {
     const stats = await app.handle(request('/vectors/stats'));
     expect(await stats.json()).toEqual({ count: 1, name: 'oracle_test' });
 
+    const exported = await app.handle(request('/vectors/export?limit=1'));
+    expect(await exported.json()).toEqual({
+      ids: ['a'],
+      embeddings: [[0.1]],
+      metadatas: [{ tenant: 'one' }],
+      documents: ['alpha'],
+    });
+
     const deleted = await app.handle(request('/vectors/collection', { method: 'DELETE' }));
     expect(await deleted.json()).toEqual({ ok: true });
   });
@@ -78,5 +95,16 @@ describe('standalone vector proxy server', () => {
 
     expect(response.status).toBe(400);
     expect(store.connected).toBe(0);
+  });
+
+  test('returns explicit 501 when the backing store cannot export embeddings', async () => {
+    const store = new FakeStore();
+    (store as unknown as { getAllEmbeddings?: undefined }).getAllEmbeddings = undefined;
+    const app = createVectorProxyServer({ store });
+
+    const response = await app.handle(request('/vectors/export'));
+
+    expect(response.status).toBe(501);
+    expect(await response.json()).toEqual({ error: 'Vector export is not supported by this adapter' });
   });
 });

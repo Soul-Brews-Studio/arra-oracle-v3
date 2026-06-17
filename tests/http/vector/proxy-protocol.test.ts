@@ -12,6 +12,7 @@ test('vector proxy protocol exports the #1438 HTTP contract', () => {
     add: '/vectors/add',
     query: '/vectors/query',
     stats: '/vectors/stats',
+    export: '/vectors/export',
     collection: '/vectors/collection',
     health: '/health',
   });
