@@ -27,6 +27,9 @@ test('sqlite backend repairs additive migrations already present in schema', () 
   backend = undefined;
 
   const raw = new Database(dbPath);
+  const expected = raw.query<{ count: number }, [number]>(
+    'select count(*) as count from __drizzle_migrations where created_at >= ?',
+  ).get(FIRST_TENANT_MEMORY_MIGRATION)?.count ?? 0;
   raw.query('delete from __drizzle_migrations where created_at >= ?')
     .run(FIRST_TENANT_MEMORY_MIGRATION);
   raw.close();
@@ -39,7 +42,7 @@ test('sqlite backend repairs additive migrations already present in schema', () 
     'pragma table_info("oracle_memories")',
   ).all().map((column) => column.name);
 
-  expect(repaired?.count).toBe(4);
+  expect(repaired?.count).toBe(expected);
   expect(memoryColumns).toContain('tenant_id');
 });
 
