@@ -26,6 +26,7 @@ const tenantB = `verify-b-${stamp}`;
 const now = Date.now();
 const paths = {
   aHealthy: `ψ/memory/learnings/verify-a-${stamp}.md`,
+  aDrifted: `ψ/memory/learnings/verify-a-drifted-${stamp}.md`,
   bHealthy: `ψ/memory/learnings/verify-b-${stamp}.md`,
   bOrphan: `ψ/memory/learnings/verify-b-orphan-${stamp}.md`,
   unindexed: `ψ/memory/learnings/verify-unindexed-${stamp}.md`,
@@ -45,7 +46,7 @@ function tenantRequest(tenantId: string, url: string, init: RequestInit = {}) {
   }));
 }
 
-function seedDoc(id: string, tenantId: string, sourceFile: string) {
+function seedDoc(id: string, tenantId: string, sourceFile: string, indexedAt = now + 60_000) {
   db.insert(oracleDocuments).values({
     id,
     tenantId,
@@ -54,13 +55,14 @@ function seedDoc(id: string, tenantId: string, sourceFile: string) {
     sourceFile,
     createdAt: now,
     updatedAt: now,
-    indexedAt: now + 60_000,
+    indexedAt,
     project: tenantId,
     createdBy: 'test',
   }).run();
 }
 
 writeRepoFile(paths.aHealthy, '# Tenant A\n');
+writeRepoFile(paths.aDrifted, '# Tenant A drifted\n');
 writeRepoFile(paths.bHealthy, '# Tenant B\n');
 writeRepoFile(paths.unindexed, '# Unindexed disk-only file\n');
 try {
@@ -70,24 +72,34 @@ try {
   );
 } catch {}
 seedDoc(`verify-a-${stamp}`, tenantA, paths.aHealthy);
+seedDoc(`verify-a-drifted-${stamp}`, tenantA, paths.aDrifted, now - 60_000);
 seedDoc(`verify-b-${stamp}`, tenantB, paths.bHealthy);
 seedDoc(`verify-b-orphan-${stamp}`, tenantB, paths.bOrphan);
 
 test('GET /api/verify only reports DB-backed files for the active tenant', async () => {
   const res = await tenantRequest(tenantA, '/api/verify?type=learning');
   const body = await res.json() as {
-    counts: { healthy: number; missing: number; orphaned: number; untracked: number };
+    counts: { healthy: number; missing: number; orphaned: number; drifted: number; untracked: number };
     missing: string[];
     orphaned: string[];
     untracked: string[];
+    mismatches: Array<{ kind: string; sourceFile: string; ids?: string[]; indexedAt?: number; mtimeMs?: number }>;
   };
 
   expect(res.status).toBe(200);
   expect(body.counts.healthy).toBe(1);
+  expect(body.counts.drifted).toBe(1);
   expect(body.counts.missing).toBe(0);
   expect(body.orphaned).not.toContain(paths.bOrphan);
   expect(body.missing).not.toContain(paths.unindexed);
   expect(body.untracked).toEqual([]);
+  expect(body.mismatches).toContainEqual(expect.objectContaining({
+    kind: 'drifted',
+    sourceFile: paths.aDrifted,
+    ids: [`verify-a-drifted-${stamp}`],
+    indexedAt: expect.any(Number),
+    mtimeMs: expect.any(Number),
+  }));
 });
 
 test('POST /api/verify check=false only flags orphaned docs in the active tenant', async () => {
@@ -95,7 +107,11 @@ test('POST /api/verify check=false only flags orphaned docs in the active tenant
     method: 'POST',
     body: JSON.stringify({ check: false, type: 'learning' }),
   });
-  const body = await res.json() as { orphaned: string[]; fixed_orphans?: number };
+  const body = await res.json() as {
+    orphaned: string[];
+    fixed_orphans?: number;
+    mismatches: Array<{ kind: string; sourceFile: string; ids?: string[] }>;
+  };
   const orphan = db.select({ supersededBy: oracleDocuments.supersededBy })
     .from(oracleDocuments)
     .where(eq(oracleDocuments.id, `verify-b-orphan-${stamp}`))
@@ -108,6 +124,11 @@ test('POST /api/verify check=false only flags orphaned docs in the active tenant
   expect(res.status).toBe(200);
   expect(body.orphaned).toContain(paths.bOrphan);
   expect(body.fixed_orphans).toBe(1);
+  expect(body.mismatches).toContainEqual(expect.objectContaining({
+    kind: 'orphaned',
+    sourceFile: paths.bOrphan,
+    ids: [`verify-b-orphan-${stamp}`],
+  }));
   expect(orphan?.supersededBy).toBe('_verified_orphan');
   expect(tenantAHealthy?.supersededBy).toBeNull();
 });
