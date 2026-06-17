@@ -43,7 +43,7 @@ async function proxyApiRequest(request: Request, env: StudioEnv): Promise<Respon
 
 async function proxyMcpRequest(request: Request, env: StudioEnv): Promise<Response> {
   try {
-    const target = proxyTarget(resolveUrl(env.ORACLE_MCP_URL, env.MCP_URL), new URL(request.url), '/mcp');
+    const target = proxyTarget(resolveMcpUrl(env), new URL(request.url), '/mcp');
     return proxyRequest(request, env, target);
   } catch (error) {
     return json({ error: 'mcp proxy failed', message: message(error) }, 502);
@@ -56,6 +56,11 @@ async function proxyRequest(request: Request, env: StudioEnv, target: string): P
   if (hasRequestBody(request.method)) init.body = request.body;
   const upstream = await fetch(target, init);
   return withHeaders(upstream, proxyResponseHeaders());
+}
+
+function resolveMcpUrl(env: StudioEnv): string {
+  if (env.ORACLE_MCP_URL?.trim() || env.MCP_URL?.trim()) return resolveUrl(env.ORACLE_MCP_URL, env.MCP_URL);
+  return `${resolveUrl(env.ORACLE_URL, env.ORACLE_HTTP_URL, env.ORACLE_API)}/mcp`;
 }
 
 function resolveUrl(...values: Array<string | undefined>): string {
@@ -84,10 +89,17 @@ function proxyTarget(baseUrl: string, requestUrl: URL, stripPrefix?: string): st
 function proxyHeaders(source: Headers, env: StudioEnv): Headers {
   const headers = new Headers(source);
   headers.delete('host');
+  headers.delete('cf-connecting-ip');
+  headers.delete('cf-ipcountry');
+  headers.delete('cf-ray');
   headers.set('x-oracle-studio-worker', WORKER_HEADER);
-  const token = env.ARRA_API_TOKEN?.trim() || env.ARRA_API_KEY?.trim();
-  if (token && !headers.has('authorization')) headers.set('authorization', `Bearer ${token}`);
+  const bearer = authToken(env);
+  if (bearer && !headers.has('authorization')) headers.set('authorization', `Bearer ${bearer}`);
   return headers;
+}
+
+function authToken(env: StudioEnv): string | undefined {
+  return env.ARRA_API_TOKEN?.trim() || env.ARRA_API_KEY?.trim() || undefined;
 }
 
 async function serveAsset(request: Request, env: StudioEnv): Promise<Response> {
