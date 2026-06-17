@@ -14,28 +14,29 @@ entry marked `remoteable: true`. Examples include:
 - `oracle_learn` -> `POST /api/learn`
 
 The Worker does not host the full local database or vector index. It forwards
-tool calls to `ORACLE_URL` and adds auth/tenant headers when configured.
+tool calls to `ORACLE_ORIGIN_URL` (falling back to `ORACLE_URL`) and adds auth/tenant headers when configured.
 
 ## Quickstart: deploy
 
 1. Start or expose an Arra Oracle HTTP backend.
 
    ```bash
-   bun src/server.ts
+   maw arra serve --port 47778
    ```
 
    For local testing through Cloudflare, expose it with a trusted tunnel and use
-   the public HTTPS URL as `ORACLE_URL`.
+   the public HTTPS URL as the `ORACLE_ORIGIN_URL` Worker secret.
 
-2. Configure the Worker backend URL.
+2. Configure the Worker backend origin.
 
-   Edit `workers/mcp/wrangler.jsonc`:
+   For production, store the tunnel URL as a Worker secret:
 
-   ```jsonc
-   "vars": {
-     "ORACLE_URL": "https://your-oracle-backend.example.com"
-   }
+   ```bash
+   bunx wrangler secret put ORACLE_ORIGIN_URL
    ```
+
+   `workers/mcp/wrangler.jsonc` keeps `ORACLE_URL` only as a local/dev fallback
+   placeholder.
 
 3. Install and deploy.
 
@@ -110,16 +111,19 @@ For stdio-only clients, use the `mcp-remote` bridge contract documented in
 
 | Name | Where | Required | Purpose |
 | --- | --- | --- | --- |
-| `ORACLE_URL` | `wrangler.jsonc` var | Yes | HTTPS base URL for the Arra Oracle HTTP backend. |
-| `ORACLE_HTTP_URL` | env/secret | No | Legacy fallback backend URL. Used only when `ORACLE_URL` is unset. |
+| `ORACLE_ORIGIN_URL` | secret | Yes for production | HTTPS base URL for the Arra Oracle HTTP backend, usually a cloudflared tunnel. |
+| `ORACLE_URL` | `wrangler.jsonc` var/secret | Fallback | Legacy backend URL alias when `ORACLE_ORIGIN_URL` is unset. |
+| `ORACLE_HTTP_URL` | env/secret | No | Legacy fallback backend URL after `ORACLE_ORIGIN_URL` / `ORACLE_URL`. |
 | `ORACLE_API` | env/secret | No | Legacy fallback backend URL after `ORACLE_HTTP_URL`. |
 | `ARRA_API_TOKEN` | secret | No | Bearer token sent to the backend as `Authorization`. |
 | `ARRA_API_KEY` | secret | No | Legacy token fallback when `ARRA_API_TOKEN` is unset. |
 | `ORACLE_TENANT_ID` | var/secret | No | Default tenant for unauthenticated single-tenant deploys. |
 | `MCP_OBJECT` | Durable Object binding | Yes | Session state binding required by `McpAgent`. |
 
-`ORACLE_URL` is not a database URL. It should point to the backend HTTP origin,
-for example `https://oracle.example.com`, not directly to `/mcp` or `/api/*`.
+`ORACLE_ORIGIN_URL` is not a database URL. It should point to the backend
+HTTP origin, for example `https://oracle.example.com`, not directly to `/mcp`
+or `/api/*`. See `docs/architecture/cloudflared-origin-contract.md` for the
+canonical #2227 origin contract.
 
 ## OAuth and tenant claims
 
@@ -153,7 +157,7 @@ tenant by changing tool arguments.
 
 - **No tools in Claude:** verify the URL ends with `/mcp`, restart Claude, then
   try MCP Inspector to separate client config from Worker issues.
-- **Backend calls fail:** check `ORACLE_URL`, token secrets, and that the backend
+- **Backend calls fail:** check `ORACLE_ORIGIN_URL`, fallback `ORACLE_URL`, token secrets, and that the backend
   exposes `/api/search`, `/api/stats`, and `/api/learn`.
 - **Tenant isolation looks wrong:** verify the OAuth token includes one of the
   supported tenant claim keys, or set `ORACLE_TENANT_ID` for a single-tenant

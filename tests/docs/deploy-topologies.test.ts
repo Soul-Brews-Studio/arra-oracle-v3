@@ -24,6 +24,7 @@ describe('deploy topologies architecture guide', () => {
       'Use this when',
       'maw arra serve --port 47778',
       'ORACLE_PROXY_VECTOR_URL',
+      'ORACLE_ORIGIN_URL',
       'ORACLE_URL',
       'TUNNEL_URL',
       'FEDERATION_TOKEN',
