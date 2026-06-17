@@ -1,14 +1,15 @@
 # Deploy Arra Oracle on Cloudflare Workers
 
-> Status: **draft for #2167.** The root `wrangler.jsonc` now starts a minimal
-> smoke-tested Worker entrypoint at `src/workers/oracle-mcp.ts`. Full D1,
-> Vectorize, and MCP tool expansion remain staged follow-up work.
+> Status: **retired root skeleton for #2227 Slice 0.** The canonical remote MCP
+> Worker now lives under `workers/mcp/`; the root `wrangler.jsonc` only carries
+> a `deleted_classes` migration for the previously deployed `OracleMcpAgent`.
 
 ## Goal
 
-Make Arra Oracle installable as a one-click Cloudflare Workers deployment,
-starting with a remote MCP endpoint at `/mcp` and growing toward the full
-memory/search surface once D1 and Vectorize bindings are wired.
+Make Arra Oracle installable as a Cloudflare Workers deployment. The active
+remote MCP Worker is `workers/mcp` (`arra-oracle-mcp`); the older root
+`arra-oracle-remote-mcp` worker is retained only long enough to apply its
+Durable Object delete migration.
 
 ## Coordination guardrails
 
@@ -16,8 +17,8 @@ memory/search surface once D1 and Vectorize bindings are wired.
   Cloudflare Worker already serves the canvas subdomain.
 - Do not move `src/vector/**` adapters in this docs slice. The edge vector lane
   should decide how local adapters map to Cloudflare Vectorize/Workers AI.
-- Keep the root `src/workers/oracle-mcp.ts` entrypoint minimal until D1,
-  Vectorize, and remote MCP tool contracts are agreed.
+- Use `workers/mcp/wrangler.jsonc` for active remote MCP deploys.
+- Do not reintroduce root `src/workers/*` MCP skeletons after the DO teardown.
 
 ## Deploy button target
 
@@ -54,16 +55,16 @@ Cloudflare recommends `wrangler.jsonc` for new Workers projects. Minimum deploy
 config needs `name`, `main`, and `compatibility_date`; `main` can be omitted only
 for assets-only Workers.
 
-This repo uses a root skeleton:
+The active MCP Worker uses `workers/mcp/wrangler.jsonc`. The root Wrangler file is a teardown-only config:
 
 ```jsonc
 {
   "name": "arra-oracle-remote-mcp",
-  "main": "./src/workers/oracle-mcp.ts",
-  "compatibility_date": "2026-05-07",
-  "compatibility_flags": ["nodejs_compat"],
-  "workers_dev": true,
-  "observability": { "enabled": true }
+  "main": "src/workers/remote-mcp-teardown.ts",
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["OracleMcpAgent"] },
+    { "tag": "v2", "deleted_classes": ["OracleMcpAgent"] }
+  ]
 }
 ```
 
@@ -80,8 +81,8 @@ APIs. It does not make native addons or filesystem SQLite safe on Workers.
 | Small state/cache | KV (`ORACLE_STATE`) | Optional for deploy metadata, OAuth state, or lightweight caches. |
 | Secrets | Wrangler secrets | Do not commit tokens; declare required names only after auth is implemented. |
 
-The binding blocks are commented in `wrangler.jsonc` so this docs PR does not
-provision resources before the entry/vector lanes agree on names.
+The canonical `workers/mcp/wrangler.jsonc` owns the active `MCP_OBJECT` Durable
+Object binding for `OracleMCP`.
 
 ## Manual deploy fallback
 
@@ -89,6 +90,7 @@ After binding names are finalized:
 
 ```bash
 bun install
+cd workers/mcp
 bunx wrangler@latest types --config wrangler.jsonc
 bunx wrangler@latest dev --config wrangler.jsonc
 bunx wrangler@latest deploy --config wrangler.jsonc

@@ -19,6 +19,7 @@ import { startUnifiedPluginServers } from './plugins/unified-server.ts';
 import { watchPluginManifests, type PluginManifestWatcher } from './plugins/watcher.ts';
 import { closeCachedVectorStores } from './vector/factory.ts';
 import { warmEmbeddingProviderDetection } from './vector/provider-detection.ts';
+import { preflightVectorRuntime } from './vector/preflight.ts';
 import { drainingResponseFor, isDraining, registerGracefulShutdown, runShutdownSteps, trackRequest } from './lifecycle/shutdown.ts';
 import { createErrorMiddleware } from './middleware/errors.ts';
 import { validateStartupEnv } from './config/validate.ts';
@@ -116,7 +117,7 @@ export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef
 
   const healthRoutes = createHealthRoutes({ pluginCount: unifiedPlugins.pluginCount, pluginMcpToolCount: unifiedPlugins.mcpTools.length, pluginStatuses: unifiedPlugins.pluginStatuses, isDraining });
   const apiModules = [authRoutes, settingsRoutes, feedRoutes, healthRoutes, dashboardRoutes, searchRoutes, vectorRoutes, vectorConfigApiRoutes, conceptsRoutes, knowledgeRoutes, verifyRoutes, supersedeRoutes, forumApi, tracesApi, scheduleApi, filesRouter, createPluginsRouter({ registry: () => runtimeRef.current.pluginRegistry(), runtimeRef }), sessionsRoutes, vaultRoutes, metricsRoutes, exportRoutes, memoryRoutes, canvasRoutes, tenantsRoutes, watcherRoutes, indexerRoutes];
-  const modules = [...apiModules, createMcpRoutes(unifiedPlugins.mcpTools), createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu))];
+  const modules = [...apiModules, createMcpRoutes({ runtimeRef }), createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu))];
   for (const mod of modules) app.use(mod as any);
   app.use(createUnifiedPluginRouteMount(runtimeRef, { localRoutes: () => app.routes }));
   app.use(createNotFoundMiddleware(() => app.routes));
@@ -131,7 +132,8 @@ export async function startServer(options: StartServerOptions = {}): Promise<Ret
 export async function createStartedApp(options: StartServerOptions = {}): Promise<ServerSpec> {
   const startupConfig = validateStartupEnv();
   resetIndexerStatus();
-  console.log('[Vector] mode:', VECTOR_URL ? 'proxy → ' + VECTOR_URL : 'local');
+  const vectorPreflight = await preflightVectorRuntime({ warn: (message) => console.warn(message) });
+  console.log('[Vector] mode:', vectorPreflight.vectorUrl ? 'proxy → ' + vectorPreflight.vectorUrl : vectorPreflight.vectorMode);
   void warmEmbeddingProviderDetection().catch((error) => console.warn('[Vector] embedding provider auto-detect failed:', error instanceof Error ? error.message : String(error)));
   logBusyTimeout();
   const ownsPidFile = options.writePidFile !== false;

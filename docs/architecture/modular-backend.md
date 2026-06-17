@@ -16,7 +16,7 @@ flowchart TD
   Plugins[Layer 4: MCP plugin packages\ncore + community tools\ninstall / reload / remove]
 
   Clients --> Edge
-  Edge -->|HTTP / cloudflared / public URL| Backend
+  Edge -->|ORACLE_ORIGIN_URL / cloudflared / HTTPS| Backend
   Backend -->|/vectors/* proxy protocol| Vector
   Backend -->|InvokeContext + plugin.json| Plugins
   Plugins -->|registered MCP tools| Backend
@@ -140,8 +140,9 @@ core server code.
 
 ## Boundary contracts
 
-- **Edge -> backend:** HTTP(S) URL, bearer/tenant headers, `/api/*`, `/mcp` proxy
-  paths, no direct DB access.
+- **Edge -> backend:** `ORACLE_ORIGIN_URL` HTTPS origin, bearer/tenant headers,
+  `/api/*`, `/mcp` proxy paths, no direct DB access. See
+  [`cloudflared-origin-contract.md`](./cloudflared-origin-contract.md).
 - **Backend -> vector server:** `/vectors/*` proxy protocol, tenant headers,
   timeout/error normalization.
 - **Backend -> plugins:** `plugin.json` surfaces plus `InvokeContext`; plugin

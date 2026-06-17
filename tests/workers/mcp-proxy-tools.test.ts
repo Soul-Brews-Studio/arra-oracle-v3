@@ -17,8 +17,11 @@ describe('Cloudflare MCP proxy tools', () => {
     expect(workerMcpToolEntries.some((tool) => tool.name === 'oracle_learn')).toBe(true);
   });
 
-  test('normalizes backend URLs and appends only present query values', () => {
-    const base = resolveOracleUrl({ ORACLE_URL: 'https://oracle.example.test/oracle/?x=1#hash' });
+  test('prefers ORACLE_ORIGIN_URL and appends only present query values', () => {
+    const base = resolveOracleUrl({
+      ORACLE_ORIGIN_URL: 'https://origin.example.test/oracle/?x=1#hash',
+      ORACLE_URL: 'https://legacy.example.test',
+    });
     const url = buildProxyUrl(base, '/api/search', {
       q: 'vector safety',
       limit: 5,
@@ -27,8 +30,12 @@ describe('Cloudflare MCP proxy tools', () => {
       missing: undefined,
     });
 
-    expect(base).toBe('https://oracle.example.test/oracle');
-    expect(url).toBe('https://oracle.example.test/oracle/api/search?q=vector+safety&limit=5&offset=0');
+    expect(base).toBe('https://origin.example.test/oracle');
+    expect(url).toBe('https://origin.example.test/oracle/api/search?q=vector+safety&limit=5&offset=0');
+  });
+
+  test('rejects non-http backend origin URLs', () => {
+    expect(() => resolveOracleUrl({ ORACLE_ORIGIN_URL: 'file:///tmp/oracle.sock' })).toThrow('ORACLE_ORIGIN_URL must be http(s).');
   });
 
   test('proxies oracle_stats with auth and tenant headers', async () => {

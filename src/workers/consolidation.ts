@@ -18,7 +18,7 @@ type ResolvedOptions = {
 
 export type ConsolidationOptions = {
   dryRun?: boolean; limit?: number; minCosine?: number; minFtsOverlap?: number;
-  staleDays?: number; tenantId?: string; now?: number; logger?: Logger;
+  staleDays?: number; tenantId?: string; now?: number; logger?: Logger; llm?: unknown;
 };
 export type ConfidenceReceipt = {
   id: string; tenantId: string; score: number; stale: boolean;
@@ -184,6 +184,10 @@ export async function runConsolidationWorker(
   sqlite: Database,
   input: ConsolidationOptions = {},
 ): Promise<ConsolidationResult> {
+  if (input.llm) {
+    const { runLlmConsolidationWorker } = await import('./consolidation-llm.ts');
+    return runLlmConsolidationWorker(db, sqlite, input as any);
+  }
   const options = { ...DEFAULTS, now: Date.now(), tenantId: undefined, ...input };
   const logger = input.logger ?? console;
   const docs = loadDocs(sqlite, options);

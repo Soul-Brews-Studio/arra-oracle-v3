@@ -9,7 +9,7 @@ server, and pluggable MCP tools.
 | Topology | Components | Use when | Avoid when | Primary knobs |
 | --- | --- | --- | --- | --- |
 | All-local | Studio dev server, `maw arra serve`, local DB, local or sidecar vector server, stdio MCP. | You need privacy, offline work, fast development, or a single-operator machine. | You need a public Studio/MCP URL or remote team access. | `maw arra serve`, `bun run vector:proxy`, `ORACLE_DATA_DIR`. |
-| CF Workers edge + local backend | `workers/studio` static/API proxy, `workers/mcp`, optional `workers/federation`, local backend through a tunnel, vector sidecar near backend. | You want a public edge URL while keeping the brain/data on your machine or LAN. | You cannot keep a tunnel online or need all state to live at the edge. | `ORACLE_URL`, `ORACLE_MCP_URL`, `TUNNEL_URL`, `FEDERATION_TOKEN`. |
+| CF Workers edge + local backend | `workers/studio` static/API proxy, `workers/mcp`, optional `workers/federation`, local backend through a tunnel, vector sidecar near backend. | You want a public edge URL while keeping the brain/data on your machine or LAN. | You cannot keep a tunnel online or need all state to live at the edge. | `ORACLE_ORIGIN_URL`, `ORACLE_URL`, `ORACLE_MCP_URL`, `TUNNEL_URL`, `FEDERATION_TOKEN`. |
 | Vercel frontend + backend URL | Vercel hosts `frontend/dist`; `api/proxy.ts` forwards `/api/*` to `ORACLE_URL`; backend/vector stay elsewhere. | Your team already uses Vercel and only needs Studio web hosting plus API proxying. | You need remote MCP on the same host or a private backend that Vercel cannot reach. | `vercel.json`, `ORACLE_URL`, Vercel env vars. |
 | Federation tunnel | `workers/federation` signs and relays selected coordination routes to a cloudflared/local tunnel. | You need remote maw/session coordination without exposing the whole backend. | You need full Studio, full REST API, or vector traffic through the federation proxy. | `TUNNEL_URL`, `FEDERATION_TOKEN`, `/api/send`, `/api/sessions`. |
 
@@ -58,7 +58,7 @@ Operational notes:
 
 This topology puts only the public shell at Cloudflare. Workers serve Studio,
 remote MCP, or federation proxy routes, then forward to the backend over a public
-backend URL or a tunnel.
+backend URL or a tunnel. The production origin contract is `ORACLE_ORIGIN_URL` pointing at a Cloudflare Tunnel or equivalent HTTPS origin.
 
 ```bash
 maw arra serve --port 47778
@@ -75,11 +75,11 @@ Use this when:
 
 Operational notes:
 
-- `workers/studio` uses `ORACLE_URL` and `ORACLE_MCP_URL`.
-- `workers/mcp` proxies tools to the backend and can use tenant registry data.
+- `workers/studio` uses `ORACLE_ORIGIN_URL` for the backend origin, with `ORACLE_URL` as a legacy/dev fallback, and `ORACLE_MCP_URL` for a separate MCP Worker.
+- `workers/mcp` uses the same `ORACLE_ORIGIN_URL` secret when proxying tools to the backend and can use tenant registry data.
 - `workers/federation` uses `TUNNEL_URL` and `FEDERATION_TOKEN` for selected maw
   coordination routes.
-- Do not move native vector libraries or SQLite/LanceDB files into Workers.
+- Do not move native vector libraries or SQLite/LanceDB files into Workers. See [`cloudflared-origin-contract.md`](./cloudflared-origin-contract.md) before calling this topology production-ready.
 
 ### 3. Vercel frontend + backend URL
 
@@ -147,7 +147,7 @@ Operational notes:
 1. Start all-local until `/api/health`, MCP tools, and vector search are green.
 2. Split vector into `bun run vector:proxy` when indexing becomes heavy or needs
    a separate host.
-3. Add Vercel or Cloudflare Workers for public Studio access.
+3. Add Vercel or Cloudflare Workers for public Studio access; for Workers, set the `ORACLE_ORIGIN_URL` secret first.
 4. Add the Cloudflare MCP worker for remote MCP clients.
 5. Add federation tunnel only for signed coordination routes.
 
