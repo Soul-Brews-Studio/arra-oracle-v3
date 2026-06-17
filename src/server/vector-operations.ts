@@ -8,6 +8,7 @@ import {
   getVectorStoreConfigByModel,
 } from '../vector/factory.ts';
 import { localNativeVectorDisabledReason, localVectorIndexMissingReason } from '../vector/cpu-capabilities.ts';
+import { selectVectorSearchModelKeys } from '../vector/model-selection.ts';
 import type { VectorStoreAdapter } from '../vector/types.ts';
 import type { SearchResult } from './types.ts';
 import type { VectorIndexModelInfo, VectorOperations, VectorSearchInput } from './vector-operation-types.ts';
@@ -18,9 +19,7 @@ function cosineDistanceToSimilarity(distance: number): number {
 }
 
 function modelKeys(model?: string): Array<string | undefined> {
-  const models = getEmbeddingModels();
-  if (model === 'multi') return ['bge-m3', 'nomic'];
-  return [model && models[model] ? model : undefined];
+  return selectVectorSearchModelKeys(model, getEmbeddingModels());
 }
 
 async function searchOneModel(input: VectorSearchInput, model: string | undefined): Promise<SearchResult[]> {
