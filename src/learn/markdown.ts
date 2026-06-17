@@ -16,6 +16,24 @@ export function learningContentHash(pattern: string): string {
   return `sha256:${createHash('sha256').update(pattern, 'utf8').digest('hex')}`;
 }
 
+export function normalizeLearningPattern(pattern: unknown): string {
+  if (typeof pattern !== 'string') throw new TypeError('pattern is required');
+  const normalized = pattern.replace(/\0/g, '').trim();
+  if (!normalized) throw new TypeError('pattern is required');
+  return normalized;
+}
+
+export function learningSlug(pattern: string): string {
+  const slug = normalizeLearningPattern(pattern)
+    .substring(0, 50)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  return slug || 'learning';
+}
+
 export function dateSlug(date: Date): string {
   assertValidDate(date);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -28,6 +46,7 @@ function inlineList(values: string[]): string {
 
 export function buildLearningMarkdown(opts: LearningMarkdownOptions): string {
   assertValidDate(opts.createdAt);
+  const pattern = normalizeLearningPattern(opts.pattern);
   const id = requiredLine(opts.id, 'id');
   const type = scalar(opts.type, 'learning');
   const title = scalar(opts.title, 'Untitled learning');
@@ -36,7 +55,7 @@ export function buildLearningMarkdown(opts: LearningMarkdownOptions): string {
   const createdDate = dateSlug(opts.createdAt);
   const timestamp = opts.createdAt.toISOString();
   const concepts = inlineList(opts.concepts);
-  const hash = learningContentHash(opts.pattern);
+  const hash = learningContentHash(pattern);
   const project = optionalScalar(opts.project);
 
   return [
@@ -60,7 +79,7 @@ export function buildLearningMarkdown(opts: LearningMarkdownOptions): string {
     '',
     `# ${stripQuotes(title)}`,
     '',
-    opts.pattern,
+    pattern,
     '',
     '---',
     footer,
