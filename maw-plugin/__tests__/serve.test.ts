@@ -48,6 +48,25 @@ describe('maw arra serve command', () => {
     })]);
   });
 
+
+  test('starts optional in-process backend without spawning manifest command', async () => {
+    const started: unknown[] = [];
+    const result = await runServe({ pos: [], flags: { in_process: true, port: '47780' } }, runner, env(), {
+      isAlive: () => false,
+      start: () => { throw new Error('spawn should not be used for --in-process'); },
+      inProcessStart: async (root, startEnv) => {
+        started.push({ root, port: startEnv.ORACLE_PORT, source: startEnv.ARRA_BACKEND_SOURCE });
+        return { pid: 24601, port: '47780', healthPath: '/api/health' };
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain('started pid=24601 port=47780');
+    expect(result.output).toContain('mode: in-process');
+    expect(result.output).not.toContain('command:');
+    expect(started).toEqual([{ root: '/repo/arra-oracle-v3', port: '47780', source: 'maw-plugin' }]);
+  });
+
   test('supports positional start stop status actions', async () => {
     const home = env();
     let alive = true;

@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export type Parsed = { pos: string[]; flags: Record<string, string | boolean> };
 export type InvokeResult = { ok: boolean; output?: string; error?: string };
@@ -15,6 +15,7 @@ export type ServeDeps = {
   kill?: (pid: number, signal?: NodeJS.Signals) => void;
   sleep?: (ms: number) => Promise<void>;
   start?: (cwd: string, env: Record<string, string | undefined>, command: ServerCommand) => number | undefined;
+  inProcessStart?: (root: string, env: Record<string, string | undefined>) => Promise<{ pid?: number; port: string; healthPath?: string }>;
 };
 
 const DEFAULT_PORT = '47778';
@@ -35,6 +36,11 @@ function serveAction(parsed: Parsed): 'start' | 'stop' | 'status' {
   if (flag(parsed, 'stop') || action === 'stop') return 'stop';
   if (!action || action === 'start') return 'start';
   throw new Error('serve action must be start, stop, or status');
+}
+
+function inProcessRequested(parsed: Parsed): boolean {
+  const value = flag(parsed, 'in-process');
+  return value !== undefined && value !== 'false';
 }
 
 function backendRequested(parsed: Parsed): boolean {
@@ -129,6 +135,14 @@ function startServer(cwd: string, env: Record<string, string | undefined>, comma
   return child.pid;
 }
 
+async function startInProcess(root: string, env: Record<string, string | undefined>): Promise<{ pid: number; port: string; healthPath: string }> {
+  Object.assign(process.env, env, { ORACLE_ROOT: root });
+  const moduleUrl = pathToFileURL(join(root, 'src/server.ts')).href;
+  const { startServer } = await import(moduleUrl) as { startServer: (options?: { writePidFile?: boolean }) => Promise<{ port: number }> };
+  const server = await startServer({ writePidFile: false });
+  return { pid: process.pid, port: String(server.port), healthPath: '/api/health' };
+}
+
 async function health(port: string, healthPath: string, fetcher: typeof fetch): Promise<string> {
   const url = `http://127.0.0.1:${port}${healthPath}`;
   try {
@@ -164,6 +178,7 @@ export async function runServe(parsed: Parsed, runner: Runner, env: Record<strin
 
     const action = serveAction(parsed);
     const explicitBackend = backendRequested(parsed);
+    const inProcess = inProcessRequested(parsed);
 
     if (action === 'status') {
       const healthPort = flag(parsed, 'port') ? port : state?.port ?? port;
@@ -192,6 +207,18 @@ export async function runServe(parsed: Parsed, runner: Runner, env: Record<strin
     mkdirSync(dirname(path), { recursive: true });
     const command = resolveServerCommand(cwd, { ...env, ORACLE_PORT: port, PORT: port });
     const startEnv = { ...env, ...command.env, ORACLE_ROOT: cwd, ORACLE_PORT: port, PORT: port };
+    if (inProcess) {
+      const server = await (deps.inProcessStart ?? startInProcess)(cwd, startEnv);
+      const pid = server.pid ?? process.pid;
+      writeState(path, { pid, port: server.port, root: cwd, healthPath: server.healthPath ?? command.healthPath, startedAt: new Date().toISOString() });
+      return { ok: true, output: [
+        `arra serve: started pid=${pid} port=${server.port}`,
+        explicitBackend && 'backend: full Oracle',
+        'mode: in-process',
+        `root: ${cwd}`,
+        `pid: ${path}`,
+      ].filter(Boolean).join('\n') };
+    }
     const pid = (deps.start ?? startServer)(command.cwd, startEnv, command);
     if (!pid) throw new Error(`${command.command} ${command.args.join(' ')} did not return a PID`);
     writeState(path, { pid, port, root: cwd, healthPath: command.healthPath, startedAt: new Date().toISOString() });
