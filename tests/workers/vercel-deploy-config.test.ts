@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import handler, { buildProxyTarget, proxyRequestHeaders, resolveOracleUrl } from '../../api/proxy.ts';
 
@@ -55,6 +55,17 @@ describe('Vercel Studio deploy config', () => {
     });
   });
 
+  test('vercel.json is valid and maps the API rewrite to the checked-in serverless function', () => {
+    const cfg = readJson<VercelConfig>('vercel.json');
+    const apiRewrite = cfg.rewrites.find((rewrite) => rewrite.source === '/api/:path*');
+
+    expect(existsSync('api/proxy.ts')).toBe(true);
+    expect(cfg.rewrites.every((rewrite) => rewrite.source.startsWith('/'))).toBe(true);
+    expect(cfg.rewrites.map((rewrite) => rewrite.source)).toEqual(['/api/:path*', '/(.*)']);
+    expect(apiRewrite?.destination).toBe('/api/proxy?path=:path*');
+    expect(cfg).not.toHaveProperty('env');
+  });
+
   test('README exposes a Vercel deploy button wired to ORACLE_URL', () => {
     const readme = read('README.md');
     const match = readme.match(/\[!\[Deploy with Vercel\]\(https:\/\/vercel\.com\/button\)\]\(([^)]+)\)/);
@@ -71,10 +82,12 @@ describe('Vercel Studio deploy config', () => {
   test('proxy helpers normalize backend URLs, paths, queries, and headers', () => {
     const base = resolveOracleUrl({ ORACLE_URL: 'https://user:pass@oracle.example/root/?debug=1#x' });
     const target = buildProxyTarget(base, '/api/proxy?path=vector/config&limit=3');
+    const directTarget = buildProxyTarget(base, '/api/search?q=oracle');
     const headers = proxyRequestHeaders({ host: 'spoofed.example', authorization: 'Bearer token', connection: 'keep-alive' });
 
     expect(base).toBe('https://oracle.example/root');
     expect(target).toBe('https://oracle.example/root/api/vector/config?limit=3');
+    expect(directTarget).toBe('https://oracle.example/root/api/search?q=oracle');
     expect(headers.get('authorization')).toBe('Bearer token');
     expect(headers.get('host')).toBeNull();
     expect(headers.get('connection')).toBeNull();
@@ -109,5 +122,43 @@ describe('Vercel Studio deploy config', () => {
     });
 
     expect(seen).toEqual([{ url: 'https://oracle.example/root/api/search?q=vector', method: 'POST', marker: 'oracle-studio-vercel', body: '{"limit":1}' }]);
+  });
+
+  test('serverless handler keeps OPTIONS preflight local', async () => {
+    globalThis.fetch = (async () => {
+      throw new Error('preflight should not reach ORACLE_URL');
+    }) as typeof fetch;
+
+    await withProxyServer(async (base) => {
+      const response = await originalFetch(`${base}/api/proxy?path=search`, { method: 'OPTIONS' });
+
+      expect(response.status).toBe(204);
+      expect(response.headers.get('allow')).toContain('POST');
+      expect(response.headers.get('access-control-allow-origin')).toBe('*');
+      expect(response.headers.get('x-oracle-studio-vercel')).toBe('oracle-studio-vercel');
+      expect(await response.text()).toBe('');
+    });
+  });
+
+  test('serverless handler returns a deploy-time error when ORACLE_URL is missing', async () => {
+    delete process.env.ORACLE_URL;
+    let fetchCalled = false;
+    globalThis.fetch = (async () => {
+      fetchCalled = true;
+      return new Response('should not happen');
+    }) as typeof fetch;
+
+    await withProxyServer(async (base) => {
+      const response = await originalFetch(`${base}/api/proxy?path=health`);
+      const body = await response.json();
+
+      expect(response.status).toBe(502);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(response.headers.get('x-oracle-studio-vercel')).toBe('oracle-studio-vercel');
+      expect(body).toMatchObject({ error: 'api proxy failed' });
+      expect(String(body.message)).toContain('ORACLE_URL');
+    });
+
+    expect(fetchCalled).toBe(false);
   });
 });
