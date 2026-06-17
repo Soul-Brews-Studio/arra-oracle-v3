@@ -57,7 +57,7 @@ export function VectorConfigHealthSummary({
           <h4 className="font-semibold text-white">Connection health</h4>
           <p className="mt-1 text-sm text-slate-400">{stats.summary}</p>
         </div>
-        <p className="rounded-full border border-teal-300/20 px-3 py-1 text-xs font-semibold text-teal-100">{stats.total} configured</p>
+        <p className="rounded-full border border-[color:var(--color-accent,#0f766e)] px-3 py-1 text-xs font-semibold text-[color:var(--color-accent,#0f766e)]">{stats.total} configured</p>
       </div>
 
       {downRows.length ? (
@@ -66,16 +66,16 @@ export function VectorConfigHealthSummary({
             const rowHealth = health[key];
             const adapter = rowAdapter(collection, rowHealth);
             return (
-              <article key={key} className="rounded-xl border border-rose-300/20 bg-rose-300/10 p-3 text-sm">
-                <p className="font-semibold text-rose-100">{key}: {adapter} connection down</p>
+              <article key={key} className="rounded-xl border border-[color:var(--color-err-text,#991b1b)] bg-[var(--color-err-bg,#fee2e2)] p-3 text-sm">
+                <p className="font-semibold text-[color:var(--color-err-text,#991b1b)]">{key}: {adapter} connection down</p>
                 <p className="mt-1 text-slate-300">{rowEndpoint(collection, rowHealth)}</p>
-                <p className="mt-1 text-xs text-rose-200">{rowHealth?.error || `Start ${adapter} or update the service endpoint, then Test/Reload.`}</p>
+                <p className="mt-1 text-xs text-[color:var(--color-err-text,#991b1b)]">{rowHealth?.error || `Start ${adapter} or update the service endpoint, then Test/Reload.`}</p>
               </article>
             );
           })}
         </div>
       ) : (
-        <p className="mt-3 text-sm text-emerald-200">All enabled vector connections are healthy.</p>
+        <p className="mt-3 text-sm text-[color:var(--color-ok-text,#166534)]">All enabled vector connections are healthy.</p>
       )}
     </section>
   );

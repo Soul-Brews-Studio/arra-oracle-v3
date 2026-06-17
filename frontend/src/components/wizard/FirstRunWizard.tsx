@@ -146,7 +146,7 @@ export function FirstRunWizard() {
         <ConfirmCard active={step === 3} provider={selectedProvider} providerType={providerType} selected={selected} busy={busy} onStart={() => void startInitialIndexing()} />
       </div>
 
-      {message ? <p className="rounded-2xl border border-teal-300/20 bg-teal-300/10 p-4 text-sm text-teal-100">{message}</p> : null}
+      {message ? <p className="rounded-2xl border border-[color:var(--color-accent,#0f766e)] p-4 text-sm text-[color:var(--color-accent,#0f766e)]">{message}</p> : null}
       {error && state !== 'error' ? <ErrorMessage title="First-run setup failed." message={error} /> : null}
 
       <div className="flex flex-wrap gap-3">

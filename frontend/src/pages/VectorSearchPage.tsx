@@ -75,7 +75,7 @@ function ResultCard({ result }: { result: VectorSearchResult }) {
           <h2 className="text-base font-semibold text-white">{titleFor(result)}</h2>
           <p className="mt-1 text-sm leading-6 text-slate-300">{contentPreview(result.content)}</p>
         </div>
-        <span className="rounded-full border border-teal-300/20 bg-teal-300/10 px-2 py-1 text-xs font-semibold text-teal-100">
+        <span className="rounded-full border border-[color:var(--color-accent,#0f766e)] px-2 py-1 text-xs font-semibold text-[color:var(--color-accent,#0f766e)]">
           distance {distanceLabel(result)}
         </span>
       </div>
@@ -88,7 +88,7 @@ function ResultCard({ result }: { result: VectorSearchResult }) {
         <div><dt className="font-semibold text-slate-300">type</dt><dd>{result.type || '—'}</dd></div>
         <div><dt className="font-semibold text-slate-300">source_file</dt><dd className="break-all">{result.source_file || '—'}</dd></div>
         <div><dt className="font-semibold text-slate-300">model</dt><dd>{result.model || 'selected collection'}</dd></div>
-        {concepts.length ? <div className="sm:col-span-3"><dt className="font-semibold text-slate-300">concepts</dt><dd className="mt-1 flex flex-wrap gap-1">{concepts.map((concept) => <span key={concept} className="rounded-full bg-teal-400/10 px-2 py-0.5 text-teal-100">{concept}</span>)}</dd></div> : null}
+        {concepts.length ? <div className="sm:col-span-3"><dt className="font-semibold text-slate-300">concepts</dt><dd className="mt-1 flex flex-wrap gap-1">{concepts.map((concept) => <span key={concept} className="rounded-full border border-[color:var(--color-accent,#0f766e)] px-2 py-0.5 text-[color:var(--color-accent,#0f766e)]">{concept}</span>)}</dd></div> : null}
       </dl>
     </article>
   );
@@ -148,7 +148,7 @@ export function VectorSearchPage({ client = apiClient }: { client?: VectorSearch
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-search-preview-title">
       <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Vector</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Vector</p>
         <h1 id="vector-search-preview-title" className="mt-2 text-3xl font-semibold text-white">Vector search preview</h1>
         <p className="mt-2 text-sm text-slate-400">Preview semantic matches from /api/v1/vector/search by collection.</p>
       </div>
@@ -164,7 +164,7 @@ export function VectorSearchPage({ client = apiClient }: { client?: VectorSearch
       </form>
 
       <p className="mt-4 text-sm text-slate-500">{status}</p>
-      {error ? <p role="alert" className="mt-3 rounded-xl border border-red-400/30 bg-red-950/40 p-3 text-sm text-red-100">{error}</p> : null}
+      {error ? <p role="alert" className="mt-3 rounded-xl border border-[color:var(--color-err-text,#991b1b)] bg-[var(--color-err-bg,#fee2e2)] p-3 text-sm text-[color:var(--color-err-text,#991b1b)]">{error}</p> : null}
       <div className="mt-5 grid gap-3 lg:grid-cols-2" aria-busy={state === 'loading'}>
         {state !== 'loading' ? results.map((result) => <ResultCard key={result.id} result={result} />) : null}
       </div>

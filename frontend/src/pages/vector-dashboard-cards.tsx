@@ -23,8 +23,8 @@ type VectorTotals = {
 
 function statusClasses(healthy: boolean): string {
   return healthy
-    ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-200'
-    : 'border-red-300/30 bg-red-300/10 text-red-100';
+    ? 'border-[color:var(--color-ok-text,#166534)] bg-[var(--color-ok-bg,#dcfce7)] text-[color:var(--color-ok-text,#166534)]'
+    : 'border-[color:var(--color-err-text,#991b1b)] bg-[var(--color-err-bg,#fee2e2)] text-[color:var(--color-err-text,#991b1b)]';
 }
 
 export function docCountLabel(count?: number): string {
@@ -80,7 +80,7 @@ export function VectorCollectionCards({
               <div><dt className="text-slate-500">Model</dt><dd className="font-medium text-slate-100">{card.model}</dd></div>
               <div><dt className="text-slate-500">Documents</dt><dd className="font-medium text-slate-100">{docCountLabel(card.count)}</dd></div>
             </dl>
-            {card.healthDetail ? <p className="mt-3 text-xs text-red-200">{card.healthDetail}</p> : null}
+            {card.healthDetail ? <p className="mt-3 text-xs text-[color:var(--color-err-text,#991b1b)]">{card.healthDetail}</p> : null}
             <div className="mt-4 flex flex-wrap gap-2">
               <select
                 aria-label={`Export format for ${card.collection}`}
@@ -92,7 +92,7 @@ export function VectorCollectionCards({
                 {formats?.map((format) => <option key={format.format} value={format.format}>{format.label}</option>)}
               </select>
               <button
-                className="focus-ring rounded-xl border border-teal-300/30 px-3 py-2 text-sm font-semibold text-teal-100 hover:bg-teal-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+                className="focus-ring rounded-xl border border-[color:var(--color-accent,#0f766e)] px-3 py-2 text-sm font-semibold text-[color:var(--color-accent,#0f766e)] hover:bg-[var(--color-ok-bg,#dcfce7)] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={disabled || !formats || formats.length === 0}
                 type="button"
                 onClick={() => onExport?.(card.collection, selected)}
@@ -110,7 +110,7 @@ export function VectorCollectionCards({
 export function VectorStatsCard({ cards }: { cards: VectorCollectionCard[] }) {
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-stats-title">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Stats</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Stats</p>
       <h2 id="vector-stats-title" className="mt-2 text-2xl font-semibold text-white">Collection stats</h2>
       <dl className="mt-4 grid gap-3 text-sm text-slate-300">
         <div><dt className="text-slate-500">Total docs</dt><dd className="text-lg font-semibold text-white">{docsLabel(cards)}</dd></div>
@@ -142,7 +142,7 @@ export function QuickExportCard({
   if (!cards.length) {
     return (
       <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-quick-export-title">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Quick export</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Quick export</p>
         <h2 id="vector-quick-export-title" className="mt-2 text-2xl font-semibold text-white">Export collection</h2>
         <p className="mt-2 text-sm text-slate-400">No collections are loaded yet.</p>
       </section>
@@ -154,7 +154,7 @@ export function QuickExportCard({
   const disabled = isDownloading || formats.length === 0;
   return (
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-quick-export-title">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Quick export</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Quick export</p>
       <h2 id="vector-quick-export-title" className="mt-2 text-2xl font-semibold text-white">Export collection</h2>
       <p className="mt-2 text-sm text-slate-400">Pick a collection and format to download from /api/v1/vector/export.</p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -182,7 +182,7 @@ export function QuickExportCard({
         </label>
       </div>
       <button
-        className="focus-ring mt-4 rounded-xl border border-teal-300/30 px-4 py-2 text-sm font-semibold text-teal-100 hover:bg-teal-300/10 disabled:cursor-not-allowed disabled:opacity-50"
+        className="focus-ring mt-4 rounded-xl border border-[color:var(--color-accent,#0f766e)] px-4 py-2 text-sm font-semibold text-[color:var(--color-accent,#0f766e)] hover:bg-[var(--color-ok-bg,#dcfce7)] disabled:cursor-not-allowed disabled:opacity-50"
         disabled={disabled || !collection}
         type="button"
         onClick={() => onExport(collection, format)}

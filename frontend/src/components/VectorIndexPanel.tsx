@@ -57,17 +57,17 @@ function jobNotice(status: VectorIndexStatusResponse | null): { title: string; d
   if (status.status === 'completed') return {
     title: 'Index job complete',
     detail: `${status.model} indexed ${status.current.toLocaleString()}/${status.total.toLocaleString()} docs. Dashboard vectors are ready.`,
-    tone: 'border-emerald-300/30 bg-emerald-300/10 text-emerald-50',
+    tone: 'border-[color:var(--color-ok-text,#166534)] bg-[var(--color-ok-bg,#dcfce7)] text-[color:var(--color-ok-text,#166534)]',
   };
   if (status.status === 'stopped') return {
     title: 'Index job stopped',
     detail: status.error ?? `${status.model} stopped at ${status.current.toLocaleString()}/${status.total.toLocaleString()} docs.`,
-    tone: 'border-amber-300/30 bg-amber-300/10 text-amber-50',
+    tone: 'border-[color:var(--color-warn-text,#92400e)] bg-[var(--color-warn-bg,#fef3c7)] text-[color:var(--color-warn-text,#92400e)]',
   };
   return {
     title: 'Index job failed',
     detail: status.error ?? `${status.model} failed before completing the vector backfill.`,
-    tone: 'border-rose-300/30 bg-rose-300/10 text-rose-50',
+    tone: 'border-[color:var(--color-err-text,#991b1b)] bg-[var(--color-err-bg,#fee2e2)] text-[color:var(--color-err-text,#991b1b)]',
   };
 }
 
@@ -152,13 +152,13 @@ export function VectorIndexPanel({
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-index-title">
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-purple-300">Index Manager</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent2,#7e22ce)]">Index Manager</p>
           <h2 id="vector-index-title" className="mt-2 text-2xl font-semibold text-white">Index jobs and collections</h2>
           <p className="mt-2 text-sm text-slate-400">Start, poll, and audit embedding rebuilds through /api/v1/vector/index/start.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button className="focus-ring rounded-xl bg-purple-300 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50" disabled={!firstModel || indexing || Boolean(startingKey)} type="button" onClick={startFirstModel}>Index Now</button>
-          <button className="focus-ring rounded-xl border border-purple-300/30 px-3 py-2 text-sm font-semibold text-purple-100 disabled:opacity-50" disabled={!firstModel || indexing || Boolean(startingKey)} type="button" onClick={startFirstModel}>Backfill Vectors</button>
+          <button className="focus-ring rounded-xl border border-[color:var(--color-accent2,#7e22ce)] px-3 py-2 text-sm font-semibold text-[color:var(--color-accent2,#7e22ce)] disabled:opacity-50" disabled={!firstModel || indexing || Boolean(startingKey)} type="button" onClick={startFirstModel}>Backfill Vectors</button>
           <a className="focus-ring rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-200 hover:border-purple-300/40" href="/settings">Add Vault</a>
           <button className="focus-ring rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-200 hover:border-purple-300/40" type="button" onClick={() => void refreshStatus()}>Refresh status</button>
         </div>
@@ -166,13 +166,13 @@ export function VectorIndexPanel({
 
       <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
         <p className="text-sm font-semibold text-slate-200">Active jobs: {statusSummary(status)}</p>
-        <p className="mt-1 text-sm text-amber-100">Gap indicator: {gapLabel(models, status)}</p>
+        <p className="mt-1 text-sm text-[color:var(--color-warn-text,#92400e)]">Gap indicator: {gapLabel(models, status)}</p>
         {status ? <IndexProgress status={status} /> : null}
       </div>
 
       {notice ? (
         <div className={`mb-4 rounded-2xl border p-4 text-sm ${notice.tone}`} role="status" aria-live="polite">
-          <p className="font-semibold">{notice.title}</p>
+          <p className="font-semibold"><span aria-hidden="true">● </span>{notice.title}</p>
           <p className="mt-1 opacity-80">{notice.detail}</p>
         </div>
       ) : null}
@@ -184,18 +184,18 @@ export function VectorIndexPanel({
       {!loading && !modelEntries.length ? <p className="text-sm text-slate-500">No vector collections reported.</p> : null}
 
       <section className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4" aria-label="Vault list">
-        <h3 className="font-semibold text-teal-100">Vault list</h3>
+        <h3 className="font-semibold text-[color:var(--color-accent,#0f766e)]">Vault list</h3>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           {modelEntries.map(([key, model]) => (
             <p key={key} className="rounded-xl border border-white/10 bg-slate-950/50 p-3 text-sm text-slate-300">
-              <span className="font-mono text-teal-200">{model.collection}</span><br />
+              <span className="font-mono text-[color:var(--color-accent,#0f766e)]">{model.collection}</span><br />
               {(model.count ?? 0).toLocaleString()} docs · {vaultState(model)}
             </p>
           ))}
         </div>
       </section>
 
-      <h3 className="mb-3 font-semibold text-purple-100">Vector Models</h3>
+      <h3 className="mb-3 font-semibold text-[color:var(--color-accent2,#7e22ce)]">Vector Models</h3>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {modelEntries.map(([key, model]) => {
           const active = indexing && status?.model === key;
@@ -203,7 +203,7 @@ export function VectorIndexPanel({
             <article key={key} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="font-mono text-base font-semibold text-teal-200">{key}</h3>
+                  <h3 className="font-mono text-base font-semibold text-[color:var(--color-accent,#0f766e)]">{key}</h3>
                   <p className="mt-1 text-sm text-slate-300">{model.collection}</p>
                 </div>
                 <button
@@ -239,7 +239,7 @@ function IndexProgress({ status }: { status: VectorIndexStatusResponse }) {
       <p className="mt-2 text-sm text-slate-400">
         {status.current}/{status.total} docs · {status.docsPerSec} docs/sec · ETA {formatIndexEta(status.eta)}
       </p>
-      {status.error ? <p className="mt-2 text-sm text-red-200">{status.error}</p> : null}
+      {status.error ? <p className="mt-2 text-sm text-[color:var(--color-err-text,#991b1b)]">{status.error}</p> : null}
     </div>
   );
 }
