@@ -4,7 +4,12 @@ import type { OracleProfile } from './model.ts';
 const profiles = [thorOracleProfile] as const satisfies readonly OracleProfile[];
 
 function key(value: string): string {
-  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+  return value
+    .normalize('NFKC')
+    .trim()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
 }
 
 function cloneProfile(profile: OracleProfile): OracleProfile {
