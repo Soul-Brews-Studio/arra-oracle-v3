@@ -1,10 +1,8 @@
 # Deploy Arra Oracle remote MCP on Cloudflare Workers
 
-This guide covers the docs-only operator path for #2167: one-click deploy, the
-expected `McpAgent` Worker shape, and how to connect Claude to the deployed
-`/mcp` endpoint. The Worker entry and Wrangler config are owned by the #2167
-implementation slices; keep this page aligned with that code without editing
-those files from docs-only PRs.
+This guide covers the #2167 implementation path for one-click Cloudflare deploy,
+the `McpAgent` Worker entry, and MCP client connection. The Worker entry lives in
+`src/workers/cloudflare-mcp/` and `wrangler.jsonc` points at it.
 
 ## What this deploy gives you
 
@@ -12,158 +10,79 @@ those files from docs-only PRs.
 - Streamable HTTP transport handled by Cloudflare's Agents SDK.
 - A `workers.dev` URL that Claude, MCP Inspector, Cursor, Windsurf, or another
   remote-capable MCP client can connect to.
-- Optional auth via Cloudflare Access/OAuth once the make-it-work public endpoint
-  is validated.
+- Edge-safe tools now: `oracle_health`, `oracle_search`, and `muninn_search`.
 
-The first slice can expose only edge-safe tools. Local SQLite, filesystem vaults,
-and full vector indexing need D1, Vectorize, R2, or proxy-backed replacements
-before they run fully on Workers.
+The first slice proxies search to an existing Oracle HTTP API. Local SQLite,
+filesystem vaults, and full vector indexing need D1, Vectorize, R2, or other
+Workers-native replacements before they run fully on the edge.
 
 ## One-click deploy
 
-Use the Deploy to Cloudflare button once the #2167 Worker entry and Wrangler
-config are present on `alpha`:
-
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Soul-Brews-Studio/arra-oracle-v3)
 
-Cloudflare will clone the public repository, ask for Worker/project names,
-provision supported bindings declared in Wrangler config, and build/deploy the
-Worker. If the MCP Worker lives in a subdirectory, update the button URL to the
-repository tree path for that isolated Worker directory before publishing the
-button.
+Cloudflare clones the public repository, reads `wrangler.jsonc`, provisions the
+`MCP_OBJECT` Durable Object binding, and deploys the Worker. The deployed MCP URL
+will be:
 
-## Expected Worker shape
-
-The remote MCP adapter should use Cloudflare `McpAgent` and export a handler on
-`/mcp`:
-
-```ts
-import { McpAgent } from 'agents/mcp';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { z } from 'zod';
-
-export class ArraOracleMcp extends McpAgent {
-  server = new McpServer({ name: 'arra-oracle', version: '1.0.0' });
-
-  async init() {
-    this.server.tool('oracle_ping', { message: z.string().optional() }, async () => ({
-      content: [{ type: 'text', text: 'arra-oracle remote MCP ok' }],
-    }));
-  }
-}
-
-export default ArraOracleMcp.serve('/mcp');
+```text
+https://<worker-name>.<account>.workers.dev/mcp
 ```
 
-Add real Oracle tools only when their dependencies are Workers-safe. Stateful
-sessions require Durable Objects; data-backed tools should use D1/Vectorize/R2 or
-proxy to a trusted Arra Oracle HTTP backend.
+## Worker shape
+
+The entry uses Cloudflare `McpAgent`, Durable Object session state, and both
+Streamable HTTP and legacy SSE mounts:
+
+```ts
+export class OracleMcpAgent extends McpAgent {
+  server = new McpServer({ name: 'arra-oracle-remote-mcp', version: '1.0.0' });
+  async init() {
+    this.server.registerTool('oracle_health', {}, async () => runRemoteOracleHealth(env));
+    this.server.registerTool('oracle_search', { inputSchema }, async (args) => runRemoteOracleSearch(env, args));
+    this.server.registerTool('muninn_search', { inputSchema }, async (args) => runRemoteOracleSearch(env, args));
+  }
+}
+```
+
+`/health` is a normal HTTP readiness endpoint. `/mcp` expects MCP protocol
+messages, so use MCP Inspector or a real client instead of browser navigation.
 
 ## Required configuration
 
-Use the #2167 Wrangler config as source of truth. The likely minimum is:
-
 | Setting | Purpose |
 | --- | --- |
-| `main` | Worker entry that exports `McpAgent.serve('/mcp')`. |
-| `compatibility_date` | Current Workers compatibility date. |
-| `compatibility_flags` | Include `nodejs_compat` only if the implementation needs Node APIs. |
-| Durable Object binding | Required by `McpAgent` session state. |
-| `ORACLE_HTTP_URL` | Optional backend URL when proxying to a full Arra Oracle server. |
-| `ARRA_API_TOKEN` | Secret for protected backend calls; never commit real values. |
-| D1/Vectorize/R2 bindings | Edge-native persistence/search replacements as tools expand. |
+| `main` | `src/workers/cloudflare-mcp/index.ts`. |
+| `compatibility_flags` | Includes `nodejs_compat` for Agents SDK/runtime compatibility. |
+| `MCP_OBJECT` | Durable Object binding required by `McpAgent` session state. |
+| `ORACLE_HTTP_URL` | Backend URL for proxying `oracle_search` to a full Arra Oracle server. |
+| `ORACLE_API_TOKEN` | Optional Bearer token for protected backend calls. |
+| D1/Vectorize/R2 | Future edge-native persistence/search replacements. |
 
-## Multi-tenant setup for teams and schools
-
-For #2193 shared deployments, run one Worker endpoint for the organization and
-map each authenticated user to exactly one trusted tenant before proxying tools
-to Arra Oracle. Example models:
-
-| Model | Tenant example | Mapping source |
-| --- | --- | --- |
-| School | `grade-8`, `science-dept`, `library` | Google Workspace group, Access group, or D1 roster row |
-| Team | `platform`, `design`, `support` | GitHub org/team, WorkOS org, or Auth0 organization |
-| SaaS | `customer-acme`, `customer-river` | Billing/customer table or D1 tenant registry |
-
-Do not treat caller-supplied `tenantId` as authorization. Put OAuth or
-Cloudflare Access in front of `/mcp`, resolve the signed-in identity to a tenant,
-and forward only that trusted tenant to `ORACLE_URL`. Backend routes already scope
-by tenant ID from #1650.
-
-Recommended rollout:
-
-1. Keep the Phase 1 proxy private or token-protected until OAuth is wired.
-2. Choose a tenant registry: static `wrangler.jsonc` vars for a small class/team,
-   or D1 for self-serve tenants and roster changes.
-3. Store a tenant claim in `McpAgent` props. Supported claim names are
-   `tenantId`, `tenant_id`, `tenant`, `orgId`, `org_id`, `organizationId`, and
-   `organization_id` either at the top level or under `claims`.
-4. Reject users without a tenant mapping instead of falling back to a shared
-   default tenant.
-5. Forward backend-compatible tenant headers to `ORACLE_URL`:
-
-```text
-X-Tenant-ID: <tenant>
-X-Oracle-Tenant: <tenant>
-```
-
-```ts
-type AuthContext = { claims: { sub: string; email?: string }; tenantId: string };
-
-export class OracleMCP extends McpAgent<Env, unknown, AuthContext> {
-  async init() {
-    this.server.tool('muninn_search', { query: z.string() }, async ({ query }) =>
-      oracleProxyTool(this.env, {
-        path: '/api/search',
-        query: { q: query },
-        tenantId: this.props.tenantId,
-      }));
-  }
-}
-```
-
-For a school pilot, create one tenant per class or department, invite users into
-matching OAuth/Access groups, and test two users against the same `/mcp` URL.
-Each should list the same tools but receive only tenant-scoped search, files,
-traces, and learn entries. Companies can use teams or org units as tenants and
-audit tenant-resolution failures.
-
-Store secrets with `wrangler secret put`, not in `wrangler.jsonc`:
-
-```bash
-cd workers/mcp
-npx wrangler secret put ARRA_API_TOKEN
-```
-
-Use tool-level `tenantId` only for local smoke tests without OAuth props. For
-previews, use a test tenant and non-production backend URL until tenant mapping
-and audit logs are verified.
+Without `ORACLE_HTTP_URL`, `/health` stays green but `oracle_search` returns a
+clear MCP tool error that explains how to configure the backend.
 
 ## Manual Wrangler deploy fallback
 
 Use this when the button is not ready or you need to test a branch preview:
 
 ```bash
-npm install
-npx wrangler login
-npx wrangler deploy --config wrangler.jsonc
+bun install
+bunx tsc --noEmit
+bunx wrangler deploy --config wrangler.jsonc
 ```
 
-If the worker config lands under a subdirectory, run the same commands from that
-directory or pass the subdirectory's config path:
+For local Workers testing:
 
 ```bash
-npx wrangler deploy --config workers/oracle-mcp/wrangler.toml
+bun run cloudflare:mcp:dev
+curl -sf http://localhost:8787/health
 ```
 
-After deploy, write down the endpoint:
+Store secrets with Wrangler or the Cloudflare dashboard, not in git:
 
-```text
-https://<worker-name>.<account>.workers.dev/mcp
+```bash
+bunx wrangler secret put ORACLE_API_TOKEN --config wrangler.jsonc
 ```
-
-Do not validate `/mcp` by opening it in a browser; it expects MCP protocol
-messages. Use MCP Inspector or a real client.
 
 ## Smoke test with MCP Inspector
 
@@ -177,8 +96,8 @@ In the inspector UI, connect to:
 https://<worker-name>.<account>.workers.dev/mcp
 ```
 
-Then select **List Tools**. If OAuth/Access is enabled, complete the auth flow
-and reconnect.
+Then select **List Tools**. You should see `oracle_health`, `oracle_search`, and
+`muninn_search`.
 
 ## Client connection: Claude Desktop + mcp-remote
 
@@ -199,52 +118,63 @@ Desktop settings, edit the Developer MCP config, and add:
 }
 ```
 
-Save and restart Claude Desktop. If the Worker requires OAuth/Access,
-`mcp-remote` opens the browser authorization flow; sign in, grant access, and
-then reconnect if Claude does not list tools immediately.
-
-For token-protected private previews before OAuth lands, pass a temporary header
-instead of making the endpoint public:
-
-```json
-{
-  "mcpServers": {
-    "arra-oracle-cloudflare-preview": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://<worker-name>.<account>.workers.dev/mcp",
-        "--header",
-        "Authorization: Bearer <preview-token>"
-      ]
-    }
-  }
-}
-```
-
 If your Claude client supports remote MCP URLs directly, use the same `/mcp` URL
-as the server URL. OAuth-capable clients should redirect to the Worker
-authorization endpoints and store their own MCP access token; stdio-only clients
-should keep using `mcp-remote`.
+as the server URL.
+
+## Multi-tenant setup for teams and schools
+
+For shared deployments, run one Worker endpoint for the organization and map each
+authenticated user to exactly one trusted tenant before proxying tools to Arra
+Oracle. Example models:
+
+| Model | Tenant example | Mapping source |
+| --- | --- | --- |
+| School | `grade-8`, `science-dept`, `library` | Google Workspace group, Access group, or D1 roster row |
+| Team | `platform`, `design`, `support` | GitHub org/team, WorkOS org, or Auth0 organization |
+| SaaS | `customer-acme`, `customer-river` | Billing/customer table or D1 tenant registry |
+
+Do not treat caller-supplied `tenantId` as authorization. Put OAuth or
+Cloudflare Access in front of `/mcp`, resolve the signed-in identity to a tenant,
+and forward only that trusted tenant to `ORACLE_HTTP_URL`. Backend routes already
+scope by tenant ID from #1650.
+
+Recommended rollout:
+
+1. Keep the Phase 1 proxy private or token-protected until OAuth is wired.
+2. Choose a tenant registry: static `wrangler.jsonc` vars for small teams, or D1
+   for self-serve tenants and roster changes.
+3. Store a tenant claim in `McpAgent` props.
+4. Reject users without a tenant mapping instead of falling back to a shared
+   default tenant.
+5. Forward backend-compatible tenant headers to `ORACLE_HTTP_URL` when the proxy
+   adds authenticated tenant support.
+
+## Storage roadmap
+
+This Worker intentionally avoids importing local SQLite, Drizzle, LanceDB, or
+embedding runtimes. Follow-up slices should add Cloudflare-native storage:
+
+- D1 for metadata and FTS-style document lookup.
+- Vectorize for embedding search.
+- Workers AI or a remote embedding service for indexing.
+- OAuth/Cloudflare Access before exposing write tools.
 
 ## Troubleshooting
 
-- **Deploy button fails early:** confirm the repo is public and the button points
-  to the directory containing `package.json` and Wrangler config.
-- **Build cannot find bindings:** ensure each D1/KV/R2/Vectorize/Durable Object
-  binding has default names/IDs in Wrangler config for Cloudflare to provision.
+- **Deploy button fails early:** confirm the repo is public and points to the
+  directory containing `package.json` and `wrangler.jsonc`.
+- **Build cannot find bindings:** confirm `MCP_OBJECT` exists in
+  `durable_objects.bindings` and migrations list `OracleMcpAgent`.
 - **`/mcp` returns a browser error:** use MCP Inspector or `mcp-remote`; direct
   browser navigation is not a valid MCP request.
 - **Claude shows no tools:** verify the deployed URL ends in `/mcp`, restart the
   client, and run MCP Inspector to separate client config from server issues.
-- **Backend proxy tools fail:** check `ORACLE_HTTP_URL`, `ARRA_API_TOKEN`, and
-  tenant headers against the upstream Arra Oracle HTTP server.
+- **Search fails:** set `ORACLE_HTTP_URL`; if protected, also set
+  `ORACLE_API_TOKEN`.
 
 ## References
 
 - Cloudflare Deploy buttons: <https://developers.cloudflare.com/workers/platform/deploy-buttons/>
 - Cloudflare remote MCP guide: <https://developers.cloudflare.com/agents/model-context-protocol/guides/remote-mcp-server/>
-- Cloudflare `McpAgent` API: <https://developers.cloudflare.com/agents/model-context-protocol/apis/agent-api/>
-- Cloudflare MCP authorization: <https://developers.cloudflare.com/agents/model-context-protocol/protocol/authorization/>
+- Cloudflare authless remote MCP template: <https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-authless>
 - Testing remote MCP clients: <https://developers.cloudflare.com/agents/model-context-protocol/guides/test-remote-mcp-server/>
-- `mcp-remote` package: <https://www.npmjs.com/package/mcp-remote>
