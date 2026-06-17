@@ -72,6 +72,9 @@ export async function storeDocuments(
             updatedAt: doc.updated_at,
             indexedAt: now,
             project: docProject,
+            supersededBy: null,
+            supersededAt: null,
+            supersededReason: null,
           }
         })
         .run();

@@ -25,7 +25,14 @@ import type { OracleDocument, IndexerConfig } from '../types.ts';
 import { setIndexingStatus } from './status.ts';
 import { backupDatabase } from './backup.ts';
 import { parseResonanceFile, parseLearningFile, parseRetroFile, parseDistillationFile } from './parser.ts';
+import { getEmbeddingModels } from '../vector/factory.ts';
 import { collectDocuments, collectPsiLearn, collectSecurityCorpus } from './collectors.ts';
+import {
+  changedDocumentIds,
+  enqueueVectorReindexJobs,
+  snapshotActiveIndexerDocs,
+  supersedeReplacedSourceDocs,
+} from './reindex-state.ts';
 import { storeDocuments } from './storage.ts';
 
 export interface IndexOptions {
@@ -79,6 +86,8 @@ export class OracleIndexer {
         `Set ORACLE_REPO_ROOT or run from a directory containing ψ/memory/ to avoid data loss.`
       );
     }
+
+    const beforeDocs = snapshotActiveIndexerDocs(this.sqlite, tenantId);
 
     // Collect documents from all source types
     const shared = { config: this.config, seenContentHashes: this.seenContentHashes };
@@ -143,13 +152,19 @@ export class OracleIndexer {
       }
     }
 
-    // Store in SQLite + FTS5 only. Vector indexing is a separate step
-    // (src/scripts/index-model.ts) that uses the canonical LanceDB path.
+    const changedIds = changedDocumentIds(beforeDocs, documents);
+
+    // Store in SQLite + FTS5 first. Vector work is queued afterwards so
+    // embedding failures cannot roll back the source-of-truth text index.
     await storeDocuments(this.sqlite, this.db, null, this.project, documents, { tenantId });
+    const superseded = supersedeReplacedSourceDocs(this.sqlite, documents, tenantId);
+    const vectorJobs = safeEnqueueVectorJobs(this.sqlite, documents, changedIds);
 
     setIndexingStatus(this.sqlite, this.config, false, documents.length, documents.length);
     console.log(`Indexed ${documents.length} documents (SQLite + FTS5)`);
-    console.log('Run `bun src/scripts/index-model.ts bge-m3` to populate vector embeddings.');
+    if (superseded > 0) console.log(`Superseded ${superseded} stale document ids from reindexed sources`);
+    console.log(`Queued ${vectorJobs.queued} vector job(s); skipped ${vectorJobs.skipped}`);
+    if (vectorJobs.failed > 0) console.warn(`Failed to queue ${vectorJobs.failed} vector job(s); FTS5 index remains current`);
     console.log('Indexing complete!');
   }
 
@@ -161,4 +176,12 @@ export class OracleIndexer {
 
 function tenantScopedWhere(base: SQL, tenantId: string | undefined): SQL {
   return tenantId ? and(base, eq(oracleDocuments.tenantId, tenantId))! : base;
+}
+
+function safeEnqueueVectorJobs(sqlite: Database, documents: OracleDocument[], changedIds: Set<string>) {
+  try {
+    return enqueueVectorReindexJobs(sqlite, documents, getEmbeddingModels(), changedIds);
+  } catch {
+    return { queued: 0, skipped: 0, failed: documents.length };
+  }
 }
