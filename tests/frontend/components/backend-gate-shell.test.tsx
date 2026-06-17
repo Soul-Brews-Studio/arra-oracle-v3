@@ -38,6 +38,7 @@ describe('BackendGate shell', () => {
         />,
       );
 
+      expect(html).toContain('Backend unavailable');
       expect(html).toContain('Cannot reach http://localhost:47778: fetch failed');
       expect(html).toContain('value="localhost:47778"');
       expect(html).toContain('arra-oracle-v3 serve');
@@ -74,6 +75,7 @@ describe('BackendGate shell', () => {
       />,
     );
 
+    expect(html).toContain('Backend unavailable');
     expect(html).toContain('Cannot reach http://localhost:47778: offline');
     expect(html).toContain('Use this backend');
     expect(html).toContain('Retry');
