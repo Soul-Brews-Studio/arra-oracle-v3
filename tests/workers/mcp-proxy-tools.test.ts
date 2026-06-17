@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { remoteableMcpRestMap } from '../../src/tools/mcp-rest-map.ts';
-import { workerMcpToolEntries } from '../../workers/mcp/src/tools.ts';
+import { proxyRequestFromEntry, workerMcpToolEntries } from '../../workers/mcp/src/tools.ts';
 import { buildProxyUrl, oracleProxyTool, resolveMcpTenantId, resolveOracleUrl } from '../../workers/mcp/src/proxy.ts';
 
 describe('Cloudflare MCP proxy tools', () => {
@@ -32,6 +32,17 @@ describe('Cloudflare MCP proxy tools', () => {
 
     expect(base).toBe('https://origin.example.test/oracle');
     expect(url).toBe('https://origin.example.test/oracle/api/search?q=vector+safety&limit=5&offset=0');
+    expect(resolveOracleUrl({ ORACLE_ORIGIN_URL: 'https://user:pass@origin.example/root/?x=1#hash' })).toBe('https://origin.example/root');
+  });
+
+  test('allowlists request body fields before proxying to the backend', () => {
+    const learn = workerMcpToolEntries.find((tool) => tool.name === 'oracle_learn')!;
+    const distill = workerMcpToolEntries.find((tool) => tool.name === 'oracle_trace_distill')!;
+
+    expect(proxyRequestFromEntry(learn, { pattern: 'p', concepts: ['c'], tenantId: 'tenant-a', extra: 'drop' })?.body)
+      .toEqual({ pattern: 'p', concepts: ['c'] });
+    expect(proxyRequestFromEntry(distill, { traceId: 'tr-1', awakening: 'a', metadata: { ok: true }, tenantId: 'tenant-a', extra: 'drop' })?.body)
+      .toEqual({ awakening: 'a', metadata: { ok: true } });
   });
 
   test('rejects non-http backend origin URLs', () => {

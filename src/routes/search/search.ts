@@ -4,6 +4,7 @@
 
 import { Elysia } from 'elysia';
 import { sqlite } from '../../db/index.ts';
+import { filterResultsAsOf, parseAsOf } from '../../search/bitemporal.ts';
 import { attachSupersedeStatus } from '../../search/supersede-status.ts';
 import { handleSearch } from '../../server/handlers.ts';
 import { SearchQuery } from './model.ts';
@@ -36,15 +37,28 @@ export const searchEndpoint = new Elysia().get(
       set.status = 400;
       return { error: 'Invalid search mode. Expected one of: hybrid, fts, vector' };
     }
+    const asOf = parseAsOf(query.asOf);
+    if (!asOf.ok) {
+      set.status = 400;
+      return { error: asOf.error };
+    }
     const project = query.project;
     const cwd = query.cwd;
     const model = query.model;
 
     try {
-      const result = handleTenantSearch(sanitizedQ, type, limit, offset)
-        ?? await handleSearch(sanitizedQ, type, limit, offset, mode, project, cwd, model);
+      const tenantResult = handleTenantSearch(sanitizedQ, type, limit, offset, asOf.value);
+      const result = tenantResult ?? await handleSearch(sanitizedQ, type, limit, offset, mode, project, cwd, model);
+      if (asOf.value && !tenantResult) {
+        result.results = filterResultsAsOf(
+          sqlite,
+          result.results as unknown as Array<Record<string, unknown>>,
+          asOf.value,
+        ) as unknown as typeof result.results;
+        result.total = result.results.length;
+      }
       attachSupersedeStatus(sqlite, result.results as unknown as Array<Record<string, unknown>>);
-      return { ...result, query: sanitizedQ };
+      return { ...result, query: sanitizedQ, ...(asOf.value ? { asOf: new Date(asOf.value).toISOString() } : {}) };
     } catch {
       set.status = 400;
       return { results: [], total: 0, query: sanitizedQ, error: 'Search failed' };

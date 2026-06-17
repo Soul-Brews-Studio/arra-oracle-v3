@@ -6,6 +6,7 @@ import { scanPlugins } from '../plugins/model.ts';
 import { readVectorBackendHealth } from '../../vector/health.ts';
 import { getVectorRuntimeStatus } from '../../vector/runtime-status.ts';
 import { readVectorServerHealth, type VectorServerHealth } from './vector-server.ts';
+import { memoryConfidenceRerankConfig } from '../memory/rerank-config.ts';
 import { mcpTools } from '../../tools/mcp-manifest.ts';
 import type { UnifiedPluginStatus } from '../../plugins/unified-loader.ts';
 import { sandboxLabel } from '../../runtime/sandbox-label.ts';
@@ -79,6 +80,7 @@ const HealthResponseSchema = t.Object({
     error: t.Optional(t.String()),
   })),
   vector: t.Optional(HealthVectorSchema),
+  memory: t.Optional(t.Object({ fanoutReranking: t.Object({ enabled: t.Boolean(), confidenceWeight: t.Number(), source: t.String(), envKey: t.Optional(t.String()), strategy: t.String() }) })),
   mcp: t.Optional(t.Object({ toolCount: t.Number() })),
   plugins: t.Optional(t.Object({
     count: t.Number(),
@@ -225,6 +227,7 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
       dbCheck: { ...dbStatus, path: DB_PATH },
       vector,
       vectorServer,
+      memory: { fanoutReranking: memoryConfidenceRerankConfig() },
       mcp: { toolCount },
       plugins: { count: pluginCount, status: pluginStatus, items: pluginItems },
     };

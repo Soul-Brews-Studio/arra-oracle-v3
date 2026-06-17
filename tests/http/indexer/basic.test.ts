@@ -112,7 +112,7 @@ describe('indexer HTTP routes', () => {
       expect(res.status).toBe(200);
       expect(body.batchSize).toBe(100);
       expect(status.error).toBe('embed failed');
-      expect(close).toHaveBeenCalledTimes(1);
+      expect(close).toHaveBeenCalledTimes(2);
     } finally {
       sqlite.close();
     }
@@ -123,13 +123,14 @@ describe('indexer HTTP routes', () => {
     const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const tenantA = `tenant-a-${stamp}`;
     const tenantB = `tenant-b-${stamp}`;
-    seedDoc(sqlite, `idx-a-${stamp}`, tenantA, `alpha ${stamp}`, 2);
+    seedDoc(sqlite, `idx-a-${stamp}`, tenantA, `Alpha Project ${stamp}`, 2);
     seedDoc(sqlite, `idx-b-${stamp}`, tenantB, `beta ${stamp}`, 1);
     const added: VectorDocument[] = [];
+    const entityDocs: VectorDocument[] = [];
     const tasks: Promise<void>[] = [];
     const app = new Elysia({ prefix: '/api' }).use(createStartRoute({
       createDb: () => ({ sqlite } as any),
-      createStore: () => fakeStore(added),
+      createStore: (preset: any) => fakeStore(String(preset.collection).endsWith('_entities') ? entityDocs : added),
       getModels: () => ({ nomic: { collection: 'test', model: 'nomic-embed-text' } }),
       runInBackground: (task) => tasks.push(task),
     }));
@@ -147,8 +148,11 @@ describe('indexer HTTP routes', () => {
       expect(res.status).toBe(200);
       expect(body.tenantId).toBe(tenantA);
       expect(added.map((doc) => doc.id)).toEqual([`idx-a-${stamp}`]);
-      expect(added[0].document).toContain('alpha');
+      expect(added[0].document).toContain('Alpha Project');
       expect(added[0].metadata.tenant_id).toBe(tenantA);
+      expect(entityDocs.map((doc) => doc.document)).toContain('Alpha Project');
+      expect(entityDocs[0].metadata.source_doc_id).toBe(`idx-a-${stamp}`);
+      expect(entityDocs[0].metadata.tenant_id).toBe(tenantA);
       expect(status.progress_total).toBe(1);
     } finally {
       sqlite.close();

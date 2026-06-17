@@ -83,5 +83,7 @@ describe('workers/mcp deploy package', () => {
     expect(cfg.durable_objects.bindings).toContainEqual({ name: 'MCP_OBJECT', class_name: 'OracleMCP' });
     expect(cfg.migrations).toContainEqual({ tag: 'v1', new_sqlite_classes: ['OracleMCP'] });
     expect(cfg.vars.ORACLE_URL).toContain('replace-with-your-oracle-backend');
+    expect(cfg.vars.ORACLE_ORIGIN_URL).toBeUndefined();
+    expect(JSON.stringify(cfg.vars)).not.toContain('secret');
   });
 });

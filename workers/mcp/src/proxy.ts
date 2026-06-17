@@ -84,6 +84,8 @@ export function resolveOracleUrl(env: OracleProxyEnv): string {
   const [label, raw] = match;
   const url = new URL(raw!.trim());
   if (!['http:', 'https:'].includes(url.protocol)) throw new Error(`${label} must be http(s).`);
+  url.username = '';
+  url.password = '';
   url.hash = '';
   url.search = '';
   url.pathname = url.pathname.replace(/\/+$/, '');

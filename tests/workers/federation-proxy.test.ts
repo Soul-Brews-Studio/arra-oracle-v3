@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { buildTunnelUrl, handleFederationRequest, proxyFederationRequest, resolveTunnelUrl, signFederationHeaders, type FederationEnv } from '../../workers/federation/src/index.ts';
 
 const token = '0123456789abcdef0123456789abcdef';
@@ -9,9 +10,10 @@ function env(overrides: Partial<FederationEnv> = {}): FederationEnv {
 
 describe('federation Worker proxy', () => {
   test('normalizes tunnel URLs and preserves relayed path/query', () => {
-    expect(resolveTunnelUrl({ TUNNEL_URL: ' https://tunnel.example.test/root/?x=1#hash ' })).toBe('https://tunnel.example.test/root');
+    expect(resolveTunnelUrl({ TUNNEL_URL: ' https://user:pass@tunnel.example.test/root/?x=1#hash ' })).toBe('https://tunnel.example.test/root');
     expect(resolveTunnelUrl({})).toBeNull();
     expect(resolveTunnelUrl({ TUNNEL_URL: 'not a url' })).toBeNull();
+    expect(resolveTunnelUrl({ TUNNEL_URL: 'file:///tmp/tunnel.sock' })).toBeNull();
     expect(buildTunnelUrl('https://tunnel.example.test/root', 'https://worker.example/api/sessions?local=true')).toBe('https://tunnel.example.test/root/api/sessions?local=true');
   });
 
@@ -28,13 +30,15 @@ describe('federation Worker proxy', () => {
   });
 
   test('relays send and sessions to the tunnel with HMAC headers', async () => {
-    const seen: Array<{ url: string; method: string; version: string | null; body: string }> = [];
+    const seen: Array<{ url: string; method: string; version: string | null; body: string; host: string | null; forwarded: string | null }> = [];
     const fetcher = async (request: Request) => {
       seen.push({
         url: request.url,
         method: request.method,
         version: request.headers.get('x-maw-auth-version'),
         body: await request.text(),
+        host: request.headers.get('host'),
+        forwarded: request.headers.get('x-forwarded-for'),
       });
       expect(request.headers.get('x-maw-signature')).toMatch(/^[a-f0-9]{64}$/);
       expect(request.headers.get('x-oracle-federation-proxy')).toBe('cloudflare-workers');
@@ -42,13 +46,15 @@ describe('federation Worker proxy', () => {
     };
 
     const send = await proxyFederationRequest(new Request('https://worker.example/api/send', { method: 'POST', body: JSON.stringify({ target: 'codex-1', text: 'hi' }) }), env(), fetcher);
-    const sessions = await proxyFederationRequest(new Request('https://worker.example/api/sessions?local=true'), env(), fetcher);
+    const sessions = await proxyFederationRequest(new Request('https://worker.example/api/sessions?local=true', {
+      headers: { host: 'evil.example', 'x-forwarded-for': '203.0.113.1', 'x-maw-auth-version': 'spoofed' },
+    }), env(), fetcher);
 
     expect(send.headers.get('cache-control')).toBe('no-store');
     expect(sessions.status).toBe(200);
     expect(seen).toEqual([
-      { url: 'https://tunnel.example.test/root/api/send', method: 'POST', version: 'v2', body: '{"target":"codex-1","text":"hi"}' },
-      { url: 'https://tunnel.example.test/root/api/sessions?local=true', method: 'GET', version: null, body: '' },
+      { url: 'https://tunnel.example.test/root/api/send', method: 'POST', version: 'v2', body: '{"target":"codex-1","text":"hi"}', host: null, forwarded: null },
+      { url: 'https://tunnel.example.test/root/api/sessions?local=true', method: 'GET', version: null, body: '', host: null, forwarded: null },
     ]);
   });
 
@@ -66,5 +72,13 @@ describe('federation Worker proxy', () => {
     const response = await handleFederationRequest(new Request('https://worker.example/__health'), env());
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(await response.json()).toMatchObject({ ok: true, app: 'arra-oracle-federation-proxy', tunnelConfigured: true });
+  });
+
+  test('keeps federation deploy config free of committed secrets', () => {
+    const cfg = JSON.parse(readFileSync('workers/federation/wrangler.jsonc', 'utf8'));
+
+    expect(cfg.vars.TUNNEL_URL).toContain('your-tunnel');
+    expect(cfg.vars.FEDERATION_TOKEN).toBeUndefined();
+    expect(JSON.stringify(cfg)).not.toContain('deploy-smoke-secret');
   });
 });
