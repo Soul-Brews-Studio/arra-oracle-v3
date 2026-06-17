@@ -13,7 +13,41 @@ federation gateway, and operator CLI. It stores local knowledge in SQLite,
 indexes it with vector backends, and exposes the same capabilities to humans,
 agents, maw-js, and web frontends.
 
-## Quick start
+## Quick start: Docker + `arra mine` (recommended)
+
+Use this path first: one local data dir, Docker for HTTP, and `arra mine` to ingest notes before asking.
+
+```bash
+export ORACLE_DATA_DIR="$HOME/.arra-oracle-v2"
+mkdir -p "$ORACLE_DATA_DIR"
+
+docker run --rm --name arra-oracle -p 47778:47778 \
+  -e ORACLE_EMBEDDER=none \
+  -v "$ORACLE_DATA_DIR:/data" \
+  ghcr.io/soul-brews-studio/arra-oracle-v3:http
+```
+
+`ORACLE_EMBEDDER=none` is zero-egress mode: no embedding-provider calls; FTS5 works immediately, vectors can be configured later.
+
+In another shell, mine a folder into the same data dir and ask over HTTP:
+
+```bash
+export ORACLE_DATA_DIR="$HOME/.arra-oracle-v2"
+bunx --package arra-oracle-v3 arra mine ~/notes
+curl 'http://localhost:47778/api/v1/search?q=runbook&mode=fts'
+```
+
+For MCP clients, point the stdio Docker image at the same data dir:
+
+```bash
+claude mcp add arra-oracle -- docker run --rm -i -e ORACLE_LOG_TARGET=stderr \
+  -v "$ORACLE_DATA_DIR:/data" ghcr.io/soul-brews-studio/arra-oracle-v3:stdio
+claude mcp list              # expect connected; tools/list exposes 28 tools
+```
+
+### Developer source path
+
+Use source only when editing core code:
 
 ```bash
 git clone https://github.com/Soul-Brews-Studio/arra-oracle-v3.git
@@ -23,43 +57,7 @@ bunx tsc --noEmit
 bun run server                 # HTTP API on http://localhost:47778
 ```
 
-### Test the MCP locally
-
-Project scope works by opening this clone; `.mcp.json` launches `bin/mcp.ts`
-without `CLAUDE_PLUGIN_ROOT`. For user scope, add the same launcher explicitly:
-
-```bash
-claude mcp add arra-oracle --cwd "$PWD" -- bun bin/mcp.ts
-claude mcp list              # expect connected; tools/list exposes 27 tools
-```
-
-Useful checks:
-```bash
-curl -sf http://localhost:47778/api/health
-bun cli/src/cli.ts health
-```
-
-Run the React Studio UI:
-
-```bash
-cd frontend
-bun install
-bun run dev                    # Vite UI, proxying /api to :47778
-```
-
-Desktop app:
-
-```bash
-cd frontend
-cargo tauri dev                # native shell around the React dashboard
-```
-
-Docker HTTP mode:
-
-```bash
-docker run --rm -p 47778:47778 -v arra-data:/data \
-  ghcr.io/soul-brews-studio/arra-oracle-v3:http
-```
+Useful checks: `curl -sf http://localhost:47778/api/health` and `bun cli/src/cli.ts health`. React UI: `cd frontend && bun install && bun run dev`. Tauri: `cd frontend && cargo tauri dev`.
 
 ## Major features
 
@@ -67,7 +65,7 @@ docker run --rm -p 47778:47778 -v arra-data:/data \
 | --- | --- |
 | Modular backend | Elysia/SQLite core can run all-local, behind a maw plugin backend, behind edge proxies, or split from vector/MCP adapters. |
 | Runtime plug-in/out | Unified manifests enable/disable CLI, menu/API, MCP, proxy, server, export-format, and lifecycle surfaces without forks. |
-| MCP memory tools | 27 tools: `____IMPORTANT` plus 26 `oracle_*`, including `oracle_research_note`, `oracle_profile`, and `oracle_trace_distill`. |
+| MCP memory tools | 28 tools: `____IMPORTANT` plus 27 `oracle_*`, including `oracle_research_note`, `oracle_profile`, and `oracle_trace_distill`. |
 | Memory confidence + supersede | Confidence receipts, reversible supersede chains, trace context, and async dry-run consolidation preserve history while deduping. |
 | HTTP API | Elysia route clusters under `/api/*`, with health, search, knowledge, vector, menu, plugins, canvas, tenants, settings, and opt-in federation surfaces. |
 | Vector search | Configurable providers, LanceDB/local stores, proxy services, export formats, status/config APIs, and FTS fallback paths. |

@@ -114,7 +114,7 @@ describe('README/docs advertised claims', () => {
   }
 
   test('advertised MCP core tool count and names match the manifest and HTTP browser', async () => {
-    expect(coreMcpToolNames).toHaveLength(27);
+    expect(coreMcpToolNames).toHaveLength(28);
     expect(coreMcpToolNames).toContain('oracle_search');
     expect(coreMcpToolNames).toContain('oracle_trace_distill');
 
@@ -122,7 +122,7 @@ describe('README/docs advertised claims', () => {
     const body = await response.json() as { tools: Array<{ name: string; source: string }>; total: number };
     const coreNames = body.tools.filter((tool) => tool.source === 'core').map((tool) => tool.name);
     expect(response.ok).toBe(true);
-    expect(body.total).toBeGreaterThanOrEqual(27);
+    expect(body.total).toBeGreaterThanOrEqual(28);
     expect(coreNames).toEqual(coreMcpToolNames);
   });
 });
