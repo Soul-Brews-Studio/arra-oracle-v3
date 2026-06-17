@@ -12,6 +12,8 @@ describe('GlobalSearchResults links', () => {
     );
     expect(html).toContain('MCP tool');
     expect(html).toContain('echo.tool');
+    expect(html).toContain('aria-label="Global search results"');
+    expect(html).toContain('font-semibold text-text');
     expect(html).toContain('href="/mcp/tools/echo.tool"');
   });
 });

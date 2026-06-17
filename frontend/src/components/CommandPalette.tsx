@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { StateNotice } from './StateNotice';
 
 export type CommandPaletteAction = {
   id: string;
@@ -24,24 +25,34 @@ export function commandPaletteActions(onRefresh: () => void): CommandPaletteActi
   ];
 }
 
-export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
+export function filterCommandPaletteActions(commands: CommandPaletteAction[], query: string): CommandPaletteAction[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return commands;
+  return commands.filter((command) => {
+    const searchable = `${command.label} ${command.description}`.toLowerCase();
+    return searchable.includes(normalized);
+  });
+}
+
+export function CommandPalette({
+  onRefresh,
+  defaultOpen = false,
+  initialQuery = '',
+}: {
+  onRefresh: () => void;
+  defaultOpen?: boolean;
+  initialQuery?: string;
+}) {
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(defaultOpen);
+  const [query, setQuery] = useState(initialQuery);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
   const commands = useMemo<CommandPaletteAction[]>(() => commandPaletteActions(onRefresh), [onRefresh]);
 
-  const visibleCommands = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return commands;
-    return commands.filter((command) => {
-      const searchable = `${command.label} ${command.description}`.toLowerCase();
-      return searchable.includes(normalized);
-    });
-  }, [commands, query]);
+  const visibleCommands = useMemo(() => filterCommandPaletteActions(commands, query), [commands, query]);
 
   useEffect(() => {
     const isTextInput = (target: EventTarget | null): boolean => {
@@ -130,6 +141,9 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
     <div>
       <button
         aria-label="Open command palette"
+        aria-controls="command-palette-dialog"
+        aria-expanded={open}
+        aria-haspopup="dialog"
         className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-left text-sm text-text transition hover:bg-field dark:border-border dark:bg-surface-muted dark:text-text dark:hover:border-accent-border"
         type="button"
         onClick={() => setOpen(true)}
@@ -139,21 +153,29 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
 
       {open ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-surface p-3"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 p-3 backdrop-blur"
           aria-label="Command palette modal"
           role="presentation"
           onClick={() => setOpen(false)}
         >
           <section
+            id="command-palette-dialog"
             ref={overlayRef}
             className="w-full max-w-xl rounded-2xl border border-border bg-field p-4 shadow-2xl shadow-slate-900/20 dark:border-border dark:bg-field"
             onClick={(event) => event.stopPropagation()}
             role="dialog"
             aria-modal="true"
-            aria-label="Command palette"
+            aria-labelledby="command-palette-title"
+            aria-describedby="command-palette-description"
           >
+            <div className="mb-3">
+              <h2 id="command-palette-title" className="text-sm font-semibold text-text">Command palette</h2>
+              <p id="command-palette-description" className="text-xs text-text-muted">Search pages and dashboard actions, then use Enter to run the selected item.</p>
+            </div>
             <input
               ref={inputRef}
+              aria-activedescendant={visibleCommands[selectedIndex]?.id ? `command-option-${visibleCommands[selectedIndex]?.id}` : undefined}
+              aria-controls="command-palette-listbox"
               aria-label="Search command palette"
               className="focus-ring mb-3 min-w-0 w-full rounded-xl border border-border bg-field px-3 py-2 text-sm text-on-accent dark:border-border dark:bg-surface-muted dark:text-text"
               value={query}
@@ -166,7 +188,7 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
               type="search"
             />
 
-            <ul className="grid gap-2" role="listbox" aria-label="Commands">
+            <ul className="grid gap-2" id="command-palette-listbox" role="listbox" aria-label="Commands">
               {visibleCommands.map((command, index) => {
                 const selected = index === selectedIndex;
                 return (
@@ -174,6 +196,8 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
                     {command.href ? (
                       <Link
                         aria-selected={selected}
+                        id={`command-option-${command.id}`}
+                        role="option"
                         className={`focus-ring flex w-full items-start justify-between rounded-xl border border-border bg-surface p-3 text-left transition ${selected ? 'border-accent-border bg-accent-soft' : 'hover:bg-field'}`}
                         onMouseEnter={() => setSelectedIndex(index)}
                         onClick={() => execute(command)}
@@ -187,6 +211,8 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
                         type="button"
                         className={`focus-ring flex w-full items-start justify-between rounded-xl border border-border bg-surface p-3 text-left transition ${selected ? 'border-accent-border bg-accent-soft' : 'hover:bg-field'}`}
                         aria-selected={selected}
+                        id={`command-option-${command.id}`}
+                        role="option"
                         onMouseEnter={() => setSelectedIndex(index)}
                         onClick={() => execute(command)}
                       >
@@ -198,6 +224,11 @@ export function CommandPalette({ onRefresh }: { onRefresh: () => void }) {
                 );
               })}
             </ul>
+            {!visibleCommands.length ? (
+              <div className="mt-3">
+                <StateNotice tone="warning" title="No matching command actions." detail="Try menu, plugins, MCP, vector, settings, or refresh." />
+              </div>
+            ) : null}
           </section>
         </div>
       ) : null}

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { globalSearchSurfaceLabel, searchAllSurfaces, type GlobalSearchResult } from '../global-search';
 import { Spinner } from './AsyncState';
+import { StateNotice } from './StateNotice';
 
 type SearchState = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -12,7 +13,7 @@ function ResultAnchor({ result }: { result: GlobalSearchResult }) {
         {globalSearchSurfaceLabel(result.surface)}
       </span>
       <span className="min-w-0">
-        <span className="block truncate font-semibold text-on-accent dark:text-text">{result.title}</span>
+        <span className="block truncate font-semibold text-text dark:text-text">{result.title}</span>
         <span className="block truncate text-xs text-text-muted dark:text-text-muted">{result.detail}</span>
       </span>
     </>
@@ -22,9 +23,17 @@ function ResultAnchor({ result }: { result: GlobalSearchResult }) {
 }
 
 export function GlobalSearchResults({ results }: { results: GlobalSearchResult[] }) {
-  if (!results.length) return <p className="rounded-xl border border-dashed border-border p-3 text-sm text-text-muted dark:border-border dark:text-text-muted">No matching menu, plugin, or MCP tool surfaces.</p>;
+  if (!results.length) {
+    return (
+      <StateNotice
+        tone="warning"
+        title="No matching surfaces."
+        detail="Try a menu label, plugin name, MCP tool, route path, or action keyword."
+      />
+    );
+  }
   return (
-    <ul className="grid gap-2">
+    <ul className="grid gap-2" aria-label="Global search results">
       {results.map((result) => <li key={result.id}><ResultAnchor result={result} /></li>)}
     </ul>
   );
@@ -65,6 +74,7 @@ export function GlobalSearch() {
       <form className="grid gap-2 sm:grid-cols-[1fr_auto]" role="search" onSubmit={submit}>
         <label className="sr-only" htmlFor="global-search">Search all surfaces</label>
         <input
+          aria-controls="global-search-results"
           className="focus-ring min-w-0 rounded-xl border border-border bg-field px-4 py-3 text-sm text-on-accent placeholder:text-text-muted dark:border-border dark:bg-surface-muted dark:text-text dark:placeholder:text-text-muted"
           id="global-search"
           placeholder="Search menu, plugins, MCP tools…"
@@ -80,9 +90,9 @@ export function GlobalSearch() {
           {state === 'loading' ? <Spinner label="Searching" /> : 'Search'}
         </button>
       </form>
-      {state === 'error' ? <p className="rounded-xl border border-err-border bg-err-bg p-3 text-sm text-err-text">{error}</p> : null}
+      {state === 'error' ? <StateNotice tone="error" title="Global search failed." detail={error} /> : null}
       {state === 'ready' ? (
-        <div className="grid gap-2">
+        <div className="grid gap-2" id="global-search-results" aria-live="polite">
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-text-muted dark:text-text-muted">
             {results.length ? `${results.length} unified result${results.length === 1 ? '' : 's'} for “${lastQuery}”` : `No results for “${lastQuery}”`}
           </p>

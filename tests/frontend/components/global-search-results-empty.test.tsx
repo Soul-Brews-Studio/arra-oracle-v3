@@ -4,6 +4,10 @@ import { htmlFor } from '../_render';
 
 describe('GlobalSearchResults empty state', () => {
   test('renders an empty state for unified searches with no matches', () => {
-    expect(htmlFor(<GlobalSearchResults results={[]} />)).toContain('No matching menu, plugin, or MCP tool surfaces.');
+    const html = htmlFor(<GlobalSearchResults results={[]} />);
+
+    expect(html).toContain('No matching surfaces.');
+    expect(html).toContain('border-warn-border bg-warn-bg text-warn-text');
+    expect(html).toContain('role="status"');
   });
 });

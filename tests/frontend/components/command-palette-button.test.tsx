@@ -12,5 +12,20 @@ describe('CommandPalette', () => {
     );
     expect(html).toContain('Open command palette');
     expect(html).toContain('Search actions (⌘K)');
+    expect(html).toContain('aria-haspopup="dialog"');
+    expect(html).toContain('aria-expanded="false"');
+  });
+
+  test('renders semantic empty command state inside the dialog', () => {
+    const html = htmlFor(
+      <MemoryRouter>
+        <CommandPalette onRefresh={() => {}} defaultOpen initialQuery="no-match-command" />
+      </MemoryRouter>,
+    );
+
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-controls="command-palette-listbox"');
+    expect(html).toContain('No matching command actions.');
+    expect(html).toContain('border-warn-border bg-warn-bg text-warn-text');
   });
 });

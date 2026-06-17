@@ -13,6 +13,8 @@ describe('McpToolBrowser a11y edges', () => {
     expect(html).toContain('role="status"');
     expect(html).toContain('aria-label="Loading tools"');
     expect(html).toContain('aria-label="Reload MCP tool list"');
+    expect(html).toContain('aria-describedby="mcp-tool-counts"');
+    expect(html).toContain('aria-label="MCP tool results"');
   });
 
   test('labels schema detail buttons for plugin tools', () => {
@@ -22,5 +24,14 @@ describe('McpToolBrowser a11y edges', () => {
     expect(html).toContain('aria-label="Open schema detail for echo.say"');
     expect(html).toContain('plugin:echo');
     expect(html).toContain('href="/plugins?q=echo&amp;surface=mcp"');
+    expect(html).toContain('role="listitem"');
+  });
+
+  test('renders semantic empty state when filters hide all tools', () => {
+    const html = htmlFor(<McpToolBrowser initialTools={[tool]} initialFilter="missing" />);
+
+    expect(html).toContain('No MCP tools matched.');
+    expect(html).toContain('border-warn-border bg-warn-bg text-warn-text');
+    expect(html).toContain('role="status"');
   });
 });

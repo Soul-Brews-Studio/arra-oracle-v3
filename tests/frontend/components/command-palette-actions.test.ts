@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { commandPaletteActions } from '../../../frontend/src/components/CommandPalette';
+import { commandPaletteActions, filterCommandPaletteActions } from '../../../frontend/src/components/CommandPalette';
 
 describe('commandPaletteActions', () => {
   test('includes direct routes for unified plugin frontend surfaces', () => {
@@ -18,5 +18,12 @@ describe('commandPaletteActions', () => {
     const refresh = commandPaletteActions(() => {}).find((command) => command.id === 'refresh');
     expect(refresh?.href).toBeUndefined();
     expect(refresh?.onAction).toBeFunction();
+  });
+
+  test('filters commands by labels and descriptions', () => {
+    const commands = commandPaletteActions(() => {});
+    expect(filterCommandPaletteActions(commands, 'mcp').map((command) => command.id)).toEqual(['mcp']);
+    expect(filterCommandPaletteActions(commands, 'runtime').map((command) => command.id)).toEqual(['plugins', 'settings']);
+    expect(filterCommandPaletteActions(commands, 'nope')).toEqual([]);
   });
 });

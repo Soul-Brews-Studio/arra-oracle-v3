@@ -48,6 +48,7 @@ describe('McpToolBrowser source filters', () => {
     expect(html).toContain('aria-label="Filter MCP tool source"');
     expect(html).toContain('1 plugin · 1 core');
     expect(html).toContain('plugin:echo');
+    expect(html).toContain('border-accent2-border bg-accent2-soft text-accent2');
     expect(html).toContain('href="/plugins?q=echo&amp;surface=mcp"');
     expect(html).toContain('core');
   });

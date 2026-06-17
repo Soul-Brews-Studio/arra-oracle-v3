@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchMcpTools } from '../api';
 import { mcpToolsPath, pluginInventoryPath } from '../routePaths';
 import { ErrorMessage, LoadingPanel, Spinner } from './AsyncState';
+import { StateNotice } from './StateNotice';
 import { groupLabel, toolMode } from './toolView';
 import type { McpTool } from '../types';
 
@@ -70,17 +71,20 @@ export function filterMcpTools(tools: McpTool[], query: string, source: McpToolS
 function SourceBadge({ tool }: { tool: McpTool }) {
   const label = mcpToolSourceLabel(tool);
   const href = mcpToolPluginInventoryPath(tool);
-  const className = 'rounded-full border border-accent-border px-2 py-1 text-xs text-accent';
+  const tone = sourceKind(tool) === 'plugin'
+    ? 'border-accent2-border bg-accent2-soft text-accent2'
+    : 'border-accent-border bg-accent-soft text-accent';
+  const className = `rounded-full border px-2 py-1 text-xs font-semibold ${tone}`;
   return href ? <a className={`focus-ring ${className}`} href={href}>{label}</a> : <span className={className}>{label}</span>;
 }
 
 function ToolCard({ tool, onOpen }: { tool: McpTool; onOpen?: (tool: McpTool) => void }) {
   return (
-    <article className="rounded-2xl border border-border bg-surface p-4">
+    <article className="rounded-2xl border border-border bg-surface p-4" role="listitem">
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="font-mono text-sm text-accent">{tool.name}</h3>
-        <span className="rounded-full bg-white/5 px-2 py-1 text-xs text-text-muted">{groupLabel(tool)}</span>
-        <span className="rounded-full border border-accent2-border px-2 py-1 text-xs text-accent2">{toolMode(tool)}</span>
+        <span className="rounded-full border border-border bg-surface-muted px-2 py-1 text-xs text-text-muted">{groupLabel(tool)}</span>
+        <span className="rounded-full border border-accent-border bg-accent-soft px-2 py-1 text-xs font-semibold text-accent">{toolMode(tool)}</span>
         <SourceBadge tool={tool} />
       </div>
       <p className="mt-3 text-sm leading-6 text-text-muted">{tool.description || 'No description supplied.'}</p>
@@ -166,7 +170,8 @@ export function McpToolBrowser({
       <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(12rem,1fr)_12rem_auto] lg:items-center">
         <input
           aria-label="Filter MCP tools"
-          className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-sm text-text placeholder:text-slate-600"
+          aria-describedby="mcp-tool-counts"
+          className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-sm text-text placeholder:text-text-muted"
           value={filter}
           onChange={(event) => setFilter(event.target.value)}
           placeholder="Filter tools, groups, descriptions…"
@@ -182,7 +187,7 @@ export function McpToolBrowser({
           <option value="plugin">Plugin tools</option>
           <option value="core">Core tools</option>
         </select>
-        <p className="text-sm text-text-muted">
+        <p className="text-sm text-text-muted" id="mcp-tool-counts" aria-live="polite">
           {loading ? <Spinner label="Loading tools" /> : `${visible.length}/${tools.length} tools · ${groups} groups · ${sourceCounts.plugin} plugin · ${sourceCounts.core} core`}
         </p>
       </div>
@@ -200,8 +205,14 @@ export function McpToolBrowser({
           action={<button aria-label="Retry loading MCP tools" className="focus-ring rounded-lg border border-err-border px-3 py-2 font-semibold text-err-text hover:bg-err-bg" type="button" onClick={() => void load()}>Retry</button>}
         />
       ) : null}
-      {state === 'ready' && !visible.length ? <p className="rounded-xl border border-dashed border-border p-6 text-sm text-text-muted">No MCP tools matched.</p> : null}
-      <div className="grid gap-3 lg:grid-cols-2" aria-busy={loading}>
+      {state === 'ready' && !visible.length ? (
+        <StateNotice
+          tone="warning"
+          title="No MCP tools matched."
+          detail="Clear the search term or switch the source filter to include plugin and core tools."
+        />
+      ) : null}
+      <div className="grid gap-3 lg:grid-cols-2" aria-busy={loading} aria-label="MCP tool results" role="list">
         {!loading ? visible.map((tool) => <ToolCard key={`${tool.source ?? 'core'}:${tool.name}`} tool={tool} onOpen={onOpenTool} />) : null}
       </div>
     </section>
