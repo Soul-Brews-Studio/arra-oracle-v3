@@ -177,7 +177,7 @@ export const COMMANDS: Record<string, Spec> = {
   verify: { tool: 'oracle_verify', method: 'POST', write: true, help: 'verify [--check true|false] [--type all|learning|pattern]', build: p => route('/api/verify', undefined, { check: b(p, 'check'), type: f(p, 'type') }), format: d => `arra verify: ${preview(d, 500)}` },
 };
 
-const LOCAL_COMMANDS = { commands: 'commands', mcp_call: MCP_CLIENT_HELP, frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]', serve: 'serve [--backend] [--stop|--status] [--port N]', server: 'server [start|stop|status]', studio: 'studio [--port N]', ...LOCAL_CLI_HELP } as const;
+const LOCAL_COMMANDS = { commands: 'commands', mcp_call: MCP_CLIENT_HELP, frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]', serve: 'serve [--backend] [--in-process] [--stop|--status] [--port N]', server: 'server [start|stop|status]', studio: 'studio [--port N]', ...LOCAL_CLI_HELP } as const;
 const MCP_COMMANDS = new Set(['commands', ...Object.entries(COMMANDS).filter(([name, spec]) => name !== 'vector_config' && !spec.write && spec.method === 'GET').map(([name]) => name)]);
 function usage(): InvokeResult {
   const commandNames = [...Object.keys(COMMANDS), ...Object.keys(LOCAL_COMMANDS)].sort();

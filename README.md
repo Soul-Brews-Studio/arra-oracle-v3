@@ -23,26 +23,21 @@ bunx tsc --noEmit
 bun run server                 # HTTP API on http://localhost:47778
 ```
 
-### Add Oracle MCP to Claude Code
-From a clone, use repo cwd instead of `${CLAUDE_PLUGIN_ROOT}`:
+### Test the MCP locally
+
+Project scope works by opening this clone; `.mcp.json` launches `bin/mcp.ts`
+without `CLAUDE_PLUGIN_ROOT`. For user scope, add the same launcher explicitly:
+
 ```bash
-claude mcp add arra-oracle --cwd "$PWD" -- bun src/index.ts
-```
-Project `.mcp.json` equivalent:
-```json
-{"mcpServers":{"arra-oracle":{"type":"stdio","command":"bun","args":["src/index.ts"],"env":{"ORACLE_LOG_TARGET":"stderr"}}}}
+claude mcp add arra-oracle --cwd "$PWD" -- bun bin/mcp.ts
+claude mcp list              # expect connected; tools/list exposes 27 tools
 ```
 
 Useful checks:
-
 ```bash
 curl -sf http://localhost:47778/api/health
-bun test tests/http/health/
 bun run src/cli/index.ts health
 ```
-
-Claude Code project scope: open this clone directly and the checked-in `.mcp.json`
-starts `bin/mcp.ts`, which resolves this repo without `CLAUDE_PLUGIN_ROOT`.
 
 Run the React Studio UI:
 

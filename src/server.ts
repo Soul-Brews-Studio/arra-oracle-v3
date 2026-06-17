@@ -69,6 +69,7 @@ import pkg from '../package.json' with { type: 'json' };
 
 type UnifiedRuntime = Awaited<ReturnType<typeof loadUnifiedPlugins>>;
 type ServerSpec = { port: number; fetch(request: Request): Response | Promise<Response> };
+export interface StartServerOptions { writePidFile?: boolean }
 
 export interface CreateAppOptions {
   unifiedPlugins: UnifiedRuntime;
@@ -117,25 +118,28 @@ export function createApp({ unifiedPlugins, dataDir = ORACLE_DATA_DIR, vectorUrl
   return app;
 }
 
-export async function startServer(): Promise<ReturnType<typeof Bun.serve>> {
-  const app = await createStartedApp();
+export async function startServer(options: StartServerOptions = {}): Promise<ReturnType<typeof Bun.serve>> {
+  const app = await createStartedApp(options);
   return Bun.serve(app);
 }
 
-export async function createStartedApp(): Promise<ServerSpec> {
+export async function createStartedApp(options: StartServerOptions = {}): Promise<ServerSpec> {
   const startupConfig = validateStartupEnv();
   resetIndexerStatus();
   console.log('[Vector] mode:', VECTOR_URL ? 'proxy → ' + VECTOR_URL : 'local');
   void warmEmbeddingProviderDetection().catch((error) => console.warn('[Vector] embedding provider auto-detect failed:', error instanceof Error ? error.message : String(error)));
   logBusyTimeout();
-  configure({ dataDir: ORACLE_DATA_DIR, pidFileName: 'oracle-http.pid' });
-  writePidFile({ pid: process.pid, port: Number(PORT), startedAt: new Date().toISOString(), name: 'oracle-http' });
+  const ownsPidFile = options.writePidFile !== false;
+  if (ownsPidFile) {
+    configure({ dataDir: ORACLE_DATA_DIR, pidFileName: 'oracle-http.pid' });
+    writePidFile({ pid: process.pid, port: Number(PORT), startedAt: new Date().toISOString(), name: 'oracle-http' });
+  }
   if (process.env.ORACLE_FILE_WATCHER !== '0') fileWatcherService.start();
 
   const unifiedPlugins = await loadUnifiedPlugins({ dirs: defaultUnifiedPluginDirs([join(import.meta.dir, 'plugins')]), warn: (message) => console.warn(message) });
   await unifiedPlugins.init();
   const unifiedServers = await startUnifiedPluginServers(unifiedPlugins.servers);
-  registerGracefulShutdown({ close: async () => shutdown(unifiedPlugins, unifiedServers) });
+  registerGracefulShutdown({ close: async () => shutdown(unifiedPlugins, unifiedServers, ownsPidFile) });
 
   const app = createApp({ unifiedPlugins });
   await seedMenus(app, unifiedPlugins);
@@ -170,7 +174,7 @@ async function announceStartup(app: any, startupConfig: ReturnType<typeof valida
   await runStartupSelfTest({ checks: createStartupSelfTest({ dbPing: dbStatus, healthFetch: () => app.fetch(new Request(`http://127.0.0.1:${PORT}/api/health`)) }) });
 }
 
-async function shutdown(unifiedPlugins: UnifiedRuntime, unifiedServers: Awaited<ReturnType<typeof startUnifiedPluginServers>>): Promise<void> {
+async function shutdown(unifiedPlugins: UnifiedRuntime, unifiedServers: Awaited<ReturnType<typeof startUnifiedPluginServers>>, ownsPidFile: boolean): Promise<void> {
   console.log('\n🔮 Shutting down gracefully...');
   await runShutdownSteps([
     { name: 'file-watcher', run: () => { fileWatcherService.stop(); } },
@@ -178,7 +182,7 @@ async function shutdown(unifiedPlugins: UnifiedRuntime, unifiedServers: Awaited<
     { name: 'unified-plugin-servers', run: () => unifiedServers.stop() },
     { name: 'vector-stores', run: () => closeCachedVectorStores() },
     { name: 'database', run: () => closeDb() },
-    { name: 'pid-file', run: () => removePidFile() },
+    ...(ownsPidFile ? [{ name: 'pid-file', run: () => removePidFile() }] : []),
   ], console.warn);
   console.log('👋 Arra Oracle HTTP Server stopped.');
 }
