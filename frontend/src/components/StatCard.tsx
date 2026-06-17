@@ -1,11 +1,45 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 
-export function StatCard({ label, value, detail }: { label: string; value: ReactNode; detail: string }) {
+export type StatTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger';
+
+const toneClasses: Record<StatTone, string> = {
+  neutral: 'border-border bg-surface-muted',
+  accent: 'border-accent-border bg-accent-soft',
+  success: 'border-ok-border bg-ok-bg',
+  warning: 'border-warn-border bg-warn-bg',
+  danger: 'border-err-border bg-err-bg',
+};
+
+const valueClasses: Record<StatTone, string> = {
+  neutral: 'text-text',
+  accent: 'text-accent',
+  success: 'text-ok-text',
+  warning: 'text-warn-text',
+  danger: 'text-err-text',
+};
+
+export function StatCard({
+  label,
+  value,
+  detail,
+  tone = 'neutral',
+  trend,
+}: {
+  label: string;
+  value: ReactNode;
+  detail: string;
+  tone?: StatTone;
+  trend?: string;
+}) {
+  const labelId = useId();
   return (
-    <div className="rounded-2xl border border-border bg-surface-muted p-4 shadow-xl shadow-black/10">
-      <p className="text-xs font-medium uppercase tracking-[0.2em] text-text-muted">{label}</p>
-      <p className="mt-2 text-3xl font-semibold text-text">{value}</p>
+    <article aria-labelledby={labelId} className={`rounded-2xl border p-4 shadow-xl ${toneClasses[tone]}`}>
+      <p id={labelId} className="text-xs font-medium uppercase tracking-[0.2em] text-text-muted">{label}</p>
+      <div className="mt-2 flex flex-wrap items-baseline gap-2">
+        <p className={`text-3xl font-semibold ${valueClasses[tone]}`} aria-live="polite">{value}</p>
+        {trend ? <span className="rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-medium text-text-muted">{trend}</span> : null}
+      </div>
       <p className="mt-1 text-sm text-text-muted">{detail}</p>
-    </div>
+    </article>
   );
 }

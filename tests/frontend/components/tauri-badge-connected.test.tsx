@@ -8,6 +8,7 @@ describe('TauriBadge connected state', () => {
     expect(isTauriRuntime({ __TAURI__: {} } as Window & { __TAURI__: unknown })).toBe(true);
     expect(html).toContain('Desktop');
     expect(html).toContain('connected');
-    expect(html).toContain('bg-emerald-400');
+    expect(html).toContain('text-ok-text');
+    expect(html).toContain('aria-label="Desktop backend connected"');
   });
 });

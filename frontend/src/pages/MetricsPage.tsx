@@ -1,4 +1,5 @@
 import { LoadingPanel } from '../components/AsyncState';
+import { MeterBar, type MeterTone } from '../components/MeterBar';
 import { StatCard } from '../components/StatCard';
 import type { MemoryUsageSnapshot, MetricsSnapshot } from '../../../src/server/types';
 
@@ -28,20 +29,6 @@ export function formatBytes(bytes: number): string {
   }
   const precision = unitIndex === 0 || value >= 10 ? 0 : 1;
   return `${value.toFixed(precision)} ${units[unitIndex]}`;
-}
-
-function percentBar(percent: number, label: string, value: number) {
-  return (
-    <li className="grid gap-2" key={label}>
-      <div className="flex items-center justify-between text-sm text-text">
-        <span className="text-text-muted">{label}</span>
-        <span className="font-medium">{formatBytes(value)}</span>
-      </div>
-      <div className="h-2 rounded-full border border-border bg-field/[0.06]">
-        <div className="h-full rounded-full bg-accent-solid/60 transition-all" style={{ width: `${Math.min(100, Math.max(3, percent)).toFixed(0)}%` }} />
-      </div>
-    </li>
-  );
 }
 
 type RichMetricsProps = {
@@ -83,6 +70,7 @@ function buildMemoryBars(memory: MemoryUsageSnapshot): { label: string; bytes: n
 function MetricsChartsCard({ metrics }: { metrics: MetricsSnapshot }) {
   const bars = buildMemoryBars(metrics.memoryUsage);
   const requestLoad = metrics.uptime > 0 ? Math.min((metrics.requestCount / metrics.uptime) * 60, 100) : 0;
+  const tones: MeterTone[] = ['accent', 'accent2', 'success', 'warning', 'danger'];
 
   return (
     <section className="rounded-3xl border border-border bg-surface-muted p-5 sm:p-6" aria-labelledby="metrics-charts-title">
@@ -94,13 +82,30 @@ function MetricsChartsCard({ metrics }: { metrics: MetricsSnapshot }) {
         <div>
           <p className="mb-3 text-sm text-text-muted">Memory usage (bytes)</p>
           <ul className="grid gap-3" aria-label="Memory distribution bars">
-            {bars.map((bar) => percentBar(bar.ratio, bar.label, bar.bytes))}
+            {bars.map((bar, index) => (
+              <li key={bar.label}>
+                <MeterBar
+                  label={bar.label}
+                  percent={bar.ratio}
+                  tone={tones[index % tones.length]}
+                  valueText={formatBytes(bar.bytes)}
+                />
+              </li>
+            ))}
           </ul>
         </div>
         <div className="rounded-2xl border border-border bg-surface-muted p-4">
           <p className="text-sm text-text-muted">Request throughput</p>
           <p className="mt-2 text-4xl font-semibold text-text">{requestLoad.toFixed(1)} req/min</p>
-          <p className="mt-2 text-sm text-text-muted">Derived from total request count and uptime.</p>
+          <div className="mt-4">
+            <MeterBar
+              description="Derived from total request count and uptime."
+              label="Per-minute load"
+              percent={requestLoad}
+              tone="accent2"
+              valueText={`${requestLoad.toFixed(1)} req/min`}
+            />
+          </div>
         </div>
       </div>
     </section>
@@ -152,9 +157,9 @@ export function MetricsPage(props: MetricsPageProps) {
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Overview</p>
               <h2 id="metrics-stats-title" className="mt-2 text-2xl font-semibold text-text">Stats snapshot</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <StatCard label="Total docs" value="—" detail="Not exposed by /api/v1/metrics endpoint" />
-                <StatCard label="Indexing rate" value={`${Math.min((metrics.requestCount / Math.max(1, metrics.uptime)) * 60, 9999).toFixed(1)} req/min`} detail="Proxy rate from total requests and uptime" />
-                <StatCard label="Uptime" value={formatDuration(metrics.uptime)} detail={`last restart ${restartLabel(metrics.lastRestart)}`} />
+                <StatCard label="Total docs" value="—" detail="Not exposed by /api/v1/metrics endpoint" tone="accent" />
+                <StatCard label="Indexing rate" value={`${Math.min((metrics.requestCount / Math.max(1, metrics.uptime)) * 60, 9999).toFixed(1)} req/min`} detail="Proxy rate from total requests and uptime" tone="success" />
+                <StatCard label="Uptime" value={formatDuration(metrics.uptime)} detail={`last restart ${restartLabel(metrics.lastRestart)}`} tone="accent" />
               </div>
             </section>
             <MetricsActivityCard metrics={metrics} />

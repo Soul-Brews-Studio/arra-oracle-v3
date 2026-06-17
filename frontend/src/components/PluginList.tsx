@@ -1,7 +1,7 @@
 import { surfacesFor } from '../plugin-surfaces';
 import { mcpToolsPath, pluginInventoryPath } from '../routePaths';
 import type { PluginEntry } from '../types';
-import { Badge } from './Badge';
+import { Badge, badgeToneForStatus } from './Badge';
 import { EmptyState } from './EmptyState';
 
 export type PluginEnabledState = Record<string, boolean>;
@@ -105,17 +105,17 @@ export function PluginList({
                 <p className="mt-1 text-sm text-text-muted">{plugin.description ?? 'No description supplied.'}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge>{status}</Badge>
-                <Badge>{health}</Badge>
+                <Badge dot tone={badgeToneForStatus(status)}>{status}</Badge>
+                <Badge dot tone={badgeToneForStatus(health)}>{health}</Badge>
                 {surfaces.length
                   ? surfaces.map((surface) => (
                     <a key={surface} className="focus-ring rounded-full" href={pluginSurfaceBadgePath(plugin.name, surface)}>
-                      <Badge>{surface}</Badge>
+                      <Badge tone="accent">{surface}</Badge>
                     </a>
                   ))
                   : (
                     <a className="focus-ring rounded-full" href={pluginSurfaceBadgePath(plugin.name, 'metadata')}>
-                      <Badge>metadata</Badge>
+                      <Badge tone="accent">metadata</Badge>
                     </a>
                   )}
               </div>

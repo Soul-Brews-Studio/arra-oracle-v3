@@ -21,6 +21,8 @@ describe('MetricsPage ready state', () => {
     expect(html).toContain('42');
     expect(html).toContain('Memory usage');
     expect(html).toContain('16 MB');
+    expect(html).toContain('role="meter"');
+    expect(html).toContain('Per-minute load');
     expect(html).toContain('Active connections');
   });
 });

@@ -92,7 +92,7 @@ export function AppShell({
   );
 
   return (
-    <main className="oracle-shell min-h-screen overflow-x-hidden text-slate-900 transition-colors dark:text-text">
+    <main className="oracle-shell min-h-screen overflow-x-hidden text-text transition-colors">
       <a
         className="focus-ring sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-accent-solid focus:px-4 focus:py-3 focus:font-semibold focus:text-on-accent"
         href="#main-content"
@@ -102,7 +102,7 @@ export function AppShell({
       <div className="mx-auto grid w-full max-w-7xl gap-4 px-3 py-3 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[18rem_1fr] lg:px-8">
         <NavSidebar items={navItems} />
         <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
-          <header className="flex flex-col gap-5 rounded-3xl border border-slate-200 bg-white/85 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur sm:p-6 lg:flex-row lg:items-end lg:justify-between dark:border-border dark:bg-surface dark:shadow-black/30">
+          <header className="flex flex-col gap-5 rounded-3xl border border-border bg-surface p-4 shadow-2xl backdrop-blur sm:p-6 lg:flex-row lg:items-end lg:justify-between">
             <PageChrome meta={meta} />
             <div className="grid w-full gap-3 lg:max-w-md">
               <CommandPalette onRefresh={onRefresh} />
@@ -123,11 +123,11 @@ export function AppShell({
           </header>
 
           <section className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-5" aria-label="Summary">
-            <StatCard label="Menu items" value={loading ? <Spinner label="Loading" /> : menuCount} detail="from /api/menu" />
-            <StatCard label="Plugins" value={loading ? <Spinner label="Loading" /> : pluginCount} detail="from /api/plugins" />
-            <StatCard label="Surfaces" value={loading ? <Spinner label="Loading" /> : surfaceCount} detail={`updated ${updatedAt}`} />
-            <StatCard label="Requests" value={requestValue} detail={metricsDetail} />
-            <StatCard label="Avg response" value={responseValue} detail="real-time backend latency" />
+            <StatCard label="Menu items" value={loading ? <Spinner label="Loading" /> : menuCount} detail="from /api/menu" tone="accent" />
+            <StatCard label="Plugins" value={loading ? <Spinner label="Loading" /> : pluginCount} detail="from /api/plugins" tone="success" />
+            <StatCard label="Surfaces" value={loading ? <Spinner label="Loading" /> : surfaceCount} detail={`updated ${updatedAt}`} tone="accent" />
+            <StatCard label="Requests" value={requestValue} detail={metricsDetail} tone="neutral" />
+            <StatCard label="Avg response" value={responseValue} detail="real-time backend latency" tone="neutral" />
           </section>
 
           {error ? <ErrorMessage title="Could not load backend data." message={error} action={retry} /> : null}
