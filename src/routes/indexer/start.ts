@@ -4,6 +4,7 @@ import { createDatabase } from '../../db/index.ts';
 import { setIndexingStatus } from '../../indexer/status.ts';
 import { DB_PATH, REPO_ROOT } from '../../config.ts';
 import { currentTenantId, runWithTenant } from '../../middleware/tenant.ts';
+import { entityCollectionName, entityDocumentsFor } from '../../vector/entities.ts';
 import type { IndexerConfig } from '../../types.ts';
 
 let abortFlag = false;
@@ -65,7 +66,9 @@ export function createStartRoute(deps: StartRouteDeps = {}) {
       },
     };
 
-    const store = (deps.createStore ?? createVectorStoreForModel)(preset);
+    const storeFactory = deps.createStore ?? createVectorStoreForModel;
+    const store = storeFactory(preset);
+    const entityStore = storeFactory({ ...preset, collection: entityCollectionName(preset.collection) });
 
     abortFlag = false;
 
@@ -75,8 +78,11 @@ export function createStartRoute(deps: StartRouteDeps = {}) {
     const task = runWithTenant(tenantId, async () => {
       try {
         await store.connect();
+        await entityStore.connect();
         try { await store.deleteCollection(); } catch {}
+        try { await entityStore.deleteCollection(); } catch {}
         await store.ensureCollection();
+        await entityStore.ensureCollection();
 
         const tenantWhere = tenantId ? 'WHERE d.tenant_id = ?' : '';
         const rows = sqlite.prepare(`
@@ -115,6 +121,8 @@ export function createStartRoute(deps: StartRouteDeps = {}) {
           }));
 
           await store.addDocuments(docs);
+          const entityDocs = docs.flatMap(entityDocumentsFor);
+          if (entityDocs.length > 0) await entityStore.addDocuments(entityDocs);
           setIndexingStatus(sqlite, config, true, i + batchRows.length, total);
         }
 
@@ -126,6 +134,7 @@ export function createStartRoute(deps: StartRouteDeps = {}) {
         setIndexingStatus(sqlite, config, false, 0, 0, msg);
       } finally {
         await store.close().catch(() => undefined);
+        await entityStore.close().catch(() => undefined);
       }
     });
     (deps.runInBackground ?? ((backgroundTask) => { void backgroundTask; }))(task);

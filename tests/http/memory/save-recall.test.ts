@@ -149,3 +149,40 @@ test('memory save rejects blank content', async () => {
   expect(res.status).toBe(400);
   expect(await json(res)).toEqual({ success: false, error: 'memory content is required' });
 });
+
+test('memory search de-duplicates vector hits and preserves fallback metadata', async () => {
+  const hit = {
+    memoryId: 'ghost-memory',
+    vectorId: 'memory:ghost-memory:1',
+    document: 'Recovered only from vector metadata.',
+    metadata: {
+      title: 'Vector-only memory',
+      tags: '["vector", "fallback"]',
+      source_file: 'session://vector-only',
+      createdAt: '2026-06-17T00:00:00.000Z',
+      updatedAt: '2026-06-17T01:00:00.000Z',
+    },
+    distance: 0,
+    score: 0.91,
+  };
+  const store = { save: () => { throw new Error('unused'); }, recall: () => [], getByIds: () => [] } as any;
+  const vectorIndex: MemoryVectorIndex = {
+    async index() { return { indexed: true }; },
+    async search() { return [hit, { ...hit, vectorId: 'memory:ghost-memory:2', score: 0.6 }]; },
+  };
+  const app = createMemoryRoutes(store, vectorIndex);
+  const fetcher = createApiVersionedFetch((request) => app.handle(request));
+  const res = await fetcher(new Request('http://local/api/v1/memory/search?q=ghost'));
+  const body = await json(res);
+
+  expect(res.status).toBe(200);
+  expect(body.results).toHaveLength(1);
+  expect(body.results[0]).toMatchObject({
+    id: 'ghost-memory',
+    title: 'Vector-only memory',
+    tags: ['vector', 'fallback'],
+    source: 'session://vector-only',
+    score: 0.91,
+  });
+  expect(body.results[0].confidence.reasons).toContain('source_present');
+});

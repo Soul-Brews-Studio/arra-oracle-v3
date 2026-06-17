@@ -83,12 +83,15 @@ export function createMemoryRoutes(
 function mergeHits(hits: MemoryVectorHit[], records: MemoryRecord[]) {
   const byId = new Map(records.map((record) => [record.id, record]));
   const tenantId = currentTenantId();
+  const seen = new Set<string>();
   return hits.flatMap((hit) => {
+    if (seen.has(hit.memoryId)) return [];
     const record = byId.get(hit.memoryId);
     if (tenantId && !record) return [];
     const hitTenantId = hitTenant(hit);
     if (tenantId && hitTenantId && hitTenantId !== tenantId) return [];
     const memory = memoryForHit(hit, record);
+    seen.add(hit.memoryId);
     return [{
       ...memory,
       score: hit.score,
@@ -110,14 +113,30 @@ function withKeywordConfidence(memory: MemoryRecord) {
 
 function memoryForHit(hit: MemoryVectorHit, record?: MemoryRecord): MemoryRecord {
   if (record) return record;
-  const createdAt = typeof hit.metadata.createdAt === 'string' ? hit.metadata.createdAt : new Date().toISOString();
+  const createdAt = metadataText(hit.metadata.createdAt) ?? new Date().toISOString();
   return {
     id: hit.memoryId,
     content: hit.document,
-    tags: [],
+    title: metadataText(hit.metadata.title),
+    tags: metadataList(hit.metadata.tags ?? hit.metadata.concepts),
+    source: metadataText(hit.metadata.source ?? hit.metadata.source_file),
     createdAt,
-    updatedAt: createdAt,
+    updatedAt: metadataText(hit.metadata.updatedAt) ?? createdAt,
   };
+}
+
+function metadataText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function metadataList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return metadataList(parsed);
+  } catch {}
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
 export const memoryRoutes = createMemoryRoutes();
