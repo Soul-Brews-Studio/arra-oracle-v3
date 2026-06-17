@@ -71,6 +71,6 @@ than as a new canonical MCP prefix.
 ## See also
 
 - [mcp-tools.md](./mcp-tools.md) — canonical MCP tool reference.
-- [TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md#mcp-tool-plugin-toggles) — tool group/config reference.
+- [TONIGHT-SHIPPED.md](./TONIGHT-SHIPPED.md#mcp-toolplugin-toggles) — tool group/config reference.
 - [README.md](../README.md) — top-level docs navigation.
 - [CHANGELOG.md](../CHANGELOG.md) — release notes.

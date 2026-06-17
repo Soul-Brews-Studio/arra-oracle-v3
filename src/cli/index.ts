@@ -9,7 +9,7 @@ import { vectorConfigCommand } from './commands/vector-config.ts';
 function printUsage(): void {
   console.error('usage: bun run src/cli/index.ts <export|serve|canvas-plugins|canvas-serve|vector-config> ...');
   console.error('  export: bun run src/cli/index.ts export --format json|markdown [--out <file>]');
-  console.error('  serve:  bun run src/cli/index.ts serve <start|stop|status> [--foreground|--background] [--json]');
+  console.error('  serve:  bun run src/cli/index.ts serve <start|stop|status> [--port N] [--foreground|--background] [--json]');
   console.error('  canvas-plugins: bun run src/cli/index.ts canvas-plugins [--kind three|react] [--id <id>] [--json]');
   console.error('  canvas-serve: bun run src/cli/index.ts canvas-serve [--port N] [--api-base URL]');
   console.error('  vector-config: bun run src/cli/index.ts vector-config list|get|set|add|remove|set-primary [--json]');
