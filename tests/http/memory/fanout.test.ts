@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
 import { createApiVersionedFetch } from '../../../src/middleware/api-version.ts';
 import { createMemoryFanoutEndpoint, fuseRankedResults } from '../../../src/routes/memory/fanout.ts';
+import { memoryConfidenceRerankConfig } from '../../../src/routes/memory/rerank-config.ts';
 import type { EmbeddingModelConfig } from '../../../src/vector/factory.ts';
 import type { VectorQueryResult } from '../../../src/vector/types.ts';
 
@@ -106,11 +107,33 @@ test('GET /api/v1/memory/fanout uses confidence to reorder fresh high-provenance
   expect(body.ranking).toMatchObject({
     rrfK: 60,
     confidenceWeight: 0.25,
+    confidenceRerankingEnabled: true,
+    confidenceWeightSource: 'default',
     confidenceSource: 'query-time-confidence',
   });
   expect(body.results.map((item: { id: string }) => item.id)).toEqual(['fresh-provenance', 'stale-duplicate']);
   expect(body.results[0].confidence.label).toBe('high');
   expect(body.results[0].rankingScore).toBeGreaterThan(body.results[1].rankingScore);
+});
+
+test('memory fanout confidence rerank config supports env tuning aliases and clamp bounds', () => {
+  expect(memoryConfidenceRerankConfig({ ORACLE_MEMORY_FANOUT_CONFIDENCE_WEIGHT: '0' })).toMatchObject({
+    enabled: false,
+    confidenceWeight: 0,
+    source: 'env',
+    envKey: 'ORACLE_MEMORY_FANOUT_CONFIDENCE_WEIGHT',
+  });
+  expect(memoryConfidenceRerankConfig({ ARRA_MEMORY_FANOUT_CONFIDENCE_WEIGHT: '0.8' })).toMatchObject({
+    enabled: true,
+    confidenceWeight: 0.8,
+    envKey: 'ARRA_MEMORY_FANOUT_CONFIDENCE_WEIGHT',
+  });
+  expect(memoryConfidenceRerankConfig({ ORACLE_MEMORY_FANOUT_CONFIDENCE_WEIGHT: '2' }).confidenceWeight).toBe(1);
+  expect(memoryConfidenceRerankConfig({ ORACLE_MEMORY_FANOUT_CONFIDENCE_WEIGHT: '-1' }).confidenceWeight).toBe(0);
+  expect(memoryConfidenceRerankConfig({ ORACLE_MEMORY_FANOUT_CONFIDENCE_WEIGHT: 'nope' })).toMatchObject({
+    enabled: true,
+    confidenceWeight: 0.25,
+  });
 });
 
 test('fuseRankedResults can disable confidence weighting for pure RRF ordering', () => {
