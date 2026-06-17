@@ -105,6 +105,9 @@ Capabilities present:
 - `ProxyVectorAdapter` implements the standard proxy protocol:
   `POST /vectors/add`, `POST /vectors/query`, `GET /vectors/stats`,
   `DELETE /vectors/collection`, and `GET /health`.
+- `ProxyVectorAdapter` and `TurboVecAdapter` are external-only client adapters:
+  they require an already running remote service and do not create local vector
+  storage or sidecar processes.
 - Tenant IDs flow to proxy vector requests through tenant headers.
 - `proxyVectorSidecarRequest()` can expose vector sidecar proxy routes from the
   same manifest shape used by unified proxy routes.
@@ -116,6 +119,9 @@ Gaps:
 - Separate vector server process orchestration is present as config/protocol
   contracts, but end-to-end backend -> vector-server deployment is not the
   default happy path yet.
+- The word `proxy` is overloaded. See
+  [`proxy-terminology.md`](./proxy-terminology.md) before changing gateway,
+  vector adapter, or plugin manifest passthrough behavior.
 
 ## MCP state
 

@@ -37,6 +37,11 @@ function serveAction(parsed: Parsed): 'start' | 'stop' | 'status' {
   throw new Error('serve action must be start, stop, or status');
 }
 
+function backendRequested(parsed: Parsed): boolean {
+  const value = flag(parsed, 'backend');
+  return value !== undefined && value !== 'false';
+}
+
 function parsePort(parsed: Parsed, env: Record<string, string | undefined>): string {
   const port = flag(parsed, 'port') || env.ORACLE_PORT || env.PORT || DEFAULT_PORT;
   if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
@@ -158,6 +163,7 @@ export async function runServe(parsed: Parsed, runner: Runner, env: Record<strin
     const sleep = deps.sleep ?? ((ms) => new Promise<void>(resolve => setTimeout(resolve, ms)));
 
     const action = serveAction(parsed);
+    const explicitBackend = backendRequested(parsed);
 
     if (action === 'status') {
       const healthPort = flag(parsed, 'port') ? port : state?.port ?? port;
@@ -189,7 +195,13 @@ export async function runServe(parsed: Parsed, runner: Runner, env: Record<strin
     const pid = (deps.start ?? startServer)(command.cwd, startEnv, command);
     if (!pid) throw new Error(`${command.command} ${command.args.join(' ')} did not return a PID`);
     writeState(path, { pid, port, root: cwd, healthPath: command.healthPath, startedAt: new Date().toISOString() });
-    return { ok: true, output: `arra serve: started pid=${pid} port=${port}\nroot: ${cwd}\ncommand: ${command.command} ${command.args.join(' ')}\npid: ${path}` };
+    return { ok: true, output: [
+      `arra serve: started pid=${pid} port=${port}`,
+      explicitBackend && 'backend: full Oracle',
+      `root: ${cwd}`,
+      `command: ${command.command} ${command.args.join(' ')}`,
+      `pid: ${path}`,
+    ].filter(Boolean).join('\n') };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
