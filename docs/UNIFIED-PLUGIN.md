@@ -112,6 +112,8 @@ manifest entry documented.
 
 ### Toggle integration (#1372)
 
+Set `enabled: false` on a plugin MCP tool to keep it declared but completely
+plugged out of runtime registration, registry metadata, and invocation.
 Static tool toggles remain backed by `TOOL_GROUPS`. Plugin tools are filtered at
 manifest-load time by `enabled: false`, then at MCP registry time by their own
 `enabledByDefault` flag and by explicit `disabled_tools` / `enabled_tools`

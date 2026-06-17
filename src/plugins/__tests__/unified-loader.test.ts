@@ -109,5 +109,7 @@ describe('unified plugin loader', () => {
       ok: false,
       error: 'MCP tool not found: oracle_switch_off',
     });
+    const registryEntry = runtime.pluginRegistry().find((plugin) => plugin.name === 'mcp-switch-pack');
+    expect(registryEntry?.mcpTools.map((tool) => tool.name)).toEqual(['oracle_switch_on']);
   });
 });

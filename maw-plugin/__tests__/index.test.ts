@@ -60,7 +60,7 @@ describe('maw arra plugin', () => {
     expect(help.output).toContain('enabled <true|false>');
     expect(help.output).toContain('trace_chain');
     expect(help.output).toContain('thread_update');
-    expect(help.output).toContain('serve [--backend] [--stop|--status] [--port N]');
+    expect(help.output).toContain('serve [--backend] [--in-process] [--stop|--status] [--port N]');
     expect(help.output).toContain('schedule-add');
     expect(help.output).toContain('vault-sync');
     expect(help.output).toContain('verify');
