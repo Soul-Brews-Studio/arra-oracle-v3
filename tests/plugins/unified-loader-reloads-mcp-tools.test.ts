@@ -27,7 +27,10 @@ describe('UnifiedRuntime.reload MCP tools', () => {
     });
 
     pluginDir(tmp, 'beta-pack', {
-      mcpTools: [{ name: 'oracle_beta_runtime', description: 'Beta runtime tool', inputSchema: {}, handler: 'tool' }],
+      mcpTools: [
+        { name: 'oracle_beta_runtime', description: 'Beta runtime tool', inputSchema: {}, handler: 'tool' },
+        { name: 'oracle_beta_disabled', description: 'Disabled beta tool', inputSchema: {}, handler: 'tool', enabled: false },
+      ],
     }, "export function tool(ctx) { return { ok: true, body: { plugin: ctx.plugin, args: ctx.body } }; }\n");
     await runtime.reload();
 
@@ -36,6 +39,10 @@ describe('UnifiedRuntime.reload MCP tools', () => {
     expect(await runtime.callMcpTool('oracle_beta_runtime', { q: 'added' })).toEqual({
       ok: true,
       body: { plugin: 'beta-pack', args: { q: 'added' } },
+    });
+    expect(await runtime.callMcpTool('oracle_beta_disabled', {})).toEqual({
+      ok: false,
+      error: 'MCP tool not found: oracle_beta_disabled',
     });
 
     rmSync(alphaDir, { recursive: true, force: true });

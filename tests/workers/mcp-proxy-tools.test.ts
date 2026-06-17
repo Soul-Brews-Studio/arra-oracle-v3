@@ -5,11 +5,13 @@ import { buildProxyUrl, oracleProxyTool, resolveMcpTenantId, resolveOracleUrl } 
 describe('Cloudflare MCP proxy tools', () => {
   test('registers search, stats, and learn tools in the Worker entry', () => {
     const entry = readFileSync('workers/mcp/src/index.ts', 'utf8');
+    const tools = readFileSync('workers/mcp/src/tools.ts', 'utf8');
 
-    expect(entry).toContain("'muninn_search'");
-    expect(entry).toContain("'muninn_stats'");
-    expect(entry).toContain("'oracle_learn'");
+    expect(entry).toContain('registerOracleMcpTools');
     expect(entry).toContain("OracleMCP.serve('/mcp')");
+    expect(tools).toContain("'muninn_search'");
+    expect(tools).toContain("'muninn_stats'");
+    expect(tools).toContain("'oracle_learn'");
   });
 
   test('normalizes backend URLs and appends only present query values', () => {

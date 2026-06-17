@@ -12,6 +12,7 @@ test('arra maw plugin declares modern dual surfaces and swappable backend config
     entry: './index.ts',
     cli: { command: 'arra' },
     api: { path: '/api/arra' },
+    server: { command: 'bun', args: ['server.ts'], healthPath: '/api/health' },
     config: { dbBackend: 'http', embedderBackend: 'none' },
   });
   expect(manifest.menu.map((item) => item.path)).toContain('/plugins/arra');
@@ -23,8 +24,9 @@ test('arra maw plugin declares modern dual surfaces and swappable backend config
 test('arra maw plugin normalizes with MCP tool metadata', () => {
   const normalized = normalizeUnifiedPluginManifest(manifest);
 
-  expect(manifestSurfaces(normalized)).toEqual(expect.arrayContaining(['mcpTools', 'apiRoutes', 'menu', 'cliSubcommands']));
+  expect(manifestSurfaces(normalized)).toEqual(expect.arrayContaining(['mcpTools', 'apiRoutes', 'server', 'menu', 'cliSubcommands']));
   expect(normalized.mcpTools.map((tool) => tool.name)).toEqual(['oracle_arra_read']);
+  expect(normalized.server?.env).toEqual({ ARRA_BACKEND_SOURCE: 'maw-plugin' });
 });
 
 test('arra maw plugin records a verifiable entry artifact hash', () => {
