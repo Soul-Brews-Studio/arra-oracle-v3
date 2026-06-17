@@ -57,7 +57,7 @@ bunx tsc --noEmit
 bun run server                 # HTTP API on http://localhost:47778
 ```
 
-Useful checks: `curl -sf http://localhost:47778/api/health` and `bun cli/src/cli.ts health`. Non-dev UI: open `http://localhost:47778/simple` for Simple Mode. React dev UI: `cd frontend && bun install && bun run dev`. Tauri: `cd frontend && cargo tauri dev`. Benchmark: Honest Recall@k hybrid temp-Ollama is reported in [benchmarks/RESULTS.md](benchmarks/RESULTS.md); repro: `bun run benchmarks/hybrid-temp-backend.ts --out benchmarks/out/honest-recall.json` (seeds a temp 12-doc backend, not the live vault).
+Useful checks: `curl -sf http://localhost:47778/api/health` and `bun cli/src/cli.ts health`. Non-dev UI: open `http://localhost:47778/simple` for Simple Mode. React dev UI: `cd frontend && bun install && bun run dev`. Tauri: `cd frontend && cargo tauri dev`. Benchmark: answerable Recall@3 is 1.000000 ±0.000000 over 5 temp-Ollama runs, with Reject-Recall 1.000000; see [benchmarks/RESULTS.md](benchmarks/RESULTS.md). Repro: `bun run benchmarks/hybrid-temp-backend.ts --out benchmarks/out/honest-recall.json --runs 5` (seeds a temp 20-doc backend, not the live vault).
 
 ## Major features
 

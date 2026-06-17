@@ -25,6 +25,7 @@ describe('honest recall benchmark harness', () => {
     expect(() => guardTopK(12, 12)).toThrow('Refusing to report Recall@12');
     expect(() => guardTopK(4, 4)).toThrow('Refusing to report Recall@4');
     expect(() => guardTopK(5, 4)).toThrow('top_k (5) must be smaller than corpus_size (4)');
+    expect(() => guardTopK(3, 10)).toThrow('at most 25%');
     const searcher: Searcher = async () => { throw new Error('searcher should not run'); };
     await expect(runHonestRecallBenchmark({
       cases: [{ id: 'q1', query: 'alpha', expectedIds: ['doc-a'] }],
@@ -42,7 +43,7 @@ describe('honest recall benchmark harness', () => {
     const searcher: Searcher = async () => { searchCalls += 1; return []; };
     await expect(runHonestRecallBenchmark({
       cases: parseDatasetText(' \n '),
-      corpus: { label: 'oracle-test', size: 10 },
+      corpus: { label: 'oracle-test', size: 12 },
       topK: 3,
       searcher,
       outFile,
@@ -72,7 +73,7 @@ describe('honest recall benchmark harness', () => {
         JSON.stringify({ id: 'q2', query: 'beta', relevant_ids: ['doc-b'], answer: 'B' }),
         JSON.stringify({ id: 'q3', query: 'unknown', expectedIds: [] }),
       ].join('\n')),
-      corpus: { label: 'oracle-test', size: 10 },
+      corpus: { label: 'oracle-test', size: 12 },
       topK: 3,
       searcher,
       outFile,
@@ -81,14 +82,14 @@ describe('honest recall benchmark harness', () => {
     });
     expect(report.provenance).toMatchObject({ mode: 'hybrid', model: 'multi', top_k: 3, metric: 'Recall@k', metric_family: 'Recall@k', 'git-sha': 'abc123' });
     expect(report.provenance.stack).toEqual(['bge-m3', 'nomic', 'qwen3', 'FTS5']);
-    expect(report.metrics[0]).toMatchObject({ metric: 'Recall@k', metric_family: 'Recall@k', label: 'Recall@3', value: 0.5, hits: 1, total_queries: 2 });
+    expect(report.metrics[0]).toMatchObject({ metric: 'Answerable-Recall@k', metric_family: 'Recall@k', label: 'Answerable-Recall@3', value: 0.5, hits: 1, total_queries: 2 });
     expect(report.metrics[1]).toMatchObject({ metric: 'Reject-Recall', metric_family: 'Reject', value: 1, correct_rejections: 1, total_unanswerable: 1 });
     expect(report.metrics[2]).toMatchObject({ metric: 'Reject-Precision', metric_family: 'Reject', value: 1, correct_rejections: 1, total_rejections: 1 });
     expect(report.metrics[3]).toMatchObject({ metric: 'Answer-Accuracy', metric_family: 'Answer-Accuracy', status: 'not-measured' });
-    expect(report.metrics.map((item) => item.metric)).toEqual(['Recall@k', 'Reject-Recall', 'Reject-Precision', 'Answer-Accuracy']);
+    expect(report.metrics.map((item) => item.metric)).toEqual(['Answerable-Recall@k', 'Reject-Recall', 'Reject-Precision', 'Answer-Accuracy']);
     expect('value' in report.metrics[3]).toBe(false);
     expect(report.cases.map((item) => item.metric_family)).toEqual(['Recall@k', 'Recall@k', 'Reject']);
-    expect(JSON.parse(readFileSync(outFile, 'utf8')).provenance.corpus).toEqual({ label: 'oracle-test', size: 10 });
+    expect(JSON.parse(readFileSync(outFile, 'utf8')).provenance.corpus).toEqual({ label: 'oracle-test', size: 12 });
   });
   test('shipped public recall dataset is parseable and does not leak private paths', () => {
     const text = readFileSync('benchmarks/fixtures/recall-dataset.jsonl', 'utf8');
@@ -112,7 +113,7 @@ describe('honest recall benchmark harness', () => {
     const searcher: Searcher = async () => { throw new Error('searcher should not run'); };
     await expect(runHonestRecallBenchmark({
       cases: [{ id: 'q1', query: 'alpha', expectedIds: ['doc-a'] }],
-      corpus: { label: 'oracle-test', size: 10 },
+      corpus: { label: 'oracle-test', size: 12 },
       topK: 3,
       mode: 'fake' as never,
       searcher,
@@ -125,16 +126,15 @@ describe('honest recall benchmark harness', () => {
     const report = JSON.parse(readFileSync('benchmarks/out/honest-recall.json', 'utf8'));
     expect(report.provenance).toMatchObject({
       mode: 'hybrid', model: 'multi', top_k: 3, metric: 'Recall@k', metric_family: 'Recall@k',
+      corpus: { label: 'temp-ollama-20-docs-v1', size: 20 }, backend: 'temp-bun-sqlite-fts5-memory-vectors', embedding_provider: 'ollama', seeded_docs: 20, runs: 5, stack: ['bge-m3', 'nomic', 'qwen3', 'FTS5'],
     });
-    expect(report.provenance.stack).toEqual(['bge-m3', 'nomic', 'qwen3', 'FTS5']);
-    expect(report.provenance.corpus).toEqual({ label: 'temp-ollama-12-docs-v1', size: 12 });
-    expect(report.provenance).toMatchObject({ backend: 'temp-bun-sqlite-fts5-memory-vectors', embedding_provider: 'ollama', seeded_docs: 12 });
     expect(report.provenance.ollama_models).toEqual(['bge-m3', 'nomic-embed-text', 'qwen3-embedding']);
-    expect(report.provenance.baseline).toMatchObject({ label: 'Recall@3', value: 0.9, hits: 9, total_queries: 10 });
-    expect(report.metrics[0]).toMatchObject({ metric: 'Recall@k', label: 'Recall@3', value: 1, hits: 10, total_queries: 10 });
-    expect(report.metrics[1]).toMatchObject({ metric: 'Reject-Recall', metric_family: 'Reject', total_unanswerable: 0 });
-    expect(report.cases).toHaveLength(10);
+    expect(report.provenance.baseline).toMatchObject({ label: 'Answerable-Recall@3', value: 0.9, hits: 9, total_queries: 10, runs: 5 });
+    expect(report.metrics[0]).toMatchObject({ metric: 'Answerable-Recall@k', label: 'Answerable-Recall@3', value: 1, hits: 10, total_queries: 10, runs: 5 });
+    expect(report.metrics[1]).toMatchObject({ metric: 'Reject-Recall', value: 1, hits: 2, total_queries: 2, stdev: 0 });
+    expect(report.cases).toHaveLength(12);
     expect(report.cases.find((item: { id: string }) => item.id === 'weak/semantic-vector')).toMatchObject({ hit: true });
+    expect(report.cases.find((item: { id: string }) => item.id === 'no-match/weather')).toMatchObject({ expected_ids: [], hit: true, retrieved_ids: [] });
   });
   test('HTTP searcher calls our hybrid multi-model search surface', async () => {
     const seen: string[] = [];
@@ -158,14 +158,14 @@ describe('honest recall benchmark harness', () => {
       await server.stop(true);
     }
   });
-  test('runs deterministic FTS Recall@10 against a seeded in-memory DB', async () => {
+  test('runs deterministic FTS Recall@3 against a seeded in-memory DB', async () => {
     const sqlite = new Database(':memory:');
     try {
       seedFtsCorpus(sqlite);
       const report = await runHonestRecallBenchmark({
         cases: seededCases(),
         corpus: { label: 'seeded-fts-memory', size: 12 },
-        topK: 10,
+        topK: 3,
         mode: 'fts',
         model: 'sqlite-fts5',
         searcher: createSqliteFtsSearcher(sqlite),
@@ -173,12 +173,12 @@ describe('honest recall benchmark harness', () => {
         now: '2026-06-17T00:00:00.000Z',
       });
       const recall = report.metrics[0];
-      expect(recall).toMatchObject({ metric: 'Recall@k', label: 'Recall@10', top_k: 10 });
+      expect(recall).toMatchObject({ metric: 'Answerable-Recall@k', label: 'Answerable-Recall@3', top_k: 3 });
       expect(recall.metric_family).toBe('Recall@k');
       expect('value' in recall && typeof recall.value === 'number').toBe(true);
       if ('value' in recall && typeof recall.value === 'number') expect(recall.value).toBeGreaterThanOrEqual(0.7);
-      expect(report.provenance).toMatchObject({ mode: 'fts', model: 'sqlite-fts5', top_k: 10 });
-      expect(report.cases.every((row) => row.retrieved_ids.length <= 10)).toBe(true);
+      expect(report.provenance).toMatchObject({ mode: 'fts', model: 'sqlite-fts5', top_k: 3 });
+      expect(report.cases.every((row) => row.retrieved_ids.length <= 3)).toBe(true);
     } finally {
       sqlite.close();
     }

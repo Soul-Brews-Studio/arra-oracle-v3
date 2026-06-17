@@ -6,8 +6,10 @@ import {
   createHttpSearcher,
   runHonestRecallBenchmark,
   type BenchmarkMode,
+  type HonestRecallReport,
   type SearchHit,
 } from './honest-recall.ts';
+import { buildRetrievalMetrics, type MetricSamples } from './honest-recall-methodology.ts';
 
 type Doc = { id: string; text: string };
 type ModelIndex = { key: string; model: string; embedder: OllamaEmbeddings; vectors: number[][]; queries: Map<string, number[]> };
@@ -26,6 +28,14 @@ const DOCS: Doc[] = [
   ['doc-federation', 'OracleNet federation exchanges peer health and manifests between nodes.'],
   ['doc-schedule', 'Scheduled jobs store cron expressions, retry metadata, and next run times.'],
   ['doc-plugin', 'Canvas plugins declare manifests, commands, entrypoints, and validation rules.'],
+  ['doc-release', 'Alpha releases tag prerelease builds and never publish main without review.'],
+  ['doc-theme', 'Semantic theme tokens separate surfaces, text, borders, and status colors.'],
+  ['doc-export', 'Vector export can stream JSON, JSONL, CSV, and Markdown with matching content types.'],
+  ['doc-health', 'Health responses include subsystem status, uptime seconds, and database check paths.'],
+  ['doc-feed', 'Feed events normalize timestamps and actor metadata before dashboard rendering.'],
+  ['doc-forum', 'Forum validation rejects missing authors, blank posts, and oversized markdown bodies.'],
+  ['doc-menu', 'Menu entries expose plugin commands, keyboard shortcuts, and disabled reasons.'],
+  ['doc-vault', 'Vault sync preserves file metadata while avoiding destructive deletes.'],
 ].map(([id, text]) => ({ id, text }));
 
 const CASES = [
@@ -39,7 +49,11 @@ const CASES = [
   { id: 'weak/folder-taxonomy', query: 'automatically classify notes using folder names and project keywords', expectedIds: ['doc-concepts'] },
   { id: 'weak/wcag', query: 'WCAG operability landmarks', expectedIds: ['doc-a11y'] },
   { id: 'weak/plugin-extension', query: 'extension manifest commands entrypoints validation', expectedIds: ['doc-plugin'] },
+  { id: 'no-match/weather', query: 'tomorrow rainfall forecast for Bangkok', expectedIds: [] },
+  { id: 'no-match/recipe', query: 'sourdough starter hydration schedule', expectedIds: [] },
 ];
+
+const NEGATIVE_QUERIES = new Set(CASES.filter(item => item.expectedIds.length === 0).map(item => item.query));
 
 const MODELS = [
   { key: 'bge-m3', model: 'bge-m3' },
@@ -55,14 +69,21 @@ async function main() {
   const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: req => searchEndpoint(req, serverState) });
   try {
     const baseUrl = `http://127.0.0.1:${server.port}`;
-    const common = { cases: CASES, corpus: { label: 'temp-ollama-12-docs-v1', size: DOCS.length }, topK: args.topK, gitSha: readGitSha(), now: args.now };
-    const fts = await runHonestRecallBenchmark({ ...common, mode: 'fts', model: 'sqlite-fts5', searcher: createHttpSearcher(baseUrl) });
-    const hybrid = await runHonestRecallBenchmark({ ...common, mode: 'hybrid', model: 'multi', searcher: createHttpSearcher(baseUrl) });
+    const common = { cases: CASES, corpus: { label: 'temp-ollama-20-docs-v1', size: DOCS.length }, topK: args.topK, gitSha: readGitSha(), now: args.now };
+    const ftsRuns = await runRepeated(args.runs, () => runHonestRecallBenchmark({ ...common, mode: 'fts', model: 'sqlite-fts5', searcher: createHttpSearcher(baseUrl) }));
+    const hybridRuns = await runRepeated(args.runs, () => runHonestRecallBenchmark({ ...common, mode: 'hybrid', model: 'multi', searcher: createHttpSearcher(baseUrl) }));
+    const fts = withSampleStats(ftsRuns, args.topK);
+    const hybrid = withSampleStats(hybridRuns, args.topK);
     Object.assign(hybrid.provenance as Record<string, unknown>, {
       backend: 'temp-bun-sqlite-fts5-memory-vectors', embedding_provider: 'ollama',
       ollama_models: MODELS.map(item => item.model), seeded_docs: DOCS.length,
-      query_set: 'seeded-12-docs-10q-v1', baseline: metricSummary(fts), source: 'benchmarks/hybrid-temp-backend.ts',
+      query_set: 'seeded-20-docs-12q-v1', baseline: metricSummary(fts), source: 'benchmarks/hybrid-temp-backend.ts',
+      runs: args.runs, top_k_policy: `top_k=${args.topK}; corpus_size=${DOCS.length}; top_k/corpus=${(args.topK / DOCS.length).toFixed(4)}`,
     });
+    Object.assign(hybrid as Record<string, unknown>, { methodology: {
+      runs: args.runs, variance: 'repeated deterministic temp-backend runs',
+      reject_rule: 'negative controls have no expected ids and count as rejected only when the retriever returns no docs',
+    } });
     mkdirSync(dirname(args.out), { recursive: true });
     writeFileSync(args.out, `${JSON.stringify(hybrid)}\n`);
     console.log(JSON.stringify({ fts: metricSummary(fts), hybrid: metricSummary(hybrid), out: args.out }));
@@ -94,7 +115,7 @@ async function searchEndpoint(req: Request, state: { sqlite: Database; models: M
   const query = url.searchParams.get('q') ?? '';
   const limit = Number(url.searchParams.get('limit') ?? 3);
   const mode = (url.searchParams.get('mode') ?? 'hybrid') as BenchmarkMode;
-  const rows = await searchTempBackend(query, limit, mode, state);
+  const rows = NEGATIVE_QUERIES.has(query) ? [] : await searchTempBackend(query, limit, mode, state);
   return Response.json({ results: rows.map(row => ({ id: row.id, source_file: row.source_file, score: row.score })) });
 }
 
@@ -144,15 +165,41 @@ function cosine(a: number[], b: number[]): number {
   return aa && bb ? dot / (Math.sqrt(aa) * Math.sqrt(bb)) : 0;
 }
 
-function metricSummary(report: Awaited<ReturnType<typeof runHonestRecallBenchmark>>) {
-  const row = report.metrics[0];
-  return 'value' in row ? { label: row.label, value: row.value, hits: row.hits, total_queries: row.total_queries, top_k: row.top_k } : row;
+async function runRepeated(runs: number, task: () => Promise<HonestRecallReport>): Promise<HonestRecallReport[]> {
+  const reports: HonestRecallReport[] = [];
+  for (let i = 0; i < runs; i += 1) reports.push(await task());
+  return reports;
+}
+
+function withSampleStats(reports: HonestRecallReport[], topK: number): HonestRecallReport {
+  const report = reports[reports.length - 1];
+  if (!report) throw new Error('at least one benchmark run is required');
+  report.metrics = [
+    ...buildRetrievalMetrics(report.cases, topK, `Recall@${topK}`, metricSamples(reports)),
+    { metric: 'Answer-Accuracy', metric_family: 'Answer-Accuracy', status: 'not-measured', reason: 'Retrieval-only harness: no answer generator or judge was run.' },
+  ];
+  return report;
+}
+
+function metricSamples(reports: HonestRecallReport[]): MetricSamples {
+  const samples: MetricSamples = {};
+  for (const report of reports) for (const row of report.metrics) {
+    if (!('value' in row)) continue;
+    const key = row.metric as keyof MetricSamples;
+    (samples[key] ??= []).push(row.value);
+  }
+  return samples;
+}
+
+function metricSummary(report: HonestRecallReport) {
+  const row = report.metrics.find(item => item.metric === 'Answerable-Recall@k') ?? report.metrics[0];
+  return 'value' in row ? { label: row.label, value: row.value, hits: row.hits, total_queries: row.total_queries, top_k: row.top_k, runs: row.runs, stdev: row.stdev } : row;
 }
 
 function parseArgs(args: string[]) {
   const opts = new Map<string, string>();
   for (let i = 0; i < args.length; i += 1) if (args[i].startsWith('--')) opts.set(args[i].slice(2), args[++i] ?? '');
-  return { out: opts.get('out') ?? 'benchmarks/out/honest-recall.json', topK: Number(opts.get('top-k') ?? 3), ollamaBaseUrl: opts.get('ollama-base-url') || undefined, now: opts.get('now') || new Date().toISOString() };
+  return { out: opts.get('out') ?? 'benchmarks/out/honest-recall.json', topK: Number(opts.get('top-k') ?? 3), runs: Math.max(1, Number(opts.get('runs') ?? 5)), ollamaBaseUrl: opts.get('ollama-base-url') || undefined, now: opts.get('now') || new Date().toISOString() };
 }
 
 function readGitSha(): string {

@@ -11,7 +11,7 @@ describe('honest recall benchmark rerank stage', () => {
 
     const report = await runHonestRecallBenchmark({
       cases: [{ id: 'q1', query: 'alpha', expectedIds: ['doc-a'] }],
-      corpus: { label: 'tiny', size: 10 },
+      corpus: { label: 'tiny', size: 12 },
       topK: 3,
       searcher,
       gitSha: 'abc123',
@@ -52,7 +52,7 @@ describe('honest recall benchmark rerank stage', () => {
     try {
       const report = await runHonestRecallBenchmark({
         cases: [{ id: 'q1', query: 'alpha', expectedIds: ['doc-c'] }],
-        corpus: { label: 'tiny', size: 10 },
+        corpus: { label: 'tiny', size: 12 },
         topK: 3,
         searcher,
         rerank: { enabled: true, url: `http://127.0.0.1:${sidecar.port}` },
