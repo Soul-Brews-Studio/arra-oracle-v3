@@ -12,6 +12,14 @@ const FTS5_BOOTSTRAP_MIGRATION = 1746547200000;
 let tempDir = '';
 let backend: StorageBackend | undefined;
 
+function expectedMigrationRowsSince(createdAt: number): number {
+  const journalPath = path.join(import.meta.dirname, '../../src/db/migrations/meta/_journal.json');
+  const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8')) as {
+    entries: Array<{ when: number }>;
+  };
+  return journal.entries.filter((entry) => entry.when >= createdAt).length;
+}
+
 afterEach(() => {
   backend?.close();
   backend = undefined;
@@ -39,7 +47,7 @@ test('sqlite backend repairs additive migrations already present in schema', () 
     'pragma table_info("oracle_memories")',
   ).all().map((column) => column.name);
 
-  expect(repaired?.count).toBe(4);
+  expect(repaired?.count).toBe(expectedMigrationRowsSince(FIRST_TENANT_MEMORY_MIGRATION));
   expect(memoryColumns).toContain('tenant_id');
 });
 
