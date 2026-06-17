@@ -104,19 +104,19 @@ export function VectorSearchToggle() {
   }
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="vector-search-toggle-title">
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-search-toggle-title">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Vector Search panel</p>
-          <h2 id="vector-search-toggle-title" className="mt-2 text-2xl font-semibold text-white">Enable vector search</h2>
-          <p className="mt-2 text-sm text-slate-400">Toggle collection indexing, switch all collection backends, and hot-reload adapters through PATCH /api/v1/vector/config.</p>
-          <p className="mt-2 text-xs text-slate-500">{loading ? 'Loading vector search switch…' : enabledSummary(config)}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Vector Search panel</p>
+          <h2 id="vector-search-toggle-title" className="mt-2 text-2xl font-semibold text-text">Enable vector search</h2>
+          <p className="mt-2 text-sm text-text-muted">Toggle collection indexing, switch all collection backends, and hot-reload adapters through PATCH /api/v1/vector/config.</p>
+          <p className="mt-2 text-xs text-text-muted">{loading ? 'Loading vector search switch…' : enabledSummary(config)}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+          <label className="grid gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
             Backend adapter
             <select
-              className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+              className="focus-ring rounded-xl border border-border bg-field px-3 py-2 text-sm text-text"
               disabled={loading || switching || !config || rows.length === 0}
               value={backend}
               onChange={(event) => void switchBackend(event.target.value as VectorConfigAdapter)}
@@ -124,7 +124,7 @@ export function VectorSearchToggle() {
               {SWITCHABLE_BACKENDS.map((adapter) => <option key={adapter} value={adapter}>{adapter}</option>)}
             </select>
           </label>
-          <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-slate-100">
+          <label className="flex items-center gap-3 rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm font-semibold text-text">
             <input
               checked={enabled}
               disabled={loading || saving || !config || rows.length === 0}
@@ -135,7 +135,7 @@ export function VectorSearchToggle() {
           </label>
         </div>
       </div>
-      {message ? <p className="mt-4 rounded-2xl border border-[color:var(--color-accent,#0f766e)] p-3 text-sm text-[color:var(--color-accent,#0f766e)]">{message}</p> : null}
+      {message ? <p className="mt-4 rounded-2xl border border-accent-border p-3 text-sm text-accent">{message}</p> : null}
       {error ? <div className="mt-4"><ErrorMessage title="Vector search toggle failed." message={error} /></div> : null}
     </section>
   );

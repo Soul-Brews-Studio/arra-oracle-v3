@@ -53,7 +53,7 @@ export function filterMenuItems(items: MenuItem[], filters: MenuFilters): MenuIt
 
 function MenuTypeBadge({ type }: { type: string }) {
   return (
-    <span className="inline-flex rounded-full border border-[color:var(--color-accent,#0f766e)] px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--color-accent,#0f766e)]">
+    <span className="inline-flex rounded-full border border-accent-border px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-accent">
       {type}
     </span>
   );
@@ -63,10 +63,10 @@ function MenuRows({ items, emptyText = 'No menu items returned from /api/menu.' 
   if (!items.length) return <EmptyState text={emptyText} />;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/50">
+    <div className="overflow-hidden rounded-2xl border border-border bg-field/50">
       <div className="hidden overflow-x-auto md:block">
         <table className="min-w-full divide-y divide-white/10 text-left text-sm">
-          <thead className="bg-white/[0.03] text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+          <thead className="bg-surface-muted text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
             <tr>
               <th className="px-4 py-3" scope="col">Name</th>
               <th className="px-4 py-3" scope="col">Type</th>
@@ -75,18 +75,18 @@ function MenuRows({ items, emptyText = 'No menu items returned from /api/menu.' 
           </thead>
           <tbody className="divide-y divide-white/10">
             {items.map((item) => (
-              <tr key={menuKey(item)} className="transition hover:bg-white/[0.03]">
+              <tr key={menuKey(item)} className="transition hover:bg-surface-muted">
                 <td className="px-4 py-4 align-top">
-                  <a className="focus-ring font-semibold text-white hover:text-[color:var(--color-accent,#0f766e)]" href={item.path}>
+                  <a className="focus-ring font-semibold text-text hover:text-accent" href={item.path}>
                     {item.label}
                   </a>
-                  <p className="mt-1 font-mono text-xs text-slate-500">{item.path}</p>
+                  <p className="mt-1 font-mono text-xs text-text-muted">{item.path}</p>
                 </td>
                 <td className="px-4 py-4 align-top">
                   <MenuTypeBadge type={item.group} />
                 </td>
                 <td className="px-4 py-4 align-top">
-                  <p className="font-mono text-xs text-slate-300">{menuSource(item)}</p>
+                  <p className="font-mono text-xs text-text-muted">{menuSource(item)}</p>
                 </td>
               </tr>
             ))}
@@ -96,17 +96,17 @@ function MenuRows({ items, emptyText = 'No menu items returned from /api/menu.' 
 
       <ul className="grid gap-2 p-3 md:hidden" aria-label="Menu items">
         {items.map((item) => (
-          <li key={menuKey(item)} className="rounded-xl border border-white/10 bg-slate-950/70 p-3">
+          <li key={menuKey(item)} className="rounded-xl border border-border bg-surface p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <a className="focus-ring font-semibold text-white hover:text-[color:var(--color-accent,#0f766e)]" href={item.path}>
+                <a className="focus-ring font-semibold text-text hover:text-accent" href={item.path}>
                   {item.label}
                 </a>
-                <p className="mt-1 truncate font-mono text-xs text-slate-500">{item.path}</p>
+                <p className="mt-1 truncate font-mono text-xs text-text-muted">{item.path}</p>
               </div>
               <MenuTypeBadge type={item.group} />
             </div>
-            <p className="mt-3 font-mono text-xs text-slate-300">{menuSource(item)}</p>
+            <p className="mt-3 font-mono text-xs text-text-muted">{menuSource(item)}</p>
           </li>
         ))}
       </ul>
@@ -137,31 +137,31 @@ function MenuFiltersCard({
 }) {
   const hasFilters = filters.group !== 'all' || filters.source !== 'all';
   return (
-    <section className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4" aria-label="Menu filters">
+    <section className="mb-5 rounded-2xl border border-border bg-surface-muted p-4" aria-label="Menu filters">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-accent,#0f766e)]">Source filters</p>
-          <p className="mt-1 text-sm text-slate-400">Showing {visible} of {total} items across {sources.length} menu sources.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Source filters</p>
+          <p className="mt-1 text-sm text-text-muted">Showing {visible} of {total} items across {sources.length} menu sources.</p>
         </div>
         <div className="grid gap-2 sm:grid-cols-[10rem_minmax(12rem,1fr)_auto]">
-          <label className="grid gap-1 text-sm font-medium text-slate-300">
+          <label className="grid gap-1 text-sm font-medium text-text-muted">
             Group
-            <select className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-100" aria-label="Filter menu group" value={filters.group} onChange={(event) => onGroup(event.currentTarget.value)}>
+            <select className="focus-ring rounded-xl border border-border bg-field px-3 py-2 text-text" aria-label="Filter menu group" value={filters.group} onChange={(event) => onGroup(event.currentTarget.value)}>
               <option value="all">All groups</option>
               {groups.map((group) => <option key={group} value={group}>{group}</option>)}
             </select>
           </label>
-          <label className="grid gap-1 text-sm font-medium text-slate-300">
+          <label className="grid gap-1 text-sm font-medium text-text-muted">
             Source
-            <select className="focus-ring rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-slate-100" aria-label="Filter menu source" value={filters.source} onChange={(event) => onSource(event.currentTarget.value)}>
+            <select className="focus-ring rounded-xl border border-border bg-field px-3 py-2 text-text" aria-label="Filter menu source" value={filters.source} onChange={(event) => onSource(event.currentTarget.value)}>
               <option value="all">All sources</option>
               {sources.map((source) => <option key={source} value={source}>{source}</option>)}
             </select>
           </label>
-          <button className="focus-ring self-end rounded-xl border border-white/10 px-3 py-2 text-sm font-semibold text-slate-200 hover:border-teal-300/40 disabled:opacity-40" disabled={!hasFilters} type="button" onClick={onClear}>
+          <button className="focus-ring self-end rounded-xl border border-border px-3 py-2 text-sm font-semibold text-text hover:border-teal-300/40 disabled:opacity-40" disabled={!hasFilters} type="button" onClick={onClear}>
             Clear
           </button>
-          <a className="focus-ring self-end rounded-xl border border-[color:var(--color-accent,#0f766e)] px-3 py-2 text-sm font-semibold text-[color:var(--color-accent,#0f766e)] hover:border-[color:var(--color-accent,#0f766e)]" href={sharePath}>
+          <a className="focus-ring self-end rounded-xl border border-accent-border px-3 py-2 text-sm font-semibold text-accent hover:border-accent-border" href={sharePath}>
             Share view
           </a>
         </div>
@@ -203,14 +203,14 @@ export function MenuPage({ items: initialItems = [], loading, client = apiClient
   const emptyText = sortedItems.length ? 'No menu items match the selected group/source filters.' : undefined;
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="menu-page-title">
+    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="menu-page-title">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Menu</p>
-          <h2 id="menu-page-title" className="mt-2 text-2xl font-semibold text-white">Menu catalog</h2>
-          <p className="mt-2 text-sm text-slate-400">All frontend menu rows from GET /api/menu.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Menu</p>
+          <h2 id="menu-page-title" className="mt-2 text-2xl font-semibold text-text">Menu catalog</h2>
+          <p className="mt-2 text-sm text-text-muted">All frontend menu rows from GET /api/menu.</p>
         </div>
-        <p className="rounded-full border border-white/10 px-3 py-2 text-sm text-slate-300">
+        <p className="rounded-full border border-border px-3 py-2 text-sm text-text-muted">
           {state === 'ready' ? `${visibleItems.length}/${sortedItems.length} items` : 'Loading items'}
         </p>
       </div>
@@ -234,7 +234,7 @@ export function MenuPage({ items: initialItems = [], loading, client = apiClient
           title="Could not load menu items."
           message={error || 'The /api/menu request failed.'}
           action={
-            <button className="focus-ring rounded-lg border border-[color:var(--color-err-text,#991b1b)] px-3 py-2 font-semibold text-[color:var(--color-err-text,#991b1b)] hover:bg-[var(--color-err-bg,#fee2e2)]" type="button" onClick={() => void loadMenu()}>
+            <button className="focus-ring rounded-lg border border-err-border px-3 py-2 font-semibold text-err-text hover:bg-err-bg" type="button" onClick={() => void loadMenu()}>
               Retry
             </button>
           }

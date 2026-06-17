@@ -31,6 +31,6 @@ describe('ExportPage', () => {
     expect(html).toContain('Export and prepare download');
     expect(html).toContain('Export progress');
     expect(html).toContain('Export app guide');
-    expect(html).toContain('dark:bg-slate-950');
+    expect(html).toContain('dark:bg-surface');
   });
 });

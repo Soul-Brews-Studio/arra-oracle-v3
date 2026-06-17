@@ -6,6 +6,7 @@ import {
   reportErrorToMetrics,
 } from '../../frontend/src/components/ErrorBoundary';
 import { htmlFor } from './_render';
+import { requestPath } from './api/_fetch';
 
 describe('ErrorBoundary fallback', () => {
   test('renders fallback UI with auto-retry and reporting status', () => {
@@ -35,7 +36,7 @@ describe('ErrorBoundary fallback', () => {
 });
 
 describe('reportErrorToMetrics', () => {
-  test('posts frontend error reports to /api/metrics', async () => {
+  test('posts frontend error reports to /api/v1/metrics', async () => {
     let request: { input: RequestInfo | URL; init?: RequestInit } | null = null;
     const ok = await reportErrorToMetrics(
       new Error('render failed'),
@@ -48,7 +49,7 @@ describe('reportErrorToMetrics', () => {
     );
 
     expect(ok).toBe(true);
-    expect(String(request?.input)).toBe('/api/metrics');
+    expect(requestPath(request?.input ?? '')).toBe('/api/v1/metrics');
     expect(request?.init?.method).toBe('POST');
     const headers = new Headers(request?.init?.headers);
     expect(headers.get('accept')).toBe('application/json');
