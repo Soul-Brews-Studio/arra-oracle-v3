@@ -17,6 +17,7 @@ is linked here; keep new docs in the right section when adding files.
 | [architecture/mcp-remote-transport.md](./architecture/mcp-remote-transport.md) | Remote MCP Worker transport and `mcp-remote` client bridge contract. |
 | [architecture/deploy-topologies.md](./architecture/deploy-topologies.md) | Choose all-local, Cloudflare edge, Vercel, or federation tunnel deployment. | deploy options, edge/backend/vector split |
 | [architecture/memory-layer.md](./architecture/memory-layer.md) | Memory confidence ranking, retrieval reinforcement, supersede, and consolidation contracts from #2251. | memory, confidence, supersede, consolidation |
+| [architecture/memory-pipeline.md](./architecture/memory-pipeline.md) | Diagram the write, FTS, async consolidation, confidence ranking, and bi-temporal read pipeline. | memory pipeline, FTS, asOf, ranking |
 | [architecture/cloudflared-origin-contract.md](./architecture/cloudflared-origin-contract.md) | `ORACLE_ORIGIN_URL` secret and Cloudflare Tunnel origin contract for Workers. | Cloudflare Tunnel, origin URL, Workers secrets |
 | [architecture/proxy-terminology.md](./architecture/proxy-terminology.md) | Disambiguate request-tier, storage-tier, and manifest passthrough proxy meanings. | proxy vocabulary, external-only adapters |
 | [PLUGIN-GUIDE.md](./PLUGIN-GUIDE.md) | Author installable Oracle plugins | `plugin.json`, CLI/MCP/menu/API surfaces |
@@ -29,6 +30,7 @@ is linked here; keep new docs in the right section when adding files.
 | [BINS.md](./BINS.md) | Published command binaries and aliases. |
 | [DEPLOY-DIGITALOCEAN.md](./DEPLOY-DIGITALOCEAN.md) | Small public Arra HTTP node on DigitalOcean. |
 | [deploy-cloudflare-mcp.md](./deploy-cloudflare-mcp.md) | One-click Cloudflare Workers remote MCP deploy and Claude `/mcp` setup. |
+| [deploy-production.md](./deploy-production.md) | Production Cloudflare Workers deploy with cloudflared origin, secrets, Studio, MCP, and federation. |
 | [deploy-vercel.md](./deploy-vercel.md) | One-click Vercel deploy for the Oracle Studio frontend and `/api/*` proxy. |
 | [DOCKER-MCP-TOOLKIT.md](./DOCKER-MCP-TOOLKIT.md) | Docker MCP Toolkit package and profile setup. |
 | [LOCAL-DEV.md](./LOCAL-DEV.md) | Local development setup and repo workflow. |

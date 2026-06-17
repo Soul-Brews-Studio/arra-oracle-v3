@@ -117,6 +117,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260616.1",
+    "@playwright/test": "^1.61.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.17.9",
     "better-sqlite3": "^12.9.0",

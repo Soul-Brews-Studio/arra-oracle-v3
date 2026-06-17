@@ -49,12 +49,28 @@ describe('studio Cloudflare Worker API proxy edge cases', () => {
     expect(seen).toEqual(['https://origin.example/root/api/health']);
   });
 
+  test('sanitizes deploy secret URLs before building API targets', async () => {
+    const seen: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      seen.push(String(input));
+      return Response.json({ ok: true });
+    }) as typeof fetch;
+
+    const response = await handleStudioRequest(new Request('https://studio.example/api/health?probe=1'), env({
+      ORACLE_ORIGIN_URL: 'https://user:pass@origin.example/root/?debug=1#secret',
+    }));
+
+    expect(response.status).toBe(200);
+    expect(seen).toEqual(['https://origin.example/root/api/health?probe=1']);
+  });
+
   test('preserves method, body, and content headers for API writes', async () => {
-    const seen: Array<{ body: string; contentType: string | null; method: string }> = [];
+    const seen: Array<{ body: string; contentLength: string | null; contentType: string | null; method: string }> = [];
     globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
       const upstream = new Request('https://oracle.example/api/learn', init);
       seen.push({
         body: await upstream.text(),
+        contentLength: upstream.headers.get('content-length'),
         contentType: upstream.headers.get('content-type'),
         method: upstream.method,
       });
@@ -68,7 +84,12 @@ describe('studio Cloudflare Worker API proxy edge cases', () => {
     }), env({ ORACLE_URL: 'https://oracle.example' }));
 
     expect(response.status).toBe(201);
-    expect(seen).toEqual([{ method: 'POST', contentType: 'application/json', body: '{"pattern":"deploy"}' }]);
+    expect(seen).toEqual([{
+      method: 'POST',
+      contentLength: null,
+      contentType: 'application/json',
+      body: '{"pattern":"deploy"}',
+    }]);
   });
 
   test('strips spoofable proxy headers before forwarding API requests', async () => {
