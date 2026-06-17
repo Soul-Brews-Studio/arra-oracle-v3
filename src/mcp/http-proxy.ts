@@ -1,6 +1,7 @@
 import type { ToolResponse } from '../tools/types.ts';
 import { currentTenantId } from '../middleware/tenant.ts';
 import { mcpTenantHeaders, stripMcpTenantArgs, tenantIdFromMcpArgs } from './tenant.ts';
+import { mcpRestMapByName, type RemoteableMcpRestEntry } from '../tools/mcp-rest-map.ts';
 
 const EMBEDDED_API_VALUES = new Set(['embedded', 'embed', 'off', 'none', 'false', '0']);
 
@@ -62,12 +63,13 @@ function normalizeApiBase(raw: string): string | null {
   }
 }
 
-function queryFrom(input: Record<string, unknown>, fields: Record<string, string>): Record<string, string> {
+function queryFromMap(input: Record<string, unknown>, entry: RemoteableMcpRestEntry): Record<string, string> {
   const query: Record<string, string> = {};
-  for (const [sourceKey, targetKey] of Object.entries(fields)) {
-    const value = cleanQueryValue(input[sourceKey]);
-    if (value !== undefined) query[targetKey] = value;
+  for (const binding of entry.query ?? []) {
+    const value = cleanQueryValue(input[binding.arg]);
+    if (value !== undefined) query[binding.param] = value;
   }
+  for (const binding of entry.staticQuery ?? []) query[binding.param] = binding.value;
   return query;
 }
 
@@ -82,61 +84,44 @@ function appendQuery(pathname: string, query?: Record<string, unknown>): string 
   return qs ? `${pathname}?${qs}` : pathname;
 }
 
-function proxyRequestForTool(toolName: string, args: Record<string, unknown>): ProxyRequest | null {
-  switch (toolName) {
-    case 'oracle_search':
-      return { method: 'GET', path: '/api/search', query: { q: args.query, ...queryFrom(args, { type: 'type', limit: 'limit', offset: 'offset', mode: 'mode', project: 'project', cwd: 'cwd', model: 'model' }) } };
-    case 'oracle_learn': return { method: 'POST', path: '/api/learn', body: args };
-    case 'oracle_verify': return { method: 'POST', path: '/api/verify', body: args };
-    case 'oracle_stats': return { method: 'GET', path: '/api/stats' };
-    case 'oracle_read': return { method: 'GET', path: '/api/read', query: queryFrom(args, { file: 'file', id: 'id' }) };
-    case 'oracle_list': return { method: 'GET', path: '/api/list', query: { ...queryFrom(args, { type: 'type', limit: 'limit', offset: 'offset' }), group: 'false' } };
-    case 'oracle_concepts': return { method: 'GET', path: '/api/concepts', query: queryFrom(args, { type: 'type', limit: 'limit' }) };
-    case 'oracle_supersede': return { method: 'POST', path: '/api/supersede/document', body: args };
-    case 'oracle_profile': {
-      const id = cleanQueryValue(args.id);
-      return { method: 'GET', path: id ? `/api/oracles/profiles/${encodeURIComponent(id)}` : '/api/oracles/profiles' };
-    }
-    case 'oracle_inbox': return { method: 'GET', path: '/api/inbox', query: queryFrom(args, { limit: 'limit', offset: 'offset', type: 'type' }) };
-    case 'oracle_handoff': return { method: 'POST', path: '/api/handoff', body: args };
-    case 'oracle_thread': return { method: 'POST', path: '/api/thread', body: { message: args.message, thread_id: args.threadId, title: args.title, role: args.role ?? 'claude', model: args.model } };
-    case 'oracle_threads': return { method: 'GET', path: '/api/threads', query: queryFrom(args, { status: 'status', limit: 'limit', offset: 'offset' }) };
-    case 'oracle_thread_read': {
-      const threadId = cleanQueryValue(args.threadId);
-      return threadId ? { method: 'GET', path: `/api/thread/${encodeURIComponent(threadId)}` } : null;
-    }
-    case 'oracle_thread_update': {
-      const threadId = cleanQueryValue(args.threadId);
-      return threadId ? { method: 'PATCH', path: `/api/thread/${encodeURIComponent(threadId)}/status`, body: { status: args.status } } : null;
-    }
-    case 'oracle_trace': return { method: 'POST', path: '/api/traces', body: args };
-    case 'oracle_trace_distill': {
-      const traceId = cleanQueryValue(args.traceId);
-      if (!traceId) return null;
+function bodyFromMap(entry: RemoteableMcpRestEntry, args: Record<string, unknown>): unknown {
+  switch (entry.body) {
+    case undefined: return undefined;
+    case 'args': return args;
+    case 'thread-message':
+      return { message: args.message, thread_id: args.threadId, title: args.title, role: args.role ?? 'claude', model: args.model };
+    case 'thread-status': return { status: args.status };
+    case 'trace-link': return { nextId: args.nextTraceId };
+    case 'trace-distill': {
       const { traceId: _traceId, ...body } = args;
-      return { method: 'POST', path: `/api/traces/${encodeURIComponent(traceId)}/distill`, body };
+      return body;
     }
-    case 'oracle_trace_list': return { method: 'GET', path: '/api/traces', query: queryFrom(args, { query: 'query', status: 'status', project: 'project', limit: 'limit', offset: 'offset' }) };
-    case 'oracle_trace_get': {
-      const traceId = cleanQueryValue(args.traceId);
-      if (!traceId) return null;
-      return args.includeChain === true ? { method: 'GET', path: `/api/traces/${encodeURIComponent(traceId)}/chain` } : { method: 'GET', path: `/api/traces/${encodeURIComponent(traceId)}` };
-    }
-    case 'oracle_trace_link': {
-      const prevTraceId = cleanQueryValue(args.prevTraceId);
-      return prevTraceId ? { method: 'POST', path: `/api/traces/${encodeURIComponent(prevTraceId)}/link`, body: { nextId: args.nextTraceId } } : null;
-    }
-    case 'oracle_trace_unlink': {
-      const traceId = cleanQueryValue(args.traceId);
-      return traceId ? { method: 'DELETE', path: `/api/traces/${encodeURIComponent(traceId)}/link`, query: { direction: args.direction } } : null;
-    }
-    case 'oracle_trace_chain': {
-      const traceId = cleanQueryValue(args.traceId);
-      return traceId ? { method: 'GET', path: `/api/traces/${encodeURIComponent(traceId)}/linked-chain` } : null;
-    }
-    case 'oracle_reflect': return { method: 'GET', path: '/api/reflect' };
-    default: return null;
   }
+}
+
+function pathForMap(entry: RemoteableMcpRestEntry, args: Record<string, unknown>): string | null {
+  const template = entry.name === 'oracle_trace_get' && args.includeChain === true
+    ? entry.pathVariants?.[0] ?? entry.path
+    : entry.path;
+  let path = template;
+  for (const param of entry.pathParams ?? []) {
+    const value = cleanQueryValue(args[param]);
+    const required = path.includes(`:${param}`) && !path.includes(`:${param}?`);
+    if (!value) {
+      if (required) return null;
+      path = path.replace(new RegExp(`/?:${param}\\?`), '');
+      continue;
+    }
+    path = path.replace(`:${param}?`, encodeURIComponent(value)).replace(`:${param}`, encodeURIComponent(value));
+  }
+  return path || '/';
+}
+
+export function proxyRequestForTool(toolName: string, args: Record<string, unknown>): ProxyRequest | null {
+  const entry = mcpRestMapByName.get(toolName);
+  if (!entry?.remoteable) return null;
+  const path = pathForMap(entry, args);
+  return path ? { method: entry.method, path, query: queryFromMap(args, entry), body: bodyFromMap(entry, args) } : null;
 }
 
 async function oracleApiFetch(baseUrl: string, apiPath: string, opts?: RequestInit): Promise<Response> {

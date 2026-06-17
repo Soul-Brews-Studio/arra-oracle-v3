@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { registerOracleMcpTools } from '../../workers/mcp/src/tools.ts';
+import { remoteableMcpRestMap } from '../../src/tools/mcp-rest-map.ts';
 
 type ToolHandler = (input: Record<string, unknown>) => Promise<{
   content: Array<{ type: 'text'; text: string }>;
@@ -19,7 +20,9 @@ function zShape() {
 }
 
 const zLike = {
+  any: () => zShape(),
   array: () => zShape(),
+  boolean: () => zShape(),
   enum: () => zShape(),
   number: () => zShape(),
   string: () => zShape(),
@@ -64,9 +67,10 @@ describe('Cloudflare McpAgent proxy flow', () => {
     }) as typeof fetch;
 
     await loadTools({ claims: { tenantId: 'tenant-from-oauth' } });
-    expect([...tools.keys()].sort()).toEqual(['muninn_search', 'muninn_stats', 'oracle_learn']);
+    expect([...tools.keys()].sort()).toEqual(remoteableMcpRestMap.map((entry) => entry.name).sort());
+    expect(tools.has('muninn_search')).toBe(false);
 
-    await tools.get('muninn_search')!.handler({
+    await tools.get('oracle_search')!.handler({
       query: 'vector safety',
       type: 'learning',
       limit: 3,
@@ -77,7 +81,7 @@ describe('Cloudflare McpAgent proxy flow', () => {
       model: 'bge-m3',
       tenantId: 'spoofed-tenant',
     });
-    await tools.get('muninn_stats')!.handler({ tenantId: 'spoofed-tenant' });
+    await tools.get('oracle_stats')!.handler({ tenantId: 'spoofed-tenant' });
     await tools.get('oracle_learn')!.handler({
       pattern: 'Workers proxy tests should cover MCP tool forwarding.',
       concepts: ['cloudflare', 'mcp'],
@@ -130,7 +134,7 @@ describe('Cloudflare McpAgent proxy flow', () => {
     }) as typeof fetch;
 
     await loadTools();
-    const search = tools.get('muninn_search')!.handler;
+    const search = tools.get('oracle_search')!.handler;
     const tenantA = payloadFrom(await search({ query: 'shared endpoint', limit: 1, tenantId: 'tenant-a' }));
     const tenantB = payloadFrom(await search({ query: 'shared endpoint', limit: 1, tenantId: 'tenant-b' }));
 

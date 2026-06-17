@@ -12,7 +12,7 @@ export function createPluginsRouter(options: PluginsRouterOptions = {}) {
   return new Elysia()
     .use(createPluginsRegistryRoute(options))
     .use(pluginStateRoute)
-    .use(createPluginToggleRoute({ runtime: options.runtime }))
+    .use(createPluginToggleRoute({ runtime: options.runtime, runtimeRef: options.runtimeRef }))
     .use(canvasPluginRegistryRoute)
     .use(pluginGetByNameRoute);
 }

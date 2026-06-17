@@ -3,6 +3,8 @@
  */
 
 import { Elysia } from 'elysia';
+import { sqlite } from '../../db/index.ts';
+import { attachSupersedeStatus } from '../../search/supersede-status.ts';
 import { handleSearch } from '../../server/handlers.ts';
 import { SearchQuery } from './model.ts';
 import { parseOffset, parsePositiveInt, parseSearchMode } from './query.ts';
@@ -41,6 +43,7 @@ export const searchEndpoint = new Elysia().get(
     try {
       const result = handleTenantSearch(sanitizedQ, type, limit, offset)
         ?? await handleSearch(sanitizedQ, type, limit, offset, mode, project, cwd, model);
+      attachSupersedeStatus(sqlite, result.results as unknown as Array<Record<string, unknown>>);
       return { ...result, query: sanitizedQ };
     } catch {
       set.status = 400;
