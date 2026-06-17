@@ -7,17 +7,18 @@ Bun-only tool handlers.
 ## Runtime boundary
 
 ```text
-MCP client -> workers/mcp /mcp -> ORACLE_URL /api/* -> maw arra backend
+MCP client -> workers/mcp /mcp -> ORACLE_ORIGIN_URL /api/* -> maw arra backend
 ```
 
 - The Worker hosts a Streamable HTTP MCP endpoint at `/mcp` through `McpAgent`.
 - Tool execution is REST proxying only. The Worker generates its tool list from
   the pure `src/tools/mcp-rest-map.ts` table and registers entries with
   `remoteable: true`.
-- Backend calls use `ORACLE_URL` first, then `ORACLE_HTTP_URL`, then
-  `ORACLE_API`.
-- Tenant context is resolved from authenticated `McpAgent` props before tool
-  arguments, then forwarded as backend-compatible tenant headers.
+- Backend calls use `ORACLE_ORIGIN_URL` first, then `ORACLE_URL`, then
+  `ORACLE_HTTP_URL`, then `ORACLE_API`.
+- Tenant forwarding is shipped: authenticated `McpAgent` props/claims win before
+  deploy fallback `ORACLE_TENANT_ID` and tool `tenantId`; the Worker forwards
+  `X-Tenant-ID`, `X-Oracle-Tenant`, and `X-Oracle-Tenant-ID`.
 - `ARRA_API_TOKEN` / `ARRA_API_KEY` are forwarded as Bearer auth when present.
 
 ## mcp-remote client bridge
@@ -45,8 +46,8 @@ Transport rules:
 1. The URL must end in `/mcp`.
 2. Browser navigation to `/mcp` is not a valid smoke test; use MCP Inspector,
    `mcp-remote`, or a remote-capable MCP client.
-3. `/health` can be plain HTTP readiness, but MCP tool listing/calls must use
-   MCP protocol messages.
+3. The Worker has no plain `/health` endpoint; probe `/mcp` with MCP Inspector,
+   `mcp-remote`, or a remote-capable MCP client.
 4. The Worker must not import `src/tools/mcp-manifest.ts`, `src/db/*`, or
    `src/vector/*`; only the pure REST map is edge-safe.
 
