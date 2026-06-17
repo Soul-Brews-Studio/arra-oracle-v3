@@ -2,6 +2,7 @@ import type { Database } from 'bun:sqlite';
 import { runWithTenant } from '../middleware/tenant.ts';
 import { runSupersede } from '../tools/supersede.ts';
 import type { ToolContext } from '../tools/types.ts';
+import { runFactCuration, type FactCurationOptions, type FactCurationResult } from './fact-curation.ts';
 
 type Db = ToolContext['db'];
 type Logger = Pick<Console, 'log' | 'warn' | 'error'>;
@@ -19,6 +20,7 @@ type ResolvedOptions = {
 export type ConsolidationOptions = {
   dryRun?: boolean; limit?: number; minCosine?: number; minFtsOverlap?: number;
   staleDays?: number; tenantId?: string; now?: number; logger?: Logger; llm?: unknown;
+  factCuration?: boolean | FactCurationOptions;
 };
 export type ConfidenceReceipt = {
   id: string; tenantId: string; score: number; stale: boolean;
@@ -31,6 +33,7 @@ export type ConsolidationPlan = {
 export type ConsolidationResult = {
   dryRun: boolean; scanned: number; planned: number; applied: number; skipped: number;
   deleted: 0; plans: ConsolidationPlan[]; confidence: ConfidenceReceipt[];
+  factCuration?: FactCurationResult;
 };
 
 const DAY_MS = 86_400_000;
@@ -43,9 +46,7 @@ function clamp(value: number, min = 0, max = 1): number { return Math.min(max, M
 
 function round(value: number): number { return Number(value.toFixed(4)); }
 
-function finiteNumber(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
+function finiteNumber(value: unknown, fallback: number): number { return typeof value === 'number' && Number.isFinite(value) ? value : fallback; }
 
 function resolveOptions(input: ConsolidationOptions): ResolvedOptions {
   const tenantId = typeof input.tenantId === 'string' ? input.tenantId.trim() : undefined;
@@ -58,6 +59,11 @@ function resolveOptions(input: ConsolidationOptions): ResolvedOptions {
     now: finiteNumber(input.now, Date.now()),
     ...(tenantId ? { tenantId } : {}),
   };
+}
+
+function resolveFactCuration(input: ConsolidationOptions): FactCurationOptions | null {
+  if (!input.factCuration) return null;
+  return { dryRun: input.dryRun, tenantId: input.tenantId, logger: input.logger, ...(typeof input.factCuration === 'object' ? input.factCuration : {}) };
 }
 
 function tokenize(text: string): string[] {
@@ -98,18 +104,8 @@ function confidenceFor(doc: RawDoc, tokens: string[], now: number, staleDays: nu
   const completeness = clamp(tokens.length / 80);
   const score = round((freshness * 0.45) + (provenance * 0.35) + (completeness * 0.2));
   const stale = ageDays >= staleDays || !doc.indexedAt;
-  return {
-    id: doc.id,
-    tenantId: doc.tenantId,
-    score,
-    stale,
-    label: score >= 0.75 ? 'high' : score >= 0.45 ? 'medium' : 'low',
-    reasons: [
-      stale ? 'stale_document' : 'fresh_document',
-      doc.project ? 'project_provenance' : 'missing_project',
-      tokens.length >= 40 ? 'content_complete' : 'content_sparse',
-    ],
-  };
+  return { id: doc.id, tenantId: doc.tenantId, score, stale, label: score >= 0.75 ? 'high' : score >= 0.45 ? 'medium' : 'low',
+    reasons: [stale ? 'stale_document' : 'fresh_document', doc.project ? 'project_provenance' : 'missing_project', tokens.length >= 40 ? 'content_complete' : 'content_sparse'] };
 }
 
 function docsSql(hasFts: boolean, tenantId?: string): string {
@@ -140,13 +136,7 @@ function loadDocs(sqlite: Database, options: ResolvedOptions): CandidateDoc[] {
     .all(...params);
   return rows.map((row) => {
     const tokens = tokenize(`${row.content}\n${row.concepts}\n${row.sourceFile}`);
-    return {
-      ...row,
-      content: row.content ?? '',
-      tokens,
-      tokenSet: new Set(tokens),
-      confidence: confidenceFor(row, tokens, options.now, options.staleDays),
-    };
+    return { ...row, content: row.content ?? '', tokens, tokenSet: new Set(tokens), confidence: confidenceFor(row, tokens, options.now, options.staleDays) };
   });
 }
 
@@ -220,10 +210,13 @@ export async function runConsolidationWorker(
       logger.warn(`[consolidation] skipped ${plan.oldId}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+  const factCuration = resolveFactCuration(input);
+  const curated = factCuration ? await runFactCuration(db, sqlite, factCuration) : undefined;
   return {
-    dryRun: options.dryRun, scanned: docs.length, planned: plans.length, applied,
-    skipped: plans.length - applied, deleted: 0, plans,
-    confidence: docs.map((doc) => doc.confidence).filter((receipt) => receipt.stale),
+    dryRun: options.dryRun, scanned: docs.length, planned: plans.length + (curated?.planned ?? 0),
+    applied: applied + (curated?.applied ?? 0), skipped: (plans.length - applied) + (curated?.skipped ?? 0),
+    deleted: 0, plans, confidence: docs.map((doc) => doc.confidence).filter((receipt) => receipt.stale),
+    ...(curated ? { factCuration: curated } : {}),
   };
 }
 
