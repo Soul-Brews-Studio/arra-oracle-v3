@@ -1,10 +1,3 @@
-/**
- * Arra Oracle v3 Database Schema (Drizzle ORM)
- *
- * Generated from existing database via drizzle-kit pull,
- * then cleaned up to exclude FTS5 internal tables.
- */
-
 import { sql } from 'drizzle-orm';
 import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 
@@ -24,14 +17,13 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
   indexedAt: integer('indexed_at').notNull(),
-  // Supersede pattern (Issue #19) - "Nothing is Deleted" but can be outdated
-  supersededBy: text('superseded_by'),      // ID of newer document
-  supersededAt: integer('superseded_at'),   // When it was superseded
-  supersededReason: text('superseded_reason'), // Why (optional)
-  // Provenance tracking (Issue #22)
-  origin: text('origin'),                   // 'mother' | 'arthur' | 'volt' | 'human' | null (legacy)
-  project: text('project'),                 // ghq-style: 'github.com/laris-co/arra-oracle'
-  createdBy: text('created_by'),            // 'indexer' | 'oracle_learn' | 'manual'
+  validTime: integer('valid_time'),
+  supersededBy: text('superseded_by'),
+  supersededAt: integer('superseded_at'),
+  supersededReason: text('superseded_reason'),
+  origin: text('origin'),
+  project: text('project'),
+  createdBy: text('created_by'),
 }, (table) => [
   index('idx_source').on(table.sourceFile),
   index('idx_type').on(table.type),
@@ -40,6 +32,7 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   index('idx_project').on(table.project),
   index('idx_documents_tenant').on(table.tenantId),
   index('idx_documents_tenant_type_active_updated').on(table.tenantId, table.type, table.supersededAt, table.updatedAt),
+  index('idx_documents_tenant_valid_time').on(table.tenantId, table.validTime),
 ]);
 // Challenge 2 memory system persistence (#1457)
 export const oracleMemories = sqliteTable('oracle_memories', {
