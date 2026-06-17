@@ -4,7 +4,8 @@
  * Refactored to use Drizzle ORM for type-safe queries.
  */
 
-import { db, searchLog, documentAccess, learnLog } from '../db/index.ts';
+import { eq, sql } from 'drizzle-orm';
+import { db, searchLog, documentAccess, learnLog, oracleDocuments } from '../db/index.ts';
 import type { SearchResult } from './types.ts';
 import { tenantIdForWrite } from '../middleware/tenant.ts';
 
@@ -77,6 +78,13 @@ export function logSearch(
 /**
  * Log document access
  */
+export function bumpDocumentUsage(documentId: string, now = Date.now()) {
+  db.update(oracleDocuments).set({
+    usageCount: sql`${oracleDocuments.usageCount} + 1`,
+    lastAccessedAt: now,
+  }).where(eq(oracleDocuments.id, documentId)).run();
+}
+
 export function logDocumentAccess(documentId: string, accessType: string, project?: string) {
   try {
     db.insert(documentAccess).values({
@@ -88,6 +96,11 @@ export function logDocumentAccess(documentId: string, accessType: string, projec
     }).run();
   } catch (e) {
     console.error('Failed to log access:', e);
+  }
+  try {
+    bumpDocumentUsage(documentId);
+  } catch (e) {
+    console.error('Failed to bump document usage:', e);
   }
 }
 
