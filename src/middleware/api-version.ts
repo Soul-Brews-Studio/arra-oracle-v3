@@ -24,7 +24,7 @@ function isVersionedApiPath(pathname: string): boolean {
 }
 
 function isInfrastructurePath(pathname: string): boolean {
-  return INFRASTRUCTURE_PREFIXES.includes(pathname);
+  return INFRASTRUCTURE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 export function apiRequestPath(request: Request): string {

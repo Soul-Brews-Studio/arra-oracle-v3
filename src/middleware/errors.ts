@@ -54,17 +54,32 @@ export class UnprocessableEntityError extends HttpError {
   }
 }
 
+const STATUS_LABELS: Record<number, string> = {
+  400: 'Bad Request',
+  401: 'Unauthorized',
+  403: 'Forbidden',
+  404: 'Not Found',
+  405: 'Method Not Allowed',
+  409: 'Conflict',
+  413: 'Payload Too Large',
+  415: 'Unsupported Media Type',
+  422: 'Unprocessable Entity',
+  429: 'Too Many Requests',
+  500: 'Internal Server Error',
+  502: 'Bad Gateway',
+  503: 'Service Unavailable',
+  504: 'Gateway Timeout',
+};
+
 function statusLabel(statusCode: number): string {
-  if (statusCode === 400) return 'Bad Request';
-  if (statusCode === 401) return 'Unauthorized';
-  if (statusCode === 404) return 'Not Found';
-  if (statusCode === 422) return 'Unprocessable Entity';
-  if (statusCode === 503) return 'Service Unavailable';
-  return 'Internal Server Error';
+  return STATUS_LABELS[statusCode] ?? (statusCode >= 500 ? 'Internal Server Error' : 'Request Error');
 }
 
 function numericStatus(value: unknown): number | null {
-  return typeof value === 'number' && value >= 400 && value <= 599 ? value : null;
+  const status = typeof value === 'string' && value.trim() ? Number(value) : value;
+  return typeof status === 'number' && Number.isInteger(status) && status >= 400 && status <= 599
+    ? status
+    : null;
 }
 
 function errorMessage(error: unknown): string {
@@ -108,6 +123,10 @@ function defaultErrorLogger(entry: { requestId: string; statusCode: number; code
   console.error(`[HTTP:${entry.requestId}] ${entry.statusCode} ${entry.code}: ${entry.message}`);
 }
 
+function logSafely(logger: ErrorLogger, entry: Parameters<ErrorLogger>[0]): void {
+  try { logger(entry); } catch {}
+}
+
 export function createErrorMiddleware(logger: ErrorLogger = defaultErrorLogger) {
   return new Elysia({ name: 'structured-errors' }).onError({ as: 'global' }, ({ code, error, request, set }) => {
     const statusCode = knownStatus(String(code), error, apiRequestPath(request));
@@ -117,7 +136,7 @@ export function createErrorMiddleware(logger: ErrorLogger = defaultErrorLogger) 
     set.headers[REQUEST_ID_HEADER] = id;
     set.headers[RESPONSE_TIME_HEADER] = responseTimeFor(request);
     set.headers['x-correlation-id'] = id;
-    logger({ requestId: id, statusCode, code: String(code), message });
+    logSafely(logger, { requestId: id, statusCode, code: String(code), message });
     return apiErrorResponse(error instanceof HttpError ? error.error : statusLabel(statusCode), statusCode, {
       message,
       correlationId: id,
