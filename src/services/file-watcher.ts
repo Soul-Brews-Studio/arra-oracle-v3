@@ -65,7 +65,7 @@ export class FileWatcherService implements FileWatcherControl {
     const source = options.models ?? getEmbeddingModels;
     this.models = typeof source === 'function' ? source : () => source;
     this.logger = options.logger ?? console;
-    this.maxEvents = nonNegativeInteger(options.maxEvents, DEFAULT_MAX_EVENTS);
+    this.maxEvents = Math.max(1, nonNegativeInteger(options.maxEvents, DEFAULT_MAX_EVENTS));
     this.repoRoot = path.resolve(options.repoRoot ?? REPO_ROOT);
     this.watchRoot = path.join(this.repoRoot, PSI_LEARN_REL);
     this.debounceMs = nonNegativeInteger(options.debounceMs, DEFAULT_DEBOUNCE_MS);
@@ -123,7 +123,12 @@ export class FileWatcherService implements FileWatcherControl {
     this.record('scheduled', `scheduled re-index for ${sourceFile}`, sourceFile);
     this.pending.set(fullPath, setTimeout(() => {
       this.pending.delete(fullPath);
-      this.reindexPath(fullPath);
+      try {
+        this.reindexPath(fullPath);
+      } catch (error) {
+        this.record('error', `failed scheduled re-index for ${sourceFile}: ${errorText(error)}`, sourceFile);
+        this.logger.warn(`[file-watcher] failed scheduled re-index for ${sourceFile}:`, error);
+      }
     }, this.debounceMs));
   }
 

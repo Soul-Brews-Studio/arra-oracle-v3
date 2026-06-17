@@ -46,7 +46,7 @@ curl -H 'X-Oracle-Tenant: team-a' \
 | MCP catalogue | `/api/mcp/tools` | [API.md](./API.md#mcp-tool-listing-api) |
 | Export/import | `/api/export/*`, `/api/vector/export/*` | [http-api-reference.md](./http-api-reference.md#vector-and-indexer) |
 | Collaboration | `/api/traces`, `/api/supersede`, `/api/schedule` | [http-api-reference.md](./http-api-reference.md#collaboration-social-traces-schedule) |
-| Federation/peer | `/identity`, `/peer/*`, `/search` | [FEDERATION.md](./FEDERATION.md) |
+| Federation mesh | `/api/federation/status`, `/api/federation/capabilities`, `/api/federation/mesh/nodes` | [FEDERATION.md](./FEDERATION.md) |
 
 ## Curl smoke checks
 
