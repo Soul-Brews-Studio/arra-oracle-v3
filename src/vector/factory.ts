@@ -147,30 +147,14 @@ function resolveModelKey(model: string | undefined, models: Record<string, Embed
   return key;
 }
 export function createVectorStoreForModel(preset: EmbeddingModelConfig): VectorStoreAdapter {
-  return createVectorStore({
-    type: preset.adapter || 'lancedb',
-    collectionName: preset.collection,
-    embeddingProvider: preset.embedder?.backend ?? resolveEmbeddingProviderType(),
-    embeddingModel: preset.embedder?.model || preset.model,
-    embeddingUrl: preset.embedder?.url,
-    embeddingDimensions: preset.embedder?.dimensions,
-    embeddingFallbackChain: preset.embedder?.fallbackChain
-      ?? (preset.embedder?.fallback ? [preset.embedder.fallback] : undefined),
-    proxyEndpoint: preset.endpoint,
-    ...(preset.dataPath && { dataPath: preset.dataPath }),
-  });
+  return createVectorStore(vectorStoreConfigFromPreset(preset));
 }
-export function getVectorStoreConfigByModel(
-  model?: string,
-  models = getEmbeddingModels(),
-): VectorStoreConfig {
-  const key = resolveModelKey(model, models);
-  const preset = models[key];
+function vectorStoreConfigFromPreset(preset: EmbeddingModelConfig): VectorStoreConfig {
   return {
     type: preset.adapter || 'lancedb',
     collectionName: preset.collection,
     embeddingProvider: resolveEmbeddingProviderType(
-      preset.provider as EmbeddingProviderType | undefined ?? preset.embedder?.backend,
+      (preset.provider as EmbeddingProviderType | undefined) ?? preset.embedder?.backend,
     ),
     embeddingModel: preset.embedder?.model || preset.model,
     embeddingUrl: preset.embedder?.url,
@@ -186,6 +170,13 @@ export function getVectorStoreConfigByModel(
     ...(preset.cfApiToken && { cfApiToken: preset.cfApiToken }),
   };
 }
+export function getVectorStoreConfigByModel(
+  model?: string,
+  models = getEmbeddingModels(),
+): VectorStoreConfig {
+  const key = resolveModelKey(model, models);
+  return vectorStoreConfigFromPreset(models[key]);
+}
 export function getVectorStoreByModel(
   model?: string,
   models = getEmbeddingModels(),
@@ -197,7 +188,8 @@ export function getVectorStoreByModel(
     const preset = models[key];
     store = createVectorStoreForModel(preset);
     modelStoreCache.set(key, store);
-    connectPromises.set(key, connectStore(store).catch(e =>
+    const newStore = store;
+    connectPromises.set(key, Promise.resolve().then(() => connectStore(newStore)).catch(e =>
       console.warn(`[VectorRegistry] Failed to connect ${key}:`, e instanceof Error ? e.message : String(e))
     ));
   }
