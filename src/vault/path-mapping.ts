@@ -5,6 +5,8 @@
  * Universal categories (resonance) stay flat at vault root.
  */
 
+import path from 'node:path';
+
 // Categories that get project-nested in the vault
 export const PROJECT_CATEGORIES = [
   'ψ/memory/learnings/',
@@ -21,7 +23,23 @@ export const UNIVERSAL_CATEGORIES = [
 ];
 
 export function isProjectCategory(relativePath: string): boolean {
-  return PROJECT_CATEGORIES.some((cat) => relativePath.startsWith(cat));
+  const safePath = normalizeVaultRelativePath(relativePath);
+  return PROJECT_CATEGORIES.some((cat) => safePath.startsWith(cat));
+}
+
+export function normalizeVaultRelativePath(value: string, label = 'vault path'): string {
+  const raw = String(value ?? '').replaceAll('\\', '/').trim();
+  if (!raw || raw.includes('\0') || raw.startsWith('/')) {
+    throw new Error(`${label} must be a non-empty relative path`);
+  }
+  if (raw.split('/').some((part) => part === '..')) {
+    throw new Error(`${label} must not contain parent directory segments`);
+  }
+  const normalized = path.posix.normalize(raw);
+  if (normalized === '.' || normalized.startsWith('../') || normalized === '..') {
+    throw new Error(`${label} must stay within the vault root`);
+  }
+  return normalized;
 }
 
 /**
@@ -30,15 +48,17 @@ export function isProjectCategory(relativePath: string): boolean {
  * Universal categories (resonance) stay flat at vault root.
  */
 export function mapToVaultPath(relativePath: string, project: string | null): string {
-  if (!project) return relativePath;
+  const safePath = normalizeVaultRelativePath(relativePath);
+  if (!project) return safePath;
+  const safeProject = normalizeVaultRelativePath(project, 'project');
 
   // Universal categories stay flat (no project prefix)
   for (const category of UNIVERSAL_CATEGORIES) {
-    if (relativePath.startsWith(category)) return relativePath;
+    if (safePath.startsWith(category)) return safePath;
   }
 
   // Everything else: prefix with project
-  return `${project}/${relativePath}`;
+  return `${safeProject}/${safePath}`;
 }
 
 /**
@@ -46,16 +66,18 @@ export function mapToVaultPath(relativePath: string, project: string | null): st
  * Strips {project}/ prefix to get the local relative path.
  */
 export function mapFromVaultPath(vaultRelativePath: string, project: string): string | null {
+  const safeVaultPath = normalizeVaultRelativePath(vaultRelativePath);
+  const safeProject = normalizeVaultRelativePath(project, 'project');
   // Check project prefix: {project}/ψ/... → ψ/...
-  const prefix = `${project}/`;
-  if (vaultRelativePath.startsWith(prefix)) {
-    return vaultRelativePath.slice(prefix.length);
+  const prefix = `${safeProject}/`;
+  if (safeVaultPath.startsWith(prefix)) {
+    return safeVaultPath.slice(prefix.length);
   }
 
   // Universal categories — keep as-is
   for (const category of UNIVERSAL_CATEGORIES) {
-    if (vaultRelativePath.startsWith(category)) {
-      return vaultRelativePath;
+    if (safeVaultPath.startsWith(category)) {
+      return safeVaultPath;
     }
   }
 
@@ -70,6 +92,7 @@ export function mapFromVaultPath(vaultRelativePath: string, project: string): st
  */
 export function ensureFrontmatterProject(content: string, project: string): string {
   const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  const projectValue = yamlScalar(oneLine(project));
 
   if (frontmatterMatch) {
     const frontmatter = frontmatterMatch[1];
@@ -78,10 +101,18 @@ export function ensureFrontmatterProject(content: string, project: string): stri
 
     // Inject project: after existing frontmatter fields
     const newline = frontmatterMatch[0].includes('\r\n') ? '\r\n' : '\n';
-    const newFrontmatter = `${frontmatter}${newline}project: ${project}`;
+    const newFrontmatter = `${frontmatter}${newline}project: ${projectValue}`;
     return content.replace(frontmatterMatch[0], `---${newline}${newFrontmatter}${newline}---`);
   }
 
   // No frontmatter — add one
-  return `---\nproject: ${project}\n---\n\n${content}`;
+  return `---\nproject: ${projectValue}\n---\n\n${content}`;
+}
+
+function oneLine(value: string): string {
+  return String(value ?? '').replace(/\r\n?/g, '\n').split('\n').map((part) => part.trim()).filter(Boolean).join(' ');
+}
+
+function yamlScalar(value: string): string {
+  return /^[A-Za-z0-9][A-Za-z0-9._/@+-]*(?: [A-Za-z0-9._/@+-]+)*$/.test(value) ? value : JSON.stringify(value);
 }

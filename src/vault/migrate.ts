@@ -6,11 +6,12 @@ import { execSync } from 'child_process';
 import { getSetting } from '../db/index.ts';
 import { detectProject } from '../server/project-detect.ts';
 import { mapToVaultPath, ensureFrontmatterProject } from './handler.ts';
+import { ghqListPaths } from './ghq.ts';
 
 function resolveVaultPath(repo: string): string {
-  const output = execSync(`ghq list -p ${repo}`, { encoding: 'utf-8' }).trim();
-  if (!output) throw new Error(`Vault repo "${repo}" not found via ghq.`);
-  return output.split('\n')[0].trim();
+  const [first] = ghqListPaths(repo);
+  if (!first) throw new Error(`Vault repo "${repo}" not found via ghq.`);
+  return first;
 }
 
 function walkFiles(dir: string, baseDir: string): Array<{ relativePath: string; fullPath: string }> {
@@ -59,7 +60,7 @@ function findPsiRepos(): Array<{ repoPath: string; psiDir: string }> {
   }
 
   const results: Array<{ repoPath: string; psiDir: string }> = [];
-  const repos = execSync('ghq list -p', { encoding: 'utf-8' }).trim().split('\n');
+  const repos = ghqListPaths();
   for (const repoPath of repos) {
     if (!repoPath) continue;
     const psiDir = path.join(repoPath, 'ψ');
