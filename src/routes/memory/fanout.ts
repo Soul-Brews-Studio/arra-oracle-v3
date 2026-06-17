@@ -4,6 +4,7 @@ import { ensureVectorStoreConnected, getEmbeddingModels, type EmbeddingModelConf
 import type { VectorQueryResult, VectorStoreAdapter } from '../../vector/types.ts';
 import { memoryConfidence, type MemoryConfidence } from './confidence.ts';
 import { MemoryFanoutQuery, parseMemoryLimit } from './model.ts';
+import { clampMemoryConfidenceWeight, memoryConfidenceRerankConfig, memoryFanoutConfidenceWeight } from './rerank-config.ts';
 import type { MemoryRecord } from './store.ts';
 
 type QueryStore = Pick<VectorStoreAdapter, 'query'>;
@@ -34,7 +35,6 @@ type RankedResult = SearchResult & {
 };
 
 const RRF_K = 60;
-const DEFAULT_CONFIDENCE_WEIGHT = 0.25;
 
 function sanitize(q: string): string {
   return q.replace(/<[^>]*>/g, '').replace(/[\x00-\x1f]/g, '').trim();
@@ -123,18 +123,8 @@ function confidenceFor(result: FanoutSearchResult, now: Date): MemoryConfidence 
   return memoryConfidence(memory, { mode: 'semantic', semanticScore: result.score ?? 0, now });
 }
 
-function confidenceWeight(raw: string | number | undefined = process.env.ORACLE_MEMORY_FANOUT_CONFIDENCE_WEIGHT): number {
-  const parsed = Number.parseFloat(String(raw ?? DEFAULT_CONFIDENCE_WEIGHT));
-  if (!Number.isFinite(parsed)) return DEFAULT_CONFIDENCE_WEIGHT;
-  return Math.max(0, Math.min(1, parsed));
-}
-
 function round6(value: number): number {
   return +value.toFixed(6);
-}
-
-export function memoryFanoutConfidenceWeight(env: Record<string, string | undefined> = process.env): number {
-  return confidenceWeight(env.ORACLE_MEMORY_FANOUT_CONFIDENCE_WEIGHT ?? env.ARRA_MEMORY_FANOUT_CONFIDENCE_WEIGHT);
 }
 
 export function fuseRankedResults(
@@ -143,7 +133,9 @@ export function fuseRankedResults(
   options: { confidenceWeight?: number; now?: Date } = {},
 ): RankedResult[] {
   const fused = new Map<string, RankedResult>();
-  const weight = confidenceWeight(options.confidenceWeight);
+  const weight = options.confidenceWeight === undefined
+    ? memoryFanoutConfidenceWeight()
+    : clampMemoryConfidenceWeight(options.confidenceWeight);
   const now = options.now ?? new Date();
   for (const [collection, results] of Object.entries(byCollection)) {
     results.forEach((result, index) => {
@@ -206,7 +198,10 @@ export function createMemoryFanoutEndpoint(deps: MemoryFanoutDeps = {}) {
     const limit = parseMemoryLimit(query.limit);
     const errors: Record<string, string> = {};
     const byCollection: Record<string, SearchResult[]> = {};
-    const configuredConfidenceWeight = deps.confidenceWeight ?? memoryFanoutConfidenceWeight();
+    const rerankConfig = memoryConfidenceRerankConfig();
+    const configuredConfidenceWeight = deps.confidenceWeight === undefined
+      ? rerankConfig.confidenceWeight
+      : clampMemoryConfidenceWeight(deps.confidenceWeight);
 
     const settled = await Promise.allSettled(collections.map(async (key) => {
       const store = await connect(key, models);
@@ -230,7 +225,9 @@ export function createMemoryFanoutEndpoint(deps: MemoryFanoutDeps = {}) {
       ranking: {
         rrfK: RRF_K,
         confidenceWeight: configuredConfidenceWeight,
-        confidenceSource: 'query-time-confidence',
+        confidenceRerankingEnabled: configuredConfidenceWeight > 0,
+        confidenceWeightSource: deps.confidenceWeight === undefined ? rerankConfig.source : 'injected',
+        confidenceSource: rerankConfig.confidenceSource,
       },
       results: fuseRankedResults(byCollection, limit, {
         confidenceWeight: configuredConfidenceWeight,
