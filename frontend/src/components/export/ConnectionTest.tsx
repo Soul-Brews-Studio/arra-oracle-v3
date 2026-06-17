@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ErrorMessage, LoadingPanel, Spinner } from '../AsyncState';
+import { StateNotice } from '../StateNotice';
 import { BackendSelector, DEFAULT_BACKEND_URL, normalizeBackendUrl } from './BackendSelector';
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Response | Promise<Response>;
@@ -81,7 +82,9 @@ function statusLabel(state: TestState): string {
 }
 
 function CollectionList({ collections }: { collections: ExportAppCollection[] }) {
-  if (!collections.length) return <p className="text-sm text-text-muted">No export collections were returned.</p>;
+  if (!collections.length) {
+    return <StateNotice tone="warning" title="No export collections were returned." detail="Check the backend URL, then test the export app API again." />;
+  }
   return (
     <ul className="grid gap-2" aria-label="Available export collections">
       {collections.map((collection) => (
@@ -170,7 +173,7 @@ export function ConnectionTest({ initialBackendUrl = DEFAULT_BACKEND_URL, fetche
         >
           {state === 'testing' ? <Spinner label="Testing" /> : 'Test connection'}
         </button>
-        <p className="text-sm text-text-muted">{message}</p>
+        <p className={`rounded-xl border px-3 py-2 text-sm ${statusClass(state)}`}>{message}</p>
       </div>
 
       {state === 'testing' ? <LoadingPanel title="Testing backend..." detail="Checking /api/v1/export/test-connection." /> : null}

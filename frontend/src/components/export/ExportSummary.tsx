@@ -99,7 +99,11 @@ export function ExportSummary({
               </tr>
             )) : (
               <tr>
-                <td className="px-4 py-4 text-text-muted dark:text-text-muted" colSpan={3}>No collections selected.</td>
+                <td className="px-4 py-4" colSpan={3}>
+                  <div className="rounded-xl border border-warn-border bg-warn-bg p-3 text-warn-text" role="status">
+                    No collections selected.
+                  </div>
+                </td>
               </tr>
             )}
           </tbody>

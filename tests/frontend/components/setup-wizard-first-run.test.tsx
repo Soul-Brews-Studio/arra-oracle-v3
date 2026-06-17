@@ -56,6 +56,15 @@ describe("SetupWizard first-run detection", () => {
     expect(html).toContain('Free tier available!');
   });
 
+  test("renders semantic empty and done wizard states", () => {
+    const empty = htmlFor(<StepBody step={1} providers={[]} selectedProvider="" config={null} />);
+    const done = htmlFor(<StepBody step={3} providers={[]} config={null} />);
+
+    expect(empty).toContain("No provider report yet");
+    expect(empty).toContain("border-warn-border bg-warn-bg text-warn-text");
+    expect(done).toContain("First-run setup complete");
+    expect(done).toContain("border-ok-border bg-ok-bg text-ok-text");
+  });
 
   test("builds vector index start body from selected source and vault path", () => {
     const config = { config: { collections: { bge: { enabled: false }, qwen: { enabled: true } } } };
