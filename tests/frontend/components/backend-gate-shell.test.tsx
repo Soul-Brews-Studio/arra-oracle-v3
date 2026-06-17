@@ -4,7 +4,6 @@ import {
   ConnectOracleSetup,
   connectUrlForHost,
   normalizeOracleHost,
-  ORACLE_HOST_STORAGE_KEY,
 } from '../../../frontend/src/components/BackendGate';
 import { htmlFor, installBrowserLocation } from '../_render';
 
@@ -25,10 +24,9 @@ describe('BackendGate shell', () => {
     expect(html).not.toContain('Start Backend');
   });
 
-  test('renders unreachable setup guidance with saved local host', () => {
+  test('renders unreachable setup guidance with default local host', () => {
     const restore = installBrowserLocation('/?host=oracle.local:47778');
     try {
-      window.localStorage.setItem(ORACLE_HOST_STORAGE_KEY, 'oracle.local:47778');
       const html = htmlFor(
         <ConnectOracleSetup
           isTauri
@@ -40,8 +38,8 @@ describe('BackendGate shell', () => {
         />,
       );
 
-      expect(html).toContain('Cannot reach http://oracle.local:47778: fetch failed');
-      expect(html).toContain('value="oracle.local:47778"');
+      expect(html).toContain('Cannot reach http://localhost:47778: fetch failed');
+      expect(html).toContain('value="localhost:47778"');
       expect(html).toContain('arra-oracle-v3 serve');
       expect(html).toContain('Start Backend');
     } finally {

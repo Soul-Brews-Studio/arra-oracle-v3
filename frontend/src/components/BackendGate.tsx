@@ -1,13 +1,19 @@
 import { invoke } from "@tauri-apps/api/core";
+import {
+  API_BASE,
+  API_HOST,
+  API_HOST_STORAGE_KEY,
+  apiFetch,
+  apiUrl,
+  connectToApiHost,
+  hasStoredApiHost,
+} from "../api/oracle";
 import { SetupWizard } from "./SetupWizard";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { API_BASE, apiUrl } from "../api/oracle";
 
 export type GateState = "checking" | "ready" | "unreachable";
-type PrivateNetworkRequestInit = RequestInit & { targetAddressSpace?: "local" };
-
 export const DEFAULT_ORACLE_HOST = "localhost:47778";
-export const ORACLE_HOST_STORAGE_KEY = "oracle.host";
+export const ORACLE_HOST_STORAGE_KEY = API_HOST_STORAGE_KEY;
 
 declare global {
   interface Window {
@@ -42,26 +48,11 @@ export function connectUrlForHost(input: string, href: string): string {
   return url.toString();
 }
 
-function savedHost(): string {
-  if (typeof window === "undefined") return DEFAULT_ORACLE_HOST;
-  try {
-    return normalizeOracleHost(window.localStorage?.getItem(ORACLE_HOST_STORAGE_KEY) ?? "");
-  } catch {
-    return DEFAULT_ORACLE_HOST;
-  }
-}
-
-function backendTargetLabel(): string {
-  return API_BASE || `http://${savedHost()}`;
-}
-
 async function browserHealthCheck(): Promise<void> {
   const target = apiUrl("/api/health");
-  const init: PrivateNetworkRequestInit = {
+  const response = await apiFetch("/api/health", {
     headers: { accept: "application/json" },
-    targetAddressSpace: "local",
-  };
-  const response = await fetch(target, init);
+  });
   if (!response.ok) throw new Error(`${target} returned ${response.status}`);
 }
 
@@ -86,17 +77,12 @@ export function ConnectOracleSetup({
   starting: boolean;
   state: GateState;
 }) {
-  const [host, setHost] = useState(savedHost);
-  const target = backendTargetLabel();
+  const [host, setHost] = useState(API_HOST);
+  const target = API_BASE;
 
   function connect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (typeof window === "undefined") return;
-    const normalized = normalizeOracleHost(host);
-    try {
-      window.localStorage?.setItem(ORACLE_HOST_STORAGE_KEY, normalized);
-    } catch {}
-    window.location.assign(connectUrlForHost(normalized, window.location.href));
+    connectToApiHost(host);
   }
 
   return (
@@ -124,6 +110,7 @@ export function ConnectOracleSetup({
           />
           <p className="text-xs text-slate-400">
             Start your backend with <code>arra-oracle-v3 serve</code>, then connect from hosted Studio.
+            {!hasStoredApiHost() ? " The default is localhost:47778." : null}
           </p>
           <div className="flex flex-wrap gap-3">
             <button
