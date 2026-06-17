@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
 import { createApiVersionedFetch } from '../../../src/middleware/api-version.ts';
-import { createMemoryFanoutEndpoint } from '../../../src/routes/memory/fanout.ts';
+import { createMemoryFanoutEndpoint, fuseRankedResults } from '../../../src/routes/memory/fanout.ts';
 import type { EmbeddingModelConfig } from '../../../src/vector/factory.ts';
 import type { VectorQueryResult } from '../../../src/vector/types.ts';
 
@@ -16,6 +16,28 @@ function result(ids: string[]): VectorQueryResult {
     documents: ids.map((id) => `${id} document`),
     distances: ids.map((_, index) => index * 10),
     metadatas: ids.map((id) => ({ type: 'memory', source_file: `${id}.md` })),
+  };
+}
+
+function confidenceFixture(): VectorQueryResult {
+  return {
+    ids: ['stale-duplicate', 'fresh-provenance'],
+    documents: [
+      'Oracle deploy confidence ranking note',
+      'Oracle deploy confidence ranking note',
+    ],
+    distances: [0, 10],
+    metadatas: [
+      { type: 'memory', createdAt: '2020-01-01T00:00:00.000Z' },
+      {
+        type: 'memory',
+        title: 'Fresh deploy note',
+        source: 'session://codex-5',
+        tags: ['deploy', 'confidence'],
+        createdAt: '2026-06-17T00:00:00.000Z',
+        updatedAt: '2026-06-17T00:00:00.000Z',
+      },
+    ],
   };
 }
 
@@ -69,4 +91,56 @@ test('GET /api/v1/memory/fanout preserves partial collection errors', async () =
   expect(response.status).toBe(200);
   expect(body.results).toHaveLength(1);
   expect(body.errors).toEqual({ beta: 'beta unavailable' });
+});
+
+test('GET /api/v1/memory/fanout uses confidence to reorder fresh high-provenance matches', async () => {
+  const app = new Elysia({ prefix: '/api' }).use(createMemoryFanoutEndpoint({
+    models: () => ({ alpha: models.alpha }),
+    now: () => new Date('2026-06-17T00:00:00.000Z'),
+    connect: async () => ({ query: async () => confidenceFixture() }),
+  }));
+  const fetcher = createApiVersionedFetch((request) => app.handle(request));
+  const response = await fetcher(new Request('http://local/api/v1/memory/fanout?q=oracle&limit=2'));
+  const body = await json(response);
+
+  expect(body.ranking).toMatchObject({
+    rrfK: 60,
+    confidenceWeight: 0.25,
+    confidenceSource: 'query-time-confidence',
+  });
+  expect(body.results.map((item: { id: string }) => item.id)).toEqual(['fresh-provenance', 'stale-duplicate']);
+  expect(body.results[0].confidence.label).toBe('high');
+  expect(body.results[0].rankingScore).toBeGreaterThan(body.results[1].rankingScore);
+});
+
+test('fuseRankedResults can disable confidence weighting for pure RRF ordering', () => {
+  const [first] = fuseRankedResults({ alpha: [
+    {
+      id: 'stale-duplicate',
+      type: 'memory',
+      content: 'Oracle deploy confidence ranking note',
+      source_file: '',
+      concepts: [],
+      score: 1,
+      createdAt: '2020-01-01T00:00:00.000Z',
+    },
+    {
+      id: 'fresh-provenance',
+      type: 'memory',
+      content: 'Oracle deploy confidence ranking note',
+      source_file: 'fresh.md',
+      concepts: ['deploy'],
+      score: 0.91,
+      title: 'Fresh deploy note',
+      tags: ['deploy', 'confidence'],
+      memorySource: 'session://codex-5',
+      createdAt: '2026-06-17T00:00:00.000Z',
+    },
+  ] }, 1, {
+    confidenceWeight: 0,
+    now: new Date('2026-06-17T00:00:00.000Z'),
+  });
+
+  expect(first.id).toBe('stale-duplicate');
+  expect(first.confidenceWeight).toBe(0);
 });
