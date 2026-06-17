@@ -23,8 +23,9 @@ export interface StatusPageProps {
 }
 
 function statusClass(status?: string): string {
-  if (status === 'ok' || status === 'connected') return 'border-ok-border bg-ok-bg text-ok-text';
-  if (status === 'degraded' || status === 'draining') return 'border-warn-border bg-warn-bg text-warn-text';
+  const normalized = status?.toLowerCase();
+  if (normalized === 'ok' || normalized === 'connected' || normalized === 'healthy' || normalized === 'up') return 'border-ok-border bg-ok-bg text-ok-text';
+  if (normalized === 'degraded' || normalized === 'draining' || normalized === 'starting') return 'border-warn-border bg-warn-bg text-warn-text';
   return 'border-err-border bg-err-bg text-err-text';
 }
 
@@ -34,6 +35,24 @@ function formatSeconds(seconds?: number): string {
   const minutes = Math.floor(seconds / 60);
   const remaining = Math.round(seconds % 60);
   return `${minutes}m ${remaining}s`;
+}
+
+
+function databaseStatus(health: HealthResponse): string | undefined {
+  return health.subsystems?.database?.status ?? health.subsystems?.db?.status ?? health.dbStatus ?? health.db;
+}
+
+function subsystemStatus(health: HealthResponse, name: 'vector' | 'plugins' | 'plugin', fallback?: string): string | undefined {
+  return health.subsystems?.[name]?.status ?? fallback;
+}
+
+function subsystemDataString(health: HealthResponse, name: 'database' | 'db', key: string): string | undefined {
+  const value = health.subsystems?.[name]?.data?.[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function databasePath(health: HealthResponse): string | undefined {
+  return health.dbCheck?.path ?? subsystemDataString(health, 'database', 'path') ?? subsystemDataString(health, 'db', 'path');
 }
 
 function Field({ label, value }: { label: string; value: string | number | undefined }) {
@@ -142,7 +161,7 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
     return () => { cancelled = true; };
   }, [client, initialHealth]);
 
-  const uptime = useMemo(() => formatSeconds(health?.uptimeSeconds ?? health?.uptime?.seconds), [health]);
+  const uptime = useMemo(() => formatSeconds(health?.uptimeSeconds ?? health?.uptime), [health]);
   const isLoading = state === 'loading';
 
   return (
@@ -159,10 +178,10 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
       {health && state === 'ready' ? (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <StatusBadge label="Server" status={health.status} />
-            <StatusBadge label="Database" status={health.dbStatus ?? health.db?.status} />
-            <StatusBadge label="Vector" status={health.vectorStatus ?? health.vector?.status} />
-            <StatusBadge label="Plugins" status={health.pluginStatus ?? health.plugins?.status} />
+            <StatusBadge label="Server" status={health.healthStatus ?? health.state ?? health.status} />
+            <StatusBadge label="Database" status={databaseStatus(health)} />
+            <StatusBadge label="Vector" status={subsystemStatus(health, 'vector', health.vectorStatus ?? health.vector?.status)} />
+            <StatusBadge label="Plugins" status={subsystemStatus(health, 'plugins', health.pluginStatus ?? health.plugins?.status)} />
           </div>
           <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Field label="Name" value={health.server} />
@@ -172,7 +191,7 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
             <Field label="MCP tools" value={health.mcpToolCount ?? health.mcp?.toolCount} />
             <Field label="Plugins" value={health.pluginCount ?? health.plugins?.count} />
             <Field label="Oracle" value={health.oracle} />
-            <Field label="DB path" value={health.db?.path} />
+            <Field label="DB path" value={databasePath(health)} />
           </dl>
           <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-label="Plugin health rows">
             <h3 className="text-lg font-semibold text-text">Plugin health</h3>

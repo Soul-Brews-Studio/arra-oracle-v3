@@ -5,11 +5,19 @@ import { htmlFor } from '../_render';
 
 const health: HealthResponse = {
   status: 'degraded',
+  healthStatus: 'degraded',
   server: 'oracle',
   version: '1.0.0',
-  dbStatus: 'ok',
+  uptime: 90,
+  dbStatus: 'connected',
+  dbCheck: { status: 'connected', path: '/tmp/oracle.db' },
   vectorStatus: 'ok',
   pluginStatus: 'degraded',
+  subsystems: {
+    database: { status: 'healthy', label: 'database writable', detail: 'ok', critical: true, data: { path: '/tmp/oracle.db' } },
+    vector: { status: 'healthy', label: 'vector backend', detail: 'ok', critical: true },
+    plugins: { status: 'degraded', label: 'plugins loaded', detail: 'one degraded', critical: false },
+  },
   plugins: {
     count: 2,
     status: 'degraded',
