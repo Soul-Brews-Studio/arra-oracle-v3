@@ -5,6 +5,8 @@ import { handleRead } from '../../tools/read.ts';
 import type { ToolContext } from '../../tools/types.ts';
 import { readQuery } from './model.ts';
 
+const repoRoot = () => process.env.ORACLE_REPO_ROOT || REPO_ROOT;
+
 export const readRoute = new Elysia().get(
   '/api/read',
   async ({ query, set }) => {
@@ -14,7 +16,7 @@ export const readRoute = new Elysia().get(
       set.status = 400;
       return { error: 'Provide file or id parameter' };
     }
-    const ctx = { db, sqlite, repoRoot: REPO_ROOT } as Pick<
+    const ctx = { db, sqlite, repoRoot: repoRoot() } as Pick<
       ToolContext,
       'db' | 'sqlite' | 'repoRoot'
     >;

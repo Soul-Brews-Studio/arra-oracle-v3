@@ -88,8 +88,11 @@ function bodyFromMap(entry: RemoteableMcpRestEntry, args: Record<string, unknown
   switch (entry.body) {
     case undefined: return undefined;
     case 'args': return args;
-    case 'thread-message':
-      return { message: args.message, thread_id: args.threadId, title: args.title, role: args.role ?? 'claude', model: args.model };
+    case 'thread-message': {
+      const body: Record<string, unknown> = { message: args.message, thread_id: args.threadId, title: args.title, role: args.role ?? 'claude', model: args.model };
+      if (args.reopen !== undefined) body.reopen = args.reopen;
+      return body;
+    }
     case 'thread-status': return { status: args.status };
     case 'trace-link': return { nextId: args.nextTraceId };
     case 'trace-distill': {
