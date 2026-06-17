@@ -4,11 +4,15 @@ import { createPluginsRegistryRoute, type PluginsRegistryRouteOptions } from './
 import { pluginGetByNameRoute } from './get-by-name.ts';
 import { pluginStateRoute } from './state.ts';
 import { canvasPluginRegistryRoute } from './canvas.ts';
+import { createPluginToggleRoute, type PluginToggleRouteOptions } from './toggle.ts';
 
-export function createPluginsRouter(options: PluginsRegistryRouteOptions = {}) {
+export type PluginsRouterOptions = PluginsRegistryRouteOptions & PluginToggleRouteOptions;
+
+export function createPluginsRouter(options: PluginsRouterOptions = {}) {
   return new Elysia()
     .use(createPluginsRegistryRoute(options))
     .use(pluginStateRoute)
+    .use(createPluginToggleRoute({ runtime: options.runtime }))
     .use(canvasPluginRegistryRoute)
     .use(pluginGetByNameRoute);
 }
