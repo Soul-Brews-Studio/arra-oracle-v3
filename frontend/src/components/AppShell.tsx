@@ -86,7 +86,7 @@ export function AppShell({
   );
 
   return (
-    <main className="oracle-shell min-h-screen text-slate-900 transition-colors dark:text-text">
+    <main className="oracle-shell min-h-screen overflow-x-hidden text-slate-900 transition-colors dark:text-text">
       <a
         className="focus-ring sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-accent-solid focus:px-4 focus:py-3 focus:font-semibold focus:text-on-accent"
         href="#main-content"

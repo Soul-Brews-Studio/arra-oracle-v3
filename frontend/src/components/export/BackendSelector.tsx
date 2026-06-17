@@ -77,11 +77,11 @@ export function BackendSelector({ value, onChange, storageKey = BACKEND_URLS_KEY
   }
 
   return (
-    <div className="grid gap-3 rounded-2xl border border-border bg-field p-4 shadow-sm dark:border-border dark:bg-surface-muted" aria-label="Saved backend selector">
-      <label className="grid gap-2 text-sm font-medium text-text dark:text-text-muted">
+    <div className="grid min-w-0 gap-3 overflow-hidden rounded-2xl border border-border bg-field p-4 shadow-sm dark:border-border dark:bg-surface-muted" aria-label="Saved backend selector">
+      <label className="grid min-w-0 gap-2 text-sm font-medium text-text dark:text-text-muted">
         Saved backend
         <select
-          className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-on-accent dark:border-border dark:bg-field dark:text-text"
+          className="focus-ring w-full min-w-0 rounded-xl border border-border bg-field px-4 py-3 text-text dark:border-border dark:bg-field dark:text-text"
           value={savedUrls.includes(normalizedValue) ? normalizedValue : ''}
           onChange={(event) => choose(event.currentTarget.value)}
         >
@@ -90,10 +90,10 @@ export function BackendSelector({ value, onChange, storageKey = BACKEND_URLS_KEY
         </select>
       </label>
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-        <label className="grid gap-2 text-sm font-medium text-text dark:text-text-muted">
+        <label className="grid min-w-0 gap-2 text-sm font-medium text-text dark:text-text-muted">
           Backend URL
           <input
-            className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-on-accent placeholder:text-text-muted dark:border-border dark:bg-field dark:text-text dark:placeholder:text-text-muted"
+            className="focus-ring w-full min-w-0 rounded-xl border border-border bg-field px-4 py-3 text-text placeholder:text-text-muted dark:border-border dark:bg-field dark:text-text dark:placeholder:text-text-muted"
             placeholder={DEFAULT_BACKEND_URL}
             type="text"
             value={draftUrl}
@@ -104,7 +104,7 @@ export function BackendSelector({ value, onChange, storageKey = BACKEND_URLS_KEY
           />
         </label>
         <button
-          className="focus-ring rounded-xl border border-accent-border px-4 py-3 text-sm font-semibold text-accent hover:bg-accent-soft dark:border-accent-border dark:text-accent dark:hover:bg-accent-soft"
+          className="focus-ring w-full rounded-xl border border-accent-border px-4 py-3 text-sm font-semibold text-accent hover:bg-accent-soft sm:w-auto dark:border-accent-border dark:text-accent dark:hover:bg-accent-soft"
           type="button"
           onClick={saveDraft}
         >

@@ -49,8 +49,50 @@ export function createIndexerConfig(repoRootOverride = process.env.ORACLE_REPO_R
   };
 }
 
+export type IndexerCliOptions = { repoRoot?: string; readOnly: boolean; help: boolean };
+
+export function parseIndexerCliArgs(args: string[]): IndexerCliOptions {
+  const options: IndexerCliOptions = { readOnly: false, help: false };
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--help' || arg === '-h') options.help = true;
+    else if (arg === '--read-only') options.readOnly = true;
+    else if (arg === '--repo-root') {
+      const value = args[++i]?.trim();
+      if (!value) throw new Error('--repo-root requires a path');
+      options.repoRoot = value;
+    } else if (arg?.startsWith('--repo-root=')) {
+      const value = arg.slice('--repo-root='.length).trim();
+      if (!value) throw new Error('--repo-root requires a path');
+      options.repoRoot = value;
+    } else {
+      throw new Error(`unknown index option: ${arg}`);
+    }
+  }
+  return options;
+}
+
+function printUsage(): void {
+  console.log('Usage: bun src/indexer/cli.ts [--repo-root <path>] [--read-only]');
+  console.log('  --repo-root <path>  Index a specific repository root');
+  console.log('  --read-only         Open vector sidecar dependencies in read-only mode');
+}
+
 if (import.meta.main) {
-  const indexer = new OracleIndexer(createIndexerConfig());
+  let options: IndexerCliOptions;
+  try {
+    options = parseIndexerCliArgs(process.argv.slice(2));
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    printUsage();
+    process.exit(1);
+  }
+  if (options.help) {
+    printUsage();
+    process.exit(0);
+  }
+  if (options.readOnly) process.env.ORACLE_VECTOR_READONLY = '1';
+  const indexer = new OracleIndexer(createIndexerConfig(options.repoRoot));
 
   indexer.index()
     .then(async () => {
