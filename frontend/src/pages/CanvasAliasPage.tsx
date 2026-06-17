@@ -20,10 +20,10 @@ export function CanvasAliasPage() {
   return (
     <section className="grid gap-5" aria-labelledby="canvas-alias-title">
       <header className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Canvas app</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Canvas app</p>
         <h1 id="canvas-alias-title" className="mt-2 text-3xl font-semibold text-white">Studio canvas alias</h1>
         <p className="mt-2 text-sm text-slate-400">/canvas remains available while the isolated canvas app runs on canvas.buildwithoracle.com.</p>
-        <a className="focus-ring mt-4 inline-flex rounded-xl border border-teal-300/30 px-3 py-2 text-sm font-semibold text-teal-100 hover:bg-teal-300/10" href={target}>
+        <a className="focus-ring mt-4 inline-flex rounded-xl border border-[color:var(--color-accent,#0f766e)] px-3 py-2 text-sm font-semibold text-[color:var(--color-accent,#0f766e)] hover:bg-[var(--color-ok-bg,#dcfce7)]" href={target}>
           Open standalone canvas
         </a>
       </header>

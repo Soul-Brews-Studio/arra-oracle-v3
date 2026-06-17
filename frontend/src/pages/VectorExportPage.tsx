@@ -148,7 +148,7 @@ export function VectorExportPage({
         <p className="text-sm text-slate-500">{status}</p>
         {downloadError ? <ErrorMessage title="Vector export failed." message={downloadError} /> : null}
         <div className="flex flex-wrap gap-2">
-          <button className="focus-ring rounded-xl border border-teal-300/30 px-4 py-2 text-sm font-semibold text-teal-100 hover:bg-teal-300/10 disabled:cursor-not-allowed disabled:opacity-50" data-contrast-badge disabled={!collection || Boolean(downloading) || formatOptions.length === 0} type="button" onClick={() => void exportSelected()}>
+          <button className="focus-ring rounded-xl border border-[color:var(--color-accent,#0f766e)] px-4 py-2 text-sm font-semibold text-[color:var(--color-accent,#0f766e)] hover:bg-[var(--color-ok-bg,#dcfce7)] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[color:var(--color-accent,#5eead4)] dark:text-[color:var(--color-accent,#5eead4)] dark:hover:bg-[var(--color-ok-bg,#064e3b)]" data-contrast-badge disabled={!collection || Boolean(downloading) || formatOptions.length === 0} type="button" onClick={() => void exportSelected()}>
             {downloading ? <Spinner label={`Downloading ${formatLabelFor(formatOptions, downloading)}`} /> : 'Export'}
           </button>
         </div>

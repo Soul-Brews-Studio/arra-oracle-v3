@@ -15,7 +15,7 @@ const originalEnv = snapshotEnv([
   'ORACLE_PROXY_VECTOR_URL', 'ORACLE_VECTOR_ENABLED', 'ORACLE_EMBEDDER',
   'ORACLE_EMBEDDER_URL', 'ORACLE_EMBEDDING_DIMENSIONS', 'ARRA_FORCE_AVX',
   'VECTOR_URL', 'ORACLE_VECTOR_DB_PATH', 'ARRA_API_TOKEN', 'ARRA_API_KEY',
-  'ORACLE_TENANT_TOKENS', 'ORACLE_TENANT_API_KEYS',
+  'ORACLE_TENANT_TOKENS', 'ORACLE_TENANT_API_KEYS', 'ORACLE_GATEWAY_HOT_RELOAD',
 ]);
 
 process.env.ORACLE_DATA_DIR = backendData;
@@ -31,53 +31,20 @@ delete process.env.ARRA_API_TOKEN;
 delete process.env.ARRA_API_KEY;
 delete process.env.ORACLE_TENANT_TOKENS;
 delete process.env.ORACLE_TENANT_API_KEYS;
+process.env.ORACLE_GATEWAY_HOT_RELOAD = '0';
 
 const { db, sqlite, oracleDocuments, closeDb, resetDefaultDatabaseForTests } = await import('../../src/db/index.ts');
 resetDefaultDatabaseForTests(process.env.ORACLE_DB_PATH);
 const { createApp } = await import('../../src/server.ts');
+const { proxyToolCall } = await import('../../src/mcp/http-proxy.ts');
 const { loadUnifiedPlugins } = await import('../../src/plugins/unified-loader.ts');
+const { closeCachedVectorStores } = await import('../../src/vector/factory.ts');
 
 describe('backend to vector sidecar wiring', () => {
   test('createApp search reaches bun run vector:proxy through proxy adapter', async () => {
-    const embedder = fixedEmbedder();
-    const port = await freePort();
-    const sidecar = Bun.spawn(['bun', 'run', 'vector:proxy'], {
-      cwd: process.cwd(),
-      env: {
-        ...process.env,
-        ORACLE_DATA_DIR: sidecarData,
-        ORACLE_DB_PATH: path.join(sidecarData, 'oracle.db'),
-        VECTOR_PORT: String(port),
-        ORACLE_VECTOR_DB: 'lancedb',
-        ORACLE_EMBEDDER: 'remote',
-        ORACLE_EMBEDDER_URL: `${embedder.url}embed`,
-        ORACLE_EMBEDDING_DIMENSIONS: '3',
-        ARRA_FORCE_AVX: '0',
-      },
-      stdout: 'pipe',
-      stderr: 'pipe',
-    });
-    const sidecarUrl = `http://127.0.0.1:${port}`;
-
+    const sidecar = await startSidecar();
     try {
-      await waitForOk(`${sidecarUrl}/health`);
-      process.env.ORACLE_PROXY_VECTOR_URL = sidecarUrl;
-      writeBackendVectorConfig(sidecarUrl);
-      seedBackendDoc();
-
-      const add = await fetch(`${sidecarUrl}/vectors/add`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          documents: [{
-            id: 'wire-doc',
-            document: 'Sidecar vector proxy wiring proof',
-            metadata: { type: 'learning', source_file: 'docs/wire.md' },
-            vector: [0.9, 0.1, 0.1],
-          }],
-        }),
-      });
-      expect(add.status).toBe(200);
+      await seedWirePath(sidecar.url);
 
       const app = await createBackendApp();
       const response = await app.handle(new Request(
@@ -90,9 +57,33 @@ describe('backend to vector sidecar wiring', () => {
       expect(result.results?.map((item) => item.id)).toContain('wire-doc');
       expect(result.results?.[0]).toMatchObject({ source: 'vector', source_file: 'docs/wire.md' });
     } finally {
-      sidecar.kill();
-      embedder.stop(true);
-      await sidecar.exited.catch(() => undefined);
+      await sidecar.stop();
+    }
+  });
+
+  test('MCP oracle_search proxies through createApp and returns sidecar vector results', async () => {
+    const sidecar = await startSidecar();
+    let server: ReturnType<typeof Bun.serve> | undefined;
+    try {
+      await seedWirePath(sidecar.url);
+      const app = await createBackendApp();
+      server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: (request) => app.fetch(request) });
+
+      const tool = await proxyToolCall(String(server.url).replace(/\/$/, ''), 'oracle_search', {
+        query: 'sidecar wiring',
+        type: 'learning',
+        limit: 5,
+        mode: 'vector',
+      });
+      const result = parseToolJson(tool);
+
+      expect(result.vectorAvailable).toBe(true);
+      expect(result.results?.map((item) => item.id)).toContain('wire-doc');
+      expect(result.results?.[0]?.source_file).toBe('docs/wire.md');
+      expect(['vector', 'hybrid']).toContain(result.results?.[0]?.source);
+    } finally {
+      await server?.stop(true);
+      await sidecar.stop();
     }
   });
 });
@@ -139,6 +130,71 @@ function seedBackendDoc() {
     indexedAt: now,
     project: null,
   }).run();
+}
+
+async function seedWirePath(sidecarUrl: string) {
+  await closeCachedVectorStores();
+  process.env.ORACLE_PROXY_VECTOR_URL = sidecarUrl;
+  writeBackendVectorConfig(sidecarUrl);
+  seedBackendDoc();
+  await fetch(`${sidecarUrl}/vectors/collection`, { method: 'DELETE' });
+  const add = await fetch(`${sidecarUrl}/vectors/add`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      documents: [{
+        id: 'wire-doc',
+        document: 'Sidecar vector proxy wiring proof',
+        metadata: { type: 'learning', source_file: 'docs/wire.md' },
+        vector: [0.9, 0.1, 0.1],
+      }],
+    }),
+  });
+  expect(add.status).toBe(200);
+}
+
+async function startSidecar() {
+  const embedder = fixedEmbedder();
+  const port = await freePort();
+  const proc = Bun.spawn(['bun', 'run', 'vector:proxy'], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      ORACLE_DATA_DIR: sidecarData,
+      ORACLE_DB_PATH: path.join(sidecarData, 'oracle.db'),
+      VECTOR_PORT: String(port),
+      ORACLE_VECTOR_DB: 'lancedb',
+      ORACLE_EMBEDDER: 'remote',
+      ORACLE_EMBEDDER_URL: `${embedder.url}embed`,
+      ORACLE_EMBEDDING_DIMENSIONS: '3',
+      ARRA_FORCE_AVX: '0',
+    },
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const url = `http://127.0.0.1:${port}`;
+  try {
+    await waitForOk(`${url}/health`);
+  } catch (error) {
+    proc.kill();
+    embedder.stop(true);
+    await proc.exited.catch(() => undefined);
+    throw error;
+  }
+  return {
+    url,
+    stop: async () => {
+      proc.kill();
+      embedder.stop(true);
+      await proc.exited.catch(() => undefined);
+    },
+  };
+}
+
+function parseToolJson(tool: Awaited<ReturnType<typeof proxyToolCall>>) {
+  expect(tool).not.toBeNull();
+  expect(tool?.isError).toBeUndefined();
+  return JSON.parse(tool!.content[0].text) as { vectorAvailable?: boolean; results?: Array<Record<string, unknown>> };
 }
 
 function fixedEmbedder() {

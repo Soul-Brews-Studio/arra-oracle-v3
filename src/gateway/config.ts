@@ -43,6 +43,10 @@ function discoveredVectorServices(): RegisteredVectorService[] {
 }
 export { discoveredVectorServices as discoverGatewayVectorServices };
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function loadGatewayConfig(
   dataDir: string,
   vectorUrl?: string,
@@ -123,9 +127,13 @@ export function watchGatewayConfig(
     }
     const serialized = JSON.stringify(next);
     if (serialized === last) return;
-    last = serialized;
     console.log('[Gateway] Config changed — reloading');
-    onChange(next);
+    try {
+      onChange(next);
+      last = serialized;
+    } catch (error) {
+      console.warn(`[Gateway] Config reload callback failed: ${errorMessage(error)}`);
+    }
   };
 
   const tick = (): void => {

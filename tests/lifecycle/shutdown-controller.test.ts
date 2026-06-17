@@ -32,6 +32,14 @@ describe('shutdown controller', () => {
     expect(activeRequestCount()).toBe(0);
   });
 
+  test('releases tracked requests when handlers reject', async () => {
+    await expect(trackRequest(async () => {
+      throw new Error('handler failed');
+    })).rejects.toThrow('handler failed');
+
+    expect(activeRequestCount()).toBe(0);
+  });
+
   test('returns 503 for new non-health requests while draining', async () => {
     const blocked = drainingResponseFor(new Request('http://local/api/search?q=x'), { draining: true });
     const health = drainingResponseFor(new Request('http://local/api/health'), { draining: true });
@@ -40,6 +48,20 @@ describe('shutdown controller', () => {
     expect(blocked?.headers.get('Retry-After')).toBe('5');
     expect(await blocked?.json()).toMatchObject({ status: 'draining', draining: true });
     expect(health).toBeNull();
+  });
+
+  test('honors caller-provided health paths while draining', () => {
+    const health = drainingResponseFor(new Request('http://local/internal/live'), {
+      draining: true,
+      healthPaths: ['/internal/live'],
+    });
+    const blocked = drainingResponseFor(new Request('http://local/api/health'), {
+      draining: true,
+      healthPaths: ['/internal/live'],
+    });
+
+    expect(health).toBeNull();
+    expect(blocked?.status).toBe(503);
   });
 
   test('normalizes malformed Retry-After values while draining', () => {

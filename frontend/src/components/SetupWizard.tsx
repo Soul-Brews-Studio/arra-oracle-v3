@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { apiUrl } from "../api";
+import { apiFetch } from "../api";
 import { Spinner } from "./AsyncState";
 import { StepBody, setupSteps } from "./SetupWizardContent";
 import { shouldShowSetupWizard } from "./setupWizardDetection";
@@ -13,7 +13,7 @@ type SetupState = "checking" | "hidden" | "visible";
 const DISMISS_KEY = "arra.vector.setup.dismissed";
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(apiUrl(path), {
+  const response = await apiFetch(path, {
     headers: { accept: "application/json" },
   });
   if (!response.ok) throw new Error(`${path} returned ${response.status}`);
@@ -92,13 +92,13 @@ export function SetupWizard({ children }: { children: ReactNode }) {
     if (!selectedProvider) return setMessage("Choose an embedding provider first.");
     setBusy(true);
     try {
-      const response = await fetch(apiUrl("/api/v1/vector/config"), {
+      const response = await apiFetch("/api/v1/vector/config", {
         method: "PATCH",
         headers: { accept: "application/json", "content-type": "application/json" },
         body: JSON.stringify(buildProviderConfigPatch(config, selectedProvider)),
       });
       if (!response.ok) throw new Error(`/api/v1/vector/config returned ${response.status}`);
-      await fetch(apiUrl("/api/v1/vector/config/reload"), { method: "POST", headers: { accept: "application/json" } });
+      await apiFetch("/api/v1/vector/config/reload", { method: "POST", headers: { accept: "application/json" } });
       setConfig(await getJson<VectorConfig>("/api/v1/vector/config"));
       setStep(2);
       setMessage(`Applied ${selectedProvider} as the first-run embedding provider.`);

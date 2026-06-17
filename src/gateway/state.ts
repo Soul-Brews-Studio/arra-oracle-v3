@@ -14,8 +14,13 @@ export function createGatewayState(config: GatewayConfig): GatewayState {
   const compiled = compileRoutes(config.routes);
   const hooks = loadHooks(config.hooks);
   const registry = new HealthRegistry();
-  registry.start(config.services);
-  return { config, compiled, hooks, registry };
+  try {
+    registry.start(config.services);
+    return { config, compiled, hooks, registry };
+  } catch (error) {
+    registry.stop();
+    throw error;
+  }
 }
 
 export function describeGatewayState(state: GatewayState): string {

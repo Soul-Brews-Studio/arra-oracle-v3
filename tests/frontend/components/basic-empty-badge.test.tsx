@@ -9,7 +9,7 @@ describe('basic component shells', () => {
 
     expect(html).toContain('Plugin surface');
     expect(html).toContain('rounded-full');
-    expect(html).toContain('text-teal-200');
+    expect(html).toContain('text-[color:var(--color-accent,#0f766e)]');
   });
 
   test('renders empty-state text with dashed fallback styling', () => {

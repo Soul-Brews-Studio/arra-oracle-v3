@@ -53,7 +53,7 @@ export function filterMenuItems(items: MenuItem[], filters: MenuFilters): MenuIt
 
 function MenuTypeBadge({ type }: { type: string }) {
   return (
-    <span className="inline-flex rounded-full border border-teal-300/20 bg-teal-300/10 px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-teal-100">
+    <span className="inline-flex rounded-full border border-[color:var(--color-accent,#0f766e)] px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--color-accent,#0f766e)]">
       {type}
     </span>
   );
@@ -77,7 +77,7 @@ function MenuRows({ items, emptyText = 'No menu items returned from /api/menu.' 
             {items.map((item) => (
               <tr key={menuKey(item)} className="transition hover:bg-white/[0.03]">
                 <td className="px-4 py-4 align-top">
-                  <a className="focus-ring font-semibold text-white hover:text-teal-200" href={item.path}>
+                  <a className="focus-ring font-semibold text-white hover:text-[color:var(--color-accent,#0f766e)]" href={item.path}>
                     {item.label}
                   </a>
                   <p className="mt-1 font-mono text-xs text-slate-500">{item.path}</p>
@@ -99,7 +99,7 @@ function MenuRows({ items, emptyText = 'No menu items returned from /api/menu.' 
           <li key={menuKey(item)} className="rounded-xl border border-white/10 bg-slate-950/70 p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <a className="focus-ring font-semibold text-white hover:text-teal-200" href={item.path}>
+                <a className="focus-ring font-semibold text-white hover:text-[color:var(--color-accent,#0f766e)]" href={item.path}>
                   {item.label}
                 </a>
                 <p className="mt-1 truncate font-mono text-xs text-slate-500">{item.path}</p>
@@ -140,7 +140,7 @@ function MenuFiltersCard({
     <section className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4" aria-label="Menu filters">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">Source filters</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--color-accent,#0f766e)]">Source filters</p>
           <p className="mt-1 text-sm text-slate-400">Showing {visible} of {total} items across {sources.length} menu sources.</p>
         </div>
         <div className="grid gap-2 sm:grid-cols-[10rem_minmax(12rem,1fr)_auto]">
@@ -161,7 +161,7 @@ function MenuFiltersCard({
           <button className="focus-ring self-end rounded-xl border border-white/10 px-3 py-2 text-sm font-semibold text-slate-200 hover:border-teal-300/40 disabled:opacity-40" disabled={!hasFilters} type="button" onClick={onClear}>
             Clear
           </button>
-          <a className="focus-ring self-end rounded-xl border border-teal-300/20 px-3 py-2 text-sm font-semibold text-teal-100 hover:border-teal-300/50" href={sharePath}>
+          <a className="focus-ring self-end rounded-xl border border-[color:var(--color-accent,#0f766e)] px-3 py-2 text-sm font-semibold text-[color:var(--color-accent,#0f766e)] hover:border-[color:var(--color-accent,#0f766e)]" href={sharePath}>
             Share view
           </a>
         </div>
@@ -206,7 +206,7 @@ export function MenuPage({ items: initialItems = [], loading, client = apiClient
     <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 sm:p-6" aria-labelledby="menu-page-title">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-300">Menu</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--color-accent,#0f766e)]">Menu</p>
           <h2 id="menu-page-title" className="mt-2 text-2xl font-semibold text-white">Menu catalog</h2>
           <p className="mt-2 text-sm text-slate-400">All frontend menu rows from GET /api/menu.</p>
         </div>
@@ -234,7 +234,7 @@ export function MenuPage({ items: initialItems = [], loading, client = apiClient
           title="Could not load menu items."
           message={error || 'The /api/menu request failed.'}
           action={
-            <button className="focus-ring rounded-lg border border-red-200/30 px-3 py-2 font-semibold text-red-50 hover:bg-red-200/10" type="button" onClick={() => void loadMenu()}>
+            <button className="focus-ring rounded-lg border border-[color:var(--color-err-text,#991b1b)] px-3 py-2 font-semibold text-[color:var(--color-err-text,#991b1b)] hover:bg-[var(--color-err-bg,#fee2e2)]" type="button" onClick={() => void loadMenu()}>
               Retry
             </button>
           }

@@ -11,7 +11,7 @@ describe('VectorExportPage empty interaction state', () => {
     expect(html).toContain('No vector collections are available to export.');
     expect(html).toContain('aria-label="Export collection"');
     expect(html).toContain('aria-label="Export format"');
-    expect(html).toContain('<button class="focus-ring rounded-xl border border-teal-300/30');
+    expect(html).toContain('<button class="focus-ring rounded-xl border border-[color:var(--color-accent,#0f766e)]');
     expect(html).toContain('disabled=""');
   });
 });
