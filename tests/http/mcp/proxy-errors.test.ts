@@ -41,13 +41,14 @@ test('MCP-IN list times out unresponsive external servers', async () => {
 });
 
 test('MCP-IN call rejects bad external server config before spawning', async () => {
-  const response = await handleMcpCall({
+  const missingCwd = await handleMcpCall({
     command: 'bun',
     args: ['server.mjs'],
-    timeoutMs: 0,
+    cwd: join(tmpdir(), 'definitely-missing-arra-mcp-cwd'),
     toolName: 'echo',
   });
-  const body = errorText(response);
+  const badTimeout = await handleMcpCall({ command: 'bun', timeoutMs: 0, toolName: 'echo' });
 
-  expect(body.error).toBe('timeoutMs must be an integer between 1 and 60000');
+  expect(errorText(missingCwd).error).toBe('cwd must be an existing directory');
+  expect(errorText(badTimeout).error).toBe('timeoutMs must be an integer between 1 and 60000');
 });

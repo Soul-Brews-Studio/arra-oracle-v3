@@ -1,3 +1,4 @@
+import { statSync } from 'fs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
@@ -43,7 +44,14 @@ function assertServerConfig(server: ExternalMcpServerConfig): void {
   if (server.args !== undefined && (!Array.isArray(server.args) || server.args.some((arg) => typeof arg !== 'string'))) {
     throw new Error('args must be an array of strings');
   }
-  if (server.cwd !== undefined && typeof server.cwd !== 'string') throw new Error('cwd must be a string');
+  if (server.cwd !== undefined) {
+    if (typeof server.cwd !== 'string') throw new Error('cwd must be a string');
+    try {
+      if (!statSync(server.cwd).isDirectory()) throw new Error('not directory');
+    } catch {
+      throw new Error('cwd must be an existing directory');
+    }
+  }
   if (server.env !== undefined && (!isStringRecord(server.env))) {
     throw new Error('env must be an object with string values');
   }
