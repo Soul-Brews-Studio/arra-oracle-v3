@@ -117,7 +117,7 @@ export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef
 
   const healthRoutes = createHealthRoutes({ pluginCount: unifiedPlugins.pluginCount, pluginMcpToolCount: unifiedPlugins.mcpTools.length, pluginStatuses: unifiedPlugins.pluginStatuses, isDraining });
   const apiModules = [authRoutes, settingsRoutes, feedRoutes, healthRoutes, dashboardRoutes, searchRoutes, vectorRoutes, vectorConfigApiRoutes, conceptsRoutes, knowledgeRoutes, verifyRoutes, supersedeRoutes, forumApi, tracesApi, scheduleApi, filesRouter, createPluginsRouter({ registry: () => runtimeRef.current.pluginRegistry(), runtimeRef }), sessionsRoutes, vaultRoutes, metricsRoutes, exportRoutes, memoryRoutes, canvasRoutes, tenantsRoutes, watcherRoutes, indexerRoutes];
-  const modules = [...apiModules, createMcpRoutes(unifiedPlugins.mcpTools), createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu))];
+  const modules = [...apiModules, createMcpRoutes({ runtimeRef }), createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu))];
   for (const mod of modules) app.use(mod as any);
   app.use(createUnifiedPluginRouteMount(runtimeRef, { localRoutes: () => app.routes }));
   app.use(createNotFoundMiddleware(() => app.routes));
