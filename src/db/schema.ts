@@ -16,7 +16,7 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
   indexedAt: integer('indexed_at').notNull(),
-  validTime: integer('valid_time'),
+  validTime: integer('valid_time').default(sql`null`),
   supersededBy: text('superseded_by'),
   supersededAt: integer('superseded_at'),
   supersededReason: text('superseded_reason'),
