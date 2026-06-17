@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url';
 
-import { registerExportFormat, type ExportFormatter } from '../vector/export-formats.ts';
+import { getExportFormat, registerExportFormat, type ExportFormatter } from '../vector/export-formats.ts';
 import { runPluginWithErrorContainment } from './error-containment.ts';
 import type { NormalizedUnifiedPluginManifest } from './unified-manifest.ts';
 
@@ -48,5 +48,6 @@ export async function registerPluginExportFormats(
     if (typeof result.value === 'function') {
       registerExportFormat(format.name, result.value as ExportFormatter);
     }
+    if (!getExportFormat(format.name)) return `export format not registered: ${format.name}`;
   }
 }
