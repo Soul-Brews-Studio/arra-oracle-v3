@@ -29,6 +29,11 @@ export interface ToolResponse {
 // Input interfaces (moved from index.ts)
 // ============================================================================
 
+export interface OracleRecapInput {
+  limit?: number;
+  maxTokens?: number;
+}
+
 export interface OracleSearchInput {
   query: string;
   type?: 'principle' | 'pattern' | 'learning' | 'retro' | 'all';
