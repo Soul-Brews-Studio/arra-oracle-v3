@@ -99,7 +99,8 @@ process.env.ORACLE_EMBEDDING_PROVIDER = 'none';
 const createdMarkdownFiles = new Set<string>();
 
 function markdownPathCandidates(relativePath: string): string[] {
-  return [SHARED_REPO_ROOT, process.cwd()]
+  const dataRoot = process.env.ORACLE_DATA_DIR || path.join(os.homedir(), '.arra-oracle-v2');
+  return [SHARED_REPO_ROOT, process.cwd(), dataRoot]
     .map((root) => path.join(root, relativePath));
 }
 
