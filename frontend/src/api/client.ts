@@ -7,7 +7,7 @@ import type {
   VectorSearchResponse,
 } from '../../../src/server/types';
 import type { LearnCreateResponse, LearnDeleteResponse, LearnListResponse, LearnMutationPayload, LearnUpdateResponse } from '../types';
-import { API_BASE } from './oracle';
+import { API_BASE, withOracleFetchInit } from './oracle';
 
 export interface MenuSearchResponse {
   data: MenuItem[];
@@ -225,7 +225,7 @@ export class ApiClient {
     const headers = withJsonHeaders(this.options.headers, init);
     let response: Response;
     try {
-      response = await fetcher(urlFor(path, this.options.baseUrl), { ...init, headers });
+      response = await fetcher(urlFor(path, this.options.baseUrl), withOracleFetchInit({ ...init, headers }, this.options.baseUrl ?? API_BASE));
     } catch (error) {
       throw new ApiClientError(0, path, `${path} is unreachable: ${messageFor(error)}`);
     }

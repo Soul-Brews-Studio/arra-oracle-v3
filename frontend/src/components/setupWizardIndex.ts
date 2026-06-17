@@ -1,4 +1,4 @@
-import { apiUrl } from '../api';
+import { apiUrl, withOracleFetchInit } from '../api';
 import type { VectorConfig, VectorIndexSource } from './setupWizardTypes';
 
 export type IndexStartBody = {
@@ -28,9 +28,9 @@ export function buildIndexStartBody(
 }
 
 export async function requestVectorIndexStart(body: IndexStartBody): Promise<void> {
-  await fetch(apiUrl('/api/v1/vector/index/start'), {
+  await fetch(apiUrl('/api/v1/vector/index/start'), withOracleFetchInit({
     method: 'POST',
     headers: { accept: 'application/json', 'content-type': 'application/json' },
     body: JSON.stringify(body),
-  });
+  }));
 }

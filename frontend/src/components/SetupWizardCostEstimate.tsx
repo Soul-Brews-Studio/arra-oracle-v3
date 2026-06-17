@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiUrl } from "../api";
+import { apiUrl, withOracleFetchInit } from "../api";
 
 type CostEstimate = {
   estimatedUsd: number;
@@ -20,9 +20,9 @@ function formatCost(value: number): string {
 
 async function fetchEstimate(provider: string): Promise<CostEstimate> {
   const qs = new URLSearchParams({ provider });
-  const response = await fetch(apiUrl(`/api/v1/vector/cost-estimate?${qs}`), {
+  const response = await fetch(apiUrl(`/api/v1/vector/cost-estimate?${qs}`), withOracleFetchInit({
     headers: { accept: "application/json" },
-  });
+  }));
   if (!response.ok) throw new Error(`/api/v1/vector/cost-estimate returned ${response.status}`);
   return response.json() as Promise<CostEstimate>;
 }

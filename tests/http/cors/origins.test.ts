@@ -25,12 +25,14 @@ describe('CORS middleware origins', () => {
     delete process.env.ARRA_CORS_ORIGINS;
 
     const allowed = await request('/api/ping', { headers: { origin: 'http://localhost:3000' } });
+    const hosted = await request('/api/ping', { headers: { origin: 'https://god.buildwithoracle.com' } });
     const denied = await request('/api/ping', { headers: { origin: 'https://any.example' } });
 
     expect(allowed.status).toBe(200);
     expect(allowed.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:3000');
     expect(allowed.headers.get('Access-Control-Allow-Methods')).toContain('GET');
     expect(allowed.headers.get('Access-Control-Allow-Credentials')).toBe('true');
+    expect(hosted.headers.get('Access-Control-Allow-Origin')).toBe('https://god.buildwithoracle.com');
     expect(denied.headers.get('Access-Control-Allow-Origin')).toBeNull();
   });
 
@@ -63,6 +65,23 @@ describe('CORS middleware origins', () => {
 
     expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull();
     expect(res.headers.get('Access-Control-Allow-Credentials')).toBeNull();
+  });
+
+  test('allows hosted Studio private-network preflight by default', async () => {
+    delete process.env.ARRA_CORS_ORIGINS;
+
+    const res = await request('/api/ping', {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://god.buildwithoracle.com',
+        'access-control-request-method': 'GET',
+        'access-control-request-private-network': 'true',
+      },
+    });
+
+    expect(res.status).toBe(204);
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://god.buildwithoracle.com');
+    expect(res.headers.get('Access-Control-Allow-Private-Network')).toBe('true');
   });
 
   test('answers preflight OPTIONS with restricted methods and headers', async () => {

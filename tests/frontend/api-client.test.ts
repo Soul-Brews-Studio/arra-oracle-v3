@@ -99,7 +99,9 @@ describe('frontend API client', () => {
     expect(headers.get('x-client')).toBe('studio');
     expect(headers.get('content-type')).toBe('application/json');
     expect(String(calls[1]?.input)).toBe('http://localhost:47778/api/v1/vector/index/start');
+    expect((calls[0]?.init as any)?.targetAddressSpace).toBe('local');
     expect(calls[1]?.init?.method).toBe('POST');
+    expect((calls[1]?.init as any)?.targetAddressSpace).toBe('local');
     expect(calls[1]?.init?.body).toBe(JSON.stringify({ model: 'qwen3' }));
   });
 

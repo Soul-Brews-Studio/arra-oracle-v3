@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { apiUrl, withOracleFetchInit } from "../api";
 import { SetupWizard } from "./SetupWizard";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
@@ -21,9 +22,9 @@ function okStatus(value: unknown): boolean {
 }
 
 async function browserHealthCheck(): Promise<void> {
-  const response = await fetch("/api/health", {
+  const response = await fetch(apiUrl("/api/health"), withOracleFetchInit({
     headers: { accept: "application/json" },
-  });
+  }));
   if (!response.ok) throw new Error(`/api/health returned ${response.status}`);
 }
 
