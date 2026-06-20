@@ -14,6 +14,7 @@ import { SqliteVecAdapter } from './adapters/sqlite-vec.ts';
 import { LanceDBAdapter } from './adapters/lancedb.ts';
 import { QdrantAdapter } from './adapters/qdrant.ts';
 import { CloudflareVectorizeAdapter, CloudflareAIEmbeddings } from './adapters/cloudflare-vectorize.ts';
+import { PgVectorAdapter } from './adapters/pgvector.ts';
 import { createEmbeddingProvider } from './embeddings.ts';
 import { loadVectorConfig, configToModels, type VectorModelRegistryEntry } from './config.ts';
 import { localNativeVectorDisabledReason, logLocalVectorDisabled } from './cpu-capabilities.ts';
@@ -105,6 +106,20 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
         url: config.qdrantUrl || process.env.QDRANT_URL,
         apiKey: config.qdrantApiKey || process.env.QDRANT_API_KEY,
       });
+    }
+
+    case 'pgvector': {
+      // Managed Postgres (fleet-pg / oracle_kb) + pgvector. Reuses the shared
+      // pool resolved from ORACLE_DATABASE_URL + DATABASE_CA_CERT (db/pg.ts).
+      const embeddingType = config.embeddingProvider
+        || (process.env.ORACLE_EMBEDDING_PROVIDER as EmbeddingProviderType)
+        || 'ollama';
+
+      const embeddingModel = config.embeddingModel
+        || process.env.ORACLE_EMBEDDING_MODEL;
+
+      const embedder = createEmbeddingProvider(embeddingType, embeddingModel);
+      return new PgVectorAdapter(collectionName, embedder);
     }
 
     case 'cloudflare-vectorize': {

@@ -69,5 +69,5 @@ export interface EmbeddingProvider {
   embed(texts: string[], type?: EmbedType): Promise<number[][]>;
 }
 
-export type VectorDBType = 'chroma' | 'sqlite-vec' | 'lancedb' | 'qdrant' | 'cloudflare-vectorize';
+export type VectorDBType = 'chroma' | 'sqlite-vec' | 'lancedb' | 'qdrant' | 'cloudflare-vectorize' | 'pgvector';
 export type EmbeddingProviderType = 'chromadb-internal' | 'ollama' | 'openai' | 'cloudflare-ai';
