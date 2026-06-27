@@ -179,7 +179,7 @@ export async function handleSearch(
         return chromaResults.ids
           .map((id: string, i: number) => {
             const distance = chromaResults.distances?.[i] || 0;
-            const similarity = 1 / (1 + distance / 100);
+            const similarity = 1 / (1 + distance);
             const docProject = projectMap.get(id);
             return {
               id,
