@@ -58,6 +58,12 @@ function isProjectCategory(relativePath: string): boolean {
   return PROJECT_CATEGORIES.some((cat) => relativePath.startsWith(cat));
 }
 
+function sameFileContent(dest: string, source: string, content?: string): boolean {
+  if (!fs.existsSync(dest)) return false;
+  if (content !== undefined) return fs.readFileSync(dest, 'utf-8') === content;
+  return fs.readFileSync(dest).equals(fs.readFileSync(source));
+}
+
 // ---------------------------------------------------------------------------
 // Core
 // ---------------------------------------------------------------------------
@@ -160,17 +166,17 @@ function migrate(opts: { dryRun: boolean; symlink?: boolean }): MigrateResult {
 
       const vaultRelPath = mapToVaultPath(relativePath, project);
       const dest = path.join(vaultPath, vaultRelPath);
+      const content = fullPath.endsWith('.md') && isProjectCategory(relativePath)
+        ? ensureFrontmatterProject(fs.readFileSync(fullPath, 'utf-8'), project)
+        : undefined;
+
+      if (sameFileContent(dest, fullPath, content)) continue;
 
       if (!dryRun) {
         fs.mkdirSync(path.dirname(dest), { recursive: true });
 
-        if (fullPath.endsWith('.md') && isProjectCategory(relativePath)) {
-          const content = fs.readFileSync(fullPath, 'utf-8');
-          const tagged = ensureFrontmatterProject(content, project);
-          fs.writeFileSync(dest, tagged);
-        } else {
-          fs.copyFileSync(fullPath, dest);
-        }
+        if (content !== undefined) fs.writeFileSync(dest, content);
+        else fs.copyFileSync(fullPath, dest);
       }
       fileCount++;
     }
