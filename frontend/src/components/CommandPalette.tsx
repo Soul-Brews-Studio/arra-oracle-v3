@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { StateNotice } from './StateNotice';
 
@@ -130,6 +131,71 @@ export function CommandPalette({
     }
   }
 
+  const overlay = open ? (
+    <div
+      className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-surface/85 p-3 pt-20 backdrop-blur sm:items-center sm:pt-3"
+      role="presentation"
+      onClick={() => setOpen(false)}
+    >
+      <section
+        id="command-palette-dialog"
+        ref={overlayRef}
+        className="max-h-[min(42rem,calc(100vh-2rem))] w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-field p-4 shadow-2xl shadow-black/20"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="command-palette-title"
+        aria-describedby="command-palette-description"
+      >
+        <div className="mb-3">
+          <h2 id="command-palette-title" className="text-sm font-semibold text-text">Command palette</h2>
+          <p id="command-palette-description" className="text-xs text-text-muted">Search pages and dashboard actions, then use Enter to run the selected item.</p>
+        </div>
+        <input
+          ref={inputRef}
+          aria-activedescendant={activeOptionId}
+          aria-autocomplete="list"
+          aria-controls={listboxId}
+          aria-expanded={open}
+          aria-label="Search command palette"
+          className="focus-ring mb-3 min-w-0 w-full rounded-xl border border-border bg-field px-3 py-2 text-sm text-text placeholder:text-text-muted"
+          role="combobox"
+          value={query}
+          onChange={(event) => {
+            setQuery(event.currentTarget.value);
+            setSelectedIndex(0);
+          }}
+          onKeyDown={handleListKeyDown}
+          placeholder="Search pages and actions…"
+          type="search"
+        />
+
+        <ul id={listboxId} className="grid max-h-[28rem] gap-2 overflow-y-auto pr-1" role="listbox" aria-label="Commands">
+          {visibleCommands.map((command, index) => {
+            const selected = index === selectedIndex;
+            const optionId = `command-palette-option-${command.id}`;
+            const optionClass = `focus-ring grid w-full gap-1 rounded-xl border border-border bg-surface p-3 text-left transition sm:grid-cols-[minmax(0,1fr)_minmax(12rem,1.3fr)] ${selected ? 'border-accent-border bg-accent-soft' : 'hover:bg-surface-muted'}`;
+            const label = <><span className="font-semibold text-text">{command.label}</span><span className="text-xs text-text-muted">{command.description}</span></>;
+            return (
+              <li key={command.id}>
+                {command.href ? (
+                  <Link aria-selected={selected} className={optionClass} id={optionId} onMouseEnter={() => setSelectedIndex(index)} onClick={() => execute(command)} role="option" to={command.href}>{label}</Link>
+                ) : (
+                  <button type="button" className={optionClass} aria-selected={selected} id={optionId} onMouseEnter={() => setSelectedIndex(index)} onClick={() => execute(command)} role="option">{label}</button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+        {!visibleCommands.length ? (
+          <div className="mt-3">
+            <StateNotice tone="warning" title="No matching command actions." detail="Try menu, plugins, MCP, vector, settings, or refresh." />
+          </div>
+        ) : null}
+      </section>
+    </div>
+  ) : null;
+
   return (
     <div>
       <button
@@ -145,70 +211,7 @@ export function CommandPalette({
         Search actions (⌘K)
       </button>
 
-      {open ? (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-surface/85 p-3 pt-20 backdrop-blur sm:items-center sm:pt-3"
-          role="presentation"
-          onClick={() => setOpen(false)}
-        >
-          <section
-            id="command-palette-dialog"
-            ref={overlayRef}
-            className="max-h-[min(42rem,calc(100vh-2rem))] w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-field p-4 shadow-2xl shadow-black/20"
-            onClick={(event) => event.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="command-palette-title"
-            aria-describedby="command-palette-description"
-          >
-            <div className="mb-3">
-              <h2 id="command-palette-title" className="text-sm font-semibold text-text">Command palette</h2>
-              <p id="command-palette-description" className="text-xs text-text-muted">Search pages and dashboard actions, then use Enter to run the selected item.</p>
-            </div>
-            <input
-              ref={inputRef}
-              aria-activedescendant={activeOptionId}
-              aria-autocomplete="list"
-              aria-controls={listboxId}
-              aria-expanded={open}
-              aria-label="Search command palette"
-              className="focus-ring mb-3 min-w-0 w-full rounded-xl border border-border bg-field px-3 py-2 text-sm text-text placeholder:text-text-muted"
-              role="combobox"
-              value={query}
-              onChange={(event) => {
-                setQuery(event.currentTarget.value);
-                setSelectedIndex(0);
-              }}
-              onKeyDown={handleListKeyDown}
-              placeholder="Search pages and actions…"
-              type="search"
-            />
-
-            <ul id={listboxId} className="grid max-h-[28rem] gap-2 overflow-y-auto pr-1" role="listbox" aria-label="Commands">
-              {visibleCommands.map((command, index) => {
-                const selected = index === selectedIndex;
-                const optionId = `command-palette-option-${command.id}`;
-                const optionClass = `focus-ring grid w-full gap-1 rounded-xl border border-border bg-surface p-3 text-left transition sm:grid-cols-[minmax(0,1fr)_minmax(12rem,1.3fr)] ${selected ? 'border-accent-border bg-accent-soft' : 'hover:bg-surface-muted'}`;
-                const label = <><span className="font-semibold text-text">{command.label}</span><span className="text-xs text-text-muted">{command.description}</span></>;
-                return (
-                  <li key={command.id}>
-                    {command.href ? (
-                      <Link aria-selected={selected} className={optionClass} id={optionId} onMouseEnter={() => setSelectedIndex(index)} onClick={() => execute(command)} role="option" to={command.href}>{label}</Link>
-                    ) : (
-                      <button type="button" className={optionClass} aria-selected={selected} id={optionId} onMouseEnter={() => setSelectedIndex(index)} onClick={() => execute(command)} role="option">{label}</button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-            {!visibleCommands.length ? (
-              <div className="mt-3">
-                <StateNotice tone="warning" title="No matching command actions." detail="Try menu, plugins, MCP, vector, settings, or refresh." />
-              </div>
-            ) : null}
-          </section>
-        </div>
-      ) : null}
+      {overlay && (typeof document === 'undefined' ? overlay : createPortal(overlay, document.body))}
     </div>
   );
 }
