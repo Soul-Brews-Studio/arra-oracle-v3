@@ -80,6 +80,14 @@ export class LanceDBAdapter implements VectorStoreAdapter {
     }
   }
 
+  async deleteDocuments(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    if (!this.table) await this.ensureCollection();
+    await this.checkoutLatest();
+    for (const id of ids) await this.table.delete(`id = '${id.replaceAll("'", "''")}'`);
+    console.error(`[LanceDB] Deleted ${ids.length} documents`);
+  }
+
   async addDocuments(docs: VectorDocument[]): Promise<void> {
     if (docs.length === 0) return;
     if (!this.table) await this.ensureCollection();

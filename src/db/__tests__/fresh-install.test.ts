@@ -85,6 +85,8 @@ describe("fresh install (#1111)", () => {
 		expect(names).toContain("idx_entity_links_tenant_doc");
 		expect(names).toContain("idx_pointer_tenant_kind_key");
 		expect(names).toContain("idx_pointer_tenant_updated");
+		expect(names).toContain("idx_vector_manifest_model_hash");
+		expect(names).toContain("idx_vector_manifest_source");
 
 		sqlite.close();
 		rmSync(dir, { recursive: true });

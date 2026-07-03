@@ -48,7 +48,8 @@ function formatSeconds(seconds?: number): string {
 
 
 function databaseStatus(health: HealthResponse): string | undefined {
-  return health.subsystems?.database?.status ?? health.subsystems?.db?.status ?? health.dbStatus ?? health.db;
+  const db = typeof health.db === 'string' ? health.db : health.db?.status;
+  return health.subsystems?.database?.status ?? health.subsystems?.db?.status ?? health.dbStatus ?? db;
 }
 
 function subsystemStatus(health: HealthResponse, name: 'vector' | 'plugins' | 'plugin', fallback?: string): string | undefined {
@@ -61,7 +62,8 @@ function subsystemDataString(health: HealthResponse, name: 'database' | 'db', ke
 }
 
 function databasePath(health: HealthResponse): string | undefined {
-  return health.dbCheck?.path ?? subsystemDataString(health, 'database', 'path') ?? subsystemDataString(health, 'db', 'path');
+  const dbPath = typeof health.db === 'object' && health.db ? health.db.path : undefined;
+  return health.dbCheck?.path ?? dbPath ?? subsystemDataString(health, 'database', 'path') ?? subsystemDataString(health, 'db', 'path');
 }
 
 function Field({ label, value }: { label: string; value: string | number | undefined }) {

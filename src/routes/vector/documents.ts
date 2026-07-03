@@ -36,7 +36,13 @@ function parseOffset(value: string | undefined, fallback: number): number {
 
 function resolveCollection(collection: string | undefined, getModels?: () => Record<string, unknown>): string | null {
   const name = (collection || DEFAULT_COLLECTION).trim() || DEFAULT_COLLECTION;
-  return !getModels || name in getModels() ? name : null;
+  if (!getModels) return name;
+  const models = getModels();
+  if (name in models) return name;
+  const byCollectionName = Object.values(models).find(
+    (m) => typeof m === 'object' && m && 'collection' in m && (m as { collection: string }).collection === name,
+  );
+  return byCollectionName ? name : null;
 }
 
 function normalizeMetadata(metadata: unknown): Record<string, unknown> {

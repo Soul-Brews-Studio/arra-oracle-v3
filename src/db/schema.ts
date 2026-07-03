@@ -80,7 +80,6 @@ export const oracleMemories = sqliteTable('oracle_memories', {
   index('idx_memory_tenant_valid_time').on(table.tenantId, table.validFrom, table.validTo),
   index('idx_memory_tenant_tier_heat').on(table.tenantId, table.tier, table.heatScore),
 ]);
-
 export const indexingStatus = sqliteTable('indexing_status', {
   id: integer('id').primaryKey(),
   isIndexing: integer('is_indexing').default(0).notNull(),
@@ -98,14 +97,20 @@ export const indexingJobs = sqliteTable('indexing_jobs', {
   collection: text('collection').notNull(),
   status: text('status').default('pending').notNull(),
   attempts: integer('attempts').default(0).notNull(),
-  createdAt: integer('created_at')
-    .default(sql`(strftime('%s','now')*1000)`)
-    .notNull(),
+  createdAt: integer('created_at').default(sql`(strftime('%s','now')*1000)`).notNull(),
   claimedAt: integer('claimed_at'),
   finishedAt: integer('finished_at'),
   error: text('error'),
 });
-
+export const vectorIndexManifest = sqliteTable('vector_index_manifest', {
+  id: text('id').primaryKey(), chunkId: text('chunk_id').notNull(),
+  sourceFile: text('source_file').notNull(), modelKey: text('model_key').notNull(),
+  contentHash: text('content_hash').notNull(),
+  updatedAt: integer('updated_at').notNull(), indexedAt: integer('indexed_at').notNull(),
+}, (table) => [
+  index('idx_vector_manifest_model_hash').on(table.modelKey, table.contentHash),
+  index('idx_vector_manifest_source').on(table.sourceFile),
+]);
 export const searchLog = sqliteTable('search_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   query: text('query').notNull(),
@@ -123,7 +128,6 @@ export const searchLog = sqliteTable('search_log', {
   index('idx_search_created').on(table.createdAt),
   index('idx_search_tenant_created').on(table.tenantId, table.createdAt),
 ]);
-
 export const consultLog = sqliteTable('consult_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   decision: text('decision').notNull(),
@@ -137,7 +141,6 @@ export const consultLog = sqliteTable('consult_log', {
   index('idx_consult_project').on(table.project),
   index('idx_consult_created').on(table.createdAt),
 ]);
-
 export const learnLog = sqliteTable('learn_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   documentId: text('document_id').notNull(),
@@ -152,7 +155,6 @@ export const learnLog = sqliteTable('learn_log', {
   index('idx_learn_tenant').on(table.tenantId),
   index('idx_learn_created').on(table.createdAt),
 ]);
-
 export const documentAccess = sqliteTable('document_access', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   documentId: text('document_id').notNull(),
@@ -230,7 +232,6 @@ export const traceLog = sqliteTable('trace_log', {
   awakening: text('awakening'),
   distilledToId: text('distilled_to_id'),
   distilledAt: integer('distilled_at'),
-
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 }, (table) => [

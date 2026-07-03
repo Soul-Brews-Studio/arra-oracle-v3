@@ -91,4 +91,25 @@ describe('LanceDB stale-handle safety (#987)', () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it('deleteDocuments removes selected rows without dropping the collection', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oracle-lancedb-delete-docs-'));
+    const adapter = new LanceDBAdapter('delete_documents_regression', tmpDir, new DeterministicEmbedder());
+
+    try {
+      await adapter.connect();
+      await adapter.ensureCollection();
+      await adapter.addDocuments([doc('keep'), doc('drop')]);
+      await adapter.deleteDocuments(['drop']);
+
+      const stats = await adapter.getStats();
+      const result = await adapter.query('keep', 10);
+
+      expect(stats.count).toBe(1);
+      expect(result.ids).toEqual(['keep']);
+    } finally {
+      try { await adapter.close(); } catch {}
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
