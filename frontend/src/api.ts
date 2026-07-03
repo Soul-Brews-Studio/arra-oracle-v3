@@ -75,6 +75,19 @@ export async function searchMemoryHealth(query: string, limit = 20): Promise<Sea
   };
 }
 
+export async function fetchDocumentFeed(limit = 50, offset = 0): Promise<SearchResponse> {
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset), group: 'false' });
+  const data = await getJson<SearchResponse>(`/api/list?${qs}`);
+  return {
+    results: Array.isArray(data.results) ? data.results : [],
+    total: Number.isFinite(data.total) ? data.total : 0,
+    query: typeof data.query === 'string' ? data.query : '',
+    limit: data.limit,
+    offset: data.offset,
+    error: data.error,
+  };
+}
+
 export async function fetchMcpTools(): Promise<McpToolsResponse> {
   const data = await getJson<McpToolsResponse>('/api/mcp/tools');
   return {

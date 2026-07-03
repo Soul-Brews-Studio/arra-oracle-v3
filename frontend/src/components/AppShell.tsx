@@ -62,6 +62,7 @@ export function AppShell({
     { to: '/canvas/plugins', label: 'Canvas Plugins', description: 'Canvas metadata from /api/plugins?kind=canvas' },
     { to: '/search', label: 'Search', description: 'Full-text menu search' },
     { to: '/export', label: 'Export App', description: 'Legacy v2 JSON/Markdown backups' },
+    { to: '/feed', label: 'Feed', description: 'DB-backed document feed from /api/list' },
     { to: '/vector', label: 'Vector Dashboard', description: 'Collection health and indexing', end: true },
     { to: '/vector/documents', label: 'Document Browser', description: 'Browse indexed vector documents' },
     { to: '/vector/first-run', label: 'First-run setup', description: 'Local backend and first index' },

@@ -7,7 +7,7 @@
  *   GET /api/similar         — nearest-neighbor by doc id
  *   GET /api/compare         — fan-out search across embedding models
  *   GET /api/map             — 2D layout of all docs
- *   GET /api/map3d           — 3D PCA projection from real embeddings
+ *   GET /api/map3d           — DB/FTS-backed 3D document globe
  *   GET /api/vector/stats    — per-engine collection counts
  *   GET /api/vector/health   — adapter liveness probe
  *   GET /api/vector/cost-estimate — estimate remote embedding cost
