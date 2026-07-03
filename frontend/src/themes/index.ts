@@ -11,6 +11,7 @@ import { neonSynthwave } from './neon-synthwave';
 import { crimsonNight } from './crimson-night';
 import { solarAmber } from './solar-amber';
 import { oceanDepth } from './ocean-depth';
+import { sandDune } from './sand-dune';
 
 registerTheme(oracleDefault);
 registerTheme(midnightTeal);
@@ -24,6 +25,7 @@ registerTheme(neonSynthwave);
 registerTheme(crimsonNight);
 registerTheme(solarAmber);
 registerTheme(oceanDepth);
+registerTheme(sandDune);
 
 export { getThemes, getTheme, DEFAULT_THEME_ID } from './registry';
 export type { ThemeDefinition, ThemeTokens } from './types';
