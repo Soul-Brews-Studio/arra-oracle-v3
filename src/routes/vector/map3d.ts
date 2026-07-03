@@ -1,31 +1,18 @@
 /**
- * GET /api/map3d — real PCA from LanceDB bge-m3 embeddings.
+ * GET /api/map3d — DB/FTS-backed 3D document globe.
  *
- * When VECTOR_URL is set, proxies to the remote vector server.
- * Falls back to local handleMap3d() when proxy is unavailable or unset.
+ * This endpoint intentionally stays local even when VECTOR_URL is set so the
+ * memory map reflects the full SQLite/FTS corpus, not a partial vector index.
  */
 
 import { Elysia } from 'elysia';
 import { handleMap3d } from '../../server/vector-handlers.ts';
-import { createVectorProxy } from '../../server/vector-proxy.ts';
-import { resolveVectorUrl } from '../../config.ts';
 import { Map3dQuery } from './model.ts';
-
-const currentProxy = () => createVectorProxy(resolveVectorUrl());
 
 export const map3dEndpoint = new Elysia().get(
   '/map3d',
   async ({ query, set }) => {
     const model = query.model || undefined;
-
-    // VECTOR_URL set -> proxy first, fall back to local on failure.
-    const proxy = currentProxy();
-    if (proxy) {
-      const remote = await proxy.map3d(model);
-      if (remote) return remote;
-      set.status = 503;
-      return { error: 'Vector proxy unavailable', documents: [], total: 0 };
-    }
 
     try {
       return await handleMap3d(model);
@@ -39,7 +26,7 @@ export const map3dEndpoint = new Elysia().get(
     detail: {
       tags: ['vector'],
       menu: { group: 'tools', order: 30 },
-      summary: '3D PCA projection of embeddings',
+      summary: '3D DB/FTS-backed document globe',
     },
   },
 );

@@ -1,134 +1,106 @@
-import { and, eq, inArray } from 'drizzle-orm';
-import { db, oracleDocuments } from '../../db/index.ts';
+import { sqlite } from '../../db/index.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
-import { ensureVectorStoreConnected, getVectorStoreByModel } from '../../vector/factory.ts';
-import { projectPca } from './map3d-pca.ts';
 
 type Map3dDoc = {
   id: string; type: string; title: string; source_file: string; concepts: string[];
   project: string | null; x: number; y: number; z: number; created_at: string | null;
 };
-type FileGroup = {
-  ids: string[]; vectors: number[][]; type: string; sourceFile: string;
-  concepts: string[]; project: string | null; createdAt: number | null;
-};
-
 type Map3dResult = {
   documents: Map3dDoc[];
   total: number;
   pca_info: { variance_explained: number[]; n_vectors: number; n_dimensions: number; computed_at: string };
 };
+type DocRow = {
+  id: string; type: string; source_file: string; concepts: string | null;
+  project: string | null; created_at: number | null;
+};
 
 const map3dCaches = new Map<string, { data: Map3dResult; timestamp: number }>();
 const MAP3D_CACHE_TTL = 30 * 60 * 1000;
-const emptyResult = (): Map3dResult => ({
-  documents: [],
-  total: 0,
-  pca_info: { variance_explained: [], n_vectors: 0, n_dimensions: 0, computed_at: new Date().toISOString() },
-});
+const MAP3D_DOC_LIMIT = 50_000;
+
+function emptyResult(): Map3dResult {
+  return {
+    documents: [],
+    total: 0,
+    pca_info: { variance_explained: [], n_vectors: 0, n_dimensions: 3, computed_at: new Date().toISOString() },
+  };
+}
 
 function concepts(value: string | null): string[] {
   try { return value ? JSON.parse(value) : []; } catch { return []; }
-}
-
-function averageVectors(files: FileGroup[], d: number): number[][] {
-  return files.map((file) => {
-    if (file.vectors.length === 1) return file.vectors[0];
-    const avg = new Array(d).fill(0);
-    for (const vector of file.vectors) for (let j = 0; j < d; j++) avg[j] += vector[j];
-    for (let j = 0; j < d; j++) avg[j] /= file.vectors.length;
-    return avg;
-  });
 }
 
 function title(sourceFile: string): string {
   return (sourceFile.split('/').pop() || sourceFile).replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
 }
 
-export async function handleMap3d(model?: string): Promise<Map3dResult> {
-  const modelKey = model || 'bge-m3';
+function hash(str: string): number {
+  let value = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    value ^= str.charCodeAt(i);
+    value = Math.imul(value, 0x01000193);
+  }
+  return ((value >>> 0) % 10000) / 10000;
+}
+
+function point(index: number, total: number, row: DocRow) {
+  if (total <= 1) return { x: 0, y: 0, z: 0 };
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+  const y = 1 - (index / (total - 1)) * 2;
+  const radius = Math.sqrt(Math.max(0, 1 - y * y));
+  const angle = index * goldenAngle + hash(`${row.project ?? ''}:${row.source_file}`) * Math.PI * 2;
+  return { x: radius * Math.cos(angle), y, z: radius * Math.sin(angle) };
+}
+
+function dbRows(tenantId?: string | null) {
+  const where = tenantId ? 'WHERE d.tenant_id = ?' : '';
+  const params = tenantId ? [tenantId] : [];
+  const total = (sqlite.prepare(`
+    SELECT COUNT(*) as total
+    FROM oracle_documents d
+    JOIN oracle_fts f ON f.id = d.id
+    ${where}
+  `).get(...params) as { total: number } | undefined)?.total ?? 0;
+  const rows = sqlite.prepare(`
+    SELECT d.id, d.type, d.source_file, d.concepts, d.project, d.created_at
+    FROM oracle_documents d
+    JOIN oracle_fts f ON f.id = d.id
+    ${where}
+    ORDER BY d.indexed_at DESC, d.id ASC
+    LIMIT ?
+  `).all(...params, MAP3D_DOC_LIMIT) as DocRow[];
+  return { rows, total };
+}
+
+export async function handleMap3d(_model?: string): Promise<Map3dResult> {
   const tenantId = currentTenantId();
-  const cacheKey = `${tenantId ?? '*'}:${modelKey}`;
+  const cacheKey = `${tenantId ?? '*'}:fts-db`;
   const cached = map3dCaches.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp) < MAP3D_CACHE_TTL) return cached.data;
 
   try {
-    const store = getVectorStoreByModel(modelKey);
-    await ensureVectorStoreConnected(modelKey);
-    if (!store.getAllEmbeddings) throw new Error('LanceDB adapter does not support getAllEmbeddings');
-    const { ids, embeddings, metadatas } = await store.getAllEmbeddings(25000);
-    if (embeddings.length === 0) return emptyResult();
-
-    const docLookup = new Map<string, { type: string; sourceFile: string; concepts: string[]; project: string | null; createdAt: number | null }>();
-    for (let i = 0; i < ids.length; i += 500) {
-      const batch = ids.slice(i, i + 500);
-      const idFilter = inArray(oracleDocuments.id, batch);
-      const rows = db.select({
-        id: oracleDocuments.id,
-        type: oracleDocuments.type,
-        sourceFile: oracleDocuments.sourceFile,
-        concepts: oracleDocuments.concepts,
-        project: oracleDocuments.project,
-        createdAt: oracleDocuments.createdAt,
-      })
-        .from(oracleDocuments)
-        .where(tenantId ? and(idFilter, eq(oracleDocuments.tenantId, tenantId)) : idFilter)
-        .all();
-      for (const row of rows) {
-        docLookup.set(row.id, {
-          type: row.type,
-          sourceFile: row.sourceFile,
-          concepts: concepts(row.concepts),
-          project: row.project || null,
-          createdAt: row.createdAt,
-        });
-      }
-    }
-
-    const fileGroups = new Map<string, FileGroup>();
-    for (let i = 0; i < embeddings.length; i++) {
-      const meta = docLookup.get(ids[i]);
-      if (tenantId && !meta) continue;
-      const vecMeta = metadatas[i];
-      const sourceFile = meta?.sourceFile || vecMeta?.source_file || ids[i];
-      const existing = fileGroups.get(sourceFile);
-      if (!existing) {
-        fileGroups.set(sourceFile, {
-          ids: [ids[i]],
-          vectors: [embeddings[i]],
-          type: meta?.type || vecMeta?.type || 'unknown',
-          sourceFile,
-          concepts: meta?.concepts || [],
-          project: meta?.project || null,
-          createdAt: meta?.createdAt || null,
-        });
-        continue;
-      }
-      existing.ids.push(ids[i]);
-      existing.vectors.push(embeddings[i]);
-      for (const concept of meta?.concepts || []) if (!existing.concepts.includes(concept)) existing.concepts.push(concept);
-    }
-
-    const files = Array.from(fileGroups.values());
-    if (files.length === 0) return emptyResult();
-    const avgVectors = averageVectors(files, embeddings[0].length);
-    const { projected, varianceExplained } = projectPca(avgVectors);
-    const documents = files.map((file, i) => ({
-      id: file.ids[0],
-      type: file.type,
-      title: title(file.sourceFile),
-      source_file: file.sourceFile,
-      concepts: file.concepts.slice(0, 10),
-      project: file.project,
-      x: +projected[i].x.toFixed(6),
-      y: +projected[i].y.toFixed(6),
-      z: +projected[i].z.toFixed(6),
-      created_at: file.createdAt ? new Date(file.createdAt).toISOString() : null,
-    }));
+    const { rows, total } = dbRows(tenantId);
+    if (!rows.length) return emptyResult();
+    const documents = rows.map((row, i) => {
+      const p = point(i, rows.length, row);
+      return {
+        id: row.id,
+        type: row.type,
+        title: title(row.source_file),
+        source_file: row.source_file,
+        concepts: concepts(row.concepts).slice(0, 10),
+        project: row.project,
+        x: +p.x.toFixed(6),
+        y: +p.y.toFixed(6),
+        z: +p.z.toFixed(6),
+        created_at: row.created_at ? new Date(row.created_at).toISOString() : null,
+      };
+    });
     const result = {
       documents,
-      total: documents.length,
-      pca_info: { variance_explained: varianceExplained, n_vectors: embeddings.length, n_dimensions: embeddings[0].length, computed_at: new Date().toISOString() },
+      total,
+      pca_info: { variance_explained: [], n_vectors: total, n_dimensions: 3, computed_at: new Date().toISOString() },
     };
     map3dCaches.set(cacheKey, { data: result, timestamp: Date.now() });
     return result;

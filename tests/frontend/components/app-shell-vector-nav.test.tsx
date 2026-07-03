@@ -15,6 +15,7 @@ describe('AppShell Vector navigation', () => {
         </MemoryRouter>,
       );
       expect(html).toContain('aria-label="Vector Dashboard: Collection health and indexing"');
+      expect(html).toContain('aria-label="Feed: DB-backed document feed from /api/list"');
       expect(html).toContain('aria-label="Document Browser: Browse indexed vector documents"');
       expect(html).toContain('aria-label="First-run setup: Local backend and first index"');
       expect(html).toContain('aria-label="Index Manager: Backfill vectors and watch jobs"');

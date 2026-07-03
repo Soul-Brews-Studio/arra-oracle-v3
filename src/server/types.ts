@@ -84,13 +84,23 @@ export type PublicHealthStatus = 'healthy' | 'starting' | 'degraded' | 'down';
 export type HealthSubsystemName = 'backend' | 'database' | 'db' | 'fts' | 'vector' | 'embedder' | 'mcp' | 'plugins' | 'plugin';
 export type HealthUptimeSeconds = number | { seconds: number };
 export type VectorRuntimeMode = 'embedded' | 'proxied' | 'disabled';
+export type HealthDbStatus = 'connected' | 'error' | 'ok' | 'down';
+export type PluginHealthStatus = 'ok' | 'degraded';
 
+export interface HealthDbCheck {
+  status: HealthDbStatus;
+  path?: string;
+  error?: string;
+}
 
 export interface VectorHealthResponse {
   status: RuntimeStatus;
   engines: Array<Record<string, unknown>>;
+  collections?: Array<Record<string, unknown>>;
   checked_at: string;
+  proxy?: string;
   error?: string;
+  services?: Array<Record<string, unknown>>;
 }
 
 export interface HealthSubsystemDetail {
@@ -114,35 +124,26 @@ export interface HealthResponse {
   oracle?: 'connected' | 'degraded';
   uptimeSeconds?: number;
   uptimeSecondsBreakdown?: HealthUptimeSeconds;
-  dbStatus?: 'connected' | 'error';
+  dbStatus?: HealthDbStatus;
   vectorStatus?: RuntimeStatus;
   vectorMode?: VectorRuntimeMode;
   vectorAvailable?: boolean;
   vectorUrl?: string;
   vectorDisabledReason?: string;
-  pluginStatus?: 'ok' | 'degraded';
+  pluginStatus?: PluginHealthStatus;
   mcpToolCount?: number;
   pluginCount?: number;
   draining?: boolean;
   uptime?: HealthUptimeSeconds;
-  db?: 'connected' | 'error';
-  dbCheck?: { status: 'connected'; path?: string } | { status: 'error'; error?: string; path?: string };
+  db?: HealthDbStatus | ({ status: HealthDbStatus; path?: string; error?: string });
+  dbCheck?: HealthDbCheck;
   vector?: VectorHealthResponse;
-  vectorServer?: {
-    configured: boolean;
-    status: 'ok' | 'down' | 'unconfigured';
-    url?: string;
-    httpStatus?: number;
-    protocol?: string;
-    name?: string;
-    version?: string;
-    error?: string;
-  };
+  vectorServer?: { configured: boolean; status: 'ok' | 'down' | 'unconfigured'; url?: string; httpStatus?: number; protocol?: string; name?: string; version?: string; error?: string };
   mcp?: { toolCount: number };
   plugins?: {
     count: number;
-    status: 'ok' | 'degraded';
-    items: Array<{ name: string; status: 'ok' | 'degraded'; error?: string }>;
+    status: PluginHealthStatus;
+    items: Array<{ name: string; status: PluginHealthStatus; error?: string }>;
   };
   subsystems?: Partial<Record<HealthSubsystemName, HealthSubsystemDetail>>;
 }

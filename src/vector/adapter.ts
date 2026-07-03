@@ -40,6 +40,8 @@ export interface VectorStoreAdapter {
   ensureCollection(): Promise<void>;
   deleteCollection(): Promise<void>;
   addDocuments(docs: VectorDocument[]): Promise<void>;
+  /** Delete specific vector rows by document/chunk id without dropping the collection. */
+  deleteDocuments?(ids: string[]): Promise<void>;
   /**
    * Replace collection contents without dropping/recreating the table.
    *

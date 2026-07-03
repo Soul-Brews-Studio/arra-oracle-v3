@@ -32,6 +32,10 @@ export function apiRequestPath(request: Request): string {
   return publicPaths.get(request) ?? new URL(request.url).pathname;
 }
 
+function shouldRewriteInPlace(request: Request): boolean {
+  return Boolean(allowedCorsOrigin(request.headers.get('origin'), parseCorsOrigins()));
+}
+
 function versionedLocation(request: Request): string | null {
   const url = new URL(request.url);
   if (
@@ -39,6 +43,7 @@ function versionedLocation(request: Request): string | null {
     || isVersionedApiPath(url.pathname)
     || isInfrastructurePath(url.pathname)
   ) return null;
+  if (shouldRewriteInPlace(request)) return null;
   const suffix = url.pathname.slice(API_PREFIX.length);
   url.pathname = `${VERSIONED_PREFIX}${suffix}`;
   return url.toString();
