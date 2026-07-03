@@ -172,7 +172,12 @@ function sortHits(hits: SearchHit[], field: SortField, order: SortOrder): Search
 
 function resolveCollection(collection: string | undefined, getModels: () => Record<string, unknown>): string | null {
   const name = (collection || DEFAULT_COLLECTION).trim();
-  return name in getModels() ? name : null;
+  const models = getModels();
+  if (name in models) return name;
+  const byCollectionName = Object.values(models).find(
+    (m) => typeof m === 'object' && m && 'collection' in m && (m as { collection: string }).collection === name,
+  );
+  return byCollectionName ? name : null;
 }
 
 export function createVectorSearchEndpoint(deps: VectorSearchDeps = {}) {

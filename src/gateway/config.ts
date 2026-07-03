@@ -65,8 +65,9 @@ export function loadGatewayConfig(
   }
 
   // Backward compat: synthesize config from VECTOR_URL. Search can
-  // fall through to local FTS5 when the vector service is unreachable; pure
-  // vector routes must not fall back to local LanceDB inside the core process.
+  // fall through to local FTS5 when the vector service is unreachable. Map3D
+  // stays local because the memory globe must reflect the full DB/FTS corpus,
+  // not a partial vector collection.
   if (vectorUrl) {
     const vectorBase = vectorUrl.replace(/\/+$/, '');
     return mergeVectorServicesIntoGatewayConfig({
@@ -82,7 +83,6 @@ export function loadGatewayConfig(
         { match: '/api/similar', service: 'vector', fallback: 'error' },
         { match: '/api/compare', service: 'vector', fallback: 'error' },
         { match: '/api/map', service: 'vector', fallback: 'empty' },
-        { match: '/api/map3d', service: 'vector', fallback: 'empty' },
         { match: '/api/vector/**', service: 'vector', fallback: 'error' },
       ],
     }, vectorServices);

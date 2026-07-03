@@ -9,7 +9,7 @@ import { compileRoutes, matchRoute } from '../matcher.ts';
 import { gatewayPlugin } from '../index.ts';
 
 describe('VECTOR_URL synthesized gateway config', () => {
-  it('covers the full vector route surface without local-vector fallback', () => {
+  it('covers vector routes while leaving DB-backed map3d local', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-gateway-vector-url-'));
     try {
       const cfg = loadGatewayConfig(dir, 'http://vector.local:47779/')!;
@@ -37,11 +37,7 @@ describe('VECTOR_URL synthesized gateway config', () => {
         fallback: 'empty',
         pattern: '/api/map',
       });
-      expect(matchRoute('/api/map3d', routes)).toEqual({
-        service: 'vector',
-        fallback: 'empty',
-        pattern: '/api/map3d',
-      });
+      expect(matchRoute('/api/map3d', routes)).toBeNull();
       expect(matchRoute('/api/vector/stats', routes)).toEqual({
         service: 'vector',
         fallback: 'error',
@@ -58,7 +54,8 @@ describe('VECTOR_URL synthesized gateway config', () => {
       const app = new Elysia()
         .use(gatewayPlugin(dir, 'http://127.0.0.1:9'))
         .get('/api/search', () => ({ source: 'local-fts5', results: [] }))
-        .get('/api/map', () => ({ source: 'local-vector-map' }));
+        .get('/api/map', () => ({ source: 'local-vector-map' }))
+        .get('/api/map3d', () => ({ source: 'local-db-fts-map3d', documents: [{ id: 'db-doc' }], total: 35164 }));
 
       const search = await app.handle(new Request('http://localhost/api/search?q=oracle'));
       expect(search.status).toBe(200);
@@ -74,16 +71,11 @@ describe('VECTOR_URL synthesized gateway config', () => {
 
       const map3d = await app.handle(new Request('http://localhost/api/map3d'));
       expect(map3d.status).toBe(200);
-      const map3dBody = await map3d.json();
-      expect(map3dBody.documents).toEqual([]);
-      expect(map3dBody.total).toBe(0);
-      expect(map3dBody.source).toBe('gateway-fallback');
-      expect(map3dBody.pca_info).toMatchObject({
-        variance_explained: [],
-        n_vectors: 0,
-        n_dimensions: 0,
+      expect(await map3d.json()).toEqual({
+        source: 'local-db-fts-map3d',
+        documents: [{ id: 'db-doc' }],
+        total: 35164,
       });
-      expect(typeof map3dBody.pca_info.computed_at).toBe('string');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
