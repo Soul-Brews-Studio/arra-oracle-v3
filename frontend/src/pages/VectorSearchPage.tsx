@@ -71,7 +71,7 @@ function ResultCard({ result }: { result: VectorSearchResult }) {
   const percent = distancePercent(result);
   const concepts = conceptsFor(result);
   return (
-    <article className="rounded-2xl border border-border bg-surface p-4 shadow-lg shadow-black/10">
+    <article className="rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4 shadow-lg shadow-black/10">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-text">{titleFor(result)}</h2>
@@ -152,7 +152,7 @@ export function VectorSearchPage({ client = apiClient }: { client?: VectorSearch
   }
 
   return (
-    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-search-preview-title">
+    <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="vector-search-preview-title">
       <div className="mb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Vector</p>
         <h1 id="vector-search-preview-title" className="mt-2 text-3xl font-semibold text-text">Vector search preview</h1>

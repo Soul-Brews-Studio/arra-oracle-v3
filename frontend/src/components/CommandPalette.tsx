@@ -140,7 +140,7 @@ export function CommandPalette({
       <section
         id="command-palette-dialog"
         ref={overlayRef}
-        className="max-h-[min(42rem,calc(100vh-2rem))] w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-field p-4 shadow-2xl shadow-black/20"
+        className="max-h-[min(42rem,calc(100vh-2rem))] w-full max-w-xl overflow-hidden rounded-2xl border border-[oklch(1_0_0/0.10)] bg-[oklch(0.16_0.02_265/0.72)] p-4 text-[oklch(0.98_0.01_257)] shadow-[0_24px_80px_oklch(0_0_0/0.45)] backdrop-blur-2xl transition-all duration-200"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -148,8 +148,8 @@ export function CommandPalette({
         aria-describedby="command-palette-description"
       >
         <div className="mb-3">
-          <h2 id="command-palette-title" className="text-sm font-semibold text-text">Command palette</h2>
-          <p id="command-palette-description" className="text-xs text-text-muted">Search pages and dashboard actions, then use Enter to run the selected item.</p>
+          <h2 id="command-palette-title" className="text-sm font-semibold text-[oklch(0.98_0.01_257)]">Command palette</h2>
+          <p id="command-palette-description" className="text-xs text-[oklch(0.82_0.04_257)]">Search pages and dashboard actions, then use Enter to run the selected item.</p>
         </div>
         <input
           ref={inputRef}

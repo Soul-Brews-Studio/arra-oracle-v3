@@ -40,7 +40,7 @@ function statusClass(plugin: CanvasPluginEntry): string {
 function PluginCard({ plugin, host }: { plugin: CanvasPluginEntry; host?: string }) {
   const target = pluginHref(plugin, host);
   return (
-    <article className="min-w-0 rounded-3xl border border-border bg-surface p-5" aria-label={`${plugin.label} canvas plugin`}>
+    <article className="min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5" aria-label={`${plugin.label} canvas plugin`}>
       <div className="mb-4 flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="break-all text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">{plugin.id}</p>
@@ -96,7 +96,7 @@ export function CanvasPluginsPage({ plugins: initialPlugins = [], loading = true
 
   return (
     <section className="grid w-full min-w-0 gap-5" aria-labelledby="canvas-plugins-title">
-      <header className="rounded-3xl border border-border bg-surface p-5 sm:p-6">
+      <header className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Canvas plugins</p>
         <h1 id="canvas-plugins-title" className="mt-2 text-3xl font-semibold text-text">Canvas plugin registry</h1>
         <p className="mt-2 text-sm text-text-muted">Filter the standalone registry by runtime while keeping canvas.buildwithoracle.com targets visible.</p>
@@ -122,7 +122,7 @@ export function CanvasPluginsPage({ plugins: initialPlugins = [], loading = true
       {state === 'error' ? <ErrorMessage title="Could not load canvas plugins." message={error} /> : null}
       {state !== 'error' && error ? <ErrorMessage title="Canvas plugin warning" message={error} /> : null}
       {state !== 'error' && plugins.length ? <div className="grid min-w-0 gap-4 sm:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[repeat(3,minmax(0,1fr))]">{plugins.map((plugin) => <PluginCard key={plugin.id} plugin={plugin} host={host} />)}</div> : null}
-      {state === 'ready' && !plugins.length ? <p className="rounded-2xl border border-border bg-surface p-5 text-sm text-text-muted">No canvas plugins match this filter.</p> : null}
+      {state === 'ready' && !plugins.length ? <p className="rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-5 text-sm text-text-muted">No canvas plugins match this filter.</p> : null}
     </section>
   );
 }

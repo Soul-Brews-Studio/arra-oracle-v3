@@ -16,7 +16,7 @@ type SettingsPageProps = {
 
 function SectionCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-label={title}>
+    <section className="min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-label={title}>
       <h3 className="text-lg font-semibold text-text">{title}</h3>
       <div className="mt-4">{children}</div>
     </section>
@@ -25,7 +25,7 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
 
 function SettingPair({ label, value, detail }: { label: string; value: string | number; detail: string }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-border bg-surface p-4">
+    <div className="min-w-0 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4">
       <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">{label}</dt>
       <dd className="mt-2 break-words font-mono text-sm text-accent">{value}</dd>
       <dd className="mt-2 break-words text-sm leading-6 text-text-muted">{detail}</dd>
@@ -69,7 +69,7 @@ export function SettingsPage({ menuCount, pluginCount, surfaceCount, updatedAt, 
 
   return (
     <div className="grid gap-5">
-      <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="settings-page-title">
+      <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="settings-page-title">
         <div className="mb-5 flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Settings</p>
@@ -198,7 +198,7 @@ export function SettingsPage({ menuCount, pluginCount, surfaceCount, updatedAt, 
           <SectionCard title="Vector collections">
             <div className="grid gap-3 sm:grid-cols-2">
               {settings.embedder.collections.map((collection) => (
-                <article key={collection.key} className="min-w-0 rounded-2xl border border-border bg-surface p-4">
+                <article key={collection.key} className="min-w-0 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4">
                   <p className="break-all font-mono text-sm text-accent">{collection.key}</p>
                   <p className="mt-2 break-words text-sm text-text">{collection.collection}</p>
                   <p className="mt-1 break-words text-sm text-text-muted">{collection.provider} · {collection.model} · {collection.adapter ?? 'adapter default'}</p>

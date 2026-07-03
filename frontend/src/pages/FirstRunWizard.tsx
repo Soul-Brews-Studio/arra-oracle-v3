@@ -48,7 +48,7 @@ export function VectorFirstRunWizardPage() {
 
   return (
     <section className="grid gap-5" aria-labelledby="vector-first-run-title">
-      <header className="rounded-3xl border border-border bg-surface p-5 sm:p-6">
+      <header className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Vector onboarding</p>
         <h1 id="vector-first-run-title" className="mt-2 text-3xl font-semibold text-text">First-run setup wizard</h1>
         <p className="mt-2 text-sm text-text-muted">Use the local vector backend default, review cost, choose the first vault collection, and start indexing.</p>
@@ -124,7 +124,7 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
   }
 
   return (
-    <section className={`rounded-3xl border p-5 sm:p-6 ${showAsFirstRun ? 'border-purple-300/20 bg-accent2-solid/10' : 'border-border bg-surface'}`} aria-labelledby="first-run-wizard-title">
+    <section className={`rounded-3xl border bg-[oklch(0.16_0.02_265/0.35)] p-5 shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl sm:p-6 ${showAsFirstRun ? 'border-purple-300/20' : 'border-[oklch(1_0_0/0.08)]'}`} aria-labelledby="first-run-wizard-title">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">First-run wizard</p>
@@ -137,7 +137,7 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
       {step === 1 ? <BackendPlan rows={rows} /> : null}
       {step === 2 ? <VaultPlan rows={rows} cost={cost} /> : null}
       {step === 3 ? <DoneActions /> : null}
-      {message ? <p className="mt-4 rounded-2xl border border-border bg-field/50 p-3 text-sm text-purple-100">{message}</p> : null}
+      {message ? <p className="mt-4 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] p-3 text-sm text-purple-100 backdrop-blur-md">{message}</p> : null}
       {error ? <div className="mt-4"><ErrorMessage title="First-run step failed." message={error} /></div> : null}
 
       <div className="mt-5 flex flex-wrap gap-2">
@@ -187,7 +187,7 @@ function VaultPlan({ rows, cost }: { rows: VectorConfigRow[]; cost: CostEstimate
   const primary = rows.find((row) => row.primary) ?? rows[0];
   return (
     <div className="mt-4 grid gap-3 text-sm text-purple-100 lg:grid-cols-[1fr_1.3fr]">
-      <div className="rounded-2xl border border-border bg-field/50 p-4">
+      <div className="rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] p-4 backdrop-blur-md">
         <p>Primary collection: <span className="font-semibold">{primary?.collection ?? 'none'}</span></p>
         <p className="mt-1 text-purple-100/70">Vault selection is represented by indexed source documents; use Index now to backfill vectors for the primary model.</p>
       </div>

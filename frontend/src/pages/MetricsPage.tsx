@@ -73,7 +73,7 @@ function MetricsChartsCard({ metrics }: { metrics: MetricsSnapshot }) {
   const tones: MeterTone[] = ['accent', 'accent2', 'success', 'warning', 'danger'];
 
   return (
-    <section className="rounded-3xl border border-border bg-surface-muted p-5 sm:p-6" aria-labelledby="metrics-charts-title">
+    <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="metrics-charts-title">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Charts</p>
       <h2 id="metrics-charts-title" className="mt-2 text-2xl font-semibold text-text">Memory distribution</h2>
       <p className="mt-2 text-sm text-text-muted">Live memory profile and request throughput from /api/v1/metrics.</p>
@@ -94,7 +94,7 @@ function MetricsChartsCard({ metrics }: { metrics: MetricsSnapshot }) {
             ))}
           </ul>
         </div>
-        <div className="rounded-2xl border border-border bg-surface-muted p-4">
+        <div className="rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4">
           <p className="text-sm text-text-muted">Request throughput</p>
           <p className="mt-2 text-4xl font-semibold text-text">{requestLoad.toFixed(1)} req/min</p>
           <div className="mt-4">
@@ -114,7 +114,7 @@ function MetricsChartsCard({ metrics }: { metrics: MetricsSnapshot }) {
 
 function MetricsActivityCard({ metrics }: { metrics: MetricsSnapshot }) {
   return (
-    <section className="min-w-0 rounded-3xl border border-border bg-surface-muted p-5 sm:p-6" aria-labelledby="metrics-activity-title">
+    <section className="min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="metrics-activity-title">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Recent activity</p>
       <h2 id="metrics-activity-title" className="mt-2 text-2xl font-semibold text-text">Runtime events</h2>
       <ul className="mt-4 grid gap-3 text-sm text-text-muted">
@@ -142,7 +142,7 @@ export function MetricsPage(props: MetricsPageProps) {
     const { metrics, loading } = props;
     return (
       <div className="grid w-full min-w-0 gap-5">
-        <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="metrics-page-title">
+        <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="metrics-page-title">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Runtime metrics</p>
           <h2 id="metrics-page-title" className="mt-2 text-3xl font-semibold text-text">Metrics dashboard</h2>
           <p className="mt-2 text-sm text-text-muted">Runtime counters from GET /api/v1/metrics.</p>
@@ -153,7 +153,7 @@ export function MetricsPage(props: MetricsPageProps) {
 
         {metrics ? (
           <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-            <section className="min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="metrics-stats-title">
+            <section className="min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="metrics-stats-title">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Overview</p>
               <h2 id="metrics-stats-title" className="mt-2 text-2xl font-semibold text-text">Stats snapshot</h2>
               <div className="mt-4 grid min-w-0 gap-3 sm:grid-cols-[repeat(3,minmax(0,1fr))]">
@@ -169,7 +169,7 @@ export function MetricsPage(props: MetricsPageProps) {
         {metrics ? (
           <div className="grid min-w-0 gap-5 lg:grid-cols-[repeat(2,minmax(0,1fr))]">
             <MetricsChartsCard metrics={metrics} />
-            <section className="min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="memory-stats-title">
+            <section className="min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="memory-stats-title">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Memory</p>
               <h2 id="memory-stats-title" className="mt-2 text-2xl font-semibold text-text">Memory usage</h2>
               <dl className="mt-4 grid gap-3 text-sm text-text-muted">
@@ -185,7 +185,7 @@ export function MetricsPage(props: MetricsPageProps) {
   }
 
   return (
-    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="metrics-page-title">
+    <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="metrics-page-title">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Runtime metrics</p>
       <h2 id="metrics-page-title" className="text-2xl font-semibold text-text">Runtime metrics</h2>
       <p className="text-sm text-text-muted">Track dashboard and surface counts while debugging</p>

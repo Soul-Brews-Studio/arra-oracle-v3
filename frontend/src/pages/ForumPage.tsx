@@ -32,7 +32,7 @@ function endpointFor(status: ForumStatusFilter): string {
 function statusClass(status: string): string {
   if (status === 'answered') return 'border-ok-border bg-ok-bg text-ok-text';
   if (status === 'pending' || status === 'active') return 'border-warn-border bg-warn-bg text-warn-text';
-  if (status === 'closed') return 'border-border bg-surface-muted text-text-muted';
+  if (status === 'closed') return 'border-border bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md text-text-muted';
   return 'border-err-border bg-err-bg text-err-text';
 }
 
@@ -44,7 +44,7 @@ function formatDate(value: string): string {
 
 function Stat({ label, value, detail }: { label: string; value: string | number; detail: string }) {
   return (
-    <article className="min-w-0 rounded-2xl border border-border bg-surface p-4">
+    <article className="min-w-0 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">{label}</p>
       <p className="mt-2 break-words text-2xl font-semibold text-accent">{value}</p>
       <p className="mt-1 text-sm text-text-muted">{detail}</p>
@@ -54,7 +54,7 @@ function Stat({ label, value, detail }: { label: string; value: string | number;
 
 function ThreadCard({ thread }: { thread: ForumThreadSummary }) {
   return (
-    <article className="min-w-0 rounded-2xl border border-border bg-surface p-4 sm:p-5" aria-label={`Forum thread ${thread.id}`}>
+    <article className="min-w-0 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4 sm:p-5" aria-label={`Forum thread ${thread.id}`}>
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="font-mono text-xs uppercase tracking-[0.18em] text-text-muted">Thread #{thread.id}</p>
@@ -123,7 +123,7 @@ export function ForumPage({ threads: initialThreads = EMPTY_THREADS, total: init
 
   return (
     <section className="grid min-w-0 gap-5" aria-labelledby="forum-page-title">
-      <header className="min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6">
+      <header className="min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Forum</p>
         <h1 id="forum-page-title" className="mt-2 text-3xl font-semibold text-text">Forum threads</h1>
         <p className="mt-2 text-sm text-text-muted">Operational conversations backed by GET {endpoint}.</p>
@@ -157,7 +157,7 @@ export function ForumPage({ threads: initialThreads = EMPTY_THREADS, total: init
       {threads.length ? (
         <div className="grid gap-3">{threads.map((thread) => <ThreadCard key={thread.id} thread={thread} />)}</div>
       ) : state === 'ready' ? (
-        <p className="rounded-2xl border border-border bg-surface p-5 text-sm text-text-muted">No forum threads match this filter.</p>
+        <p className="rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-5 text-sm text-text-muted">No forum threads match this filter.</p>
       ) : null}
     </section>
   );

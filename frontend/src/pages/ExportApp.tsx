@@ -179,13 +179,13 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
 
   return (
     <div className="grid min-w-0 gap-5">
-      <section className="min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="export-app-title">
+      <section className="min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="export-app-title">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Legacy Oracle v2</p>
         <h1 id="export-app-title" className="mt-2 text-3xl font-semibold text-text">Export app</h1>
         <p className="mt-2 text-sm text-text-muted">Connect to an old Oracle v2 backend, list collections, and prepare JSON or Markdown backups before migration.</p>
       </section>
 
-      <section className="min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="backend-title">
+      <section className="min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="backend-title">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Backend URL</p>
@@ -210,7 +210,7 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
       {exportState === 'error' ? <ErrorMessage title="Could not start export." message={error} /> : null}
 
       <section className="grid min-w-0 gap-4 lg:grid-cols-2">
-        <div className="min-w-0 rounded-3xl border border-border bg-surface-muted p-5 sm:p-6" aria-labelledby="collection-title">
+        <div className="min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="collection-title">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Collections</p>
           <h2 id="collection-title" className="mt-2 text-2xl font-semibold text-text">Choose data</h2>
           <label className="mt-5 grid min-w-0 gap-2 text-sm font-medium text-text-muted">
@@ -220,19 +220,19 @@ export function ExportApp({ initialBackendUrl = DEFAULT_BACKEND_URL, fetcher = g
             </select>
           </label>
           <ul className="mt-4 grid max-h-72 gap-2 overflow-auto" aria-label="Legacy export collections">
-            {collections.map((item) => <li key={item.id} className="break-words rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text-muted">{collectionLabel(item)}</li>)}
+            {collections.map((item) => <li key={item.id} className="break-words rounded-xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md px-4 py-3 text-sm text-text-muted">{collectionLabel(item)}</li>)}
           </ul>
           {loadState === 'ready' && !collections.length ? (
             <p className="mt-4 rounded-xl border border-dashed border-border p-4 text-sm text-text-muted">No collections are available from this backend. Check the URL, then reload collections.</p>
           ) : null}
         </div>
 
-        <div className="min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="format-title">
+        <div className="min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="format-title">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Export</p>
           <h2 id="format-title" className="mt-2 text-2xl font-semibold text-text">Format and download</h2>
           <div className="mt-5 grid gap-3" role="radiogroup" aria-label="Export format">
             {exportAppFormats.map((item) => (
-              <label key={item.value} className="flex items-start gap-3 rounded-2xl border border-border bg-surface-muted px-4 py-3 text-sm text-text-muted">
+              <label key={item.value} className="flex items-start gap-3 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md px-4 py-3 text-sm text-text-muted">
                 <input className="mt-1 h-4 w-4 accent-teal-300" checked={format === item.value} name="legacy-export-format" type="radio" value={item.value} onChange={() => { setFormat(item.value); setDownload(null); }} />
                 <span><span className="block font-semibold text-text">{item.label}</span><span>{item.detail}</span></span>
               </label>

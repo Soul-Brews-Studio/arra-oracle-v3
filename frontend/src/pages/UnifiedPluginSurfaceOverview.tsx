@@ -141,7 +141,7 @@ export function UnifiedPluginSurfaceOverview({ plugins }: { plugins: PluginEntry
   const capabilities = useMemo(() => pluginCapabilityLinks(plugins), [plugins]);
 
   return (
-    <section className="min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="unified-surfaces-title">
+    <section className="min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="unified-surfaces-title">
       <div className="mb-4 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Unified backend surfaces</p>
@@ -170,7 +170,7 @@ export function UnifiedPluginSurfaceOverview({ plugins }: { plugins: PluginEntry
 function SurfaceCard({ card }: { card: Card }) {
   const tone = card.tone === 'warn' ? 'text-warn-text' : 'text-accent';
   return (
-    <article className="min-w-0 rounded-2xl border border-border bg-surface-muted p-4">
+    <article className="min-w-0 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">{card.label}</p>
       <p className={`mt-2 break-words text-2xl font-semibold ${tone}`}>{card.value}</p>
       <p className="mt-2 break-words text-sm leading-6 text-text-muted">{card.detail}</p>
@@ -184,7 +184,7 @@ function SurfaceCard({ card }: { card: Card }) {
 function SurfaceList({ title, items, empty }: { title: string; items: SurfaceListItem[]; empty: string }) {
   const visible = items.filter(Boolean);
   return (
-    <article className="min-w-0 rounded-2xl border border-border bg-surface-muted p-4">
+    <article className="min-w-0 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">{title}</p>
       {visible.length ? (
         <ul className="mt-3 space-y-2 text-sm text-text-muted">

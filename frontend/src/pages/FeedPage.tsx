@@ -34,7 +34,7 @@ function FeedRows({ items }: { items: SearchResult[] }) {
   return (
     <div className="grid gap-3" aria-label="DB-backed document feed">
       {items.map((item) => (
-        <article key={item.id} className="min-w-0 rounded-2xl border border-border bg-surface-muted p-4">
+        <article key={item.id} className="min-w-0 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <h2 className="break-all text-base font-semibold text-text">{item.source_file || item.id}</h2>
@@ -77,7 +77,7 @@ export function FeedPage({ load = fetchDocumentFeed }: { load?: FeedLoader }) {
   const status = useMemo(() => feedStatus(state, total, items.length), [items.length, state, total]);
 
   return (
-    <section className="w-full min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="feed-title">
+    <section className="w-full min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="feed-title">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Feed</p>
