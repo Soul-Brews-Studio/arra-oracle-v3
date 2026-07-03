@@ -68,7 +68,7 @@ function databasePath(health: HealthResponse): string | undefined {
 
 function Field({ label, value }: { label: string; value: string | number | undefined }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-border bg-surface-muted p-4">
+    <div className="min-w-0 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4">
       <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">{label}</dt>
       <dd className="mt-2 break-words font-mono text-sm text-text">{value ?? 'unknown'}</dd>
     </div>
@@ -113,7 +113,7 @@ function PluginRows({ health }: { health: HealthResponse }) {
   return (
     <ul className="grid gap-2">
       {items.map((plugin) => (
-        <li key={plugin.name} className="flex min-w-0 flex-col gap-2 rounded-xl border border-border bg-surface-muted p-3 sm:flex-row sm:items-center sm:justify-between">
+        <li key={plugin.name} className="flex min-w-0 flex-col gap-2 rounded-xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-3 sm:flex-row sm:items-center sm:justify-between">
           <a className="focus-ring break-all font-mono text-sm text-accent hover:text-accent" href={pluginHealthPath(plugin)}>{plugin.name}</a>
           <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${statusClass(plugin.status)}`} data-contrast-badge><span aria-hidden="true">●</span>{plugin.status}</span>
           {plugin.error ? <span className="break-words text-sm text-warn-text">{plugin.error}</span> : null}
@@ -129,7 +129,7 @@ function ProxyRows({ vector }: { vector: VectorHealthForStatus | null }) {
   return (
     <ul className="grid gap-2">
       {rows.map((row) => (
-        <li key={`${row.name}-${row.endpoint}`} className="min-w-0 rounded-xl border border-border bg-surface-muted p-3">
+        <li key={`${row.name}-${row.endpoint}`} className="min-w-0 rounded-xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-3">
           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span className="break-all font-mono text-sm text-accent">{row.name}</span>
             <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${statusClass(row.status === 'up' ? 'ok' : row.status)}`} data-contrast-badge><span aria-hidden="true">●</span>{row.status}</span>
@@ -177,7 +177,7 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
 
   return (
     <section className="grid min-w-0 gap-5" aria-labelledby="status-page-title">
-      <div className="min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6">
+      <div className="min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Server status</p>
         <h2 id="status-page-title" className="mt-2 text-2xl font-semibold text-text">Health overview</h2>
         <p className="mt-2 text-sm text-text-muted">Live health from GET /api/v1/health.</p>
@@ -204,11 +204,11 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
             <Field label="Oracle" value={health.oracle} />
             <Field label="DB path" value={databasePath(health)} />
           </dl>
-          <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-label="Plugin health rows">
+          <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-label="Plugin health rows">
             <h3 className="text-lg font-semibold text-text">Plugin health</h3>
             <div className="mt-4"><PluginRows health={health} /></div>
           </section>
-          <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-label="Proxy status rows">
+          <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-label="Proxy status rows">
             <h3 className="text-lg font-semibold text-text">Proxy status</h3>
             <p className="mt-2 text-sm text-text-muted">Vector proxy and registered proxy services from /api/v1/vector/health.</p>
             {vectorError ? <p className="mt-3 rounded-xl border border-warn-border bg-warn-bg p-3 text-sm text-warn-text">{vectorError}</p> : null}

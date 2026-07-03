@@ -55,7 +55,7 @@ function LearnForm({ editing, form, saving, onChange, onCancel, onSubmit }: {
 }) {
   const disabled = saving || !patternFromForm(form);
   return (
-    <form className="grid gap-3 rounded-2xl border border-border bg-surface-muted p-4" aria-label="Learn entry form" onSubmit={onSubmit}>
+    <form className="grid gap-3 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4" aria-label="Learn entry form" onSubmit={onSubmit}>
       <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
         <label className="grid gap-2 text-sm font-medium text-text-muted">
           Learning title
@@ -88,7 +88,7 @@ export function LearnEntryList({ entries, busy, onDelete, onEdit }: {
   return (
     <ul className="grid gap-3" aria-label="Learn entries">
       {entries.map((entry) => (
-        <li key={entry.id} className="rounded-2xl border border-border bg-surface-muted p-4">
+        <li key={entry.id} className="rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-xl font-semibold text-text">{entry.title}</h2>
@@ -159,7 +159,7 @@ export function LearnPage({ client = apiClient }: { client?: LearnClient }) {
 
   const busy = state === 'loading' || state === 'saving';
   return (
-    <section className="grid gap-5 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="learn-page-title">
+    <section className="grid gap-5 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="learn-page-title">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Learn</p>
         <h1 id="learn-page-title" className="mt-2 text-3xl font-semibold text-text">Learn entries</h1>

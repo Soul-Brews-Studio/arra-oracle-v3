@@ -63,10 +63,10 @@ function MenuRows({ items, emptyText = 'No menu items returned from /api/menu.' 
   if (!items.length) return <EmptyState text={emptyText} />;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-field/50">
+    <div className="overflow-hidden rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md">
       <div className="hidden overflow-x-auto md:block">
         <table className="min-w-full divide-y divide-white/10 text-left text-sm">
-          <thead className="bg-surface-muted text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
+          <thead className="bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
             <tr>
               <th className="px-4 py-3" scope="col">Name</th>
               <th className="px-4 py-3" scope="col">Type</th>
@@ -75,7 +75,7 @@ function MenuRows({ items, emptyText = 'No menu items returned from /api/menu.' 
           </thead>
           <tbody className="divide-y divide-white/10">
             {items.map((item) => (
-              <tr key={menuKey(item)} className="transition hover:bg-surface-muted">
+              <tr key={menuKey(item)} className="transition-all duration-200 hover:bg-[oklch(0.20_0.02_265/0.25)] hover:border-[oklch(1_0_0/0.12)]">
                 <td className="px-4 py-4 align-top">
                   <a className="focus-ring font-semibold text-text hover:text-accent" href={item.path}>
                     {item.label}
@@ -96,7 +96,7 @@ function MenuRows({ items, emptyText = 'No menu items returned from /api/menu.' 
 
       <ul className="grid gap-2 p-3 md:hidden" aria-label="Menu items">
         {items.map((item) => (
-          <li key={menuKey(item)} className="rounded-xl border border-border bg-surface p-3">
+          <li key={menuKey(item)} className="rounded-xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <a className="focus-ring font-semibold text-text hover:text-accent" href={item.path}>
@@ -137,7 +137,7 @@ function MenuFiltersCard({
 }) {
   const hasFilters = filters.group !== 'all' || filters.source !== 'all';
   return (
-    <section className="mb-5 rounded-2xl border border-border bg-surface-muted p-4" aria-label="Menu filters">
+    <section className="mb-5 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4" aria-label="Menu filters">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Source filters</p>
@@ -158,7 +158,7 @@ function MenuFiltersCard({
               {sources.map((source) => <option key={source} value={source}>{source}</option>)}
             </select>
           </label>
-          <button className="focus-ring w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-text hover:border-teal-300/40 disabled:opacity-40 sm:w-auto sm:self-end" disabled={!hasFilters} type="button" onClick={onClear}>
+          <button className="focus-ring w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-text hover:border-[oklch(1_0_0/0.12)] disabled:opacity-40 sm:w-auto sm:self-end" disabled={!hasFilters} type="button" onClick={onClear}>
             Clear
           </button>
           <a className="focus-ring w-full rounded-xl border border-accent-border px-3 py-2 text-center text-sm font-semibold text-accent hover:border-accent-border sm:w-auto sm:self-end" href={sharePath}>
@@ -203,7 +203,7 @@ export function MenuPage({ items: initialItems = [], loading, client = apiClient
   const emptyText = sortedItems.length ? 'No menu items match the selected group/source filters.' : undefined;
 
   return (
-    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="menu-page-title">
+    <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="menu-page-title">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Menu</p>

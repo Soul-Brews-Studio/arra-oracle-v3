@@ -1,6 +1,9 @@
+import { DEFAULT_THEME_ID, getTheme } from './themes/registry';
+
 export type ThemeMode = 'light' | 'dark';
 
 export const THEME_KEY = 'ARRA_FRONTEND_THEME';
+export const COLOR_THEME_KEY = 'ARRA_FRONTEND_COLOR_THEME';
 
 function browserWindow(): Window | undefined {
   return typeof window === 'undefined' ? undefined : window;
@@ -19,6 +22,14 @@ export function readStoredTheme(): ThemeMode {
   }
 }
 
+export function readStoredColorTheme(): string {
+  try {
+    return browserWindow()?.localStorage.getItem(COLOR_THEME_KEY) || DEFAULT_THEME_ID;
+  } catch {
+    return DEFAULT_THEME_ID;
+  }
+}
+
 export function applyTheme(theme: ThemeMode) {
   const root = typeof document === 'undefined' ? undefined : document.documentElement;
   if (!root) return;
@@ -28,17 +39,49 @@ export function applyTheme(theme: ThemeMode) {
   root.style.colorScheme = theme;
 }
 
+export function applyColorTheme(themeId: string) {
+  const root = typeof document === 'undefined' ? undefined : document.documentElement;
+  if (!root) return;
+  const theme = getTheme(themeId);
+  if (!theme) return;
+
+  root.dataset.colorTheme = themeId;
+  const mode = root.classList.contains('dark') ? 'dark' : 'light';
+  const tokens = mode === 'dark' ? theme.dark : theme.light;
+
+  for (const [key, value] of Object.entries(tokens)) {
+    root.style.setProperty(key, value);
+  }
+}
+
+export function clearColorThemeOverrides() {
+  const root = typeof document === 'undefined' ? undefined : document.documentElement;
+  if (!root) return;
+  const vars = root.style.cssText.match(/--[\w-]+/g) || [];
+  for (const v of vars) root.style.removeProperty(v);
+}
+
+export function saveColorTheme(themeId: string) {
+  try {
+    browserWindow()?.localStorage.setItem(COLOR_THEME_KEY, themeId);
+  } catch {}
+  clearColorThemeOverrides();
+  applyColorTheme(themeId);
+}
+
 export function loadTheme(): ThemeMode {
   const theme = readStoredTheme();
   applyTheme(theme);
+  const colorTheme = readStoredColorTheme();
+  applyColorTheme(colorTheme);
   return theme;
 }
 
 export function saveTheme(theme: ThemeMode) {
   try {
     browserWindow()?.localStorage.setItem(THEME_KEY, theme);
-  } catch {
-    // localStorage can be unavailable in privacy-restricted contexts.
-  }
+  } catch {}
   applyTheme(theme);
+  const colorTheme = readStoredColorTheme();
+  applyColorTheme(colorTheme);
 }

@@ -31,7 +31,7 @@ export function activitySummary(state: PageState, total: number, shown: number):
 
 function TraceCard({ trace }: { trace: TraceSummary }) {
   return (
-    <article className="min-w-0 rounded-3xl border border-border bg-surface p-5" aria-label={`Trace ${trace.traceId}`}>
+    <article className="min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5" aria-label={`Trace ${trace.traceId}`}>
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="break-all font-mono text-xs font-semibold uppercase tracking-[0.18em] text-accent">{trace.traceId}</p>
@@ -89,7 +89,7 @@ export function ActivityPage({ load = fetchTraces }: { load?: TraceLoader }) {
 
   return (
     <section className="grid w-full min-w-0 gap-5" aria-labelledby="activity-page-title">
-      <header className="rounded-3xl border border-border bg-surface p-5 sm:p-6">
+      <header className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6">
         <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Activity / Traces</p>

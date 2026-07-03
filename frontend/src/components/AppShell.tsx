@@ -8,6 +8,7 @@ import { StatCard } from './StatCard';
 import { CommandPalette } from './CommandPalette';
 import { TauriBadge } from './TauriBadge';
 import { ThemeToggle } from './ThemeToggle';
+import { ThemeSelector } from './ThemeSelector';
 import { GlobalSearch } from './GlobalSearch';
 import type { MetricsSnapshot } from '../../../src/server/types';
 
@@ -119,6 +120,7 @@ export function AppShell({
                   Simple Mode
                 </a>
                 <TauriBadge connected={!error} />
+                <ThemeSelector />
                 <ThemeToggle />
                 <button
                   className="focus-ring rounded-xl bg-accent-solid px-5 py-3 font-semibold text-on-accent transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
