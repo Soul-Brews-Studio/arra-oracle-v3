@@ -40,10 +40,10 @@ function statusClass(plugin: CanvasPluginEntry): string {
 function PluginCard({ plugin, host }: { plugin: CanvasPluginEntry; host?: string }) {
   const target = pluginHref(plugin, host);
   return (
-    <article className="rounded-3xl border border-border bg-surface p-5" aria-label={`${plugin.label} canvas plugin`}>
+    <article className="min-w-0 rounded-3xl border border-border bg-surface p-5" aria-label={`${plugin.label} canvas plugin`}>
       <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">{plugin.id}</p>
+        <div className="min-w-0">
+          <p className="break-all text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">{plugin.id}</p>
           <h3 className="mt-1 text-xl font-semibold text-text">{plugin.label}</h3>
         </div>
         <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${statusClass(plugin)}`}>{plugin.kind}</span>
@@ -95,7 +95,7 @@ export function CanvasPluginsPage({ plugins: initialPlugins = [], loading = true
   }, [plugins]);
 
   return (
-    <section className="grid gap-5" aria-labelledby="canvas-plugins-title">
+    <section className="grid w-full min-w-0 gap-5" aria-labelledby="canvas-plugins-title">
       <header className="rounded-3xl border border-border bg-surface p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Canvas plugins</p>
         <h1 id="canvas-plugins-title" className="mt-2 text-3xl font-semibold text-text">Canvas plugin registry</h1>
@@ -121,7 +121,7 @@ export function CanvasPluginsPage({ plugins: initialPlugins = [], loading = true
       {state === 'loading' ? <LoadingPanel title="Loading canvas plugins" detail={`Reading ${endpointHint}.`} /> : null}
       {state === 'error' ? <ErrorMessage title="Could not load canvas plugins." message={error} /> : null}
       {state !== 'error' && error ? <ErrorMessage title="Canvas plugin warning" message={error} /> : null}
-      {state !== 'error' ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{plugins.map((plugin) => <PluginCard key={plugin.id} plugin={plugin} host={host} />)}</div> : null}
+      {state !== 'error' ? <div className="grid min-w-0 gap-4 sm:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[repeat(3,minmax(0,1fr))]">{plugins.map((plugin) => <PluginCard key={plugin.id} plugin={plugin} host={host} />)}</div> : null}
     </section>
   );
 }

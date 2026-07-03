@@ -18,7 +18,7 @@ export function CanvasAliasPage() {
   }, []);
 
   return (
-    <section className="grid gap-5" aria-labelledby="canvas-alias-title">
+    <section className="grid w-full min-w-0 gap-5" aria-labelledby="canvas-alias-title">
       <header className="rounded-3xl border border-border bg-surface p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Canvas app</p>
         <h1 id="canvas-alias-title" className="mt-2 text-3xl font-semibold text-text">Studio canvas alias</h1>
@@ -28,7 +28,7 @@ export function CanvasAliasPage() {
         </a>
       </header>
       <iframe
-        className="min-h-[34rem] w-full rounded-3xl border border-border bg-field"
+        className="block min-h-[34rem] w-full min-w-0 rounded-3xl border border-border bg-field"
         src={target}
         title="canvas.buildwithoracle.com preview"
       />

@@ -3,6 +3,25 @@ import type { McpToolsResponse, MenuResponse, PluginsResponse, SearchResponse, S
 
 export { API_BASE, apiFetch, apiUrl, isTauri, withLocalPna } from './api/oracle';
 
+export interface TraceSummary {
+  traceId: string;
+  query: string;
+  scope: string;
+  depth: number;
+  fileCount: number;
+  commitCount: number;
+  issueCount: number;
+  status: string;
+  hasAwakening: boolean;
+  createdAt: number;
+}
+
+export interface TracesResponse {
+  traces: TraceSummary[];
+  total: number;
+  hasMore: boolean;
+}
+
 export class ApiError extends Error {
   constructor(readonly status: number, message: string) {
     super(message);
@@ -85,6 +104,16 @@ export async function fetchDocumentFeed(limit = 50, offset = 0): Promise<SearchR
     limit: data.limit,
     offset: data.offset,
     error: data.error,
+  };
+}
+
+export async function fetchTraces(limit = 50, offset = 0): Promise<TracesResponse> {
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  const data = await getJson<TracesResponse>(`/api/traces?${qs}`);
+  return {
+    traces: Array.isArray(data.traces) ? data.traces : [],
+    total: Number.isFinite(data.total) ? data.total : 0,
+    hasMore: Boolean(data.hasMore),
   };
 }
 

@@ -40,4 +40,11 @@ describe('VectorPage dashboard cards', () => {
     expect(html).toContain('turbovec: down · offline');
     expect(html).toContain('Vector search');
   });
+
+  test('uses full-width responsive grids instead of the narrow sidebar layout', () => {
+    const html = htmlFor(<MemoryRouter><VectorPage modelsResponse={modelsResponse} healthResponse={healthResponse} loading={false} /></MemoryRouter>);
+    expect(html).toContain('class="grid min-w-0 gap-5" aria-label="Vector dashboard cards"');
+    expect(html).toContain('[grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr))]');
+    expect(html).not.toContain('xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]');
+  });
 });

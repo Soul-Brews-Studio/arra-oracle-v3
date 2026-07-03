@@ -78,7 +78,7 @@ function MetricsChartsCard({ metrics }: { metrics: MetricsSnapshot }) {
       <h2 id="metrics-charts-title" className="mt-2 text-2xl font-semibold text-text">Memory distribution</h2>
       <p className="mt-2 text-sm text-text-muted">Live memory profile and request throughput from /api/v1/metrics.</p>
 
-      <div className="mt-5 grid gap-6 xl:grid-cols-2">
+      <div className="mt-5 grid min-w-0 gap-6 xl:grid-cols-[repeat(2,minmax(0,1fr))]">
         <div>
           <p className="mb-3 text-sm text-text-muted">Memory usage (bytes)</p>
           <ul className="grid gap-3" aria-label="Memory distribution bars">
@@ -114,7 +114,7 @@ function MetricsChartsCard({ metrics }: { metrics: MetricsSnapshot }) {
 
 function MetricsActivityCard({ metrics }: { metrics: MetricsSnapshot }) {
   return (
-    <section className="rounded-3xl border border-border bg-surface-muted p-5 sm:p-6" aria-labelledby="metrics-activity-title">
+    <section className="min-w-0 rounded-3xl border border-border bg-surface-muted p-5 sm:p-6" aria-labelledby="metrics-activity-title">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Recent activity</p>
       <h2 id="metrics-activity-title" className="mt-2 text-2xl font-semibold text-text">Runtime events</h2>
       <ul className="mt-4 grid gap-3 text-sm text-text-muted">
@@ -141,7 +141,7 @@ export function MetricsPage(props: MetricsPageProps) {
   if (isRichMetrics(props)) {
     const { metrics, loading } = props;
     return (
-      <div className="grid gap-5">
+      <div className="grid w-full min-w-0 gap-5">
         <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="metrics-page-title">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Runtime metrics</p>
           <h2 id="metrics-page-title" className="mt-2 text-3xl font-semibold text-text">Metrics dashboard</h2>
@@ -152,11 +152,11 @@ export function MetricsPage(props: MetricsPageProps) {
         {!loading && !metrics ? <p className="mt-1 text-sm text-text-muted">No metrics snapshot is available yet.</p> : null}
 
         {metrics ? (
-          <div className="grid gap-5 xl:grid-cols-3">
-            <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6 xl:col-span-2" aria-labelledby="metrics-stats-title">
+          <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <section className="min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="metrics-stats-title">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Overview</p>
               <h2 id="metrics-stats-title" className="mt-2 text-2xl font-semibold text-text">Stats snapshot</h2>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="mt-4 grid min-w-0 gap-3 sm:grid-cols-[repeat(3,minmax(0,1fr))]">
                 <StatCard label="Total docs" value="—" detail="Not exposed by /api/v1/metrics endpoint" tone="accent" />
                 <StatCard label="Indexing rate" value={`${Math.min((metrics.requestCount / Math.max(1, metrics.uptime)) * 60, 9999).toFixed(1)} req/min`} detail="Proxy rate from total requests and uptime" tone="success" />
                 <StatCard label="Uptime" value={formatDuration(metrics.uptime)} detail={`last restart ${restartLabel(metrics.lastRestart)}`} tone="accent" />
@@ -167,9 +167,9 @@ export function MetricsPage(props: MetricsPageProps) {
         ) : null}
 
         {metrics ? (
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="grid min-w-0 gap-5 lg:grid-cols-[repeat(2,minmax(0,1fr))]">
             <MetricsChartsCard metrics={metrics} />
-            <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="memory-stats-title">
+            <section className="min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="memory-stats-title">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Memory</p>
               <h2 id="memory-stats-title" className="mt-2 text-2xl font-semibold text-text">Memory usage</h2>
               <dl className="mt-4 grid gap-3 text-sm text-text-muted">
@@ -189,7 +189,7 @@ export function MetricsPage(props: MetricsPageProps) {
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Runtime metrics</p>
       <h2 id="metrics-page-title" className="text-2xl font-semibold text-text">Runtime metrics</h2>
       <p className="text-sm text-text-muted">Track dashboard and surface counts while debugging</p>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 mt-5">
+      <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[repeat(4,minmax(0,1fr))]">
         <StatCard label="Menu entries" value={props.menuCount} detail="Items loaded from /api/menu." />
         <StatCard label="Plugins" value={props.pluginCount} detail="Active plugin registry count." />
         <StatCard label="Surfaces" value={props.surfaceCount} detail="Distinct plugin surfaces." />

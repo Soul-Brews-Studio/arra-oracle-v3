@@ -70,6 +70,10 @@ describe('VectorIndexPanel', () => {
     expect(html).toContain('25/100 docs');
     expect(html).toContain('12.5 docs/sec');
     expect(html).toContain('ETA 1m 35s');
+    expect(html).toContain('[grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr))]');
+    expect(html).toContain('[grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr))]');
+    expect(html).toContain('[overflow-wrap:anywhere]');
+    expect(html).not.toContain('xl:grid-cols-3');
   });
 
 

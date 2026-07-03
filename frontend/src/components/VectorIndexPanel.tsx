@@ -149,9 +149,9 @@ export function VectorIndexPanel({
   };
 
   return (
-    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-index-title">
+    <section className="min-w-0 overflow-hidden rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-index-title">
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Index Manager</p>
           <h2 id="vector-index-title" className="mt-2 text-2xl font-semibold text-text">Index jobs and collections</h2>
           <p className="mt-2 text-sm text-text-muted">Start, poll, and audit embedding rebuilds through /api/v1/vector/index/start.</p>
@@ -164,16 +164,16 @@ export function VectorIndexPanel({
         </div>
       </div>
 
-      <div className="mb-4 rounded-2xl border border-border bg-surface-muted p-4">
+      <div className="mb-4 min-w-0 rounded-2xl border border-border bg-surface-muted p-4">
         <p className="text-sm font-semibold text-text">Active jobs: {statusSummary(status)}</p>
-        <p className="mt-1 text-sm text-warn-text">Gap indicator: {gapLabel(models, status)}</p>
+        <p className="mt-1 text-sm text-warn-text [overflow-wrap:anywhere]">Gap indicator: {gapLabel(models, status)}</p>
         {status ? <IndexProgress status={status} /> : null}
       </div>
 
       {notice ? (
-        <div className={`mb-4 rounded-2xl border p-4 text-sm ${notice.tone}`} role="status" aria-live="polite">
+        <div className={`mb-4 min-w-0 rounded-2xl border p-4 text-sm ${notice.tone}`} role="status" aria-live="polite">
           <p className="font-semibold"><span aria-hidden="true">● </span>{notice.title}</p>
-          <p className="mt-1 opacity-80">{notice.detail}</p>
+          <p className="mt-1 opacity-80 [overflow-wrap:anywhere]">{notice.detail}</p>
         </div>
       ) : null}
 
@@ -183,12 +183,12 @@ export function VectorIndexPanel({
       {error ? <ErrorMessage title="Vector indexing failed." message={error} /> : null}
       {!loading && !modelEntries.length ? <p className="text-sm text-text-muted">No vector collections reported.</p> : null}
 
-      <section className="mb-5 rounded-2xl border border-border bg-surface-muted p-4" aria-label="Vault list">
+      <section className="mb-5 min-w-0 overflow-hidden rounded-2xl border border-border bg-surface-muted p-4" aria-label="Vault list">
         <h3 className="font-semibold text-accent">Vault list</h3>
-        <div className="mt-3 grid gap-2 md:grid-cols-2">
+        <div className="mt-3 grid min-w-0 gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr))]">
           {modelEntries.map(([key, model]) => (
-            <p key={key} className="rounded-xl border border-border bg-field/50 p-3 text-sm text-text-muted">
-              <span className="font-mono text-accent">{model.collection}</span><br />
+            <p key={key} className="min-w-0 rounded-xl border border-border bg-field/50 p-3 text-sm text-text-muted">
+              <span className="block min-w-0 font-mono text-accent [overflow-wrap:anywhere]">{model.collection}</span>
               {(model.count ?? 0).toLocaleString()} docs · {vaultState(model)}
             </p>
           ))}
@@ -196,18 +196,18 @@ export function VectorIndexPanel({
       </section>
 
       <h3 className="mb-3 font-semibold text-accent2">Vector Models</h3>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid min-w-0 gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr))]">
         {modelEntries.map(([key, model]) => {
           const active = indexing && status?.model === key;
           return (
-            <article key={key} className="rounded-2xl border border-border bg-surface-muted p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-mono text-base font-semibold text-accent">{key}</h3>
-                  <p className="mt-1 text-sm text-text-muted">{model.collection}</p>
+            <article key={key} className="min-w-0 overflow-hidden rounded-2xl border border-border bg-surface-muted p-4">
+              <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <h3 className="font-mono text-base font-semibold text-accent [overflow-wrap:anywhere]">{key}</h3>
+                  <p className="mt-1 text-sm text-text-muted [overflow-wrap:anywhere]">{model.collection}</p>
                 </div>
                 <button
-                  className="focus-ring rounded-xl bg-accent2-solid px-3 py-2 text-sm font-semibold text-on-accent hover:bg-accent2-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  className="focus-ring shrink-0 rounded-xl bg-accent2-solid px-3 py-2 text-sm font-semibold text-on-accent hover:bg-accent2-hover disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={Boolean(startingKey) || indexing}
                   type="button"
                   onClick={() => void startReindex(key)}
@@ -215,9 +215,9 @@ export function VectorIndexPanel({
                   {startingKey === key ? <Spinner label="Starting" /> : active ? 'Reindexing…' : 'Reindex'}
                 </button>
               </div>
-              <dl className="mt-4 grid gap-2 text-sm text-text-muted">
-                <div><dt className="inline text-text-muted">Model: </dt><dd className="inline">{model.model}</dd></div>
-                <div><dt className="inline text-text-muted">Adapter: </dt><dd className="inline">{model.adapter}</dd></div>
+              <dl className="mt-4 grid min-w-0 gap-2 text-sm text-text-muted">
+                <div className="min-w-0"><dt className="inline text-text-muted">Model: </dt><dd className="inline [overflow-wrap:anywhere]">{model.model}</dd></div>
+                <div className="min-w-0"><dt className="inline text-text-muted">Adapter: </dt><dd className="inline [overflow-wrap:anywhere]">{model.adapter}</dd></div>
                 <div><dt className="inline text-text-muted">Docs: </dt><dd className="inline">{model.count ?? 0}</dd></div>
                 <div><dt className="inline text-text-muted">Sync: </dt><dd className="inline">{modelState(model)}</dd></div>
               </dl>

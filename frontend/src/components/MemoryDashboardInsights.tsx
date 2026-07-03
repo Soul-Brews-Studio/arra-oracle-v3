@@ -85,11 +85,11 @@ function HeatHeatmap({ results }: { results: MemoryInsight[] }) {
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Heat heatmap</p>
       <h2 id="memory-heatmap-title" className="mt-2 text-2xl font-semibold text-text">Recall heat by memory</h2>
       <p className="mt-2 text-sm text-text-muted">Each tile uses semantic heat buckets and exposes the score to assistive tech.</p>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" role="list" aria-label="Memory heatmap cells">
+      <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[repeat(4,minmax(0,1fr))]" role="list" aria-label="Memory heatmap cells">
         {results.length ? results.map((result) => {
           const heat = heatValue(result);
           return (
-            <article key={result.id} className={`rounded-2xl border p-4 ${heatTone(heat)}`} role="listitem" aria-label={`${insightTitle(result)} heat ${heatLabel(heat)}`}>
+            <article key={result.id} className={`min-w-0 rounded-2xl border p-4 ${heatTone(heat)}`} role="listitem" aria-label={`${insightTitle(result)} heat ${heatLabel(heat)}`}>
               <p className="break-all font-mono text-sm font-semibold">{insightTitle(result)}</p>
               <p className="mt-3 text-3xl font-bold">{heatLabel(heat)}</p>
               <p className="mt-1 text-xs">last recalled {lastRecalledLabel(memorySignalFor(result).lastRecalled)}</p>
@@ -111,9 +111,9 @@ function ConfidenceBars({ results }: { results: MemoryInsight[] }) {
           const confidence = confidenceScore(result);
           const heat = heatValue(result) ?? 0;
           return (
-            <article key={result.id} className="rounded-2xl border border-border bg-surface-muted p-4" aria-label={`${insightTitle(result)} confidence and heat`}>
+            <article key={result.id} className="min-w-0 rounded-2xl border border-border bg-surface-muted p-4" aria-label={`${insightTitle(result)} confidence and heat`}>
               <h3 className="mb-3 break-all font-mono text-sm font-semibold text-text">{insightTitle(result)}</h3>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid min-w-0 gap-3 sm:grid-cols-[repeat(2,minmax(0,1fr))]">
                 <MeterBar label="Confidence" percent={confidence * 100} valueText={percentLabel(confidence) ?? '0%'} tone={confidence >= 0.75 ? 'success' : confidence >= 0.45 ? 'warning' : 'danger'} description="Ranking confidence from match, freshness, and provenance signals." />
                 <MeterBar label="Heat" percent={heat * 100} valueText={heatLabel(heat)} tone={heat >= 0.75 ? 'success' : heat >= 0.4 ? 'accent2' : 'warning'} description="Recall reinforcement from heat-score or usage fallback." />
               </div>
@@ -133,7 +133,7 @@ function ValidTimeTimeline({ results }: { results: MemoryInsight[] }) {
       <h2 id="memory-valid-time-title" className="mt-2 text-2xl font-semibold text-text">Valid-time timeline</h2>
       <ol className="mt-5 grid gap-3" aria-label="Valid-time memory windows">
         {windows.length ? windows.map((item) => (
-          <li key={item.title} className="grid gap-2 rounded-2xl border border-border bg-surface-muted p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <li key={item.title} className="grid min-w-0 gap-2 rounded-2xl border border-border bg-surface-muted p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
             <div>
               <p className="break-all font-mono text-sm font-semibold text-text">{item.title}</p>
               <p className="mt-1 text-xs text-text-muted">{item.start ?? 'unknown start'} → {item.end ?? 'open-ended'}</p>
@@ -156,7 +156,7 @@ function SupersedeChainViewer({ results }: { results: MemoryInsight[] }) {
       <h2 id="memory-supersede-title" className="mt-2 text-2xl font-semibold text-text">Supersede-chain viewer</h2>
       <div className="mt-5 grid gap-3" role="list" aria-label="Supersede chains">
         {edges.length ? edges.map((edge) => (
-          <article key={`${edge.from}:${edge.to}`} className="rounded-2xl border border-warn-border bg-warn-bg p-4 text-warn-text" role="listitem">
+          <article key={`${edge.from}:${edge.to}`} className="min-w-0 rounded-2xl border border-warn-border bg-warn-bg p-4 text-warn-text" role="listitem">
             <p className="break-all font-mono text-sm font-semibold">{edge.from} → {edge.to}</p>
             <p className="mt-2 text-xs">{edge.at ? `superseded ${edge.at}` : 'supersede time pending'}{edge.reason ? ` · ${edge.reason}` : ''}</p>
           </article>
@@ -169,9 +169,9 @@ function SupersedeChainViewer({ results }: { results: MemoryInsight[] }) {
 export function MemoryDashboardInsights({ results }: { results: unknown[] }) {
   const typed = results.map((item) => item as MemoryInsight);
   return (
-    <div className="grid gap-5">
+    <div className="grid w-full min-w-0 gap-5">
       <HeatHeatmap results={typed} />
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[repeat(2,minmax(0,1fr))]">
         <ConfidenceBars results={typed} />
         <ValidTimeTimeline results={typed} />
       </div>
