@@ -98,13 +98,13 @@ export function PluginList({
         const health = pluginHealthLabel(plugin, enabled);
         const surfaceRows = pluginSurfaceRows(plugin);
         return (
-          <article key={plugin.name} className="rounded-2xl border border-border bg-surface p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-text">{plugin.name}</h3>
-                <p className="mt-1 text-sm text-text-muted">{plugin.description ?? 'No description supplied.'}</p>
+          <article key={plugin.name} className="min-w-0 rounded-2xl border border-border bg-surface p-5">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <h3 className="break-words text-lg font-semibold text-text">{plugin.name}</h3>
+                <p className="mt-1 break-words text-sm text-text-muted">{plugin.description ?? 'No description supplied.'}</p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
                 <Badge dot tone={badgeToneForStatus(status)}>{status}</Badge>
                 <Badge dot tone={badgeToneForStatus(health)}>{health}</Badge>
                 {surfaces.length
@@ -120,10 +120,10 @@ export function PluginList({
                   )}
               </div>
             </div>
-            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+            <dl className="mt-4 grid min-w-0 gap-3 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-text-muted">Version</dt>
-                <dd className="font-mono text-text">{plugin.version ?? 'unknown'}</dd>
+                <dd className="break-words font-mono text-text">{plugin.version ?? 'unknown'}</dd>
               </div>
               <div>
                 <dt className="text-text-muted">Status</dt>
@@ -135,7 +135,7 @@ export function PluginList({
               </div>
               <div>
                 <dt className="text-text-muted">Artifact</dt>
-                <dd className="font-mono text-text">{plugin.file || 'server-only'}</dd>
+                <dd className="break-all font-mono text-text">{plugin.file || 'server-only'}</dd>
               </div>
               <div>
                 <dt className="text-text-muted">Admin</dt>
@@ -154,7 +154,7 @@ export function PluginList({
               {plugin.error ? (
                 <div className="sm:col-span-2">
                   <dt className="text-text-muted">Error</dt>
-                  <dd className="text-warn-text">{plugin.error}</dd>
+                  <dd className="break-words text-warn-text">{plugin.error}</dd>
                 </div>
               ) : null}
               {surfaceRows.length ? (
@@ -162,7 +162,7 @@ export function PluginList({
                   <dt className="text-text-muted">Surface details</dt>
                   <dd className="mt-2 grid gap-2">
                     {surfaceRows.map((row) => (
-                      <a key={`${row.label}:${row.value}`} className="focus-ring rounded-lg border border-border bg-surface-muted px-3 py-2 font-mono text-xs text-text hover:border-teal-300/40" href={row.href}>
+                      <a key={`${row.label}:${row.value}`} className="focus-ring min-w-0 break-words rounded-lg border border-border bg-surface-muted px-3 py-2 font-mono text-xs text-text hover:border-teal-300/40" href={row.href}>
                         <span className="font-sans text-text-muted">{row.label}: </span>{row.value}
                       </a>
                     ))}

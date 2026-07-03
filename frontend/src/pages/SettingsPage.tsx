@@ -16,7 +16,7 @@ type SettingsPageProps = {
 
 function SectionCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-label={title}>
+    <section className="min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-label={title}>
       <h3 className="text-lg font-semibold text-text">{title}</h3>
       <div className="mt-4">{children}</div>
     </section>
@@ -25,10 +25,10 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
 
 function SettingPair({ label, value, detail }: { label: string; value: string | number; detail: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface p-4">
+    <div className="min-w-0 rounded-2xl border border-border bg-surface p-4">
       <dt className="text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">{label}</dt>
       <dd className="mt-2 break-words font-mono text-sm text-accent">{value}</dd>
-      <dd className="mt-2 text-sm leading-6 text-text-muted">{detail}</dd>
+      <dd className="mt-2 break-words text-sm leading-6 text-text-muted">{detail}</dd>
     </div>
   );
 }
@@ -40,7 +40,7 @@ function statusLabel(settings: SettingsSystemResponse): string {
 }
 
 function formatRoutesText(surfaceCount: number): string {
-  return `/menu /plugins /vector /mcp /settings`;
+  return `/menu /plugins /forum /vector /mcp /settings`;
 }
 
 export function SettingsPage({ menuCount, pluginCount, surfaceCount, updatedAt, onRefresh }: SettingsPageProps) {
@@ -70,14 +70,14 @@ export function SettingsPage({ menuCount, pluginCount, surfaceCount, updatedAt, 
   return (
     <div className="grid gap-5">
       <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="settings-page-title">
-        <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
+        <div className="mb-5 flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Settings</p>
             <h2 id="settings-page-title" className="mt-2 text-2xl font-semibold text-text">Runtime configuration</h2>
             <p className="mt-2 text-sm text-text-muted">Storage backend, embedder configuration, and Drizzle migration status.</p>
-            <p className="mt-2 text-sm text-text-muted">Route map: {formatRoutesText(surfaceCount)}</p>
+            <p className="mt-2 break-words text-sm text-text-muted">Route map: {formatRoutesText(surfaceCount)}</p>
           </div>
-          <button aria-label="Refresh runtime settings" className="focus-ring rounded-xl border border-border px-4 py-2 text-sm text-text hover:border-accent-border" type="button" onClick={refreshAll}>
+          <button aria-label="Refresh runtime settings" className="focus-ring shrink-0 rounded-xl border border-border px-4 py-2 text-sm text-text hover:border-accent-border" type="button" onClick={refreshAll}>
             {loading ? <Spinner label="Refreshing" /> : 'Refresh settings'}
           </button>
         </div>
@@ -198,10 +198,10 @@ export function SettingsPage({ menuCount, pluginCount, surfaceCount, updatedAt, 
           <SectionCard title="Vector collections">
             <div className="grid gap-3 sm:grid-cols-2">
               {settings.embedder.collections.map((collection) => (
-                <article key={collection.key} className="rounded-2xl border border-border bg-surface p-4">
-                  <p className="font-mono text-sm text-accent">{collection.key}</p>
-                  <p className="mt-2 text-sm text-text">{collection.collection}</p>
-                  <p className="mt-1 text-sm text-text-muted">{collection.provider} · {collection.model} · {collection.adapter ?? 'adapter default'}</p>
+                <article key={collection.key} className="min-w-0 rounded-2xl border border-border bg-surface p-4">
+                  <p className="break-all font-mono text-sm text-accent">{collection.key}</p>
+                  <p className="mt-2 break-words text-sm text-text">{collection.collection}</p>
+                  <p className="mt-1 break-words text-sm text-text-muted">{collection.provider} · {collection.model} · {collection.adapter ?? 'adapter default'}</p>
                   {collection.primary ? <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent2">Primary</p> : null}
                 </article>
               ))}
