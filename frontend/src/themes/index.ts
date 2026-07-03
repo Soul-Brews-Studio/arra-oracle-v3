@@ -12,6 +12,7 @@ import { crimsonNight } from './crimson-night';
 import { solarAmber } from './solar-amber';
 import { oceanDepth } from './ocean-depth';
 import { sandDune } from './sand-dune';
+import { auroraBorealis } from './aurora-borealis';
 
 registerTheme(oracleDefault);
 registerTheme(midnightTeal);
@@ -26,6 +27,7 @@ registerTheme(crimsonNight);
 registerTheme(solarAmber);
 registerTheme(oceanDepth);
 registerTheme(sandDune);
+registerTheme(auroraBorealis);
 
 export { getThemes, getTheme, DEFAULT_THEME_ID } from './registry';
 export type { ThemeDefinition, ThemeTokens } from './types';
