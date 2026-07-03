@@ -153,8 +153,8 @@ export function VectorPage({
   const isLoading = state === 'loading';
 
   return (
-    <div className="grid gap-5">
-      <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-status-title">
+    <div className="grid min-w-0 gap-5">
+      <section className="min-w-0 overflow-hidden rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-status-title">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Vector status</p>
@@ -169,8 +169,14 @@ export function VectorPage({
         {downloadError ? <div className="mb-4"><ErrorMessage title="Vector export failed." message={downloadError} /></div> : null}
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" aria-label="Vector dashboard cards">
-        <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6">
+      <section className="grid min-w-0 gap-5" aria-label="Vector dashboard cards">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+          <VectorStatsCard cards={cards} />
+          <VectorHealthDashboardCard providers={dashboardHealth?.providers} services={dashboardHealth?.services} storage={dashboardHealth?.storage} freshness={dashboardHealth?.freshness} />
+          <QuickExportCard cards={cards} formats={formats} downloads={downloads} onExport={onExport} />
+        </div>
+
+        <section className="min-w-0 overflow-hidden rounded-3xl border border-border bg-surface p-5 sm:p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Collection health</p>
           <h2 className="mt-2 text-2xl font-semibold text-text">Vector collections</h2>
           <p className="mt-2 text-sm text-text-muted">Status, model, and adapter details by collection.</p>
@@ -178,15 +184,10 @@ export function VectorPage({
           {cards.length ? <VectorCollectionCards cards={cards} formats={formats} downloads={downloads} onExport={onExport} /> : null}
         </section>
 
-        <div className="grid gap-4">
-          <VectorStatsCard cards={cards} />
-          <VectorHealthDashboardCard providers={dashboardHealth?.providers} services={dashboardHealth?.services} storage={dashboardHealth?.storage} freshness={dashboardHealth?.freshness} />
-          <QuickExportCard cards={cards} formats={formats} downloads={downloads} onExport={onExport} />
-          <VectorIndexPanel />
-        </div>
+        <VectorIndexPanel />
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-2">
+      <section className="grid min-w-0 gap-5 xl:grid-cols-2">
         <VectorSearchWidget onOpenResults={(query) => navigate(vectorSearchPath(query))} />
         <VectorDocumentsCard />
       </section>
