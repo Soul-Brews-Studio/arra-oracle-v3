@@ -98,6 +98,7 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
   if (pathname === '/search') return base('Search', 'Search', 'Search menu, plugin, and MCP tool surfaces.', [{ label: 'Search' }]);
   if (pathname === '/export') return base('Export app', 'Export', 'Connect to an old Oracle v2 backend and download JSON, CSV, or Markdown backups.', [{ label: 'Export app' }]);
   if (pathname === '/feed') return base('Document feed', 'Feed', 'DB-backed document feed from /api/list, independent of vector collections.', [{ label: 'Feed' }]);
+  if (pathname === '/activity' || pathname === '/traces') return base('Trace activity', 'Activity', 'Recent trace activity from /api/traces.', [{ label: 'Activity / Traces' }]);
   if (pathname === '/learn') return base('Learn entries', 'Learn', 'Capture and edit Oracle learnings.', [{ label: 'Learn' }]);
   if (pathname === '/vector') return base('Vector dashboard', 'Vector', 'Collection health, search, and export status.', [{ label: 'Vector dashboard' }]);
   if (pathname === '/mcp') return base('MCP tools', 'MCP', 'Browse available MCP tool schemas and groups.', [{ label: 'MCP tools' }]);

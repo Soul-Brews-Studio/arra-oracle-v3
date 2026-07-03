@@ -63,6 +63,7 @@ export function AppShell({
     { to: '/search', label: 'Search', description: 'Full-text menu search' },
     { to: '/export', label: 'Export App', description: 'Legacy v2 JSON/Markdown backups' },
     { to: '/feed', label: 'Feed', description: 'DB-backed document feed from /api/list' },
+    { to: '/traces', label: 'Activity', description: 'Trace activity from /api/traces' },
     { to: '/vector', label: 'Vector Dashboard', description: 'Collection health and indexing', end: true },
     { to: '/vector/documents', label: 'Document Browser', description: 'Browse indexed vector documents' },
     { to: '/vector/first-run', label: 'First-run setup', description: 'Local backend and first index' },
@@ -101,9 +102,9 @@ export function AppShell({
       >
         Skip to main content
       </a>
-      <div className="mx-auto grid w-full max-w-7xl gap-4 px-3 py-3 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[18rem_1fr] lg:px-8">
+      <div className="mx-auto grid w-full max-w-7xl gap-4 px-3 py-3 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[18rem_minmax(0,1fr)] lg:px-8">
         <NavSidebar items={navItems} />
-        <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
+        <div className="flex w-full min-w-0 flex-col gap-4 sm:gap-6">
           <header className="grid gap-5 rounded-3xl border border-border bg-surface p-4 shadow-2xl backdrop-blur sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,28rem)] lg:items-end">
             <PageChrome meta={meta} />
             <div className="grid w-full min-w-0 gap-3">
@@ -139,7 +140,7 @@ export function AppShell({
           </section>
 
           {error ? <ErrorMessage title="Could not load backend data." message={error} action={retry} /> : null}
-          <div id="main-content" ref={contentRef} tabIndex={-1} className="focus:outline-none">
+          <div id="main-content" ref={contentRef} tabIndex={-1} className="w-full min-w-0 focus:outline-none">
             {children}
           </div>
         </div>

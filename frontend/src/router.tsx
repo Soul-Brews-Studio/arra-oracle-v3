@@ -12,6 +12,7 @@ import { MenuPage } from './pages/MenuPage';
 import { PluginsPage } from './pages/PluginsPage';
 import { CanvasAliasPage } from './pages/CanvasAliasPage';
 import { CanvasPluginsPage } from './pages/CanvasPluginsPage';
+import { ActivityPage } from './pages/ActivityPage';
 import { SearchPage } from './pages/SearchPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { StatusPage } from './pages/StatusPage';
@@ -39,6 +40,8 @@ export const frontendRoutes = [
   '/search',
   '/export',
   '/feed',
+  '/activity',
+  '/traces',
   '/learn',
   '/memory',
   '/vector',
@@ -111,6 +114,8 @@ export function DashboardRoutes({
       <Route path="/search" element={<SearchPage />} />
       <Route path="/export" element={<ExportApp />} />
       <Route path="/feed" element={<FeedPage />} />
+      <Route path="/activity" element={<ActivityPage />} />
+      <Route path="/traces" element={<ActivityPage />} />
       <Route path="/learn" element={<LearnPage />} />
       <Route path="/memory" element={<MemoryPage />} />
       <Route path="/menu" element={menuPage} />

@@ -34,10 +34,10 @@ function FeedRows({ items }: { items: SearchResult[] }) {
   return (
     <div className="grid gap-3" aria-label="DB-backed document feed">
       {items.map((item) => (
-        <article key={item.id} className="rounded-2xl border border-border bg-surface-muted p-4">
+        <article key={item.id} className="min-w-0 rounded-2xl border border-border bg-surface-muted p-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-text">{item.source_file || item.id}</h2>
+            <div className="min-w-0">
+              <h2 className="break-words text-base font-semibold text-text">{item.source_file || item.id}</h2>
               <p className="mt-1 text-sm leading-6 text-text-muted">{preview(item.content)}</p>
             </div>
             <span className="rounded-full border border-accent-border px-2 py-1 text-xs font-semibold text-accent">
@@ -77,9 +77,9 @@ export function FeedPage({ load = fetchDocumentFeed }: { load?: FeedLoader }) {
   const status = useMemo(() => feedStatus(state, total, items.length), [items.length, state, total]);
 
   return (
-    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="feed-title">
+    <section className="w-full min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="feed-title">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Feed</p>
           <h1 id="feed-title" className="mt-2 text-3xl font-semibold text-text">Document feed</h1>
           <p className="mt-2 text-sm text-text-muted">Reads /api/list from SQLite/FTS, not vector document collections.</p>
