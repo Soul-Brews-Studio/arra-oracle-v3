@@ -13,6 +13,7 @@ import { solarAmber } from './solar-amber';
 import { oceanDepth } from './ocean-depth';
 import { sandDune } from './sand-dune';
 import { auroraBorealis } from './aurora-borealis';
+import { tropical } from './tropical';
 
 registerTheme(oracleDefault);
 registerTheme(midnightTeal);
@@ -28,6 +29,7 @@ registerTheme(solarAmber);
 registerTheme(oceanDepth);
 registerTheme(sandDune);
 registerTheme(auroraBorealis);
+registerTheme(tropical);
 
 export { getThemes, getTheme, DEFAULT_THEME_ID } from './registry';
 export type { ThemeDefinition, ThemeTokens } from './types';
