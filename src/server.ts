@@ -42,6 +42,7 @@ import { oraclenetRoutes } from './routes/oraclenet/index.ts';
 import { sessionsRoutes } from './routes/sessions/index.ts';
 import { vaultRoutes } from './routes/vault/index.ts';
 import { indexerRoutes } from './routes/indexer/index.ts';
+import { credentialsRoutes } from './routes/credentials/index.ts';
 import { createMenuRoutes } from './routes/menu/index.ts';
 import { gatewayPlugin } from './gateway/index.ts';
 
@@ -208,6 +209,7 @@ const apiModules = [
   sessionsRoutes,
   vaultRoutes,
   indexerRoutes,
+  credentialsRoutes,
 ];
 
 try {
