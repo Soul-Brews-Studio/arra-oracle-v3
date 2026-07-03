@@ -60,6 +60,7 @@ import { scheduleApi } from './routes/schedule/index.ts';
 import { filesRouter } from './routes/files/index.ts';
 import { createPluginsRouter } from './routes/plugins/index.ts';
 import { sessionsRoutes } from './routes/sessions/index.ts';
+import { oldStudioCompatRoutes } from './routes/compat.ts';
 import { vaultRoutes } from './routes/vault/index.ts';
 import { createMenuRoutes, menuItemsFromUnifiedPlugins } from './routes/menu/index.ts';
 import { createMcpRoutes } from './routes/mcp/index.ts';
@@ -132,7 +133,7 @@ export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef
 
 export function createServerRouteModules(unifiedPlugins: UnifiedRuntime, runtimeRef: UnifiedRuntimeRef<UnifiedRuntime>): RouteModule[] {
   const healthRoutes = createHealthRoutes({ pluginCount: unifiedPlugins.pluginCount, pluginMcpToolCount: unifiedPlugins.mcpTools.length, pluginStatuses: unifiedPlugins.pluginStatuses, isDraining });
-  const apiModules = [authRoutes, settingsRoutes, feedRoutes, healthRoutes, dashboardRoutes, searchRoutes, askRoutes, vectorRoutes, vectorConfigApiRoutes, conceptsRoutes, knowledgeRoutes, researchRoutes, verifyRoutes, supersedeRoutes, forumApi, tracesApi, scheduleApi, filesRouter, createPluginsRouter({ registry: () => runtimeRef.current.pluginRegistry(), runtimeRef }), sessionsRoutes, vaultRoutes, metricsRoutes, exportRoutes, memoryRoutes, canvasRoutes, tenantsRoutes, watcherRoutes, indexerRoutes];
+  const apiModules = [authRoutes, settingsRoutes, feedRoutes, healthRoutes, dashboardRoutes, searchRoutes, askRoutes, vectorRoutes, vectorConfigApiRoutes, conceptsRoutes, knowledgeRoutes, researchRoutes, verifyRoutes, supersedeRoutes, forumApi, tracesApi, scheduleApi, filesRouter, createPluginsRouter({ registry: () => runtimeRef.current.pluginRegistry(), runtimeRef }), sessionsRoutes, oldStudioCompatRoutes, vaultRoutes, metricsRoutes, exportRoutes, memoryRoutes, canvasRoutes, tenantsRoutes, watcherRoutes, indexerRoutes];
   return [...apiModules, createMcpRoutes({ runtimeRef }), createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu))];
 }
 

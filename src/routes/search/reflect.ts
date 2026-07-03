@@ -9,16 +9,27 @@ import { handleTenantReflect } from './tenant-search.ts';
 
 type ReflectRow = { id: string; type: string; source_file: string; concepts: string | null; content: string | null };
 
+function randomOffset(total: number): number {
+  return Math.floor(Math.random() * total);
+}
+
 function handleGlobalReflect(): Record<string, unknown> {
   try {
+    const count = sqlite.prepare(`
+      SELECT COUNT(*) as total
+      FROM oracle_documents
+      WHERE type IN ('principle', 'learning')
+    `).get() as { total: number } | undefined;
+    const total = Number(count?.total ?? 0);
+    if (total < 1) return { error: 'No documents found', fts_status: 'empty' };
+
     const row = sqlite.prepare(`
       SELECT d.id, d.type, d.source_file, d.concepts, f.content
       FROM oracle_documents d
       LEFT JOIN oracle_fts f ON d.id = f.id
       WHERE d.type IN ('principle', 'learning')
-      ORDER BY RANDOM()
-      LIMIT 1
-    `).get() as ReflectRow | undefined;
+      LIMIT 1 OFFSET ?
+    `).get(randomOffset(total)) as ReflectRow | undefined;
 
     if (!row) return { error: 'No documents found', fts_status: 'empty' };
     const base = {
