@@ -79,11 +79,45 @@ export interface DashboardSummary {
 
 export type RuntimeStatus = 'ok' | 'down' | 'degraded' | 'draining' | string;
 
+export type HealthDbStatus = 'connected' | 'error' | 'ok' | 'down';
+export type PluginHealthStatus = 'ok' | 'degraded';
+export type VectorMode = 'embedded' | 'proxied' | 'disabled';
+
+export interface HealthDbCheck {
+  status: HealthDbStatus;
+  path?: string;
+  error?: string;
+}
+
+export interface VectorHealthEngine {
+  key?: string;
+  model?: string;
+  collection?: string;
+  adapter?: string;
+  embeddingProvider?: string;
+  connectionStatus?: 'connected' | 'error' | string;
+  count?: number;
+  ok?: boolean;
+  error?: string;
+}
+
+export interface VectorServiceHealth {
+  name: string;
+  type?: string;
+  endpoint?: string;
+  status?: string;
+  available?: boolean;
+  health?: { status?: string; error?: string; checkedAt?: string };
+}
+
 export interface VectorHealthResponse {
   status: RuntimeStatus;
-  engines: Array<Record<string, unknown>>;
+  engines: VectorHealthEngine[];
+  collections?: VectorHealthEngine[];
   checked_at: string;
+  proxy?: string;
   error?: string;
+  services?: VectorServiceHealth[];
 }
 
 export interface HealthResponse {
@@ -91,22 +125,30 @@ export interface HealthResponse {
   server: string;
   version: string;
   port?: number;
+  sandbox?: string;
   oracle?: 'connected' | 'degraded';
   uptimeSeconds?: number;
-  dbStatus?: 'ok' | 'down';
+  dbStatus?: HealthDbStatus;
   vectorStatus?: RuntimeStatus;
-  pluginStatus?: 'ok' | 'degraded';
+  vectorMode?: VectorMode;
+  vectorAvailable?: boolean;
+  vectorUrl?: string;
+  vectorDisabledReason?: string;
+  pluginStatus?: PluginHealthStatus;
   mcpToolCount?: number;
   pluginCount?: number;
   draining?: boolean;
-  uptime?: { seconds: number };
-  db?: { status: 'ok'; path: string } | { status: 'down'; error: string; path: string };
+  uptime?: number | { seconds: number };
+  uptimeSecondsBreakdown?: { seconds: number };
+  db?: HealthDbStatus | ({ status: HealthDbStatus; path?: string; error?: string });
+  dbCheck?: HealthDbCheck;
   vector?: VectorHealthResponse;
+  vectorServer?: { configured: boolean; status: 'ok' | 'down' | 'unconfigured'; url?: string; httpStatus?: number; protocol?: string; name?: string; version?: string; error?: string };
   mcp?: { toolCount: number };
   plugins?: {
     count: number;
-    status: 'ok' | 'degraded';
-    items: Array<{ name: string; status: 'ok' | 'degraded'; error?: string }>;
+    status: PluginHealthStatus;
+    items: Array<{ name: string; status: PluginHealthStatus; error?: string }>;
   };
 }
 

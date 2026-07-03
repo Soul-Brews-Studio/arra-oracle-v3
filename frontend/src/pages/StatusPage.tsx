@@ -36,6 +36,23 @@ function formatSeconds(seconds?: number): string {
   return `${minutes}m ${remaining}s`;
 }
 
+function uptimeSeconds(health: HealthResponse | null): number | undefined {
+  if (!health) return undefined;
+  if (typeof health.uptimeSeconds === 'number') return health.uptimeSeconds;
+  if (typeof health.uptime === 'number') return health.uptime;
+  return health.uptime?.seconds ?? health.uptimeSecondsBreakdown?.seconds;
+}
+
+function dbStatus(health: HealthResponse): string | undefined {
+  if (health.dbStatus) return health.dbStatus;
+  return typeof health.db === 'string' ? health.db : health.db?.status;
+}
+
+function dbPath(health: HealthResponse): string | undefined {
+  if (typeof health.db === 'object' && health.db) return health.db.path ?? health.dbCheck?.path;
+  return health.dbCheck?.path;
+}
+
 function Field({ label, value }: { label: string; value: string | number | undefined }) {
   return (
     <div className="rounded-2xl border border-border bg-surface-muted p-4">
@@ -142,7 +159,7 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
     return () => { cancelled = true; };
   }, [client, initialHealth]);
 
-  const uptime = useMemo(() => formatSeconds(health?.uptimeSeconds ?? health?.uptime?.seconds), [health]);
+  const uptime = useMemo(() => formatSeconds(uptimeSeconds(health)), [health]);
   const isLoading = state === 'loading';
 
   return (
@@ -160,7 +177,7 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <StatusBadge label="Server" status={health.status} />
-            <StatusBadge label="Database" status={health.dbStatus ?? health.db?.status} />
+            <StatusBadge label="Database" status={dbStatus(health)} />
             <StatusBadge label="Vector" status={health.vectorStatus ?? health.vector?.status} />
             <StatusBadge label="Plugins" status={health.pluginStatus ?? health.plugins?.status} />
           </div>
@@ -172,7 +189,7 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
             <Field label="MCP tools" value={health.mcpToolCount ?? health.mcp?.toolCount} />
             <Field label="Plugins" value={health.pluginCount ?? health.plugins?.count} />
             <Field label="Oracle" value={health.oracle} />
-            <Field label="DB path" value={health.db?.path} />
+            <Field label="DB path" value={dbPath(health)} />
           </dl>
           <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-label="Plugin health rows">
             <h3 className="text-lg font-semibold text-text">Plugin health</h3>
