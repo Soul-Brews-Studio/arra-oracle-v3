@@ -37,14 +37,14 @@ function FeedRows({ items }: { items: SearchResult[] }) {
         <article key={item.id} className="min-w-0 rounded-2xl border border-border bg-surface-muted p-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <h2 className="break-words text-base font-semibold text-text">{item.source_file || item.id}</h2>
+              <h2 className="break-all text-base font-semibold text-text">{item.source_file || item.id}</h2>
               <p className="mt-1 text-sm leading-6 text-text-muted">{preview(item.content)}</p>
             </div>
-            <span className="rounded-full border border-accent-border px-2 py-1 text-xs font-semibold text-accent">
+            <span className="shrink-0 rounded-full border border-accent-border px-2 py-1 text-xs font-semibold text-accent">
               {item.type || 'unknown'}
             </span>
           </div>
-          <p className="mt-3 font-mono text-xs text-text-muted">{item.project || 'unscoped'} · {item.source || 'fts/db'}</p>
+          <p className="mt-3 break-all font-mono text-xs text-text-muted">{item.project || 'unscoped'} · {item.source || 'fts/db'}</p>
         </article>
       ))}
     </div>
@@ -89,7 +89,7 @@ export function FeedPage({ load = fetchDocumentFeed }: { load?: FeedLoader }) {
         </button>
       </div>
       <p className="mb-2 text-sm text-text-muted">{status}</p>
-      <p className="mb-5 text-xs text-text-muted">{typeCounts(items)}</p>
+      <p className="mb-5 break-words text-xs text-text-muted">{typeCounts(items)}</p>
       {state === 'loading' ? <LoadingPanel title="Loading feed…" detail="Fetching /api/list?group=false from the DB-backed API." /> : null}
       {state === 'error' ? <ErrorMessage title="Could not load document feed." message={error} /> : null}
       {state === 'ready' ? <FeedRows items={items} /> : null}

@@ -68,18 +68,18 @@ function databasePath(health: HealthResponse): string | undefined {
 
 function Field({ label, value }: { label: string; value: string | number | undefined }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface-muted p-4">
+    <div className="min-w-0 rounded-2xl border border-border bg-surface-muted p-4">
       <dt className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">{label}</dt>
-      <dd className="mt-2 font-mono text-sm text-text">{value ?? 'unknown'}</dd>
+      <dd className="mt-2 break-words font-mono text-sm text-text">{value ?? 'unknown'}</dd>
     </div>
   );
 }
 
 function StatusBadge({ label, status }: { label: string; status?: string }) {
   return (
-    <div className={`rounded-2xl border p-4 ${statusClass(status)}`} data-contrast-badge>
+    <div className={`min-w-0 rounded-2xl border p-4 ${statusClass(status)}`} data-contrast-badge>
       <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-80">{label}</p>
-      <p className="mt-2 flex items-center gap-2 text-2xl font-semibold"><span aria-hidden="true">●</span>{status ?? 'unknown'}</p>
+      <p className="mt-2 flex min-w-0 items-center gap-2 break-words text-2xl font-semibold"><span aria-hidden="true">●</span>{status ?? 'unknown'}</p>
     </div>
   );
 }
@@ -113,10 +113,10 @@ function PluginRows({ health }: { health: HealthResponse }) {
   return (
     <ul className="grid gap-2">
       {items.map((plugin) => (
-        <li key={plugin.name} className="flex flex-col gap-2 rounded-xl border border-border bg-surface-muted p-3 sm:flex-row sm:items-center sm:justify-between">
-          <a className="focus-ring font-mono text-sm text-accent hover:text-accent" href={pluginHealthPath(plugin)}>{plugin.name}</a>
+        <li key={plugin.name} className="flex min-w-0 flex-col gap-2 rounded-xl border border-border bg-surface-muted p-3 sm:flex-row sm:items-center sm:justify-between">
+          <a className="focus-ring break-all font-mono text-sm text-accent hover:text-accent" href={pluginHealthPath(plugin)}>{plugin.name}</a>
           <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${statusClass(plugin.status)}`} data-contrast-badge><span aria-hidden="true">●</span>{plugin.status}</span>
-          {plugin.error ? <span className="text-sm text-warn-text">{plugin.error}</span> : null}
+          {plugin.error ? <span className="break-words text-sm text-warn-text">{plugin.error}</span> : null}
         </li>
       ))}
     </ul>
@@ -129,13 +129,13 @@ function ProxyRows({ vector }: { vector: VectorHealthForStatus | null }) {
   return (
     <ul className="grid gap-2">
       {rows.map((row) => (
-        <li key={`${row.name}-${row.endpoint}`} className="rounded-xl border border-border bg-surface-muted p-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span className="font-mono text-sm text-accent">{row.name}</span>
+        <li key={`${row.name}-${row.endpoint}`} className="min-w-0 rounded-xl border border-border bg-surface-muted p-3">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span className="break-all font-mono text-sm text-accent">{row.name}</span>
             <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs ${statusClass(row.status === 'up' ? 'ok' : row.status)}`} data-contrast-badge><span aria-hidden="true">●</span>{row.status}</span>
           </div>
           <p className="mt-2 break-words font-mono text-xs text-text-muted">{row.endpoint}</p>
-          <p className="mt-1 text-sm text-text-muted">{row.detail}</p>
+          <p className="mt-1 break-words text-sm text-text-muted">{row.detail}</p>
         </li>
       ))}
     </ul>
@@ -176,8 +176,8 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
   const isLoading = state === 'loading';
 
   return (
-    <section className="grid gap-5" aria-labelledby="status-page-title">
-      <div className="rounded-3xl border border-border bg-surface p-5 sm:p-6">
+    <section className="grid min-w-0 gap-5" aria-labelledby="status-page-title">
+      <div className="min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Server status</p>
         <h2 id="status-page-title" className="mt-2 text-2xl font-semibold text-text">Health overview</h2>
         <p className="mt-2 text-sm text-text-muted">Live health from GET /api/v1/health.</p>

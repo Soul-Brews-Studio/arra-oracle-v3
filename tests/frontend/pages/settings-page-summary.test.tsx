@@ -8,7 +8,7 @@ describe('SettingsPage summary', () => {
     expect(html).toContain('Runtime configuration');
     expect(html).toContain('3 menu · 2 plugins');
     expect(html).toContain('Plugin surfaces');
-    expect(html).toContain('/menu /plugins /vector /mcp /settings');
+    expect(html).toContain('/menu /plugins /forum /vector /mcp /settings');
     expect(html).toContain('Enable vector search');
     expect(html).toContain('Active vector adapters');
     expect(html).toContain('Get current config, edit model/provider plus service endpoint, switch adapters');

@@ -57,10 +57,10 @@ function toneClass(tone: Tone): string {
 
 function MetricCard({ label, value, detail, tone = 'idle' }: { label: string; value: string | number; detail: string; tone?: Tone }) {
   return (
-    <article className={`rounded-lg border p-4 ${toneClass(tone)}`}>
+    <article className={`min-w-0 rounded-lg border p-4 ${toneClass(tone)}`}>
       <p className="text-xs font-semibold uppercase tracking-[0.18em] opacity-80">{label}</p>
-      <p className="mt-2 flex items-center gap-2 text-2xl font-semibold">{tone !== 'idle' ? <span aria-hidden="true">●</span> : null}{value}</p>
-      <p className="mt-1 text-sm opacity-75">{detail}</p>
+      <p className="mt-2 flex min-w-0 items-center gap-2 break-words text-2xl font-semibold">{tone !== 'idle' ? <span aria-hidden="true">●</span> : null}{value}</p>
+      <p className="mt-1 break-words text-sm opacity-75">{detail}</p>
     </article>
   );
 }
@@ -121,7 +121,7 @@ export function PluginsPage({
   }
 
   return (
-    <section className="grid gap-5" aria-labelledby="plugins-page-title">
+    <section className="grid min-w-0 gap-5" aria-labelledby="plugins-page-title">
       <header>
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Plugin management</p>
         <h1 id="plugins-page-title" className="mt-2 text-3xl font-semibold text-text">Unified plugin surfaces</h1>
@@ -147,28 +147,28 @@ export function PluginsPage({
       {showInventory ? <UnifiedPluginSurfaceOverview plugins={plugins} /> : null}
 
       {plugins.length ? (
-        <section className="rounded-2xl border border-border bg-surface p-4" aria-labelledby="plugin-filters-title">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
+        <section className="min-w-0 rounded-2xl border border-border bg-surface p-4" aria-labelledby="plugin-filters-title">
+          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Inventory filters</p>
               <h2 id="plugin-filters-title" className="mt-1 text-lg font-semibold text-text">Find plugin surfaces</h2>
               <p className="mt-1 text-sm text-text-muted">Showing {visiblePlugins.length} of {plugins.length} plugins · {summary}</p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-[minmax(12rem,1fr)_10rem_10rem_auto_auto]">
-              <label className="grid gap-1 text-sm font-medium text-text-muted">
+            <div className="grid w-full min-w-0 gap-2 sm:grid-cols-2 xl:max-w-5xl xl:grid-cols-[minmax(12rem,1fr)_10rem_10rem_auto_auto]">
+              <label className="grid min-w-0 gap-1 text-sm font-medium text-text-muted">
                 Search plugins
                 <input
-                  className="focus-ring rounded-xl border border-border bg-field px-3 py-2 text-text"
+                  className="focus-ring min-w-0 rounded-xl border border-border bg-field px-3 py-2 text-text"
                   placeholder="name, route, MCP tool, surface"
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.currentTarget.value)}
                 />
               </label>
-              <label className="grid gap-1 text-sm font-medium text-text-muted">
+              <label className="grid min-w-0 gap-1 text-sm font-medium text-text-muted">
                 Visibility
                 <select
-                  className="focus-ring rounded-xl border border-border bg-field px-3 py-2 text-text"
+                  className="focus-ring min-w-0 rounded-xl border border-border bg-field px-3 py-2 text-text"
                   value={visibility}
                   onChange={(event) => setVisibility(event.currentTarget.value as PluginVisibilityFilter)}
                 >
@@ -178,10 +178,10 @@ export function PluginsPage({
                   <option value="unhealthy">Needs attention</option>
                 </select>
               </label>
-              <label className="grid gap-1 text-sm font-medium text-text-muted">
+              <label className="grid min-w-0 gap-1 text-sm font-medium text-text-muted">
                 Surface
                 <select
-                  className="focus-ring rounded-xl border border-border bg-field px-3 py-2 text-text"
+                  className="focus-ring min-w-0 rounded-xl border border-border bg-field px-3 py-2 text-text"
                   value={surface}
                   onChange={(event) => setSurface(event.currentTarget.value as PluginSurfaceFilter)}
                 >

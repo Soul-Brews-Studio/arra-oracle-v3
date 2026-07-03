@@ -53,7 +53,7 @@ export function filterMenuItems(items: MenuItem[], filters: MenuFilters): MenuIt
 
 function MenuTypeBadge({ type }: { type: string }) {
   return (
-    <span className="inline-flex rounded-full border border-accent-border px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-accent">
+    <span className="inline-flex shrink-0 rounded-full border border-accent-border px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-accent">
       {type}
     </span>
   );
@@ -80,7 +80,7 @@ function MenuRows({ items, emptyText = 'No menu items returned from /api/menu.' 
                   <a className="focus-ring font-semibold text-text hover:text-accent" href={item.path}>
                     {item.label}
                   </a>
-                  <p className="mt-1 font-mono text-xs text-text-muted">{item.path}</p>
+                  <p className="mt-1 break-all font-mono text-xs text-text-muted">{item.path}</p>
                 </td>
                 <td className="px-4 py-4 align-top">
                   <MenuTypeBadge type={item.group} />
@@ -102,11 +102,11 @@ function MenuRows({ items, emptyText = 'No menu items returned from /api/menu.' 
                 <a className="focus-ring font-semibold text-text hover:text-accent" href={item.path}>
                   {item.label}
                 </a>
-                <p className="mt-1 truncate font-mono text-xs text-text-muted">{item.path}</p>
+                <p className="mt-1 break-all font-mono text-xs text-text-muted">{item.path}</p>
               </div>
               <MenuTypeBadge type={item.group} />
             </div>
-            <p className="mt-3 font-mono text-xs text-text-muted">{menuSource(item)}</p>
+            <p className="mt-3 break-all font-mono text-xs text-text-muted">{menuSource(item)}</p>
           </li>
         ))}
       </ul>
@@ -143,25 +143,25 @@ function MenuFiltersCard({
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Source filters</p>
           <p className="mt-1 text-sm text-text-muted">Showing {visible} of {total} items across {sources.length} menu sources.</p>
         </div>
-        <div className="grid gap-2 sm:grid-cols-[10rem_minmax(12rem,1fr)_auto]">
-          <label className="grid gap-1 text-sm font-medium text-text-muted">
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-[10rem_minmax(12rem,1fr)_auto_auto]">
+          <label className="grid min-w-0 gap-1 text-sm font-medium text-text-muted">
             Group
-            <select className="focus-ring rounded-xl border border-border bg-field px-3 py-2 text-text" aria-label="Filter menu group" value={filters.group} onChange={(event) => onGroup(event.currentTarget.value)}>
+            <select className="focus-ring w-full min-w-0 rounded-xl border border-border bg-field px-3 py-2 text-text" aria-label="Filter menu group" value={filters.group} onChange={(event) => onGroup(event.currentTarget.value)}>
               <option value="all">All groups</option>
               {groups.map((group) => <option key={group} value={group}>{group}</option>)}
             </select>
           </label>
-          <label className="grid gap-1 text-sm font-medium text-text-muted">
+          <label className="grid min-w-0 gap-1 text-sm font-medium text-text-muted">
             Source
-            <select className="focus-ring rounded-xl border border-border bg-field px-3 py-2 text-text" aria-label="Filter menu source" value={filters.source} onChange={(event) => onSource(event.currentTarget.value)}>
+            <select className="focus-ring w-full min-w-0 rounded-xl border border-border bg-field px-3 py-2 text-text" aria-label="Filter menu source" value={filters.source} onChange={(event) => onSource(event.currentTarget.value)}>
               <option value="all">All sources</option>
               {sources.map((source) => <option key={source} value={source}>{source}</option>)}
             </select>
           </label>
-          <button className="focus-ring self-end rounded-xl border border-border px-3 py-2 text-sm font-semibold text-text hover:border-teal-300/40 disabled:opacity-40" disabled={!hasFilters} type="button" onClick={onClear}>
+          <button className="focus-ring w-full rounded-xl border border-border px-3 py-2 text-sm font-semibold text-text hover:border-teal-300/40 disabled:opacity-40 sm:w-auto sm:self-end" disabled={!hasFilters} type="button" onClick={onClear}>
             Clear
           </button>
-          <a className="focus-ring self-end rounded-xl border border-accent-border px-3 py-2 text-sm font-semibold text-accent hover:border-accent-border" href={sharePath}>
+          <a className="focus-ring w-full rounded-xl border border-accent-border px-3 py-2 text-center text-sm font-semibold text-accent hover:border-accent-border sm:w-auto sm:self-end" href={sharePath}>
             Share view
           </a>
         </div>

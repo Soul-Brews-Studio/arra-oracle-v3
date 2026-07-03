@@ -76,7 +76,7 @@ function SearchInputCard({ query, loading, onQueryChange, onSubmit }: {
       <form aria-label="Menu search form" className="flex flex-col gap-3 sm:flex-row" role="search" onSubmit={onSubmit}>
         <input
           aria-label="Menu search query"
-          className="focus-ring min-w-0 flex-1 rounded-xl border border-border bg-field px-4 py-3 text-text placeholder:text-slate-600"
+          className="focus-ring min-w-0 flex-1 rounded-xl border border-border bg-field px-4 py-3 text-text placeholder:text-text-muted"
           placeholder="Search menu items…"
           type="search"
           value={query}
@@ -100,9 +100,9 @@ export function MenuSearchResults({ query, results, state }: { query: string; re
     <ul className="grid gap-3" aria-label="Menu search results">
       {results.map((item) => (
         <li key={`${item.source ?? 'api'}:${item.path}:${item.label}`}>
-          <a className="focus-ring block rounded-2xl border border-border bg-surface-muted p-4 transition hover:border-teal-300/40" href={item.path}>
+          <a className="focus-ring block min-w-0 rounded-2xl border border-border bg-surface-muted p-4 transition hover:border-teal-300/40" href={item.path}>
             <span className="text-lg font-semibold text-text"><HighlightedText text={item.label} query={query} /></span>
-            <span className="mt-1 block text-sm text-text-muted"><HighlightedText text={item.path} query={query} /></span>
+            <span className="mt-1 block break-all text-sm text-text-muted"><HighlightedText text={item.path} query={query} /></span>
             <span className="mt-3 inline-flex rounded-full border border-accent-border px-2 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-accent">
               {item.group}
             </span>
@@ -126,7 +126,7 @@ function SearchScopeCard({ scope, resultGroups, total }: { scope: SearchScope; r
         </li>
         <li className="rounded-xl border border-border bg-surface-muted p-3">
           <span className="text-xs uppercase tracking-[0.16em] text-text-muted">Result groups</span>
-          <p className="mt-1 font-semibold text-text">{resultGroups.length || '-'}{resultGroups.length ? ` (${resultGroups.join(', ')})` : ''}</p>
+          <p className="mt-1 break-words font-semibold text-text">{resultGroups.length || '-'}{resultGroups.length ? ` (${resultGroups.join(', ')})` : ''}</p>
         </li>
         <li className="rounded-xl border border-border bg-surface-muted p-3">
           <span className="text-xs uppercase tracking-[0.16em] text-text-muted">Matches</span>
@@ -220,7 +220,7 @@ export function SearchPage() {
   return (
     <div className="grid gap-5">
       <SearchInputCard query={query} loading={state === 'loading'} onQueryChange={setQuery} onSubmit={submit} />
-      <div className="grid gap-5 xl:grid-cols-[1fr_320px]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <SearchResultsCard
           query={activeQuery}
           results={results}

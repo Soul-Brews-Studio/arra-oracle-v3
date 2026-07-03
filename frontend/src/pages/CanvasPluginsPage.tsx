@@ -41,19 +41,19 @@ function PluginCard({ plugin, host }: { plugin: CanvasPluginEntry; host?: string
   const target = pluginHref(plugin, host);
   return (
     <article className="min-w-0 rounded-3xl border border-border bg-surface p-5" aria-label={`${plugin.label} canvas plugin`}>
-      <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="mb-4 flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="break-all text-xs font-semibold uppercase tracking-[0.2em] text-text-muted">{plugin.id}</p>
-          <h3 className="mt-1 text-xl font-semibold text-text">{plugin.label}</h3>
+          <h3 className="mt-1 break-words text-xl font-semibold text-text">{plugin.label}</h3>
         </div>
-        <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${statusClass(plugin)}`}>{plugin.kind}</span>
+        <span className={`shrink-0 rounded-full border px-2 py-1 text-xs font-semibold ${statusClass(plugin)}`}>{plugin.kind}</span>
       </div>
-      <p className="text-sm text-text-muted">{plugin.description}</p>
+      <p className="break-words text-sm text-text-muted">{plugin.description}</p>
       <dl className="mt-4 grid gap-3 text-sm">
         <div><dt className="text-text-muted">Status</dt><dd className="font-semibold text-ok-text">registered</dd></div>
         <div><dt className="text-text-muted">Canvas target</dt><dd className="break-all font-mono text-text">{target}</dd></div>
-        <div><dt className="text-text-muted">Runtime hook</dt><dd className="font-mono text-text">{'renderer' in plugin ? plugin.renderer : plugin.mount}</dd></div>
-        {'apiPath' in plugin && plugin.apiPath ? <div><dt className="text-text-muted">Data API</dt><dd className="font-mono text-text">{plugin.apiPath}</dd></div> : null}
+        <div><dt className="text-text-muted">Runtime hook</dt><dd className="break-all font-mono text-text">{'renderer' in plugin ? plugin.renderer : plugin.mount}</dd></div>
+        {'apiPath' in plugin && plugin.apiPath ? <div><dt className="text-text-muted">Data API</dt><dd className="break-all font-mono text-text">{plugin.apiPath}</dd></div> : null}
       </dl>
       <a className="focus-ring mt-4 inline-flex rounded-xl border border-accent-border px-3 py-2 text-sm font-semibold text-accent hover:bg-ok-bg" href={target}>Open canvas</a>
     </article>
@@ -121,7 +121,8 @@ export function CanvasPluginsPage({ plugins: initialPlugins = [], loading = true
       {state === 'loading' ? <LoadingPanel title="Loading canvas plugins" detail={`Reading ${endpointHint}.`} /> : null}
       {state === 'error' ? <ErrorMessage title="Could not load canvas plugins." message={error} /> : null}
       {state !== 'error' && error ? <ErrorMessage title="Canvas plugin warning" message={error} /> : null}
-      {state !== 'error' ? <div className="grid min-w-0 gap-4 sm:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[repeat(3,minmax(0,1fr))]">{plugins.map((plugin) => <PluginCard key={plugin.id} plugin={plugin} host={host} />)}</div> : null}
+      {state !== 'error' && plugins.length ? <div className="grid min-w-0 gap-4 sm:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[repeat(3,minmax(0,1fr))]">{plugins.map((plugin) => <PluginCard key={plugin.id} plugin={plugin} host={host} />)}</div> : null}
+      {state === 'ready' && !plugins.length ? <p className="rounded-2xl border border-border bg-surface p-5 text-sm text-text-muted">No canvas plugins match this filter.</p> : null}
     </section>
   );
 }

@@ -63,6 +63,7 @@ export function AppShell({
     { to: '/search', label: 'Search', description: 'Full-text menu search' },
     { to: '/export', label: 'Export App', description: 'Legacy v2 JSON/Markdown backups' },
     { to: '/feed', label: 'Feed', description: 'DB-backed document feed from /api/list' },
+    { to: '/forum', label: 'Forum', description: 'Operational threads from /api/threads' },
     { to: '/traces', label: 'Activity', description: 'Trace activity from /api/traces' },
     { to: '/vector', label: 'Vector Dashboard', description: 'Collection health and indexing', end: true },
     { to: '/vector/documents', label: 'Document Browser', description: 'Browse indexed vector documents' },

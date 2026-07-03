@@ -141,21 +141,21 @@ export function UnifiedPluginSurfaceOverview({ plugins }: { plugins: PluginEntry
   const capabilities = useMemo(() => pluginCapabilityLinks(plugins), [plugins]);
 
   return (
-    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="unified-surfaces-title">
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+    <section className="min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="unified-surfaces-title">
+      <div className="mb-4 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Unified backend surfaces</p>
           <h3 id="unified-surfaces-title" className="mt-2 text-xl font-semibold text-text">Plugin system map</h3>
           <p className="mt-2 text-sm text-text-muted">Menu, plugin list, MCP tools, vector search, server health, and storage config in one view.</p>
         </div>
         {countLinks.length ? (
-          <div className="flex flex-wrap gap-2 text-sm">
+          <div className="flex min-w-0 flex-wrap gap-2 text-sm">
             {countLinks.map((item) => <a key={item.href} className="focus-ring rounded-full border border-border px-2 py-1 text-text-muted hover:border-accent-border" href={item.href}>{item.label}</a>)}
           </div>
         ) : <p className="text-sm text-text-muted">metadata only</p>}
       </div>
       {error ? <p className="mb-3 text-sm text-warn-text">{error}</p> : null}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{cards.map((card) => <SurfaceCard key={card.label} card={card} />)}</div>
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">{cards.map((card) => <SurfaceCard key={card.label} card={card} />)}</div>
       <div className="mt-4 grid gap-3 xl:grid-cols-5">
         <SurfaceList title="Menu items" items={state.menu.slice(0, 5).map((item) => ({ label: `${item.label} → ${item.path}`, href: item.path }))} empty="No /api/menu items loaded yet." />
         <SurfaceList title="MCP tools" items={state.tools.slice(0, 5).map((tool) => ({ label: `${tool.name}${tool.plugin ? ` · ${tool.plugin}` : ''}`, href: mcpToolPath(tool.name) }))} empty="No /api/mcp/tools entries loaded yet." />
@@ -170,10 +170,10 @@ export function UnifiedPluginSurfaceOverview({ plugins }: { plugins: PluginEntry
 function SurfaceCard({ card }: { card: Card }) {
   const tone = card.tone === 'warn' ? 'text-warn-text' : 'text-accent';
   return (
-    <article className="rounded-2xl border border-border bg-surface-muted p-4">
+    <article className="min-w-0 rounded-2xl border border-border bg-surface-muted p-4">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">{card.label}</p>
-      <p className={`mt-2 text-2xl font-semibold ${tone}`}>{card.value}</p>
-      <p className="mt-2 text-sm leading-6 text-text-muted">{card.detail}</p>
+      <p className={`mt-2 break-words text-2xl font-semibold ${tone}`}>{card.value}</p>
+      <p className="mt-2 break-words text-sm leading-6 text-text-muted">{card.detail}</p>
       <a className="focus-ring mt-3 inline-flex text-sm font-semibold text-accent hover:text-accent" href={card.href}>
         Open {card.label}
       </a>
@@ -184,13 +184,13 @@ function SurfaceCard({ card }: { card: Card }) {
 function SurfaceList({ title, items, empty }: { title: string; items: SurfaceListItem[]; empty: string }) {
   const visible = items.filter(Boolean);
   return (
-    <article className="rounded-2xl border border-border bg-surface-muted p-4">
+    <article className="min-w-0 rounded-2xl border border-border bg-surface-muted p-4">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">{title}</p>
       {visible.length ? (
         <ul className="mt-3 space-y-2 text-sm text-text-muted">
           {visible.map((item) => (
-            <li key={typeof item === 'string' ? item : `${item.href}:${item.label}`} className="truncate font-mono">
-              {typeof item === 'string' ? item : <a className="focus-ring text-accent hover:text-accent" href={item.href}>{item.label}</a>}
+            <li key={typeof item === 'string' ? item : `${item.href}:${item.label}`} className="break-words font-mono">
+              {typeof item === 'string' ? item : <a className="focus-ring break-words text-accent hover:text-accent" href={item.href}>{item.label}</a>}
             </li>
           ))}
         </ul>
