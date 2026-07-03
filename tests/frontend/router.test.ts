@@ -77,6 +77,8 @@ describe('frontend router', () => {
     expect(htmlAt('/export')).toContain('Export app');
     expect(htmlAt('/feed')).toContain('Document feed');
     expect(htmlAt('/forum')).toContain('Forum threads');
+    expect(htmlAt('/activity')).toContain('Trace activity');
+    expect(htmlAt('/traces')).toContain('Trace activity');
     expect(htmlAt('/learn')).toContain('Learn entries');
     expect(htmlAt('/memory')).toContain('Memory dashboard');
     expect(htmlAt('/memory')).toContain('Memory health');
