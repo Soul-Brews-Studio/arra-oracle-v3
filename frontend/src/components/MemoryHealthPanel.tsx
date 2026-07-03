@@ -95,7 +95,7 @@ export function MemorySignalBadges({ result }: { result: unknown }) {
 
 function Stat({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface-muted p-3">
+    <div className="min-w-0 rounded-2xl border border-border bg-surface-muted p-3">
       <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">{label}</dt>
       <dd className="mt-2 text-2xl font-semibold text-text">{value}</dd>
       <dd className="mt-1 text-xs text-text-muted">{detail}</dd>
@@ -114,13 +114,13 @@ export function MemoryHealthPanel({ results, state = 'idle' }: { results: unknow
   const pending = results.length - heatValues.length;
 
   return (
-    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="memory-health-title">
+    <section className="w-full min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="memory-health-title">
       <div className="mb-4">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Memory health</p>
         <h2 id="memory-health-title" className="mt-2 text-2xl font-semibold text-text">Heat and recency</h2>
         <p className="mt-2 text-sm text-text-muted">Tracks MemoryOS-style heat-score and last-recalled signals when the backend returns them.</p>
       </div>
-      <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <dl className="grid min-w-0 gap-3 sm:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[repeat(4,minmax(0,1fr))]">
         <Stat label="Avg heat" value={heatLabel(averageHeat)} detail={heatValues.length ? `${heatValues.length}/${results.length} heat-backed` : 'waiting for heat_score'} />
         <Stat label="Hot memories" value={hot.toLocaleString()} detail="heat-score ≥ 75%" />
         <Stat label="Cold memories" value={cold.toLocaleString()} detail="heat-score < 40%" />

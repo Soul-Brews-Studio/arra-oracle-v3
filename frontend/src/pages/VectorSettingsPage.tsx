@@ -39,11 +39,11 @@ function VectorFirstRunWizardSection() {
 
 export function VectorSettingsPage() {
   return (
-    <section className="grid gap-5" aria-labelledby="vector-settings-title">
-      <header className="rounded-3xl border border-border bg-surface p-5 sm:p-6">
+    <section className="grid min-w-0 gap-5" aria-labelledby="vector-settings-title">
+      <header className="min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Vector settings</p>
         <h1 id="vector-settings-title" className="mt-2 text-3xl font-semibold text-text">Vector settings</h1>
-        <p className="mt-2 text-sm text-text-muted">
+        <p className="mt-2 break-words text-sm text-text-muted">
           Configure adapters, embedding models and providers, storage services, first-run indexing, and backfill jobs.
         </p>
       </header>

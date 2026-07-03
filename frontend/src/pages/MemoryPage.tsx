@@ -105,12 +105,12 @@ export function MemoryPage({ search = searchMemoryHealth, recall = fetchMemoryRe
   const status = useMemo(() => memoryHealthStatus(state, activeQuery, results.length), [activeQuery, results.length, state]);
 
   return (
-    <div className="grid gap-5">
+    <div className="grid w-full min-w-0 gap-5">
       <MemoryDashboardContent items={dashboardItems} total={dashboardTotal} asOf={dashboardAsOf} state={dashboardState} error={dashboardError} />
 
       <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="memory-health-page-title">
-        <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
+        <div className="mb-5 flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Memory</p>
             <h2 id="memory-health-page-title" className="mt-2 text-2xl font-semibold text-text">Memory health</h2>
             <p className="mt-2 text-sm text-text-muted">Inspect heat-score, last-recalled, and recall counts from Studio memory search results.</p>
@@ -137,7 +137,7 @@ export function MemoryPage({ search = searchMemoryHealth, recall = fetchMemoryRe
       <MemoryHealthPanel results={results} state={state} />
       <MemoryDashboardInsights results={results} />
 
-      <section className="grid gap-3 lg:grid-cols-2" aria-label="Memory heat result cards" aria-busy={state === 'loading'}>
+      <section className="grid min-w-0 gap-3 lg:grid-cols-[repeat(2,minmax(0,1fr))]" aria-label="Memory heat result cards" aria-busy={state === 'loading'}>
         {results.map((result) => <SearchResultCard key={result.id} result={result} />)}
       </section>
     </div>

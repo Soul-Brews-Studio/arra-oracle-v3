@@ -16,15 +16,15 @@ function navClass({ isActive }: { isActive: boolean }) {
 
 export function NavSidebar({ items }: { items: NavItem[] }) {
   return (
-    <aside aria-label="Application navigation" className="sticky top-2 z-20 lg:top-4 lg:h-[calc(100vh-2rem)]">
-      <div className="flex h-full flex-col gap-4 rounded-3xl border border-border bg-surface p-3 shadow-2xl backdrop-blur sm:p-4">
-        <NavLink to="/menu" aria-label="Arra Oracle control surface home" className="focus-ring rounded-2xl p-2">
+    <aside aria-label="Application navigation" className="sticky top-2 z-20 min-w-0 lg:top-4 lg:h-[calc(100vh-2rem)]">
+      <div className="flex h-full min-w-0 flex-col gap-4 overflow-hidden rounded-3xl border border-border bg-surface p-3 shadow-2xl backdrop-blur sm:p-4">
+        <NavLink to="/menu" aria-label="Arra Oracle control surface home" className="focus-ring min-w-0 rounded-2xl p-2">
           <p className="text-xs font-medium uppercase tracking-[0.28em] text-accent">Arra Oracle</p>
           <h1 className="mt-2 text-xl font-bold tracking-tight text-text sm:text-2xl">Control Surface</h1>
           <p className="mt-2 text-sm text-text-muted">React routes over the Elysia API.</p>
         </NavLink>
 
-        <nav aria-label="Frontend sections" className="grid auto-cols-[minmax(10rem,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1 lg:min-h-0 lg:grid-flow-row lg:grid-cols-1 lg:overflow-y-auto lg:pb-0">
+        <nav aria-label="Frontend sections" className="grid min-w-0 max-w-full auto-cols-[minmax(10rem,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1 lg:min-h-0 lg:grid-flow-row lg:grid-cols-1 lg:overflow-y-auto lg:pb-0">
           {items.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end} aria-label={`${item.label}: ${item.description}`} className={navClass}>
               <span className="flex items-center justify-between gap-3">
