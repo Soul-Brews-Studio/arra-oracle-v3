@@ -7,6 +7,7 @@ import { copperSlate } from './copper-slate';
 import { forestMoss } from './forest-moss';
 import { lavenderMist } from './lavender-mist';
 import { neonSynthwave } from './neon-synthwave';
+import { crimsonNight } from './crimson-night';
 
 registerTheme(oracleDefault);
 registerTheme(midnightTeal);
@@ -16,6 +17,7 @@ registerTheme(copperSlate);
 registerTheme(forestMoss);
 registerTheme(lavenderMist);
 registerTheme(neonSynthwave);
+registerTheme(crimsonNight);
 
 export { getThemes, getTheme, DEFAULT_THEME_ID } from './registry';
 export type { ThemeDefinition, ThemeTokens } from './types';
