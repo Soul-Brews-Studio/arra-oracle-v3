@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getThemes } from '../themes/registry';
+import { getThemes } from '../themes/index';
 import { applyColorTheme, clearColorThemeOverrides, readStoredColorTheme, saveColorTheme } from '../theme';
 
 export function ThemeSelector() {

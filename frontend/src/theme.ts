@@ -1,4 +1,4 @@
-import { DEFAULT_THEME_ID, getTheme } from './themes/registry';
+import { DEFAULT_THEME_ID, getTheme } from './themes/index';
 
 export type ThemeMode = 'light' | 'dark';
 
