@@ -34,6 +34,23 @@ describe('CORS middleware origins', () => {
     expect(denied.headers.get('Access-Control-Allow-Origin')).toBeNull();
   });
 
+
+
+  test('allows hosted Studio origins by default for localhost backends', async () => {
+    delete process.env.ARRA_CORS_ORIGINS;
+
+    for (const origin of [
+      'https://arra-oracle-studio.laris.workers.dev',
+      'https://studio.buildwithoracle.com',
+    ]) {
+      const res = await request('/api/ping', { headers: { origin } });
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Access-Control-Allow-Origin')).toBe(origin);
+      expect(res.headers.get('Access-Control-Allow-Credentials')).toBe('true');
+    }
+  });
+
   test('reflects configured origins and rejects unlisted origins', async () => {
     process.env.ARRA_CORS_ORIGINS = 'https://studio.example, https://admin.example';
 

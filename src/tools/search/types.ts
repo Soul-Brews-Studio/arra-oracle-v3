@@ -29,6 +29,18 @@ export type VectorResult = {
   source: 'vector';
 };
 
+export type PointerResult = {
+  id: string;
+  type: string;
+  content: string;
+  source_file: string;
+  concepts: string[];
+  score: number;
+  source: 'pointer';
+  pointerScore: number;
+  pointerMatches: string[];
+};
+
 export type CombinedSearchResult = {
   id: string;
   type: string;
@@ -36,9 +48,11 @@ export type CombinedSearchResult = {
   source_file: string;
   concepts: string[];
   score: number;
-  source: 'fts' | 'vector' | 'hybrid';
+  source: 'fts' | 'vector' | 'pointer' | 'hybrid';
   ftsScore?: number;
   vectorScore?: number;
+  pointerScore?: number;
+  pointerMatches?: string[];
   distance?: number;
   model?: string;
   entity_score?: number;
@@ -61,10 +75,12 @@ export type SearchConfidence = {
 };
 
 export type SearchProvenance = {
-  source: 'fts' | 'vector' | 'hybrid';
+  source: 'fts' | 'vector' | 'pointer' | 'hybrid';
   source_file: string;
   fts_score?: number;
   vector_score?: number;
+  pointer_score?: number;
+  pointer_matches?: string[];
   vector_distance?: number;
   vector_model?: string;
   entity_score?: number;

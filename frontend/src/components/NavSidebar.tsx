@@ -24,7 +24,7 @@ export function NavSidebar({ items }: { items: NavItem[] }) {
           <p className="mt-2 text-sm text-text-muted">React routes over the Elysia API.</p>
         </NavLink>
 
-        <nav aria-label="Frontend sections" className="grid auto-cols-[minmax(10rem,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1 lg:grid-flow-row lg:grid-cols-1 lg:overflow-visible lg:pb-0">
+        <nav aria-label="Frontend sections" className="grid auto-cols-[minmax(10rem,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1 lg:min-h-0 lg:grid-flow-row lg:grid-cols-1 lg:overflow-y-auto lg:pb-0">
           {items.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end} aria-label={`${item.label}: ${item.description}`} className={navClass}>
               <span className="flex items-center justify-between gap-3">

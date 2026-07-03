@@ -1,6 +1,6 @@
 export const searchToolDef = {
   name: 'oracle_search',
-  description: 'Search Oracle knowledge base using hybrid search (FTS5 keywords + ChromaDB vectors). Finds relevant principles, patterns, learnings, or retrospectives. Falls back to FTS5-only if ChromaDB unavailable.',
+  description: 'Search Oracle knowledge base using hybrid search (FTS5 keywords + LanceDB vectors). Finds relevant principles, patterns, learnings, or retrospectives. Falls back to FTS5-only if the vector index is unavailable.',
   inputSchema: {
     type: 'object',
     properties: {

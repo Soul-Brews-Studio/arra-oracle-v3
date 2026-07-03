@@ -25,6 +25,8 @@ export function shouldShowSetupWizard(
   stats: Stats | null,
   config: VectorConfig | null,
 ): boolean {
+  if (config?.resolution?.wizard === "optional" && config.resolution.providerPrompt === false)
+    return false;
   return (
     docsCount(stats) === 0 &&
     (stats?.vector?.enabled === false ||

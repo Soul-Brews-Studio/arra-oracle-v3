@@ -2,6 +2,12 @@
 
 A five-minute path from empty machine to searchable local Oracle memory.
 
+One-line ingest if Bun is already installed:
+
+```bash
+bunx -p arra-oracle-v3 arra-oracle mine docs/sample-notes
+```
+
 ## 1. Install
 
 ```bash
@@ -13,6 +19,13 @@ For latest alpha branch testing instead of a pinned tag:
 
 ```bash
 bun add -g github:Soul-Brews-Studio/arra-oracle-v3#alpha
+```
+
+Verify the global `arra` command is on your `PATH`:
+
+```bash
+command -v arra
+arra --version
 ```
 
 ## 2. Start the server
@@ -32,18 +45,18 @@ arra config use local
 arra health
 ```
 
-## 3. Add one memory
+## 3. Mine the sample notes
 
 ```bash
-arra learn "Arra Oracle quickstart is running from a global Bun install." \
-  --source "quickstart" \
-  --concepts "install,quickstart"
+arra mine docs/sample-notes
+# or keep it live while editing notes:
+# arra mine docs/sample-notes --watch
 ```
 
 ## 4. Search it
 
 ```bash
-arra search "global Bun install" --limit 5
+arra search "memory onboarding" --limit 5
 arra read --help
 arra list --limit 5
 ```

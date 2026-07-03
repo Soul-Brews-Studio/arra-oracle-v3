@@ -1,17 +1,21 @@
-import type { CombinedSearchResult, FtsResult, SearchConfidence, SearchProvenance, VectorResult } from './types.ts';
+import { augmentQueryWithAcronyms } from '../../search/acronyms.ts';
+import type { CombinedSearchResult, FtsResult, PointerResult, SearchConfidence, SearchProvenance, VectorResult } from './types.ts';
+
+const FTS_TOKEN_LIMIT = 32;
 
 /** Sanitize FTS5 query to prevent parse errors. */
 export function sanitizeFtsQuery(query: string): string {
-  const tokens = query
+  const tokens = augmentQueryWithAcronyms(query)
     .replace(/<[^>]*>/g, ' ')
     .normalize('NFKC')
     .match(/[\p{L}\p{N}_]+/gu)
     ?.map((token) => token.trim())
-    .filter((token) => token.length > 0)
-    .slice(0, 8) ?? [];
+    .filter((token) => token.length > 0) ?? [];
 
-  const uniqueTokens = Array.from(new Set(tokens));
-  return uniqueTokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(' OR ');
+  return [...new Set(tokens)]
+    .slice(0, FTS_TOKEN_LIMIT)
+    .map((token) => `"${token.replace(/"/g, '""')}"`)
+    .join(' OR ');
 }
 
 /** Normalize FTS5 rank score using exponential decay. */
@@ -38,10 +42,13 @@ export function combineResults(
   vectorResults: VectorResult[],
   ftsWeight = 0.5,
   vectorWeight = 0.5,
+  pointerResults: PointerResult[] = [],
+  pointerWeight = 0.35,
 ): CombinedSearchResult[] {
   const resultMap = new Map<string, Omit<CombinedSearchResult, 'score'> & {
     ftsScore?: number;
     vectorScore?: number;
+    pointerScore?: number;
   }>();
 
   for (const result of ftsResults) {
@@ -53,6 +60,26 @@ export function combineResults(
       concepts: result.concepts,
       ftsScore: result.score,
       source: 'fts',
+    });
+  }
+
+  for (const result of pointerResults) {
+    const existing = resultMap.get(result.id);
+    if (existing) {
+      existing.pointerScore = result.pointerScore;
+      existing.pointerMatches = result.pointerMatches;
+      existing.source = existing.source === 'pointer' ? 'pointer' : 'hybrid';
+      continue;
+    }
+    resultMap.set(result.id, {
+      id: result.id,
+      type: result.type,
+      content: result.content,
+      source_file: result.source_file,
+      concepts: result.concepts,
+      pointerScore: result.pointerScore,
+      pointerMatches: result.pointerMatches,
+      source: 'pointer',
     });
   }
 
@@ -79,11 +106,14 @@ export function combineResults(
   }
 
   const combined = Array.from(resultMap.values()).map((result) => {
-    const score = result.source === 'hybrid'
+    const base = result.source === 'hybrid'
       ? ((ftsWeight * (result.ftsScore ?? 0)) + (vectorWeight * (result.vectorScore ?? 0))) * 1.1
       : result.source === 'fts'
         ? (result.ftsScore ?? 0) * ftsWeight
-        : (result.vectorScore ?? 0) * vectorWeight;
+        : result.source === 'vector'
+          ? (result.vectorScore ?? 0) * vectorWeight
+          : (result.pointerScore ?? 0) * 0.7;
+    const score = Math.min(1, base + ((result.source === 'pointer' ? 0 : pointerWeight) * (result.pointerScore ?? 0)));
     return { ...result, score };
   });
 
@@ -100,11 +130,17 @@ export function confidenceForResult(result: CombinedSearchResult): SearchConfide
   const score = boundedScore(result.score);
   const source = result.source;
   const signals: string[] = [];
-  if (source === 'hybrid') signals.push('matched by FTS and vector search');
+  if (source === 'hybrid') {
+    signals.push(result.ftsScore !== undefined && result.vectorScore !== undefined
+      ? 'matched by FTS and vector search'
+      : 'matched by multiple retrieval indexes');
+  }
   else if (source === 'fts') signals.push('matched by keyword search');
-  else signals.push('matched by vector search');
+  else if (source === 'vector') signals.push('matched by vector search');
+  else signals.push('matched by pointer index');
   if ((result.ftsScore ?? 0) >= 0.7) signals.push('strong keyword score');
   if ((result.vectorScore ?? 0) >= 0.7) signals.push('strong vector score');
+  if ((result.pointerScore ?? 0) > 0) signals.push('matched by topic/entity/date pointer index');
   if ((result.entity_score ?? 0) > 0) signals.push('matched by indexed entity-link ranking signal');
   if ((result.entityLinkScore ?? 0) > 0) signals.push('matched by entity-link ranking signal');
 
@@ -120,6 +156,8 @@ export function provenanceForResult(result: CombinedSearchResult): SearchProvena
     source_file: result.source_file,
     ...(result.ftsScore !== undefined ? { fts_score: Number(result.ftsScore.toFixed(3)) } : {}),
     ...(result.vectorScore !== undefined ? { vector_score: Number(result.vectorScore.toFixed(3)) } : {}),
+    ...(result.pointerScore !== undefined ? { pointer_score: Number(result.pointerScore.toFixed(3)) } : {}),
+    ...(result.pointerMatches?.length ? { pointer_matches: result.pointerMatches } : {}),
     ...(result.distance !== undefined ? { vector_distance: Number(result.distance.toFixed(3)) } : {}),
     ...(result.model ? { vector_model: result.model } : {}),
     ...(result.entity_score !== undefined ? { entity_score: Number(result.entity_score.toFixed(3)) } : {}),

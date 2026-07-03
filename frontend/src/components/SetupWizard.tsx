@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { apiFetch } from "../api";
 import { ErrorMessage, Spinner } from "./AsyncState";
 import { StateNotice } from "./StateNotice";
 import { StepBody, setupSteps } from "./SetupWizardContent";
 import { shouldShowSetupWizard } from "./setupWizardDetection";
 import { buildIndexStartBody, requestVectorIndexStart } from "./setupWizardIndex";
-import { buildProviderConfigPatch, recommendedProvider } from "./setupWizardProvider";
-import type { Provider, Stats, Step, VectorConfig, VectorIndexSource } from "./setupWizardTypes";
+import type { Stats, Step, VectorConfig, VectorIndexSource } from "./setupWizardTypes";
 
 export { shouldShowSetupWizard } from "./setupWizardDetection";
 
@@ -26,8 +25,6 @@ async function getJson<T>(path: string): Promise<T> {
 export function SetupWizard({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SetupState>("checking");
   const [step, setStep] = useState<Step>(0);
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [selectedProvider, setSelectedProvider] = useState("");
   const [indexSource, setIndexSource] = useState<VectorIndexSource>("auto");
   const [repoRoot, setRepoRoot] = useState("");
   const [config, setConfig] = useState<VectorConfig | null>(null);
@@ -45,17 +42,12 @@ export function SetupWizard({ children }: { children: ReactNode }) {
     }
     let active = true;
     Promise.allSettled([
-      getJson<Stats>("/api/stats"), getJson<VectorConfig>("/api/v1/vector/config"), getJson<{ providers?: Provider[] }>("/api/v1/vector/providers"),
+      getJson<Stats>("/api/stats"), getJson<VectorConfig>("/api/v1/vector/config"),
     ])
-      .then(([statsResult, configResult, providersResult]) => {
+      .then(([statsResult, configResult]) => {
         if (!active) return;
         const stats = statsResult.status === "fulfilled" ? statsResult.value : null;
         const vectorConfig = configResult.status === "fulfilled" ? configResult.value : null;
-        if (providersResult.status === "fulfilled") {
-          const nextProviders = providersResult.value.providers ?? [];
-          setProviders(nextProviders);
-          setSelectedProvider((current) => current || recommendedProvider(nextProviders)?.type || "");
-        }
         if (vectorConfig) setConfig(vectorConfig);
         setState(shouldShowSetupWizard(stats, vectorConfig) ? "visible" : "hidden");
       })
@@ -67,44 +59,13 @@ export function SetupWizard({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const recommended = useMemo(() => recommendedProvider(providers), [providers]);
-
-  async function refreshDetection() {
+  async function refreshBackend() {
     setBusy(true);
     setError("");
     try {
-      const [providerBody, vectorConfig] = await Promise.all([
-        getJson<{ providers?: Provider[] }>("/api/v1/vector/providers"),
-        getJson<VectorConfig>("/api/v1/vector/config"),
-      ]);
-      const nextProviders = providerBody.providers ?? [];
-      setProviders(nextProviders);
-      setSelectedProvider((current) => current || recommendedProvider(nextProviders)?.type || "");
+      const vectorConfig = await getJson<VectorConfig>("/api/v1/vector/config");
       setConfig(vectorConfig);
-      setMessage("Auto-detect refreshed. Choose a provider and continue.");
-    } catch (cause) {
-      setMessage("");
-      setError(errorMessage(cause));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function applyProvider() {
-    if (!selectedProvider) return setMessage("Choose an embedding provider first.");
-    setBusy(true);
-    setError("");
-    try {
-      const response = await apiFetch("/api/v1/vector/config", {
-        method: "PATCH",
-        headers: { accept: "application/json", "content-type": "application/json" },
-        body: JSON.stringify(buildProviderConfigPatch(config, selectedProvider)),
-      });
-      if (!response.ok) throw new Error(`/api/v1/vector/config returned ${response.status}`);
-      await apiFetch("/api/v1/vector/config/reload", { method: "POST", headers: { accept: "application/json" } });
-      setConfig(await getJson<VectorConfig>("/api/v1/vector/config"));
-      setStep(2);
-      setMessage(`Applied ${selectedProvider} as the first-run embedding provider.`);
+      setMessage("Local backend detected. Provider selection is optional; continue when ready.");
     } catch (cause) {
       setMessage("");
       setError(errorMessage(cause));
@@ -142,7 +103,7 @@ export function SetupWizard({ children }: { children: ReactNode }) {
       <section className="mx-auto max-w-4xl rounded-3xl border border-accent2-border bg-accent2-soft p-6 shadow-2xl">
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-accent2">First-run wizard</p>
         <h1 className="mt-3 text-3xl font-bold">Set up vector search</h1>
-        <p className="mt-3 text-sm text-accent2">No full-text documents and no active vector index were detected. Configure a provider, choose the initial vault source, then start indexing.</p>
+        <p className="mt-3 text-sm text-accent2">No full-text documents and no active vector index were detected. Arra picked a local vector backend. Choose an optional vault source, then start indexing.</p>
         <ol className="mt-5 flex gap-2" aria-label="Setup steps">
           {setupSteps.map((label, index) => (
             <li
@@ -155,11 +116,7 @@ export function SetupWizard({ children }: { children: ReactNode }) {
           <h2 className="text-xl font-semibold text-text">{setupSteps[step]}</h2>
           <StepBody
             step={step}
-            providers={providers}
-            recommended={recommended}
             config={config}
-            selectedProvider={selectedProvider}
-            onProviderSelect={setSelectedProvider}
             indexSource={indexSource}
             repoRoot={repoRoot}
             onIndexSource={setIndexSource}
@@ -181,18 +138,18 @@ export function SetupWizard({ children }: { children: ReactNode }) {
             <button
               className="focus-ring rounded-xl bg-accent2-solid px-4 py-2 text-sm font-semibold text-on-accent"
               type="button"
-              onClick={() => void refreshDetection()}
+              onClick={() => void refreshBackend()}
             >
-              {busy ? <Spinner label="Detecting" /> : "Auto-detect providers"}
+              {busy ? <Spinner label="Detecting" /> : "Detect local backend"}
             </button>
           ) : null}
           {step === 1 ? (
             <button
               className="focus-ring rounded-xl bg-accent-solid px-4 py-2 text-sm font-semibold text-on-accent"
               type="button"
-              onClick={() => void applyProvider()}
+              onClick={() => setStep(2)}
             >
-              {busy ? <Spinner label="Applying" /> : "Use selected provider"}
+              Use local default
             </button>
           ) : null}
           {step === 2 ? (

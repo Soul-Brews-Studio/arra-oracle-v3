@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { apiClient, type ApiClient } from './api/client';
 import { AppShell } from './components/AppShell';
 import { countPluginSurfaces } from './plugin-surfaces';
-import { AppRouter, DashboardRoutes, isRouteLoading } from './router';
+import { AppRouter, DashboardRoutes, SimpleRoutes, isRouteLoading } from './router';
 import type { LoadState, MenuItem, PluginEntry } from './types';
 import type { MetricsSnapshot } from '../../src/server/types';
 
@@ -49,7 +49,7 @@ export async function loadDashboardData(client: DashboardClient = apiClient): Pr
   };
 }
 
-export default function App() {
+function DashboardApp() {
   const [states, setStates] = useState<LoadStates>(idleStates);
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [plugins, setPlugins] = useState<PluginEntry[]>([]);
@@ -98,28 +98,38 @@ export default function App() {
   const refresh = () => void load();
 
   return (
-    <AppRouter>
-      <AppShell
-        error={error}
-        loading={loading}
-        menuCount={menu.length}
-        pluginCount={plugins.length}
-        surfaceCount={surfaceCount}
+    <AppShell
+      error={error}
+      loading={loading}
+      menuCount={menu.length}
+      pluginCount={plugins.length}
+      surfaceCount={surfaceCount}
+      metrics={metrics}
+      metricsLoading={metricsLoading}
+      updatedAt={updatedAt}
+      onRefresh={refresh}
+    >
+      <DashboardRoutes
+        menu={menu}
+        plugins={plugins}
+        states={states}
         metrics={metrics}
-        metricsLoading={metricsLoading}
+        surfaceCount={surfaceCount}
         updatedAt={updatedAt}
         onRefresh={refresh}
-      >
-        <DashboardRoutes
-          menu={menu}
-          plugins={plugins}
-          states={states}
-          metrics={metrics}
-          surfaceCount={surfaceCount}
-          updatedAt={updatedAt}
-          onRefresh={refresh}
-        />
-      </AppShell>
+      />
+    </AppShell>
+  );
+}
+
+function isSimpleRoute(): boolean {
+  return typeof window !== 'undefined' && window.location.pathname === '/simple';
+}
+
+export default function App() {
+  return (
+    <AppRouter>
+      {isSimpleRoute() ? <SimpleRoutes /> : <DashboardApp />}
     </AppRouter>
   );
 }

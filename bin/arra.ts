@@ -8,10 +8,12 @@ function showHelp(): void {
 Usage:
   arra-oracle [serve] [options]
   arra-oracle mcp [--read-only]
+  arra-oracle mine <dir> [--watch]
 
 Commands:
   serve        Run the HTTP server (default)
   mcp          Run the stdio MCP server
+  mine         Ingest a folder into Oracle memory
 
 Serve options:
   --port <n>    Port to listen on (default: 47778, env: ORACLE_PORT)
@@ -19,6 +21,11 @@ Serve options:
 
 Legacy aliases kept working: arra-oracle-v3, arra-oracle-v2.
 Once running, open the UI with: bunx oracle-studio`);
+}
+
+if (command === "mine") {
+  const { mineCommand } = await import("../src/cli/commands/mine.ts");
+  process.exit(await mineCommand(args.slice(1)));
 }
 
 if (args.includes("--help") || args.includes("-h")) {
@@ -61,12 +68,7 @@ if (command === "mcp") {
     process.env.ORACLE_PORT = val;
   }
 
-  // Load server module (registers routes + plugins via Elysia setup).
-  // Bun's `export default { port, fetch }` auto-server pattern only fires when
-  // the file is the entry script. When bin/arra.ts wraps server.ts via
-  // `await import()`, the export becomes plain data and no listener is bound.
-  // Call Bun.serve() explicitly so the wrapper actually starts a server.
-  const { default: appSpec } = await import("../src/server.ts");
-  const server = Bun.serve(appSpec);
+  const { startServer } = await import("../src/server.ts");
+  const server = await startServer();
   console.log(`🔮 Arra Oracle HTTP server → http://localhost:${server.port}`);
 }

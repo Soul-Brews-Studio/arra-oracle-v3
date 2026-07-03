@@ -13,7 +13,8 @@ describe('FirstRunWizard', () => {
     const html = htmlFor(<FirstRunWizard />);
     expect(html).toContain('First-run setup');
     expect(html).toContain('Oracle memory layer');
-    expect(html).toContain('Embedding provider');
+    expect(html).toContain('Local backend default');
+    expect(html).toContain('No provider prompt is required');
     expect(html).toContain('Collections to create');
     expect(html).toContain('Start initial indexing');
   });

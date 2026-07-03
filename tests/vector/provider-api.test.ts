@@ -22,6 +22,8 @@ test('provider API auto-detects local Ollama and remote credentials', async () =
       CF_ACCOUNT_ID: 'cf-account',
       CF_API_TOKEN: 'cf-token',
     },
+    vectorConfig: null,
+    configSource: 'defaults',
   });
 
   expect(result.providers).toContainEqual(expect.objectContaining({
@@ -48,12 +50,18 @@ test('provider API auto-detects local Ollama and remote credentials', async () =
     scope: 'remote',
     available: true,
   }));
+  expect(result.resolution).toMatchObject({
+    provider: 'ollama',
+    source: 'detect',
+    providerPrompt: false,
+    wizard: 'optional',
+  });
 });
 
 test('provider API caches detection until force refresh', async () => {
   let calls = 0;
   const fetcher = mock(async () => Response.json({ models: [{ name: `model-${++calls}` }] })) as unknown as typeof fetch;
-  const api = createEmbeddingProviderApi({ env: {}, fetcher });
+  const api = createEmbeddingProviderApi({ env: {}, fetcher, vectorConfig: null, configSource: 'defaults' });
 
   const first = await api.detect({ force: true });
   const cached = await api.detect();
@@ -62,7 +70,36 @@ test('provider API caches detection until force refresh', async () => {
   expect(first.providers[0].models).toEqual(['model-1']);
   expect(cached.providers[0].models).toEqual(['model-1']);
   expect(refreshed.providers[0].models).toEqual(['model-2']);
+  expect(cached.resolution.source).toBe('detect');
   expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
+test('provider API resolves returning users from saved vector config', async () => {
+  const api = createEmbeddingProviderApi({
+    env: {},
+    fetcher: mock(async () => { throw new Error('no local server'); }) as unknown as typeof fetch,
+    vectorConfig: {
+      version: '1.0',
+      enabled: true,
+      host: '0.0.0.0',
+      port: 8081,
+      collections: {
+        docs: { collection: 'docs', model: 'bge-m3', provider: 'gemini', adapter: 'sqlite-vec', primary: true },
+      },
+      dataPath: '/tmp/vectors.db',
+      embeddingEndpoint: '',
+    },
+    configSource: 'file',
+  });
+
+  const result = await api.detect({ force: true });
+
+  expect(result.resolution).toMatchObject({
+    provider: 'gemini',
+    source: 'config',
+    returningUser: true,
+    providerPrompt: false,
+  });
 });
 
 test('provider API probes an embedding provider config', async () => {

@@ -37,6 +37,43 @@ describe('ψ reindex hardening', () => {
     expect(ftsBySource(h.dbPath, 'ψ/memory/learnings/stable.md')).toContain('changed vector-worthy');
   });
 
+  test('chunks long source docs before storing and queueing vectors', async () => {
+    const h = makeHarness('chunking');
+    const para = (label: string, char: string) => `${label} ${char.repeat(330)}`;
+    writeLearning(h.repoRoot, 'chunked.md', [
+      para('alpha', 'a'),
+      '',
+      para('beta', 'b'),
+      '',
+      para('gamma', 'c'),
+    ].join('\n'));
+
+    await runIndex(h);
+
+    const db = new Database(h.dbPath, { readonly: true });
+    try {
+      const rows = db.query<{ id: string; content: string }, []>(`
+        SELECT d.id, f.content FROM oracle_documents d
+        JOIN oracle_fts f ON f.id = d.id
+        WHERE d.source_file = 'ψ/memory/learnings/chunked.md'
+        ORDER BY d.id
+      `).all();
+      expect(rows.map((row) => row.id)).toEqual([
+        'learning_ψ/memory/learnings/chunked__chunk_0',
+        'learning_ψ/memory/learnings/chunked__chunk_1',
+      ]);
+      expect(rows[0].content).toContain('alpha');
+      expect(rows[0].content).toContain('beta');
+      expect(rows[0].content).not.toContain('gamma');
+      expect(rows[1].content).toContain('gamma');
+
+      const jobIds = db.query<{ doc_id: string }, []>('SELECT doc_id FROM indexing_jobs ORDER BY doc_id').all();
+      expect([...new Set(jobIds.map((row) => row.doc_id))]).toEqual(rows.map((row) => row.id));
+    } finally {
+      db.close();
+    }
+  });
+
   test('supersedes stale document ids when a source reindexes to a new id', async () => {
     const h = makeHarness('supersede');
     writeLearning(h.repoRoot, 'rotate.md', '---\nid: old-rotate\n---\nold body');

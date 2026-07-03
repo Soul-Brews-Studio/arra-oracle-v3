@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-arra-oracle-v3 exposes 27 MCP tools across configurable groups, Oracle profiles, bridge tools, and standalone tools.
+arra-oracle-v3 exposes 28 MCP tools across configurable groups, Oracle profiles, bridge tools, and standalone tools.
 
 ## Tool Groups
 
@@ -54,10 +54,11 @@ Groups can be enabled/disabled via `arra.config.json` (repo-local) or `~/.arra-o
 | `oracle_thread_read` | Read full message history from a thread. |
 | `oracle_thread_update` | Update thread status (close, reopen, mark answered). |
 
-## Oracle Profiles (1 tool)
+## Oracle (2 tools)
 
 | Tool | Description |
 |------|-------------|
+| `oracle_recap` | Cheap recap of identity, projects, and recent top memories for session warmup. |
 | `oracle_profile` | List/read code-backed Oracle profiles such as Thor Oracle / Stormforge. |
 
 ## Trace (7 tools)

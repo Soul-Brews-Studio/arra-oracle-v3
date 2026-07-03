@@ -5,6 +5,7 @@ describe('runtime MCP manifest', () => {
   it('has unique manifest-driven tool names', () => {
     const names = mcpTools.map((tool) => tool.name);
     expect(new Set(names).size).toBe(names.length);
+    expect(names).toContain('oracle_recap');
     expect(names).toContain('oracle_search');
     expect(names).toContain('oracle_mcp_call');
   });
@@ -21,6 +22,7 @@ describe('runtime MCP manifest', () => {
   });
 
   it('models read-only behavior from manifest metadata', () => {
+    expect(mcpToolByName.get('oracle_recap')?.readOnly).toBe(true);
     expect(mcpToolByName.get('oracle_search')?.readOnly).toBe(true);
     expect(mcpToolByName.get('oracle_learn')?.readOnly).toBe(false);
     expect(mcpToolByName.get('oracle_mcp_call')?.readOnly).toBe(false);

@@ -101,6 +101,12 @@ async function main() {
     process.exit(await doctorCommand(args.slice(1)));
   }
 
+  if (cmd === "mine") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    const { mineCommand } = await import("../../src/cli/commands/mine.ts");
+    process.exit(await mineCommand(args.slice(1)));
+  }
+
   if (cmd === "huginn") {
     if (hasHelpFlag(args.slice(1))) return printScopedBuiltinHelp(cmd, args.slice(1));
     process.exit(await huginnCommand(args.slice(1)));

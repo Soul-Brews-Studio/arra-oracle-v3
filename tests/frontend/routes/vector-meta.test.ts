@@ -14,7 +14,7 @@ describe('vector route metadata', () => {
     });
     expect(routeMeta('/vector/first-run')).toMatchObject({
       title: 'First-run setup',
-      description: 'Auto-detect providers, review cost, and start the first vector index.',
+      description: 'Use the local backend default, review cost, and start the first vector index.',
     });
   });
 });

@@ -47,7 +47,7 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
   }
 
   if (pathname === '/vector/first-run') {
-    return base('First-run setup', 'Vector', 'Auto-detect providers, review cost, and start the first vector index.', [
+    return base('First-run setup', 'Vector', 'Use the local backend default, review cost, and start the first vector index.', [
       { label: 'Vector dashboard', to: '/vector' },
       { label: 'First-run setup' },
     ]);

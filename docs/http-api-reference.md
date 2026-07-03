@@ -20,7 +20,7 @@ Protected routes may require API token/session auth; tenant-aware routes honor `
 
 | Method | Path | Request | Response |
 |---|---|---|---|
-| GET | `/api/health` | None. | Aggregate `{ status, uptime, version, db, vectorStatus, pluginStatus }` |
+| GET | `/api/health` | None. | Aggregate `{ status, healthStatus, subsystems, uptime, version }` |
 | GET | `/api/stats` | Optional `X-Oracle-Tenant`. | Document, vector, vault, tenant-scoped counts. |
 | GET | `/api/oracles` | Optional tenant header. | Oracle identities/projects summary. |
 | GET | `/api/oracles/profiles` | None. | Code-backed Oracle profile registry. |
@@ -38,6 +38,7 @@ Protected routes may require API token/session auth; tenant-aware routes honor `
 | Method | Path | Request | Response |
 |---|---|---|---|
 | GET | `/api/search` | `q` required; `limit?, type?, project?, cwd?, mode?` | `{ query, results, total, searchTimeMs }` |
+| POST | `/api/ask` | `{ q, llm?, limit?, type?, project?, cwd?, model? }` | Cited extractive/LLM answer with sources. |
 | GET | `/api/reflect` | None. | Reflection content or fallback error object. |
 | GET | `/api/list` | Optional filters. | Document list. |
 | GET | `/api/learn` | None. | `{ items, total }` active learn entries. |
@@ -146,10 +147,6 @@ Protected routes may require API token/session auth; tenant-aware routes honor `
 | Method | Path | Request | Response |
 |---|---|---|---|
 | GET/POST | `/api/feed` | GET list; POST feed item body. | Feed list or created item. |
-| GET | `/api/oraclenet/feed` | Query filters optional. | OracleNet feed. |
-| GET | `/api/oraclenet/oracles` | None. | OracleNet oracle list. |
-| GET | `/api/oraclenet/presence` | None. | Presence map. |
-| GET | `/api/oraclenet/status` | None. | OracleNet status. |
 | GET | `/api/threads` | Query filters optional. | Forum threads. |
 | POST | `/api/thread` | Thread body. | Created thread. |
 | GET | `/api/thread/:id` | `id` path. | Thread detail. |

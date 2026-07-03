@@ -64,7 +64,7 @@ export function logSearch(
     if (results.length > 0) {
       const expectedFields = [
         'id', 'type', 'content', 'source_file', 'concepts', 'source', 'score',
-        'distance', 'model', 'ftsScore', 'vectorScore', 'entity_score',
+        'distance', 'model', 'ftsScore', 'vectorScore', 'pointerScore', 'pointerMatches', 'entity_score',
         'entity_matches', 'entityLinkScore', 'entityLinkMatches', 'confidence', 'provenance',
         'superseded_by', 'superseded_at', 'superseded_reason',
       ];

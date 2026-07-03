@@ -6,8 +6,11 @@ import { Database } from 'bun:sqlite';
 import { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../db/schema.ts';
 import { oracleDocuments } from '../db/schema.ts';
+import { enrichTextWithAcronyms } from '../search/acronyms.ts';
 import { tenantIdForWrite } from '../middleware/tenant.ts';
 import { replaceEntityLinks } from '../search/entity-ranking.ts';
+import { chunkDocumentsForIndexing } from './chunk-text.ts';
+import { replaceDocumentPointers } from '../search/pointer-index.ts';
 import type { VectorStoreAdapter } from '../vector/types.ts';
 import type { OracleDocument } from '../types.ts';
 
@@ -25,6 +28,7 @@ export async function storeDocuments(
 ): Promise<void> {
   const now = Date.now();
   const tenantId = opts.tenantId ?? tenantIdForWrite();
+  const storedDocuments = chunkDocumentsForIndexing(documents);
 
   // Prepare FTS statements. FTS5 virtual tables have no UNIQUE constraint on
   // the id column (it's UNINDEXED), so INSERT OR REPLACE doesn't dedupe —
@@ -45,7 +49,7 @@ export async function storeDocuments(
   // Wrap SQLite inserts in a transaction for performance + atomicity
   sqlite.exec('BEGIN');
   try {
-    for (const doc of documents) {
+    for (const doc of storedDocuments) {
       // SQLite metadata - use doc.project if available, fall back to repo project
       const docProject = (doc.project || project)?.toLowerCase();
 
@@ -80,30 +84,42 @@ export async function storeDocuments(
         })
         .run();
 
+      const indexedContent = enrichTextWithAcronyms(doc.content);
+
       // SQLite FTS (raw SQL required for FTS5): delete then insert to avoid
       // duplicates across re-index runs.
       deleteFts.run(doc.id);
       insertFts.run(
         doc.id,
-        doc.content,
+        indexedContent,
         doc.concepts.join(' ')
       );
       replaceEntityLinks(sqlite, {
         documentId: doc.id,
         tenantId,
-        content: doc.content,
+        content: indexedContent,
         concepts: doc.concepts,
         now,
+      });
+      replaceDocumentPointers(sqlite, {
+        documentId: doc.id,
+        tenantId,
+        content: indexedContent,
+        concepts: doc.concepts,
+        timestamp: doc.updated_at || doc.created_at,
       });
 
       // Vector store metadata (must be primitives, not arrays)
       ids.push(doc.id);
-      contents.push(doc.content);
+      contents.push(indexedContent);
       metadatas.push({
         type: doc.type,
         tenant_id: tenantId,
         source_file: doc.source_file,
-        concepts: doc.concepts.join(',')
+        concepts: doc.concepts.join(','),
+        ...(doc.chunk_index !== undefined && { chunk_index: doc.chunk_index }),
+        ...(doc.line_start !== undefined && { line_start: doc.line_start }),
+        ...(doc.line_end !== undefined && { line_end: doc.line_end }),
       });
     }
     sqlite.exec('COMMIT');

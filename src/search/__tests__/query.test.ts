@@ -18,6 +18,8 @@ describe('search query helpers', () => {
     expect(parseConcepts('[" one ","one",7,"two"]')).toEqual(['one', 'two']);
     expect(parseConcepts('"not-array"')).toEqual([]);
     expect(buildTenantFtsQuery('<b>alpha</b> OR ( beta alpha gamma delta epsilon zeta eta theta iota'))
-      .toBe('"alpha" OR "OR" OR "beta" OR "gamma" OR "delta" OR "epsilon" OR "zeta" OR "eta"');
+      .toBe('"alpha" OR "OR" OR "beta" OR "gamma" OR "delta" OR "epsilon" OR "zeta" OR "eta" OR "theta" OR "iota"');
+    expect(buildTenantFtsQuery('CORS PNA'))
+      .toContain('"Cross" OR "Origin" OR "Resource" OR "Sharing" OR "Access"');
   });
 });

@@ -34,6 +34,8 @@ import {
   supersedeReplacedSourceDocs,
 } from './reindex-state.ts';
 import { storeDocuments } from './storage.ts';
+import { chunkDocumentsForIndexing } from './chunk-text.ts';
+import { removeDocumentPointers } from '../search/pointer-index.ts';
 
 export interface IndexOptions {
   append?: boolean;
@@ -109,6 +111,11 @@ export class OracleIndexer {
       );
     }
 
+    const indexDocuments = chunkDocumentsForIndexing(documents);
+    if (indexDocuments.length !== documents.length) {
+      console.log(`Chunked ${documents.length} source documents into ${indexDocuments.length} index chunks`);
+    }
+
     if (append) {
       console.log('Append mode: skipping smart delete (preserving existing docs from other repo roots)');
     } else {
@@ -148,20 +155,21 @@ export class OracleIndexer {
           const batch = idsToDelete.slice(i, i + BATCH_SIZE);
           const placeholders = batch.map(() => '?').join(',');
           this.sqlite.prepare(`DELETE FROM oracle_fts WHERE id IN (${placeholders})`).run(...batch);
+          removeDocumentPointers(this.sqlite, tenantId, batch);
         }
       }
     }
 
-    const changedIds = changedDocumentIds(beforeDocs, documents);
+    const changedIds = changedDocumentIds(beforeDocs, indexDocuments);
 
     // Store in SQLite + FTS5 first. Vector work is queued afterwards so
     // embedding failures cannot roll back the source-of-truth text index.
-    await storeDocuments(this.sqlite, this.db, null, this.project, documents, { tenantId });
-    const superseded = supersedeReplacedSourceDocs(this.sqlite, documents, tenantId);
-    const vectorJobs = safeEnqueueVectorJobs(this.sqlite, documents, changedIds);
+    await storeDocuments(this.sqlite, this.db, null, this.project, indexDocuments, { tenantId });
+    const superseded = supersedeReplacedSourceDocs(this.sqlite, indexDocuments, tenantId);
+    const vectorJobs = safeEnqueueVectorJobs(this.sqlite, indexDocuments, changedIds);
 
-    setIndexingStatus(this.sqlite, this.config, false, documents.length, documents.length);
-    console.log(`Indexed ${documents.length} documents (SQLite + FTS5)`);
+    setIndexingStatus(this.sqlite, this.config, false, indexDocuments.length, indexDocuments.length);
+    console.log(`Indexed ${indexDocuments.length} chunks (SQLite + FTS5)`);
     if (superseded > 0) console.log(`Superseded ${superseded} stale document ids from reindexed sources`);
     console.log(`Queued ${vectorJobs.queued} vector job(s); skipped ${vectorJobs.skipped}`);
     if (vectorJobs.failed > 0) console.warn(`Failed to queue ${vectorJobs.failed} vector job(s); FTS5 index remains current`);

@@ -16,7 +16,11 @@ export type {
   OracleHandoffInput,
   OracleInboxInput,
   OracleReadInput,
+  OracleRecapInput,
 } from './types.ts';
+
+// Recap
+export { recapToolDef, handleRecap } from './recap.ts';
 
 // Search (+ pure helpers)
 export {

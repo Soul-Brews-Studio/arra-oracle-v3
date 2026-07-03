@@ -1,7 +1,9 @@
+import { augmentQueryWithAcronyms } from './acronyms.ts';
+
 export type SearchMode = 'hybrid' | 'fts' | 'vector';
 
 const SEARCH_MODES = new Set<SearchMode>(['hybrid', 'fts', 'vector']);
-const FTS_TOKEN_LIMIT = 8;
+const FTS_TOKEN_LIMIT = 32;
 
 function parseWholeNumber(value: string | undefined): number | undefined {
   const normalized = value?.trim();
@@ -41,7 +43,7 @@ export function parseConcepts(value: unknown): string[] {
 }
 
 export function buildTenantFtsQuery(query: string): string {
-  const tokens = query
+  const tokens = augmentQueryWithAcronyms(query)
     .replace(/<[^>]*>/g, ' ')
     .normalize('NFKC')
     .match(/[\p{L}\p{N}_]+/gu)

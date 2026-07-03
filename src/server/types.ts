@@ -8,10 +8,12 @@ export interface SearchResult {
   content: string;
   source_file: string;
   concepts: string[];
-  source?: 'fts' | 'vector' | 'hybrid';
+  source?: 'fts' | 'vector' | 'pointer' | 'hybrid';
   score?: number;
   distance?: number;
   model?: string;
+  pointerScore?: number;
+  pointerMatches?: string[];
   entity_score?: number;
   entity_matches?: string[];
   entityLinkScore?: number;
@@ -78,10 +80,12 @@ export interface DashboardSummary {
 }
 
 export type RuntimeStatus = 'ok' | 'down' | 'degraded' | 'draining' | string;
-
+export type PublicHealthStatus = 'healthy' | 'starting' | 'degraded' | 'down';
+export type HealthSubsystemName = 'backend' | 'database' | 'db' | 'fts' | 'vector' | 'embedder' | 'mcp' | 'plugins' | 'plugin';
+export type HealthUptimeSeconds = number | { seconds: number };
+export type VectorRuntimeMode = 'embedded' | 'proxied' | 'disabled';
 export type HealthDbStatus = 'connected' | 'error' | 'ok' | 'down';
 export type PluginHealthStatus = 'ok' | 'degraded';
-export type VectorMode = 'embedded' | 'proxied' | 'disabled';
 
 export interface HealthDbCheck {
   status: HealthDbStatus;
@@ -89,48 +93,40 @@ export interface HealthDbCheck {
   error?: string;
 }
 
-export interface VectorHealthEngine {
-  key?: string;
-  model?: string;
-  collection?: string;
-  adapter?: string;
-  embeddingProvider?: string;
-  connectionStatus?: 'connected' | 'error' | string;
-  count?: number;
-  ok?: boolean;
-  error?: string;
-}
-
-export interface VectorServiceHealth {
-  name: string;
-  type?: string;
-  endpoint?: string;
-  status?: string;
-  available?: boolean;
-  health?: { status?: string; error?: string; checkedAt?: string };
-}
-
 export interface VectorHealthResponse {
   status: RuntimeStatus;
-  engines: VectorHealthEngine[];
-  collections?: VectorHealthEngine[];
+  engines: Array<Record<string, unknown>>;
+  collections?: Array<Record<string, unknown>>;
   checked_at: string;
   proxy?: string;
   error?: string;
-  services?: VectorServiceHealth[];
+  services?: Array<Record<string, unknown>>;
+}
+
+export interface HealthSubsystemDetail {
+  status: PublicHealthStatus;
+  label: string;
+  detail: string;
+  critical: boolean;
+  checkedAt?: string;
+  data?: Record<string, unknown>;
 }
 
 export interface HealthResponse {
   status: RuntimeStatus;
+  healthStatus?: PublicHealthStatus;
+  state?: PublicHealthStatus;
+  checked_at?: string;
   server: string;
   version: string;
   port?: number;
   sandbox?: string;
   oracle?: 'connected' | 'degraded';
   uptimeSeconds?: number;
+  uptimeSecondsBreakdown?: HealthUptimeSeconds;
   dbStatus?: HealthDbStatus;
   vectorStatus?: RuntimeStatus;
-  vectorMode?: VectorMode;
+  vectorMode?: VectorRuntimeMode;
   vectorAvailable?: boolean;
   vectorUrl?: string;
   vectorDisabledReason?: string;
@@ -138,8 +134,7 @@ export interface HealthResponse {
   mcpToolCount?: number;
   pluginCount?: number;
   draining?: boolean;
-  uptime?: number | { seconds: number };
-  uptimeSecondsBreakdown?: { seconds: number };
+  uptime?: HealthUptimeSeconds;
   db?: HealthDbStatus | ({ status: HealthDbStatus; path?: string; error?: string });
   dbCheck?: HealthDbCheck;
   vector?: VectorHealthResponse;
@@ -150,6 +145,7 @@ export interface HealthResponse {
     status: PluginHealthStatus;
     items: Array<{ name: string; status: PluginHealthStatus; error?: string }>;
   };
+  subsystems?: Partial<Record<HealthSubsystemName, HealthSubsystemDetail>>;
 }
 
 export interface MemoryUsageSnapshot {

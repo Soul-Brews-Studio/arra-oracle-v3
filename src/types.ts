@@ -15,6 +15,9 @@ export interface OracleDocument {
   source_file: string;  // Relative path from repo root
   content: string;      // The actual text to embed
   concepts: string[];   // Tags for filtering: ['trust', 'patterns', 'mirror']
+  chunk_index?: number; // Indexer chunk ordinal within source document
+  line_start?: number;  // 1-based inclusive source line for this chunk
+  line_end?: number;    // 1-based inclusive source line for this chunk
   created_at: number;   // Unix timestamp
   updated_at: number;   // Unix timestamp
   project?: string | null; // Source project (null = universal, undefined = inherit)

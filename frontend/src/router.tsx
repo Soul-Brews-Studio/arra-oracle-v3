@@ -14,6 +14,7 @@ import { CanvasPluginsPage } from './pages/CanvasPluginsPage';
 import { SearchPage } from './pages/SearchPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { StatusPage } from './pages/StatusPage';
+import { SimplePage } from './pages/SimplePage';
 import { StoragePage } from './pages/StoragePage';
 import { VectorPage } from './pages/VectorPage';
 import { VectorSearchPage } from './pages/VectorSearchPage';
@@ -49,6 +50,7 @@ export const frontendRoutes = [
   '/mcp',
   '/storage',
   '/settings',
+  '/simple',
 ] as const;
 export type FrontendRoute = typeof frontendRoutes[number];
 
@@ -73,6 +75,15 @@ export function AppRouter({ children }: { children: ReactNode }) {
     <ErrorBoundary>
       <BrowserRouter>{children}</BrowserRouter>
     </ErrorBoundary>
+  );
+}
+
+export function SimpleRoutes() {
+  return (
+    <Routes>
+      <Route path="/simple" element={<SimplePage />} />
+      <Route path="*" element={<Navigate to="/simple" replace />} />
+    </Routes>
   );
 }
 

@@ -48,7 +48,16 @@ export const oracleEntityLinks = sqliteTable('oracle_entity_links', {
   index('idx_entity_links_tenant_key').on(table.tenantId, table.entityKey),
   index('idx_entity_links_tenant_doc').on(table.tenantId, table.documentId),
 ]);
-// Challenge 2 memory system persistence (#1457)
+export const oraclePointerIndex = sqliteTable('oracle_pointer_index', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').default('default').notNull().references(() => tenants.id),
+  kind: text('kind').notNull(), key: text('key').notNull(),
+  docIds: text('doc_ids').default('[]').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, (table) => [
+  index('idx_pointer_tenant_kind_key').on(table.tenantId, table.kind, table.key),
+  index('idx_pointer_tenant_updated').on(table.tenantId, table.updatedAt),
+]);
 export const oracleMemories = sqliteTable('oracle_memories', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').default('default').notNull(),
@@ -71,7 +80,7 @@ export const oracleMemories = sqliteTable('oracle_memories', {
   index('idx_memory_tenant_valid_time').on(table.tenantId, table.validFrom, table.validTo),
   index('idx_memory_tenant_tier_heat').on(table.tenantId, table.tier, table.heatScore),
 ]);
-// Indexing status tracking
+
 export const indexingStatus = sqliteTable('indexing_status', {
   id: integer('id').primaryKey(),
   isIndexing: integer('is_indexing').default(0).notNull(),
@@ -80,7 +89,7 @@ export const indexingStatus = sqliteTable('indexing_status', {
   startedAt: integer('started_at'),
   completedAt: integer('completed_at'),
   error: text('error'),
-  repoRoot: text('repo_root'),  // Root directory being indexed
+  repoRoot: text('repo_root'),
 });
 export const indexingJobs = sqliteTable('indexing_jobs', {
   id: text('id').primaryKey(),
@@ -96,7 +105,7 @@ export const indexingJobs = sqliteTable('indexing_jobs', {
   finishedAt: integer('finished_at'),
   error: text('error'),
 });
-// Search query logging
+
 export const searchLog = sqliteTable('search_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   query: text('query').notNull(),
@@ -107,15 +116,14 @@ export const searchLog = sqliteTable('search_log', {
   searchTimeMs: integer('search_time_ms'),
   createdAt: integer('created_at').notNull(),
   project: text('project'),
-  results: text('results'), // JSON array of top 5 results (id, type, score, snippet)
+  results: text('results'),
 }, (table) => [
   index('idx_search_project').on(table.project),
   index('idx_search_tenant').on(table.tenantId),
   index('idx_search_created').on(table.createdAt),
   index('idx_search_tenant_created').on(table.tenantId, table.createdAt),
 ]);
-// Consult log — legacy table kept for backward compat (pre-0007 snapshot had it).
-// Not actively used; retained to avoid destructive migration drop.
+
 export const consultLog = sqliteTable('consult_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   decision: text('decision').notNull(),
@@ -129,7 +137,7 @@ export const consultLog = sqliteTable('consult_log', {
   index('idx_consult_project').on(table.project),
   index('idx_consult_created').on(table.createdAt),
 ]);
-// Learning/pattern logging
+
 export const learnLog = sqliteTable('learn_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   documentId: text('document_id').notNull(),
@@ -145,7 +153,6 @@ export const learnLog = sqliteTable('learn_log', {
   index('idx_learn_created').on(table.createdAt),
 ]);
 
-// Document access logging
 export const documentAccess = sqliteTable('document_access', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   documentId: text('document_id').notNull(),
@@ -164,8 +171,8 @@ export const forumThreads = sqliteTable('forum_threads', {
   title: text('title').notNull(),
   tenantId: text('tenant_id').default('default').notNull(),
   createdBy: text('created_by').default('human'),
-  status: text('status').default('active'), // active, answered, pending, closed
-  issueUrl: text('issue_url'),              // GitHub mirror URL
+  status: text('status').default('active'),
+  issueUrl: text('issue_url'),
   issueNumber: integer('issue_number'),
   project: text('project'),
   createdAt: integer('created_at').notNull(),
@@ -181,56 +188,47 @@ export const forumThreads = sqliteTable('forum_threads', {
 export const forumMessages = sqliteTable('forum_messages', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   threadId: integer('thread_id').notNull().references(() => forumThreads.id),
-  role: text('role').notNull(),             // human, oracle, claude
+  role: text('role').notNull(),
   content: text('content').notNull(),
-  author: text('author'),                   // GitHub username or "oracle"
+  author: text('author'),
   principlesFound: integer('principles_found'),
   patternsFound: integer('patterns_found'),
   searchQuery: text('search_query'),
-  commentId: integer('comment_id'),         // GitHub comment ID if synced
+  commentId: integer('comment_id'),
   createdAt: integer('created_at').notNull(),
 }, (table) => [
   index('idx_message_thread').on(table.threadId),
   index('idx_message_role').on(table.role),
   index('idx_message_created').on(table.createdAt),
 ]);
-// Note: FTS5 virtual table (oracle_fts) is managed via raw SQL
-// since Drizzle doesn't natively support FTS5
-// Trace Log Tables (discovery tracing with dig points)
 export const traceLog = sqliteTable('trace_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   traceId: text('trace_id').unique().notNull(),
   tenantId: text('tenant_id').default('default').notNull(),
   query: text('query').notNull(),
-  queryType: text('query_type').default('general'),  // general, project, pattern, evolution
-
-  foundFiles: text('found_files'),            // [{path, type, matchReason, confidence}]
-  foundCommits: text('found_commits'),        // [{hash, shortHash, date, message}]
-  foundIssues: text('found_issues'),          // [{number, title, state, url}]
-  foundRetrospectives: text('found_retrospectives'),  // [paths]
-  foundLearnings: text('found_learnings'),    // [paths]
-  foundResonance: text('found_resonance'),    // [paths]
-
+  queryType: text('query_type').default('general'),
+  foundFiles: text('found_files'),
+  foundCommits: text('found_commits'),
+  foundIssues: text('found_issues'),
+  foundRetrospectives: text('found_retrospectives'),
+  foundLearnings: text('found_learnings'),
+  foundResonance: text('found_resonance'),
   fileCount: integer('file_count').default(0),
   commitCount: integer('commit_count').default(0),
   issueCount: integer('issue_count').default(0),
-
-  depth: integer('depth').default(0),         // 0 = initial, 1+ = dig from parent
-  parentTraceId: text('parent_trace_id'),     // Links to parent trace
-  childTraceIds: text('child_trace_ids').default('[]'),  // Links to child traces
-
-  prevTraceId: text('prev_trace_id'),         // ← Previous trace in chain
-  nextTraceId: text('next_trace_id'),         // → Next trace in chain
-
-  project: text('project'),                   // ghq format project path
-  scope: text('scope').default('project'),    // 'project' | 'cross-project' | 'human'
-  sessionId: text('session_id'),              // Claude session if available
+  depth: integer('depth').default(0),
+  parentTraceId: text('parent_trace_id'),
+  childTraceIds: text('child_trace_ids').default('[]'),
+  prevTraceId: text('prev_trace_id'),
+  nextTraceId: text('next_trace_id'),
+  project: text('project'),
+  scope: text('scope').default('project'),
+  sessionId: text('session_id'),
   agentCount: integer('agent_count').default(1),
   durationMs: integer('duration_ms'),
-
-  status: text('status').default('raw'),      // raw, reviewed, distilling, distilled
-  awakening: text('awakening'),               // Extracted insight (markdown)
-  distilledToId: text('distilled_to_id'),     // Learning ID if promoted
+  status: text('status').default('raw'),
+  awakening: text('awakening'),
+  distilledToId: text('distilled_to_id'),
   distilledAt: integer('distilled_at'),
 
   createdAt: integer('created_at').notNull(),

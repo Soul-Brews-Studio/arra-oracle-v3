@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { reloadCachedVectorStores } from '../../vector/factory.ts';
 import { LOCAL_VECTOR_ENGINES, activeVectorEngine, applyVectorConfigUpdate, configToModels, type VectorConfigUpdate, type VectorServerConfig } from '../../vector/config.ts';
+import { resolveVectorBackend } from '../../vector/backend-resolution.ts';
 import {
   activeConfig,
   atomicWriteVectorConfig,
@@ -89,6 +90,7 @@ function configResponse(
       localEngines: LOCAL_VECTOR_ENGINES,
       embeddingProviders: ['ollama', 'openai', 'gemini', 'cloudflare-ai', 'chromadb-internal'],
     },
+    resolution: resolveVectorBackend(config, source),
     config,
     collections,
     doc_counts: Object.fromEntries(collections.map((col) => [col.key, col.count])),

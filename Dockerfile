@@ -21,7 +21,8 @@ FROM deps AS builder
 COPY tsconfig.json ./
 COPY packages ./packages
 COPY src ./src
-RUN bun build src/server.ts src/index.ts --target bun --outdir dist
+RUN bun build src/server.ts src/index.ts --target bun --outdir dist \
+ && bun build src/cli/index.ts --target bun --outdir dist-cli
 
 FROM oven/bun:1 AS test
 WORKDIR /app
@@ -50,6 +51,7 @@ ENV HOME=/data \
     BUN_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/dist-cli ./dist-cli
 COPY --from=builder /app/src/db/migrations ./db/migrations
 COPY package.json bun.lock ./
 RUN mkdir -p /data \

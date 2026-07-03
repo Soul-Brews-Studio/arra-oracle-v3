@@ -20,8 +20,9 @@ import { detectProject } from './project-detect.ts';
 import { coerceConcepts } from '../tools/learn.ts';
 import { createVectorProxy } from './vector-proxy.ts';
 import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
-import { localNativeVectorDisabledReason, localVectorIndexMissingReason, logLocalVectorDisabled } from '../vector/cpu-capabilities.ts';
+import { localNativeVectorDisabledReason, localVectorIndexMissingReason, logLocalVectorDisabled, noteLocalVectorEnabled } from '../vector/cpu-capabilities.ts';
 import { isVectorSectionEnabled } from '../vector/config.ts';
+import { candidatePoolSize } from '../search/retrieve-depth.ts';
 
 // Module-level proxy instance — bound to VECTOR_URL at boot. If VECTOR_URL is
 // unset, this is null and the local vector adapter runs in-process (legacy
@@ -85,7 +86,7 @@ export function cosineDistanceToSimilarity(distance: number): number {
 
 /**
  * Search Oracle knowledge base with hybrid search (FTS5 + Vector)
- * HTTP server can safely use ChromaMcpClient since it's not an MCP server
+ * HTTP server can safely use the configured vector store (LanceDB by default) directly since it's not an MCP server
  */
 export async function handleSearch(
   query: string,
@@ -101,6 +102,7 @@ export async function handleSearch(
   const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
   const startTime = Date.now();
   const ftsQuery = buildFtsQuery(query);
+  const retrieveDepth = candidatePoolSize(limit);
   if (!ftsQuery) {
     return { results: [], total: 0, limit, offset, query };
   }
@@ -124,11 +126,16 @@ export async function handleSearch(
       effectiveMode = 'fts';
       warning = `${vectorDisabledReason}; falling back to FTS5-only results`;
       logLocalVectorDisabled(vectorDisabledReason);
-    } else if (!isVectorSectionEnabled()) {
-      vectorSectionDisabled = true;
-      effectiveMode = 'fts';
-    } else if (vectorIndexMissingReason) {
-      effectiveMode = 'fts';
+    } else {
+      // Native gate passed — re-arm the disabled-warning latch (de-latch) so a
+      // later transient disable logs afresh, not suppressed by a stale reason.
+      noteLocalVectorEnabled();
+      if (!isVectorSectionEnabled()) {
+        vectorSectionDisabled = true;
+        effectiveMode = 'fts';
+      } else if (vectorIndexMissingReason) {
+        effectiveMode = 'fts';
+      }
     }
   }
 
@@ -162,7 +169,7 @@ export async function handleSearch(
         ORDER BY rank
         LIMIT ?
       `);
-      ftsResults = runFtsAll<any>(stmt, [ftsQuery, ...projectParams, limit * 3]).map((row: any) => ({
+      ftsResults = runFtsAll<any>(stmt, [ftsQuery, ...projectParams, retrieveDepth]).map((row: any) => ({
         id: row.id,
         type: row.type,
         content: row.content,
@@ -189,7 +196,7 @@ export async function handleSearch(
         ORDER BY rank
         LIMIT ?
       `);
-      ftsResults = runFtsAll<any>(stmt, [ftsQuery, type, ...projectParams, limit * 3]).map((row: any) => ({
+      ftsResults = runFtsAll<any>(stmt, [ftsQuery, type, ...projectParams, retrieveDepth]).map((row: any) => ({
         id: row.id,
         type: row.type,
         content: row.content,
@@ -218,8 +225,8 @@ export async function handleSearch(
     const remote = await vectorProxy.search({
       q: query,
       type,
-      limit,
-      offset,
+      limit: retrieveDepth,
+      offset: 0,
       mode: 'vector',
       project: resolvedProject ?? undefined,
       cwd,
@@ -237,7 +244,7 @@ export async function handleSearch(
       const vector = await localVectorOperations.search({
         query,
         type,
-        limit,
+        limit: retrieveDepth,
         project: resolvedProject,
         model,
       });

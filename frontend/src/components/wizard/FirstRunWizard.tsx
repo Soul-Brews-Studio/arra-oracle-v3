@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ErrorMessage, LoadingPanel, Spinner } from '../AsyncState';
-import { apiFetch, type VectorProvider } from '../../api/oracle';
+import { apiFetch } from '../../api/oracle';
 import { useFirstRun } from '../../hooks/useFirstRun';
 
 type Step = 0 | 1 | 2 | 3;
@@ -15,7 +15,7 @@ type CollectionPlan = {
   primary?: boolean;
 };
 
-const steps = ['Welcome', 'Provider', 'Collections', 'Confirm'] as const;
+const steps = ['Welcome', 'Backend', 'Collections', 'Confirm'] as const;
 const defaultPlans: CollectionPlan[] = [
   { key: 'bge-m3', label: 'BGE M3', collection: 'oracle_knowledge_bge_m3', model: 'bge-m3', selected: true, primary: true },
   { key: 'nomic', label: 'Nomic Embed Text', collection: 'oracle_knowledge', model: 'nomic-embed-text', selected: true },
@@ -36,19 +36,9 @@ async function json<T>(path: string, init: RequestInit = {}): Promise<T> {
   return payload as T;
 }
 
-function providerLabel(provider?: VectorProvider): string {
-  if (!provider) return 'No provider selected';
-  const state = provider.available ? 'available' : provider.configured ? 'configured' : provider.status ?? 'unavailable';
-  return `${provider.type} · ${state}`;
-}
-
-function providerModels(provider?: VectorProvider): string {
-  return provider?.models?.slice(0, 3).join(', ') || provider?.error || provider?.status || 'No models reported';
-}
-
 function copyFor(step: Step): string {
   if (step === 0) return 'Oracle turns local notes, docs, traces, and handoffs into searchable memory for the operator dashboard and MCP tools.';
-  if (step === 1) return 'Choose the embedding provider that will generate vectors for semantic search.';
+  if (step === 1) return 'Use the local vector backend selected automatically for first run.';
   if (step === 2) return 'Pick the initial vector collections to create before the first index run.';
   return 'Review the setup choices, create selected collections, and start initial indexing.';
 }
@@ -56,8 +46,7 @@ function copyFor(step: Step): string {
 export function FirstRunWizard() {
   const { markSetupComplete, setupComplete } = useFirstRun();
   const [step, setStep] = useState<Step>(0);
-  const [providers, setProviders] = useState<VectorProvider[]>([]);
-  const [providerType, setProviderType] = useState('');
+  const [backend, setBackend] = useState('lancedb');
   const [plans, setPlans] = useState(defaultPlans);
   const [state, setState] = useState<LoadState>('loading');
   const [busy, setBusy] = useState(false);
@@ -66,12 +55,10 @@ export function FirstRunWizard() {
 
   useEffect(() => {
     let active = true;
-    json<{ providers?: VectorProvider[] }>('/api/v1/vector/providers')
+    json<{ engine?: string; resolution?: { engine?: string } }>('/api/v1/vector/config')
       .then((body) => {
         if (!active) return;
-        const next = body.providers ?? [];
-        setProviders(next);
-        setProviderType((current) => current || next.find((item) => item.available || item.configured)?.type || next[0]?.type || 'none');
+        setBackend(body.resolution?.engine ?? body.engine ?? 'lancedb');
         setState('ready');
       })
       .catch((cause) => {
@@ -82,8 +69,7 @@ export function FirstRunWizard() {
     return () => { active = false; };
   }, []);
 
-  const selected = useMemo(() => plans.filter((plan) => plan.selected), [plans]);
-  const selectedProvider = providers.find((provider) => provider.type === providerType);
+  const selected = plans.filter((plan) => plan.selected);
 
   function toggleCollection(key: string) {
     setPlans((current) => current.map((plan) => (
@@ -104,8 +90,8 @@ export function FirstRunWizard() {
           body: JSON.stringify({
             collection: plan.collection,
             model: plan.model,
-            provider: providerType,
-            adapter: 'lancedb',
+            provider: 'ollama',
+            adapter: backend === 'sqlite-vec' ? 'sqlite-vec' : 'lancedb',
             primary: plan.primary === true,
           }),
         }).catch((cause) => {
@@ -136,14 +122,14 @@ export function FirstRunWizard() {
         </ol>
       </div>
 
-      {state === 'loading' ? <LoadingPanel title="Loading providers" detail="Fetching /api/v1/vector/providers." /> : null}
-      {state === 'error' ? <ErrorMessage title="Could not load embedding providers." message={error} /> : null}
+      {state === 'loading' ? <LoadingPanel title="Loading local backend" detail="Fetching /api/v1/vector/config." /> : null}
+      {state === 'error' ? <ErrorMessage title="Could not load vector backend." message={error} /> : null}
 
       <div className="grid gap-4 lg:grid-cols-4">
         <WelcomeCard active={step === 0} complete={setupComplete} />
-        <ProviderCard active={step === 1} providers={providers} providerType={providerType} onChange={setProviderType} />
+        <BackendCard active={step === 1} backend={backend} />
         <CollectionsCard active={step === 2} plans={plans} onToggle={toggleCollection} />
-        <ConfirmCard active={step === 3} provider={selectedProvider} providerType={providerType} selected={selected} busy={busy} onStart={() => void startInitialIndexing()} />
+        <ConfirmCard active={step === 3} backend={backend} selected={selected} busy={busy} onStart={() => void startInitialIndexing()} />
       </div>
 
       {message ? <p className="rounded-2xl border border-accent-border p-4 text-sm text-accent">{message}</p> : null}
@@ -172,15 +158,13 @@ function WelcomeCard({ active, complete }: { active: boolean; complete: boolean 
   );
 }
 
-function ProviderCard({ active, providers, providerType, onChange }: { active: boolean; providers: VectorProvider[]; providerType: string; onChange: (value: string) => void }) {
+function BackendCard({ active, backend }: { active: boolean; backend: string }) {
   return (
     <article className={`${cardClass(active)} lg:col-span-2`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Provider</p>
-      <h2 className="mt-2 text-2xl font-semibold text-text">Embedding provider</h2>
-      <select className="focus-ring mt-5 w-full rounded-xl border border-border bg-field px-4 py-3 text-text" value={providerType} onChange={(event) => onChange(event.target.value)}>
-        {providers.length ? providers.map((provider) => <option key={provider.type} value={provider.type}>{providerLabel(provider)}</option>) : <option value="none">No providers loaded</option>}
-      </select>
-      <p className="mt-3 text-sm text-text-muted">{providerModels(providers.find((provider) => provider.type === providerType))}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Backend</p>
+      <h2 className="mt-2 text-2xl font-semibold text-text">Local backend default</h2>
+      <p className="mt-5 rounded-2xl border border-accent-border p-4 text-sm text-accent">{backend} is selected automatically. No provider prompt is required for first-run setup.</p>
+      <p className="mt-3 text-sm text-text-muted">Advanced provider tuning remains available in Vector Settings.</p>
     </article>
   );
 }
@@ -202,13 +186,13 @@ function CollectionsCard({ active, plans, onToggle }: { active: boolean; plans: 
   );
 }
 
-function ConfirmCard({ active, provider, providerType, selected, busy, onStart }: { active: boolean; provider?: VectorProvider; providerType: string; selected: CollectionPlan[]; busy: boolean; onStart: () => void }) {
+function ConfirmCard({ active, backend, selected, busy, onStart }: { active: boolean; backend: string; selected: CollectionPlan[]; busy: boolean; onStart: () => void }) {
   return (
     <article className={`${cardClass(active)} lg:col-span-2`}>
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Confirm</p>
       <h2 className="mt-2 text-2xl font-semibold text-text">Start initial indexing</h2>
       <dl className="mt-4 grid gap-2 text-sm text-text-muted">
-        <div><dt className="text-text-muted">Provider</dt><dd className="font-medium text-text">{providerLabel(provider) || providerType}</dd></div>
+        <div><dt className="text-text-muted">Backend</dt><dd className="font-medium text-text">{backend}</dd></div>
         <div><dt className="text-text-muted">Collections</dt><dd className="font-medium text-text">{selected.map((plan) => plan.key).join(', ') || 'none selected'}</dd></div>
       </dl>
       <button className="focus-ring mt-5 rounded-xl bg-accent-solid px-4 py-3 text-sm font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-50" disabled={busy || !selected.length} type="button" onClick={onStart}>

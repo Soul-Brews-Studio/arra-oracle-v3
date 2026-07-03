@@ -57,7 +57,7 @@ export async function vectorSearch(
     return mappedResults;
   } catch (error) {
     const errorMsg = error instanceof Error ? error.stack || error.message : String(error);
-    console.error('[ChromaDB ERROR]', errorMsg);
+    console.error('[Vector ERROR]', errorMsg);
     return [];
   }
 }

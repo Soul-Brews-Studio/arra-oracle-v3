@@ -6,6 +6,7 @@ use tauri_plugin_shell::{
 };
 
 mod app_menu;
+mod mine;
 
 const BACKEND_URL: &str = "http://localhost:47778";
 const BACKEND_HEALTH_URL: &str = "http://localhost:47778/api/health";
@@ -230,6 +231,7 @@ pub fn run() {
             get_about_info,
             start_backend,
             stop_backend,
+            mine::mine_folder,
         ])
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();

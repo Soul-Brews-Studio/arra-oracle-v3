@@ -26,6 +26,12 @@ describe("SetupWizard first-run detection", () => {
         { config: { collections: {} }, doc_counts: {} },
       ),
     ).toBe(false);
+    expect(
+      shouldShowSetupWizard(
+        { total_docs: 0, vector: { enabled: false, count: 0 } },
+        { resolution: { wizard: "optional", providerPrompt: false }, config: { collections: {} }, doc_counts: {} },
+      ),
+    ).toBe(false);
   });
 
 
@@ -42,26 +48,22 @@ describe("SetupWizard first-run detection", () => {
     });
   });
 
-  test("renders selectable first-run provider radios", () => {
+  test("renders local default backend instead of first-run provider radios", () => {
     const html = htmlFor(<StepBody
       step={1}
-      providers={[{ type: "ollama", available: false }, { type: "gemini", available: true }]}
-      recommended={{ type: "gemini", available: true }}
-      selectedProvider="gemini"
-      onProviderSelect={() => {}}
-      config={null}
+      config={{ resolution: { engine: "sqlite-vec", providerPrompt: false, wizard: "optional" } }}
     />);
-    expect(html).toContain('name="setup-provider"');
-    expect(html).toContain('gemini · recommended');
-    expect(html).toContain('Free tier available!');
+    expect(html).toContain("Local vector backend selected: sqlite-vec");
+    expect(html).not.toContain('name="setup-provider"');
+    expect(html).toContain("No embedding/provider choice is required");
   });
 
   test("renders semantic empty and done wizard states", () => {
-    const empty = htmlFor(<StepBody step={1} providers={[]} selectedProvider="" config={null} />);
-    const done = htmlFor(<StepBody step={3} providers={[]} config={null} />);
+    const empty = htmlFor(<StepBody step={1} config={null} />);
+    const done = htmlFor(<StepBody step={3} config={null} />);
 
-    expect(empty).toContain("No provider report yet");
-    expect(empty).toContain("border-warn-border bg-warn-bg text-warn-text");
+    expect(empty).toContain("Local vector backend selected: lancedb");
+    expect(empty).toContain("border-ok-border bg-ok-bg");
     expect(done).toContain("First-run setup complete");
     expect(done).toContain("border-ok-border bg-ok-bg text-ok-text");
   });
@@ -80,7 +82,6 @@ describe("SetupWizard first-run detection", () => {
   test("renders vault source controls for first-run indexing", () => {
     const html = htmlFor(<StepBody
       step={2}
-      providers={[]}
       config={{ config: { collections: { bge: { model: "bge-m3" } } } }}
       indexSource="vault"
       repoRoot="/repo/oracle"
@@ -113,7 +114,7 @@ describe("SetupWizard first-run detection", () => {
 
   test("labels the final wizard step as done with dashboard guidance", () => {
     expect(setupSteps[3]).toBe("Done");
-    const html = htmlFor(<StepBody step={3} providers={[]} config={null} />);
+    const html = htmlFor(<StepBody step={3} config={null} />);
     expect(html).toContain("Vector dashboard");
     expect(html).toContain("Vector Settings");
   });

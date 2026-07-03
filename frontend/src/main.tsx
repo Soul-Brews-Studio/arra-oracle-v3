@@ -9,10 +9,12 @@ import { loadTheme } from './theme';
 loadTheme();
 registerServiceWorker();
 
+function isSimpleRoute(): boolean {
+  return window.location.pathname === '/simple';
+}
+
+const app = isSimpleRoute() ? <App /> : <BackendGate><App /></BackendGate>;
+
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <BackendGate>
-      <App />
-    </BackendGate>
-  </StrictMode>,
+  <StrictMode>{app}</StrictMode>,
 );

@@ -26,8 +26,7 @@ curl -sf "${AUTH[@]}" "$BASE/api/v1/mcp/tools"
 
 ## Route inventory by family
 
-`createApp()` currently exposes 185 routes, 181 under `/api`; dynamic plugin
-routes may add more at runtime. These families match the mounted source modules.
+Base `createApp()` with no dynamic plugins/gateway config currently exposes 187 routes, 182 under `/api`; dynamic plugin and gateway routes may add more at runtime. These families match the mounted source modules.
 
 | Family | Methods and paths |
 | --- | --- |
@@ -76,7 +75,18 @@ curl -s "${AUTH[@]}" "$BASE/api/v1/vector/health"
 ```
 
 ```json
-{ "status": "ok", "server": "arra-oracle-v3", "db": "connected", "vectorStatus": "ok", "mcp": { "toolCount": 27 } }
+{
+  "status": "ok",
+  "healthStatus": "healthy",
+  "server": "arra-oracle-v3",
+  "subsystems": {
+    "db": { "status": "healthy" },
+    "fts": { "status": "healthy" },
+    "vector": { "status": "healthy" },
+    "plugin": { "status": "healthy" }
+  },
+  "mcp": { "toolCount": 28 }
+}
 ```
 
 ```json
@@ -140,9 +150,9 @@ curl -s "${AUTH[@]}" -H 'content-type: application/json' \
 ## MCP tool catalogue
 
 `GET /api/v1/mcp/tools` returns core tools plus active plugin tools; handler names
-are omitted. The 27 core names are, in order:
+are omitted. The 28 core names are, in order:
 
-`____IMPORTANT`, `oracle_search`, `oracle_read`, `oracle_learn`, `oracle_list`,
+`____IMPORTANT`, `oracle_recap`, `oracle_search`, `oracle_read`, `oracle_learn`, `oracle_list`,
 `oracle_stats`, `oracle_concepts`, `oracle_supersede`, `oracle_research_note`,
 `oracle_handoff`, `oracle_inbox`, `oracle_thread`, `oracle_threads`,
 `oracle_thread_read`, `oracle_thread_update`, `oracle_profile`, `oracle_trace`,
@@ -162,7 +172,7 @@ are omitted. The 27 core names are, in order:
       "source": "core"
     }
   ],
-  "total": 27
+  "total": 28
 }
 ```
 

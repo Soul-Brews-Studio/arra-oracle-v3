@@ -3,13 +3,16 @@
  */
 
 import { Elysia, t } from 'elysia';
-import { getEmbeddingModels, getVectorStoreByModel } from '../../vector/factory.ts';
+import { getVectorStoreByModel } from '../../vector/factory.ts';
 import { availableExportFormats, exportFormatInfo, getExportFormat } from '../../vector/export-formats.ts';
+import type { VectorServerConfig } from '../../vector/config.ts';
 import type { VectorStoreAdapter } from '../../vector/types.ts';
+import { activeConfig, resolveCollection as resolveConfigCollection } from './config-api-utils.ts';
 
 interface VectorExportDeps {
   getStore?: (collection?: string) => VectorStoreAdapter;
   getModels?: () => Record<string, unknown>;
+  getConfig?: () => VectorServerConfig;
 }
 
 const DEFAULT_COLLECTION = 'bge-m3';
@@ -17,6 +20,7 @@ const DEFAULT_EXPORT_LIMIT = 50_000;
 const encoder = new TextEncoder();
 
 type GetStore = NonNullable<VectorExportDeps['getStore']>;
+type CollectionSelection = { storeKey: string; filename: string };
 
 function progressEvent(event: string, payload: Record<string, unknown>): Uint8Array {
   return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
@@ -56,14 +60,37 @@ function progressStream(getStore: GetStore, collection: string): ReadableStream<
   });
 }
 
-function resolveCollection(collection: string | undefined, getModels?: () => Record<string, unknown>): string | null {
+function modelCollectionName(model: unknown): string | null {
+  return typeof model === 'object'
+    && model !== null
+    && 'collection' in model
+    && typeof model.collection === 'string'
+    ? model.collection
+    : null;
+}
+
+function configForResolution(getConfig?: () => VectorServerConfig, getModels?: () => Record<string, unknown>) {
+  if (getConfig) return getConfig();
+  return getModels ? null : activeConfig().config;
+}
+
+function resolveCollection(collection: string | undefined, deps: VectorExportDeps): CollectionSelection | null {
   const resolved = (collection || DEFAULT_COLLECTION).trim() || DEFAULT_COLLECTION;
-  return !getModels || resolved in getModels() ? resolved : null;
+  const config = configForResolution(deps.getConfig, deps.getModels);
+  if (config) {
+    const match = resolveConfigCollection(config, resolved);
+    return match ? { storeKey: match[0], filename: resolved } : null;
+  }
+
+  const models = deps.getModels?.();
+  if (!models) return { storeKey: resolved, filename: resolved };
+  if (resolved in models) return { storeKey: resolved, filename: resolved };
+  const byCollection = Object.entries(models).find(([, model]) => modelCollectionName(model) === resolved);
+  return byCollection ? { storeKey: byCollection[0], filename: resolved } : null;
 }
 
 export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
   const getStore = deps.getStore ?? getVectorStoreByModel;
-  const getModels = deps.getModels ?? getEmbeddingModels;
 
   return new Elysia()
     .get('/vector/export/formats', () => ({ formats: availableExportFormats() }), {
@@ -75,13 +102,13 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
     .get(
       '/vector/export/progress',
       ({ query, set }) => {
-        const collection = resolveCollection(query.collection, getModels);
+        const collection = resolveCollection(query.collection, deps);
         if (!collection) {
           set.status = 404;
           return { error: `Unknown vector collection: ${query.collection}` };
         }
 
-        return new Response(progressStream(getStore, collection), {
+        return new Response(progressStream(getStore, collection.storeKey), {
           headers: {
             'Content-Type': 'text/event-stream; charset=utf-8',
             'Cache-Control': 'no-cache, no-transform',
@@ -106,13 +133,13 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
         return { error: 'Invalid format', formats: availableExportFormats() };
       }
 
-      const collection = resolveCollection(query.collection, getModels);
+      const collection = resolveCollection(query.collection, deps);
       if (!collection) {
         set.status = 404;
         return { error: `Unknown vector collection: ${query.collection}` };
       }
 
-      const store = getStore(collection);
+      const store = getStore(collection.storeKey);
       try {
         await store.connect();
         await store.ensureCollection();
@@ -129,7 +156,7 @@ export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
         return new Response(stream, {
           headers: {
             'Content-Type': info.mimeType,
-            'Content-Disposition': `attachment; filename="${collection}.${info.extension}"`,
+            'Content-Disposition': `attachment; filename="${collection.filename}.${info.extension}"`,
           },
         });
       } catch (error) {

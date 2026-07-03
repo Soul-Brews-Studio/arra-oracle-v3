@@ -18,7 +18,8 @@ test('search mode parser trims, lowercases, and rejects unknown modes', () => {
 test('FTS query builders strip punctuation, dedupe terms, and cap token fanout', () => {
   const raw = '<b>alpha</b> beta alpha gamma delta epsilon zeta eta theta iota OR ( )';
 
-  expect(buildTenantFtsQuery(raw)).toBe('"alpha" OR "beta" OR "gamma" OR "delta" OR "epsilon" OR "zeta" OR "eta" OR "theta"');
+  expect(buildTenantFtsQuery(raw)).toBe('"alpha" OR "beta" OR "gamma" OR "delta" OR "epsilon" OR "zeta" OR "eta" OR "theta" OR "iota" OR "OR"');
+  expect(buildTenantFtsQuery(Array.from({ length: 40 }, (_, index) => `term${index}`).join(' ')).split(' OR ')).toHaveLength(32);
 });
 
 test('parseConcepts trims, de-duplicates, and ignores non-string entries', () => {

@@ -1,20 +1,16 @@
 import { SetupWizardCostEstimate } from "./SetupWizardCostEstimate";
 import { StateNotice } from "./StateNotice";
-import type { Provider, Step, VectorConfig, VectorIndexSource } from "./setupWizardTypes";
+import type { Step, VectorConfig, VectorIndexSource } from "./setupWizardTypes";
 
 export const setupSteps = [
   "Welcome",
-  "Provider",
+  "Local backend",
   "Vault path",
   "Done",
 ] as const;
 
 export function StepBody({
   step,
-  providers,
-  recommended,
-  selectedProvider = '',
-  onProviderSelect,
   config,
   indexSource = 'auto',
   repoRoot = '',
@@ -22,10 +18,6 @@ export function StepBody({
   onRepoRoot,
 }: {
   step: Step;
-  providers: Provider[];
-  recommended?: Provider;
-  selectedProvider?: string;
-  onProviderSelect?: (provider: string) => void;
   config: VectorConfig | null;
   indexSource?: VectorIndexSource;
   repoRoot?: string;
@@ -36,14 +28,13 @@ export function StepBody({
     return (
       <div className="mt-3">
         <StateNotice
-          title="Ready to detect providers"
-          detail="Run auto-detect to check Ollama, OpenAI, Gemini, Cloudflare, and registered vector services."
+          title="Ready to use the local default"
+          detail="Arra selects a bundled local vector backend automatically. The provider wizard is optional/advanced."
         />
       </div>
     );
-  if (step === 1)
-    return <ProviderList providers={providers} recommended={recommended} selectedProvider={selectedProvider} onProviderSelect={onProviderSelect} />;
-  if (step === 2) return <VaultPlan config={config} provider={selectedProvider || recommended?.type || "openai"} source={indexSource} repoRoot={repoRoot} onSource={onIndexSource} onRepoRoot={onRepoRoot} />;
+  if (step === 1) return <LocalBackendPlan config={config} />;
+  if (step === 2) return <VaultPlan config={config} provider={defaultProvider(config)} source={indexSource} repoRoot={repoRoot} onSource={onIndexSource} onRepoRoot={onRepoRoot} />;
   return (
     <div className="mt-3">
       <StateNotice
@@ -55,61 +46,21 @@ export function StepBody({
   );
 }
 
-function ProviderList({
-  providers,
-  recommended,
-  selectedProvider,
-  onProviderSelect,
-}: {
-  providers: Provider[];
-  recommended?: Provider;
-  selectedProvider: string;
-  onProviderSelect?: (provider: string) => void;
-}) {
-  if (!providers.length)
-    return (
-      <div className="mt-3">
-        <StateNotice
-          tone="warning"
-          title="No provider report yet"
-          detail="Configure API keys or start Ollama, then auto-detect again."
-        />
-      </div>
-    );
+function LocalBackendPlan({ config }: { config: VectorConfig | null }) {
+  const engine = config?.resolution?.engine ?? "lancedb";
+  const collections = Object.entries(config?.config?.collections ?? {});
   return (
-    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-      {providers.map((provider) => (
-        <label
-          key={provider.type}
-          className="rounded-xl border border-border bg-surface-muted p-3"
-        >
-          <span className="flex items-center gap-2 font-semibold text-accent2">
-            <input
-              checked={selectedProvider === provider.type}
-              name="setup-provider"
-              type="radio"
-              value={provider.type}
-              onChange={() => onProviderSelect?.(provider.type)}
-            />
-            {provider.type}
-            {recommended?.type === provider.type ? " · recommended" : ""}
-          </span>
-          <p className="mt-2 text-sm text-text-muted">
-            {provider.available ? "available" : "unavailable"} ·{" "}
-            {(provider.models ?? []).slice(0, 3).join(", ") ||
-              provider.status ||
-              provider.error ||
-              "no models"}
-          </p>
-          {provider.type.toLowerCase().includes("gemini") ? (
-            <p className="mt-2 text-xs font-semibold text-accent">
-              Free tier available!
-            </p>
-          ) : null}
-        </label>
-      ))}
+    <div className="mt-3 rounded-xl border border-ok-border bg-ok-bg p-3 text-sm text-ok-text">
+      <p className="font-semibold">Local vector backend selected: {engine}</p>
+      <p className="mt-2">No embedding/provider choice is required for first run. Tune providers later from Vector Settings.</p>
+      <p className="mt-2 text-ok-text/80">Configured collections: {collections.length ? collections.map(([key]) => key).join(", ") : "defaults will be used"}</p>
     </div>
   );
+}
+
+function defaultProvider(config: VectorConfig | null): string {
+  const primary = Object.values(config?.config?.collections ?? {}).find((item) => item.provider);
+  return primary?.provider ?? "ollama";
 }
 
 function VaultPlan({ config, provider, source, repoRoot, onSource, onRepoRoot }: {

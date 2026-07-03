@@ -8,6 +8,8 @@ import {
   type DetectedEmbeddingProvider,
   type ProviderDetectionOptions,
 } from './provider-detection.ts';
+import { generateDefaultConfig, loadVectorConfig, type VectorServerConfig } from './config.ts';
+import { resolveEmbeddingProvider, type ConfigSource, type EmbeddingProviderResolution } from './backend-resolution.ts';
 import type { EmbeddingProvider, EmbeddingProviderType } from './types.ts';
 
 export type ProviderScope = 'local' | 'remote' | 'internal' | 'disabled';
@@ -28,6 +30,8 @@ export interface ProviderApiOptions extends ProviderDetectionOptions {
   createProvider?: CreateEmbeddingProvider;
   force?: boolean;
   probeText?: string;
+  vectorConfig?: VectorServerConfig | null;
+  configSource?: ConfigSource;
 }
 
 export type ProviderInfo = DetectedEmbeddingProvider & {
@@ -41,6 +45,7 @@ export type ProviderInfo = DetectedEmbeddingProvider & {
 export interface ProviderListResult {
   checkedAt: string;
   providers: ProviderInfo[];
+  resolution: EmbeddingProviderResolution;
 }
 
 export interface ProviderTestRequest extends ProviderCreateOptions {
@@ -65,11 +70,15 @@ export function createEmbeddingProviderApi(defaults: ProviderApiOptions = {}): E
   return {
     async detect(options = {}) {
       const merged = { ...defaults, ...options };
-      const { force, createProvider: _createProvider, probeText: _probeText, ...detectOptions } = merged;
+      const { force, createProvider: _createProvider, probeText: _probeText, vectorConfig, configSource, ...detectOptions } = merged;
       const result = await getDetectedEmbeddingProviders(Boolean(force), detectOptions);
+      const loaded = vectorConfig === undefined ? loadVectorConfig() : vectorConfig;
+      const source = configSource ?? (loaded ? 'file' : 'defaults');
+      const config = loaded ?? generateDefaultConfig();
       return {
         checkedAt: result.checkedAt,
         providers: result.providers.map(toProviderInfo),
+        resolution: resolveEmbeddingProvider(config, source, result.providers),
       };
     },
 

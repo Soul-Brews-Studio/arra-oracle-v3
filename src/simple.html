@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Arra Oracle Simple Mode</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #080b12; color: #f6f0df; }
+      main { width: min(760px, calc(100vw - 32px)); padding: 32px; border: 1px solid #334155; border-radius: 28px; background: #101827; box-shadow: 0 24px 80px #0008; }
+      .eyebrow { color: #f6c85f; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; font-size: .78rem; }
+      h1 { margin: 12px 0; font-size: clamp(2rem, 7vw, 4.5rem); line-height: .95; }
+      p { color: #cbd5e1; font-size: 1.08rem; line-height: 1.6; max-width: 56ch; }
+      .hero { margin-top: 24px; padding: 20px; border-radius: 20px; background: #162033; border: 1px solid #334155; }
+      .status { display: flex; gap: 10px; align-items: center; color: #86efac; font-weight: 700; }
+      .dot { width: 12px; height: 12px; border-radius: 50%; background: currentColor; box-shadow: 0 0 24px currentColor; }
+      code { color: #fde68a; background: #020617; padding: 2px 6px; border-radius: 6px; }
+      a { color: #93c5fd; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="eyebrow">Simple Mode</div>
+      <h1>Awake and remembering.</h1>
+      <p>
+        This lightweight page is served by the Oracle backend at <code>/simple</code>
+        so the Docker-first path has a no-surprises health and recall surface.
+      </p>
+      <section class="hero" aria-label="Health hero">
+        <div class="status"><span class="dot" aria-hidden="true"></span> Backend reachable</div>
+        <p>Health: <a href="/api/v1/health">GET /api/v1/health</a>. Search and learning APIs are available through <code>/api/v1</code>.</p>
+      </section>
+    </main>
+  </body>
+</html>

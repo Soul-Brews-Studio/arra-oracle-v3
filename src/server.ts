@@ -72,6 +72,7 @@ import { watcherRoutes } from './routes/watcher/index.ts';
 import { indexerRoutes } from './routes/indexer/index.ts';
 import { fileWatcherService } from './services/file-watcher.ts';
 import { gatewayPlugin } from './gateway/index.ts';
+import { simpleModeResponse } from './simple-mode.ts';
 import pkg from '../package.json' with { type: 'json' };
 
 type UnifiedRuntime = Awaited<ReturnType<typeof loadUnifiedPlugins>>;
@@ -118,6 +119,7 @@ export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef
     .get('/swagger', () => Response.redirect('/api/docs', 308), { detail: { hide: true } })
     .get('/swagger/json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
     .get('/api/openapi.json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
+    .get('/simple', ({ set }) => simpleModeResponse(set), { detail: { tags: ['frontend'], summary: 'Simple Mode entry page' } })
     .get('/', () => ({ server: MCP_SERVER_NAME, version: pkg.version, status: 'ok', docs: '/api/docs', api: '/api/v1' }));
 
   const routeModules = createServerRouteModules(unifiedPlugins, runtimeRef);

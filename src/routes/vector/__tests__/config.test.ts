@@ -23,6 +23,12 @@ describe('/api/vector/config', () => {
     expect(body.source).toBe('defaults');
     expect(body.engine).toBe('lancedb');
     expect(body.enabled).toBe(false);
+    expect(body.resolution).toMatchObject({
+      engine: 'lancedb',
+      source: 'first-run-default',
+      providerPrompt: false,
+      wizard: 'optional',
+    });
     expect(body.state).toMatchObject({ enabled: false, ready: false, reason: 'vector section disabled' });
     expect(body.config.collections['bge-m3']).toMatchObject({
       adapter: 'lancedb',

@@ -85,17 +85,18 @@ For stdio safety, set `ORACLE_LOG_TARGET=stderr` if your client supports MCP env
 configuration. For proxy mode, set `ORACLE_HTTP_URL=http://localhost:47778` so
 MCP calls reuse an already running HTTP backend.
 
-## 4. MCP tools: 27 advertised tools
+## 4. MCP tools: 28 advertised tools
 
 `bin/arra.ts mcp` loads `src/index.ts`, which registers the manifest in
 `src/tools/mcp-manifest.ts`. In Claude or MCP Inspector, `tools/list` should
-show 27 core tools before plugin tools.
+show 28 core tools before plugin tools.
 
 ### Search and read
 
 | Tool | Mode | Use |
 | --- | --- | --- |
 | `____IMPORTANT` | read | Workflow guide shown in tool lists. |
+| `oracle_recap` | read | Cheap identity + top-memory recap for session warmup. |
 | `oracle_search` | read | Hybrid FTS/vector search over memories. |
 | `oracle_read` | read | Read one document by id/path. |
 | `oracle_list` | read | Browse documents with filters. |

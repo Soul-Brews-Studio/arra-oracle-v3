@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
 import { fetchJson, parseVectorConfigResponse, toRows, type VectorConfigRow } from './vectorSettingsHelpers';
 
 type WizardStep = 0 | 1 | 2 | 3;
-type Provider = { type: string; available?: boolean; configured?: boolean; models?: string[]; error?: string; status?: string };
-type ProvidersResponse = { checkedAt?: string; providers?: Provider[] };
 type StatsResponse = { total?: number; total_docs?: number; vector?: { enabled?: boolean; count?: number } };
 type CostEstimate = {
   docs: number;
@@ -26,7 +24,7 @@ export type FirstRunWizardProps = {
   initialCost?: CostEstimate | null;
 };
 
-const steps = ['Welcome', 'Provider', 'Vault + index', 'Done'] as const;
+const steps = ['Welcome', 'Backend', 'Vault + index', 'Done'] as const;
 
 export function VectorFirstRunWizardPage() {
   const [rows, setRows] = useState<VectorConfigRow[]>([]);
@@ -53,7 +51,7 @@ export function VectorFirstRunWizardPage() {
       <header className="rounded-3xl border border-border bg-surface p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Vector onboarding</p>
         <h1 id="vector-first-run-title" className="mt-2 text-3xl font-semibold text-text">First-run setup wizard</h1>
-        <p className="mt-2 text-sm text-text-muted">Auto-detect providers, review cost, choose the first vault collection, and start indexing.</p>
+        <p className="mt-2 text-sm text-text-muted">Use the local vector backend default, review cost, choose the first vault collection, and start indexing.</p>
       </header>
 
       <FirstRunWizard rows={rows} onRefresh={refresh} />
@@ -75,24 +73,20 @@ function firstRun(stats: StatsResponse | null, rows: VectorConfigRow[]): boolean
 
 export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost = null }: FirstRunWizardProps) {
   const [step, setStep] = useState<WizardStep>(initialStep);
-  const [providers, setProviders] = useState<Provider[]>([]);
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [cost, setCost] = useState<CostEstimate | null>(initialCost);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const recommended = useMemo(() => providers.find((item) => item.available) ?? providers[0], [providers]);
   const showAsFirstRun = firstRun(stats, rows);
 
   useEffect(() => {
     let active = true;
     Promise.allSettled([
-      fetchJson<ProvidersResponse>('/api/v1/vector/providers'),
       fetchJson<StatsResponse>('/api/v1/stats'),
       fetchJson<CostEstimate>('/api/v1/vector/cost-estimate'),
-    ]).then(([providerResult, statsResult, costResult]) => {
+    ]).then(([statsResult, costResult]) => {
       if (!active) return;
-      if (providerResult.status === 'fulfilled') setProviders(providerResult.value.providers ?? []);
       if (statsResult.status === 'fulfilled') setStats(statsResult.value);
       if (costResult.status === 'fulfilled') setCost(costResult.value);
     });
@@ -105,7 +99,7 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
     try {
       await fetchJson('/api/v1/vector/config/reload', { method: 'POST' });
       await onRefresh();
-      setMessage('Auto-detect refreshed. Review collection health and continue.');
+      setMessage('Local backend refreshed. Review collection health and continue.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -135,12 +129,12 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">First-run wizard</p>
           <h2 id="first-run-wizard-title" className="mt-2 text-2xl font-semibold text-text">{steps[step]}</h2>
-          <p className="mt-2 max-w-3xl text-sm text-purple-100/80">{copyFor(step, showAsFirstRun, recommended)}</p>
+          <p className="mt-2 max-w-3xl text-sm text-purple-100/80">{copyFor(step, showAsFirstRun)}</p>
         </div>
         <ol className="flex gap-2" aria-label="First-run steps">{steps.map((item, index) => <li key={item} className={`h-2 w-10 rounded-full ${index <= step ? 'bg-purple-200' : 'bg-white/20'}`} />)}</ol>
       </div>
 
-      {step === 1 ? <ProviderList providers={providers} /> : null}
+      {step === 1 ? <BackendPlan rows={rows} /> : null}
       {step === 2 ? <VaultPlan rows={rows} cost={cost} /> : null}
       {step === 3 ? <DoneActions /> : null}
       {message ? <p className="mt-4 rounded-2xl border border-border bg-field/50 p-3 text-sm text-purple-100">{message}</p> : null}
@@ -148,7 +142,7 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
 
       <div className="mt-5 flex flex-wrap gap-2">
         <button className="focus-ring rounded-xl border border-border px-3 py-2 text-sm text-purple-100 disabled:opacity-50" disabled={step === 0} type="button" onClick={() => setStep((step - 1) as WizardStep)}>Back</button>
-        {step === 0 ? <button className="focus-ring rounded-xl bg-purple-200 px-3 py-2 text-sm font-semibold text-on-accent" type="button" onClick={() => void reloadHealth()}>{busy ? <Spinner label="Detecting" /> : 'Run auto-detect'}</button> : null}
+        {step === 0 ? <button className="focus-ring rounded-xl bg-purple-200 px-3 py-2 text-sm font-semibold text-on-accent" type="button" onClick={() => void reloadHealth()}>{busy ? <Spinner label="Detecting" /> : 'Refresh local backend'}</button> : null}
         {step === 2 ? <button className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-on-accent disabled:opacity-50" disabled={busy || !rows.length} type="button" onClick={() => void startIndex()}>{busy ? <Spinner label="Starting" /> : 'Start indexing'}</button> : null}
         <button className="focus-ring rounded-xl border border-purple-200/40 px-3 py-2 text-sm font-semibold text-purple-100 disabled:opacity-50" disabled={step === 3} type="button" onClick={() => setStep((step + 1) as WizardStep)}>Next</button>
         {step === 3 ? <a className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-on-accent" href="/vector">Continue to dashboard</a> : null}
@@ -157,9 +151,9 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
   );
 }
 
-function copyFor(step: WizardStep, firstRun: boolean, provider?: Provider): string {
-  if (step === 0) return firstRun ? 'No complete vector index was detected. Start here to choose a provider and build the first index.' : 'Vector search is configured; use this wizard to refresh provider detection or onboard a new vault.';
-  if (step === 1) return provider ? `Recommended provider: ${provider.type}. Choose a configured provider before indexing.` : 'No providers reported yet; run auto-detect or configure keys.';
+function copyFor(step: WizardStep, firstRun: boolean): string {
+  if (step === 0) return firstRun ? 'No complete vector index was detected. A bundled local backend is already selected; build the first index when ready.' : 'Vector search is configured; use this optional wizard to refresh the backend or onboard a new vault.';
+  if (step === 1) return 'Arra auto-resolves local storage defaults for first run and keeps saved backend choices for returning users.';
   if (step === 2) return 'Review the primary collection, estimated cost, and recommendation before indexing.';
   return 'Indexing has started. The Index Manager shows live progress and completion state.';
 }
@@ -178,9 +172,15 @@ function DoneActions() {
   );
 }
 
-function ProviderList({ providers }: { providers: Provider[] }) {
-  if (!providers.length) return <p className="mt-4 text-sm text-purple-100/70">Provider detection has not returned results yet.</p>;
-  return <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{providers.map((provider) => <div key={provider.type} className="rounded-2xl border border-border bg-field/50 p-3"><p className="font-semibold text-purple-100">{provider.type}</p><p className="text-sm text-text-muted">{provider.available ? 'available' : 'unavailable'} · {(provider.models ?? []).slice(0, 2).join(', ') || 'no models'}</p></div>)}</div>;
+function BackendPlan({ rows }: { rows: VectorConfigRow[] }) {
+  const primary = rows.find((row) => row.primary) ?? rows[0];
+  return (
+    <div className="mt-4 rounded-2xl border border-accent-border p-4 text-sm text-accent">
+      <p className="font-semibold">Local backend default is active</p>
+      <p className="mt-1">No provider choice is required before indexing. Returning users keep their saved adapter automatically.</p>
+      <p className="mt-2 text-accent opacity-80">Primary adapter: {primary?.adapter ?? 'lancedb'} · collection {primary?.collection ?? 'default collections'}</p>
+    </div>
+  );
 }
 
 function VaultPlan({ rows, cost }: { rows: VectorConfigRow[]; cost: CostEstimate | null }) {
@@ -193,7 +193,7 @@ function VaultPlan({ rows, cost }: { rows: VectorConfigRow[]; cost: CostEstimate
       </div>
       <div className="rounded-2xl border border-accent-border p-4">
         <p className="font-semibold text-accent">Estimated embedding cost</p>
-        {cost ? <CostSummary cost={cost} /> : <p className="mt-2 text-accent opacity-70">Cost estimate will appear after provider detection completes.</p>}
+        {cost ? <CostSummary cost={cost} /> : <p className="mt-2 text-accent opacity-70">Cost estimate will appear after backend detection completes.</p>}
       </div>
     </div>
   );

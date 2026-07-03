@@ -9,7 +9,7 @@ Script: [`scripts/mcp-from-openapi.ts`](../scripts/mcp-from-openapi.ts).
 
 ## Why
 
-`src/tools/mcp-manifest.ts` currently exposes 27 core MCP tools, while the HTTP server
+`src/tools/mcp-manifest.ts` currently exposes 28 core MCP tools, while the HTTP server
 already describes 50+ endpoints through Elysia's TypeBox models, surfaced
 at `/swagger/json`. Every time a new route lands we duplicate the schema
 by hand in a tool def. The OpenAPI doc is the source of truth; the MCP
@@ -94,7 +94,7 @@ tools, including `oracle_research_note`, `oracle_profile`, and
 
 - 51 paths in `/swagger/json`
 - **55 tools generated** (4 paths expose both GET and POST)
-- 27 tools in the current core manifest → **+28 net**
+- 28 tools in the current core manifest → **+27 net**
 
 ## Known gaps (Phase 1)
 

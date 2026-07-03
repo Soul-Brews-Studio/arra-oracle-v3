@@ -5,6 +5,7 @@
 import { Elysia } from 'elysia';
 import { sqlite } from '../../db/index.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
+import { augmentQueryWithAcronyms } from '../../search/acronyms.ts';
 import { filterResultsAsOf, parseAsOf } from '../../search/bitemporal.ts';
 import { compactSearchResults, parseSearchRetrievalMode } from '../../search/compact-summary.ts';
 import { rerankByEntityLinks } from '../../search/entity-ranking.ts';
@@ -61,8 +62,9 @@ export const searchEndpoint = new Elysia().get(
     const model = parsedModel.value;
 
     try {
-      const tenantResult = handleTenantSearch(sanitizedQ, type, limit, offset, asOf.value);
-      const result = tenantResult ?? await handleSearch(sanitizedQ, type, limit, offset, mode, project, cwd, model);
+      const augmentedQ = augmentQueryWithAcronyms(sanitizedQ);
+      const tenantResult = handleTenantSearch(augmentedQ, type, limit, offset, asOf.value);
+      const result = tenantResult ?? await handleSearch(augmentedQ, type, limit, offset, mode, project, cwd, model);
       if (asOf.value && !tenantResult) {
         result.results = filterResultsAsOf(
           sqlite,
@@ -71,7 +73,7 @@ export const searchEndpoint = new Elysia().get(
         ) as unknown as typeof result.results;
         result.total = result.results.length;
       }
-      result.results = rerankByEntityLinks(sqlite, result.results, sanitizedQ, currentTenantId());
+      result.results = rerankByEntityLinks(sqlite, result.results, augmentedQ, currentTenantId());
       attachSupersedeStatus(sqlite, result.results as unknown as Array<Record<string, unknown>>);
       const compact = retrieval.mode === 'compact-summary'
         ? compactSearchResults(result.results as unknown as Array<Record<string, unknown>>, sanitizedQ)

@@ -6,7 +6,12 @@ import fs from 'fs';
 import path from 'path';
 import type Database from 'bun:sqlite';
 import type { OracleDocument } from '../types.ts';
+import { deriveConceptsFromPath, mergeConceptsWithTags } from './concepts.ts';
+import { inferProjectFromPath } from './discovery.ts';
 import { parseLearningFile } from './parser.ts';
+import { enrichTextWithAcronyms } from '../search/acronyms.ts';
+import { chunkDocumentsForIndexing } from './chunk-text.ts';
+import { replaceDocumentPointers } from '../search/pointer-index.ts';
 
 export const PSI_LEARN_REL = path.join('ψ', 'learn');
 export const MEMORY_LEARN_REL = path.join('ψ', 'memory', 'learnings');
@@ -40,10 +45,20 @@ export function parsePsiLearnFile(relativePath: string, content: string): Oracle
   const basename = path.basename(sourceFile);
   const pathHash = Bun.hash(sourceFile).toString(36);
 
-  return parseLearningFile(basename, content, sourceFile).map((doc) => ({
+  return withDerivedStructure(parseLearningFile(basename, content, sourceFile).map((doc) => ({
     ...doc,
     id: psiLearnDocId(pathHash, doc.id),
     source_file: sourceFile,
+  })), sourceFile);
+}
+
+function withDerivedStructure(documents: OracleDocument[], sourceFile: string): OracleDocument[] {
+  const project = inferProjectFromPath(sourceFile);
+  const pathConcepts = deriveConceptsFromPath(sourceFile);
+  return documents.map((doc) => ({
+    ...doc,
+    project: doc.project ?? project ?? undefined,
+    concepts: mergeConceptsWithTags(doc.concepts, pathConcepts),
   }));
 }
 
@@ -58,7 +73,10 @@ export function readLearningDocuments(repoRoot: string, filePath: string): Oracl
   const content = fs.readFileSync(filePath, 'utf8');
   if (!content.trim()) return [];
   if (isPsiLearnSource(sourceFile)) return parsePsiLearnFile(sourceFile, content);
-  if (isMemoryLearningSource(sourceFile)) return parseLearningFile(path.basename(sourceFile), content, sourceFile);
+  if (isMemoryLearningSource(sourceFile)) return withDerivedStructure(
+    parseLearningFile(path.basename(sourceFile), content, sourceFile),
+    sourceFile,
+  );
   return [];
 }
 
@@ -66,6 +84,7 @@ export const readPsiLearnDocuments = readLearningDocuments;
 
 export function storeSqliteDocuments(db: Database, documents: OracleDocument[]): string[] {
   if (documents.length === 0) return [];
+  const storedDocuments = chunkDocumentsForIndexing(documents);
   const now = Date.now();
   const upsertDoc = db.prepare(`
     INSERT INTO oracle_documents
@@ -87,7 +106,7 @@ export function storeSqliteDocuments(db: Database, documents: OracleDocument[]):
 
   db.exec('BEGIN');
   try {
-    for (const doc of documents) {
+    for (const doc of storedDocuments) {
       upsertDoc.run(
         doc.id,
         doc.type,
@@ -98,13 +117,20 @@ export function storeSqliteDocuments(db: Database, documents: OracleDocument[]):
         now,
         doc.project?.toLowerCase() ?? null,
       );
+      const indexedContent = enrichTextWithAcronyms(doc.content);
       deleteFts.run(doc.id);
-      insertFts.run(doc.id, doc.content, doc.concepts.join(' '));
+      insertFts.run(doc.id, indexedContent, doc.concepts.join(' '));
+      replaceDocumentPointers(db, {
+        documentId: doc.id,
+        content: indexedContent,
+        concepts: doc.concepts,
+        timestamp: doc.updated_at || doc.created_at,
+      });
     }
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
     throw error;
   }
-  return documents.map((doc) => doc.id);
+  return storedDocuments.map((doc) => doc.id);
 }

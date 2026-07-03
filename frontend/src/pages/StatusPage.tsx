@@ -23,9 +23,19 @@ export interface StatusPageProps {
 }
 
 function statusClass(status?: string): string {
-  if (status === 'ok' || status === 'connected') return 'border-ok-border bg-ok-bg text-ok-text';
-  if (status === 'degraded' || status === 'draining') return 'border-warn-border bg-warn-bg text-warn-text';
+  const normalized = status?.toLowerCase();
+  if (normalized === 'ok' || normalized === 'connected' || normalized === 'healthy' || normalized === 'up') return 'border-ok-border bg-ok-bg text-ok-text';
+  if (normalized === 'degraded' || normalized === 'draining' || normalized === 'starting') return 'border-warn-border bg-warn-bg text-warn-text';
   return 'border-err-border bg-err-bg text-err-text';
+}
+
+function rawSeconds(value: HealthResponse['uptime'] | undefined): number | undefined {
+  if (typeof value === 'number') return value;
+  return value?.seconds;
+}
+
+function healthUptimeSeconds(health: HealthResponse | null): number | undefined {
+  return health?.uptimeSeconds ?? rawSeconds(health?.uptimeSecondsBreakdown) ?? rawSeconds(health?.uptime);
 }
 
 function formatSeconds(seconds?: number): string {
@@ -36,21 +46,24 @@ function formatSeconds(seconds?: number): string {
   return `${minutes}m ${remaining}s`;
 }
 
-function uptimeSeconds(health: HealthResponse | null): number | undefined {
-  if (!health) return undefined;
-  if (typeof health.uptimeSeconds === 'number') return health.uptimeSeconds;
-  if (typeof health.uptime === 'number') return health.uptime;
-  return health.uptime?.seconds ?? health.uptimeSecondsBreakdown?.seconds;
+
+function databaseStatus(health: HealthResponse): string | undefined {
+  const db = typeof health.db === 'string' ? health.db : health.db?.status;
+  return health.subsystems?.database?.status ?? health.subsystems?.db?.status ?? health.dbStatus ?? db;
 }
 
-function dbStatus(health: HealthResponse): string | undefined {
-  if (health.dbStatus) return health.dbStatus;
-  return typeof health.db === 'string' ? health.db : health.db?.status;
+function subsystemStatus(health: HealthResponse, name: 'vector' | 'plugins' | 'plugin', fallback?: string): string | undefined {
+  return health.subsystems?.[name]?.status ?? fallback;
 }
 
-function dbPath(health: HealthResponse): string | undefined {
-  if (typeof health.db === 'object' && health.db) return health.db.path ?? health.dbCheck?.path;
-  return health.dbCheck?.path;
+function subsystemDataString(health: HealthResponse, name: 'database' | 'db', key: string): string | undefined {
+  const value = health.subsystems?.[name]?.data?.[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function databasePath(health: HealthResponse): string | undefined {
+  const dbPath = typeof health.db === 'object' && health.db ? health.db.path : undefined;
+  return health.dbCheck?.path ?? dbPath ?? subsystemDataString(health, 'database', 'path') ?? subsystemDataString(health, 'db', 'path');
 }
 
 function Field({ label, value }: { label: string; value: string | number | undefined }) {
@@ -159,7 +172,7 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
     return () => { cancelled = true; };
   }, [client, initialHealth]);
 
-  const uptime = useMemo(() => formatSeconds(uptimeSeconds(health)), [health]);
+  const uptime = useMemo(() => formatSeconds(healthUptimeSeconds(health)), [health]);
   const isLoading = state === 'loading';
 
   return (
@@ -176,10 +189,10 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
       {health && state === 'ready' ? (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <StatusBadge label="Server" status={health.status} />
-            <StatusBadge label="Database" status={dbStatus(health)} />
-            <StatusBadge label="Vector" status={health.vectorStatus ?? health.vector?.status} />
-            <StatusBadge label="Plugins" status={health.pluginStatus ?? health.plugins?.status} />
+            <StatusBadge label="Server" status={health.healthStatus ?? health.state ?? health.status} />
+            <StatusBadge label="Database" status={databaseStatus(health)} />
+            <StatusBadge label="Vector" status={subsystemStatus(health, 'vector', health.vectorStatus ?? health.vector?.status)} />
+            <StatusBadge label="Plugins" status={subsystemStatus(health, 'plugins', health.pluginStatus ?? health.plugins?.status)} />
           </div>
           <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Field label="Name" value={health.server} />
@@ -189,7 +202,7 @@ export function StatusPage({ client = apiClient, initialHealth = null, initialVe
             <Field label="MCP tools" value={health.mcpToolCount ?? health.mcp?.toolCount} />
             <Field label="Plugins" value={health.pluginCount ?? health.plugins?.count} />
             <Field label="Oracle" value={health.oracle} />
-            <Field label="DB path" value={dbPath(health)} />
+            <Field label="DB path" value={databasePath(health)} />
           </dl>
           <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-label="Plugin health rows">
             <h3 className="text-lg font-semibold text-text">Plugin health</h3>

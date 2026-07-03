@@ -28,7 +28,7 @@ async function searchOneModel(input: VectorSearchInput, model: string | undefine
   const limit = input.limit ?? 10;
   const isMulti = input.model === 'multi';
   const whereFilter = input.type && input.type !== 'all' ? { type: input.type } : undefined;
-  const vectorRows = await client.query(input.query, isMulti ? limit : limit * 2, whereFilter);
+  const vectorRows = await client.query(input.query, limit, whereFilter);
 
   if (!vectorRows.ids || vectorRows.ids.length === 0) return [];
 

@@ -65,9 +65,9 @@ Users, agents, Studio, maw-js, MCP clients
 
 ## MCP and HTTP coupling
 
-`src/tools/mcp-manifest.ts` defines 27 core MCP tools. `src/tools/mcp-rest-map.ts`
-uses the same ordered names to mark 24 tools as HTTP-remoteable and three as
-local-only (`____IMPORTANT`, `oracle_mcp_list_tools`, `oracle_mcp_call`).
+`src/tools/mcp-manifest.ts` defines 28 core MCP tools. `src/tools/mcp-rest-map.ts`
+uses the same ordered names to mark 24 tools as HTTP-remoteable and four as
+local-only (`____IMPORTANT`, `oracle_recap`, `oracle_mcp_list_tools`, `oracle_mcp_call`).
 `GET /api/mcp/tools` merges those core definitions with active plugin tools and
 returns public metadata only; plugin handlers are never exposed.
 

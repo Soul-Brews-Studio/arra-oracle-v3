@@ -11,7 +11,7 @@ import type { ToolContext, ToolResponse, OracleStatsInput } from './types.ts';
 
 export const statsToolDef = {
   name: 'oracle_stats',
-  description: 'Get Oracle knowledge base statistics and health status. Returns document counts by type, indexing status, and ChromaDB connection status.',
+  description: 'Get Oracle knowledge base statistics and health status. Returns document counts by type, indexing status, and vector (LanceDB) connection status.',
   inputSchema: {
     type: 'object',
     properties: {},

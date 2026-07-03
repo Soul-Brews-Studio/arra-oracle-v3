@@ -1,7 +1,7 @@
 import { VECTORS_DB_PATH, LANCEDB_DIR, CHROMADB_DIR } from '../config.ts';
 import { COLLECTION_NAME } from '../const.ts';
 import type { VectorStoreAdapter } from './adapter.ts';
-import type { EmbedderConfig, VectorDBType, EmbeddingProviderType } from './types.ts';
+import type { EmbedderConfig, VectorDBType, EmbeddingProviderType, EmbeddingProvider } from './types.ts';
 import { ChromaMcpAdapter } from './adapters/chroma-mcp.ts';
 import { SqliteVecAdapter } from './adapters/sqlite-vec.ts';
 import { LanceDBAdapter } from './adapters/lancedb.ts';
@@ -15,6 +15,7 @@ import { GeminiEmbeddings } from './providers/gemini.ts';
 import { resolveEmbeddingFallbackChain, resolveEmbeddingModel, resolveEmbeddingProviderType } from './embedder-config.ts';
 import { configPath, loadVectorConfig, resolveServiceEndpoint, configToModels, fallbackCollectionsFor } from './config.ts';
 import { tenantDataPath } from '../middleware/tenant.ts';
+import { withEmbedderIdentityGuard } from './embedder-identity.ts';
 
 export type { VectorStoreAdapter } from './adapter.ts';
 export interface VectorStoreConfig {
@@ -65,17 +66,20 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
   switch (type) {
     case 'sqlite-vec': {
       const dbPath = tenantDataPath(clean(config.dataPath) || clean(process.env.ORACLE_VECTOR_DB_PATH) || VECTORS_DB_PATH);
-      return new SqliteVecAdapter(collectionName, dbPath, createConfiguredEmbedder(config));
+      const embedder = createConfiguredEmbedder(config);
+      return guardVectorStore(new SqliteVecAdapter(collectionName, dbPath, embedder), type, collectionName, embedder, dbPath, config.embeddingModel);
     }
     case 'lancedb': {
       const dbPath = tenantDataPath(clean(config.dataPath) || clean(process.env.ORACLE_VECTOR_DB_PATH) || LANCEDB_DIR);
-      return new LanceDBAdapter(collectionName, dbPath, createConfiguredEmbedder(config));
+      const embedder = createConfiguredEmbedder(config);
+      return guardVectorStore(new LanceDBAdapter(collectionName, dbPath, embedder), type, collectionName, embedder, dbPath, config.embeddingModel);
     }
     case 'qdrant': {
-      return new QdrantAdapter(collectionName, createConfiguredEmbedder(config), {
+      const embedder = createConfiguredEmbedder(config);
+      return guardVectorStore(new QdrantAdapter(collectionName, embedder, {
         url: clean(config.qdrantUrl) || clean(process.env.QDRANT_URL),
         apiKey: clean(config.qdrantApiKey) || clean(process.env.QDRANT_API_KEY),
-      });
+      }), type, collectionName, embedder, clean(config.qdrantUrl) || clean(process.env.QDRANT_URL), config.embeddingModel);
     }
     case 'cloudflare-vectorize': {
       return createCloudflareVectorStore(collectionName, config);
@@ -98,6 +102,18 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
       return new ChromaMcpAdapter(collectionName, dataPath, pythonVersion);
     }
   }
+}
+function guardVectorStore<T extends VectorStoreAdapter>(
+  store: T, adapterName: VectorDBType, collectionName: string, embedder: EmbeddingProvider,
+  storagePath?: string, modelName?: string,
+): T {
+  return withEmbedderIdentityGuard(store, {
+    adapterName,
+    collectionName,
+    embedder,
+    modelName: resolveEmbeddingModel(modelName),
+    storagePath,
+  });
 }
 function loadActiveVectorConfig(): ReturnType<typeof loadVectorConfig> {
   const dataDir = process.env.ORACLE_DATA_DIR;

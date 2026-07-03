@@ -6,6 +6,12 @@ export type Stats = {
   vector?: { enabled?: boolean; count?: number };
 };
 export type VectorConfig = {
+  source?: "file" | "defaults";
+  resolution?: {
+    providerPrompt?: boolean;
+    wizard?: "optional" | "required" | "advanced";
+    engine?: string;
+  };
   config?: {
     collections?: Record<
       string,

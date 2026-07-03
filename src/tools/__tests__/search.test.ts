@@ -44,6 +44,13 @@ describe('sanitizeFtsQuery', () => {
     expect(sanitizeFtsQuery('git safety')).toBe('\"git\" OR \"safety\"');
   });
 
+  it('should append acronym expansions to MCP search tokens', () => {
+    const query = sanitizeFtsQuery('CORS PNA vector URL preflight');
+    expect(query).toContain('\"Cross\" OR \"Origin\" OR \"Resource\" OR \"Sharing\"');
+    expect(query).toContain('\"Access\" OR \"Control\" OR \"Allow\"');
+    expect(query).toContain('\"vectorAvailable\"');
+  });
+
   it('should handle colons which break FTS5', () => {
     expect(sanitizeFtsQuery('error: no such column')).toBe('\"error\" OR \"no\" OR \"such\" OR \"column\"');
     expect(sanitizeFtsQuery('time: 15:30')).toBe('\"time\" OR \"15\" OR \"30\"');

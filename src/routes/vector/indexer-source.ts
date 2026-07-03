@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { DB_PATH } from '../../config.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
 import { collectDocuments, collectSecurityCorpus } from '../../indexer/collectors.ts';
+import { chunkDocumentsForIndexing } from '../../indexer/chunk-text.ts';
 import { parseDistillationFile, parseLearningFile, parseResonanceFile, parseRetroFile } from '../../indexer/parser.ts';
 import { createIndexerConfig, resolveIndexerRepoRoot } from '../../indexer/runner.ts';
 import type { OracleDocument } from '../../types.ts';
@@ -29,6 +30,9 @@ function toVectorDocs(documents: OracleDocument[]): VectorDocument[] {
       source_file: doc.source_file,
       concepts: JSON.stringify(doc.concepts),
       ...(doc.project && { project: doc.project }),
+      ...(doc.chunk_index !== undefined && { chunk_index: doc.chunk_index }),
+      ...(doc.line_start !== undefined && { line_start: doc.line_start }),
+      ...(doc.line_end !== undefined && { line_end: doc.line_end }),
     },
   }));
 }
@@ -44,7 +48,7 @@ export function loadVaultVectorDocuments(repoRoot = resolveIndexerRepoRoot()): L
     ...collectSecurityCorpus(shared),
   ];
 
-  return { source: 'vault', repoRoot, docs: toVectorDocs(documents) };
+  return { source: 'vault', repoRoot, docs: toVectorDocs(chunkDocumentsForIndexing(documents)) };
 }
 
 export function loadSqliteVectorDocuments(dbPath = DB_PATH): LoadedVectorIndexDocuments {
