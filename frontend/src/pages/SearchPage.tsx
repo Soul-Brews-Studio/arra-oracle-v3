@@ -67,7 +67,7 @@ function SearchInputCard({ query, loading, onQueryChange, onSubmit }: {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-label="Search input card">
+    <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-label="Search input card">
       <div className="mb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Menu search</p>
         <h1 id="menu-search-title" className="mt-2 text-3xl font-semibold text-text">Full-text menu search</h1>
@@ -100,7 +100,7 @@ export function MenuSearchResults({ query, results, state }: { query: string; re
     <ul className="grid gap-3" aria-label="Menu search results">
       {results.map((item) => (
         <li key={`${item.source ?? 'api'}:${item.path}:${item.label}`}>
-          <a className="focus-ring block min-w-0 rounded-2xl border border-border bg-surface-muted p-4 transition hover:border-teal-300/40" href={item.path}>
+          <a className="focus-ring block min-w-0 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4 transition-all duration-200 hover:border-[oklch(1_0_0/0.12)]" href={item.path}>
             <span className="text-lg font-semibold text-text"><HighlightedText text={item.label} query={query} /></span>
             <span className="mt-1 block break-all text-sm text-text-muted"><HighlightedText text={item.path} query={query} /></span>
             <span className="mt-3 inline-flex rounded-full border border-accent-border px-2 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-accent">
@@ -115,20 +115,20 @@ export function MenuSearchResults({ query, results, state }: { query: string; re
 
 function SearchScopeCard({ scope, resultGroups, total }: { scope: SearchScope; resultGroups: string[]; total: number }) {
   return (
-    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-label="Search scope card">
+    <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-label="Search scope card">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Scope</p>
       <h2 className="mt-2 text-2xl font-semibold text-text">Search boundaries</h2>
       <p className="mt-2 text-sm text-text-muted">Current query scope is constrained to menu records.</p>
       <ul className="mt-5 grid gap-2 text-sm text-text-muted">
-        <li className="rounded-xl border border-border bg-surface-muted p-3">
+        <li className="rounded-xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-3">
           <span className="text-xs uppercase tracking-[0.16em] text-text-muted">Mode</span>
           <p className="mt-1 font-semibold text-text capitalize">{scope}</p>
         </li>
-        <li className="rounded-xl border border-border bg-surface-muted p-3">
+        <li className="rounded-xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-3">
           <span className="text-xs uppercase tracking-[0.16em] text-text-muted">Result groups</span>
           <p className="mt-1 break-words font-semibold text-text">{resultGroups.length || '-'}{resultGroups.length ? ` (${resultGroups.join(', ')})` : ''}</p>
         </li>
-        <li className="rounded-xl border border-border bg-surface-muted p-3">
+        <li className="rounded-xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-3">
           <span className="text-xs uppercase tracking-[0.16em] text-text-muted">Matches</span>
           <p className="mt-1 font-semibold text-text">{total}</p>
         </li>
@@ -151,7 +151,7 @@ function SearchResultsCard({
   errorMessage: string;
 }) {
   return (
-    <section className="rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-label="Menu search results card">
+    <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-label="Menu search results card">
       <div className="mb-4">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Results</p>
         <h2 className="mt-2 text-2xl font-semibold text-text">Search results</h2>

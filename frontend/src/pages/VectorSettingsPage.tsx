@@ -40,7 +40,7 @@ function VectorFirstRunWizardSection() {
 export function VectorSettingsPage() {
   return (
     <section className="grid min-w-0 gap-5" aria-labelledby="vector-settings-title">
-      <header className="min-w-0 rounded-3xl border border-border bg-surface p-5 sm:p-6">
+      <header className="min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Vector settings</p>
         <h1 id="vector-settings-title" className="mt-2 text-3xl font-semibold text-text">Vector settings</h1>
         <p className="mt-2 break-words text-sm text-text-muted">

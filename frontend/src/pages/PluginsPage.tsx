@@ -147,7 +147,7 @@ export function PluginsPage({
       {showInventory ? <UnifiedPluginSurfaceOverview plugins={plugins} /> : null}
 
       {plugins.length ? (
-        <section className="min-w-0 rounded-2xl border border-border bg-surface p-4" aria-labelledby="plugin-filters-title">
+        <section className="min-w-0 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4" aria-labelledby="plugin-filters-title">
           <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Inventory filters</p>
@@ -191,7 +191,7 @@ export function PluginsPage({
                 </select>
               </label>
               <button
-                className="focus-ring self-end rounded-xl border border-border px-3 py-2 text-sm font-semibold text-text hover:border-teal-300/40 disabled:opacity-40"
+                className="focus-ring self-end rounded-xl border border-border px-3 py-2 text-sm font-semibold text-text hover:border-[oklch(1_0_0/0.12)] disabled:opacity-40"
                 disabled={!hasFilters}
                 type="button"
                 onClick={() => { setQuery(''); setVisibility('all'); setSurface('all'); }}
@@ -209,11 +209,11 @@ export function PluginsPage({
       {visiblePlugins.length ? (
         <PluginList plugins={visiblePlugins} enabledState={enabledState} onToggle={(name) => void togglePlugin(name)} />
       ) : plugins.length && showInventory ? (
-        <p className="rounded-lg border border-border bg-surface p-5 text-sm text-text-muted">
+        <p className="rounded-lg border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-5 text-sm text-text-muted">
           No plugins match the current filters. Clear filters or reload plugin manifests.
         </p>
       ) : showInventory ? (
-        <p className="rounded-lg border border-border bg-surface p-5 text-sm text-text-muted">
+        <p className="rounded-lg border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-5 text-sm text-text-muted">
           No installed plugins returned by {endpoint}.
         </p>
       ) : null}

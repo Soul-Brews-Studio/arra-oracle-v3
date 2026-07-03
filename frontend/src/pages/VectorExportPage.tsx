@@ -110,7 +110,7 @@ export function VectorExportPage({
   }
 
   return (
-    <section className="min-w-0 overflow-hidden rounded-3xl border border-border bg-surface p-5 sm:p-6" aria-labelledby="vector-export-title">
+    <section className="min-w-0 overflow-hidden rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="vector-export-title">
       <div className="mb-5 min-w-0">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Vector</p>
         <h1 id="vector-export-title" className="mt-2 text-3xl font-semibold text-text">Vector export</h1>
@@ -120,7 +120,7 @@ export function VectorExportPage({
       {state === 'loading' ? <LoadingPanel title="Loading vector collections…" detail="Fetching /api/v1/vector/index/models." /> : null}
       {state === 'error' ? <ErrorMessage title="Could not load vector export options." message={error} /> : null}
 
-      <div className="mt-5 grid min-w-0 gap-4 overflow-hidden rounded-2xl border border-border bg-surface-muted p-4">
+      <div className="mt-5 grid min-w-0 gap-4 overflow-hidden rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4">
         <label className="grid min-w-0 gap-2 text-sm font-medium text-text-muted">
           Collection
           <select
