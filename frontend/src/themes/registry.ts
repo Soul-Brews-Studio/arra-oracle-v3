@@ -1,8 +1,9 @@
 import type { ThemeDefinition } from './types';
 import { oracleDefault } from './oracle-default';
 import { midnightTeal } from './midnight-teal';
+import { emeraldNoir } from './emerald-noir';
 
-const all: ThemeDefinition[] = [oracleDefault, midnightTeal];
+const all: ThemeDefinition[] = [oracleDefault, midnightTeal, emeraldNoir];
 
 const byId = new Map(all.map((t) => [t.id, t]));
 
