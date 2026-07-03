@@ -15,6 +15,7 @@ const DEFAULT_ORIGINS = [
   'https://god.buildwithoracle.com',
   'https://arra-oracle-studio.laris.workers.dev',
   'https://studio.buildwithoracle.com',
+  'https://feed.buildwithoracle.com',
 ] as const;
 const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] as const;
 const ALLOWED_HEADERS = [
