@@ -106,7 +106,7 @@ export function AppShell({
       <div className="mx-auto grid w-full max-w-7xl gap-4 px-3 py-3 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[18rem_minmax(0,1fr)] lg:px-8">
         <NavSidebar items={navItems} />
         <div className="flex w-full min-w-0 flex-col gap-4 sm:gap-6">
-          <header className="grid gap-5 rounded-3xl border border-border bg-surface p-4 shadow-2xl backdrop-blur sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,28rem)] lg:items-end">
+          <header className="glass grid gap-5 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] p-4 shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,28rem)] lg:items-end">
             <PageChrome meta={meta} />
             <div className="grid w-full min-w-0 gap-3">
               <CommandPalette onRefresh={onRefresh} />
@@ -132,7 +132,7 @@ export function AppShell({
             </div>
           </header>
 
-          <section className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-5" aria-label="Summary">
+          <section className="grid gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-5 xl:gap-6 [&>article]:border-[oklch(1_0_0/0.08)] [&>article]:bg-[oklch(0.16_0.02_265/0.35)] [&>article]:shadow-[0_8px_32px_oklch(0_0_0/0.28)] [&>article]:backdrop-blur-xl" aria-label="Summary">
             <StatCard label="Menu items" value={loading ? <Spinner label="Loading" /> : menuCount} detail="from /api/menu" tone="accent" />
             <StatCard label="Plugins" value={loading ? <Spinner label="Loading" /> : pluginCount} detail="from /api/plugins" tone="success" />
             <StatCard label="Surfaces" value={loading ? <Spinner label="Loading" /> : surfaceCount} detail={`updated ${updatedAt}`} tone="accent" />
