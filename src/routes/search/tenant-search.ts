@@ -20,6 +20,10 @@ function runFtsAll<T>(stmt: { all: (...args: any[]) => T[] }, args: unknown[]): 
   try { return stmt.all(...args); } catch { return []; }
 }
 
+function randomOffset(total: number): number {
+  return Math.floor(Math.random() * total);
+}
+
 export function handleTenantSearch(query: string, type = 'all', limit = 10, offset = 0, asOfMs?: number): SearchRouteResponse | null {
   const tenantId = currentTenantId();
   if (!tenantId) return null;
@@ -121,14 +125,21 @@ export function handleTenantReflect(): Record<string, unknown> | null {
   const tenantId = currentTenantId();
   if (!tenantId) return null;
 
+  const count = sqlite.prepare(`
+    SELECT COUNT(*) as total
+    FROM oracle_documents d
+    WHERE d.tenant_id = ? AND d.type IN ('principle', 'learning')
+  `).get(tenantId) as { total: number } | undefined;
+  const total = Number(count?.total ?? 0);
+  if (total < 1) return { error: 'No documents found', fts_status: 'empty' };
+
   const row = sqlite.prepare(`
     SELECT d.id, d.type, d.source_file, d.concepts, f.content
     FROM oracle_documents d
     LEFT JOIN oracle_fts f ON d.id = f.id
     WHERE d.tenant_id = ? AND d.type IN ('principle', 'learning')
-    ORDER BY RANDOM()
-    LIMIT 1
-  `).get(tenantId) as ListRow | undefined;
+    LIMIT 1 OFFSET ?
+  `).get(tenantId, randomOffset(total)) as ListRow | undefined;
 
   if (!row) return { error: 'No documents found', fts_status: 'empty' };
   if (!row.content) {
