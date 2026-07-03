@@ -42,6 +42,8 @@ describe('frontend router', () => {
       '/search',
       '/export',
       '/feed',
+      '/activity',
+      '/traces',
       '/learn',
       '/memory',
       '/vector',
@@ -73,6 +75,8 @@ describe('frontend router', () => {
     expect(htmlAt('/search')).toContain('Full-text menu search');
     expect(htmlAt('/export')).toContain('Export app');
     expect(htmlAt('/feed')).toContain('Document feed');
+    expect(htmlAt('/activity')).toContain('Trace activity');
+    expect(htmlAt('/traces')).toContain('Trace activity');
     expect(htmlAt('/learn')).toContain('Learn entries');
     expect(htmlAt('/memory')).toContain('Memory dashboard');
     expect(htmlAt('/memory')).toContain('Memory health');
