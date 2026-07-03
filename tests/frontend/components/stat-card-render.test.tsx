@@ -7,7 +7,10 @@ describe('StatCard render', () => {
     const html = htmlFor(<StatCard label="Plugins" value={3} detail="from /api/plugins" tone="success" trend="+2" />);
     expect(html).toContain('<article');
     expect(html).toContain('aria-labelledby=');
+    expect(html).toContain('glass glass-hover');
+    expect(html).toContain('transition-[background-color,border-color,box-shadow]');
     expect(html).toContain('border-ok-border');
+    expect(html).not.toContain('bg-surface-muted');
     expect(html).toContain('Plugins');
     expect(html).toContain('3');
     expect(html).toContain('+2');

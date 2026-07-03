@@ -3,11 +3,11 @@ import { useId, type ReactNode } from 'react';
 export type StatTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger';
 
 const toneClasses: Record<StatTone, string> = {
-  neutral: 'border-border bg-surface-muted',
-  accent: 'border-accent-border bg-accent-soft',
-  success: 'border-ok-border bg-ok-bg',
-  warning: 'border-warn-border bg-warn-bg',
-  danger: 'border-err-border bg-err-bg',
+  neutral: 'border-border',
+  accent: 'border-accent-border',
+  success: 'border-ok-border',
+  warning: 'border-warn-border',
+  danger: 'border-err-border',
 };
 
 const valueClasses: Record<StatTone, string> = {
@@ -33,7 +33,10 @@ export function StatCard({
 }) {
   const labelId = useId();
   return (
-    <article aria-labelledby={labelId} className={`min-w-0 rounded-2xl border p-4 shadow-xl ${toneClasses[tone]}`}>
+    <article
+      aria-labelledby={labelId}
+      className={`glass glass-hover min-w-0 rounded-2xl border p-4 transition-[background-color,border-color,box-shadow] duration-200 ease-out ${toneClasses[tone]}`}
+    >
       <p id={labelId} className="text-xs font-medium uppercase tracking-[0.2em] text-text-muted">{label}</p>
       <div className="mt-2 flex flex-wrap items-baseline gap-2">
         <p className={`text-3xl font-semibold ${valueClasses[tone]}`} aria-live="polite">{value}</p>

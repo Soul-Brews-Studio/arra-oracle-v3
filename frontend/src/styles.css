@@ -31,6 +31,10 @@
   --color-err-bg: oklch(0.94 0.06 25);
   --color-err-text: oklch(0.50 0.20 25);
   --color-err-border: oklch(0.62 0.20 25 / 0.45);
+  --glass-bg: oklch(1 0 0 / 0.58);
+  --glass-border: oklch(0.50 0.11 178 / 0.18);
+  --glass-shadow: 0 8px 28px oklch(0.13 0.02 265 / 0.12);
+  --glass-blur: 18px;
 }
 
 .dark {
@@ -60,6 +64,10 @@
   --color-err-bg: oklch(0.54 0.17 25 / 0.20);
   --color-err-text: oklch(0.82 0.15 25);
   --color-err-border: oklch(0.82 0.15 25 / 0.36);
+  --glass-bg: oklch(0.16 0.02 265 / 0.35);
+  --glass-border: oklch(1 0 0 / 0.08);
+  --glass-shadow: 0 8px 32px oklch(0 0 0 / 0.4);
+  --glass-blur: 24px;
 }
 
 body {
@@ -76,9 +84,29 @@ body {
 
 .oracle-shell {
   background:
-    radial-gradient(circle at top left, color-mix(in oklch, var(--color-accent) 18%, transparent), transparent 32rem),
-    radial-gradient(circle at bottom right, color-mix(in oklch, var(--color-accent2) 12%, transparent), transparent 30rem),
+    radial-gradient(circle at 14% 16%, color-mix(in oklch, var(--color-accent) 20%, transparent), transparent 30rem),
+    radial-gradient(circle at 82% 10%, color-mix(in oklch, var(--color-accent2) 18%, transparent), transparent 28rem),
+    radial-gradient(circle at 8% 78%, color-mix(in oklch, var(--color-accent2) 10%, transparent), transparent 26rem),
+    radial-gradient(circle at 92% 72%, color-mix(in oklch, var(--color-accent) 12%, transparent), transparent 28rem),
+    radial-gradient(circle at 50% 45%, color-mix(in oklch, var(--color-accent2) 8%, transparent), transparent 34rem),
     var(--color-bg);
+}
+
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-hover:hover {
+  border-color: oklch(1 0 0 / 0.15);
+  box-shadow: var(--glass-shadow), 0 0 20px oklch(0.82 0.13 178 / 0.15);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-hover { transition: none; }
 }
 
 .focus-ring:focus-visible {
