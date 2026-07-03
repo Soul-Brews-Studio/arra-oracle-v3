@@ -1,9 +1,10 @@
 import type { ThemeDefinition } from './types';
 import { oracleDefault } from './oracle-default';
 import { midnightTeal } from './midnight-teal';
+import { emeraldNoir } from './emerald-noir';
 import { sakura } from './sakura';
 
-const all: ThemeDefinition[] = [oracleDefault, midnightTeal, sakura];
+const all: ThemeDefinition[] = [oracleDefault, midnightTeal, emeraldNoir, sakura];
 
 const byId = new Map(all.map((t) => [t.id, t]));
 
