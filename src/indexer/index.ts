@@ -33,7 +33,7 @@ import {
   snapshotActiveIndexerDocs,
   supersedeReplacedSourceDocs,
 } from './reindex-state.ts';
-import { storeDocuments } from './storage.ts';
+import { oracleFts, storeDocuments } from './storage.ts';
 import { chunkDocumentsForIndexing } from './chunk-text.ts';
 import { removeDocumentPointers } from '../search/pointer-index.ts';
 
@@ -153,8 +153,7 @@ export class OracleIndexer {
         const BATCH_SIZE = 500;
         for (let i = 0; i < idsToDelete.length; i += BATCH_SIZE) {
           const batch = idsToDelete.slice(i, i + BATCH_SIZE);
-          const placeholders = batch.map(() => '?').join(',');
-          this.sqlite.prepare(`DELETE FROM oracle_fts WHERE id IN (${placeholders})`).run(...batch);
+          this.db.delete(oracleFts).where(inArray(oracleFts.id, batch)).run();
           removeDocumentPointers(this.sqlite, tenantId, batch);
         }
       }
