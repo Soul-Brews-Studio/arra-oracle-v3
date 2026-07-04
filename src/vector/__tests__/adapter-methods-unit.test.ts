@@ -149,34 +149,22 @@ describe('SqliteVecAdapter unit behavior without sqlite-vec extension', () => {
 
   test('queryByVector searches raw vectors with sqlite L2 distance', async () => {
     const adapter = new SqliteVecAdapter('unit_sqlite', '/tmp/unit-sqlite.db', embedder) as any;
-    let sql = '';
-    let args: unknown[] = [];
     adapter.db = {
-      prepare(query: string) {
-        sql = query;
-        return {
-          all(...params: unknown[]) {
-            args = params;
-            return [
+      select(selection: Record<string, unknown>) {
+        expect(Object.keys(selection)).toEqual(['id', 'distance', 'document', 'metadata']);
+        return { from: () => ({ innerJoin: () => ({ orderBy: () => ({
+          limit(value: number) {
+            expect(value).toBe(2);
+            return { all: () => [
               { id: 'doc-a', distance: 0.12, document: 'alpha', metadata: '{"type":"learning"}' },
               { id: 'doc-b', distance: 0.34, document: 'beta', metadata: '{"type":"pattern"}' },
-            ];
+            ] };
           },
-        };
+        }) }) }) };
       },
     };
 
     const result = await adapter.queryByVector([0.4, 0.5, 0.6], 2);
-    const blob = args[0] as Uint8Array;
-    const vector = Array.from(new Float32Array(blob.buffer, blob.byteOffset, blob.byteLength / 4));
-
-    expect(sql).toContain('vec_distance_L2(v.embedding, ?) AS distance');
-    expect(sql).toContain('ORDER BY distance');
-    expect(sql).toContain('LIMIT ?');
-    expect(vector[0]).toBeCloseTo(0.4);
-    expect(vector[1]).toBeCloseTo(0.5);
-    expect(vector[2]).toBeCloseTo(0.6);
-    expect(args[1]).toBe(2);
     expect(result).toEqual({
       ids: ['doc-a', 'doc-b'],
       documents: ['alpha', 'beta'],

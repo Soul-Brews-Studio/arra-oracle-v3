@@ -53,7 +53,9 @@ export function createStartRoute(deps: StartRouteDeps = {}) {
     const dbPath = deps.dbPath ?? DB_PATH;
     const repoRoot = sourcePath || deps.repoRoot || REPO_ROOT;
     const tenantId = currentTenantId();
-    const { sqlite } = (deps.createDb ?? createDatabase)(dbPath);
+    const conn = (deps.createDb ?? createDatabase)(dbPath);
+    const { sqlite } = conn;
+    const statusDb = conn.db ?? sqlite;
     const config: IndexerConfig = {
       repoRoot,
       dbPath,
@@ -100,11 +102,11 @@ export function createStartRoute(deps: StartRouteDeps = {}) {
         }>;
 
         const total = rows.length;
-        setIndexingStatus(sqlite, config, true, 0, total);
+        setIndexingStatus(statusDb, config, true, 0, total);
 
         for (let i = 0; i < rows.length; i += batch) {
           if (abortFlag) {
-            setIndexingStatus(sqlite, config, false, i, total, 'Cancelled by user');
+            setIndexingStatus(statusDb, config, false, i, total, 'Cancelled by user');
             break;
           }
 
@@ -132,15 +134,15 @@ export function createStartRoute(deps: StartRouteDeps = {}) {
             });
           }
           if (entityDocs.length > 0) await entityStore.addDocuments(entityDocs);
-          setIndexingStatus(sqlite, config, true, i + batchRows.length, total);
+          setIndexingStatus(statusDb, config, true, i + batchRows.length, total);
         }
 
         if (!abortFlag) {
-          setIndexingStatus(sqlite, config, false, rows.length, rows.length);
+          setIndexingStatus(statusDb, config, false, rows.length, rows.length);
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        setIndexingStatus(sqlite, config, false, 0, 0, msg);
+        setIndexingStatus(statusDb, config, false, 0, 0, msg);
       } finally {
         await store.close().catch(() => undefined);
         await entityStore.close().catch(() => undefined);

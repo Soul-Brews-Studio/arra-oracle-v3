@@ -107,7 +107,7 @@ export function AppShell({
       <div className="mx-auto grid w-full max-w-7xl gap-4 px-3 py-3 sm:gap-6 sm:px-6 sm:py-6 lg:grid-cols-[18rem_minmax(0,1fr)] lg:px-8">
         <NavSidebar items={navItems} />
         <div className="flex w-full min-w-0 flex-col gap-4 sm:gap-6">
-          <header className="glass grid gap-5 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] p-4 shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,28rem)] lg:items-end">
+          <header className="glass relative z-30 grid gap-5 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] p-4 shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,28rem)] lg:items-end">
             <PageChrome meta={meta} />
             <div className="grid w-full min-w-0 gap-3">
               <CommandPalette onRefresh={onRefresh} />

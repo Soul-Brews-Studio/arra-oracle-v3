@@ -1,12 +1,23 @@
+import { and, eq, inArray, isNull, or, type SQL } from 'drizzle-orm';
 import type { Database } from 'bun:sqlite';
+import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import * as schema from '../db/schema.ts';
 import { extractEntities } from '../vector/entities.ts';
 import { entityKey } from './entity-ranking.ts';
 
-type SqliteLike = Pick<Database, 'prepare'>;
+type OracleDb = BunSQLiteDatabase<typeof schema>;
+type OracleDbInput = OracleDb | Database;
 type PointerKind = 'topic' | 'entity' | 'date';
 type Pointer = { kind: PointerKind; key: string; label: string };
-type PointerRow = { id: string; kind: PointerKind; key: string; doc_ids: string };
-type DocRow = { id: string; type: string; source_file: string; concepts: string | null; content: string | null };
+type PointerRow = { id: string; kind: PointerKind; key: string; docIds: string };
+type DocRow = { id: string; type: string; sourceFile: string; concepts: string | null; content: string | null };
+
+const oracleFts = sqliteTable('oracle_fts', {
+  id: text('id'),
+  content: text('content'),
+  concepts: text('concepts'),
+});
 
 export type PointerInput = {
   documentId: string;
@@ -26,6 +37,10 @@ export type PointerSearchOptions = {
 const STOPWORDS = new Set(['and', 'are', 'for', 'from', 'into', 'the', 'this', 'that', 'with', 'what', 'when', 'where']);
 const KIND_WEIGHT: Record<PointerKind, number> = { entity: 0.55, topic: 0.35, date: 0.25 };
 
+function toDb(input: OracleDbInput): OracleDb {
+  return 'prepare' in input ? drizzle(input, { schema }) : input;
+}
+
 export function documentPointers(input: PointerInput): Pointer[] {
   return uniquePointers([
     ...conceptValues(input.concepts).map((topic) => pointer('topic', topic)),
@@ -34,56 +49,75 @@ export function documentPointers(input: PointerInput): Pointer[] {
   ]);
 }
 
-export function replaceDocumentPointers(sqlite: SqliteLike, input: PointerInput): void {
+export function replaceDocumentPointers(dbInput: OracleDbInput, input: PointerInput): void {
   try {
+    const db = toDb(dbInput);
     const tenantId = input.tenantId?.trim() || 'default';
-    removeDocumentPointers(sqlite, tenantId, [input.documentId]);
-    const select = sqlite.prepare('SELECT doc_ids FROM oracle_pointer_index WHERE id = ?');
-    const upsert = sqlite.prepare(`
-      INSERT INTO oracle_pointer_index (id, tenant_id, kind, key, doc_ids, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET doc_ids = excluded.doc_ids, updated_at = excluded.updated_at
-    `);
+    removeDocumentPointers(db, tenantId, [input.documentId]);
     const now = Date.now();
     for (const item of documentPointers(input)) {
       const id = pointerId(tenantId, item.kind, item.key);
-      const existing = parseIds((select.get(id) as { doc_ids?: string } | undefined)?.doc_ids);
+      const existingRow = db.select({ docIds: schema.oraclePointerIndex.docIds })
+        .from(schema.oraclePointerIndex)
+        .where(eq(schema.oraclePointerIndex.id, id))
+        .get();
+      const existing = parseIds(existingRow?.docIds);
       const docIds = [...new Set([...existing, input.documentId])].sort();
-      upsert.run(id, tenantId, item.kind, item.key, JSON.stringify(docIds), now);
+      db.insert(schema.oraclePointerIndex)
+        .values({ id, tenantId, kind: item.kind, key: item.key, docIds: JSON.stringify(docIds), updatedAt: now })
+        .onConflictDoUpdate({
+          target: schema.oraclePointerIndex.id,
+          set: { docIds: JSON.stringify(docIds), updatedAt: now },
+        })
+        .run();
     }
   } catch (error) {
     if (!missingPointerTable(error)) throw error;
   }
 }
 
-export function removeDocumentPointers(sqlite: SqliteLike, tenantId: string | undefined, documentIds: string[]): void {
+export function removeDocumentPointers(dbInput: OracleDbInput, tenantId: string | undefined, documentIds: string[]): void {
   if (documentIds.length === 0) return;
   try {
+    const db = toDb(dbInput);
     const tenant = tenantId?.trim() || 'default';
-    const rows = sqlite.prepare('SELECT id, kind, key, doc_ids FROM oracle_pointer_index WHERE tenant_id = ?').all(tenant) as PointerRow[];
-    const update = sqlite.prepare('UPDATE oracle_pointer_index SET doc_ids = ?, updated_at = ? WHERE id = ?');
-    const del = sqlite.prepare('DELETE FROM oracle_pointer_index WHERE id = ?');
+    const rows = db.select({
+      id: schema.oraclePointerIndex.id,
+      kind: schema.oraclePointerIndex.kind,
+      key: schema.oraclePointerIndex.key,
+      docIds: schema.oraclePointerIndex.docIds,
+    }).from(schema.oraclePointerIndex)
+      .where(eq(schema.oraclePointerIndex.tenantId, tenant))
+      .all() as PointerRow[];
     const remove = new Set(documentIds);
     const now = Date.now();
     for (const row of rows) {
-      const next = parseIds(row.doc_ids).filter((id) => !remove.has(id));
-      if (next.length === 0) del.run(row.id);
-      else if (next.length !== parseIds(row.doc_ids).length) update.run(JSON.stringify(next), now, row.id);
+      const existing = parseIds(row.docIds);
+      const next = existing.filter((id) => !remove.has(id));
+      if (next.length === 0) {
+        db.delete(schema.oraclePointerIndex).where(eq(schema.oraclePointerIndex.id, row.id)).run();
+      } else if (next.length !== existing.length) {
+        db.update(schema.oraclePointerIndex)
+          .set({ docIds: JSON.stringify(next), updatedAt: now })
+          .where(eq(schema.oraclePointerIndex.id, row.id))
+          .run();
+      }
     }
   } catch (error) {
     if (!missingPointerTable(error)) throw error;
   }
 }
 
-export function queryPointerIndex(sqlite: SqliteLike, options: PointerSearchOptions): PointerSearchResult[] {
+export function queryPointerIndex(dbInput: OracleDbInput, options: PointerSearchOptions): PointerSearchResult[] {
+  const db = toDb(dbInput);
   const limit = Math.max(1, Math.min(100, Math.trunc(options.limit ?? 10)));
   const tenantId = options.tenantId?.trim() || 'default';
   const keys = queryPointers(options.query);
   if (keys.length === 0) return [];
   try {
-    const rows = lookupPointerRows(sqlite, tenantId, keys);
+    const rows = lookupPointerRows(db, tenantId, keys);
     const ranked = rankDocs(rows, keys);
-    return hydratePointerDocs(sqlite, ranked, { ...options, tenantId, limit });
+    return hydratePointerDocs(db, ranked, { ...options, tenantId, limit });
   } catch (error) {
     if (missingPointerTable(error)) return [];
     throw error;
@@ -102,12 +136,21 @@ export function queryPointers(query: string): Pointer[] {
   ]).slice(0, 24);
 }
 
-function lookupPointerRows(sqlite: SqliteLike, tenantId: string, keys: Pointer[]): PointerRow[] {
-  const clauses = keys.map(() => '(kind = ? AND key = ?)').join(' OR ');
-  if (!clauses) return [];
-  const params = keys.flatMap((item) => [item.kind, item.key]);
-  return sqlite.prepare(`SELECT id, kind, key, doc_ids FROM oracle_pointer_index WHERE tenant_id = ? AND (${clauses})`)
-    .all(tenantId, ...params) as PointerRow[];
+function lookupPointerRows(db: OracleDb, tenantId: string, keys: Pointer[]): PointerRow[] {
+  const clauses = keys.map((item) => and(
+    eq(schema.oraclePointerIndex.kind, item.kind),
+    eq(schema.oraclePointerIndex.key, item.key),
+  )).filter((clause): clause is SQL => clause !== undefined);
+  const pointerMatch = or(...clauses);
+  if (!pointerMatch) return [];
+  return db.select({
+    id: schema.oraclePointerIndex.id,
+    kind: schema.oraclePointerIndex.kind,
+    key: schema.oraclePointerIndex.key,
+    docIds: schema.oraclePointerIndex.docIds,
+  }).from(schema.oraclePointerIndex)
+    .where(and(eq(schema.oraclePointerIndex.tenantId, tenantId), pointerMatch))
+    .all() as PointerRow[];
 }
 
 function rankDocs(rows: PointerRow[], wanted: Pointer[]): Map<string, { score: number; matches: string[] }> {
@@ -115,7 +158,7 @@ function rankDocs(rows: PointerRow[], wanted: Pointer[]): Map<string, { score: n
   const ranked = new Map<string, { score: number; matches: string[] }>();
   for (const row of rows) {
     const label = wantedLabels.get(`${row.kind}:${row.key}`) ?? row.key;
-    for (const docId of parseIds(row.doc_ids)) {
+    for (const docId of parseIds(row.docIds)) {
       const hit = ranked.get(docId) ?? { score: 0, matches: [] };
       hit.score += KIND_WEIGHT[row.kind];
       if (!hit.matches.includes(label)) hit.matches.push(label);
@@ -125,17 +168,25 @@ function rankDocs(rows: PointerRow[], wanted: Pointer[]): Map<string, { score: n
   return ranked;
 }
 
-function hydratePointerDocs(sqlite: SqliteLike, ranked: Map<string, { score: number; matches: string[] }>, options: Required<Pick<PointerSearchOptions, 'tenantId' | 'limit'>> & PointerSearchOptions): PointerSearchResult[] {
+function hydratePointerDocs(db: OracleDb, ranked: Map<string, { score: number; matches: string[] }>, options: Required<Pick<PointerSearchOptions, 'tenantId' | 'limit'>> & PointerSearchOptions): PointerSearchResult[] {
   const ids = [...ranked.keys()];
   if (ids.length === 0) return [];
-  const placeholders = ids.map(() => '?').join(',');
-  const typeFilter = options.type && options.type !== 'all' ? ' AND d.type = ?' : '';
-  const projectFilter = options.project ? ' AND (d.project = ? OR d.project IS NULL)' : '';
-  const rows = sqlite.prepare(`
-    SELECT d.id, d.type, d.source_file, d.concepts, f.content
-    FROM oracle_documents d LEFT JOIN oracle_fts f ON f.id = d.id
-    WHERE d.tenant_id = ? AND d.id IN (${placeholders})${typeFilter}${projectFilter}
-  `).all(options.tenantId, ...ids, ...(options.type && options.type !== 'all' ? [options.type] : []), ...(options.project ? [options.project] : [])) as DocRow[];
+  const filters = [
+    eq(schema.oracleDocuments.tenantId, options.tenantId),
+    inArray(schema.oracleDocuments.id, ids),
+    ...(options.type && options.type !== 'all' ? [eq(schema.oracleDocuments.type, options.type)] : []),
+    ...(options.project ? [or(eq(schema.oracleDocuments.project, options.project), isNull(schema.oracleDocuments.project))] : []),
+  ];
+  const rows = db.select({
+    id: schema.oracleDocuments.id,
+    type: schema.oracleDocuments.type,
+    sourceFile: schema.oracleDocuments.sourceFile,
+    concepts: schema.oracleDocuments.concepts,
+    content: oracleFts.content,
+  }).from(schema.oracleDocuments)
+    .leftJoin(oracleFts, eq(oracleFts.id, schema.oracleDocuments.id))
+    .where(and(...filters))
+    .all() as DocRow[];
   return rows.map((row) => {
     const hit = ranked.get(row.id)!;
     const pointerScore = clamp(hit.score / 1.4);
@@ -143,7 +194,7 @@ function hydratePointerDocs(sqlite: SqliteLike, ranked: Map<string, { score: num
       id: row.id,
       type: row.type,
       content: (row.content ?? '').slice(0, 500),
-      source_file: row.source_file,
+      source_file: row.sourceFile,
       concepts: conceptValues(row.concepts),
       score: pointerScore,
       source: 'pointer' as const,

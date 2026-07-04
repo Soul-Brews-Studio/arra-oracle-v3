@@ -11,7 +11,14 @@ import type {
 } from '../../src/vector/adapters/cloudflare.ts';
 import { oracleProxyTool, type TextToolResult } from '../../workers/mcp/src/proxy.ts';
 
-type SqliteLike = { query: (query: string) => { run: (...params: unknown[]) => unknown; all: (...params: unknown[]) => unknown[]; get: (...params: unknown[]) => unknown } };
+type SqliteLike = {
+  query: (query: string) => {
+    run: (...params: unknown[]) => unknown;
+    all: (...params: unknown[]) => unknown[];
+    get: (...params: unknown[]) => unknown;
+    values: (...params: unknown[]) => unknown[][];
+  };
+};
 type Vector = { id: string; values: number[]; metadata?: Record<string, unknown> };
 
 function sqliteD1(sqlite: SqliteLike, txDb: unknown): CloudflareD1Database {
@@ -23,6 +30,7 @@ function sqliteD1(sqlite: SqliteLike, txDb: unknown): CloudflareD1Database {
         async run() { sqlite.query(query).run(...params); return { results: [] }; },
         async all<T>() { return { results: sqlite.query(query).all(...params) as T[] }; },
         async first<T>() { return sqlite.query(query).get(...params) as T | null; },
+        async raw<T = unknown[]>() { return sqlite.query(query).values(...params) as T[]; },
       };
       return statement;
     },

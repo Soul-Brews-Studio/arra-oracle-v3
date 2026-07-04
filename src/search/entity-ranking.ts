@@ -1,4 +1,8 @@
+import { and, eq, inArray } from 'drizzle-orm';
 import type { Database } from 'bun:sqlite';
+import { drizzle } from 'drizzle-orm/bun-sqlite';
+import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+import * as schema from '../db/schema.ts';
 import { extractEntities } from '../vector/entities.ts';
 
 const ENTITY_BOOST_PER_MATCH = 0.08;
@@ -7,7 +11,8 @@ const MAX_ENTITY_QUERY_KEYS = 16;
 const MAX_RANKING_CANDIDATES = 100;
 const QUERY_STOPWORDS = new Set(['a', 'an', 'and', 'are', 'but', 'for', 'from', 'how', 'the', 'this', 'that', 'what', 'when', 'where', 'with', 'why']);
 
-type SqliteLike = Pick<Database, 'prepare'>;
+type OracleDb = BunSQLiteDatabase<typeof schema>;
+type OracleDbInput = OracleDb | Database;
 export type EntityLinkRecord = {
   id: string;
   tenantId: string;
@@ -54,44 +59,57 @@ export function entityLinksForDocument(input: {
   }));
 }
 
-export function replaceEntityLinks(sqlite: SqliteLike, input: Parameters<typeof entityLinksForDocument>[0]): void {
+function toDb(input: OracleDbInput): OracleDb {
+  return 'prepare' in input ? drizzle(input, { schema }) : input;
+}
+
+export function replaceEntityLinks(dbInput: OracleDbInput, input: Parameters<typeof entityLinksForDocument>[0]): void {
+  const db = toDb(dbInput);
   const links = entityLinksForDocument(input);
   const tenantId = input.tenantId?.trim() || 'default';
   try {
-    sqlite.prepare('DELETE FROM oracle_entity_links WHERE tenant_id = ? AND document_id = ?')
-      .run(tenantId, input.documentId);
-    const insert = sqlite.prepare(`
-      INSERT INTO oracle_entity_links (id, tenant_id, document_id, entity, entity_key, weight, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    for (const link of links) {
-      insert.run(link.id, link.tenantId, link.documentId, link.entity, link.entityKey, link.weight, link.createdAt, link.updatedAt);
-    }
+    db.delete(schema.oracleEntityLinks)
+      .where(and(
+        eq(schema.oracleEntityLinks.tenantId, tenantId),
+        eq(schema.oracleEntityLinks.documentId, input.documentId),
+      ))
+      .run();
+    if (links.length > 0) db.insert(schema.oracleEntityLinks).values(links).run();
   } catch (error) {
     if (!isMissingEntityTable(error)) throw error;
   }
 }
 
 export function rerankByEntityLinks<T extends Rankable>(
-  sqlite: SqliteLike,
+  dbInput: OracleDbInput,
   results: T[],
   query: string,
   tenantId?: string,
 ): Array<T & EntityRankFields> {
+  const db = toDb(dbInput);
   const ids = results.map((result) => result.id).filter(Boolean).slice(0, MAX_RANKING_CANDIDATES);
   const keys = entityKeysForQuery(query);
   if (ids.length === 0 || keys.length === 0) return results;
 
   const linkMap = new Map<string, Map<string, LinkRow>>();
   try {
-    const keyPlaceholders = keys.map(() => '?').join(',');
-    const idPlaceholders = ids.map(() => '?').join(',');
-    const tenantClause = tenantId ? ' AND tenant_id = ?' : '';
-    const rows = sqlite.prepare(`
-      SELECT document_id AS documentId, entity, entity_key AS entityKey, weight
-      FROM oracle_entity_links
-      WHERE entity_key IN (${keyPlaceholders}) AND document_id IN (${idPlaceholders})${tenantClause}
-    `).all(...keys, ...ids, ...(tenantId ? [tenantId] : [])) as LinkRow[];
+    const rows = db.select({
+      documentId: schema.oracleEntityLinks.documentId,
+      entity: schema.oracleEntityLinks.entity,
+      entityKey: schema.oracleEntityLinks.entityKey,
+      weight: schema.oracleEntityLinks.weight,
+    }).from(schema.oracleEntityLinks)
+      .where(tenantId
+        ? and(
+          inArray(schema.oracleEntityLinks.entityKey, keys),
+          inArray(schema.oracleEntityLinks.documentId, ids),
+          eq(schema.oracleEntityLinks.tenantId, tenantId),
+        )
+        : and(
+          inArray(schema.oracleEntityLinks.entityKey, keys),
+          inArray(schema.oracleEntityLinks.documentId, ids),
+        ))
+      .all();
     for (const row of rows) {
       const docLinks = linkMap.get(row.documentId) ?? new Map<string, LinkRow>();
       docLinks.set(row.entityKey, row);

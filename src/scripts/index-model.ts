@@ -54,7 +54,7 @@ async function main() {
   const [{ total: docCount }] = db.select({ total: count() }).from(oracleDocuments).all();
   const rows = loadRows(sqlite);
   const docs = rows.map(vectorDoc);
-  const previous = loadVectorIndexManifest(sqlite, selectedModelKey);
+  const previous = loadVectorIndexManifest(db, selectedModelKey);
   const plan = planVectorIndex(docs, previous, selectedModelKey, { force });
   const startTime = Date.now();
 
@@ -72,7 +72,7 @@ async function main() {
 
   try {
     const embedded = await applyVectorPlan(store, plan, previous.size === 0 || force, startTime);
-    writeVectorIndexManifest(sqlite, plan);
+    writeVectorIndexManifest(db, plan);
     printSummary(rows, plan, { embedded, errors: 0, startTime, dryRun, force });
   } finally {
     await store.close();

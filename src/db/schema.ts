@@ -16,7 +16,7 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
   indexedAt: integer('indexed_at').notNull(),
-  validTime: integer('valid_time').default(sql`null`),
+  validTime: integer('valid_time'),
   supersededBy: text('superseded_by'),
   supersededAt: integer('superseded_at'),
   supersededReason: text('superseded_reason'),
@@ -247,3 +247,4 @@ export const traceLog = sqliteTable('trace_log', {
 ]);
 export { exportJobs } from './export-schema.ts';
 export { activityLog, menuItems, schedule, settings, supersedeLog } from './logistics-schema.ts';
+export { assertSqliteIdentifier, oracleVectorDocuments, sqliteVecEmbeddingsTable, sqliteVecMetadataTable, vectorDocumentsTable } from './vector-schema.ts';
