@@ -9,6 +9,9 @@
 import fs from 'fs';
 import path from 'path';
 import type Database from 'bun:sqlite';
+import { and, count, eq, inArray, isNull, type SQL } from 'drizzle-orm';
+import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+import * as schema from '../db/schema.ts';
 import { enqueueIndexJob } from './jobs.ts';
 import { REPO_ROOT } from '../config.ts';
 import {
@@ -25,6 +28,9 @@ import { isWithinRoot, listDirs, listFiles, safeClearTimeout, safeClose, watchDi
 import { discoverProjectPsiDirs } from './discovery.ts';
 import { currentTenantId } from '../middleware/tenant.ts';
 
+const { indexingJobs, oracleDocuments } = schema;
+type WatcherDb = BunSQLiteDatabase<typeof schema>;
+
 export interface LearnWatcherOptions {
   /** sqlite database used by enqueueIndexJob(). */
   db: Database;
@@ -40,34 +46,41 @@ export type StopWatch = () => void;
 
 const DEFAULT_DEBOUNCE_MS = 250;
 
-function hasActiveJobs(db: Database, docId: string): boolean {
-  const row = db.query<{ count: number }, [string]>(
-    `SELECT COUNT(*) AS count FROM indexing_jobs
-     WHERE doc_id = ? AND status IN ('pending', 'claimed')`,
-  ).get(docId);
+function hasActiveJobs(db: WatcherDb, docId: string): boolean {
+  const row = db.select({ count: count(indexingJobs.id) })
+    .from(indexingJobs)
+    .where(and(eq(indexingJobs.docId, docId), inArray(indexingJobs.status, ['pending', 'claimed'])))
+    .get();
   return (row?.count ?? 0) > 0;
 }
 
-function enqueueDocIds(db: Database, models: Record<string, { collection: string }>, ids: string[]): number {
+function enqueueDocIds(
+  sqlite: Database,
+  db: WatcherDb,
+  models: Record<string, { collection: string }>,
+  ids: string[],
+): number {
   let count = 0;
   for (const id of ids) {
     if (hasActiveJobs(db, id)) continue;
-    try { count += enqueueIndexJob(db, { docId: id, models }).length; } catch { continue; }
+    try { count += enqueueIndexJob(sqlite, { docId: id, models }).length; } catch { continue; }
   }
   return count;
 }
 
-function existingLearningIds(db: Database, sourceFile: string): string[] {
+function existingLearningIds(db: WatcherDb, sourceFile: string): string[] {
   const tenantId = currentTenantId();
-  return tenantId
-    ? db.query<{ id: string }, [string, string]>(
-      `SELECT id FROM oracle_documents
-       WHERE source_file = ? AND tenant_id = ? AND type = 'learning' AND superseded_at IS NULL`,
-    ).all(sourceFile, tenantId).map((row) => row.id)
-    : db.query<{ id: string }, [string]>(
-      `SELECT id FROM oracle_documents
-       WHERE source_file = ? AND type = 'learning' AND superseded_at IS NULL`,
-    ).all(sourceFile).map((row) => row.id);
+  const filters: SQL[] = [
+    eq(oracleDocuments.sourceFile, sourceFile),
+    eq(oracleDocuments.type, 'learning'),
+    isNull(oracleDocuments.supersededAt),
+  ];
+  if (tenantId) filters.push(eq(oracleDocuments.tenantId, tenantId));
+  return db.select({ id: oracleDocuments.id })
+    .from(oracleDocuments)
+    .where(and(...filters))
+    .all()
+    .map((row) => row.id);
 }
 
 function shouldAutoStore(sourceFile: string): boolean {
@@ -88,11 +101,12 @@ function learnRoots(root: string): string[] {
  * Returns a stop function that closes all fs watchers and clears pending timers.
  */
 export function startLearnWatcher({
-  db,
+  db: sqlite,
   models,
   repoRoot = REPO_ROOT,
   debounceMs = DEFAULT_DEBOUNCE_MS,
 }: LearnWatcherOptions): StopWatch {
+  const db = drizzle(sqlite, { schema });
   const root = path.resolve(repoRoot);
   const roots = learnRoots(root)
     .filter((dir) => {
@@ -126,7 +140,7 @@ export function startLearnWatcher({
     let ids = existingLearningIds(db, sourceFile);
     if (ids.length === 0 && shouldAutoStore(sourceFile)) {
       try {
-        ids = storeSqliteDocuments(db, readLearningDocuments(root, fullPath));
+        ids = storeSqliteDocuments(sqlite, readLearningDocuments(root, fullPath));
       } catch (error) {
         console.warn(`[learn-watch] failed to index ${sourceFile}:`, error);
         return;
@@ -137,7 +151,7 @@ export function startLearnWatcher({
       console.log(`[learn-watch] no oracle_documents rows for ${sourceFile}`);
       return;
     }
-    enqueueDocIds(db, models, ids);
+    enqueueDocIds(sqlite, db, models, ids);
   };
 
   function indexTree(dir: string): void {

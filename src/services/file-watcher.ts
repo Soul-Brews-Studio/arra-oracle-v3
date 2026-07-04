@@ -13,7 +13,6 @@ import {
   storeSqliteDocuments,
 } from '../indexer/learn-doc-source.ts';
 import { isWithinRoot, listDirs, listFiles, safeClearTimeout, safeClose, watchDir } from '../indexer/watch-utils.ts';
-
 type ModelRegistry = Record<string, { collection: string }>;
 type WatcherEventType = 'started' | 'stopped' | 'scheduled' | 'indexed' | 'skipped' | 'error';
 
@@ -121,6 +120,9 @@ export class FileWatcherService implements FileWatcherControl {
     if (!isWithinRoot(this.watchRoot, fullPath)) return;
     safeClearTimeout(this.pending.get(fullPath));
     const sourceFile = normalizeSourceFile(this.repoRoot, fullPath);
+    if (this.events[0]?.type === 'indexed' && this.events[0].path === sourceFile
+      && Date.now() - Date.parse(this.events[0].at) <= Math.max(25, this.debounceMs * 2)
+      && fs.existsSync(fullPath) && fs.statSync(fullPath).mtimeMs <= Date.parse(this.events[0].at)) return;
     this.record('scheduled', `scheduled re-index for ${sourceFile}`, sourceFile);
     this.pending.set(fullPath, setTimeout(() => {
       this.pending.delete(fullPath);
@@ -234,9 +236,7 @@ export class FileWatcherService implements FileWatcherControl {
   }
 }
 
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
+function errorText(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 class LazyFileWatcherService implements FileWatcherControl {
   private service?: FileWatcherService;
   private get current(): FileWatcherService { return this.service ??= new FileWatcherService(); }

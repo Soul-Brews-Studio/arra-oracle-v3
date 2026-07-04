@@ -26,7 +26,7 @@ curl -sf "${AUTH[@]}" "$BASE/api/v1/mcp/tools"
 
 ## Route inventory by family
 
-Base `createApp()` with no dynamic plugins/gateway config currently exposes 192 routes, 187 under `/api`; dynamic plugin and gateway routes may add more at runtime. These families match the mounted source modules.
+Base `createApp()` with no dynamic plugins/gateway config exposes the route inventory below; derive exact counts from `app.routes` in tests or tooling so documentation does not drift. Dynamic plugin and gateway routes may add more at runtime. These families match the mounted source modules.
 
 | Family | Methods and paths |
 | --- | --- |
@@ -84,8 +84,7 @@ curl -s "${AUTH[@]}" "$BASE/api/v1/vector/health"
     "fts": { "status": "healthy" },
     "vector": { "status": "healthy" },
     "plugin": { "status": "healthy" }
-  },
-  "mcp": { "toolCount": 28 }
+  }
 }
 ```
 
@@ -149,16 +148,10 @@ curl -s "${AUTH[@]}" -H 'content-type: application/json' \
 
 ## MCP tool catalogue
 
-`GET /api/v1/mcp/tools` returns core tools plus active plugin tools; handler names
-are omitted. The 28 core names are, in order:
-
-`____IMPORTANT`, `oracle_recap`, `oracle_search`, `oracle_read`, `oracle_learn`, `oracle_list`,
-`oracle_stats`, `oracle_concepts`, `oracle_supersede`, `oracle_research_note`,
-`oracle_handoff`, `oracle_inbox`, `oracle_thread`, `oracle_threads`,
-`oracle_thread_read`, `oracle_thread_update`, `oracle_profile`, `oracle_trace`,
-`oracle_trace_list`, `oracle_trace_get`, `oracle_trace_link`,
-`oracle_trace_unlink`, `oracle_trace_chain`, `oracle_trace_distill`,
-`oracle_reflect`, `oracle_verify`, `oracle_mcp_list_tools`, `oracle_mcp_call`.
+`GET /api/v1/mcp/tools` returns core tools from
+`src/tools/mcp-manifest.ts` plus active plugin tools; handler names are omitted.
+The source manifest is the canonical count, list, and order, so use the endpoint
+or `mcpToolByName.size` instead of copying a fixed count into docs.
 
 ```json
 {
@@ -171,8 +164,7 @@ are omitted. The 28 core names are, in order:
       "rest": { "method": "GET", "path": "/api/search" },
       "source": "core"
     }
-  ],
-  "total": 28
+  ]
 }
 ```
 

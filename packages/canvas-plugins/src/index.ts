@@ -12,6 +12,7 @@ interface BaseCanvasPlugin {
   description: string;
   path: string;
   query: { plugin: string };
+  apiPath?: string;
 }
 
 export interface CanvasThreePlugin extends BaseCanvasPlugin {
@@ -68,7 +69,7 @@ export const CANVAS_THREE_PLUGINS: readonly CanvasThreePlugin[] = [
   { id: 'graph3d', label: 'Graph 3D', description: 'Three-dimensional graph scene.', kind: 'three', mount: 'graph3dScene', path: '/canvas', query: { plugin: 'graph3d' } },
   { id: 'solar', label: 'Solar', description: 'Solar orbit scene.', kind: 'three', mount: 'solarScene', path: '/canvas', query: { plugin: 'solar' } },
   { id: 'wave', label: 'Wave', description: 'Wave field scene.', kind: 'three', mount: 'waveScene', path: '/canvas', query: { plugin: 'wave' } },
-  { id: 'map3d', label: 'Map 3D', description: 'Legacy 3D knowledge map scene.', kind: 'three', mount: 'map3dScene', path: '/canvas', query: { plugin: 'map3d' } },
+  { id: 'map3d', label: 'Map 3D', description: 'Legacy 3D knowledge map scene backed by /api/map3d.', kind: 'three', mount: 'map3dScene', path: '/canvas', query: { plugin: 'map3d' }, apiPath: '/api/map3d' },
 ];
 
 export const CANVAS_REACT_PLUGINS: readonly CanvasReactPlugin[] = [
@@ -113,7 +114,7 @@ export function canvasPluginAbsoluteUrl(id: string, origin = CANVAS_ORIGIN): str
 
 export function canvasPluginDataPath(id: string): string | undefined {
   const plugin = findCanvasPlugin(id);
-  return plugin?.kind === 'react' ? plugin.apiPath : undefined;
+  return plugin?.apiPath;
 }
 
 function standalone(): CanvasStandaloneRegistry {

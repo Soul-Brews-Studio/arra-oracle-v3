@@ -4,14 +4,16 @@
 
 import fs from 'fs';
 import path from 'path';
-import type Database from 'bun:sqlite';
+import { eq, sql } from 'drizzle-orm';
+import { asOracleDb, type OracleDb, type OracleDbInput } from '../db/drizzle-input.ts';
+import { oracleDocuments, oracleFts, oraclePointerIndex } from '../db/schema.ts';
 import type { OracleDocument } from '../types.ts';
 import { deriveConceptsFromPath, mergeConceptsWithTags } from './concepts.ts';
 import { inferProjectFromPath } from './discovery.ts';
 import { parseLearningFile } from './parser.ts';
 import { enrichTextWithAcronyms } from '../search/acronyms.ts';
 import { chunkDocumentsForIndexing } from './chunk-text.ts';
-import { replaceDocumentPointers } from '../search/pointer-index.ts';
+import { documentPointers, type PointerInput } from '../search/pointer-index.ts';
 
 export const PSI_LEARN_REL = path.join('ψ', 'learn');
 export const MEMORY_LEARN_REL = path.join('ψ', 'memory', 'learnings');
@@ -82,55 +84,119 @@ export function readLearningDocuments(repoRoot: string, filePath: string): Oracl
 
 export const readPsiLearnDocuments = readLearningDocuments;
 
-export function storeSqliteDocuments(db: Database, documents: OracleDocument[]): string[] {
+export function storeSqliteDocuments(input: OracleDbInput, documents: OracleDocument[]): string[] {
   if (documents.length === 0) return [];
+  const db = asOracleDb(input);
   const storedDocuments = chunkDocumentsForIndexing(documents);
   const now = Date.now();
-  const upsertDoc = db.prepare(`
-    INSERT INTO oracle_documents
-      (id, type, source_file, concepts, created_at, updated_at, indexed_at, project, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'indexer')
-    ON CONFLICT(id) DO UPDATE SET
-      type = excluded.type,
-      source_file = excluded.source_file,
-      concepts = excluded.concepts,
-      updated_at = excluded.updated_at,
-      indexed_at = excluded.indexed_at,
-      project = excluded.project,
-      superseded_by = NULL,
-      superseded_at = NULL,
-      superseded_reason = NULL
-  `);
-  const deleteFts = db.prepare('DELETE FROM oracle_fts WHERE id = ?');
-  const insertFts = db.prepare('INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)');
-
-  db.exec('BEGIN');
   try {
+    db.run(sql`ALTER TABLE oracle_documents ADD COLUMN valid_time INTEGER`);
+  } catch {
+    // Column already exists or the backend handles migrations elsewhere.
+  }
+
+  db.transaction((tx) => {
     for (const doc of storedDocuments) {
-      upsertDoc.run(
-        doc.id,
-        doc.type,
-        doc.source_file,
-        JSON.stringify(doc.concepts),
-        doc.created_at,
-        doc.updated_at,
-        now,
-        doc.project?.toLowerCase() ?? null,
-      );
+      const concepts = JSON.stringify(doc.concepts);
+      const project = doc.project?.toLowerCase() ?? null;
+      tx.insert(oracleDocuments)
+        .values({
+          id: doc.id,
+          type: doc.type,
+          sourceFile: doc.source_file,
+          concepts,
+          createdAt: doc.created_at,
+          updatedAt: doc.updated_at,
+          indexedAt: now,
+          project,
+          createdBy: 'indexer',
+        })
+        .onConflictDoUpdate({
+          target: oracleDocuments.id,
+          set: {
+            type: doc.type,
+            sourceFile: doc.source_file,
+            concepts,
+            updatedAt: doc.updated_at,
+            indexedAt: now,
+            project,
+            supersededBy: null,
+            supersededAt: null,
+            supersededReason: null,
+          },
+        })
+        .run();
       const indexedContent = enrichTextWithAcronyms(doc.content);
-      deleteFts.run(doc.id);
-      insertFts.run(doc.id, indexedContent, doc.concepts.join(' '));
-      replaceDocumentPointers(db, {
+      tx.delete(oracleFts).where(eq(oracleFts.id, doc.id)).run();
+      tx.insert(oracleFts)
+        .values({ id: doc.id, content: indexedContent, concepts: doc.concepts.join(' ') })
+        .run();
+      replaceDocumentPointersWithDb(tx as OracleDb, {
         documentId: doc.id,
         content: indexedContent,
         concepts: doc.concepts,
         timestamp: doc.updated_at || doc.created_at,
       });
     }
-    db.exec('COMMIT');
-  } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
-  }
+  });
   return storedDocuments.map((doc) => doc.id);
+}
+
+function replaceDocumentPointersWithDb(db: OracleDb, input: PointerInput): void {
+  try {
+    const tenantId = input.tenantId?.trim() || 'default';
+    removeDocumentPointersWithDb(db, tenantId, [input.documentId]);
+    const now = Date.now();
+    for (const item of documentPointers(input)) {
+      const id = pointerId(tenantId, item.kind, item.key);
+      const row = db.select({ docIds: oraclePointerIndex.docIds })
+        .from(oraclePointerIndex)
+        .where(eq(oraclePointerIndex.id, id))
+        .get();
+      const docIds = [...new Set([...parseIds(row?.docIds), input.documentId])].sort();
+      db.insert(oraclePointerIndex)
+        .values({ id, tenantId, kind: item.kind, key: item.key, docIds: JSON.stringify(docIds), updatedAt: now })
+        .onConflictDoUpdate({
+          target: oraclePointerIndex.id,
+          set: { docIds: JSON.stringify(docIds), updatedAt: now },
+        })
+        .run();
+    }
+  } catch (error) {
+    if (!missingPointerTable(error)) throw error;
+  }
+}
+
+function removeDocumentPointersWithDb(db: OracleDb, tenantId: string, documentIds: string[]): void {
+  if (documentIds.length === 0) return;
+  const rows = db.select({ id: oraclePointerIndex.id, docIds: oraclePointerIndex.docIds })
+    .from(oraclePointerIndex)
+    .where(eq(oraclePointerIndex.tenantId, tenantId))
+    .all();
+  const remove = new Set(documentIds);
+  const now = Date.now();
+  for (const row of rows) {
+    const existing = parseIds(row.docIds);
+    const next = existing.filter((id) => !remove.has(id));
+    if (next.length === 0) db.delete(oraclePointerIndex).where(eq(oraclePointerIndex.id, row.id)).run();
+    else if (next.length !== existing.length) {
+      db.update(oraclePointerIndex)
+        .set({ docIds: JSON.stringify(next), updatedAt: now })
+        .where(eq(oraclePointerIndex.id, row.id))
+        .run();
+    }
+  }
+}
+
+function pointerId(tenantId: string, kind: string, key: string): string { return `${tenantId}:${kind}:${key}`; }
+function parseIds(raw: string | undefined | null): string[] {
+  try {
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+function missingPointerTable(error: unknown): boolean {
+  return String(error instanceof Error ? error.message : error).includes('oracle_pointer_index');
 }

@@ -50,11 +50,14 @@ describe('canvas Cloudflare Worker', () => {
     expect(html).toContain("history.pushState({plugin},'',pluginHref(meta))");
   });
 
-  test('wires react canvas plugins to their Oracle data API', async () => {
+  test('wires memory-map canvas plugins to their Oracle DB/FTS data API', async () => {
     const response = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/map'));
+    const legacy = await handleCanvasRequest(new Request('https://canvas.buildwithoracle.com/?plugin=map3d'));
     const html = await response.text();
+    const legacyHtml = await legacy.text();
 
     expect(html).toContain('"apiPath":"/api/map3d"');
+    expect(legacyHtml).toContain('"apiPath":"/api/map3d"');
     expect(html).toContain('loadPluginData');
     expect(html).toContain('fetch(meta.apiPath');
     expect(html).toContain('dataset.dataCount');

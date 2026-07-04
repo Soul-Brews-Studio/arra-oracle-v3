@@ -4,6 +4,8 @@
 
 import { Database } from 'bun:sqlite';
 import { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+import { eq } from 'drizzle-orm';
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import * as schema from '../db/schema.ts';
 import { oracleDocuments } from '../db/schema.ts';
 import { enrichTextWithAcronyms } from '../search/acronyms.ts';
@@ -13,6 +15,12 @@ import { chunkDocumentsForIndexing } from './chunk-text.ts';
 import { replaceDocumentPointers } from '../search/pointer-index.ts';
 import type { VectorStoreAdapter } from '../vector/types.ts';
 import type { OracleDocument } from '../types.ts';
+
+export const oracleFts = sqliteTable('oracle_fts', {
+  id: text('id').notNull(),
+  content: text('content').notNull(),
+  concepts: text('concepts').notNull(),
+});
 
 /**
  * Store documents in SQLite + vector store
@@ -30,31 +38,18 @@ export async function storeDocuments(
   const tenantId = opts.tenantId ?? tenantIdForWrite();
   const storedDocuments = chunkDocumentsForIndexing(documents);
 
-  // Prepare FTS statements. FTS5 virtual tables have no UNIQUE constraint on
-  // the id column (it's UNINDEXED), so INSERT OR REPLACE doesn't dedupe —
-  // every reindex accumulates duplicates. Delete-then-insert instead.
-  // (Drift discovered 2026-04-16: oracle_fts had 1268 rows for 141 unique ids
-  // after 9 reindex passes.)
-  const deleteFts = sqlite.prepare(`DELETE FROM oracle_fts WHERE id = ?`);
-  const insertFts = sqlite.prepare(`
-    INSERT INTO oracle_fts (id, content, concepts)
-    VALUES (?, ?, ?)
-  `);
-
   // Prepare for vector store
   const ids: string[] = [];
   const contents: string[] = [];
   const metadatas: any[] = [];
 
-  // Wrap SQLite inserts in a transaction for performance + atomicity
-  sqlite.exec('BEGIN');
-  try {
+  db.transaction((tx) => {
     for (const doc of storedDocuments) {
       // SQLite metadata - use doc.project if available, fall back to repo project
       const docProject = (doc.project || project)?.toLowerCase();
 
       // Drizzle upsert with createdBy: 'indexer'
-      db.insert(oracleDocuments)
+      tx.insert(oracleDocuments)
         .values({
           id: doc.id,
           tenantId,
@@ -86,14 +81,14 @@ export async function storeDocuments(
 
       const indexedContent = enrichTextWithAcronyms(doc.content);
 
-      // SQLite FTS (raw SQL required for FTS5): delete then insert to avoid
-      // duplicates across re-index runs.
-      deleteFts.run(doc.id);
-      insertFts.run(
-        doc.id,
-        indexedContent,
-        doc.concepts.join(' ')
-      );
+      // FTS5 virtual tables have no UNIQUE constraint on id (it's UNINDEXED),
+      // so delete-then-insert avoids duplicates across re-index runs.
+      tx.delete(oracleFts).where(eq(oracleFts.id, doc.id)).run();
+      tx.insert(oracleFts).values({
+        id: doc.id,
+        content: indexedContent,
+        concepts: doc.concepts.join(' '),
+      }).run();
       replaceEntityLinks(sqlite, {
         documentId: doc.id,
         tenantId,
@@ -122,11 +117,7 @@ export async function storeDocuments(
         ...(doc.line_end !== undefined && { line_end: doc.line_end }),
       });
     }
-    sqlite.exec('COMMIT');
-  } catch (e) {
-    sqlite.exec('ROLLBACK');
-    throw e;
-  }
+  });
 
   // Batch insert to vector store in chunks of 100 (skip if no client)
   if (!vectorClient) {

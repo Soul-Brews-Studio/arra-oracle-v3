@@ -60,7 +60,7 @@ export function ThemeSelector() {
         <div
           role="listbox"
           aria-label="Color themes"
-          className="glass absolute right-0 top-full z-50 mt-2 grid max-h-[24rem] w-64 gap-1 overflow-y-auto rounded-2xl p-2"
+          className="glass-popover absolute right-0 top-full z-50 mt-2 grid max-h-[min(24rem,60vh)] w-64 gap-1 overflow-y-auto rounded-2xl p-2"
           onMouseLeave={handleLeave}
         >
           {themes.map((t) => (
