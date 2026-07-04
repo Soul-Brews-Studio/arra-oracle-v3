@@ -17,23 +17,41 @@ class MockStatement implements CloudflareD1Statement {
   constructor(private sql: string, private rows: Map<string, Row>) {}
   bind(...values: Array<string | number | null>) { this.values = values; return this; }
   async run<T = unknown>() {
-    const [collection, id, document, metadata] = this.values;
-    if (this.sql.startsWith('INSERT')) this.rows.set(`${collection}:${id}`, { id: String(id), document: String(document), metadata: String(metadata) });
-    if (this.sql.startsWith('DELETE')) for (const key of [...this.rows.keys()]) if (key.startsWith(`${collection}:`)) this.rows.delete(key);
+    const op = this.sql.trim().toLowerCase();
+    if (op.startsWith('insert')) {
+      for (let i = 0; i < this.values.length; i += 5) {
+        const [collection, id, document, metadata] = this.values.slice(i, i + 4);
+        this.rows.set(`${collection}:${id}`, { id: String(id), document: String(document), metadata: String(metadata) });
+      }
+    }
+    if (op.startsWith('delete')) {
+      const collection = String(this.values[0]);
+      for (const key of [...this.rows.keys()]) if (key.startsWith(`${collection}:`)) this.rows.delete(key);
+    }
     return { results: [] as T[] };
   }
   async all<T = unknown>() {
-    const [collection, ...ids] = this.values.map(String);
-    const rows = [...this.rows.entries()]
-      .filter(([key, row]) => key.startsWith(`${collection}:`) && (!ids.length || ids.includes(row.id)))
-      .map(([, row]) => row as T);
-    return { results: rows };
+    return { results: this.selectedRows() as T[] };
   }
   async first<T = unknown>() {
-    if (!this.sql.includes('COUNT')) return null;
+    if (!this.sql.toLowerCase().includes('count')) return null;
     const collection = String(this.values[0]);
     const count = [...this.rows.keys()].filter((key) => key.startsWith(`${collection}:`)).length;
     return { count } as T;
+  }
+  async raw<T = unknown[]>() {
+    if (this.sql.toLowerCase().includes('count')) {
+      const collection = String(this.values[0]);
+      const count = [...this.rows.keys()].filter((key) => key.startsWith(`${collection}:`)).length;
+      return [[count]] as T[];
+    }
+    return this.selectedRows().map((row) => [row.id, row.document, row.metadata]) as T[];
+  }
+  private selectedRows() {
+    const [collection, ...ids] = this.values.map(String);
+    return [...this.rows.entries()]
+      .filter(([key, row]) => key.startsWith(`${collection}:`) && (!ids.length || ids.includes(row.id)))
+      .map(([, row]) => row);
   }
 }
 

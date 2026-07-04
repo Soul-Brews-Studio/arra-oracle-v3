@@ -1,7 +1,7 @@
 /** Default storage backend: Drizzle over bun:sqlite. */
 
 import { Database } from 'bun:sqlite';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import { migrate } from 'drizzle-orm/bun-sqlite/migrator';
 import fs from 'fs';
@@ -52,12 +52,12 @@ function normalizeProjectCasing(db: BunSQLiteDatabase<typeof schema>): void {
 }
 
 function configureSqliteConnection(
-  sqlite: Database,
+  db: BunSQLiteDatabase<typeof schema>,
   options: { readonly: boolean; isMemory: boolean },
 ): void {
-  sqlite.exec('PRAGMA busy_timeout = 5000');
-  sqlite.exec('PRAGMA foreign_keys = ON');
-  if (!options.readonly && !options.isMemory) sqlite.exec('PRAGMA journal_mode = WAL');
+  db.run(sql`PRAGMA busy_timeout = 5000`);
+  db.run(sql`PRAGMA foreign_keys = ON`);
+  if (!options.readonly && !options.isMemory) db.run(sql`PRAGMA journal_mode = WAL`);
 }
 
 /** Run all default sqlite initialization through Drizzle/migrations. */
@@ -85,8 +85,8 @@ export function createDrizzleSqliteBackend(
   const sqlite = options.readonly
     ? new Database(resolvedPath, { readonly: true })
     : new Database(resolvedPath);
-  configureSqliteConnection(sqlite, { readonly: options.readonly === true, isMemory });
   const migrationDb = drizzle(sqlite, { schema });
+  configureSqliteConnection(migrationDb, { readonly: options.readonly === true, isMemory });
 
   if (!options.readonly) initializeDrizzleSqlite(migrationDb, sqlite);
 

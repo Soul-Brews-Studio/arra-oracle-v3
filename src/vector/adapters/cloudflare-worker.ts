@@ -1,14 +1,21 @@
+import { and, count, eq, inArray, sql } from 'drizzle-orm';
+import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
+import * as schema from '../../db/schema.ts';
+import { oracleVectorDocuments, vectorDocumentsTable } from '../../db/schema.ts';
 import type { EmbeddingProvider, VectorDocument, VectorQueryResult, VectorStoreAdapter } from '../types.ts';
 
 type D1Value = string | number | null;
 type D1Result<T> = { results?: T[] };
 type VectorMetadata = Record<string, string | number | boolean>;
+type CloudflareVectorDb = DrizzleD1Database<typeof schema>;
+type VectorTable = ReturnType<typeof vectorDocumentsTable>;
 
 export interface CloudflareD1Statement {
   bind(...values: D1Value[]): CloudflareD1Statement;
   run<T = unknown>(): Promise<D1Result<T>>;
   all<T = unknown>(): Promise<D1Result<T>>;
   first<T = unknown>(): Promise<T | null>;
+  raw<T = unknown[]>(): Promise<T[]>;
 }
 
 export interface CloudflareD1Database {
@@ -56,15 +63,20 @@ export class CloudflareWorkerAIEmbeddings implements EmbeddingProvider {
 
 export class CloudflareVectorizeD1Adapter implements VectorStoreAdapter {
   readonly name = 'cloudflare-vectorize';
-  private table: string;
+  private db: CloudflareVectorDb;
+  private table: VectorTable;
 
   constructor(
     private collectionName: string,
     private embedder: EmbeddingProvider,
-    private bindings: { vectorize: CloudflareVectorizeBinding; d1: CloudflareD1Database },
+    private bindings: { vectorize: CloudflareVectorizeBinding; d1?: CloudflareD1Database; db?: CloudflareVectorDb },
     config: { tableName?: string } = {},
   ) {
-    this.table = quoteIdentifier(config.tableName || TABLE);
+    if (!bindings.db && !bindings.d1) throw new Error('Cloudflare D1 vector adapter requires a Drizzle db or D1 binding');
+    this.db = bindings.db ?? drizzle(bindings.d1 as never, { schema });
+    this.table = config.tableName && config.tableName !== TABLE
+      ? vectorDocumentsTable(config.tableName)
+      : oracleVectorDocuments;
   }
 
   async connect(): Promise<void> { await this.ensureCollection(); }
@@ -72,10 +84,10 @@ export class CloudflareVectorizeD1Adapter implements VectorStoreAdapter {
 
   async ensureCollection(): Promise<void> {
     try {
-      await this.bindings.d1.prepare(`SELECT COUNT(*) AS count FROM ${this.table} WHERE collection = ?`)
-        .bind(this.collectionName).first();
+      await this.db.select({ count: count() }).from(this.table)
+        .where(eq(this.table.collection, this.collectionName)).get();
     } catch (error) {
-      throw new Error(`Cloudflare D1 vector table ${this.table} is unavailable; run the Workers D1 migration first: ${message(error)}`);
+      throw new Error(`Cloudflare D1 vector table is unavailable; run the Workers D1 migration first: ${message(error)}`);
     }
   }
 
@@ -93,7 +105,7 @@ export class CloudflareVectorizeD1Adapter implements VectorStoreAdapter {
   async deleteCollection(): Promise<void> {
     const ids = (await this.rowsForCollection()).map((row) => row.id);
     for (let i = 0; i < ids.length; i += 100) await this.bindings.vectorize.deleteByIds?.(ids.slice(i, i + 100));
-    await this.bindings.d1.prepare(`DELETE FROM ${this.table} WHERE collection = ?`).bind(this.collectionName).run();
+    await this.db.delete(this.table).where(eq(this.table.collection, this.collectionName)).run();
   }
 
   async query(text: string, limit = 10, where?: Record<string, unknown>): Promise<VectorQueryResult> {
@@ -116,8 +128,8 @@ export class CloudflareVectorizeD1Adapter implements VectorStoreAdapter {
   }
 
   async getStats(): Promise<{ count: number }> {
-    const row = await this.bindings.d1.prepare(`SELECT COUNT(*) AS count FROM ${this.table} WHERE collection = ?`)
-      .bind(this.collectionName).first<{ count: number }>();
+    const row = await this.db.select({ count: count() }).from(this.table)
+      .where(eq(this.table.collection, this.collectionName)).get();
     return { count: nonNegative(row?.count) };
   }
 
@@ -145,27 +157,36 @@ export class CloudflareVectorizeD1Adapter implements VectorStoreAdapter {
   }
 
   private async writeRows(docs: VectorDocument[]): Promise<void> {
-    const sql = `INSERT INTO ${this.table} (collection,id,document,metadata,updated_at) VALUES (?,?,?,?,?) `
-      + 'ON CONFLICT(collection,id) DO UPDATE SET document=excluded.document, metadata=excluded.metadata, updated_at=excluded.updated_at';
     const now = new Date().toISOString();
-    const statements = docs.map((doc) => this.bindings.d1.prepare(sql)
-      .bind(this.collectionName, doc.id, doc.document, JSON.stringify(doc.metadata), now));
-    for (let i = 0; i < statements.length; i += 50) await this.bindings.d1.batch(statements.slice(i, i + 50));
+    const rows = docs.map((doc) => ({
+      collection: this.collectionName,
+      id: doc.id,
+      document: doc.document,
+      metadata: JSON.stringify(doc.metadata),
+      updatedAt: now,
+    }));
+    for (let i = 0; i < rows.length; i += 50) {
+      await this.db.insert(this.table).values(rows.slice(i, i + 50)).onConflictDoUpdate({
+        target: [this.table.collection, this.table.id],
+        set: { document: sql`excluded.document`, metadata: sql`excluded.metadata`, updatedAt: sql`excluded.updated_at` },
+      }).run();
+    }
   }
 
   private async rowsFor(ids: string[]): Promise<Map<string, D1VectorRow>> {
     if (!ids.length) return new Map();
-    const placeholders = ids.map(() => '?').join(',');
-    const result = await this.bindings.d1.prepare(
-      `SELECT id, document, metadata FROM ${this.table} WHERE collection = ? AND id IN (${placeholders})`,
-    ).bind(this.collectionName, ...ids).all<D1VectorRow>();
-    return new Map((result.results ?? []).map((row) => [row.id, row]));
+    const rows = await this.db.select({ id: this.table.id, document: this.table.document, metadata: this.table.metadata })
+      .from(this.table)
+      .where(and(eq(this.table.collection, this.collectionName), inArray(this.table.id, ids)))
+      .all();
+    return new Map(rows.map((row) => [row.id, row]));
   }
 
   private async rowsForCollection(): Promise<D1VectorRow[]> {
-    const result = await this.bindings.d1.prepare(`SELECT id, document, metadata FROM ${this.table} WHERE collection = ?`)
-      .bind(this.collectionName).all<D1VectorRow>();
-    return result.results ?? [];
+    return this.db.select({ id: this.table.id, document: this.table.document, metadata: this.table.metadata })
+      .from(this.table)
+      .where(eq(this.table.collection, this.collectionName))
+      .all();
   }
 
   private async hydrate(found: VectorizeMatch[]): Promise<VectorQueryResult> {
@@ -177,11 +198,6 @@ export class CloudflareVectorizeD1Adapter implements VectorStoreAdapter {
       metadatas: found.map((match) => parseMetadata(rows.get(match.id)?.metadata, match.metadata)),
     };
   }
-}
-
-function quoteIdentifier(value: string): string {
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) throw new Error(`Invalid D1 vector table name: ${value}`);
-  return `"${value}"`;
 }
 
 function topK(value: number): number {
