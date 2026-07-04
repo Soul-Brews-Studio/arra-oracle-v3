@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import {
   BackendGate,
+  BrowserHealthError,
   ConnectOracleSetup,
+  browserHealthCheck,
   connectUrlForHost,
   normalizeOracleHost,
 } from '../../../frontend/src/components/BackendGate';
@@ -79,7 +81,75 @@ describe('BackendGate shell', () => {
     expect(html).toContain('Cannot reach http://localhost:47778: offline');
     expect(html).toContain('Use this backend');
     expect(html).toContain('Retry');
+    expect(html).toContain('The real Chrome prompt appears here.');
     expect(html).not.toContain('Start Backend');
   });
 
+  test('CORS setup hides the decorative PNA prompt and points at ARRA_CORS_ORIGINS', () => {
+    const html = htmlFor(
+      <ConnectOracleSetup
+        accessIssue="cors"
+        isTauri={false}
+        message="Reached http://localhost:47778/api/health, but this origin is not trusted"
+        onRetry={() => {}}
+        onStartBackend={() => {}}
+        starting={false}
+        state="unreachable"
+      />,
+    );
+
+    expect(html).toContain('Backend unavailable');
+    expect(html).toContain('ARRA_CORS_ORIGINS');
+    expect(html).toContain('this Studio origin is not trusted');
+    expect(html).not.toContain('v4.buildwithoracle.com wants to');
+    expect(html).not.toContain('The real Chrome prompt appears here.');
+  });
+
+  test('browser health check uses no-cors to identify CORS-only failures', async () => {
+    const calls: Array<{ url: string | URL | Request; init?: RequestInit }> = [];
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = ((url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url, init });
+      return calls.length === 1
+        ? Promise.reject(new TypeError('Failed to fetch'))
+        : Promise.resolve(new Response('', { status: 204 }));
+    }) as typeof fetch;
+
+    try {
+      await browserHealthCheck();
+      throw new Error('expected browserHealthCheck to reject');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BrowserHealthError);
+      expect((error as BrowserHealthError).issue).toBe('cors');
+      expect((error as Error).message).toContain('ARRA_CORS_ORIGINS');
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+
+    expect(calls).toHaveLength(2);
+    expect(String(calls[0]?.url)).toBe('http://localhost:47778/api/health');
+    expect(calls[1]?.init?.mode).toBe('no-cors');
+  });
+
+  test('browser health check preserves PNA/connectivity failures when no-cors also rejects', async () => {
+    const calls: Array<RequestInit | undefined> = [];
+    const original = new TypeError('Failed to fetch');
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = ((_url: string | URL | Request, init?: RequestInit) => {
+      calls.push(init);
+      return Promise.reject(calls.length === 1 ? original : new TypeError('Private network blocked'));
+    }) as typeof fetch;
+
+    try {
+      await browserHealthCheck();
+      throw new Error('expected browserHealthCheck to reject');
+    } catch (error) {
+      expect(error).toBe(original);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+
+    expect(calls).toHaveLength(2);
+    expect(calls[1]?.mode).toBe('no-cors');
+  });
 });
