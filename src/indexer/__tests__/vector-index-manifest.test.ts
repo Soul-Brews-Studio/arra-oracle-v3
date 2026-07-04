@@ -3,8 +3,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createDatabase, type DatabaseConnection } from '../../db/index.ts';
-import type { VectorDocument } from '../../vector/types.ts';
+import type { VectorDocument, VectorStoreAdapter } from '../../vector/types.ts';
 import {
+  applyVectorIndexPlan,
   loadVectorIndexManifest,
   planVectorIndex,
   vectorContentHash,
@@ -66,6 +67,24 @@ describe('vector index manifest', () => {
     const forced = planVectorIndex(current, loadVectorIndexManifest(conn.db, 'nomic'), 'nomic', { force: true, now: 300 });
     expect(forced.changedDocs.map((item) => item.id)).toEqual(['a']);
   });
+
+  test('apply plan embeds changed chunks and deletes stale ids', async () => {
+    const conn = freshDb();
+    const docs = [doc('a', 'Alpha'), doc('b', 'Beta')];
+    const store = fakeStore();
+    const first = planVectorIndex(docs, new Map(), 'nomic', { now: 100 });
+    const applied = await applyVectorIndexPlan(store, first, { replaceBaseline: true, batchSize: 1 });
+    expect(applied.embedded).toBe(2);
+    writeVectorIndexManifest(conn.db, first);
+
+    const next = [doc('a', 'Alpha changed')];
+    const plan = planVectorIndex(next, loadVectorIndexManifest(conn.db, 'nomic'), 'nomic', { now: 200 });
+    const changed = await applyVectorIndexPlan(store, plan);
+
+    expect(changed).toMatchObject({ embedded: 1, deleted: 1, replaced: false });
+    expect(store.docs.map((item) => item.id)).toEqual(['a']);
+    expect(store.docs[0].document).toBe('Alpha changed');
+  });
 });
 
 function freshDb(): DatabaseConnection {
@@ -80,5 +99,31 @@ function doc(id: string, text: string): VectorDocument {
     id,
     document: text,
     metadata: { type: 'learning', source_file: `ψ/${id}.md`, concepts: '[]' },
+  };
+}
+
+type FakeStore = VectorStoreAdapter & { docs: VectorDocument[] };
+
+function fakeStore(): FakeStore {
+  const docs: VectorDocument[] = [];
+  return {
+    name: 'fake-vector-manifest',
+    docs,
+    connect: async () => {},
+    close: async () => {},
+    ensureCollection: async () => {},
+    deleteCollection: async () => { docs.splice(0, docs.length); },
+    addDocuments: async (next) => { docs.push(...next); },
+    deleteDocuments: async (ids) => {
+      for (const id of ids) {
+        const index = docs.findIndex((item) => item.id === id);
+        if (index >= 0) docs.splice(index, 1);
+      }
+    },
+    query: async () => ({ ids: [], documents: [], distances: [], metadatas: [] }),
+    queryById: async () => ({ ids: [], documents: [], distances: [], metadatas: [] }),
+    getStats: async () => ({ count: docs.length }),
+    getCollectionInfo: async () => ({ count: docs.length, name: 'fake-vector-manifest' }),
+    getAllEmbeddings: async () => ({ ids: docs.map((item) => item.id), embeddings: [], metadatas: [] }),
   };
 }
