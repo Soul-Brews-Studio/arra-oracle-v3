@@ -1,6 +1,6 @@
 {
   "name": "arra-oracle-v3",
-  "version": "26.7.4-alpha.1258",
+  "version": "26.7.4-alpha.1333",
   "description": "Arra Oracle - MCP Memory Layer with semantic search, philosophy, and knowledge management",
   "type": "module",
   "workspaces": [
