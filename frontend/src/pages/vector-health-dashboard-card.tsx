@@ -59,7 +59,7 @@ export function VectorHealthDashboardCard({
     ? `${storage.filter((item) => item.status === 'green').length}/${storage.length} storage backends healthy`
     : 'Storage status unavailable';
   return (
-    <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="vector-health-dashboard-title">
+    <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="vector-health-dashboard-title">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Health</p>
       <h2 id="vector-health-dashboard-title" className="mt-2 text-2xl font-semibold text-text">Vector health dashboard</h2>
       <dl className="mt-4 grid gap-3 text-sm text-text-muted">

@@ -123,7 +123,7 @@ export function ForumPage({ threads: initialThreads = EMPTY_THREADS, total: init
 
   return (
     <section className="grid min-w-0 gap-5" aria-labelledby="forum-page-title">
-      <header className="min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6">
+      <header className="glass min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Forum</p>
         <h1 id="forum-page-title" className="mt-2 text-3xl font-semibold text-text">Forum threads</h1>
         <p className="mt-2 text-sm text-text-muted">Operational conversations backed by GET {endpoint}.</p>

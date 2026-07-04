@@ -159,7 +159,7 @@ export function LearnPage({ client = apiClient }: { client?: LearnClient }) {
 
   const busy = state === 'loading' || state === 'saving';
   return (
-    <section className="grid gap-5 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="learn-page-title">
+    <section className="glass grid gap-5 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="learn-page-title">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Learn</p>
         <h1 id="learn-page-title" className="mt-2 text-3xl font-semibold text-text">Learn entries</h1>

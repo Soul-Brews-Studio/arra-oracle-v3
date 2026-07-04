@@ -85,7 +85,7 @@ export function vectorDashboardSummary(cards: VectorCollectionCard[], state: Pag
 
 function VectorDocumentsCard() {
   return (
-    <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="vector-documents-title">
+    <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="vector-documents-title">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Documents</p>
       <h2 id="vector-documents-title" className="mt-2 text-2xl font-semibold text-text">Browse indexed documents</h2>
       <p className="mt-2 text-sm text-text-muted">Open the collection-level document browser for full content and metadata.</p>
@@ -154,7 +154,7 @@ export function VectorPage({
 
   return (
     <div className="grid min-w-0 gap-5">
-      <section className="min-w-0 overflow-hidden rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="vector-status-title">
+      <section className="glass min-w-0 overflow-hidden rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="vector-status-title">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Vector status</p>
@@ -176,7 +176,7 @@ export function VectorPage({
           <QuickExportCard cards={cards} formats={formats} downloads={downloads} onExport={onExport} />
         </div>
 
-        <section className="min-w-0 overflow-hidden rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6">
+        <section className="glass min-w-0 overflow-hidden rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Collection health</p>
           <h2 className="mt-2 text-2xl font-semibold text-text">Vector collections</h2>
           <p className="mt-2 text-sm text-text-muted">Status, model, and adapter details by collection.</p>
