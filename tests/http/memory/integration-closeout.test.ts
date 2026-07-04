@@ -65,7 +65,7 @@ test('memory CRUD, learn indexing, and morning tape share close-out context', as
   writeFileSync(learnFile, `## Integration proof\nLearn indexer stores ${unique} for morning recovery.`);
 
   const docs = readLearningDocuments(root, learnFile);
-  const indexedIds = storeSqliteDocuments(sqlite, docs);
+  const indexedIds = storeSqliteDocuments(db, docs);
   docIds.push(...indexedIds);
 
   expect(indexedIds.length).toBeGreaterThan(0);

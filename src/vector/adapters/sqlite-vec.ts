@@ -1,115 +1,98 @@
 import { Database } from 'bun:sqlite';
-import type { VectorStoreAdapter, VectorDocument, VectorQueryResult, EmbeddingProvider } from '../types.ts';
+import { and, count, eq, sql } from 'drizzle-orm';
+import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+import * as schema from '../../db/schema.ts';
+import { assertSqliteIdentifier, sqliteVecEmbeddingsTable, sqliteVecMetadataTable } from '../../db/schema.ts';
+import type { EmbeddingProvider, VectorDocument, VectorQueryResult, VectorStoreAdapter } from '../types.ts';
 
-type SqliteVecRow = {
-  id: string;
-  distance: number;
-  document: string;
-  metadata: string;
-};
+type SqliteVecDb = BunSQLiteDatabase<typeof schema>;
+type SqliteVecRow = { id: string; distance: number | null; document: string; metadata: string };
+type SqliteVecEmbeddingRow = { id: string; embedding: Buffer; metadata: string };
 
 function toBlob(vec: number[]): Buffer {
   return Buffer.from(new Float32Array(vec).buffer);
 }
 
-function fromBlob(blob: any): number[] {
+function fromBlob(blob: unknown): number[] {
   if (blob instanceof Buffer || blob instanceof Uint8Array) {
     return Array.from(new Float32Array(blob.buffer, blob.byteOffset, blob.byteLength / 4));
   }
   if (typeof blob === 'string') {
-    try { return JSON.parse(blob); } catch { return []; }
+    try { return JSON.parse(blob) as number[]; } catch { return []; }
   }
   return [];
 }
 
 function rowsToResult(rows: SqliteVecRow[]): VectorQueryResult {
   return {
-    ids: rows.map(r => r.id),
-    documents: rows.map(r => r.document),
-    distances: rows.map(r => r.distance),
-    metadatas: rows.map(r => JSON.parse(r.metadata)),
+    ids: rows.map((row) => row.id),
+    documents: rows.map((row) => row.document),
+    distances: rows.map((row) => row.distance ?? 0),
+    metadatas: rows.map((row) => JSON.parse(row.metadata)),
   };
 }
 
 export class SqliteVecAdapter implements VectorStoreAdapter {
   readonly name = 'sqlite-vec';
-  private db: Database | null = null;
-  private dbPath: string;
-  private collectionName: string;
-  private embedder: EmbeddingProvider;
+  private sqlite: Database | null = null;
+  private db: SqliteVecDb | null = null;
 
-  constructor(collectionName: string, dbPath: string, embedder: EmbeddingProvider) {
-    this.collectionName = collectionName;
-    this.dbPath = dbPath;
-    this.embedder = embedder;
-  }
+  constructor(
+    private collectionName: string,
+    private dbPath: string,
+    private embedder: EmbeddingProvider,
+  ) {}
 
   async connect(): Promise<void> {
     if (this.db) return;
 
-    this.db = new Database(this.dbPath);
+    const sqlite = new Database(this.dbPath);
+    this.sqlite = sqlite;
+    this.db = drizzle(sqlite, { schema });
     let loaded = false;
     const tryPaths = ['vec0', '/usr/local/lib/sqlite-vec'];
 
     try {
       const sqliteVec = require('sqlite-vec');
-      const extPath = sqliteVec.getLoadablePath();
-      this.db.loadExtension(extPath);
+      sqlite.loadExtension(sqliteVec.getLoadablePath());
       loaded = true;
     } catch {
       for (const p of tryPaths) {
-        try {
-          this.db.loadExtension(p);
-          loaded = true;
-          break;
-        } catch { /* try next */ }
+        try { sqlite.loadExtension(p); loaded = true; break; }
+        catch { /* try next */ }
       }
     }
 
-    if (!loaded) {
-      throw new Error('Failed to load sqlite-vec extension. Install: bun add sqlite-vec');
-    }
-
+    if (!loaded) throw new Error('Failed to load sqlite-vec extension. Install: bun add sqlite-vec');
     console.log('[sqlite-vec] Connected');
   }
 
   async close(): Promise<void> {
-    if (this.db) {
-      this.db.close();
-      this.db = null;
-      console.log('[sqlite-vec] Closed');
-    }
+    if (!this.sqlite) return;
+    this.sqlite.close();
+    this.sqlite = null;
+    this.db = null;
+    console.log('[sqlite-vec] Closed');
   }
 
   async ensureCollection(): Promise<void> {
-    if (!this.db) throw new Error('sqlite-vec not connected');
+    const db = this.requireDb();
+    const name = assertSqliteIdentifier(this.collectionName, 'sqlite-vec collection');
+    const dims = Math.trunc(this.embedder.dimensions);
+    if (!Number.isFinite(dims) || dims <= 0) throw new Error(`Invalid sqlite-vec dimensions: ${this.embedder.dimensions}`);
 
-    const dims = this.embedder.dimensions;
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS ${this.collectionName}_meta (
-        id TEXT PRIMARY KEY,
-        document TEXT NOT NULL,
-        metadata TEXT NOT NULL DEFAULT '{}'
-      )
-    `);
-
-    this.db.exec(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS ${this.collectionName}_vec USING vec0(
-        id TEXT PRIMARY KEY,
-        embedding float[${dims}]
-      )
-    `);
+    db.run(sql.raw(`CREATE TABLE IF NOT EXISTS "${name}_meta" (id TEXT PRIMARY KEY, document TEXT NOT NULL, metadata TEXT NOT NULL DEFAULT '{}')`));
+    db.run(sql.raw(`CREATE VIRTUAL TABLE IF NOT EXISTS "${name}_vec" USING vec0(id TEXT PRIMARY KEY, embedding float[${dims}])`));
 
     console.log(`[sqlite-vec] Collection '${this.collectionName}' ready (${dims} dims)`);
   }
 
   async deleteCollection(): Promise<void> {
-    if (!this.db) throw new Error('sqlite-vec not connected');
-
+    const db = this.requireDb();
+    const name = assertSqliteIdentifier(this.collectionName, 'sqlite-vec collection');
     try {
-      this.db.exec(`DROP TABLE IF EXISTS ${this.collectionName}_meta`);
-      this.db.exec(`DROP TABLE IF EXISTS ${this.collectionName}_vec`);
+      db.run(sql.raw(`DROP TABLE IF EXISTS "${name}_meta"`));
+      db.run(sql.raw(`DROP TABLE IF EXISTS "${name}_vec"`));
       console.log(`[sqlite-vec] Collection '${this.collectionName}' deleted`);
     } catch (e) {
       console.warn('[sqlite-vec] deleteCollection failed:', e instanceof Error ? e.message : String(e));
@@ -117,133 +100,109 @@ export class SqliteVecAdapter implements VectorStoreAdapter {
   }
 
   async addDocuments(docs: VectorDocument[]): Promise<void> {
-    if (docs.length === 0) return;
-    if (!this.db) throw new Error('sqlite-vec not connected');
-
+    if (!docs.length) return;
+    const db = this.requireDb();
     await this.ensureCollection();
 
-    const texts = docs.map(d => d.document);
-    const embeddings = await this.embedder.embed(texts, 'passage');
+    const embeddings = await this.embedder.embed(docs.map((doc) => doc.document), 'passage');
+    const { meta, vec } = this.tables();
 
-    const insertMeta = this.db.prepare(`
-      INSERT OR REPLACE INTO ${this.collectionName}_meta (id, document, metadata)
-      VALUES (?, ?, ?)
-    `);
-
-    const insertVec = this.db.prepare(`
-      INSERT OR REPLACE INTO ${this.collectionName}_vec (id, embedding)
-      VALUES (?, ?)
-    `);
-
-    this.db.exec('BEGIN');
-    try {
+    db.transaction((tx) => {
       for (let i = 0; i < docs.length; i++) {
-        insertMeta.run(docs[i].id, docs[i].document, JSON.stringify(docs[i].metadata));
-        insertVec.run(docs[i].id, toBlob(embeddings[i]));
+        const doc = docs[i];
+        tx.delete(meta).where(eq(meta.id, doc.id)).run();
+        tx.delete(vec).where(eq(vec.id, doc.id)).run();
+        tx.insert(meta).values({ id: doc.id, document: doc.document, metadata: JSON.stringify(doc.metadata) }).run();
+        tx.insert(vec).values({ id: doc.id, embedding: toBlob(embeddings[i]) }).run();
       }
-      this.db.exec('COMMIT');
-    } catch (e) {
-      this.db.exec('ROLLBACK');
-      throw e;
-    }
+    });
 
     console.log(`[sqlite-vec] Added ${docs.length} documents`);
   }
 
-  async query(text: string, limit: number = 10, where?: Record<string, any>): Promise<VectorQueryResult> {
-    if (!this.db) throw new Error('sqlite-vec not connected');
-
+  async query(text: string, limit = 10, where?: Record<string, unknown>): Promise<VectorQueryResult> {
+    const db = this.requireDb();
     const [queryEmbedding] = await this.embedder.embed([text], 'query');
     const fetchLimit = where ? limit * 3 : limit;
-
-    const rows = this.db.prepare(`
-      SELECT v.id, v.distance, m.document, m.metadata
-      FROM ${this.collectionName}_vec v
-      JOIN ${this.collectionName}_meta m ON v.id = m.id
-      WHERE v.embedding MATCH ? AND k = ?
-      ORDER BY v.distance
-    `).all(toBlob(queryEmbedding), fetchLimit) as SqliteVecRow[];
-
-    let filtered = rows;
-    if (where) {
-      filtered = rows.filter(row => {
-        const meta = JSON.parse(row.metadata);
-        return Object.entries(where).every(([k, v]) => meta[k] === v);
-      }).slice(0, limit);
-    }
-
+    const rows = this.nearestRows(db, toBlob(queryEmbedding), fetchLimit);
+    const filtered = where ? rows.filter((row) => {
+      const meta = JSON.parse(row.metadata) as Record<string, unknown>;
+      return Object.entries(where).every(([key, value]) => meta[key] === value);
+    }).slice(0, limit) : rows;
     return rowsToResult(filtered);
   }
 
-  async queryById(id: string, nResults: number = 5): Promise<VectorQueryResult> {
-    if (!this.db) throw new Error('sqlite-vec not connected');
-
-    const doc = this.db.prepare(`
-      SELECT embedding FROM ${this.collectionName}_vec WHERE id = ?
-    `).get(id) as { embedding: any } | null;
-
-    if (!doc) {
-      throw new Error(`No embedding found for document: ${id}`);
-    }
-
-    const rows = this.db.prepare(`
-      SELECT v.id, v.distance, m.document, m.metadata
-      FROM ${this.collectionName}_vec v
-      JOIN ${this.collectionName}_meta m ON v.id = m.id
-      WHERE v.embedding MATCH ? AND k = ?
-      ORDER BY v.distance
-    `).all(doc.embedding, nResults + 1) as SqliteVecRow[];
-
-    const filtered = rows.filter(r => r.id !== id).slice(0, nResults);
-    return rowsToResult(filtered);
+  async queryById(id: string, nResults = 5): Promise<VectorQueryResult> {
+    const db = this.requireDb();
+    const { vec } = this.tables();
+    const doc = db.select({ embedding: vec.embedding }).from(vec).where(eq(vec.id, id)).get();
+    if (!doc) throw new Error(`No embedding found for document: ${id}`);
+    return rowsToResult(this.nearestRows(db, doc.embedding, nResults + 1).filter((row) => row.id !== id).slice(0, nResults));
   }
 
-  async queryByVector(vector: number[], nResults: number = 5): Promise<VectorQueryResult> {
-    if (!this.db) throw new Error('sqlite-vec not connected');
-
-    const rows = this.db.prepare(`
-      SELECT v.id, vec_distance_L2(v.embedding, ?) AS distance, m.document, m.metadata
-      FROM ${this.collectionName}_vec v
-      JOIN ${this.collectionName}_meta m ON v.id = m.id
-      ORDER BY distance
-      LIMIT ?
-    `).all(toBlob(vector), nResults) as SqliteVecRow[];
-
+  async queryByVector(vector: number[], nResults = 5): Promise<VectorQueryResult> {
+    const db = this.requireDb();
+    const { meta, vec } = this.tables();
+    const distance = sql<number>`vec_distance_L2(${vec.embedding}, ${toBlob(vector)})`;
+    const rows = db.select({ id: vec.id, distance, document: meta.document, metadata: meta.metadata })
+      .from(vec)
+      .innerJoin(meta, eq(vec.id, meta.id))
+      .orderBy(distance)
+      .limit(nResults)
+      .all() as SqliteVecRow[];
     return rowsToResult(rows);
   }
 
   async getStats(): Promise<{ count: number }> {
     if (!this.db) return { count: 0 };
-
     try {
-      const result = this.db.prepare(
-        `SELECT COUNT(*) as count FROM ${this.collectionName}_meta`
-      ).get() as { count: number };
-      return { count: result.count };
+      const { meta } = this.tables();
+      const row = this.db.select({ count: count() }).from(meta).get();
+      return { count: Number(row?.count ?? 0) };
     } catch {
       return { count: 0 };
     }
   }
 
   async getCollectionInfo(): Promise<{ count: number; name: string }> {
-    const stats = await this.getStats();
-    return { count: stats.count, name: this.collectionName };
+    return { count: (await this.getStats()).count, name: this.collectionName };
   }
 
-  async getAllEmbeddings(limit: number = 5000): Promise<{ ids: string[]; embeddings: number[][]; metadatas: any[] }> {
+  async getAllEmbeddings(limit = 5000): Promise<{ ids: string[]; embeddings: number[][]; metadatas: unknown[] }> {
     if (!this.db) return { ids: [], embeddings: [], metadatas: [] };
-
-    const rows = this.db.prepare(`
-      SELECT v.id, v.embedding, m.metadata
-      FROM ${this.collectionName}_vec v
-      JOIN ${this.collectionName}_meta m ON v.id = m.id
-      LIMIT ?
-    `).all(limit) as Array<{ id: string; embedding: any; metadata: string }>;
+    const { meta, vec } = this.tables();
+    const rows = this.db.select({ id: vec.id, embedding: vec.embedding, metadata: meta.metadata })
+      .from(vec)
+      .innerJoin(meta, eq(vec.id, meta.id))
+      .limit(limit)
+      .all() as SqliteVecEmbeddingRow[];
 
     return {
-      ids: rows.map(r => r.id),
-      embeddings: rows.map(r => fromBlob(r.embedding)),
-      metadatas: rows.map(r => JSON.parse(r.metadata)),
+      ids: rows.map((row) => row.id),
+      embeddings: rows.map((row) => fromBlob(row.embedding)),
+      metadatas: rows.map((row) => JSON.parse(row.metadata)),
+    };
+  }
+
+  private nearestRows(db: SqliteVecDb, embedding: Buffer, limit: number): SqliteVecRow[] {
+    const { meta, vec } = this.tables();
+    return db.select({ id: vec.id, distance: vec.distance, document: meta.document, metadata: meta.metadata })
+      .from(vec)
+      .innerJoin(meta, eq(vec.id, meta.id))
+      .where(and(sql`${vec.embedding} MATCH ${embedding}`, eq(vec.k, limit)))
+      .orderBy(vec.distance)
+      .all() as SqliteVecRow[];
+  }
+
+  private requireDb(): SqliteVecDb {
+    if (!this.db) throw new Error('sqlite-vec not connected');
+    return this.db;
+  }
+
+  private tables() {
+    return {
+      meta: sqliteVecMetadataTable(this.collectionName),
+      vec: sqliteVecEmbeddingsTable(this.collectionName),
     };
   }
 }

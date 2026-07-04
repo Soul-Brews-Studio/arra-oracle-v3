@@ -35,6 +35,7 @@
   --glass-border: oklch(0.50 0.11 178 / 0.18);
   --glass-shadow: 0 8px 28px oklch(0.13 0.02 265 / 0.12);
   --glass-blur: 18px;
+  --glass-popover-bg: oklch(1 0 0 / 0.94);
 }
 
 .dark {
@@ -68,6 +69,7 @@
   --glass-border: oklch(1 0 0 / 0.08);
   --glass-shadow: 0 8px 32px oklch(0 0 0 / 0.4);
   --glass-blur: 24px;
+  --glass-popover-bg: oklch(0.16 0.02 265 / 0.94);
 }
 
 body {
@@ -94,6 +96,17 @@ body {
 
 .glass {
   background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* Floating overlays (dropdowns/popovers) need a near-opaque backing —
+   .glass's ambient alpha is tuned for background panels and lets
+   whatever's underneath bleed through when it floats over live content. */
+.glass-popover {
+  background: var(--glass-popover-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--glass-border);

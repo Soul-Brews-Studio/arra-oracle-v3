@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { createHash } from 'crypto';
-import type { Database } from 'bun:sqlite';
-import { createDatabase } from '../db/index.ts';
+import { and, eq, inArray } from 'drizzle-orm';
+import { createDatabase, oracleDocuments, oracleFts, type DatabaseConnection } from '../db/index.ts';
 import { detectProject } from '../server/project-detect.ts';
 import type { OracleDocument } from '../types.ts';
 import { deriveConceptsFromPath, extractConcepts, mergeConceptsWithTags } from './concepts.ts';
@@ -19,6 +19,7 @@ export interface MineResult { scanned: number; stored: number; skipped: number; 
 export interface MineWatchOptions extends MineOptions { signal?: AbortSignal; debounceMs?: number }
 
 interface ExistingMineRow { id: string; updatedAt: number }
+type OracleDb = DatabaseConnection['db'];
 
 export function stableMineDocId(root: string, filePath: string): string {
   const rel = relativeSource(root, filePath);
@@ -58,17 +59,17 @@ export async function mineFolder(options: MineOptions): Promise<MineResult> {
     let skipped = 0;
     for (const file of files) {
       const source = relativeSource(root, file);
-      const existing = existingMineRows(sqlite, source);
+      const existing = existingMineRows(db, source);
       const content = readMineContent(file);
       if (!content) {
         skipped++;
-        if (!options.dryRun) deleteStaleMineRows(sqlite, existing, new Set());
+        if (!options.dryRun) deleteStaleMineRows(db, existing, new Set());
         continue;
       }
       const updatedAt = contentVersion(content);
       const nextDocs = chunkDocumentForIndexing(toMineDocument(root, file, content, updatedAt, project));
       const keepIds = new Set(nextDocs.map((doc) => doc.id));
-      if (!options.dryRun) deleteStaleMineRows(sqlite, existing, keepIds);
+      if (!options.dryRun) deleteStaleMineRows(db, existing, keepIds);
       const existingVersions = new Map(existing.map((row) => [row.id, row.updatedAt]));
       const changedDocs = nextDocs.filter((doc) => existingVersions.get(doc.id) !== updatedAt);
       if (changedDocs.length === 0) skipped++;
@@ -145,30 +146,23 @@ function isLikelyBinary(buffer: Buffer): boolean {
   return control / sample.length > 0.3;
 }
 
-function existingMineRows(sqlite: Database, source: string): ExistingMineRow[] {
-  return sqlite.prepare(`
-    SELECT id, updated_at AS updatedAt
-    FROM oracle_documents
-    WHERE source_file = ? AND created_by = 'mine'
-  `).all(source) as ExistingMineRow[];
+function existingMineRows(db: OracleDb, source: string): ExistingMineRow[] {
+  return db.select({ id: oracleDocuments.id, updatedAt: oracleDocuments.updatedAt })
+    .from(oracleDocuments)
+    .where(and(eq(oracleDocuments.sourceFile, source), eq(oracleDocuments.createdBy, 'mine')))
+    .all();
 }
 
-function deleteStaleMineRows(sqlite: Database, rows: ExistingMineRow[], keep: Set<string>): void {
+function deleteStaleMineRows(db: OracleDb, rows: ExistingMineRow[], keep: Set<string>): void {
   const stale = rows.filter((row) => !keep.has(row.id));
   if (stale.length === 0) return;
-  const deleteDoc = sqlite.prepare(`DELETE FROM oracle_documents WHERE id = ? AND created_by = 'mine'`);
-  const deleteFts = sqlite.prepare(`DELETE FROM oracle_fts WHERE id = ?`);
-  sqlite.exec('BEGIN');
-  try {
-    for (const row of stale) {
-      deleteDoc.run(row.id);
-      deleteFts.run(row.id);
-    }
-    sqlite.exec('COMMIT');
-  } catch (error) {
-    sqlite.exec('ROLLBACK');
-    throw error;
-  }
+  const ids = stale.map((row) => row.id);
+  db.transaction((tx) => {
+    tx.delete(oracleDocuments)
+      .where(and(inArray(oracleDocuments.id, ids), eq(oracleDocuments.createdBy, 'mine')))
+      .run();
+    tx.delete(oracleFts).where(inArray(oracleFts.id, ids)).run();
+  });
 }
 
 function toMineDocument(root: string, file: string, content: string, version: number, project: string): OracleDocument {

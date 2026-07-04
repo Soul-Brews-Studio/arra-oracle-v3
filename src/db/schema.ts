@@ -16,7 +16,7 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
   indexedAt: integer('indexed_at').notNull(),
-  validTime: integer('valid_time').default(sql`null`),
+  validTime: integer('valid_time'),
   supersededBy: text('superseded_by'),
   supersededAt: integer('superseded_at'),
   supersededReason: text('superseded_reason'),
@@ -37,6 +37,7 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   index('idx_documents_tenant_type_active_updated').on(table.tenantId, table.type, table.supersededAt, table.updatedAt),
   index('idx_documents_tenant_valid_time').on(table.tenantId, table.validTime),
 ]);
+export const oracleFts = sqliteTable('oracle_fts', { id: text('id'), content: text('content'), concepts: text('concepts') });
 export const oracleEntityLinks = sqliteTable('oracle_entity_links', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').default('default').notNull().references(() => tenants.id),
@@ -246,3 +247,4 @@ export const traceLog = sqliteTable('trace_log', {
 ]);
 export { exportJobs } from './export-schema.ts';
 export { activityLog, menuItems, schedule, settings, supersedeLog } from './logistics-schema.ts';
+export { assertSqliteIdentifier, oracleVectorDocuments, sqliteVecEmbeddingsTable, sqliteVecMetadataTable, vectorDocumentsTable } from './vector-schema.ts';

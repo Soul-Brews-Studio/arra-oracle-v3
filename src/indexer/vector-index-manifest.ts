@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
-import type { Database } from 'bun:sqlite';
+import { eq, inArray } from 'drizzle-orm';
+import { asOracleDb, type OracleDbInput } from '../db/drizzle-input.ts';
+import { vectorIndexManifest } from '../db/schema.ts';
 import type { VectorDocument } from '../vector/types.ts';
 
 export interface VectorManifestRow {
@@ -35,13 +37,19 @@ export function vectorContentHash(doc: VectorDocument): string {
   return `sha256:${createHash('sha256').update(payload).digest('hex')}`;
 }
 
-export function loadVectorIndexManifest(sqlite: Database, modelKey: string): Map<string, VectorManifestRow> {
-  const rows = sqlite.prepare(`
-    SELECT chunk_id AS chunkId, source_file AS sourceFile, model_key AS modelKey,
-      content_hash AS contentHash, updated_at AS updatedAt, indexed_at AS indexedAt
-    FROM vector_index_manifest
-    WHERE model_key = ?
-  `).all(modelKey) as VectorManifestRow[];
+export function loadVectorIndexManifest(input: OracleDbInput, modelKey: string): Map<string, VectorManifestRow> {
+  const db = asOracleDb(input);
+  const rows = db.select({
+    chunkId: vectorIndexManifest.chunkId,
+    sourceFile: vectorIndexManifest.sourceFile,
+    modelKey: vectorIndexManifest.modelKey,
+    contentHash: vectorIndexManifest.contentHash,
+    updatedAt: vectorIndexManifest.updatedAt,
+    indexedAt: vectorIndexManifest.indexedAt,
+  })
+    .from(vectorIndexManifest)
+    .where(eq(vectorIndexManifest.modelKey, modelKey))
+    .all();
   return new Map(rows.map((row) => [row.chunkId, row]));
 }
 
@@ -76,32 +84,32 @@ export function planVectorIndex(
   return { modelKey, docs, changedDocs, staleIds, entries, skipped: docs.length - changedDocs.length, total: docs.length };
 }
 
-export function writeVectorIndexManifest(sqlite: Database, plan: VectorIndexPlan): void {
-  const deleteStmt = sqlite.prepare('DELETE FROM vector_index_manifest WHERE id = ?');
-  const upsertStmt = sqlite.prepare(`
-    INSERT INTO vector_index_manifest
-      (id, chunk_id, source_file, model_key, content_hash, updated_at, indexed_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      chunk_id = excluded.chunk_id,
-      source_file = excluded.source_file,
-      model_key = excluded.model_key,
-      content_hash = excluded.content_hash,
-      updated_at = excluded.updated_at,
-      indexed_at = excluded.indexed_at
-  `);
-
-  sqlite.exec('BEGIN');
-  try {
-    for (const chunkId of plan.staleIds) deleteStmt.run(vectorManifestId(plan.modelKey, chunkId));
-    for (const entry of plan.entries) {
-      upsertStmt.run(entry.id, entry.chunkId, entry.sourceFile, entry.modelKey, entry.contentHash, entry.updatedAt, entry.indexedAt);
+export function writeVectorIndexManifest(input: OracleDbInput, plan: VectorIndexPlan): void {
+  const db = asOracleDb(input);
+  db.transaction((tx) => {
+    const staleIds = plan.staleIds.map((chunkId) => vectorManifestId(plan.modelKey, chunkId));
+    if (staleIds.length > 0) {
+      tx.delete(vectorIndexManifest)
+        .where(inArray(vectorIndexManifest.id, staleIds))
+        .run();
     }
-    sqlite.exec('COMMIT');
-  } catch (error) {
-    sqlite.exec('ROLLBACK');
-    throw error;
-  }
+    for (const entry of plan.entries) {
+      tx.insert(vectorIndexManifest)
+        .values(entry)
+        .onConflictDoUpdate({
+          target: vectorIndexManifest.id,
+          set: {
+            chunkId: entry.chunkId,
+            sourceFile: entry.sourceFile,
+            modelKey: entry.modelKey,
+            contentHash: entry.contentHash,
+            updatedAt: entry.updatedAt,
+            indexedAt: entry.indexedAt,
+          },
+        })
+        .run();
+    }
+  });
 }
 
 function normalizeVectorText(text: string): string {

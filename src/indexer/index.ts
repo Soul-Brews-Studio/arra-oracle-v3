@@ -70,7 +70,7 @@ export class OracleIndexer {
     console.log(append ? 'Starting Oracle indexing in append mode...' : 'Starting Oracle indexing...');
     this.seenContentHashes.clear();
 
-    setIndexingStatus(this.sqlite, this.config, true, 0, 100);
+    setIndexingStatus(this.db, this.config, true, 0, 100);
     backupDatabase(this.sqlite, this.config);
 
     // Safety: verify the source directory layout exists. If ψ/memory/ is
@@ -89,7 +89,7 @@ export class OracleIndexer {
       );
     }
 
-    const beforeDocs = snapshotActiveIndexerDocs(this.sqlite, tenantId);
+    const beforeDocs = snapshotActiveIndexerDocs(this.db, tenantId);
 
     // Collect documents from all source types
     const shared = { config: this.config, seenContentHashes: this.seenContentHashes };
@@ -164,10 +164,10 @@ export class OracleIndexer {
     // Store in SQLite + FTS5 first. Vector work is queued afterwards so
     // embedding failures cannot roll back the source-of-truth text index.
     await storeDocuments(this.sqlite, this.db, null, this.project, indexDocuments, { tenantId });
-    const superseded = supersedeReplacedSourceDocs(this.sqlite, indexDocuments, tenantId);
-    const vectorJobs = safeEnqueueVectorJobs(this.sqlite, indexDocuments, changedIds);
+    const superseded = supersedeReplacedSourceDocs(this.db, indexDocuments, tenantId);
+    const vectorJobs = safeEnqueueVectorJobs(this.db, indexDocuments, changedIds);
 
-    setIndexingStatus(this.sqlite, this.config, false, indexDocuments.length, indexDocuments.length);
+    setIndexingStatus(this.db, this.config, false, indexDocuments.length, indexDocuments.length);
     console.log(`Indexed ${indexDocuments.length} chunks (SQLite + FTS5)`);
     if (superseded > 0) console.log(`Superseded ${superseded} stale document ids from reindexed sources`);
     console.log(`Queued ${vectorJobs.queued} vector job(s); skipped ${vectorJobs.skipped}`);
@@ -185,9 +185,9 @@ function tenantScopedWhere(base: SQL, tenantId: string | undefined): SQL {
   return tenantId ? and(base, eq(oracleDocuments.tenantId, tenantId))! : base;
 }
 
-function safeEnqueueVectorJobs(sqlite: Database, documents: OracleDocument[], changedIds: Set<string>) {
+function safeEnqueueVectorJobs(db: BunSQLiteDatabase<typeof schema>, documents: OracleDocument[], changedIds: Set<string>) {
   try {
-    return enqueueVectorReindexJobs(sqlite, documents, getEmbeddingModels(), changedIds);
+    return enqueueVectorReindexJobs(db, documents, getEmbeddingModels(), changedIds);
   } catch {
     return { queued: 0, skipped: 0, failed: documents.length };
   }
