@@ -154,7 +154,7 @@ export function ExportPage() {
 
   return (
     <div className="grid gap-5">
-      <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="export-page-title">
+      <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="export-page-title">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent dark:text-accent">Export app</p>
         <h1 id="export-page-title" className="mt-2 text-3xl font-semibold text-on-accent dark:text-text">Export collections</h1>
         <p className="mt-2 text-sm text-text-muted dark:text-text-muted">Choose a database collection, export format, graph option, then download the generated snapshot.</p>
@@ -176,7 +176,7 @@ export function ExportPage() {
       {state === 'error' ? <ErrorMessage title="Could not load export collections." message={error} /> : null}
 
       <div className="grid gap-4 lg:grid-cols-4">
-        <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6 lg:col-span-2" aria-labelledby="export-collection-title">
+        <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6 lg:col-span-2" aria-labelledby="export-collection-title">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent dark:text-accent">Collection</p>
           <h2 id="export-collection-title" className="mt-2 text-2xl font-semibold text-on-accent dark:text-text">Collection picker</h2>
           <label className="mt-5 grid gap-2 text-sm font-medium text-text dark:text-text-muted">
@@ -195,12 +195,12 @@ export function ExportPage() {
           </label>
         </section>
 
-        <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6 lg:col-span-2" aria-labelledby="export-format-title">
+        <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6 lg:col-span-2" aria-labelledby="export-format-title">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent dark:text-accent">Format</p>
           <h2 id="export-format-title" className="mt-2 text-2xl font-semibold text-on-accent dark:text-text">Format picker</h2>
           <div className="mt-5 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Export format">
             {formats.map((item) => (
-              <label key={item} className="flex min-h-12 items-center gap-3 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md px-4 py-3 text-sm text-text dark:text-text">
+              <label key={item} className="glass flex min-h-12 items-center gap-3 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md px-4 py-3 text-sm text-text dark:text-text">
                 <input className="h-4 w-4 accent-teal-300" checked={format === item} name="export-format" type="radio" value={item} onChange={() => { setFormat(item); resetRun(); }} />
                 <span className="font-semibold">{formatLabels[item]}</span>
               </label>
@@ -208,16 +208,16 @@ export function ExportPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6 lg:col-span-2" aria-labelledby="export-options-title">
+        <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6 lg:col-span-2" aria-labelledby="export-options-title">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent dark:text-accent">Options</p>
           <h2 id="export-options-title" className="mt-2 text-2xl font-semibold text-on-accent dark:text-text">Graph relationships</h2>
-          <label className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md px-4 py-3 text-sm text-text dark:text-text">
+          <label className="glass mt-5 flex items-center justify-between gap-4 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md px-4 py-3 text-sm text-text dark:text-text">
             <span className="font-semibold">Include graph relationships in the export file</span>
             <input className="h-5 w-5 accent-teal-300" checked={includeGraph} type="checkbox" onChange={(event) => { setIncludeGraph(event.target.checked); resetRun(); }} />
           </label>
         </section>
 
-        <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6 lg:col-span-2" aria-labelledby="export-action-title">
+        <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6 lg:col-span-2" aria-labelledby="export-action-title">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent dark:text-accent">Export</p>
           <h2 id="export-action-title" className="mt-2 text-2xl font-semibold text-on-accent dark:text-text">Run export</h2>
           <button

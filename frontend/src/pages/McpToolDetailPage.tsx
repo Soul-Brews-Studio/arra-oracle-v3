@@ -26,7 +26,7 @@ export function toolBrowserReturnPath(tool?: McpTool | null): string {
 
 function DetailCard({ label, value, href }: { label: string; value?: string; href?: string | null }) {
   return (
-    <div className="rounded-xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-3">
+    <div className="glass rounded-xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-3">
       <dt className="text-xs uppercase tracking-[0.18em] text-text-muted">{label}</dt>
       <dd className="mt-1 break-all font-mono text-sm text-text">
         {href && value ? <a className="focus-ring text-accent hover:text-accent" href={href}>{value}</a> : value || '—'}
@@ -37,7 +37,7 @@ function DetailCard({ label, value, href }: { label: string; value?: string; hre
 
 function ToolSummaryCard({ tool }: { tool: McpTool }) {
   return (
-    <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="tool-summary-title">
+    <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="tool-summary-title">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">MCP tool</p>
       <h2 id="tool-summary-title" className="mt-2 break-all text-2xl font-semibold text-text">{tool.name}</h2>
       <p className="mt-4 text-sm leading-6 text-text-muted">{tool.description || 'No description supplied.'}</p>
@@ -53,11 +53,11 @@ function ToolSummaryCard({ tool }: { tool: McpTool }) {
 
 function ToolSchemaCard({ tool }: { tool: McpTool }) {
   return (
-    <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="tool-schema-title">
+    <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="tool-schema-title">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Schema</p>
       <h2 id="tool-schema-title" className="mt-2 text-2xl font-semibold text-text">Input schema</h2>
       <p className="mt-2 text-sm text-text-muted">JSON schema advertised by /api/mcp/tools.</p>
-      <pre className="mt-4 max-h-[36rem] overflow-auto rounded-xl bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4 text-xs text-text-muted">{schemaText(tool)}</pre>
+      <pre className="glass mt-4 max-h-[36rem] overflow-auto rounded-xl bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4 text-xs text-text-muted">{schemaText(tool)}</pre>
     </section>
   );
 }
@@ -69,7 +69,7 @@ function StatusCard({ status, message, onRetry }: { status: 'ready' | 'loading' 
   }
 
   return (
-    <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-label="Tool not found">
+    <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-label="Tool not found">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Tool lookup</p>
       <h2 className="mt-2 text-2xl font-semibold text-text">No tool found</h2>
       <p className="mt-2 text-sm text-text-muted">{message || 'No MCP tool matched this route parameter.'}</p>
@@ -137,7 +137,7 @@ export function McpToolDetailPage({
 
   return (
     <div className="grid gap-5">
-      <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="tool-detail-title">
+      <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="tool-detail-title">
         <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Detail viewer</p>

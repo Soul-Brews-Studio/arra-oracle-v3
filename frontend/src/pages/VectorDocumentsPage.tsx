@@ -166,7 +166,7 @@ export function VectorDocumentsPage() {
   }
 
   return (
-    <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="vector-documents-title">
+    <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="vector-documents-title">
       <div className="mb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Vector</p>
         <h1 id="vector-documents-title" className="mt-2 text-3xl font-semibold text-text">Vector documents</h1>
@@ -190,7 +190,7 @@ export function VectorDocumentsPage() {
 
       <div className="mt-5 overflow-x-auto rounded-2xl border border-border">
         <table className="min-w-full divide-y divide-border text-left text-sm">
-          <thead className="bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md text-xs uppercase tracking-[0.18em] text-text-muted">
+          <thead className="glass bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md text-xs uppercase tracking-[0.18em] text-text-muted">
             <tr><th className="px-4 py-3">ID</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Source file</th><th className="px-4 py-3">Preview</th></tr>
           </thead>
           <tbody className="divide-y divide-border text-text" aria-busy={state === 'loading'}>

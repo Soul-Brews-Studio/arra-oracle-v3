@@ -41,7 +41,7 @@ export function VectorCollectionList({
   onPrimary,
 }: CollectionListProps) {
   return (
-    <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6">
+    <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Collections</p>
@@ -56,7 +56,7 @@ export function VectorCollectionList({
           const draft = drafts[row.key] ?? { model: row.model, provider: row.provider, adapter: row.adapter, enabled: row.enabled };
           const dirty = draft.model !== row.model || draft.provider !== row.provider || draft.adapter !== row.adapter || draft.enabled !== row.enabled;
           return (
-            <article key={row.key} className="rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4">
+            <article key={row.key} className="glass rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4">
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">

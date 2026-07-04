@@ -60,7 +60,7 @@ export function storageSummaryRows(settings: SettingsSystemResponse): DetailRow[
 
 function DetailCard({ row }: { row: DetailRow }) {
   return (
-    <article className="rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4">
+    <article className="glass rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">{row.label}</p>
       <p className="mt-2 break-words font-mono text-sm text-accent">{row.value}</p>
       <p className="mt-2 text-sm leading-6 text-text-muted">{row.detail}</p>
@@ -94,7 +94,7 @@ export function StoragePage({ initialSettings, fetcher = fetchSettingsSystem }: 
 
   return (
     <div className="grid gap-5">
-      <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="storage-page-title">
+      <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="storage-page-title">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Storage</p>
