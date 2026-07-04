@@ -16,7 +16,7 @@ type SettingsPageProps = {
 
 function SectionCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-label={title}>
+    <section className="glass min-w-0 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-label={title}>
       <h3 className="text-lg font-semibold text-text">{title}</h3>
       <div className="mt-4">{children}</div>
     </section>
@@ -69,7 +69,7 @@ export function SettingsPage({ menuCount, pluginCount, surfaceCount, updatedAt, 
 
   return (
     <div className="grid gap-5">
-      <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="settings-page-title">
+      <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="settings-page-title">
         <div className="mb-5 flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Settings</p>

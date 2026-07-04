@@ -140,7 +140,7 @@ export function CommandPalette({
       <section
         id="command-palette-dialog"
         ref={overlayRef}
-        className="max-h-[min(42rem,calc(100vh-2rem))] w-full max-w-xl overflow-hidden rounded-2xl border border-[oklch(1_0_0/0.10)] bg-[oklch(0.16_0.02_265/0.72)] p-4 text-[oklch(0.98_0.01_257)] shadow-[0_24px_80px_oklch(0_0_0/0.45)] backdrop-blur-2xl transition-all duration-200"
+        className="glass max-h-[min(42rem,calc(100vh-2rem))] w-full max-w-xl overflow-hidden rounded-2xl border border-[oklch(1_0_0/0.10)] bg-[oklch(0.16_0.02_265/0.72)] p-4 text-[oklch(0.98_0.01_257)] shadow-[0_24px_80px_oklch(0_0_0/0.45)] backdrop-blur-2xl transition-all duration-200"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"

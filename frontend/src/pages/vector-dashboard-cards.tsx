@@ -109,7 +109,7 @@ export function VectorCollectionCards({
 
 export function VectorStatsCard({ cards }: { cards: VectorCollectionCard[] }) {
   return (
-    <section className="min-w-0 overflow-hidden rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="vector-stats-title">
+    <section className="glass min-w-0 overflow-hidden rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="vector-stats-title">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Stats</p>
       <h2 id="vector-stats-title" className="mt-2 text-2xl font-semibold text-text">Collection stats</h2>
       <dl className="mt-4 grid gap-3 text-sm text-text-muted">
@@ -141,7 +141,7 @@ export function QuickExportCard({
 
   if (!cards.length) {
     return (
-      <section className="min-w-0 overflow-hidden rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="vector-quick-export-title">
+      <section className="glass min-w-0 overflow-hidden rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="vector-quick-export-title">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Quick export</p>
         <h2 id="vector-quick-export-title" className="mt-2 text-2xl font-semibold text-text">Export collection</h2>
         <p className="mt-2 text-sm text-text-muted">No collections are loaded yet.</p>
@@ -153,7 +153,7 @@ export function QuickExportCard({
   const isDownloading = Boolean(downloads[collection]);
   const disabled = isDownloading || formats.length === 0;
   return (
-    <section className="min-w-0 overflow-hidden rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="vector-quick-export-title">
+    <section className="glass min-w-0 overflow-hidden rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="vector-quick-export-title">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Quick export</p>
       <h2 id="vector-quick-export-title" className="mt-2 text-2xl font-semibold text-text">Export collection</h2>
       <p className="mt-2 text-sm text-text-muted">Pick a collection and format to download from /api/v1/vector/export.</p>

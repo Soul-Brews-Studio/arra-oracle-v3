@@ -48,7 +48,7 @@ export function VectorFirstRunWizardPage() {
 
   return (
     <section className="grid gap-5" aria-labelledby="vector-first-run-title">
-      <header className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6">
+      <header className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Vector onboarding</p>
         <h1 id="vector-first-run-title" className="mt-2 text-3xl font-semibold text-text">First-run setup wizard</h1>
         <p className="mt-2 text-sm text-text-muted">Use the local vector backend default, review cost, choose the first vault collection, and start indexing.</p>
@@ -124,7 +124,7 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
   }
 
   return (
-    <section className={`rounded-3xl border bg-[oklch(0.16_0.02_265/0.35)] p-5 shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl sm:p-6 ${showAsFirstRun ? 'border-purple-300/20' : 'border-[oklch(1_0_0/0.08)]'}`} aria-labelledby="first-run-wizard-title">
+    <section className={`glass rounded-3xl border bg-[oklch(0.16_0.02_265/0.35)] p-5 shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl sm:p-6 ${showAsFirstRun ? 'border-purple-300/20' : 'border-[oklch(1_0_0/0.08)]'}`} aria-labelledby="first-run-wizard-title">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">First-run wizard</p>

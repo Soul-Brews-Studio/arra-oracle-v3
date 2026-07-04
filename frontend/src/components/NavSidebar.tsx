@@ -49,7 +49,7 @@ export function NavSidebar({ items }: { items: NavItem[] }) {
   const groups = groupedItems(items);
   return (
     <aside aria-label="Application navigation" className="z-20 min-w-0 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:max-h-[calc(100dvh-2rem)]">
-      <div className="flex min-w-0 flex-col gap-4 overflow-hidden rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] p-3 shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl sm:p-4 lg:h-[calc(100vh-2rem)] lg:max-h-[calc(100dvh-2rem)]">
+      <div className="glass flex min-w-0 flex-col gap-4 overflow-hidden rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] p-3 shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl sm:p-4 lg:h-[calc(100vh-2rem)] lg:max-h-[calc(100dvh-2rem)]">
         <NavLink to="/menu" aria-label="Arra Oracle control surface home" className="focus-ring min-w-0 rounded-2xl p-2">
           <p className="text-xs font-medium uppercase tracking-[0.28em] text-accent">Arra Oracle</p>
           <h1 className="mt-2 text-xl font-bold tracking-tight text-text sm:text-2xl">Control Surface</h1>
