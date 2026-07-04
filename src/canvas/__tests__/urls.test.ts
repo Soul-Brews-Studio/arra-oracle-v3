@@ -28,8 +28,9 @@ describe('canvas URL helpers', () => {
     expect(canvasPluginAbsoluteUrl('map3d')).toBe(`${CANVAS_ORIGIN}/?plugin=map3d`);
   });
 
-  test('exposes data API only for react canvas plugins', () => {
+  test('exposes DB/FTS map data API for memory-map canvas plugins', () => {
     expect(canvasPluginDataPath('map')).toBe('/api/map3d');
+    expect(canvasPluginDataPath('map3d')).toBe('/api/map3d');
     expect(canvasPluginDataPath('planets')).toBe('/api/map3d');
     expect(canvasPluginDataPath('wave')).toBeUndefined();
   });

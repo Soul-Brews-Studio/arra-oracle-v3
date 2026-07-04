@@ -14,6 +14,7 @@ describe('canvas registry edge cases', () => {
 
   test('trims plugin id lookup for CLI and URL inputs', () => {
     expect(findCanvasPlugin(' map ')).toMatchObject({ id: 'map', kind: 'react' });
+    expect(canvasPluginDataPath(' map3d ')).toBe('/api/map3d');
     expect(canvasPluginDataPath(' planets ')).toBe('/api/map3d');
   });
 

@@ -25,6 +25,7 @@ describe('canvas plugin metadata', () => {
     const metadata = listCanvasPluginMetadata().plugins;
 
     expect(metadata.find((plugin) => plugin.id === 'wave')).toMatchObject({ renderer: 'Three', standalonePath: '/?plugin=wave' });
+    expect(metadata.find((plugin) => plugin.id === 'map3d')).toMatchObject({ renderer: 'Three', standalonePath: '/?plugin=map3d', apiPath: '/api/map3d' });
     expect(metadata.find((plugin) => plugin.id === 'map')).toMatchObject({ renderer: 'React', standalonePath: '/map', apiPath: '/api/map3d' });
   });
 });
