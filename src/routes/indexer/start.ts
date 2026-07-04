@@ -6,7 +6,14 @@ import { DB_PATH, REPO_ROOT } from '../../config.ts';
 import { currentTenantId, runWithTenant } from '../../middleware/tenant.ts';
 import { replaceEntityLinks } from '../../search/entity-ranking.ts';
 import { entityCollectionName, entityDocumentsFor } from '../../vector/entities.ts';
+import {
+  applyVectorIndexPlan,
+  loadVectorIndexManifest,
+  planVectorIndex,
+  writeVectorIndexManifest,
+} from '../../indexer/vector-index-manifest.ts';
 import type { IndexerConfig } from '../../types.ts';
+import type { VectorDocument } from '../../vector/types.ts';
 
 let abortFlag = false;
 export function getAbortFlag() { return abortFlag; }
@@ -37,6 +44,30 @@ function normalizeBatchSize(value: number | undefined, key: string): number {
   return Math.min(1000, Math.floor(value));
 }
 
+type IndexedRow = {
+  id: string;
+  tenant_id: string;
+  type: string;
+  content: string;
+  source_file: string;
+  concepts: string;
+  project: string | null;
+};
+
+function vectorDoc(row: IndexedRow): VectorDocument {
+  return {
+    id: row.id,
+    document: row.content,
+    metadata: {
+      type: row.type,
+      source_file: row.source_file,
+      concepts: row.concepts,
+      tenant_id: row.tenant_id,
+      ...(row.project && { project: row.project }),
+    },
+  };
+}
+
 export function createStartRoute(deps: StartRouteDeps = {}) {
   return new Elysia().post('/indexer/start', async ({ body, set }) => {
     const { model, sourcePath, batchSize } = body;
@@ -55,7 +86,7 @@ export function createStartRoute(deps: StartRouteDeps = {}) {
     const tenantId = currentTenantId();
     const conn = (deps.createDb ?? createDatabase)(dbPath);
     const { sqlite } = conn;
-    const statusDb = conn.db ?? sqlite;
+    const indexDb = conn.db ?? sqlite;
     const config: IndexerConfig = {
       repoRoot,
       dbPath,
@@ -82,8 +113,6 @@ export function createStartRoute(deps: StartRouteDeps = {}) {
       try {
         await store.connect();
         await entityStore.connect();
-        try { await store.deleteCollection(); } catch {}
-        try { await entityStore.deleteCollection(); } catch {}
         await store.ensureCollection();
         await entityStore.ensureCollection();
 
@@ -96,36 +125,41 @@ export function createStartRoute(deps: StartRouteDeps = {}) {
         ${tenantWhere}
         GROUP BY d.id
         ORDER BY d.created_at DESC
-      `).all(...(tenantId ? [tenantId] : [])) as Array<{
-          id: string; tenant_id: string; type: string; content: string;
-          source_file: string; concepts: string; project: string | null; created_at: string;
-        }>;
+      `).all(...(tenantId ? [tenantId] : [])) as IndexedRow[];
 
         const total = rows.length;
-        setIndexingStatus(statusDb, config, true, 0, total);
+        setIndexingStatus(indexDb, config, true, 0, total);
 
-        for (let i = 0; i < rows.length; i += batch) {
-          if (abortFlag) {
-            setIndexingStatus(statusDb, config, false, i, total, 'Cancelled by user');
-            break;
+        const docs = rows.map(vectorDoc);
+        const previous = loadVectorIndexManifest(indexDb, key);
+        const plan = planVectorIndex(docs, previous, key, { pruneStale: !tenantId });
+        const applied = await applyVectorIndexPlan(store, plan, {
+          batchSize: batch,
+          replaceBaseline: previous.size === 0 && docs.length > 0,
+          shouldAbort: () => abortFlag,
+          onProgress: (indexed) => setIndexingStatus(indexDb, config, true, indexed, total),
+        });
+
+        if (applied.aborted) {
+          setIndexingStatus(indexDb, config, false, applied.embedded, total, 'Cancelled by user');
+          return;
+        }
+
+        if (previous.size === 0 || plan.changedDocs.length > 0 || plan.staleIds.length > 0) {
+          const entityPlan = planVectorIndex(docs.flatMap(entityDocumentsFor), new Map(), `${key}:entities`, { force: true });
+          const entityApplied = await applyVectorIndexPlan(entityStore, entityPlan, {
+            batchSize: batch,
+            replaceBaseline: true,
+            shouldAbort: () => abortFlag,
+          });
+          if (entityApplied.aborted) {
+            setIndexingStatus(indexDb, config, false, applied.embedded, total, 'Cancelled by user');
+            return;
           }
+        }
 
-          const batchRows = rows.slice(i, i + batch);
-          const docs = batchRows.map(row => ({
-            id: row.id,
-            document: row.content,
-            metadata: {
-              type: row.type,
-              source_file: row.source_file,
-              concepts: row.concepts,
-              tenant_id: row.tenant_id,
-              ...(row.project && { project: row.project }),
-            },
-          }));
-
-          await store.addDocuments(docs);
-          const entityDocs = docs.flatMap(entityDocumentsFor);
-          for (const doc of docs) {
+        if (plan.changedDocs.length > 0) {
+          for (const doc of plan.changedDocs) {
             replaceEntityLinks(sqlite, {
               documentId: doc.id,
               tenantId: String(doc.metadata.tenant_id ?? ''),
@@ -133,16 +167,15 @@ export function createStartRoute(deps: StartRouteDeps = {}) {
               concepts: doc.metadata.concepts,
             });
           }
-          if (entityDocs.length > 0) await entityStore.addDocuments(entityDocs);
-          setIndexingStatus(statusDb, config, true, i + batchRows.length, total);
         }
+        writeVectorIndexManifest(indexDb, plan);
 
         if (!abortFlag) {
-          setIndexingStatus(statusDb, config, false, rows.length, rows.length);
+          setIndexingStatus(indexDb, config, false, rows.length, rows.length);
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        setIndexingStatus(statusDb, config, false, 0, 0, msg);
+        setIndexingStatus(indexDb, config, false, 0, 0, msg);
       } finally {
         await store.close().catch(() => undefined);
         await entityStore.close().catch(() => undefined);

@@ -158,6 +158,43 @@ describe('indexer HTTP routes', () => {
       sqlite.close();
     }
   });
+
+  test('POST /api/indexer/start skips unchanged chunks on re-run', async () => {
+    const sqlite = tenantIndexerDb();
+    const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    seedDoc(sqlite, `idx-inc-${stamp}`, 'default', `Stable Project ${stamp}`, 1);
+    const added: VectorDocument[] = [];
+    let embedded = 0;
+    const tasks: Promise<void>[] = [];
+    const app = new Elysia({ prefix: '/api' }).use(createStartRoute({
+      createDb: () => ({ sqlite } as any),
+      createStore: (preset: any) => {
+        const store = fakeStore(String(preset.collection).endsWith('_entities') ? [] : added);
+        if (!String(preset.collection).endsWith('_entities')) {
+          const add = store.addDocuments;
+          store.addDocuments = async (docs) => { embedded += docs.length; await add(docs); };
+        }
+        return store;
+      },
+      getModels: () => ({ nomic: { collection: 'test', model: 'nomic-embed-text' } }),
+      runInBackground: (task) => tasks.push(task),
+    }));
+
+    try {
+      const run = async () => {
+        const res = await post('/api/indexer/start', { model: 'nomic', batchSize: 10 }, (path, init) => app.handle(new Request(`http://local${path}`, init)));
+        await Promise.all(tasks.splice(0));
+        expect(res.status).toBe(200);
+      };
+      await run();
+      expect(embedded).toBe(1);
+      await run();
+      expect(embedded).toBe(1);
+      expect(added.map((doc) => doc.id)).toEqual([`idx-inc-${stamp}`]);
+    } finally {
+      sqlite.close();
+    }
+  });
 });
 
 function tenantIndexerDb() {
@@ -174,6 +211,10 @@ function tenantIndexerDb() {
       id INTEGER PRIMARY KEY, is_indexing INTEGER DEFAULT 0 NOT NULL,
       progress_current INTEGER DEFAULT 0, progress_total INTEGER DEFAULT 0,
       started_at INTEGER, completed_at INTEGER, error TEXT, repo_root TEXT
+    );
+    CREATE TABLE vector_index_manifest (
+      id TEXT PRIMARY KEY, chunk_id TEXT NOT NULL, source_file TEXT NOT NULL,
+      model_key TEXT NOT NULL, content_hash TEXT NOT NULL, updated_at INTEGER NOT NULL, indexed_at INTEGER NOT NULL
     );
     INSERT INTO indexing_status (id, is_indexing) VALUES (1, 0);
   `);
@@ -192,11 +233,15 @@ function seedDoc(sqlite: Database, id: string, tenantId: string, content: string
 function fakeStore(added: VectorDocument[]): VectorStoreAdapter {
   return {
     name: 'fake-indexer-store',
-    connect: async () => {},
-    close: async () => {},
-    ensureCollection: async () => {},
-    deleteCollection: async () => {},
+    connect: async () => {}, close: async () => {}, ensureCollection: async () => {},
+    deleteCollection: async () => { added.splice(0, added.length); },
     addDocuments: async (docs) => { added.push(...docs); },
+    deleteDocuments: async (ids) => {
+      for (const id of ids) {
+        const index = added.findIndex((doc) => doc.id === id);
+        if (index >= 0) added.splice(index, 1);
+      }
+    },
     query: async () => ({ ids: [], documents: [], distances: [], metadatas: [] }),
     queryById: async () => ({ ids: [], documents: [], distances: [], metadatas: [] }),
     getStats: async () => ({ count: added.length }),

@@ -7,12 +7,13 @@ import { count } from 'drizzle-orm';
 import { DB_PATH } from '../config.ts';
 import { formatIndexProgress, normalizeBatchSize } from './indexer-progress.ts';
 import {
+  applyVectorIndexPlan,
   loadVectorIndexManifest,
   planVectorIndex,
   writeVectorIndexManifest,
   type VectorIndexPlan,
 } from '../indexer/vector-index-manifest.ts';
-import type { VectorDocument, VectorStoreAdapter } from '../vector/types.ts';
+import type { VectorDocument } from '../vector/types.ts';
 
 const args = process.argv.slice(2);
 const modelKey = args.find((arg) => !arg.startsWith('--'));
@@ -71,9 +72,13 @@ async function main() {
   await store.connect();
 
   try {
-    const embedded = await applyVectorPlan(store, plan, previous.size === 0 || force, startTime);
+    const applied = await applyVectorIndexPlan(store, plan, {
+      batchSize: BATCH_SIZE,
+      replaceBaseline: previous.size === 0 || force,
+      onProgress: (indexed, total, action) => logProgress(action === 'replaced' ? 'Rebuilt' : 'Embedded', indexed, total, startTime),
+    });
     writeVectorIndexManifest(db, plan);
-    printSummary(rows, plan, { embedded, errors: 0, startTime, dryRun, force });
+    printSummary(rows, plan, { embedded: applied.embedded, errors: 0, startTime, dryRun, force });
   } finally {
     await store.close();
     sqlite.close();
@@ -103,46 +108,6 @@ function vectorDoc(row: DbVectorRow): VectorDocument {
       ...(row.project && { project: row.project }),
     },
   };
-}
-
-async function applyVectorPlan(
-  store: VectorStoreAdapter,
-  plan: VectorIndexPlan,
-  replaceBaseline: boolean,
-  startTime: number,
-): Promise<number> {
-  if (replaceBaseline || (plan.staleIds.length > 0 && !store.deleteDocuments)) {
-    if (!store.replaceDocuments) throw new Error(`Vector adapter '${store.name}' does not support replaceDocuments()`);
-    await replaceAll(store, plan.docs, startTime);
-    return plan.docs.length;
-  }
-
-  if (plan.staleIds.length > 0) await store.deleteDocuments?.(plan.staleIds);
-  const changedIds = plan.changedDocs.map((doc) => doc.id);
-  if (changedIds.length > 0) await store.deleteDocuments?.(changedIds);
-  await addChanged(store, plan.changedDocs, plan.total, startTime);
-  return plan.changedDocs.length;
-}
-
-async function replaceAll(store: VectorStoreAdapter, docs: VectorDocument[], startTime: number): Promise<void> {
-  if (docs.length === 0) {
-    await store.replaceDocuments?.([]);
-    return;
-  }
-  for (let i = 0; i < docs.length; i += BATCH_SIZE) {
-    const batch = docs.slice(i, i + BATCH_SIZE);
-    if (i === 0) await store.replaceDocuments?.(batch);
-    else await store.addDocuments(batch);
-    logProgress('Rebuilt', i + batch.length, docs.length, startTime);
-  }
-}
-
-async function addChanged(store: VectorStoreAdapter, docs: VectorDocument[], total: number, startTime: number): Promise<void> {
-  for (let i = 0; i < docs.length; i += BATCH_SIZE) {
-    const batch = docs.slice(i, i + BATCH_SIZE);
-    await store.addDocuments(batch);
-    logProgress('Embedded', i + batch.length, total, startTime);
-  }
 }
 
 function logProgress(label: string, indexed: number, total: number, startTime: number): void {
