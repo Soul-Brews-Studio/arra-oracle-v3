@@ -13,9 +13,10 @@
  * Design: ψ/lab/indexer-cli/DESIGN.md
  */
 
-import Database from 'bun:sqlite';
 import { Elysia } from 'elysia';
+import { eq } from 'drizzle-orm';
 import { DB_PATH, REPO_ROOT } from '../config.ts';
+import { createDatabase, oracleFts } from '../db/index.ts';
 import { createVectorStoreForModel, getEmbeddingModels } from '../vector/factory.ts';
 import { runWorker, type WorkerEvent } from './worker.ts';
 import { daemonApiPlugin, makeEventBus } from '../routes/indexer-daemon/index.ts';
@@ -25,9 +26,9 @@ const PORT = parseInt(process.env.INDEXER_PORT || '47779', 10);
 const HOST = process.env.INDEXER_HOST || '127.0.0.1';
 
 export async function startDaemon(): Promise<void> {
-  const db = new Database(DB_PATH);
+  const { sqlite, db, storage } = createDatabase(DB_PATH);
   // Ensure WAL so concurrent readers (arra-oracle-v3) don't block writes.
-  db.exec('PRAGMA journal_mode = WAL');
+  sqlite.exec('PRAGMA journal_mode = WAL');
 
   const models = getEmbeddingModels();
   const eventBus = makeEventBus<WorkerEvent>();
@@ -36,9 +37,10 @@ export async function startDaemon(): Promise<void> {
 
   // Resolve doc text via the FTS5 mirror table — same content oracle_learn writes.
   const getDocText = (docId: string): string | null => {
-    const row = db
-      .query<{ content: string }, [string]>('SELECT content FROM oracle_fts WHERE id = ?')
-      .get(docId);
+    const row = db.select({ content: oracleFts.content })
+      .from(oracleFts)
+      .where(eq(oracleFts.id, docId))
+      .get();
     return row?.content ?? null;
   };
 
@@ -82,7 +84,7 @@ export async function startDaemon(): Promise<void> {
   const workerPromises: Promise<unknown>[] = [];
   for (const modelKey of Object.keys(models)) {
     const p = runWorker(modelKey, {
-      db,
+      db: sqlite,
       getDocText,
       embed,
       upsertVector,
@@ -102,7 +104,7 @@ export async function startDaemon(): Promise<void> {
     })
     .use(
       daemonApiPlugin({
-        db,
+        db: sqlite,
         models,
         isShuttingDown: () => shuttingDown,
         requestShutdown: () => { shuttingDown = true; },
@@ -115,7 +117,7 @@ export async function startDaemon(): Promise<void> {
   console.log(`[arra-indexer] models: ${Object.keys(models).join(', ')}`);
 
   stopLearnWatcher = startLearnWatcher({
-    db,
+    db: sqlite,
     models,
     repoRoot: REPO_ROOT,
   });
@@ -129,7 +131,7 @@ export async function startDaemon(): Promise<void> {
     // Workers exit on next loop tick. Give them up to 5s of in-flight grace.
     const timeout = new Promise((resolve) => setTimeout(resolve, 5000));
     await Promise.race([Promise.all(workerPromises), timeout]);
-    db.close();
+    storage.close();
     console.log(`[arra-indexer] stopped.`);
     process.exit(0);
   };

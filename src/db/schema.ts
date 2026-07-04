@@ -37,6 +37,7 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   index('idx_documents_tenant_type_active_updated').on(table.tenantId, table.type, table.supersededAt, table.updatedAt),
   index('idx_documents_tenant_valid_time').on(table.tenantId, table.validTime),
 ]);
+export const oracleFts = sqliteTable('oracle_fts', { id: text('id'), content: text('content'), concepts: text('concepts') });
 export const oracleEntityLinks = sqliteTable('oracle_entity_links', {
   id: text('id').primaryKey(),
   tenantId: text('tenant_id').default('default').notNull().references(() => tenants.id),
