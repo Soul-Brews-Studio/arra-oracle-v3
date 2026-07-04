@@ -20,6 +20,7 @@ describe('MemoryDashboardContent', () => {
   test('renders one Studio view for memory confidence signals', () => {
     const html = htmlFor(<MemoryDashboardContent items={items} total={1} asOf="2026-06-17T00:00:00.000Z" state="ready" />);
     expect(html).toContain('Memory dashboard');
+    expect(html).toContain('class="glass rounded-3xl');
     expect(html).toContain('Source coverage');
     expect(html).toContain('confidence 86% · high');
     expect(html).toContain('heat 70%');

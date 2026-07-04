@@ -12,6 +12,7 @@ describe('MemoryPage', () => {
     );
 
     expect(html).toContain('Memory health');
+    expect(html).toContain('class="glass rounded-3xl');
     expect(html).toContain('Heat and recency');
     expect(html).toContain('Heat heatmap');
     expect(html).toContain('Confidence bars');

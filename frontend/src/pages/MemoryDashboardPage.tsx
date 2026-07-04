@@ -72,7 +72,7 @@ export function MemoryDashboardContent({ items, total, asOf, state, error }: {
   const shown = items.length;
   return (
     <div className="grid w-full min-w-0 gap-5">
-      <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="memory-dashboard-title">
+      <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-labelledby="memory-dashboard-title">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Memory</p>
         <h1 id="memory-dashboard-title" className="mt-2 text-3xl font-semibold text-text">Memory dashboard</h1>
         <p className="mt-2 max-w-3xl text-sm text-text-muted">
@@ -89,7 +89,7 @@ export function MemoryDashboardContent({ items, total, asOf, state, error }: {
         <StatCard label="Valid-time" value={summary.validWindowCount} detail="bounded windows" tone="neutral" />
       </section>
 
-      <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-label="Memory dashboard meters">
+      <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6" aria-label="Memory dashboard meters">
         <div className="grid min-w-0 gap-4 md:grid-cols-[repeat(4,minmax(0,1fr))]">
           <MeterBar label="Confidence" percent={summary.avgConfidence * 100} tone="success" valueText={percentText(summary.avgConfidence)} />
           <MeterBar label="Provenance" percent={summary.avgProvenance * 100} tone="accent" valueText={percentText(summary.avgProvenance)} />
@@ -143,7 +143,7 @@ export function MemoryDashboardPage({ client = fetchMemoryRecall }: { client?: M
 
   return (
     <div className="grid w-full min-w-0 gap-5">
-      <form aria-label="Memory dashboard filters" className="grid gap-3 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:grid-cols-[minmax(0,1fr)_16rem_auto] sm:p-6" onSubmit={submit}>
+      <form aria-label="Memory dashboard filters" className="glass grid gap-3 rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:grid-cols-[minmax(0,1fr)_16rem_auto] sm:p-6" onSubmit={submit}>
         <input aria-label="Memory dashboard query" className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-text placeholder:text-text-muted" value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder="Filter memories by source, title, tag…" type="search" />
         <input aria-label="Valid-time snapshot" className="focus-ring rounded-xl border border-border bg-field px-4 py-3 text-text" value={asOf} onChange={(event) => setAsOf(event.currentTarget.value)} type="datetime-local" />
         <button className="focus-ring rounded-xl bg-accent-solid px-5 py-3 font-semibold text-on-accent transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50" disabled={state === 'loading'} type="submit">

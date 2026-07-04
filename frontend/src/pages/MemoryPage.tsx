@@ -108,7 +108,7 @@ export function MemoryPage({ search = searchMemoryHealth, recall = fetchMemoryRe
     <div className="grid w-full min-w-0 gap-5">
       <MemoryDashboardContent items={dashboardItems} total={dashboardTotal} asOf={dashboardAsOf} state={dashboardState} error={dashboardError} />
 
-      <section className="rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-sm p-5 sm:p-6" aria-labelledby="memory-health-page-title">
+      <section className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-sm p-5 sm:p-6" aria-labelledby="memory-health-page-title">
         <div className="mb-5 flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Memory</p>
