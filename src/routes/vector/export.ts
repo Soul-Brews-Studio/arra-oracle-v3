@@ -3,9 +3,10 @@
  */
 
 import { Elysia, t } from 'elysia';
+import { COLLECTION_NAME } from '../../const.ts';
 import { getVectorStoreByModel } from '../../vector/factory.ts';
 import { availableExportFormats, exportFormatInfo, getExportFormat } from '../../vector/export-formats.ts';
-import type { VectorServerConfig } from '../../vector/config.ts';
+import type { VectorCollectionConfig, VectorServerConfig } from '../../vector/config.ts';
 import type { VectorStoreAdapter } from '../../vector/types.ts';
 import { activeConfig, resolveCollection as resolveConfigCollection } from './config-api-utils.ts';
 
@@ -69,6 +70,23 @@ function modelCollectionName(model: unknown): string | null {
     : null;
 }
 
+function isPrimaryCollection(collection: VectorCollectionConfig): boolean {
+  return collection.primary === true;
+}
+
+function isLegacyCollectionAliasTarget(collection: string | null | undefined): boolean {
+  return typeof collection === 'string' && collection.startsWith(`${COLLECTION_NAME}_`);
+}
+
+function preferredConfigCollection(config: VectorServerConfig): [string, VectorCollectionConfig] | null {
+  const entries = Object.entries(config.collections);
+  return entries.find(([, collection]) => isPrimaryCollection(collection)) ?? entries[0] ?? null;
+}
+
+function preferredModelKey(models: Record<string, unknown>): string | null {
+  return DEFAULT_COLLECTION in models ? DEFAULT_COLLECTION : Object.keys(models)[0] ?? null;
+}
+
 function configForResolution(getConfig?: () => VectorServerConfig, getModels?: () => Record<string, unknown>) {
   if (getConfig) return getConfig();
   return getModels ? null : activeConfig().config;
@@ -79,6 +97,12 @@ function resolveCollection(collection: string | undefined, deps: VectorExportDep
   const config = configForResolution(deps.getConfig, deps.getModels);
   if (config) {
     const match = resolveConfigCollection(config, resolved);
+    if (resolved === COLLECTION_NAME) {
+      const preferred = preferredConfigCollection(config);
+      if (preferred && isLegacyCollectionAliasTarget(preferred[1].collection) && preferred[0] !== match?.[0]) {
+        return { storeKey: preferred[0], filename: resolved };
+      }
+    }
     return match ? { storeKey: match[0], filename: resolved } : null;
   }
 
@@ -86,7 +110,10 @@ function resolveCollection(collection: string | undefined, deps: VectorExportDep
   if (!models) return { storeKey: resolved, filename: resolved };
   if (resolved in models) return { storeKey: resolved, filename: resolved };
   const byCollection = Object.entries(models).find(([, model]) => modelCollectionName(model) === resolved);
-  return byCollection ? { storeKey: byCollection[0], filename: resolved } : null;
+  if (byCollection) return { storeKey: byCollection[0], filename: resolved };
+  const preferred = resolved === COLLECTION_NAME ? preferredModelKey(models) : null;
+  const preferredCollection = preferred ? modelCollectionName(models[preferred]) : null;
+  return preferred && isLegacyCollectionAliasTarget(preferredCollection) ? { storeKey: preferred, filename: resolved } : null;
 }
 
 export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {

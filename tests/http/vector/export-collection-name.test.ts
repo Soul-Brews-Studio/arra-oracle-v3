@@ -2,6 +2,7 @@ import { expect, mock, test } from 'bun:test';
 import { Elysia } from 'elysia';
 import { createApiVersionedFetch } from '../../../src/middleware/api-version.ts';
 import { createVectorExportEndpoint } from '../../../src/routes/vector/export.ts';
+import { generateDefaultConfig } from '../../../src/vector/config.ts';
 import type { VectorStoreAdapter } from '../../../src/vector/types.ts';
 
 function createStore(): VectorStoreAdapter {
@@ -54,4 +55,48 @@ test('GET /api/v1/vector/export accepts collection names from model registry dep
     source_file: '',
     concepts: [],
   }]);
+});
+
+test('GET /api/v1/vector/export aliases legacy bare collection to primary config collection', async () => {
+  const store = createStore();
+  const selected: string[] = [];
+  const app = new Elysia({ prefix: '/api' }).use(createVectorExportEndpoint({
+    getConfig: generateDefaultConfig,
+    getStore: (collection) => {
+      selected.push(collection ?? '');
+      return store;
+    },
+  }));
+  const fetcher = createApiVersionedFetch((request) => app.handle(request));
+
+  const res = await fetcher(new Request(
+    'http://local/api/v1/vector/export?collection=oracle_knowledge&format=json',
+  ));
+
+  expect(res.status).toBe(200);
+  expect(selected).toEqual(['bge-m3']);
+  expect(res.headers.get('content-disposition')).toContain('oracle_knowledge.json');
+});
+
+test('GET /api/v1/vector/export aliases bare collection when registry only has suffixed collections', async () => {
+  const store = createStore();
+  const selected: string[] = [];
+  const app = new Elysia({ prefix: '/api' }).use(createVectorExportEndpoint({
+    getModels: () => ({
+      'bge-m3': { collection: 'oracle_knowledge_bge_m3' },
+      qwen3: { collection: 'oracle_knowledge_qwen3' },
+    }),
+    getStore: (collection) => {
+      selected.push(collection ?? '');
+      return store;
+    },
+  }));
+  const fetcher = createApiVersionedFetch((request) => app.handle(request));
+
+  const res = await fetcher(new Request(
+    'http://local/api/v1/vector/export?collection=oracle_knowledge&format=json',
+  ));
+
+  expect(res.status).toBe(200);
+  expect(selected).toEqual(['bge-m3']);
 });
