@@ -41,15 +41,15 @@ function groupedItems(items: NavItem[]): Array<{ label: string; items: NavItem[]
 
 function navClass({ isActive }: { isActive: boolean }) {
   const base = 'focus-ring min-w-[10rem] rounded-2xl border border-l-2 px-4 py-3 text-left transition-all duration-200 hover:bg-[oklch(1_0_0/0.06)] hover:shadow-[0_0_12px_oklch(0.82_0.13_178/0.1)] lg:min-w-0';
-  if (isActive) return `${base} border-accent bg-[oklch(0.82_0.13_178/0.08)] text-accent shadow-[0_0_16px_oklch(0.82_0.13_178/0.14)]`;
+  if (isActive) return `${base} border-accent bg-accent-soft text-accent shadow-[0_0_16px_oklch(0.82_0.13_178/0.14)]`;
   return `${base} border-[oklch(1_0_0/0.06)] border-l-transparent bg-transparent text-text hover:border-accent-border`;
 }
 
 export function NavSidebar({ items }: { items: NavItem[] }) {
   const groups = groupedItems(items);
   return (
-    <aside aria-label="Application navigation" className="z-20 min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)]">
-      <div className="flex min-w-0 flex-col gap-4 overflow-hidden rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] p-3 shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl sm:p-4 lg:max-h-[calc(100dvh-2rem)]">
+    <aside aria-label="Application navigation" className="z-20 min-w-0 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:max-h-[calc(100dvh-2rem)]">
+      <div className="flex min-w-0 flex-col gap-4 overflow-hidden rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] p-3 shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl sm:p-4 lg:h-[calc(100vh-2rem)] lg:max-h-[calc(100dvh-2rem)]">
         <NavLink to="/menu" aria-label="Arra Oracle control surface home" className="focus-ring min-w-0 rounded-2xl p-2">
           <p className="text-xs font-medium uppercase tracking-[0.28em] text-accent">Arra Oracle</p>
           <h1 className="mt-2 text-xl font-bold tracking-tight text-text sm:text-2xl">Control Surface</h1>
