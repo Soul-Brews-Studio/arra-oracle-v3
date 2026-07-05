@@ -61,33 +61,36 @@ afterAll(() => {
 describe('POST /api/ask', () => {
   test('runs hybrid search and returns LLM synthesis with citations', async () => {
     const res = await post({ q: term, llm: true });
-    const body = await res.json() as { answer: string; citations: number[]; noEvidence: boolean; mode: string; sources: Array<{ id: string }> };
+    const body = await res.json() as { answer: string; citations: Array<{ index: number; id: string }>; citationIndexes: number[]; noEvidence: boolean; mode: string; sources: Array<{ id: string }> };
 
     expect(res.status).toBe(200);
     expect(body.mode).toBe('llm');
     expect(body.answer).toContain('[1]');
-    expect(body.citations).toEqual([1]);
+    expect(body.citationIndexes).toEqual([1]);
+    expect(body.citations).toEqual([expect.objectContaining({ index: 1, id: docId })]);
     expect(body.noEvidence).toBe(false);
     expect(body.sources[0].id).toBe(docId);
   });
 
   test('falls back to extractive citations when LLM is disabled', async () => {
     const res = await post({ q: term, llm: false });
-    const body = await res.json() as { mode: string; citations: number[]; answer: string };
+    const body = await res.json() as { mode: string; citations: Array<{ index: number; id: string }>; citationIndexes: number[]; answer: string };
 
     expect(res.status).toBe(200);
     expect(body.mode).toBe('extractive');
-    expect(body.citations).toEqual([1]);
+    expect(body.citationIndexes).toEqual([1]);
+    expect(body.citations[0]).toMatchObject({ index: 1, id: docId });
     expect(body.answer).toContain('[1]');
   });
 
   test('flags no evidence when retrieval returns nothing', async () => {
     const res = await post({ q: `missing-${stamp}`, llm: true });
-    const body = await res.json() as { noEvidence: boolean; citations: number[]; sources: unknown[] };
+    const body = await res.json() as { noEvidence: boolean; citations: unknown[]; citationIndexes: number[]; sources: unknown[] };
 
     expect(res.status).toBe(200);
     expect(body.noEvidence).toBe(true);
     expect(body.citations).toEqual([]);
+    expect(body.citationIndexes).toEqual([]);
     expect(body.sources).toEqual([]);
   });
 });

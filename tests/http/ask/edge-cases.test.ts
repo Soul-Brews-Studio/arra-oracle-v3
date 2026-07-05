@@ -86,11 +86,12 @@ describe('POST /api/ask Dialectic hardening', () => {
   test('uses tenant-scoped retrieval sources for synthesis', async () => {
     promptSources = [];
     const res = await post({ q: term, llm: true }, tenantB);
-    const body = await res.json() as { sources: Array<{ id: string }>; citations: number[]; mode: string };
+    const body = await res.json() as { sources: Array<{ id: string }>; citations: Array<{ index: number; id: string }>; citationIndexes: number[]; mode: string };
 
     expect(res.status).toBe(200);
     expect(body.mode).toBe('llm');
-    expect(body.citations).toEqual([1]);
+    expect(body.citationIndexes).toEqual([1]);
+    expect(body.citations).toEqual([expect.objectContaining({ index: 1, id: docB })]);
     expect(body.sources.map((source) => source.id)).toEqual([docB]);
     expect(promptSources).toEqual([docB]);
   });

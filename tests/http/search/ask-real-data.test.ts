@@ -76,7 +76,8 @@ describe('POST /api/ask real-data verification', () => {
     expect(res.status).toBe(200);
     expect(body.mode).toBe('llm');
     expect(body.answer).toContain('[1]');
-    expect(body.citations).toEqual([1]);
+    expect(body.citationIndexes).toEqual([1]);
+    expect(body.citations[0]).toMatchObject({ index: 1, id: oldDocId, sourceFile: `docs/real/${oldDocId}.md` });
     expect(body.noEvidence).toBe(false);
     expect(body.generatedAt).toBe('2026-06-17T01:00:00.000Z');
     expect(body.sources[0]).toMatchObject({
