@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { FirstRunWizard } from '../../../frontend/src/pages/FirstRunWizard';
+import { FirstRunWizard, detectFirstRunWizardResolution } from '../../../frontend/src/pages/FirstRunWizard';
 import { htmlFor } from '../_render';
 
 const rows = [
@@ -29,6 +29,25 @@ const cost = {
 };
 
 describe('FirstRunWizard cost review step', () => {
+  test('defaults to sqlite-vec with no provider prompt when no config exists', () => {
+    const html = htmlFor(<FirstRunWizard rows={[]} onRefresh={() => {}} initialStep={1} initialCost={cost} />);
+    expect(html).toContain('detect() resolved sqlite-vec from first-run-default');
+    expect(html).toContain('No provider prompt or provider choice is required');
+    expect(html).toContain('Primary adapter: sqlite-vec');
+  });
+
+  test('detects returning users from existing indexed collections', () => {
+    const resolution = detectFirstRunWizardResolution(rows, null);
+    expect(resolution).toMatchObject({
+      engine: 'lancedb',
+      source: 'detect',
+      returningUser: true,
+      providerPrompt: false,
+      wizard: 'optional',
+      collection: 'oracle_bge_m3',
+    });
+  });
+
   test('shows cost estimate and recommendation before indexing', () => {
     const html = htmlFor(<FirstRunWizard rows={rows} onRefresh={() => {}} initialStep={2} initialCost={cost} />);
     expect(html).toContain('Estimated embedding cost');

@@ -62,7 +62,7 @@ describe("SetupWizard first-run detection", () => {
     const empty = htmlFor(<StepBody step={1} config={null} />);
     const done = htmlFor(<StepBody step={3} config={null} />);
 
-    expect(empty).toContain("Local vector backend selected: lancedb");
+    expect(empty).toContain("Local vector backend selected: sqlite-vec");
     expect(empty).toContain("border-ok-border bg-ok-bg");
     expect(done).toContain("First-run setup complete");
     expect(done).toContain("border-ok-border bg-ok-bg text-ok-text");

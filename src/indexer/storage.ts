@@ -11,7 +11,7 @@ import { oracleDocuments } from '../db/schema.ts';
 import { enrichTextWithAcronyms } from '../search/acronyms.ts';
 import { tenantIdForWrite } from '../middleware/tenant.ts';
 import { replaceEntityLinks } from '../search/entity-ranking.ts';
-import { chunkDocumentsForIndexing } from './chunk-text.ts';
+import { chunkDocumentsForIndexing } from './chunker.ts';
 import { replaceDocumentPointers } from '../search/pointer-index.ts';
 import type { VectorStoreAdapter } from '../vector/types.ts';
 import type { OracleDocument } from '../types.ts';

@@ -13,7 +13,7 @@ import { TurboVecAdapter } from './adapters/turbovec.ts';
 import { createEmbeddingProvider, FallbackEmbeddings } from './embeddings.ts';
 import { GeminiEmbeddings } from './providers/gemini.ts';
 import { resolveEmbeddingFallbackChain, resolveEmbeddingModel, resolveEmbeddingProviderType } from './embedder-config.ts';
-import { configPath, loadVectorConfig, resolveServiceEndpoint, configToModels, fallbackCollectionsFor } from './config.ts';
+import { configPath, loadVectorConfig, resolveServiceEndpoint, configToModels, fallbackCollectionsFor, generateDefaultConfig } from './config.ts';
 import { tenantDataPath } from '../middleware/tenant.ts';
 import { withEmbedderIdentityGuard } from './embedder-identity.ts';
 
@@ -132,18 +132,14 @@ export function getEmbeddingModels(
       modelMap[col.collection] = {
         collection: col.collection,
         model: col.model,
-        adapter: storageService?.type === 'proxy' ? 'proxy' : 'lancedb',
+        adapter: storageService?.type === 'proxy' ? 'proxy' : col.adapter,
         endpoint: resolveServiceEndpoint(cfg, serviceName),
       };
     }
     return modelMap;
   }
   if (cfg) return configToModels(cfg);
-  return {
-    nomic: { collection: COLLECTION_NAME, model: 'nomic-embed-text', adapter: 'lancedb', dataPath: LANCEDB_DIR },
-    qwen3: { collection: 'oracle_knowledge_qwen3', model: 'qwen3-embedding', adapter: 'lancedb', dataPath: LANCEDB_DIR },
-    'bge-m3': { collection: 'oracle_knowledge_bge_m3', model: 'bge-m3', adapter: 'lancedb', dataPath: LANCEDB_DIR },
-  };
+  return configToModels(generateDefaultConfig());
 }
 export const EMBEDDING_MODELS = new Proxy({} as Record<string, EmbeddingModelConfig>, {
   get(_, prop: string) { return getEmbeddingModels()[prop]; },

@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite';
 import { DB_PATH } from '../../config.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
 import { collectDocuments, collectSecurityCorpus } from '../../indexer/collectors.ts';
-import { chunkDocumentsForIndexing } from '../../indexer/chunk-text.ts';
+import { chunkDocumentsForIndexing } from '../../indexer/chunker.ts';
 import { parseDistillationFile, parseLearningFile, parseResonanceFile, parseRetroFile } from '../../indexer/parser.ts';
 import { createIndexerConfig, resolveIndexerRepoRoot } from '../../indexer/runner.ts';
 import type { OracleDocument } from '../../types.ts';

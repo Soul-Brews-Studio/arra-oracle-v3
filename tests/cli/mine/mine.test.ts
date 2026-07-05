@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { parseMineArgs } from '../../../src/cli/commands/mine.ts';
+import { parseMineArgs } from '../../../src/cli/mine.ts';
 import { createDatabase } from '../../../src/db/index.ts';
 import { oracleDocuments } from '../../../src/db/schema.ts';
 import { mineFolder, stableMineDocId, watchMineFolder } from '../../../src/indexer/mine.ts';

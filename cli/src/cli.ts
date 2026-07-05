@@ -103,7 +103,7 @@ async function main() {
 
   if (cmd === "mine") {
     if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
-    const { mineCommand } = await import("../../src/cli/commands/mine.ts");
+    const { mineCommand } = await import("../../src/cli/mine.ts");
     process.exit(await mineCommand(args.slice(1)));
   }
 

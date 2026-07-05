@@ -4,13 +4,14 @@
  * Phase 2 of #1071: the config file describes collections, models,
  * and deployment settings for the standalone vector server (Phase 3).
  *
- * The file is optional. When absent, getEmbeddingModels() returns
- * hardcoded defaults. When present, it's the source of truth.
+ * The file is optional. When absent, getEmbeddingModels() returns the
+ * default-safe sqlite-vec config. When present, it's the source of truth.
  */
 
 import fs from 'fs';
 import path from 'path';
 import { ORACLE_DATA_DIR } from '../config.ts';
+import { DEFAULT_SAFE_VECTOR_ENGINE, DEFAULT_VECTOR_LOCAL_ENGINES } from '../config/defaults.ts';
 import { COLLECTION_NAME, LANCEDB_DIR_NAME, VECTORS_DB_FILE } from '../const.ts';
 import type { VectorDBType } from './types.ts';
 import type { LocalVectorEngine, VectorCollectionConfig, VectorConfigUpdate, VectorProxyManifest, VectorServerConfig, VectorStorageConfig } from './config-types.ts';
@@ -18,7 +19,7 @@ import { zeroConfigEmbedder } from './default-embedder.ts';
 import { normalizeVectorConfig } from './config-normalize.ts';
 
 export const VECTOR_CONFIG_FILE = 'vector-server.json';
-export const LOCAL_VECTOR_ENGINES = ['lancedb', 'qdrant', 'sqlite-vec'] as const;
+export const LOCAL_VECTOR_ENGINES = DEFAULT_VECTOR_LOCAL_ENGINES;
 export type { LocalVectorEngine, VectorCollectionConfig, VectorConfigUpdate, VectorProxyManifest, VectorServerConfig, VectorServerV2Storage, VectorStorageConfig, VectorStorageService, VectorModelRegistryEntry } from './config-types.ts';
 export { configToModels, resolveServiceEndpoint } from './config-models.ts';
 
@@ -44,6 +45,8 @@ export function configPath(dataDir = process.env.ORACLE_DATA_DIR || ORACLE_DATA_
  * This is the "factory" version — users can tweak after writing to disk.
  */
 export function generateDefaultConfig(): VectorServerConfig {
+  const adapter = DEFAULT_SAFE_VECTOR_ENGINE;
+  const dataPath = defaultDataPathForEngine(adapter);
   return {
     version: '1.0',
     enabled: false,
@@ -54,7 +57,7 @@ export function generateDefaultConfig(): VectorServerConfig {
         collection: 'oracle_knowledge_bge_m3',
         model: 'bge-m3',
         provider: 'ollama',
-        adapter: 'lancedb',
+        adapter,
         primary: true,
         embedder: zeroConfigEmbedder('bge-m3'),
       },
@@ -62,23 +65,23 @@ export function generateDefaultConfig(): VectorServerConfig {
         collection: COLLECTION_NAME,
         model: 'nomic-embed-text',
         provider: 'ollama',
-        adapter: 'lancedb',
+        adapter,
         embedder: zeroConfigEmbedder('nomic-embed-text'),
       },
       qwen3: {
         collection: 'oracle_knowledge_qwen3',
         model: 'qwen3-embedding',
         provider: 'ollama',
-        adapter: 'lancedb',
+        adapter,
         embedder: zeroConfigEmbedder('qwen3-embedding'),
       },
     },
-    dataPath: defaultLanceDbDir(),
+    dataPath,
     embeddingEndpoint: '',
     storage: {
-      default: 'lancedb',
+      default: adapter,
       services: {
-        lancedb: { type: 'builtin' },
+        [adapter]: { type: 'builtin' },
       },
     },
     proxy: defaultVectorProxyManifest(),
@@ -218,7 +221,7 @@ export function fallbackCollectionsFor(config: VectorServerConfig): VectorCollec
       collection: `oracle_knowledge_${name.replace(/[^a-z0-9]+/g, '_')}`,
       model: 'bge-m3',
       provider: 'none',
-      adapter: 'lancedb',
+      adapter: isLocalVectorEngine(name) ? name : DEFAULT_SAFE_VECTOR_ENGINE,
       service: name,
       primary: name === storageService.default,
     }));

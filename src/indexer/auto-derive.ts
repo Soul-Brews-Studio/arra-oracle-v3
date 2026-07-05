@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { detectProject } from '../server/project-detect.ts';
 import { deriveConceptsFromPath, extractConcepts } from './concepts.ts';
 import { inferProjectFromPath } from './discovery.ts';
 
@@ -7,7 +8,7 @@ import { inferProjectFromPath } from './discovery.ts';
  *
  * Goal: folder ingest should not require a manual taxonomy/collection wizard.
  * - project: prefer explicit/frontmatter project, then project-first vault path,
- *   then the ingested directory name, then a best-effort source directory.
+ *   then ghq-style repo context if present, then the ingested directory name.
  * - concepts: stable union of existing/frontmatter concepts, project tokens,
  *   folder/path tokens, and keyword-scored title/content tokens.
  * - safety: deterministic, local-only, no LLM/provider call, bounded concept count.
@@ -57,7 +58,7 @@ export function deriveProject(input: Pick<AutoDeriveInput, 'project' | 'sourceFi
 }
 
 export function projectFromRoot(rootDir: string): string | null {
-  return normalizeProject(path.basename(path.resolve(rootDir)));
+  return detectProject(rootDir) ?? normalizeProject(path.basename(path.resolve(rootDir)));
 }
 
 function projectFromSource(sourceFile: string): string | null {
@@ -70,9 +71,10 @@ function projectFromSource(sourceFile: string): string | null {
 
 function projectConcepts(project: string | null): string[] {
   if (!project) return [];
-  return project.split(/[\/._\s-]+/g)
+  const parts = project.split(/[\/._\s-]+/g)
     .map((token) => token.toLowerCase().replace(/^[0-9]+|[0-9]+$/g, '').trim())
     .filter((token) => token.length >= 3 && !PROJECT_TOKEN_STOPWORDS.has(token));
+  return [project, ...parts];
 }
 
 function uniqueConcepts(values: string[]): string[] {

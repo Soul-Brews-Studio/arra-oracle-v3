@@ -4,18 +4,18 @@ import {
   isLocalVectorEngine,
   type VectorServerConfig,
 } from './config.ts';
+import { detectDefaultVectorBackend } from '../config/defaults.ts';
 import type { DetectedEmbeddingProvider } from './provider-detection.ts';
 import type { EmbeddingProviderType, VectorDBType } from './types.ts';
 
 export type ConfigSource = 'file' | 'defaults';
 export type ResolutionSource = 'config' | 'env' | 'detect' | 'first-run-default';
 
-export const DEFAULT_SAFE_LOCAL_ENGINE = 'lancedb' as const;
 const SAFE_LOCAL_ENGINES = new Set(['sqlite-vec', 'lancedb']);
 
 export interface VectorBackendResolution {
   engine: VectorDBType;
-  source: Exclude<ResolutionSource, 'detect'>;
+  source: ResolutionSource;
   dataPath: string;
   localDefault: boolean;
   returningUser: boolean;
@@ -39,16 +39,16 @@ export function resolveVectorBackend(
   source: ConfigSource,
   env: NodeJS.ProcessEnv = process.env,
 ): VectorBackendResolution {
-  const envEngine = normalizeEngine(env.ORACLE_VECTOR_DB);
-  if (envEngine) return backend(envEngine, 'env', defaultDataPathForEngine(envEngine), source === 'file', 'ORACLE_VECTOR_DB selects the local vector backend.');
-
-  const configured = activeVectorEngine(config);
-  if (source === 'file') {
-    return backend(configured, 'config', config.dataPath, true, 'Existing vector-server.json selects the backend.');
-  }
-
-  const selected = safeLocal(configured) ? configured : DEFAULT_SAFE_LOCAL_ENGINE;
-  return backend(selected, 'first-run-default', defaultDataPathForEngine(selected), false, 'Fresh installs use the bundled local backend without a provider prompt.');
+  const choice = detectDefaultVectorBackend({
+    envEngine: env.ORACLE_VECTOR_DB,
+    configuredEngine: activeVectorEngine(config),
+    configSource: source,
+  });
+  const engine = choice.engine as VectorDBType;
+  const dataPath = choice.source === 'config'
+    ? config.dataPath
+    : isLocalVectorEngine(engine) ? defaultDataPathForEngine(engine) : config.dataPath;
+  return backend(engine, choice.source, dataPath, choice.returningUser, choice.reason);
 }
 
 export function resolveEmbeddingProvider(
@@ -64,7 +64,7 @@ export function resolveEmbeddingProvider(
   return provider(configured ?? 'ollama', 'first-run-default', false, 'Fresh installs default to local Ollama/FTS fallback without prompting.');
 }
 
-function backend(engine: VectorDBType, source: VectorBackendResolution['source'], dataPath: string, returningUser: boolean, reason: string): VectorBackendResolution {
+function backend(engine: VectorDBType, source: ResolutionSource, dataPath: string, returningUser: boolean, reason: string): VectorBackendResolution {
   return {
     engine, source, dataPath, returningUser, reason,
     localDefault: safeLocal(engine),
@@ -82,12 +82,7 @@ function provider(providerName: EmbeddingProviderType, source: ResolutionSource,
   };
 }
 
-function normalizeEngine(value: string | undefined): typeof DEFAULT_SAFE_LOCAL_ENGINE | 'sqlite-vec' | null {
-  const normalized = value?.trim().toLowerCase();
-  return normalized === 'sqlite-vec' || normalized === 'lancedb' ? normalized : null;
-}
-
-function safeLocal(engine: VectorDBType): engine is typeof DEFAULT_SAFE_LOCAL_ENGINE | 'sqlite-vec' {
+function safeLocal(engine: VectorDBType): boolean {
   return isLocalVectorEngine(engine) && SAFE_LOCAL_ENGINES.has(engine);
 }
 

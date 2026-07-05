@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { chunkDocumentForIndexing, chunkText, chunk_text } from '../chunk-text.ts';
+import { chunkDocumentForIndexing, chunkText, chunk_text } from '../chunker.ts';
 import type { OracleDocument } from '../../types.ts';
 
 function doc(content: string): OracleDocument {

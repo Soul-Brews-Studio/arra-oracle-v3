@@ -15,23 +15,23 @@ const { getEmbeddingModels, getVectorStoreConfigByModel } = await import('../../
 const app = new Elysia({ prefix: '/api' }).use(vectorConfigEndpoint);
 
 describe('/api/vector/config', () => {
-  test('GET keeps backward-compatible defaults when no config file exists', async () => {
+  test('GET uses default-safe sqlite-vec defaults when no config file exists', async () => {
     const res = await app.handle(new Request('http://localhost/api/vector/config'));
     const body = await res.json() as any;
 
     expect(res.status).toBe(200);
     expect(body.source).toBe('defaults');
-    expect(body.engine).toBe('lancedb');
+    expect(body.engine).toBe('sqlite-vec');
     expect(body.enabled).toBe(false);
     expect(body.resolution).toMatchObject({
-      engine: 'lancedb',
+      engine: 'sqlite-vec',
       source: 'first-run-default',
       providerPrompt: false,
       wizard: 'optional',
     });
     expect(body.state).toMatchObject({ enabled: false, ready: false, reason: 'vector section disabled' });
     expect(body.config.collections['bge-m3']).toMatchObject({
-      adapter: 'lancedb',
+      adapter: 'sqlite-vec',
       model: 'bge-m3',
       primary: true,
     });

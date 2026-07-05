@@ -5,7 +5,7 @@ import { serveCommand } from './commands/serve.ts';
 import { canvasPluginsCommand } from './commands/canvas-plugins.ts';
 import { canvasServeCommand } from './commands/canvas-serve.ts';
 import { vectorConfigCommand } from './commands/vector-config.ts';
-import { mineCommand } from './commands/mine.ts';
+import { mineCommand } from './mine.ts';
 
 function printUsage(): void {
   console.error('usage: bun run src/cli/index.ts <export|serve|canvas-plugins|canvas-serve|vector-config|mine> ...');
