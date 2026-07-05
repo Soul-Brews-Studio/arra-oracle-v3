@@ -24,7 +24,7 @@ Once running, open the UI with: bunx oracle-studio`);
 }
 
 if (command === "mine") {
-  const { mineCommand } = await import("../src/cli/commands/mine.ts");
+  const { mineCommand } = await import("../src/cli/mine.ts");
   process.exit(await mineCommand(args.slice(1)));
 }
 

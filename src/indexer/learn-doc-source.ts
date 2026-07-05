@@ -12,7 +12,7 @@ import { deriveConceptsFromPath, mergeConceptsWithTags } from './concepts.ts';
 import { inferProjectFromPath } from './discovery.ts';
 import { parseLearningFile } from './parser.ts';
 import { enrichTextWithAcronyms } from '../search/acronyms.ts';
-import { chunkDocumentsForIndexing } from './chunk-text.ts';
+import { chunkDocumentsForIndexing } from './chunker.ts';
 import { documentPointers, type PointerInput } from '../search/pointer-index.ts';
 
 export const PSI_LEARN_REL = path.join('ψ', 'learn');

@@ -6,7 +6,7 @@ import { createDatabase, oracleDocuments, oracleFts, type DatabaseConnection } f
 import { detectProject } from '../server/project-detect.ts';
 import type { OracleDocument } from '../types.ts';
 import { deriveConceptsFromPath, extractConcepts, mergeConceptsWithTags } from './concepts.ts';
-import { chunkDocumentForIndexing } from './chunk-text.ts';
+import { chunkDocumentForIndexing } from './chunker.ts';
 import { storeDocuments } from './storage.ts';
 
 const DEFAULT_EXTENSIONS = new Set(['.md', '.mdx', '.txt']);

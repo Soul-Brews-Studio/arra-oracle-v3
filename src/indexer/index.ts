@@ -34,7 +34,7 @@ import {
   supersedeReplacedSourceDocs,
 } from './reindex-state.ts';
 import { oracleFts, storeDocuments } from './storage.ts';
-import { chunkDocumentsForIndexing } from './chunk-text.ts';
+import { chunkDocumentsForIndexing } from './chunker.ts';
 import { removeDocumentPointers } from '../search/pointer-index.ts';
 
 export interface IndexOptions {
