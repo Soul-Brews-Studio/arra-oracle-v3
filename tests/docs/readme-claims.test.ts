@@ -8,6 +8,7 @@ import { smokeArraMine, smokeDockerHeroPath } from './readme-claim-smoke.ts';
 const repoRoot = process.cwd();
 const readme = readFileSync('README.md', 'utf8');
 const apiDoc = readFileSync('docs/API.md', 'utf8');
+const architectureDoc = readFileSync('docs/architecture.md', 'utf8');
 let scratch = '';
 let closeDb: (() => void) | undefined;
 let fetchClaim: ((request: Request) => Promise<Response> | Response) | undefined;
@@ -111,6 +112,7 @@ describe('README/docs advertised claims', () => {
   test('API route inventory derives counts from the base Elysia app', () => {
     expect(apiDoc).toMatch(/Base `createApp\(\)` with no dynamic plugins\/gateway config exposes the route inventory below/i);
     expect(apiDoc).not.toMatch(/exposes \d+ routes, \d+ under `\/api`/i);
+    expect(architectureDoc).not.toMatch(/builds \d+\s+routes, \d+ of them under `\/api`/i);
     expect(routeCount).toBeGreaterThan(0);
     expect(apiRouteCount).toBeGreaterThan(0);
     expect(apiRouteCount).toBeLessThanOrEqual(routeCount);

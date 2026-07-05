@@ -48,8 +48,9 @@ Users, agents, Studio, maw-js, MCP clients
    context, request de-duplication, timeouts, structured errors, and not-found
    handling.
 4. `createServerRouteModules()` mounts the Elysia route modules, then plugin
-   routes, then the not-found boundary. A source inspection currently builds 185
-   routes, 181 of them under `/api`.
+   routes, then the not-found boundary. Derive exact route totals from
+   `app.routes` in tests or tooling instead of hard-coding them in docs; dynamic
+   plugin and gateway routes may add more at runtime.
 
 ## HTTP route families
 
