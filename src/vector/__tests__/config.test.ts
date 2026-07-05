@@ -26,10 +26,10 @@ describe('vector-server config', () => {
   test('default config advertises per-collection adapter/provider metadata', () => {
     const cfg = generateDefaultConfig();
     expect(cfg.enabled).toBe(false);
-    expect(cfg.collections['bge-m3'].adapter).toBe('lancedb');
+    expect(cfg.collections['bge-m3'].adapter).toBe('sqlite-vec');
     expect(cfg.collections['bge-m3'].provider).toBe('ollama');
-    expect(cfg.collections.nomic.adapter).toBe('lancedb');
-    expect(cfg.collections.qwen3.adapter).toBe('lancedb');
+    expect(cfg.collections.nomic.adapter).toBe('sqlite-vec');
+    expect(cfg.collections.qwen3.adapter).toBe('sqlite-vec');
   });
 
   test('writeVectorConfig creates ORACLE_DATA_DIR and loadVectorConfig reads it back', () => {
@@ -130,7 +130,7 @@ describe('local vector engine selection', () => {
       },
     });
 
-    expect(cfg.collections['bge-m3'].adapter).toBe('lancedb');
+    expect(cfg.collections['bge-m3'].adapter).toBe('sqlite-vec');
     expect(configToModels(cfg).fast).toMatchObject({
       adapter: 'qdrant',
       collection: 'oracle_fast_nomic',

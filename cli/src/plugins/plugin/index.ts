@@ -1,5 +1,6 @@
 import type { InvokeContext, InvokeResult } from "../../plugin/types.ts";
 import { discoverPlugins } from "../../plugin/loader.ts";
+import { pluginCliCommands } from "../../plugin/registry.ts";
 import { join, resolve } from "path";
 import { homedir } from "os";
 import { existsSync, mkdirSync, cpSync, symlinkSync, rmSync } from "fs";
@@ -50,10 +51,11 @@ async function cmdList(): Promise<InvokeResult> {
   const header = `${"COMMAND".padEnd(20)} ${"VERSION".padEnd(10)} ${"SOURCE".padEnd(8)} DESCRIPTION`;
   const divider = "-".repeat(70);
   const lines = plugins.map(p => {
-    const cmd = p.manifest.cli?.command ?? p.manifest.name;
+    const command = pluginCliCommands(p)[0];
+    const cmd = command?.command ?? p.manifest.name;
     const ver = p.manifest.version;
     const source = p.dir.startsWith(USER_PLUGIN_DIR) ? "user" : "bundled";
-    const desc = p.manifest.cli?.help ?? p.manifest.description ?? "";
+    const desc = command?.help ?? p.manifest.description ?? "";
     return `${cmd.padEnd(20)} ${ver.padEnd(10)} ${source.padEnd(8)} ${desc}`;
   });
   const summary = user > 0 ? `${bundled} bundled, ${user} user` : `${bundled} bundled`;

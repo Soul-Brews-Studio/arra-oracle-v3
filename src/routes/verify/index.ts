@@ -41,8 +41,12 @@ function bodyToInput(body: { check?: boolean; type?: string }): OracleVerifyInpu
   };
 }
 
+function currentRepoRoot(): string {
+  return process.env.ORACLE_REPO_ROOT || REPO_ROOT;
+}
+
 export const verifyRoutes = new Elysia({ prefix: '/api' })
-  .get('/verify', async ({ query }) => runVerify(queryToInput(query), REPO_ROOT), {
+  .get('/verify', async ({ query }) => runVerify(queryToInput(query), currentRepoRoot()), {
     query: VerifyQuery,
     detail: {
       tags: ['search'],
@@ -50,7 +54,7 @@ export const verifyRoutes = new Elysia({ prefix: '/api' })
       summary: 'Verify knowledge base disk files against the DB index',
     },
   })
-  .post('/verify', async ({ body }) => runVerify(bodyToInput(body), REPO_ROOT), {
+  .post('/verify', async ({ body }) => runVerify(bodyToInput(body), currentRepoRoot()), {
     body: VerifyBody,
     detail: {
       tags: ['search'],

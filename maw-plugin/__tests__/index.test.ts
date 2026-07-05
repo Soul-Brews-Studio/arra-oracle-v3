@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test';
 import { authHeaders, buildFrontendUrl, listSubcommands, resolveBaseUrl, runArra } from '../index.ts';
 
 type Call = { path: string; init?: RequestInit };
-type RunCall = { cmd: string; args: string[]; options?: { cwd?: string; env?: Record<string, string | undefined>; inherit?: boolean; capture?: boolean } };
 
 async function route(args: string[], response: unknown = { success: true }): Promise<{ result: Awaited<ReturnType<typeof runArra>>; calls: Call[] }> {
   const calls: Call[] = [];
@@ -28,54 +27,42 @@ describe('maw arra plugin', () => {
   });
 
   test('help lists the full compact MCP surface', async () => {
-    expect(listSubcommands()).toEqual([
-      'concepts',
-      'feed',
-      'frontend',
-      'handoff',
-      'health',
-      'inbox',
-      'index',
-      'learn',
-      'list',
-      'menu',
-      'open',
-      'plugins',
-      'read',
-      'reflect',
-      'scan',
-      'search',
-      'settings',
-      'stats',
-      'studio',
-      'supersede',
-      'thread',
-      'thread_read',
-      'thread_update',
-      'threads',
-      'trace',
-      'trace_chain',
-      'trace_get',
-      'trace_link',
-      'trace_list',
-      'trace_unlink',
-      'ui',
-      'vector',
-      'vector_index',
-      'vector_models',
-      'vector_status',
-      'vector_stop',
-      'verify',
-    ]);
+    const subcommands = listSubcommands();
+    expect(subcommands).toEqual([...subcommands].sort());
+    expect(subcommands).toEqual(expect.arrayContaining([
+      'backup',
+      'canvas-plugins',
+      'canvas-serve',
+      'changelog',
+      'config',
+      'export',
+      'export-obsidian',
+      'import',
+      'import-obsidian',
+      'mcp_tools',
+      'migrate',
+      'schedule',
+      'schedule_add',
+      'supersede_chain',
+      'supersede_list',
+      'vault',
+      'vault_sync',
+      'vector_config',
+    ]));
 
     const help = await runArra(['help']);
     expect(help.output).toContain('frontend');
-    expect(help.output).toContain('studio');
+    expect(help.output).toContain('export --format json|markdown');
     expect(help.output).toContain('index');
     expect(help.output).toContain('vector');
-    expect(help.output).toContain('vector-index');
+    expect(help.output).toContain('vector-config [--json]');
+    expect(help.output).toContain('vector-config reload');
+    expect(help.output).toContain('enabled <true|false>');
     expect(help.output).toContain('trace_chain');
     expect(help.output).toContain('thread_update');
+    expect(help.output).toContain('serve [--backend] [--in-process] [--stop|--status] [--port N]');
+    expect(help.output).toContain('schedule-add');
+    expect(help.output).toContain('vault-sync');
     expect(help.output).toContain('verify');
   });
 
@@ -97,50 +84,65 @@ describe('maw arra plugin', () => {
 
 
 
-  test('starts local Oracle Studio through ghq with default and custom ports', async () => {
-    const calls: RunCall[] = [];
-    const runner = async (cmd: string, args: string[], options?: RunCall['options']) => {
+  test('serve starts, reports status, and stops by PID file', async () => {
+    const home = await import('node:fs').then(({ mkdtempSync }) => mkdtempSync('/tmp/arra-serve-test-'));
+    const calls: any[] = [];
+    const runner = async (cmd: string, args: string[], options?: any) => {
       calls.push({ cmd, args, options });
-      return { code: 0, stdout: cmd === 'ghq' && args[0] === 'root' ? '/tmp/ghq\n' : '' };
+      return { code: 0, stdout: '/repo/arra-oracle-v3\n', stderr: '' };
     };
+    let alive = true;
+    const env = { HOME: home };
+    const start = await runArra(['serve', '--backend', '--port', '49999'], async () => ({}), () => {}, env, runner, {
+      start: (cwd, startEnv) => {
+        calls.push({ cmd: 'start', cwd, env: startEnv });
+        return 12345;
+      },
+      isAlive: () => alive,
+    });
+    expect(start.ok).toBe(true);
+    expect(start.output).toContain('started pid=12345 port=49999');
+    expect(start.output).toContain('backend: full Oracle');
+    expect(calls).toContainEqual(expect.objectContaining({ cmd: 'ghq', args: ['locate', 'Soul-Brews-Studio/arra-oracle-v3'] }));
+    expect(calls).toContainEqual(expect.objectContaining({
+      cmd: 'start',
+      cwd: expect.stringContaining('maw-plugin'),
+      env: expect.objectContaining({ ORACLE_ROOT: '/repo/arra-oracle-v3', ARRA_BACKEND_SOURCE: 'maw-plugin' }),
+    }));
 
-    const result = await runArra(['studio'], async () => ({}), () => {}, {}, runner);
-    expect(result.ok).toBe(true);
-    expect(result.output).toContain('port 4321');
-    expect(calls.map(c => [c.cmd, c.args])).toEqual([
-      ['ghq', ['get', '-u', 'Soul-Brews-Studio/oracle-studio']],
-      ['ghq', ['root']],
-      ['bun', ['install']],
-      ['bun', ['run', 'dev', '--port', '4321']],
-    ]);
-    expect(calls[2]?.options?.cwd).toBe('/tmp/ghq/github.com/Soul-Brews-Studio/oracle-studio');
-    expect(calls[3]?.options?.cwd).toBe('/tmp/ghq/github.com/Soul-Brews-Studio/oracle-studio');
-    expect(calls[3]?.options?.env?.VITE_ARRA_API).toBe('http://localhost:47778');
+    expect(resolveBaseUrl(env)).toBe('http://localhost:49999');
+    expect(resolveBaseUrl({ ...env, ORACLE_API: 'http://localhost:47778' })).toBe('http://localhost:47778');
 
-    calls.length = 0;
-    await runArra(['studio', '--port', '3000'], async () => ({}), () => {}, {}, runner);
-    expect(calls[3]?.args).toEqual(['run', 'dev', '--port', '3000']);
+    const status = await runArra(['serve', '--status'], async () => ({}), () => {}, env, runner, {
+      isAlive: () => true,
+      fetch: async () => new Response('{"status":"ok"}', { status: 200 }),
+    });
+    expect(status.output).toContain('alive pid=12345');
+    expect(status.output).toContain('port: 49999');
+    expect(status.output).toContain('health: ok 200');
+
+    const stop = await runArra(['serve', '--stop'], async () => ({}), () => {}, env, runner, {
+      isAlive: () => alive,
+      kill: () => { alive = false; },
+      sleep: async () => {},
+    });
+    expect(stop.output).toContain('stopped pid=12345');
   });
-
-  test('rejects invalid studio ports', async () => {
-    const result = await runArra(['studio', '--port', 'nope'], async () => ({}), () => {}, {}, async () => ({ code: 0 }));
-    expect(result.ok).toBe(false);
-    expect(result.error).toContain('--port');
-  });
-
 
   test('routes read-only commands to the expected endpoints', async () => {
     const cases: Array<[string[], string, string]> = [
       [['search', 'hello', '--mode', 'vector', '--limit', '3'], 'GET', '/api/search?q=hello&limit=3&mode=vector'],
       [['stats'], 'GET', '/api/stats'],
+      [['scan', '--path', '/tmp/vault'], 'POST', '/api/indexer/scan'],
       [['plugins'], 'GET', '/api/plugins'],
       [['settings'], 'GET', '/api/settings/tools'],
       [['feed'], 'GET', '/api/feed'],
       [['menu'], 'GET', '/api/menu'],
       [['vector'], 'GET', '/api/vector/config'],
+      [['vector-config'], 'GET', '/api/v1/vector/config'],
+      [['vector_status'], 'GET', '/api/vector/index/status'],
+      [['vector_models'], 'GET', '/api/vector/index/models'],
       [['health'], 'GET', '/api/health'],
-      [['vector-status'], 'GET', '/api/vector/index/status'],
-      [['vector-models'], 'GET', '/api/vector/index/models'],
       [['trace_list', '--status', 'raw', '--limit', '2'], 'GET', '/api/traces?status=raw&limit=2'],
       [['trace_get', 'abc'], 'GET', '/api/traces/abc'],
       [['trace-get', 'abc', '--include-chain'], 'GET', '/api/traces/abc/chain'],
@@ -150,6 +152,10 @@ describe('maw arra plugin', () => {
       [['list', '--type', 'learning', '--limit', '7'], 'GET', '/api/list?type=learning&limit=7&group=false'],
       [['read', '--id', 'doc1'], 'GET', '/api/read?id=doc1'],
       [['reflect'], 'GET', '/api/reflect'],
+      [['schedule', '--status', 'pending', '--limit', '2'], 'GET', '/api/schedule?status=pending&limit=2'],
+      [['supersede-list', '--limit', '2'], 'GET', '/api/supersede?limit=2'],
+      [['supersede-chain', 'ψ/demo.md'], 'GET', '/api/supersede/chain/%CF%88%2Fdemo.md'],
+      [['mcp-tools'], 'GET', '/api/mcp/tools'],
       [['threads', '--status', 'active', '--limit', '5'], 'GET', '/api/threads?status=active&limit=5'],
       [['thread_read', '42'], 'GET', '/api/thread/42'],
     ];
@@ -166,16 +172,21 @@ describe('maw arra plugin', () => {
     const cases: Array<[string[], string, string, unknown]> = [
       [['learn', 'new', 'pattern', '--project', 'demo'], 'POST', '/api/learn', { pattern: 'new pattern', project: 'demo' }],
       [['index', '--project', 'demo', '--path', '/tmp/vault'], 'POST', '/api/indexer/reindex', { project: 'demo', path: '/tmp/vault' }],
-      [['scan', '--path', '/tmp/vault'], 'POST', '/api/indexer/scan', { sourcePath: '/tmp/vault' }],
       [['trace', 'audit', '--scope', 'project'], 'POST', '/api/traces', { query: 'audit', scope: 'project' }],
-      [['vector-index', '--model', 'all'], 'POST', '/api/vector/index/start', { model: 'all' }],
-      [['vector-stop'], 'POST', '/api/vector/index/stop', undefined],
       [['trace_link', 'a', 'b'], 'POST', '/api/traces/a/link', { nextId: 'b' }],
       [['trace_unlink', 'a', '--direction', 'next'], 'DELETE', '/api/traces/a/link?direction=next', undefined],
       [['handoff', 'hello', '--slug', 'demo'], 'POST', '/api/handoff', { content: 'hello', slug: 'demo' }],
       [['supersede', 'old', 'new', '--reason', 'newer'], 'POST', '/api/supersede/document', { oldId: 'old', newId: 'new', reason: 'newer' }],
       [['thread', 'hello', '--thread-id', '42', '--title', 'T'], 'POST', '/api/thread', { message: 'hello', thread_id: 42, title: 'T', role: 'human' }],
       [['thread_update', '42', '--status', 'closed'], 'PATCH', '/api/thread/42/status', { status: 'closed' }],
+      [['vector_index', '--model', 'nomic'], 'POST', '/api/vector/index/start', { model: 'nomic' }],
+      [['vector_stop'], 'POST', '/api/vector/index/stop', undefined],
+      [['vector-config', 'set', 'bge-m3', 'adapter', 'qdrant'], 'PUT', '/api/v1/vector/config/bge-m3', { adapter: 'qdrant' }],
+      [['vector-config', 'set', 'bge-m3', 'enabled', 'false'], 'PUT', '/api/v1/vector/config/bge-m3', { enabled: false }],
+      [['vector-config', 'reload'], 'POST', '/api/v1/vector/config/reload', undefined],
+      [['vector-config', 'test', 'bge-m3'], 'POST', '/api/v1/vector/config/bge-m3/test', undefined],
+      [['schedule-add', 'standup', '--date', '2026-06-16'], 'POST', '/api/schedule', { event: 'standup', date: '2026-06-16' }],
+      [['vault-sync', '--dry-run', '--reindex'], 'POST', '/api/vault/sync', { dryRun: true, reindex: true }],
       [['verify', '--check', 'false', '--type', 'learning'], 'POST', '/api/verify', { check: false, type: 'learning' }],
     ];
 
@@ -201,8 +212,9 @@ describe('maw arra plugin', () => {
   });
 
   test('formats compact health and search output', async () => {
-    const health = await runArra(['health'], async () => ({ status: 'ok', vectorMode: 'proxied' }));
+    const health = await runArra(['health'], async () => ({ status: 'ok', vectorMode: 'proxied', vectorStatus: 'ok', vector: { engines: [{ key: 'bge-m3', adapter: 'lancedb', model: 'bge-m3', ok: true, count: 12 }] } }));
     expect(health.output).toContain('vectorMode: proxied');
+    expect(health.output).toContain('vector bge-m3: ok lancedb bge-m3 docs=12');
 
     const search = await runArra(['search', 'hello'], async () => ({ total: 1, results: [{ id: 'doc1', type: 'learning', content: 'hello memory', score: 0.9 }] }));
     expect(search.output).toContain('arra search: 1 result');

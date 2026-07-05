@@ -4,29 +4,34 @@ import os from 'os';
 import path from 'path';
 import {
   TOOL_GROUPS,
+  TOOL_PLUGINS,
   getDisabledTools,
   getEnabledToolNames,
-  normalizeToolName,
   loadToolGroupConfig,
-  watchToolGroupConfig,
   type ToolGroupConfig,
 } from '../tool-groups.ts';
 
 describe('tool-groups', () => {
-  it('defines 6 groups with correct tool counts', () => {
-    expect(Object.keys(TOOL_GROUPS)).toHaveLength(6);
-    expect(TOOL_GROUPS.search).toHaveLength(4);
-    expect(TOOL_GROUPS.knowledge).toHaveLength(3);
-    expect(TOOL_GROUPS.session).toHaveLength(2);
-    expect(TOOL_GROUPS.forum).toHaveLength(4);
-    expect(TOOL_GROUPS.trace).toHaveLength(6);
-    expect(TOOL_GROUPS.standalone).toHaveLength(2);   // #972 wire: reflect + verify (schedule kept HTTP-only)
+  it('defines groups with correct tool counts', () => {
+    expect(Object.keys(TOOL_GROUPS)).toHaveLength(7);
+    expect(TOOL_GROUPS.search).toHaveLength(5);
+    expect(TOOL_GROUPS.knowledge).toHaveLength(4);
+    expect(TOOL_GROUPS.oracle).toEqual(['oracle_profile']);
+    expect(TOOL_GROUPS.trace).toHaveLength(7);
+    expect(TOOL_GROUPS.standalone).toHaveLength(2);
+  });
+
+  it('defines trace and dig as separate manifest plugins', () => {
+    expect(TOOL_PLUGINS.trace.tools).toEqual(['oracle_trace', 'oracle_trace_distill']);
+    expect(TOOL_PLUGINS.dig.tools).toContain('oracle_trace_get');
+    expect(TOOL_PLUGINS.dig.tools).not.toContain('oracle_trace');
+    expect(TOOL_PLUGINS.oracle.tools).toEqual(['oracle_profile']);
   });
 
   it('returns empty set when all groups enabled', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
-      forum: true, trace: true, standalone: true,
+      forum: true, oracle: true, trace: true, standalone: true,
     };
     expect(getDisabledTools(config).size).toBe(0);
   });
@@ -34,37 +39,42 @@ describe('tool-groups', () => {
   it('disables correct tools when groups are off', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
-      forum: true, trace: false, standalone: true,
+      forum: true, oracle: true, trace: false, standalone: true,
     };
     const disabled = getDisabledTools(config);
     expect(disabled.has('oracle_trace')).toBe(true);
     expect(disabled.has('oracle_trace_list')).toBe(true);
+    expect(disabled.has('oracle_trace_distill')).toBe(true);
     expect(disabled.has('oracle_search')).toBe(false);
+    expect(disabled.has('oracle_search_chain')).toBe(false);
     expect(disabled.has('oracle_learn')).toBe(false);
+    expect(disabled.has('oracle_profile')).toBe(false);
+    const oracleDisabled = getDisabledTools({ ...config, oracle: false, trace: true });
+    expect(oracleDisabled.has('oracle_profile')).toBe(true);
+    expect(oracleDisabled.has('oracle_trace_distill')).toBe(false);
   });
 
   it('disabled_tools adds per-tool blocks on top of group config', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
-      forum: true, trace: true, standalone: true,
+      forum: true, oracle: true, trace: true, standalone: true,
       disabled_tools: ['oracle_supersede', 'oracle_thread_update'],
     };
     const disabled = getDisabledTools(config);
     expect(disabled.has('oracle_supersede')).toBe(true);
     expect(disabled.has('oracle_thread_update')).toBe(true);
-    // Sibling tools in the same group stay enabled
     expect(disabled.has('oracle_learn')).toBe(false);
+    expect(disabled.has('oracle_profile')).toBe(false);
     expect(disabled.has('oracle_thread')).toBe(false);
   });
 
   it('enabled_tools whitelist overrides group-disabled', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
-      forum: false, trace: true, standalone: true,
+      forum: false, oracle: true, trace: true, standalone: true,
       enabled_tools: ['oracle_thread_read'],
     };
     const disabled = getDisabledTools(config);
-    // Whole forum group disabled, except the whitelisted one
     expect(disabled.has('oracle_thread')).toBe(true);
     expect(disabled.has('oracle_thread_update')).toBe(true);
     expect(disabled.has('oracle_thread_read')).toBe(false);
@@ -73,7 +83,7 @@ describe('tool-groups', () => {
   it('enabled_tools whitelist overrides a per-tool block (whitelist wins last)', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
-      forum: true, trace: true, standalone: true,
+      forum: true, oracle: true, trace: true, standalone: true,
       disabled_tools: ['oracle_supersede'],
       enabled_tools: ['oracle_supersede'],
     };
@@ -83,73 +93,15 @@ describe('tool-groups', () => {
   it('ignores unknown tool names in disabled_tools and enabled_tools', () => {
     const config: ToolGroupConfig = {
       search: true, knowledge: true, session: true,
-      forum: true, trace: true, standalone: true,
+      forum: true, oracle: true, trace: true, standalone: true,
       disabled_tools: ['typo_search', 'oracle_search'],
       enabled_tools: ['also_typo'],
     };
     const disabled = getDisabledTools(config);
-    // Real one applied
     expect(disabled.has('oracle_search')).toBe(true);
-    // Typos didn't leak in
+    expect(disabled.has('oracle_search_chain')).toBe(false);
     expect(disabled.has('typo_search')).toBe(false);
     expect(disabled.has('also_typo')).toBe(false);
-  });
-
-
-  it('normalizes legacy arra_* and muninn_* aliases in per-tool config', () => {
-    expect(normalizeToolName('arra_search')).toBe('oracle_search');
-    expect(normalizeToolName('muninn_trace_get')).toBe('oracle_trace_get');
-
-    const disabled = getDisabledTools({
-      search: true, knowledge: true, session: true,
-      forum: true, trace: true, standalone: true,
-      disabled_tools: ['arra_search', 'muninn_trace_get'],
-    });
-
-    expect(disabled.has('oracle_search')).toBe(true);
-    expect(disabled.has('oracle_trace_get')).toBe(true);
-  });
-
-  it('allowed_tools is a strict MCP tool allow-list for context reduction', () => {
-    const enabled = getEnabledToolNames({
-      search: true, knowledge: true, session: true,
-      forum: true, trace: true, standalone: true,
-      allowed_tools: ['arra_search', 'muninn_trace_get'],
-    });
-
-    expect(enabled).toEqual(new Set(['oracle_search', 'oracle_trace_get']));
-  });
-
-  it('ORACLE_ENABLED_TOOLS and ORACLE_DISABLED_TOOLS load env tool filters', () => {
-    const oldEnabled = process.env.ORACLE_ENABLED_TOOLS;
-    const oldDisabled = process.env.ORACLE_DISABLED_TOOLS;
-    try {
-      process.env.ORACLE_ENABLED_TOOLS = 'arra_search, muninn_trace_get';
-      process.env.ORACLE_DISABLED_TOOLS = 'oracle_trace_get';
-      const config = loadToolGroupConfig('/nonexistent/path');
-      expect(config.allowed_tools).toEqual(['oracle_search', 'oracle_trace_get']);
-      expect(config.disabled_tools).toEqual(['oracle_trace_get']);
-      const enabled = getEnabledToolNames(config);
-      expect(enabled).toEqual(new Set(['oracle_search']));
-    } finally {
-      if (oldEnabled === undefined) delete process.env.ORACLE_ENABLED_TOOLS;
-      else process.env.ORACLE_ENABLED_TOOLS = oldEnabled;
-      if (oldDisabled === undefined) delete process.env.ORACLE_DISABLED_TOOLS;
-      else process.env.ORACLE_DISABLED_TOOLS = oldDisabled;
-    }
-  });
-
-  it('loads MCP tool filters from repo .arra/config.json', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-toolgroups-dotarra-'));
-    try {
-      fs.mkdirSync(path.join(dir, '.arra'));
-      fs.writeFileSync(path.join(dir, '.arra', 'config.json'), JSON.stringify({ allowed_tools: ['muninn_search'] }));
-      const config = loadToolGroupConfig(dir);
-      expect(config.allowed_tools).toEqual(['oracle_search']);
-      expect(getEnabledToolNames(config)).toEqual(new Set(['oracle_search']));
-    } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
   });
 
   it('defaults to all groups enabled', () => {
@@ -158,6 +110,7 @@ describe('tool-groups', () => {
     expect(config.knowledge).toBe(true);
     expect(config.session).toBe(true);
     expect(config.forum).toBe(true);
+    expect(config.oracle).toBe(true);
     expect(config.trace).toBe(true);
   });
 
@@ -168,85 +121,88 @@ describe('tool-groups', () => {
       }
     }
   });
-});
 
-describe('watchToolGroupConfig', () => {
-  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  it('defaults to manifest order when no plugin manifest is present', () => {
+    const config: ToolGroupConfig = {
+      search: true, knowledge: true, session: true,
+      forum: true, oracle: true, trace: true, standalone: true,
+    };
+    const names = getEnabledToolNames(config);
 
-  it('fires onChange when the config file is created with new values', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-toolgroups-watch-'));
-    const calls: ToolGroupConfig[] = [];
-    const stop = watchToolGroupConfig((next) => calls.push(next), dir);
+    expect(names[0]).toBe('____IMPORTANT');
+    expect(names.indexOf('oracle_search')).toBeLessThan(names.indexOf('oracle_learn'));
+    expect(names.indexOf('oracle_trace')).toBeLessThan(names.indexOf('oracle_trace_get'));
+  });
+
+  it('plugin manifest controls enablement and weight order', () => {
+    const config: ToolGroupConfig = {
+      search: true, knowledge: true, session: true,
+      forum: true, oracle: true, trace: true, standalone: true,
+      plugins: [
+        { name: 'dig', enabled: true, tier: 'standard', weight: 10 },
+        { name: 'trace', enabled: false, tier: 'standard', weight: 1 },
+        { name: 'search', enabled: true, tier: 'core', weight: 20 },
+      ],
+    };
+    const names = getEnabledToolNames(config);
+
+    expect(names[0]).toBe('oracle_trace_list');
+    expect(names).toContain('oracle_trace_get');
+    expect(names).not.toContain('oracle_trace');
+    expect(names.indexOf('oracle_trace_get')).toBeLessThan(names.indexOf('oracle_search'));
+  });
+
+  it('legacy flat disabled/enabled tools override manifest and normalize aliases', () => {
+    const config: ToolGroupConfig = {
+      search: true, knowledge: true, session: true,
+      forum: true, oracle: true, trace: true, standalone: true,
+      plugins: [{ name: 'search', enabled: true }],
+      disabled_tools: ['oracle_search'],
+      enabled_tools: ['arra_trace_get'],
+    };
+    const names = getEnabledToolNames(config);
+    const disabled = getDisabledTools(config);
+
+    expect(names).not.toContain('oracle_search');
+    expect(names).toContain('oracle_trace_get');
+    expect(disabled.has('oracle_search')).toBe(true);
+    expect(disabled.has('oracle_trace_get')).toBe(false);
+  });
+
+  it('loads repo-local plugins.json manifest', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-plugin-manifest-'));
     try {
-      // Watcher should see a file appear in the watched dir and reload.
       fs.writeFileSync(
-        path.join(dir, 'arra.config.json'),
-        JSON.stringify({ tools: { trace: false } }),
+        path.join(dir, 'plugins.json'),
+        JSON.stringify({ plugins: [{ name: 'dig', enabled: true, weight: 1 }] }),
       );
-      // 200ms debounce + slack for fs event delivery
-      await wait(450);
-      expect(calls.length).toBeGreaterThanOrEqual(1);
-      expect(calls[calls.length - 1].trace).toBe(false);
-      expect(calls[calls.length - 1].search).toBe(true);
+      const config = loadToolGroupConfig(dir);
+      expect(config.plugins?.[0]?.name).toBe('dig');
+      expect(getEnabledToolNames(config)).toContain('oracle_trace_chain');
+      expect(getEnabledToolNames(config)).not.toContain('oracle_search');
     } finally {
-      stop();
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it('does NOT fire when the file change is a no-op', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-toolgroups-watch-'));
-    const configPath = path.join(dir, 'arra.config.json');
-    fs.writeFileSync(configPath, JSON.stringify({ tools: { trace: false } }));
-    const calls: ToolGroupConfig[] = [];
-    const stop = watchToolGroupConfig((next) => calls.push(next), dir);
-    try {
-      // Rewrite identical content — should debounce to no event.
-      fs.writeFileSync(configPath, JSON.stringify({ tools: { trace: false } }));
-      await wait(450);
-      expect(calls.length).toBe(0);
-    } finally {
-      stop();
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('keeps last good config when JSON is malformed', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-toolgroups-watch-'));
-    const configPath = path.join(dir, 'arra.config.json');
-    fs.writeFileSync(configPath, JSON.stringify({ tools: { knowledge: false } }));
-    const calls: ToolGroupConfig[] = [];
-    const stop = watchToolGroupConfig((next) => calls.push(next), dir);
-    try {
-      // Write malformed JSON — loadToolGroupConfig returns defaults via readJsonSafe.
-      // The change differs from baseline {knowledge:false}, so onChange fires
-      // with the fallback config (all enabled). This is the documented behavior:
-      // a broken file collapses to defaults rather than crashing the server.
-      fs.writeFileSync(configPath, '{ this is not json');
-      await wait(450);
-      // Either fired with reset-to-defaults, or stayed silent — both are
-      // acceptable. The contract is "don't crash, don't hang".
-      for (const c of calls) {
-        expect(typeof c.search).toBe('boolean');
-      }
-    } finally {
-      stop();
-      fs.rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('stop() closes the watchers and prevents further callbacks', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-toolgroups-watch-'));
-    const calls: ToolGroupConfig[] = [];
-    const stop = watchToolGroupConfig((next) => calls.push(next), dir);
-    stop();
+  it('ignores malformed tool toggles and plugin manifest entries', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-plugin-manifest-'));
     try {
       fs.writeFileSync(
         path.join(dir, 'arra.config.json'),
-        JSON.stringify({ tools: { search: false } }),
+        JSON.stringify({
+          tools: { search: false, knowledge: 'false', typo: false },
+          plugins: [
+            { name: ' dig ', enabled: true, weight: 1 },
+            { name: '', enabled: true },
+            { name: 'search', enabled: 'false', tier: 'unknown', weight: Number.POSITIVE_INFINITY },
+          ],
+        }),
       );
-      await wait(450);
-      expect(calls.length).toBe(0);
+      const config = loadToolGroupConfig(dir);
+      expect(config.search).toBe(false);
+      expect(config.knowledge).toBe(true);
+      expect(config.plugins).toEqual([{ name: 'dig', enabled: true, weight: 1 }, { name: 'search' }]);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

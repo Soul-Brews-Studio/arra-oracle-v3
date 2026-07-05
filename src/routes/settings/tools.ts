@@ -32,7 +32,7 @@ function readExistingConfig(filePath: string): Record<string, unknown> {
 
 function serializeToolConfig() {
   const config = loadToolGroupConfig(process.env.ORACLE_REPO_ROOT || REPO_ROOT);
-  const enabled = getEnabledToolNames(config);
+  const enabled = new Set(getEnabledToolNames(config));
   const envOverride = Boolean(process.env.ORACLE_ENABLED_TOOLS?.trim() || process.env.ORACLE_DISABLED_TOOLS?.trim());
   return {
     groups: Object.entries(TOOL_GROUPS).map(([group, tools]) => ({

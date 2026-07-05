@@ -5,9 +5,14 @@
 Updated 2026-04-19. These override anything below that conflicts.
 
 ### Versioning
-- **RELEASE POLICY: Always alpha.** Every merge to main MUST produce a CalVer alpha release via the standing `calver-release.yml` workflow. Format: `v{yy}.{m}.{d}-alpha.{HMM}`. Never cut a non-prerelease/stable version without explicit user direction in the active session. The `calver-release.yml` workflow enforces this structurally; do not bypass it.
+- **Always alpha.** `v{YY}.{M}.{D}-alpha.{HOUR}` per `scripts/calver.ts`. README says "Always Nightly." Never cut a stable version without explicit user direction in the active session.
+- Stable release (`--stable` flag) only for rare intentional milestones — not the default.
+- **Branch ↔ channel mapping** (enforced by `calver-release.yml`, triggered on `package.json` changes):
+  - **`alpha` branch → PRE-RELEASE cut** → tag `vX.Y.Z-alpha.N` (prerelease, NOT marked latest). **This is the working trunk — push/PR feature work here** (via a `bump/alpha.N` PR so auto-tag + release workflows fire cleanly).
+  - **`main` branch → STABLE cut** → tag `vX.Y.Z` (marked latest). ⚠️ **Pushing/merging to `main` triggers a STABLE release.** Gated to explicit user direction only; a repo-local hook (`.claude/hooks/block-push-main.sh`) blocks pushes to `main`.
+  - prerelease flag derives from the version string suffix; branch is just the trigger.
+- arra-oracle-v3 is **github-only** (no npm). Install: `bun add -g github:Soul-Brews-Studio/arra-oracle-v3#vX.Y.Z`. The workflow only tags + writes release notes (build is `tsc --noEmit`, type-check only).
 - OMX directives are also persisted in `.omx/project-memory.json`; if session-start memory does not auto-load, this tracked CLAUDE.md policy is the durable source of truth.
-- Bumps go through the CalVer alpha flow so auto-tag + prerelease workflows can fire cleanly.
 
 ### File size
 - **≤ 250 lines per file.** If a file would exceed, split by concern — don't pad with helpers.
@@ -17,11 +22,11 @@ Updated 2026-04-19. These override anything below that conflicts.
 - **Nested, one behavior per file** — mirror the route tree:
   `tests/http/<cluster>/<endpoint>.test.ts` (e.g. `tests/http/forum/thread-create.test.ts`).
 - `bunfig.toml` sets `roots = ["src", "tests"]`. `bun test tests/http/forum/` scopes to a cluster.
-- HTTP contract tests are fetch-based against a spawned server (see `src/integration/http.test.ts` pattern) — works against Hono today and Elysia after migration.
+- HTTP contract tests are fetch-based against a spawned Elysia server (see `src/integration/http.test.ts` pattern).
 
 ### Web framework
-- **Migrating Hono → Elysia** (bun-native, TypeBox schemas, faster). maw-js is the reference implementation in this family.
-- During migration: new Elysia sub-apps live in `src/routes-elysia/`, old Hono code in `src/routes/`. Swap `src/server.ts` once all modules land.
+- **Elysia** (bun-native, TypeBox schemas, faster). The Hono → Elysia migration is **COMPLETE** — every route cluster in `src/routes/` is a native Elysia sub-app composed in `src/server.ts`; no Hono dependency remains and there is no `src/routes-elysia/` staging dir. maw-js is the reference implementation in this family.
+- New route clusters: add a `new Elysia()` sub-app under `src/routes/<cluster>/` and `.use()` it in `src/server.ts`. `src/routes/health/` is the cleanest reference module.
 
 ### Runtime
 - **Bun ≥ 1.2.** Use `bun test`, `bun run`, `bunx --bun`. Do not add Node-specific APIs.
@@ -398,11 +403,23 @@ Closes #[issue-number]
 -   **Modifying database outside Drizzle** - NEVER use direct SQL to ALTER TABLE, CREATE INDEX, or modify schema. Always update `src/db/schema.ts` first, then run `bun db:push`. If db:push finds schema drift (columns/indexes exist in DB but not in schema), add them to schema.ts to preserve data.
 -   **Drizzle db:push index bug** - Drizzle doesn't use `IF NOT EXISTS` for indexes. If indexes already exist (schema drift), db:push fails. Workaround: manually run `CREATE INDEX IF NOT EXISTS` or drop indexes first. Always backup before migrations!
 -   **Committing directly to main** - Always use GitHub flow: create feature branch → push → PR → wait for review/merge approval
+-   **maw hey without --from** - ~~always use `--from "m5:arra-oracle-v3"`~~ **FIXED in maw-rs v26.7.7** (2026-07-05): sender now resolves from tmux window name; `--from` is optional. If `[m5:mawjs]` ever reappears, check `maw --version` ≥ 26.7.7 before re-debugging. Historical root cause: `DEFAULT_ORACLE = "mawjs"` in `maw-auth/federation_headers.rs:14`.
+-   **Trusting green-in-worktree (P9)** - A PR that's green in its own worktree can still be red on the integrated base. Re-run the full gate (`bunx tsc --noEmit` + scoped `bun test`) against alpha after EVERY merge, and late finishers must rebase before their final gate. Corroborated in 3 repos on the same day (2026-07-05): arra-oracle-v3 (PR #2678 red from pre-existing README↔`tests/docs/readme-claims.test.ts` drift → #2679), maw-rs rebase cascade, fable-learn-speckit T102. CI red on a PR is not necessarily the PR's fault — check whether the base is already red first.
 
 ### Useful Tricks Discovered
 -   **Parallel agents for analysis** - Using multiple agents to analyze different aspects speeds up planning significantly
 -   **ccc → nnn workflow** - Context capture followed by focused planning creates better structured issues
 -   **Phase markers in issues** - Using "Phase 1:", "Phase 2:" helps track incremental progress
+
+### Fleet Intelligence Principles (Fable teaching, 2026-07-05)
+1. **SEARCH-FIRST** — ก่อนเดาให้ค้น vault/oracle MCP หรือ maw hey ถามตัวที่มีแผลจริง
+2. **WRITE-BACK** — แก้อะไรยากได้ให้เขียนเป็น manual/skill ทันที; ความรู้ที่ไม่เขียน = หายตอน compact
+3. **VERIFY-DONE** — ห้าม mark [x] โดยไม่รันจริง + dogfood เครื่องมือตัวเอง
+4. **DONE-CRITERIA TEACHING** — มอบงานพร้อม build gate ชัดๆ (tests เขียว, files ≤250) = สอนผู้รับให้ own the loop
+5. **HUMILITY-COMPOUND** — model tier เปลี่ยนทุกเดือน แต่ vault ที่จำได้ทบต้นตลอดไป; ตัวที่ฉลาดสุดคือตัวที่ทำให้เพื่อนไม่ต้องเรียนซ้ำ
+6. **TEACH-DONT-EDIT** (crew-master) — สอน + ยื่นคำสั่งให้เพื่อน อย่าแก้ repo ของเพื่อนเอง
+
+เพิ่มเติมจาก arra-oracle-v3: root-cause ถึง file:line ก่อนเสนอ fix เสมอ · ปฏิเสธงานนอกหน้าที่เร็วเท่ารับงานในหน้าที่ · ตำราเต็ม: `ψ/writing/2026-07-05_fable-teaching-intelligence.md`
 
 ### User Preferences (Observed)
 -   **Prefers manageable scope** - Values tasks that can be completed in under 1 hour

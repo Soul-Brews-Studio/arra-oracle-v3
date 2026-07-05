@@ -1,14 +1,18 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { loadHooks, runHooks, type GatewayContext } from '../hooks.ts';
 import { _resetRateLimitState } from '../hooks/rate-limit.ts';
+import { TENANT_HEADER } from '../../middleware/tenant.ts';
 
 const pipeline = loadHooks({ onRequest: ['rate-limit'] });
 const run = (ctx: GatewayContext) => runHooks(pipeline.onRequest, ctx);
 
-function ctxFor(ip: string, opts: Record<string, unknown> = {}): GatewayContext {
+function ctxFor(ip: string, opts: Record<string, unknown> = {}, tenantId?: string): GatewayContext {
+  const headers: Record<string, string> = { 'x-forwarded-for': ip };
+  if (tenantId) headers[TENANT_HEADER] = tenantId;
+
   return {
     request: new Request('http://localhost/api/search', {
-      headers: { 'x-forwarded-for': ip },
+      headers,
     }),
     meta: { hook_options: { 'rate-limit': opts } },
   };
@@ -47,6 +51,15 @@ describe('rate-limit hook', () => {
     expect(await run(ctxFor('4.4.4.4', opts))).toBeUndefined();
     // 3.3.3.3 again — blocked
     const blocked = await run(ctxFor('3.3.3.3', opts));
+    expect((blocked as Response).status).toBe(429);
+  });
+
+  it('isolates buckets per tenant when clients share a gateway key', async () => {
+    const opts = { tokens_per_window: 60, window_ms: 60_000, burst: 1 };
+    expect(await run(ctxFor('10.0.0.1', opts, 'tenant-a'))).toBeUndefined();
+    expect(await run(ctxFor('10.0.0.1', opts, 'tenant-b'))).toBeUndefined();
+
+    const blocked = await run(ctxFor('10.0.0.1', opts, 'tenant-a'));
     expect((blocked as Response).status).toBe(429);
   });
 
@@ -136,5 +149,22 @@ describe('rate-limit hook', () => {
     };
     expect(await run(a)).toBeUndefined();
     expect((await run(b) as Response).status).toBe(429);
+  });
+
+  it('falls back to x-forwarded-for when configured header is blank or malformed', async () => {
+    const opts = { header: 'bad header', tokens_per_window: 60, window_ms: 60_000, burst: 1 };
+    expect(await run(ctxFor('11.11.11.11', opts))).toBeUndefined();
+    expect((await run(ctxFor('11.11.11.11', opts)) as Response).status).toBe(429);
+
+    _resetRateLimitState();
+    const blank = { ...opts, header: ' ' };
+    expect(await run(ctxFor('12.12.12.12', blank))).toBeUndefined();
+    expect((await run(ctxFor('12.12.12.12', blank)) as Response).status).toBe(429);
+  });
+
+  it('falls back from non-finite numeric options instead of disabling itself', async () => {
+    const opts = { tokens_per_window: Number.POSITIVE_INFINITY, window_ms: Number.NaN, burst: 1 };
+    expect(await run(ctxFor('13.13.13.13', opts))).toBeUndefined();
+    expect((await run(ctxFor('13.13.13.13', opts)) as Response).status).toBe(429);
   });
 });

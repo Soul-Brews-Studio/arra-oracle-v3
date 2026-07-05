@@ -1,13 +1,12 @@
 import { Elysia } from 'elysia';
 
-import { createFederationPlugin } from './federation.ts';
 import { createUnifiedManifestServerPlugins } from './unified.ts';
 import type { ServerPlugin } from './types.ts';
 
 import { authRoutes } from '../../routes/auth/index.ts';
 import { settingsRoutes } from '../../routes/settings/index.ts';
 import { feedRoutes } from '../../routes/feed/index.ts';
-import { healthRoutes } from '../../routes/health/index.ts';
+import { createHealthRoutes } from '../../routes/health/index.ts';
 import { dashboardRoutes } from '../../routes/dashboard/index.ts';
 import { searchRoutes } from '../../routes/search/index.ts';
 import { conceptsRoutes } from '../../routes/concepts/index.ts';
@@ -20,10 +19,10 @@ import { tracesApi } from '../../routes/traces/index.ts';
 import { scheduleApi } from '../../routes/schedule/index.ts';
 import { filesRouter } from '../../routes/files/index.ts';
 import { pluginsRouter } from '../../routes/plugins/index.ts';
-import { oraclenetRoutes } from '../../routes/oraclenet/index.ts';
 import { sessionsRoutes } from '../../routes/sessions/index.ts';
 import { vaultRoutes } from '../../routes/vault/index.ts';
 import { createMenuRoutes } from '../../routes/menu/index.ts';
+import { createFederationRoutes } from '../../routes/federation/index.ts';
 import { gatewayPlugin } from '../../gateway/index.ts';
 
 interface BuiltinOptions {
@@ -36,8 +35,9 @@ function routePlugin(
   tier: ServerPlugin['tier'],
   routes: ServerPlugin['routes'],
   seedMenu = true,
+  enabled?: boolean,
 ): ServerPlugin {
-  return { name, tier, routes, seedMenu };
+  return { name, tier, routes, seedMenu, enabled };
 }
 
 async function optionalIndexerPlugin(): Promise<ServerPlugin | null> {
@@ -72,9 +72,9 @@ export async function createBuiltinServerPlugins(options: BuiltinOptions): Promi
   const unifiedManifestPlugins = await createUnifiedManifestServerPlugins();
   const plugins: Array<ServerPlugin | null> = [
     routePlugin('gateway', 'standard', () => gatewayRoutes, false),
+    routePlugin('federation', 'extra', () => createFederationRoutes(), false, false),
     createApiManifestExamplePlugin(),
-    createFederationPlugin(),
-    routePlugin('health', 'core', () => healthRoutes),
+    routePlugin('health', 'core', () => createHealthRoutes()),
     routePlugin('search', 'core', () => searchRoutes),
     routePlugin('knowledge', 'core', () => knowledgeRoutes),
     routePlugin('concepts', 'core', () => conceptsRoutes),
@@ -91,7 +91,6 @@ export async function createBuiltinServerPlugins(options: BuiltinOptions): Promi
     routePlugin('traces', 'standard', () => tracesApi),
     routePlugin('schedule', 'standard', () => scheduleApi),
     routePlugin('plugins', 'standard', () => pluginsRouter),
-    routePlugin('oraclenet', 'standard', () => oraclenetRoutes),
     routePlugin('sessions', 'standard', () => sessionsRoutes),
     routePlugin('vault', 'standard', () => vaultRoutes),
     routePlugin('menu', 'standard', () => menuRoutes, false),

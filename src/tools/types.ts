@@ -29,12 +29,18 @@ export interface ToolResponse {
 // Input interfaces (moved from index.ts)
 // ============================================================================
 
+export interface OracleRecapInput {
+  limit?: number;
+  maxTokens?: number;
+}
+
 export interface OracleSearchInput {
   query: string;
   type?: 'principle' | 'pattern' | 'learning' | 'retro' | 'all';
   limit?: number;
   offset?: number;
   mode?: 'hybrid' | 'fts' | 'vector';
+  retrieval?: 'full' | 'compact-summary';
   project?: string;
   cwd?: string;
   model?: 'nomic' | 'qwen3' | 'bge-m3';

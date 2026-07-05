@@ -2,17 +2,18 @@
  * Menu seeder — syncs route-declared menu items into the `menu_items` table.
  *
  * Called at server boot (src/server.ts) and idempotent. For each route with
- * `detail.menu.path`, upserts by (path, studio):
+ * `detail.menu`, upserts by path:
  *   - Path not in DB           → INSERT with source='route', touchedAt=null
  *   - In DB, source='route'+untouched → UPDATE label/group/position from route
  *   - touchedAt != null        → PRESERVE (user edit wins); log drift
  */
 
-import { and, eq, isNull } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../schema.ts';
 import { db as defaultDb } from '../index.ts';
 import type { MenuMeta } from '../../routes/menu/model.ts';
+import { API_TO_STUDIO } from '../../routes/menu/menu.ts';
 
 export type RouteLike = { method?: string; path: string; hooks?: { detail?: unknown } };
 export type HasRoutes = { routes: RouteLike[] };
@@ -27,40 +28,93 @@ export interface RouteMenuRow {
   studio?: string | null; // host subdomain (e.g. feed.buildwithoracle.com); null = legacy studio.*
 }
 
+type SeenRouteMenuRow = RouteMenuRow & { apiPath: string };
+type MenuItemRow = typeof schema.menuItems.$inferSelect;
+
+function studioPathFor(apiPath: string): string | null {
+  for (const [prefix, studio] of API_TO_STUDIO) {
+    if (apiPath === prefix || apiPath.startsWith(prefix + '/')) return studio;
+  }
+  return null;
+}
+
+function routeMenuKey(path: string, studio: string | null | undefined): string {
+  return `${studio ?? ''}\0${path}`;
+}
+
+const MENU_GROUP_PRIORITY: Record<string, number> = {
+  main: 0,
+  tools: 1,
+  admin: 2,
+};
+
+const MAX_ROUTE_MENU_ITEMS = 10;
+
+function menuGroupPriority(group: string): number {
+  return MENU_GROUP_PRIORITY[group] ?? 99;
+}
+
+function isVisibleMenuGroup(group: string): boolean {
+  return group !== 'hidden';
+}
+
+function debugDuplicateRouteMenu(first: SeenRouteMenuRow, next: SeenRouteMenuRow): void {
+  console.debug(
+    `[menu-seeder] duplicate route menu path "${next.path}"` +
+      ` (studio=${next.studio ?? 'null'}); keeping ${first.apiPath}` +
+      ` (${first.groupKey}/${first.position}), skipping ${next.apiPath}` +
+      ` (${next.groupKey}/${next.position})`,
+  );
+}
+
 export function collectRouteMenuRows(sources: HasRoutes[]): RouteMenuRow[] {
   const rows: RouteMenuRow[] = [];
-  const seen = new Set<string>();
+  const seen = new Map<string, SeenRouteMenuRow>();
 
   for (const src of sources) {
     for (const route of src.routes) {
       const detail = (route.hooks?.detail ?? {}) as { menu?: MenuMeta };
       const menu = detail.menu;
-      if (!menu || !menu.group) continue;
+      if (!menu || !menu.group || !isVisibleMenuGroup(menu.group)) continue;
 
-      if (!menu.path) continue;
+      const studio = studioPathFor(route.path);
+      if (!studio) continue;
 
-      const key = `${menu.group}:${menu.path}:${menu.studio ?? ''}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      const slug = menu.path.replace(/^\//, '') || 'home';
+      const slug = studio.replace(/^\//, '') || 'home';
       const label = menu.label ?? slug.charAt(0).toUpperCase() + slug.slice(1);
       const order =
         typeof menu.order === 'number' && Number.isFinite(menu.order) ? menu.order : 999;
-
-      rows.push({
-        path: menu.path,
+      const row = {
+        path: studio,
         label,
         groupKey: menu.group,
         position: order,
         access: menu.access ?? 'public',
         icon: menu.icon ?? null,
-        studio: menu.studio ?? null,
-      });
+        studio: null,
+      };
+      const seenRow = { ...row, apiPath: route.path };
+      const key = routeMenuKey(row.path, row.studio);
+      const first = seen.get(key);
+      if (first) {
+        debugDuplicateRouteMenu(first, seenRow);
+        continue;
+      }
+      seen.set(key, seenRow);
+
+      rows.push(row);
     }
   }
 
-  return rows;
+  rows.sort((a, b) => {
+    const priorityDiff = menuGroupPriority(a.groupKey) - menuGroupPriority(b.groupKey);
+    if (priorityDiff !== 0) return priorityDiff;
+
+    if (a.position !== b.position) return a.position - b.position;
+    return a.path.localeCompare(b.path);
+  });
+
+  return rows.slice(0, MAX_ROUTE_MENU_ITEMS);
 }
 
 /**
@@ -93,22 +147,18 @@ export function seedMenuItems(
   let preserved = 0;
 
   db.transaction((tx) => {
+    const paths = [...new Set([...rows.map((row) => row.path), ...Object.entries(CHILD_PARENTS).flat()])];
+    const existingRows = paths.length
+      ? tx.select().from(schema.menuItems).where(inArray(schema.menuItems.path, paths)).all()
+      : [];
+    const byKey = new Map<string, MenuItemRow>();
+    for (const item of existingRows) byKey.set(routeMenuKey(item.path, item.studio), item);
+
     for (const row of rows) {
-      const existing = tx
-        .select()
-        .from(schema.menuItems)
-        .where(
-          and(
-            eq(schema.menuItems.path, row.path),
-            row.studio == null
-              ? isNull(schema.menuItems.studio)
-              : eq(schema.menuItems.studio, row.studio),
-          ),
-        )
-        .get();
+      const existing = byKey.get(routeMenuKey(row.path, row.studio));
 
       if (!existing) {
-        tx.insert(schema.menuItems)
+        const created = tx.insert(schema.menuItems)
           .values({
             path: row.path,
             label: row.label,
@@ -123,7 +173,9 @@ export function seedMenuItems(
             createdAt: now,
             updatedAt: now,
           })
-          .run();
+          .returning()
+          .get();
+        byKey.set(routeMenuKey(created.path, created.studio), created);
         inserted += 1;
         continue;
       }
@@ -156,22 +208,14 @@ export function seedMenuItems(
     }
 
     for (const [childPath, parentPath] of Object.entries(CHILD_PARENTS)) {
-      const parent = tx
-        .select()
-        .from(schema.menuItems)
-        .where(and(eq(schema.menuItems.path, parentPath), isNull(schema.menuItems.studio)))
-        .get();
-      if (!parent) continue;
-      const child = tx
-        .select()
-        .from(schema.menuItems)
-        .where(and(eq(schema.menuItems.path, childPath), isNull(schema.menuItems.studio)))
-        .get();
-      if (!child || child.parentId === parent.id) continue;
+      const parent = byKey.get(routeMenuKey(parentPath, null));
+      const child = byKey.get(routeMenuKey(childPath, null));
+      if (!parent || !child || child.parentId === parent.id) continue;
       tx.update(schema.menuItems)
         .set({ parentId: parent.id, updatedAt: now })
         .where(eq(schema.menuItems.id, child.id))
         .run();
+      byKey.set(routeMenuKey(child.path, child.studio), { ...child, parentId: parent.id, updatedAt: now });
     }
   });
 

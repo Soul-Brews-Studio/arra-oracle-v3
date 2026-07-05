@@ -29,7 +29,9 @@ function writeSqliteDb() {
   db.exec(`
     CREATE TABLE oracle_documents (
       id TEXT PRIMARY KEY, type TEXT, source_file TEXT,
-      concepts TEXT, project TEXT, created_at INTEGER
+      concepts TEXT, project TEXT, created_at INTEGER,
+      usage_count INTEGER NOT NULL DEFAULT 0,
+      last_accessed_at INTEGER
     );
     CREATE TABLE oracle_fts (id TEXT, content TEXT);
   `);
@@ -54,6 +56,28 @@ describe('loadVectorIndexDocuments', () => {
     expect(loaded.docs[0].document).toContain('vector sidecar source of truth');
     expect(JSON.parse(String(loaded.docs[0].metadata.concepts))).toEqual(expect.arrayContaining(['vector', 'vault']));
     expect(loaded.docs[0].metadata.project).toBe('github.com/Soul-Brews-Studio/arra-oracle-v3');
+  });
+
+  test('loads long vault markdown as locatable paragraph chunks', () => {
+    const dir = path.join(vaultRoot, 'ψ', 'memory', 'learnings');
+    const para = (label: string, char: string) => `${label} ${char.repeat(330)}`;
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'long-vector-source.md'), [
+      para('alpha', 'a'),
+      '',
+      para('beta', 'b'),
+      '',
+      para('gamma', 'c'),
+    ].join('\n'));
+
+    const loaded = loadVectorIndexDocuments({ source: 'vault', repoRoot: vaultRoot, dbPath: sqlitePath });
+    const chunks = loaded.docs.filter((doc) => doc.id.includes('long-vector-source__chunk_'));
+
+    expect(chunks.map((doc) => doc.metadata.chunk_index)).toEqual([0, 1]);
+    expect(chunks.map((doc) => doc.metadata.line_start)).toEqual([1, 5]);
+    expect(chunks.map((doc) => doc.metadata.line_end)).toEqual([3, 5]);
+    expect(chunks[0].document).toContain('beta');
+    expect(chunks[1].document).toContain('gamma');
   });
 
   test('auto mode falls back to SQLite when no vault markdown exists', () => {

@@ -16,7 +16,11 @@ export type {
   OracleHandoffInput,
   OracleInboxInput,
   OracleReadInput,
+  OracleRecapInput,
 } from './types.ts';
+
+// Recap
+export { recapToolDef, handleRecap } from './recap.ts';
 
 // Search (+ pure helpers)
 export {
@@ -28,6 +32,11 @@ export {
   combineResults,
   vectorSearch,
 } from './search.ts';
+export {
+  chainSearchToolDef,
+  handleChainSearch,
+  type OracleSearchChainInput,
+} from './chain-search.ts';
 
 // Learn (+ pure helpers)
 export {
@@ -97,3 +106,11 @@ export type {
 } from './types.ts';
 export { reflectToolDef, handleReflect } from './reflect.ts';
 export { verifyToolDef, handleVerify } from './verify.ts';
+
+// MCP-IN bridge tools: consume tools from external stdio MCP servers.
+export type { OracleMcpServerInput, OracleMcpCallInput } from './mcp-in.ts';
+export { mcpListToolsToolDef, mcpCallToolDef, handleMcpListTools, handleMcpCall } from './mcp-in.ts';
+
+// Unified runtime manifest for MCP-out registration.
+export type { RuntimeMcpToolManifest, RuntimeMcpHandler } from './mcp-manifest.ts';
+export { mcpTools, mcpToolByName, defaultMcpToolOrder, toMcpToolDefinition } from './mcp-manifest.ts';

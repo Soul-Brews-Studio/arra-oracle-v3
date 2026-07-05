@@ -17,7 +17,9 @@ process.env.ORACLE_REPO_ROOT = repoRoot;
 fs.mkdirSync(path.join(repoRoot, 'ψ/memory/learnings'), { recursive: true });
 fs.writeFileSync(path.join(repoRoot, 'ψ/memory/learnings/healthy.md'), '# Healthy\n');
 
-const { db, oracleDocuments } = await import('../../db/index.ts');
+const dbModule = await import('../../db/index.ts');
+dbModule.resetDefaultDatabaseForTests(process.env.ORACLE_DB_PATH);
+const { db, oracleDocuments } = dbModule;
 const { verifyRoutes } = await import('../../routes/verify/index.ts');
 
 describe('GET/POST /api/verify', () => {
@@ -65,12 +67,13 @@ describe('GET/POST /api/verify', () => {
 });
 
 afterAll(() => {
-  fs.rmSync(dataDir, { recursive: true, force: true });
-  fs.rmSync(repoRoot, { recursive: true, force: true });
   if (originalDataDir) process.env.ORACLE_DATA_DIR = originalDataDir;
   else delete process.env.ORACLE_DATA_DIR;
   if (originalDbPath) process.env.ORACLE_DB_PATH = originalDbPath;
   else delete process.env.ORACLE_DB_PATH;
   if (originalRepoRoot) process.env.ORACLE_REPO_ROOT = originalRepoRoot;
   else delete process.env.ORACLE_REPO_ROOT;
+  dbModule.resetDefaultDatabaseForTests(':memory:');
+  fs.rmSync(dataDir, { recursive: true, force: true });
+  fs.rmSync(repoRoot, { recursive: true, force: true });
 });

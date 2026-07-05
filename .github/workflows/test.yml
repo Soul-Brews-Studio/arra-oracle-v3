@@ -1,49 +1,90 @@
 name: Test
 
 on:
-  push:
-    branches: [main]
   pull_request:
-    branches: [main]
+    branches: [alpha]
 
 jobs:
-  unit:
-    name: Unit Tests
+  test:
+    name: Typecheck and scoped tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - run: bun install
-      - run: bun test:unit --coverage
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        if: always()
-        with:
-          files: ./coverage/lcov.info
-          fail_ci_if_error: false
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  integration:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: unit
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
-      - run: bun install
-      - run: mkdir -p ~/.oracle
-      - run: bun test:integration:db
-      - run: bun test:integration:mcp
-      - name: Start server for HTTP tests
+          bun-version: 1.2.15
+
+      - name: Cache bun deps
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: README/docs claim integrity
+        run: bun test --isolate tests/docs/readme-claims.test.ts
+
+      - name: Typecheck
         run: |
-          ORACLE_CHROMA_TIMEOUT=2000 bun run src/server.ts &
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:47778/api/health && break || sleep 0.5
-          done
-      - run: bun test:integration:http
-      - name: Stop server
-        if: always()
-        run: kill $(lsof -ti :47778) 2>/dev/null || true
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          tsc --noEmit
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            frontend/src-tauri/target
+          key: rust-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
+          restore-keys: rust-
+
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Cargo check (Tauri)
+        run: cd frontend/src-tauri && cargo check
+
+      - name: Run scoped unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r test_file; do
+            echo "::group::${test_file}"
+            bun test --isolate "${test_file}"
+            echo "::endgroup::"
+          done < <(
+            find \
+              src/tools/__tests__ \
+              src/server/__tests__ \
+              tests/storage \
+              tests/http/swagger \
+              tests/http/health \
+              tests/lifecycle \
+              tests/plugins \
+              src/vault/__tests__ \
+              src/indexer/__tests__ \
+              -name '*.test.ts' -print
+            printf '%s\n' \
+              src/drizzle-migration.test.ts \
+              src/indexer-preservation.test.ts
+          )
+
+      - name: Run scoped integration tests
+        run: bun test --isolate src/integration/

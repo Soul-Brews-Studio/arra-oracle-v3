@@ -51,6 +51,12 @@ export function inferProjectFromPath(relativePath: string): string | null {
     return `${projectFirst[1]}/${projectFirst[2]}`.toLowerCase();
   }
 
+  // Local bulk ingest: psi/learn/{org}/{repo}/... -> github.com/org/repo
+  const localLearn = relativePath.match(/^ψ\/learn\/([^/]+)\/([^/]+)\//);
+  if (localLearn) {
+    return `github.com/${localLearn[1]}/${localLearn[2]}`.toLowerCase();
+  }
+
   // Legacy layout: psi/memory/{category}/github.com/org/repo/...
   const legacy = relativePath.match(
     /^\u03c8\/(?:memory\/(?:learnings|retrospectives)|inbox\/handoff)\/(github\.com|gitlab\.com|bitbucket\.org)\/([^/]+\/[^/]+)\//

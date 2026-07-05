@@ -18,17 +18,14 @@ export interface RunResult {
 
 export async function runCli(
   args: string[],
-  env: Record<string, string | undefined> = {},
+  env: Record<string, string> = {},
+  options: { cwd?: string } = {},
 ): Promise<RunResult> {
-  const childEnv: Record<string, string> = { ...process.env };
-  for (const [key, value] of Object.entries(env)) {
-    if (value === undefined) delete childEnv[key];
-    else childEnv[key] = value;
-  }
   const proc = Bun.spawn(["bun", "run", CLI_ENTRY, ...args], {
     stdout: "pipe",
     stderr: "pipe",
-    env: childEnv,
+    cwd: options.cwd,
+    env: { ...process.env, ...env },
   });
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),

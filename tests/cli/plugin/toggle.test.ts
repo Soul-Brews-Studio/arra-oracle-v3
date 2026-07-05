@@ -16,19 +16,19 @@ test('plugin disable/enable writes server plugin config toggles', async () => {
   const xdg = tmp();
   const configPath = join(xdg, 'arra', 'config.json');
 
-  const disabled = await runCli(['plugin', 'disable', 'federation'], env(xdg));
+  const disabled = await runCli(['plugin', 'disable', 'gateway'], env(xdg));
   expect(disabled.code).toBe(0);
-  expect(disabled.stdout).toContain('disabled server plugin: federation');
+  expect(disabled.stdout).toContain('disabled server plugin: gateway');
   expect(disabled.stdout).toContain(`Config: ${configPath}`);
   expect(JSON.parse(readFileSync(configPath, 'utf8'))).toEqual({
-    disabledPlugins: ['federation'],
+    disabledPlugins: ['gateway'],
   });
 
-  const enabled = await runCli(['plugin', 'enable', 'federation'], env(xdg));
+  const enabled = await runCli(['plugin', 'enable', 'gateway'], env(xdg));
   expect(enabled.code).toBe(0);
-  expect(enabled.stdout).toContain('enabled server plugin: federation');
+  expect(enabled.stdout).toContain('enabled server plugin: gateway');
   expect(JSON.parse(readFileSync(configPath, 'utf8'))).toEqual({
-    enabledPlugins: ['federation'],
+    enabledPlugins: ['gateway'],
   });
 });
 

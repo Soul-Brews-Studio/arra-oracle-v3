@@ -28,9 +28,25 @@ describe('unified plugin manifest schema', () => {
       cli: { command: 'legacy-bridge', help: 'legacy bridge command' },
     });
 
-    expect(manifest.apiRoutes).toEqual([{ path: '/api/legacy-bridge', methods: ['GET'] }]);
-    expect(manifest.cliSubcommands).toEqual([{ command: 'legacy-bridge', help: 'legacy bridge command' }]);
+    expect(manifest.apiRoutes).toEqual([{ path: '/api/legacy-bridge', methods: ['GET'], handler: 'default' }]);
+    expect(manifest.cliSubcommands).toEqual([{ command: 'legacy-bridge', help: 'legacy bridge command', handler: 'default' }]);
     expect(manifestSurfaces(manifest)).toEqual(['apiRoutes', 'cliSubcommands']);
+  });
+
+  test('keeps disabled MCP declarations but excludes them from toggles', () => {
+    const manifest = normalizeUnifiedPluginManifest({
+      name: 'switch-pack',
+      version: '1.0.0',
+      entry: './index.ts',
+      mcpTools: [
+        { name: 'switch_on', description: 'on', inputSchema: {}, handler: 'run' },
+        { name: 'switch_off', description: 'off', inputSchema: {}, handler: 'run', enabled: false },
+      ],
+    });
+
+    expect(manifest.mcpTools.map((tool) => tool.name)).toEqual(['switch_on', 'switch_off']);
+    expect(manifestSurfaces(manifest)).toEqual(['mcpTools']);
+    expect(mcpToolNamesForToggle(manifest)).toEqual(['switch_on']);
   });
 
   test('rejects invalid MCP tool names before registry wiring', () => {

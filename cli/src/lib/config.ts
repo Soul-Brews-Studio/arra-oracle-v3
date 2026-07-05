@@ -4,24 +4,131 @@ import { dirname, join, parse } from "node:path";
 
 export const DEFAULT_ORACLE_API = "http://localhost:47778";
 
-export type ArraConfig = {
+export interface ArraConfig {
   default?: string;
   targets?: Record<string, string>;
   disabledPlugins?: string[];
   enabledPlugins?: string[];
-};
-export type LoadedConfig = { path: string; config: ArraConfig };
-export type OracleApiSource = "ORACLE_API" | "at" | "project" | "global" | "default";
-
-export interface ResolvedOracleApi {
-  baseUrl: string;
-  source: OracleApiSource;
-  target?: string;
-  path?: string;
 }
+export interface ConfigSource { kind: "project" | "global"; path: string; config: ArraConfig }
+export type LoadedConfig = { path: string; config: ArraConfig };
+export type ResolvedSource = "ORACLE_API" | "--at" | "project" | "global" | "NEO_ARRA_API" | "default";
+export interface ResolvedApiBase { url: string; source: ResolvedSource; target?: string; path?: string }
+export type OracleApiSource = "ORACLE_API" | "at" | "project" | "global" | "default";
+export interface ResolvedOracleApi { baseUrl: string; source: OracleApiSource; target?: string; path?: string }
 
 export function normalizeApiBase(value: string): string {
   return value.trim().replace(/\/+$/, "");
+}
+
+function unique(values: unknown): string[] | undefined {
+  if (!Array.isArray(values)) return undefined;
+  const names = values.filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim()).filter(Boolean);
+  return names.length ? [...new Set(names)].sort() : undefined;
+}
+
+function coerceConfig(raw: unknown): ArraConfig | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const source = raw as Record<string, unknown>;
+  const targets: Record<string, string> = {};
+  if (source.targets && typeof source.targets === "object" && !Array.isArray(source.targets)) {
+    for (const [name, url] of Object.entries(source.targets)) {
+      if (typeof url === "string" && url.trim()) targets[name] = normalizeApiBase(url);
+    }
+  }
+  const disabledPlugins = unique(source.disabledPlugins);
+  const enabledPlugins = unique(source.enabledPlugins);
+  if (!Object.keys(targets).length && !disabledPlugins?.length && !enabledPlugins?.length) return null;
+  return {
+    default: typeof source.default === "string" ? source.default : undefined,
+    ...(Object.keys(targets).length ? { targets } : {}),
+    ...(disabledPlugins ? { disabledPlugins } : {}),
+    ...(enabledPlugins ? { enabledPlugins } : {}),
+  };
+}
+
+function readConfig(path: string, strict = true): ArraConfig | null {
+  if (!existsSync(path)) return null;
+  try {
+    return coerceConfig(JSON.parse(readFileSync(path, "utf8")));
+  } catch (err) {
+    if (!strict) return null;
+    throw new Error(`Failed to read ARRA config at ${path}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+export function readArraConfig(path: string): LoadedConfig | null {
+  const config = readConfig(path, false);
+  return config ? { path, config } : null;
+}
+
+function configPaths(dir: string): string[] {
+  return [join(dir, "config.json"), join(dir, "targets.json")];
+}
+
+function firstConfig(paths: string[], strict = true): LoadedConfig | null {
+  for (const path of paths) {
+    const config = readConfig(path, strict);
+    if (config) return { path, config };
+  }
+  return null;
+}
+
+function globalConfigDir(env: NodeJS.ProcessEnv = process.env): string {
+  const xdg = env.XDG_CONFIG_HOME?.trim();
+  return xdg ? join(xdg, "arra") : join(env.HOME || homedir(), ".config", "arra");
+}
+
+export function globalConfigPath(env: NodeJS.ProcessEnv = process.env): string {
+  return join(globalConfigDir(env), "config.json");
+}
+
+export function globalConfigPathForWrite(env: NodeJS.ProcessEnv = process.env): string {
+  const dir = globalConfigDir(env);
+  const configJson = join(dir, "config.json");
+  const targetsJson = join(dir, "targets.json");
+  if (existsSync(configJson)) return configJson;
+  if (existsSync(targetsJson)) return targetsJson;
+  return configJson;
+}
+
+export function findProjectConfigPath(cwd: string = process.cwd()): string | null {
+  let dir = cwd;
+  const root = parse(dir).root;
+  while (true) {
+    for (const candidate of configPaths(join(dir, ".arra"))) if (existsSync(candidate)) return candidate;
+    if (dir === root) return null;
+    dir = dirname(dir);
+  }
+}
+
+export function loadProjectConfig(startDir = process.cwd(), strict = true): LoadedConfig | null {
+  let dir = startDir;
+  const root = parse(dir).root;
+  while (true) {
+    const found = firstConfig(configPaths(join(dir, ".arra")), strict);
+    if (found || dir === root) return found;
+    dir = dirname(dir);
+  }
+}
+
+export function loadGlobalConfig(env: NodeJS.ProcessEnv = process.env, strict = true): LoadedConfig | null {
+  return firstConfig(configPaths(globalConfigDir(env)), strict);
+}
+
+export function loadConfigSources(options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): ConfigSource[] {
+  const env = options.env ?? process.env;
+  const sources: ConfigSource[] = [];
+  const global = loadGlobalConfig(env);
+  if (global) sources.push({ kind: "global", ...global });
+  const project = loadProjectConfig(options.cwd ?? process.cwd());
+  if (project) sources.push({ kind: "project", ...project });
+  return sources;
+}
+
+export function mergedTargets(sources: ConfigSource[]): Record<string, string> {
+  return Object.assign({}, ...sources.map((source) => source.config.targets ?? {}));
 }
 
 export function parseAtFlag(argv = process.argv.slice(2)): string | undefined {
@@ -34,136 +141,55 @@ export function parseAtFlag(argv = process.argv.slice(2)): string | undefined {
 export function stripAtFlag(argv: string[]): string[] {
   const out: string[] = [];
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--at") {
-      i++;
-      continue;
-    }
+    if (argv[i] === "--at") { i++; continue; }
     if (argv[i].startsWith("--at=")) continue;
     out.push(argv[i]);
   }
   return out;
 }
 
-function coercePluginList(value: unknown): string[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const names = value
-    .filter((entry): entry is string => typeof entry === "string")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-  return names.length ? [...new Set(names)].sort() : undefined;
+function targetUrl(targets: Record<string, string>, name: string | undefined): string | undefined {
+  const value = name ? targets[name] : undefined;
+  return typeof value === "string" && value.trim() ? normalizeApiBase(value) : undefined;
 }
 
-function coerceConfig(raw: any): ArraConfig | null {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const srcTargets = raw.targets;
-  const targets: Record<string, string> = {};
-  if (srcTargets && typeof srcTargets === "object" && !Array.isArray(srcTargets)) {
-    for (const [name, url] of Object.entries(srcTargets)) {
-      if (typeof url === "string" && url.trim()) targets[name] = normalizeApiBase(url);
-    }
+export function resolveOracleApiBase(options: { at?: string; cwd?: string; env?: NodeJS.ProcessEnv } = {}): ResolvedApiBase {
+  const env = options.env ?? process.env;
+  if (env.ORACLE_API?.trim()) return { url: normalizeApiBase(env.ORACLE_API), source: "ORACLE_API" };
+  const sources = loadConfigSources({ cwd: options.cwd, env });
+  const targets = mergedTargets(sources);
+  const at = options.at ?? env.ARRA_AT ?? parseAtFlag();
+  if (at?.trim()) {
+    const url = targetUrl(targets, at);
+    if (!url) throw new Error(`Unknown ARRA target '${at}'. Add it to .arra/config.json or ${globalConfigPathForWrite(env)}.`);
+    return { url, source: "--at", target: at };
   }
-  const disabledPlugins = coercePluginList(raw.disabledPlugins);
-  const enabledPlugins = coercePluginList(raw.enabledPlugins);
-  if (Object.keys(targets).length === 0 && !disabledPlugins?.length && !enabledPlugins?.length) return null;
-  return {
-    default: typeof raw.default === "string" ? raw.default : undefined,
-    ...(Object.keys(targets).length ? { targets } : {}),
-    ...(disabledPlugins?.length ? { disabledPlugins } : {}),
-    ...(enabledPlugins?.length ? { enabledPlugins } : {}),
-  };
-}
-
-export function readArraConfig(path: string): LoadedConfig | null {
-  if (!existsSync(path)) return null;
-  try {
-    const config = coerceConfig(JSON.parse(readFileSync(path, "utf8")));
-    return config ? { path, config } : null;
-  } catch {
-    return null;
-  }
-}
-
-function configPaths(dir: string): string[] {
-  return [join(dir, "config.json"), join(dir, "targets.json")];
-}
-
-function firstConfig(paths: string[]): LoadedConfig | null {
-  for (const path of paths) {
-    const found = readArraConfig(path);
-    if (found) return found;
-  }
-  return null;
-}
-
-export function loadProjectConfig(startDir = process.cwd()): LoadedConfig | null {
-  let dir = startDir;
-  const root = parse(dir).root;
-  while (true) {
-    const found = firstConfig(configPaths(join(dir, ".arra")));
-    if (found || dir === root) return found;
-    dir = dirname(dir);
-  }
-}
-
-function globalConfigDir(env = process.env): string {
-  const xdg = env.XDG_CONFIG_HOME?.trim();
-  return xdg ? join(xdg, "arra") : join(env.HOME ?? homedir(), ".config", "arra");
-}
-
-export function loadGlobalConfig(env = process.env): LoadedConfig | null {
-  return firstConfig(configPaths(globalConfigDir(env)));
-}
-
-export function globalConfigPathForWrite(env = process.env): string {
-  const dir = globalConfigDir(env);
-  const configJson = join(dir, "config.json");
-  const targetsJson = join(dir, "targets.json");
-  if (existsSync(configJson)) return configJson;
-  if (existsSync(targetsJson)) return targetsJson;
-  return configJson;
-}
-
-function targetFrom(loaded: LoadedConfig | null, name: string | undefined, source: OracleApiSource) {
-  if (!loaded || !name) return null;
-  const baseUrl = loaded.config.targets?.[name];
-  return baseUrl ? { baseUrl, source, target: name, path: loaded.path } : null;
-}
-
-function defaultFrom(loaded: LoadedConfig | null, source: "project" | "global") {
-  return targetFrom(loaded, loaded?.config.default, source);
+  const project = [...sources].reverse().find((source) => source.kind === "project");
+  const projectUrl = targetUrl(targets, project?.config.default);
+  if (projectUrl) return { url: projectUrl, source: "project", target: project!.config.default, path: project!.path };
+  const global = sources.find((source) => source.kind === "global");
+  const globalUrl = targetUrl(targets, global?.config.default);
+  if (globalUrl) return { url: globalUrl, source: "global", target: global!.config.default, path: global!.path };
+  if (env.NEO_ARRA_API?.trim()) return { url: normalizeApiBase(env.NEO_ARRA_API), source: "NEO_ARRA_API" };
+  return { url: DEFAULT_ORACLE_API, source: "default" };
 }
 
 export function resolveOracleApi(argv = process.argv.slice(2), env = process.env): ResolvedOracleApi {
-  if (env.ORACLE_API !== undefined) return { baseUrl: normalizeApiBase(env.ORACLE_API), source: "ORACLE_API" };
-
-  const project = loadProjectConfig();
-  const global = loadGlobalConfig(env);
-  const atTarget = parseAtFlag(argv);
-  const at = targetFrom(project, atTarget, "at") ?? targetFrom(global, atTarget, "at");
-  if (at) return at;
-  if (atTarget) throw new Error(`Unknown arra target '${atTarget}' in project/global config`);
-
-  const projectDefault = defaultFrom(project, "project");
-  if (projectDefault) return projectDefault;
-  const globalDefault = defaultFrom(global, "global");
-  if (globalDefault) return globalDefault;
-  return { baseUrl: DEFAULT_ORACLE_API, source: "default" };
+  const resolved = resolveOracleApiBase({ at: parseAtFlag(argv), env });
+  return { baseUrl: resolved.url, source: resolved.source === "--at" ? "at" : resolved.source === "NEO_ARRA_API" ? "default" : resolved.source, target: resolved.target, path: resolved.path };
 }
 
-function sortedUnique(values: string[] | undefined): string[] | undefined {
-  const unique = [...new Set((values ?? []).map((value) => value.trim()).filter(Boolean))].sort();
-  return unique.length ? unique : undefined;
+export function oracleApiBase(): string {
+  return resolveOracleApiBase().url;
 }
 
 function cleanConfig(config: ArraConfig): ArraConfig {
   const targets = Object.fromEntries(Object.entries(config.targets ?? {}).sort(([a], [b]) => a.localeCompare(b)));
-  const disabledPlugins = sortedUnique(config.disabledPlugins);
-  const enabledPlugins = sortedUnique(config.enabledPlugins);
   return {
     ...(config.default ? { default: config.default } : {}),
     ...(Object.keys(targets).length ? { targets } : {}),
-    ...(disabledPlugins ? { disabledPlugins } : {}),
-    ...(enabledPlugins ? { enabledPlugins } : {}),
+    ...(unique(config.disabledPlugins) ? { disabledPlugins: unique(config.disabledPlugins) } : {}),
+    ...(unique(config.enabledPlugins) ? { enabledPlugins: unique(config.enabledPlugins) } : {}),
   };
 }
 
@@ -172,49 +198,46 @@ export function writeArraConfig(path: string, config: ArraConfig): void {
   writeFileSync(path, JSON.stringify(cleanConfig(config), null, 2) + "\n");
 }
 
-function writableGlobal(env = process.env): LoadedConfig {
+function writableGlobal(env: NodeJS.ProcessEnv = process.env): LoadedConfig {
   const path = globalConfigPathForWrite(env);
-  return readArraConfig(path) ?? { path, config: { targets: {} } };
+  return readArraConfig(path) ?? { path, config: {} };
 }
 
-export function addGlobalTarget(name: string, url: string, env = process.env): LoadedConfig {
+export function addGlobalTarget(name: string, url: string, env: NodeJS.ProcessEnv = process.env): LoadedConfig {
   const loaded = writableGlobal(env);
-  const targets = { ...(loaded.config.targets ?? {}), [name]: normalizeApiBase(url) };
-  const config = { ...loaded.config, default: loaded.config.default ?? name, targets };
-  writeArraConfig(loaded.path, config);
-  return { path: loaded.path, config };
-}
-
-export function useGlobalTarget(name: string, env = process.env): LoadedConfig {
-  const loaded = writableGlobal(env);
-  if (!loaded.config.targets?.[name]) throw new Error(`No global arra target named '${name}'. Add it first with: arra-cli config add ${name} <url>`);
-  const config = { ...loaded.config, default: name };
-  writeArraConfig(loaded.path, config);
-  return { path: loaded.path, config };
-}
-
-function assertPluginName(name: string): void {
-  if (!/^[a-z0-9-]+$/.test(name)) {
-    throw new Error(`plugin name must match /^[a-z0-9-]+$/, got: ${JSON.stringify(name)}`);
-  }
-}
-
-export function disableGlobalPlugin(name: string, env = process.env): LoadedConfig {
-  assertPluginName(name);
-  const loaded = writableGlobal(env);
-  const disabledPlugins = sortedUnique([...(loaded.config.disabledPlugins ?? []), name]);
-  const enabledPlugins = sortedUnique((loaded.config.enabledPlugins ?? []).filter((entry) => entry !== name));
-  const config = { ...loaded.config, disabledPlugins, enabledPlugins };
+  const config = { ...loaded.config, default: loaded.config.default ?? name, targets: { ...(loaded.config.targets ?? {}), [name]: normalizeApiBase(url) } };
   writeArraConfig(loaded.path, config);
   return { path: loaded.path, config: cleanConfig(config) };
 }
 
-export function enableGlobalPlugin(name: string, env = process.env): LoadedConfig {
+export function useGlobalTarget(name: string, env: NodeJS.ProcessEnv = process.env): LoadedConfig {
+  const loaded = writableGlobal(env);
+  if (!loaded.config.targets?.[name]) throw new Error(`No global arra target named '${name}'. Add it first with: arra-cli config add ${name} <url>`);
+  const config = { ...loaded.config, default: name };
+  writeArraConfig(loaded.path, config);
+  return { path: loaded.path, config: cleanConfig(config) };
+}
+
+export function writeGlobalDefault(name: string, env: NodeJS.ProcessEnv = process.env): string {
+  return useGlobalTarget(name, env).path;
+}
+
+function assertPluginName(name: string): void {
+  if (!/^[a-z0-9-]+$/.test(name)) throw new Error(`plugin name must match /^[a-z0-9-]+$/, got: ${JSON.stringify(name)}`);
+}
+
+export function disableGlobalPlugin(name: string, env: NodeJS.ProcessEnv = process.env): LoadedConfig {
   assertPluginName(name);
   const loaded = writableGlobal(env);
-  const disabledPlugins = sortedUnique((loaded.config.disabledPlugins ?? []).filter((entry) => entry !== name));
-  const enabledPlugins = sortedUnique([...(loaded.config.enabledPlugins ?? []), name]);
-  const config = { ...loaded.config, disabledPlugins, enabledPlugins };
+  const config = { ...loaded.config, disabledPlugins: unique([...(loaded.config.disabledPlugins ?? []), name]), enabledPlugins: unique((loaded.config.enabledPlugins ?? []).filter((entry) => entry !== name)) };
+  writeArraConfig(loaded.path, config);
+  return { path: loaded.path, config: cleanConfig(config) };
+}
+
+export function enableGlobalPlugin(name: string, env: NodeJS.ProcessEnv = process.env): LoadedConfig {
+  assertPluginName(name);
+  const loaded = writableGlobal(env);
+  const config = { ...loaded.config, disabledPlugins: unique((loaded.config.disabledPlugins ?? []).filter((entry) => entry !== name)), enabledPlugins: unique([...(loaded.config.enabledPlugins ?? []), name]) };
   writeArraConfig(loaded.path, config);
   return { path: loaded.path, config: cleanConfig(config) };
 }

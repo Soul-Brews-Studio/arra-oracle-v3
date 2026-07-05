@@ -12,11 +12,13 @@
  */
 
 import { Elysia } from 'elysia';
-import { cors } from '@elysiajs/cors';
 import { swagger } from '@elysiajs/swagger';
 
+import { createCorsMiddleware } from './middleware/cors.ts';
 import { loadVectorConfig, generateDefaultConfig } from './vector/config.ts';
+import { warmEmbeddingProviderDetection } from './vector/provider-detection.ts';
 import { vectorRoutes } from './routes/vector/index.ts';
+import { createVectorProxyServer } from './vector/proxy-server.ts';
 import { searchEndpoint } from './routes/search/search.ts';
 
 import pkg from '../package.json' with { type: 'json' };
@@ -24,11 +26,13 @@ import pkg from '../package.json' with { type: 'json' };
 // ── Config ──────────────────────────────────────────────────────────
 const config = loadVectorConfig() ?? generateDefaultConfig();
 const PORT = Number(process.env.VECTOR_PORT ?? config.port);
+void warmEmbeddingProviderDetection().catch((error) =>
+  console.warn('[Vector] embedding provider auto-detect failed:', error instanceof Error ? error.message : String(error)));
 
 // ── App ─────────────────────────────────────────────────────────────
 export function createVectorServerApp() {
   return new Elysia()
-    .use(cors())                           // permissive — internal sidecar
+    .use(createCorsMiddleware())
     .use(
       swagger({
         path: '/swagger',
@@ -47,9 +51,7 @@ export function createVectorServerApp() {
       status: 'ok',
       docs: '/swagger',
     }))
-    // VECTOR_URL/gateway proxies /api/search to the sidecar. Mount only the
-    // search endpoint (not reflect/list) so hybrid/vector search has a remote
-    // target while non-vector browsing remains core-owned.
+    .use(createVectorProxyServer({ version: pkg.version }))
     .use(new Elysia({ prefix: '/api' }).use(searchEndpoint))
     .use(vectorRoutes);
 }

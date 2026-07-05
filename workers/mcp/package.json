@@ -1,0 +1,22 @@
+{
+  "name": "@soul-brews/arra-oracle-cloudflare-mcp",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "dev": "wrangler dev --config wrangler.jsonc",
+    "deploy": "tsc --noEmit && wrangler deploy --config wrangler.jsonc",
+    "typecheck": "tsc --noEmit",
+    "dry-run": "tsc --noEmit && wrangler deploy --dry-run --config wrangler.jsonc"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "agents": "^0.16.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260616.1",
+    "typescript": "^5.7.2",
+    "wrangler": "^4.101.0"
+  }
+}

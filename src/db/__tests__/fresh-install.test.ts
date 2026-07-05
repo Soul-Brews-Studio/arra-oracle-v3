@@ -63,4 +63,53 @@ describe("fresh install (#1111)", () => {
 		sqlite.close();
 		rmSync(dir, { recursive: true });
 	});
+	test("query optimization indexes are installed on fresh DB", () => {
+		const dir = mkdtempSync(join(tmpdir(), "oracle-indexes-"));
+		const dbPath = join(dir, "test.db");
+		const sqlite = new Database(dbPath);
+		const db = drizzle(sqlite, { schema });
+		const migrationsFolder = join(import.meta.dir, "../migrations");
+
+		migrate(db, { migrationsFolder });
+		const rows = sqlite
+			.prepare("SELECT name FROM sqlite_master WHERE type='index'")
+			.all() as Array<{ name: string }>;
+		const names = rows.map((row) => row.name);
+
+		expect(names).toContain("idx_documents_tenant_type_active_updated");
+		expect(names).toContain("idx_search_tenant_created");
+		expect(names).toContain("idx_thread_tenant_status_updated");
+		expect(names).toContain("idx_memory_tenant_created");
+		expect(names).toContain("idx_menu_path_studio");
+		expect(names).toContain("idx_entity_links_tenant_key");
+		expect(names).toContain("idx_entity_links_tenant_doc");
+		expect(names).toContain("idx_pointer_tenant_kind_key");
+		expect(names).toContain("idx_pointer_tenant_updated");
+		expect(names).toContain("idx_vector_manifest_model_hash");
+		expect(names).toContain("idx_vector_manifest_source");
+
+		sqlite.close();
+		rmSync(dir, { recursive: true });
+	});
+
+	test("bi-temporal valid_time column is installed on fresh DB", () => {
+		const dir = mkdtempSync(join(tmpdir(), "oracle-valid-time-"));
+		const dbPath = join(dir, "test.db");
+		const sqlite = new Database(dbPath);
+		const db = drizzle(sqlite, { schema });
+		const migrationsFolder = join(import.meta.dir, "../migrations");
+
+		migrate(db, { migrationsFolder });
+		const columns = sqlite.prepare("PRAGMA table_info(oracle_documents)").all() as Array<{ name: string }>;
+		const indexes = sqlite
+			.prepare("SELECT name FROM sqlite_master WHERE type='index'")
+			.all() as Array<{ name: string }>;
+
+		expect(columns.map((row) => row.name)).toContain("valid_time");
+		expect(indexes.map((row) => row.name)).toContain("idx_documents_tenant_valid_time");
+
+		sqlite.close();
+		rmSync(dir, { recursive: true });
+	});
+
 });

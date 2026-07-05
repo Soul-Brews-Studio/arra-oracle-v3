@@ -58,6 +58,24 @@ describe('QdrantAdapter unit behavior without network', () => {
     expect(upsertPayload.payload.points[0].vector).toEqual([0.3, 0.2, 0.1]);
   });
 
+  test('addDocuments rejects mismatched embedder output before upsert', async () => {
+    const shortEmbedder: EmbeddingProvider = {
+      ...embedder,
+      async embed() { return [[0.1, 0.2, 0.3]]; },
+    };
+    const adapter = new QdrantAdapter('unit_collection', shortEmbedder) as any;
+    let upserted = false;
+    adapter.client = {
+      async upsert() { upserted = true; },
+    };
+
+    await expect(adapter.addDocuments([
+      { id: 'doc-a', document: 'alpha', metadata: {} },
+      { id: 'doc-b', document: 'beta', metadata: {} },
+    ])).rejects.toThrow('Qdrant embedder returned 1 vectors for 2 documents');
+    expect(upserted).toBe(false);
+  });
+
   test('query maps Qdrant similarity scores to distances and metadata', async () => {
     const adapter = new QdrantAdapter('unit_collection', embedder) as any;
     let searchRequest: any;
@@ -122,9 +140,36 @@ describe('SqliteVecAdapter unit behavior without sqlite-vec extension', () => {
     await expect(adapter.deleteCollection()).rejects.toThrow('sqlite-vec not connected');
     await expect(adapter.query('query')).rejects.toThrow('sqlite-vec not connected');
     await expect(adapter.queryById('doc-a')).rejects.toThrow('sqlite-vec not connected');
+    await expect(adapter.queryByVector([0.1, 0.2, 0.3])).rejects.toThrow('sqlite-vec not connected');
     await adapter.addDocuments([]);
     expect(await adapter.getStats()).toEqual({ count: 0 });
     expect(await adapter.getCollectionInfo()).toEqual({ name: 'unit_sqlite', count: 0 });
     expect(await adapter.getAllEmbeddings()).toEqual({ ids: [], embeddings: [], metadatas: [] });
+  });
+
+  test('queryByVector searches raw vectors with sqlite L2 distance', async () => {
+    const adapter = new SqliteVecAdapter('unit_sqlite', '/tmp/unit-sqlite.db', embedder) as any;
+    adapter.db = {
+      select(selection: Record<string, unknown>) {
+        expect(Object.keys(selection)).toEqual(['id', 'distance', 'document', 'metadata']);
+        return { from: () => ({ innerJoin: () => ({ orderBy: () => ({
+          limit(value: number) {
+            expect(value).toBe(2);
+            return { all: () => [
+              { id: 'doc-a', distance: 0.12, document: 'alpha', metadata: '{"type":"learning"}' },
+              { id: 'doc-b', distance: 0.34, document: 'beta', metadata: '{"type":"pattern"}' },
+            ] };
+          },
+        }) }) }) };
+      },
+    };
+
+    const result = await adapter.queryByVector([0.4, 0.5, 0.6], 2);
+    expect(result).toEqual({
+      ids: ['doc-a', 'doc-b'],
+      documents: ['alpha', 'beta'],
+      distances: [0.12, 0.34],
+      metadatas: [{ type: 'learning' }, { type: 'pattern' }],
+    });
   });
 });

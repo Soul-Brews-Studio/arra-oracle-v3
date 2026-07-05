@@ -1,6 +1,8 @@
 import { Database } from 'bun:sqlite';
 import { DB_PATH } from '../../config.ts';
+import { currentTenantId } from '../../middleware/tenant.ts';
 import { collectDocuments, collectSecurityCorpus } from '../../indexer/collectors.ts';
+import { chunkDocumentsForIndexing } from '../../indexer/chunker.ts';
 import { parseDistillationFile, parseLearningFile, parseResonanceFile, parseRetroFile } from '../../indexer/parser.ts';
 import { createIndexerConfig, resolveIndexerRepoRoot } from '../../indexer/runner.ts';
 import type { OracleDocument } from '../../types.ts';
@@ -28,6 +30,9 @@ function toVectorDocs(documents: OracleDocument[]): VectorDocument[] {
       source_file: doc.source_file,
       concepts: JSON.stringify(doc.concepts),
       ...(doc.project && { project: doc.project }),
+      ...(doc.chunk_index !== undefined && { chunk_index: doc.chunk_index }),
+      ...(doc.line_start !== undefined && { line_start: doc.line_start }),
+      ...(doc.line_end !== undefined && { line_end: doc.line_end }),
     },
   }));
 }
@@ -43,21 +48,31 @@ export function loadVaultVectorDocuments(repoRoot = resolveIndexerRepoRoot()): L
     ...collectSecurityCorpus(shared),
   ];
 
-  return { source: 'vault', repoRoot, docs: toVectorDocs(documents) };
+  return { source: 'vault', repoRoot, docs: toVectorDocs(chunkDocumentsForIndexing(documents)) };
 }
 
 export function loadSqliteVectorDocuments(dbPath = DB_PATH): LoadedVectorIndexDocuments {
   const sqlite = new Database(dbPath, { readonly: true });
   try {
+    const tenantId = currentTenantId();
+    const hasTenantId = sqlite.prepare(`PRAGMA table_info(oracle_documents)`).all()
+      .some((row) => (row as { name?: string }).name === 'tenant_id');
+    const tenantExpr = hasTenantId ? 'd.tenant_id' : '?';
+    const tenantWhere = tenantId ? (hasTenantId ? 'WHERE d.tenant_id = ?' : 'WHERE 0') : '';
+    const params = [
+      ...(hasTenantId ? [] : [tenantId ?? 'default']),
+      ...(tenantId && hasTenantId ? [tenantId] : []),
+    ];
     const rows = sqlite.prepare(`
-      SELECT d.id, d.type, GROUP_CONCAT(f.content, '\n') as content,
+      SELECT d.id, ${tenantExpr} as tenant_id, d.type, GROUP_CONCAT(f.content, '\n') as content,
              d.source_file, d.concepts, d.project, d.created_at
       FROM oracle_documents d
       JOIN oracle_fts f ON d.id = f.id
+      ${tenantWhere}
       GROUP BY d.id
       ORDER BY d.created_at DESC
-    `).all() as Array<{
-      id: string; type: string; content: string;
+    `).all(...params) as Array<{
+      id: string; tenant_id: string; type: string; content: string;
       source_file: string; concepts: string; project: string | null;
       created_at: string;
     }>;
@@ -69,6 +84,7 @@ export function loadSqliteVectorDocuments(dbPath = DB_PATH): LoadedVectorIndexDo
         document: row.content,
         metadata: {
           type: row.type,
+          tenant_id: row.tenant_id,
           source_file: row.source_file,
           concepts: row.concepts,
           ...(row.project && { project: row.project }),

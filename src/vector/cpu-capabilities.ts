@@ -1,8 +1,11 @@
 import fs from 'fs';
 import { execFileSync } from 'child_process';
+import { LANCEDB_DIR, VECTORS_DB_PATH } from '../config.ts';
 
 let cachedHasAvx: boolean | undefined;
-let loggedDisable = false;
+// Last disabled-reason we logged. Tracks CURRENT state so the warning fires on
+// a state transition (new/changed reason) instead of latching once-forever.
+let lastDisableReason: string | undefined;
 
 function truthy(value: string | undefined): boolean | undefined {
   if (value === undefined) return undefined;
@@ -26,7 +29,7 @@ function detectCpuFlags(): string {
 
 export function resetCpuCapabilityCacheForTests(): void {
   cachedHasAvx = undefined;
-  loggedDisable = false;
+  lastDisableReason = undefined;
 }
 
 export function hasAvx(): boolean {
@@ -62,7 +65,9 @@ export interface LocalVectorIndexConfig {
 export function localVectorIndexMissingReason(config: LocalVectorIndexConfig): string | undefined {
   const type = config.type || process.env.ORACLE_VECTOR_DB || 'lancedb';
   if (type === 'lancedb') {
-    const dataPath = config.dataPath;
+    // Mirror createVectorStore's default chain (factory.ts) so a preset that
+    // omits dataPath can't false-positive "directory is missing".
+    const dataPath = config.dataPath || process.env.ORACLE_VECTOR_DB_PATH || LANCEDB_DIR;
     const collectionName = config.collectionName;
     if (!dataPath || !fs.existsSync(dataPath)) return 'local LanceDB directory is missing';
     if (collectionName && !fs.existsSync(`${dataPath}/${collectionName}.lance`)) {
@@ -70,14 +75,27 @@ export function localVectorIndexMissingReason(config: LocalVectorIndexConfig): s
     }
   }
   if (type === 'sqlite-vec') {
-    const dataPath = config.dataPath;
+    // Mirror createVectorStore's default chain (factory.ts).
+    const dataPath = config.dataPath || process.env.ORACLE_VECTOR_DB_PATH || VECTORS_DB_PATH;
     if (!dataPath || !fs.existsSync(dataPath)) return 'local sqlite-vec database is missing';
   }
   return undefined;
 }
 
 export function logLocalVectorDisabled(reason: string): void {
-  if (loggedDisable) return;
-  loggedDisable = true;
+  // Log only on a state transition (first time, or the reason changed). The
+  // same reason is not re-logged (no spam); a *different* reason logs afresh.
+  if (reason === lastDisableReason) return;
+  lastDisableReason = reason;
   console.warn(`[Vector] Local vector search disabled: ${reason}. Falling back to FTS5-only results.`);
+}
+
+/**
+ * Re-arm the disabled-warning latch once vectors are available again.
+ * Call when the native gate passes (vectors recovered) so a later genuine
+ * disable logs afresh instead of being suppressed by a stale latch — i.e. the
+ * warning reflects CURRENT state, not a transient miss from earlier in the run.
+ */
+export function noteLocalVectorEnabled(): void {
+  lastDisableReason = undefined;
 }

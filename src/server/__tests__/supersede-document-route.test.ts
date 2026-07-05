@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from 'bun:test';
 import { Elysia } from 'elysia';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,27 +13,31 @@ const originalDbPath = process.env.ORACLE_DB_PATH;
 process.env.ORACLE_DATA_DIR = dataDir;
 process.env.ORACLE_DB_PATH = path.join(dataDir, 'oracle.db');
 
-const { db, oracleDocuments } = await import('../../db/index.ts');
+const dbModule = await import('../../db/index.ts');
+dbModule.resetDefaultDatabaseForTests(process.env.ORACLE_DB_PATH);
+const { db, oracleDocuments } = dbModule;
 const { supersedeRoutes } = await import('../../routes/supersede/index.ts');
 
 describe('POST /api/supersede/document', () => {
   it('marks oracle_documents supersession using MCP semantics', async () => {
     const now = Date.now();
+    const oldId = `supersede-old-${randomUUID()}`;
+    const newId = `supersede-new-${randomUUID()}`;
     db.insert(oracleDocuments).values([
       {
-        id: 'supersede-old-1',
+        id: oldId,
         type: 'learning',
         concepts: JSON.stringify(['supersede']),
-        sourceFile: 'ψ/memory/learnings/supersede-old.md',
+        sourceFile: `ψ/memory/learnings/${oldId}.md`,
         createdAt: now,
         updatedAt: now,
         indexedAt: now,
       },
       {
-        id: 'supersede-new-1',
+        id: newId,
         type: 'learning',
         concepts: JSON.stringify(['supersede']),
-        sourceFile: 'ψ/memory/learnings/supersede-new.md',
+        sourceFile: `ψ/memory/learnings/${newId}.md`,
         createdAt: now,
         updatedAt: now,
         indexedAt: now,
@@ -43,28 +48,29 @@ describe('POST /api/supersede/document', () => {
     const response = await app.handle(new Request('http://localhost/api/supersede/document', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ oldId: 'supersede-old-1', newId: 'supersede-new-1', reason: 'newer learning' }),
+      body: JSON.stringify({ oldId, newId, reason: 'newer learning' }),
     }));
     const payload = await response.json();
 
     const oldDoc = db.select({ supersededBy: oracleDocuments.supersededBy, supersededReason: oracleDocuments.supersededReason })
       .from(oracleDocuments)
-      .where(eq(oracleDocuments.id, 'supersede-old-1'))
+      .where(eq(oracleDocuments.id, oldId))
       .get();
 
     expect(response.status).toBe(200);
     expect(payload.success).toBe(true);
-    expect(payload.old_id).toBe('supersede-old-1');
-    expect(payload.new_id).toBe('supersede-new-1');
-    expect(oldDoc?.supersededBy).toBe('supersede-new-1');
+    expect(payload.old_id).toBe(oldId);
+    expect(payload.new_id).toBe(newId);
+    expect(oldDoc?.supersededBy).toBe(newId);
     expect(oldDoc?.supersededReason).toBe('newer learning');
   });
 });
 
 afterAll(() => {
-  fs.rmSync(dataDir, { recursive: true, force: true });
   if (originalDataDir) process.env.ORACLE_DATA_DIR = originalDataDir;
   else delete process.env.ORACLE_DATA_DIR;
   if (originalDbPath) process.env.ORACLE_DB_PATH = originalDbPath;
   else delete process.env.ORACLE_DB_PATH;
+  dbModule.resetDefaultDatabaseForTests(':memory:');
+  fs.rmSync(dataDir, { recursive: true, force: true });
 });

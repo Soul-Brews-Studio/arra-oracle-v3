@@ -43,13 +43,14 @@ export function resolveIndexerRepoRoot(explicitRoot?: string | null): string {
 export function createIndexerConfig(repoRoot: string): IndexerConfig {
   return {
     repoRoot,
-    dbPath: DB_PATH,
+    dbPath: process.env.ORACLE_DB_PATH || DB_PATH,
     chromaPath: CHROMADB_DIR,
     sourcePaths: {
       resonance: 'ψ/memory/resonance',
       learnings: 'ψ/memory/learnings',
       retrospectives: 'ψ/memory/retrospectives',
       distillations: 'ψ/memory/distillations',
+      learn: 'ψ/learn',
       // Opt-in: set ORACLE_INDEX_SECURITY_CORPUS=1 to include ψ/learn/security-corpus/.
       // Default OFF because the corpus has ~36k files (one-time index ~10-30 min).
       security_corpus: process.env.ORACLE_INDEX_SECURITY_CORPUS === '1'

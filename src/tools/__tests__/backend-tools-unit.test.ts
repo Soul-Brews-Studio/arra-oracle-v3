@@ -4,11 +4,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { createDatabase } from '../../db/index.ts';
 import { oracleDocuments } from '../../db/schema.ts';
+import { runWithTenant } from '../../middleware/tenant.ts';
 import type { ToolContext } from '../types.ts';
 import { handleConcepts } from '../concepts.ts';
 import { handleInbox } from '../inbox.ts';
 import { handleList } from '../list.ts';
 import { handleRead } from '../read.ts';
+import { handleSearch } from '../search.ts';
 import { handleStats } from '../stats.ts';
 import { handleSupersede, runSupersede } from '../supersede.ts';
 
@@ -102,6 +104,26 @@ describe('backend MCP tools unit coverage', () => {
     await expect(handleList(ctx, { type: 'bad' as never, limit: 10, offset: 0 })).rejects.toThrow('Invalid type');
   });
 
+  test('handleList tolerates malformed concept metadata', async () => {
+    const ctx = makeCtx();
+    const now = Date.now();
+    ctx.db.insert(oracleDocuments).values({
+      id: 'doc-bad-concepts',
+      type: 'learning',
+      sourceFile: 'ψ/memory/learnings/bad-concepts.md',
+      concepts: 'not-json, fallback',
+      createdAt: now,
+      updatedAt: now,
+      indexedAt: now,
+    }).run();
+    ctx.sqlite.prepare('INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)')
+      .run('doc-bad-concepts', 'Malformed concepts should not crash list.', 'not-json fallback');
+
+    const all = parse(await handleList(ctx, { type: 'all', limit: 10, offset: 0 }));
+    const doc = all.documents.find((item: any) => item.id === 'doc-bad-concepts');
+    expect(doc.concepts).toEqual(['not-json', 'fallback']);
+  });
+
   test('handleStats returns counts, FTS health, vector status, and version', async () => {
     const ctx = makeCtx();
 
@@ -112,6 +134,31 @@ describe('backend MCP tools unit coverage', () => {
     expect(stats.unique_concepts).toBe(4);
     expect(stats.vector_status).toBe('connected');
     expect(stats.version).toBe('test-version');
+  });
+
+  test('tenant context scopes document-backed MCP reads', async () => {
+    const ctx = makeCtx();
+    const now = Date.now();
+    ctx.db.insert(oracleDocuments).values({
+      id: 'tenant-b-secret',
+      tenantId: 'tenant-b',
+      type: 'learning',
+      sourceFile: 'ψ/memory/learnings/tenant-b.md',
+      concepts: JSON.stringify(['private']),
+      createdAt: now,
+      updatedAt: now,
+      indexedAt: now,
+    }).run();
+    ctx.sqlite.prepare('INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)')
+      .run('tenant-b-secret', 'tenant exclusive secret phrase', 'private');
+
+    const hidden = parse(await runWithTenant('tenant-a', () =>
+      handleSearch(ctx, { query: 'tenant exclusive secret phrase', mode: 'fts', limit: 10 })));
+    expect(hidden.results).toHaveLength(0);
+
+    const visible = parse(await runWithTenant('tenant-b', () => handleStats(ctx, {})));
+    expect(visible.total_documents).toBe(1);
+    expect(visible.tenant.id).toBe('tenant-b');
   });
 
   test('handleRead resolves direct files, id lookup, FTS fallback, and not-found errors', async () => {
@@ -156,6 +203,10 @@ describe('backend MCP tools unit coverage', () => {
 
     const second = parse(await handleInbox(ctx, { type: 'all', limit: 1, offset: 1 }));
     expect(second.files[0].filename).toContain('old');
+
+    await expect(handleInbox(ctx, null as never)).rejects.toThrow('inbox input must be an object');
+    await expect(handleInbox(ctx, { type: 'bad' as never, limit: 1, offset: 0 })).rejects.toThrow('Invalid inbox type');
+    await expect(handleInbox(ctx, { type: 'all', limit: 0, offset: 0 })).rejects.toThrow('limit must be between');
   });
 
   test('runSupersede validates inputs and handleSupersede marks the old document', async () => {

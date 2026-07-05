@@ -4,9 +4,10 @@
  * List documents without search query, with pagination and type filtering.
  */
 
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { oracleDocuments } from '../db/schema.ts';
 import type { ToolContext, ToolResponse, OracleListInput } from './types.ts';
+import { currentTenantId, tenantSql } from '../middleware/tenant.ts';
 
 export const listToolDef = {
   name: 'oracle_list',
@@ -35,8 +36,33 @@ export const listToolDef = {
   }
 };
 
+function parseConcepts(raw: unknown): string[] {
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return raw.split(',').map((item) => item.trim()).filter(Boolean);
+  }
+}
+
+function inputObject(input: OracleListInput): Record<string, unknown> {
+  return input && typeof input === 'object' ? input as Record<string, unknown> : {};
+}
+
+function integerInput(raw: unknown, fallback: number, name: 'limit' | 'offset'): number {
+  if (raw === undefined) return fallback;
+  if (typeof raw !== 'number' || Number.isNaN(raw)) throw new Error(`${name} must be a number`);
+  if (!Number.isSafeInteger(raw)) throw new Error(`${name} must be an integer`);
+  return raw;
+}
+
 export async function handleList(ctx: ToolContext, input: OracleListInput): Promise<ToolResponse> {
-  const { type = 'all', limit = 10, offset = 0 } = input;
+  const raw = inputObject(input);
+  const type = raw.type ?? 'all';
+  if (typeof type !== 'string') throw new Error('type must be a string');
+  const limit = integerInput(raw.limit, 10, 'limit');
+  const offset = integerInput(raw.offset, 0, 'offset');
 
   if (limit < 1 || limit > 100) {
     throw new Error('limit must be between 1 and 100');
@@ -50,16 +76,21 @@ export async function handleList(ctx: ToolContext, input: OracleListInput): Prom
     throw new Error(`Invalid type: ${type}. Must be one of: ${validTypes.join(', ')}`);
   }
 
-  const countResult = type === 'all'
-    ? ctx.db.select({ total: sql<number>`count(*)` }).from(oracleDocuments).get()
-    : ctx.db.select({ total: sql<number>`count(*)` }).from(oracleDocuments).where(eq(oracleDocuments.type, type)).get();
+  const tenantId = currentTenantId();
+  const countWhere = type === 'all'
+    ? tenantId ? eq(oracleDocuments.tenantId, tenantId) : undefined
+    : tenantId ? and(eq(oracleDocuments.type, type), eq(oracleDocuments.tenantId, tenantId)) : eq(oracleDocuments.type, type);
+  const countQuery = ctx.db.select({ total: sql<number>`count(*)` }).from(oracleDocuments);
+  const countResult = countWhere ? countQuery.where(countWhere).get() : countQuery.get();
   const total = countResult?.total ?? 0;
 
+  const tenantFilter = tenantSql('d');
   const listStmt = type === 'all'
     ? ctx.sqlite.prepare(`
         SELECT d.id, d.type, d.source_file, d.concepts, d.indexed_at, f.content
         FROM oracle_documents d
         JOIN oracle_fts f ON d.id = f.id
+        WHERE 1=1 ${tenantFilter.clause}
         ORDER BY d.indexed_at DESC
         LIMIT ? OFFSET ?
       `)
@@ -67,14 +98,14 @@ export async function handleList(ctx: ToolContext, input: OracleListInput): Prom
         SELECT d.id, d.type, d.source_file, d.concepts, d.indexed_at, f.content
         FROM oracle_documents d
         JOIN oracle_fts f ON d.id = f.id
-        WHERE d.type = ?
+        WHERE d.type = ? ${tenantFilter.clause}
         ORDER BY d.indexed_at DESC
         LIMIT ? OFFSET ?
       `);
 
   const rows = type === 'all'
-    ? listStmt.all(limit, offset)
-    : listStmt.all(type, limit, offset);
+    ? listStmt.all(...tenantFilter.params, limit, offset)
+    : listStmt.all(type, ...tenantFilter.params, limit, offset);
 
   const documents = (rows as any[]).map((row) => ({
     id: row.id,
@@ -82,7 +113,7 @@ export async function handleList(ctx: ToolContext, input: OracleListInput): Prom
     title: row.content.split('\n')[0].substring(0, 80),
     content: row.content.substring(0, 500),
     source_file: row.source_file,
-    concepts: JSON.parse(row.concepts || '[]'),
+    concepts: parseConcepts(row.concepts),
     indexed_at: row.indexed_at,
   }));
 

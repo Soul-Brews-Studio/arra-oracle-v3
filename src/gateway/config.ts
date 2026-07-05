@@ -9,6 +9,8 @@
 import fs from 'fs';
 import path from 'path';
 import type { HooksConfig } from './hooks.ts';
+import { mergeVectorServicesIntoGatewayConfig } from '../vector/gateway-services.ts';
+import { vectorServiceRegistry, type RegisteredVectorService } from '../vector/service-registry.ts';
 
 export interface ServiceConfig {
   url: string;
@@ -34,15 +36,28 @@ export interface GatewayConfig {
   hook_options?: Record<string, unknown>;
 }
 
-const CONFIG_FILE = 'oracle-gateway.json';
+function configFileName(): string { return 'oracle-gateway.json'; }
 
-export function loadGatewayConfig(dataDir: string, vectorUrl?: string): GatewayConfig | null {
-  const configPath = path.join(dataDir, CONFIG_FILE);
+function discoveredVectorServices(): RegisteredVectorService[] {
+  return vectorServiceRegistry.discoverSync();
+}
+export { discoveredVectorServices as discoverGatewayVectorServices };
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function loadGatewayConfig(
+  dataDir: string,
+  vectorUrl?: string,
+  vectorServices: RegisteredVectorService[] = [],
+): GatewayConfig | null {
+  const configPath = path.join(dataDir, configFileName());
 
   if (fs.existsSync(configPath)) {
     try {
       const raw = fs.readFileSync(configPath, 'utf-8');
-      return JSON.parse(raw) as GatewayConfig;
+      return mergeVectorServicesIntoGatewayConfig(JSON.parse(raw) as GatewayConfig, vectorServices);
     } catch (e) {
       console.warn(`[Gateway] Failed to parse ${configPath}:`, e);
       return null;
@@ -50,11 +65,12 @@ export function loadGatewayConfig(dataDir: string, vectorUrl?: string): GatewayC
   }
 
   // Backward compat: synthesize config from VECTOR_URL. Search can
-  // fall through to local FTS5 when the vector service is unreachable; pure
-  // vector routes must not fall back to local LanceDB inside the core process.
+  // fall through to local FTS5 when the vector service is unreachable. Map3D
+  // stays local because the memory globe must reflect the full DB/FTS corpus,
+  // not a partial vector collection.
   if (vectorUrl) {
     const vectorBase = vectorUrl.replace(/\/+$/, '');
-    return {
+    return mergeVectorServicesIntoGatewayConfig({
       services: {
         vector: {
           url: vectorUrl,
@@ -67,12 +83,13 @@ export function loadGatewayConfig(dataDir: string, vectorUrl?: string): GatewayC
         { match: '/api/similar', service: 'vector', fallback: 'error' },
         { match: '/api/compare', service: 'vector', fallback: 'error' },
         { match: '/api/map', service: 'vector', fallback: 'empty' },
-        { match: '/api/map3d', service: 'vector', fallback: 'empty' },
         { match: '/api/vector/**', service: 'vector', fallback: 'error' },
       ],
-    };
+    }, vectorServices);
   }
 
+  const vectorOnly = mergeVectorServicesIntoGatewayConfig({ services: {}, routes: [] }, vectorServices);
+  if (Object.keys(vectorOnly.services).length > 0) return vectorOnly;
   return null;
 }
 
@@ -87,46 +104,64 @@ export function watchGatewayConfig(
   dataDir: string,
   onChange: (next: GatewayConfig | null) => void,
   vectorUrl?: string,
+  vectorServices: () => RegisteredVectorService[] = () => [],
 ): () => void {
-  const configPath = path.join(dataDir, CONFIG_FILE);
+  const configPath = path.join(dataDir, configFileName());
   const watchers: fs.FSWatcher[] = [];
   let timer: ReturnType<typeof setTimeout> | null = null;
-  let last = JSON.stringify(loadGatewayConfig(dataDir, vectorUrl));
+  let poller: ReturnType<typeof setInterval> | null = null;
+  let last = JSON.stringify(loadGatewayConfig(dataDir, vectorUrl, vectorServices()));
+
+  const reloadIfChanged = (): void => {
+    // Malformed JSON survival: if the file exists but failed to parse,
+    // loadGatewayConfig returns null AND prints a warning. We only swap
+    // the live state when the new result is either a valid config or a
+    // genuine deletion (file no longer exists). Mid-edit syntax errors
+    // are silently ignored so the running gateway keeps its last good
+    // state until the user saves a valid file.
+    const fileMissing = !fs.existsSync(configPath);
+    const next = loadGatewayConfig(dataDir, vectorUrl, vectorServices());
+    if (next === null && !fileMissing) {
+      // file exists but failed to parse — hold last good
+      return;
+    }
+    const serialized = JSON.stringify(next);
+    if (serialized === last) return;
+    console.log('[Gateway] Config changed — reloading');
+    try {
+      onChange(next);
+      last = serialized;
+    } catch (error) {
+      console.warn(`[Gateway] Config reload callback failed: ${errorMessage(error)}`);
+    }
+  };
 
   const tick = (): void => {
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
-      // Malformed JSON survival: if the file exists but failed to parse,
-      // loadGatewayConfig returns null AND prints a warning. We only swap
-      // the live state when the new result is either a valid config or a
-      // genuine deletion (file no longer exists). Mid-edit syntax errors
-      // are silently ignored so the running gateway keeps its last good
-      // state until the user saves a valid file.
-      const fileMissing = !fs.existsSync(configPath);
-      const next = loadGatewayConfig(dataDir, vectorUrl);
-      if (next === null && !fileMissing && !vectorUrl) {
-        // file exists but failed to parse — hold last good
-        return;
-      }
-      const serialized = JSON.stringify(next);
-      if (serialized === last) return;
-      last = serialized;
-      console.log('[Gateway] Config changed — reloading');
-      onChange(next);
+      reloadIfChanged();
     }, 200);
   };
 
+  // fs.watch can drop create/delete events under raw `bun test` load. Polling
+  // the resolved config keeps no-op writes silent while making creation tests
+  // deterministic.
+  poller = setInterval(reloadIfChanged, 100);
+  poller.unref?.();
+
   try {
-    if (fs.existsSync(configPath)) {
-      watchers.push(fs.watch(configPath, { persistent: false }, tick));
-    } else if (fs.existsSync(dataDir)) {
-      // Watch the directory so we catch creation of the config file later.
+    if (fs.existsSync(dataDir)) {
+      // Always watch the directory: file watchers may miss unlink/replace
+      // events for a directly watched file on some platforms.
       watchers.push(
         fs.watch(dataDir, { persistent: false }, (_event, filename) => {
-          if (filename === CONFIG_FILE) tick();
+          if (filename === configFileName()) tick();
         }),
       );
+    }
+    if (fs.existsSync(configPath)) {
+      watchers.push(fs.watch(configPath, { persistent: false }, tick));
     }
   } catch {
     // fs.watch can fail on platforms without inotify — keep going.
@@ -136,6 +171,10 @@ export function watchGatewayConfig(
     if (timer) {
       clearTimeout(timer);
       timer = null;
+    }
+    if (poller) {
+      clearInterval(poller);
+      poller = null;
     }
     for (const w of watchers) {
       try {

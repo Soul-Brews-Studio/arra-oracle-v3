@@ -1,23 +1,31 @@
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
-import { DEFAULT_ORACLE_API, normalizeApiBase } from '../cli/src/lib/config.ts';
-
-type InvokeContext = { source?: string; args?: string[]; writer?: (...args: unknown[]) => void };
+import { apiArgsToCliArgs } from './api.ts';
+import { resolveServePort, runServe, type ServeDeps } from './serve.ts';
+import { LOCAL_CLI_HELP, resolveLocalCliName, runLocalCli } from './local-cli.ts';
+import { runVectorConfig, VECTOR_CONFIG_HELP } from './vector-config.ts';
+import { MCP_CLIENT_HELP, runMcpCall } from './mcp-client.ts';
+type InvokeContext = { source?: string; args?: string[] | Record<string, unknown>; writer?: (...args: unknown[]) => void };
 type InvokeResult = { ok: boolean; output?: string; error?: string };
 type Requester = (path: string, init?: RequestInit) => Promise<unknown>;
 type Opener = (url: string) => void;
 type RunOptions = { cwd?: string; env?: Record<string, string | undefined>; inherit?: boolean; capture?: boolean };
 type RunResult = { code: number | null; stdout?: string; stderr?: string };
 type Runner = (cmd: string, args: string[], options?: RunOptions) => Promise<RunResult>;
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 type Parsed = { pos: string[]; flags: Record<string, string | boolean> };
 type Built = { path: string; query?: Record<string, unknown>; body?: Record<string, unknown> };
 type Spec = { tool: string; method: Method; help: string; write?: boolean; build: (p: Parsed) => Built; format?: (data: any, p: Parsed) => string };
 
+const DEFAULT_ORACLE_API = 'http://localhost:47778';
+const normalizeApiBase = (url: string) => url.replace(/\/+$/, '');
+
 export const command = { name: 'arra', description: 'ARRA Oracle HTTP helper — 1:1 maw CLI surface for ARRA MCP tools.' };
 
 export function resolveBaseUrl(env: Record<string, string | undefined> = process.env): string {
-  return normalizeApiBase(env.ORACLE_API?.trim() || DEFAULT_ORACLE_API);
+  const explicit = env.ORACLE_API?.trim();
+  if (explicit) return normalizeApiBase(explicit);
+  return normalizeApiBase(`http://localhost:${resolveServePort(env, DEFAULT_ORACLE_API.split(':').at(-1) ?? '47778')}`);
 }
 
 export function resolveFrontendUrl(env: Record<string, string | undefined> = process.env): string {
@@ -27,7 +35,6 @@ export function resolveFrontendUrl(env: Record<string, string | undefined> = pro
 export function buildFrontendUrl(env: Record<string, string | undefined> = process.env): string {
   return `${resolveFrontendUrl(env)}/?api=${resolveBaseUrl(env)}`;
 }
-
 
 function runCommand(cmd: string, args: string[], options: RunOptions = {}): Promise<RunResult> {
   return new Promise((resolve, reject) => {
@@ -123,11 +130,10 @@ function formatSearch(data: any, p: Parsed): string {
   for (const [i, r] of results.slice(0, 8).entries()) lines.push(`${i + 1}. ${r.id ?? r.source_file ?? 'doc'} ${r.type ? `[${r.type}] ` : ''}score=${r.score ?? 'n/a'}\n   ${one(r.content ?? r.snippet ?? r.text ?? '')}`);
   return lines.join('\n');
 }
-function formatHealth(data: any): string { return [`arra health: ${data?.status ?? 'unknown'}`, data?.vectorMode && `vectorMode: ${data.vectorMode}`, data?.version && `version: ${data.version}`].filter(Boolean).join('\n'); }
+function formatHealth(data: any): string { const engines = Array.isArray(data?.vector?.engines) ? data.vector.engines : []; return [`arra health: ${data?.status ?? 'unknown'}`, data?.vectorMode && `vectorMode: ${data.vectorMode}`, data?.version && `version: ${data.version}`, data?.vectorStatus && `vectorStatus: ${data.vectorStatus}`, ...engines.map((e: any) => `vector ${e.key ?? e.collection}: ${e.ok === false ? 'down' : 'ok'} ${e.adapter ?? ''} ${e.model ?? ''} docs=${e.count ?? 0}${e.error ? ` error=${one(e.error, 90)}` : ''}`)].filter(Boolean).join('\n'); }
 function formatStats(data: any): string { return ['arra stats', data?.total_documents !== undefined && `docs: ${data.total_documents}`, data?.total_docs !== undefined && `docs: ${data.total_docs}`, data?.vector && `vector: ${one(JSON.stringify(data.vector), 180)}`].filter(Boolean).join('\n'); }
 function formatRows(label: string, keys: string[]) { return (data: any) => { const rows = keys.map(k => data?.[k]).find(Array.isArray) ?? []; const total = data?.total ?? data?.chain_length ?? rows.length; return Array.isArray(rows) ? [`arra ${label}: ${total} item${Number(total) === 1 ? '' : 's'}`, ...rows.slice(0, 8).map((r: any) => `- ${r.id ?? r.trace_id ?? r.path ?? r.filename ?? r.name ?? '?'} ${one(r.title ?? r.query ?? r.content ?? r.preview ?? r.label ?? '')}`)].join('\n') : `arra ${label}: ${preview(data)}`; }; }
 function formatOk(label: string) { return (data: any) => [`arra ${label}: ${data?.success === false ? 'failed' : 'ok'}`, data?.id && `id: ${data.id}`, data?.trace_id && `trace_id: ${data.trace_id}`, data?.thread_id && `thread_id: ${data.thread_id}`, data?.message && one(data.message), data?.error && `error: ${one(data.error)}`].filter(Boolean).join('\n') || `arra ${label}: ${preview(data)}`; }
-
 export const COMMANDS: Record<string, Spec> = {
   search: { tool: 'oracle_search', method: 'GET', help: 'search <q> [--mode fts|hybrid|vector] [--limit N]', build: p => route('/api/search', { q: text(p, 'query', 'query'), type: f(p, 'type'), limit: f(p, 'limit') || '5', offset: f(p, 'offset'), mode: f(p, 'mode') || 'fts', project: f(p, 'project'), cwd: f(p, 'cwd'), model: f(p, 'model') }), format: formatSearch },
   learn: { tool: 'oracle_learn', method: 'POST', write: true, help: 'learn <text> [--project P] [--source S] [--concepts a,b]', build: p => route('/api/learn', undefined, { pattern: text(p, 'pattern', 'text'), project: f(p, 'project'), source: f(p, 'source'), concepts: f(p, 'concepts')?.split(',').map(s => s.trim()).filter(Boolean) }), format: formatOk('learn') },
@@ -143,6 +149,7 @@ export const COMMANDS: Record<string, Spec> = {
   vector_status: { tool: 'oracle_vector_status', method: 'GET', help: 'vector-status', build: () => route('/api/vector/index/status'), format: d => `arra vector-status: ${preview(d, 700)}` },
   vector_stop: { tool: 'oracle_vector_stop', method: 'POST', write: true, help: 'vector-stop', build: () => route('/api/vector/index/stop'), format: formatOk('vector-stop') },
   vector_models: { tool: 'oracle_vector_models', method: 'GET', help: 'vector-models', build: () => route('/api/vector/index/models'), format: d => `arra vector-models: ${preview(d, 700)}` },
+  vector_config: { tool: 'oracle_vector_config', method: 'GET', help: VECTOR_CONFIG_HELP, build: () => route('/api/v1/vector/config'), format: d => preview(d, 700) },
   health: { tool: 'oracle_health', method: 'GET', help: 'health', build: () => route('/api/health'), format: formatHealth },
   trace: { tool: 'oracle_trace', method: 'POST', write: true, help: 'trace <query> [--scope project|cross-project|human]', build: p => route('/api/traces', undefined, { query: text(p, 'query', 'query'), queryType: f(p, 'query_type'), scope: f(p, 'scope'), parentTraceId: f(p, 'parent_trace_id'), project: f(p, 'project'), agentCount: n(p, 'agent_count'), durationMs: n(p, 'duration_ms') }), format: formatOk('trace') },
   trace_list: { tool: 'oracle_trace_list', method: 'GET', help: 'trace_list [--query Q] [--status S] [--project P] [--limit N]', build: p => route('/api/traces', { query: f(p, 'query'), status: f(p, 'status'), project: f(p, 'project'), limit: f(p, 'limit'), offset: f(p, 'offset') }), format: formatRows('trace_list', ['traces']) },
@@ -157,20 +164,34 @@ export const COMMANDS: Record<string, Spec> = {
   read: { tool: 'oracle_read', method: 'GET', help: 'read <file-or-id> [--file F|--id ID]', build: p => route('/api/read', { file: f(p, 'file') || (!f(p, 'id') ? p.pos[0] : undefined), id: f(p, 'id') }), format: d => one(d?.content ?? d?.text ?? preview(d), 900) },
   reflect: { tool: 'oracle_reflect', method: 'GET', help: 'reflect', build: () => route('/api/reflect'), format: d => `arra reflect: ${one(d?.text ?? d?.reflection ?? preview(d), 500)}` },
   supersede: { tool: 'oracle_supersede', method: 'POST', write: true, help: 'supersede <oldId> <newId> [--reason R]', build: p => { const oldId = first(p, 'old_id', 'oldId'); const newId = f(p, 'new_id') || p.pos[1]; if (!newId) throw new Error('newId required'); return route('/api/supersede/document', undefined, { oldId, newId, reason: f(p, 'reason') }); }, format: formatOk('supersede') },
+  supersede_list: { tool: 'oracle_supersede_list', method: 'GET', help: 'supersede-list [--project P] [--limit N]', build: p => route('/api/supersede', { project: f(p, 'project'), limit: f(p, 'limit'), offset: f(p, 'offset') }), format: formatRows('supersede-list', ['supersessions']) },
+  supersede_chain: { tool: 'oracle_supersede_chain', method: 'GET', help: 'supersede-chain <path>', build: p => route(`/api/supersede/chain/${enc(first(p, 'path', 'path'))}`), format: d => `arra supersede-chain: ${preview(d, 700)}` },
   thread: { tool: 'oracle_thread', method: 'POST', write: true, help: 'thread <message> [--thread-id N] [--title T]', build: p => route('/api/thread', undefined, { message: text(p, 'message', 'message'), thread_id: n(p, 'thread_id'), title: f(p, 'title'), role: f(p, 'role') || 'human', model: f(p, 'model') }), format: formatOk('thread') },
   threads: { tool: 'oracle_threads', method: 'GET', help: 'threads [--status active|closed] [--limit N]', build: p => route('/api/threads', { status: f(p, 'status'), limit: f(p, 'limit'), offset: f(p, 'offset') }), format: formatRows('threads', ['threads']) },
   thread_read: { tool: 'oracle_thread_read', method: 'GET', help: 'thread_read <threadId>', build: p => route(`/api/thread/${enc(first(p, 'thread_id', 'threadId'))}`), format: d => [`arra thread: ${d?.thread?.id ?? d?.thread_id ?? '?'}`, d?.thread?.title && `title: ${d.thread.title}`, Array.isArray(d?.messages) && `messages: ${d.messages.length}`].filter(Boolean).join('\n') },
   thread_update: { tool: 'oracle_thread_update', method: 'PATCH', write: true, help: 'thread_update <threadId> --status active|closed|answered|pending', build: p => route(`/api/thread/${enc(first(p, 'thread_id', 'threadId'))}/status`, undefined, { status: f(p, 'status') || p.pos[1] }), format: formatOk('thread_update') },
+  schedule: { tool: 'oracle_schedule_list', method: 'GET', help: 'schedule [--date YYYY-MM-DD] [--from D] [--to D] [--status S]', build: p => route('/api/schedule', { date: f(p, 'date'), from: f(p, 'from'), to: f(p, 'to'), filter: f(p, 'filter'), status: f(p, 'status'), limit: f(p, 'limit') }), format: formatRows('schedule', ['events', 'items', 'schedule']) },
+  schedule_add: { tool: 'oracle_schedule_add', method: 'POST', write: true, help: 'schedule-add <event> --date D [--time T]', build: p => route('/api/schedule', undefined, { event: text(p, 'event', 'event'), date: f(p, 'date'), time: f(p, 'time'), notes: f(p, 'notes'), recurring: f(p, 'recurring') }), format: formatOk('schedule-add') },
+  vault_sync: { tool: 'oracle_vault_sync', method: 'POST', write: true, help: 'vault-sync [--dry-run] [--reindex]', build: p => route('/api/vault/sync', undefined, { dryRun: b(p, 'dry_run'), reindex: b(p, 'reindex') }), format: formatOk('vault-sync') },
+  mcp_tools: { tool: 'oracle_mcp_tools', method: 'GET', help: 'mcp-tools', build: () => route('/api/mcp/tools'), format: formatRows('mcp-tools', ['tools']) },
   verify: { tool: 'oracle_verify', method: 'POST', write: true, help: 'verify [--check true|false] [--type all|learning|pattern]', build: p => route('/api/verify', undefined, { check: b(p, 'check'), type: f(p, 'type') }), format: d => `arra verify: ${preview(d, 500)}` },
 };
 
-const LOCAL_COMMANDS = { frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]', studio: 'studio [--port N]' } as const;
-
+const LOCAL_COMMANDS = { commands: 'commands', mcp_call: MCP_CLIENT_HELP, frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]', serve: 'serve [--backend] [--in-process] [--stop|--status] [--port N]', server: 'server [start|stop|status]', studio: 'studio [--port N]', ...LOCAL_CLI_HELP } as const;
+const MCP_COMMANDS = new Set(['commands', ...Object.entries(COMMANDS).filter(([name, spec]) => name !== 'vector_config' && !spec.write && spec.method === 'GET').map(([name]) => name)]);
 function usage(): InvokeResult {
   const commandNames = [...Object.keys(COMMANDS), ...Object.keys(LOCAL_COMMANDS)].sort();
   return { ok: false, error: 'usage', output: ['usage: maw arra <subcommand> [args]', `subcommands: ${commandNames.join('|')}`, '', ...Object.entries(LOCAL_COMMANDS).sort().map(([name, help]) => `  ${name}  ${help}`), ...Object.entries(COMMANDS).sort().map(([name, spec]) => `  ${name}  ${spec.help}`)].join('\n') };
 }
 export function listSubcommands(): string[] { return [...Object.keys(COMMANDS), ...Object.keys(LOCAL_COMMANDS)].sort(); }
+
+function registryPayload(source?: string): InvokeResult {
+  const commands = listSubcommands().map(name => {
+    const localHelp = LOCAL_COMMANDS[name as keyof typeof LOCAL_COMMANDS];
+    return { name, help: COMMANDS[name]?.help ?? localHelp };
+  });
+  return { ok: true, output: JSON.stringify({ plugin: 'arra', surface: source ?? 'api', cli: 'arra', menu: '/plugins/arra', api: '/api/arra', commands }, null, 2) };
+}
 
 function runFrontend(parsed: Parsed, opener: Opener, env: Record<string, string | undefined>): InvokeResult {
   const url = buildFrontendUrl(env);
@@ -192,12 +213,17 @@ async function runStudio(parsed: Parsed, runner: Runner, env: Record<string, str
   } catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
 }
 
-export async function runArra(args: string[], request: Requester = requestJson, opener: Opener = openUrl, env: Record<string, string | undefined> = process.env, runner: Runner = runCommand): Promise<InvokeResult> {
+export async function runArra(args: string[], request: Requester = requestJson, opener: Opener = openUrl, env: Record<string, string | undefined> = process.env, runner: Runner = runCommand, serveDeps: ServeDeps = {}): Promise<InvokeResult> {
   const sub = key(args[0] || '');
   if (!sub || sub === 'help' || sub === '--help' || sub === '-h') return usage();
   const parsed = parse(args.slice(1));
+  if (sub === 'commands') return registryPayload('cli');
   if (sub === 'frontend' || sub === 'ui' || sub === 'open') return runFrontend(parsed, opener, env);
   if (sub === 'studio') return runStudio(parsed, runner, env);
+  if (sub === 'mcp_call') return runMcpCall(args.slice(1), env);
+  if (sub === 'serve' || sub === 'server') return runServe(parsed, runner, env, serveDeps);
+  if (resolveLocalCliName(sub)) return runLocalCli(sub, args.slice(1), runner, env);
+  if (sub === 'vector_config') return runVectorConfig(parsed, request, authHeaders);
   const spec = COMMANDS[sub];
   if (!spec) return usage();
   try {
@@ -210,4 +236,14 @@ export async function runArra(args: string[], request: Requester = requestJson, 
   } catch (error) { return { ok: false, error: error instanceof Error ? error.message : String(error) }; }
 }
 
-export default async function handler(ctx: InvokeContext): Promise<InvokeResult> { return runArra(ctx.args ?? []); }
+export default async function handler(ctx: InvokeContext): Promise<InvokeResult> {
+  const args = apiArgsToCliArgs(ctx.args);
+  if (ctx.source === 'mcp' && args.length && !MCP_COMMANDS.has(key(args[0]))) return { ok: false, error: 'MCP surface exposes read-only commands only' };
+  if (ctx.source !== 'cli' && args.length === 0) return registryPayload(ctx.source);
+  const result = await runArra(args);
+  if (ctx.source === 'cli' && ctx.writer && result.ok && result.output) {
+    ctx.writer(result.output);
+    return { ok: true };
+  }
+  return result;
+}

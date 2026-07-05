@@ -8,12 +8,13 @@
 import { Elysia } from 'elysia';
 import { handleMap } from '../../server/vector-handlers.ts';
 import { createVectorProxy } from '../../server/vector-proxy.ts';
-import { VECTOR_URL } from '../../config.ts';
+import { resolveVectorUrl } from '../../config.ts';
 
-const proxy = createVectorProxy(VECTOR_URL);
+const currentProxy = () => createVectorProxy(resolveVectorUrl());
 
 export const mapEndpoint = new Elysia().get('/map', async ({ set }) => {
   // VECTOR_URL set -> proxy first, fall back to local on failure.
+  const proxy = currentProxy();
   if (proxy) {
     const remote = await proxy.map();
     if (remote) return remote;

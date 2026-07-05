@@ -1,90 +1,75 @@
-# arra-oracle-v3 — multi-target image
-#   Default target: http-server  (port 47778, used by docker-compose.yml)
-#   Alt target:     mcp-stdio     (no port, stdio MCP — for Docker MCP Toolkit)
-#   Alt target:     vector-server (port 47779, standalone vector sidecar)
-#
-# Vector search degrades gracefully to SQLite FTS5 when no Ollama embedding
-# backend is reachable — so both images are fully functional standalone.
+# arra-oracle-v3 — multi-stage, non-root, single-volume image
+#   Default target: http-server  (HTTP API + MCP tool catalog on port 47778)
+#   Alt target:     mcp-stdio    (stdio JSON-RPC MCP server)
+#   Test target:    test         (self-contained bun test + tsc)
+#   Runtime data:   /data        (HOME, SQLite, config, vectors)
 #
 # Build:
-#   docker build -t arra-oracle-v3 .                              # default = http-server
-#   docker build -t arra-oracle-v3:http   --target http-server .  # explicit HTTP server
-#   docker build -t arra-oracle-v3:stdio  --target mcp-stdio .     # MCP stdio variant
-#   docker build -t arra-oracle-v3:vector --target vector-server . # vector sidecar
-#
-# Run http-server (current behavior):
-#   docker run -p 47778:47778 -v arra-data:/data arra-oracle-v3
-#
-# Run mcp-stdio (manual; Docker MCP Gateway normally does this):
-#   docker run -i --rm -v arra-data:/data arra-oracle-v3:stdio
+#   docker build -t arra-oracle-v3 .
+#   docker build -t arra-oracle-v3:http --target http-server .
+#   docker build -t arra-oracle-v3:stdio --target mcp-stdio .
+#   docker build -t arra-test:test --target test .
 
-# ─────────────────────────────────────────────────────────────────────────
-# Stage 1 — builder: resolve production deps, prune cross-arch dead weight
-# ─────────────────────────────────────────────────────────────────────────
-FROM oven/bun:1 AS builder
+FROM oven/bun:1 AS deps
 WORKDIR /app
-
-# --production drops devDependencies (drizzle-kit, better-sqlite3, typescript,
-#   @types/*, bun-types) — none are used at server runtime. The server runs on
-#   Bun's built-in bun:sqlite + drizzle-orm (a real dep, pure JS). Dropping
-#   better-sqlite3 also removes its node-gyp build, so no toolchain is needed.
-# --ignore-scripts is belt-and-suspenders against any other postinstall.
 COPY package.json bun.lock ./
-RUN bun install --production --ignore-scripts \
+COPY frontend/package.json ./frontend/package.json
+COPY workers/mcp/package.json ./workers/mcp/package.json
+RUN bun install --production --frozen-lockfile \
  && rm -rf node_modules/@lancedb/lancedb-*-musl
 
-# ─────────────────────────────────────────────────────────────────────────
-# Stage 2 — base runtime: shared deps + source for all final targets
-# ─────────────────────────────────────────────────────────────────────────
-FROM oven/bun:1-slim AS base
-WORKDIR /app
-
-# HOME must be set — src/config.ts fails fast without it.
-# ORACLE_DATA_DIR holds SQLite (oracle.db), LanceDB collections, and the ψ/ vault.
-ENV HOME=/data \
-    ORACLE_DATA_DIR=/data
-
-# Pruned production node_modules from the builder (glibc lancedb binary only).
-COPY --from=builder /app/node_modules ./node_modules
-# Runtime source only — migrations live in src/db/migrations/*.sql, so src/
-# covers them. bin/cli/docs/e2e/tests/web/services are not needed to serve.
-COPY package.json bun.lock ./
+FROM deps AS builder
+COPY tsconfig.json ./
+COPY packages ./packages
 COPY src ./src
+RUN bun build src/server.ts src/index.ts --target bun --outdir dist \
+ && bun build src/cli/index.ts --target bun --outdir dist-cli
 
-# Persistent state lives here — mount a volume to keep the index across runs.
-RUN mkdir -p /data
+FROM oven/bun:1 AS test
+WORKDIR /app
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3 make g++ \
+ && rm -rf /var/lib/apt/lists/*
+ENV HOME=/tmp \
+    ORACLE_DATA_DIR=/tmp/oracle \
+    ORACLE_LOG_TARGET=stderr \
+    PATH=/app/node_modules/.bin:$PATH
+COPY package.json bun.lock ./
+COPY frontend/package.json ./frontend/package.json
+COPY workers/mcp/package.json ./workers/mcp/package.json
+RUN bun install --frozen-lockfile \
+ && cd frontend \
+ && bun install \
+ && cd /app \
+ && rm -rf node_modules/@lancedb/lancedb-*-musl
+COPY . .
+CMD ["sh", "-c", "bun test --isolate && tsc --noEmit"]
+
+FROM oven/bun:1-slim AS production
+WORKDIR /app
+ENV HOME=/data \
+    ORACLE_DATA_DIR=/data \
+    ORACLE_DB_PATH=/data/oracle.db \
+    ORACLE_LOG_TARGET=stderr \
+    BUN_ENV=production
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/dist-cli ./dist-cli
+COPY --from=builder /app/src/db/migrations ./db/migrations
+COPY package.json bun.lock ./
+RUN mkdir -p /data \
+ && chown -R bun:bun /data
+USER bun
 VOLUME ["/data"]
 
-# ─────────────────────────────────────────────────────────────────────────
-# Target — mcp-stdio (for Docker MCP Toolkit + Gateway)
-# ─────────────────────────────────────────────────────────────────────────
-# This target speaks JSON-RPC on stdin/stdout. NO port, NO stdout logs
-# (the codex-killer bug — see PR #1238). Docker MCP Gateway spawns this
-# container transiently per MCP call.
-FROM base AS mcp-stdio
-# Force any incidental logging to stderr — protect the stdio JSON-RPC channel.
+FROM production AS mcp-stdio
 ENV ORACLE_LOG_TARGET=stderr
-CMD ["bun", "src/index.ts"]
+CMD ["bun", "dist/index.js"]
 
-# ─────────────────────────────────────────────────────────────────────────
-# Target — vector-server (standalone sidecar for VECTOR_URL)
-# ─────────────────────────────────────────────────────────────────────────
-# Runs only vector/search routes and opens oracle.db readonly by default so the
-# core HTTP writer can keep owning SQLite writes. Core points at this with:
-#   VECTOR_URL=http://vector:47779
-FROM base AS vector-server
-ENV ORACLE_VECTOR_SERVER=1 \
-    ORACLE_VECTOR_READONLY=1 \
-    VECTOR_PORT=47779
-EXPOSE 47779
-CMD ["sh", "-c", "touch ${ORACLE_DB_PATH:-/data/oracle.db} && exec bun src/vector-server.ts"]
-
-# ─────────────────────────────────────────────────────────────────────────
-# Target — http-server (DEFAULT; current docker-compose behavior)
-# ─────────────────────────────────────────────────────────────────────────
-# Keep this as the final stage so `docker build .` and docker-compose continue
-# to produce the HTTP server image unless an explicit --target is provided.
-FROM base AS http-server
-ENV ORACLE_PORT=47778
+FROM production AS http-server
+ENV ORACLE_PORT=47778 \
+    PORT=47778
 EXPOSE 47778
-CMD ["bun", "src/server.ts"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD bun -e "const r=await fetch('http://127.0.0.1:47778/api/health');process.exit(r.ok?0:1)"
+CMD ["bun", "dist/server.js"]

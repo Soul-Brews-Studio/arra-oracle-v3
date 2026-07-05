@@ -57,13 +57,13 @@ describe('VECTOR_URL route boundary', () => {
     expect(calls).toContain('GET /api/map');
   });
 
-  test('/api/map3d proxies to the remote vector sidecar', async () => {
+  test('/api/map3d stays on the local DB/FTS globe source', async () => {
     const res = await app.handle(new Request('http://localhost/api/map3d?model=bge-m3'));
     const body = await res.json() as { total: number };
 
     expect(res.status).toBe(200);
-    expect(body.total).toBe(3);
-    expect(calls).toContain('GET /api/map3d?model=bge-m3');
+    expect(body.total).toBe(0);
+    expect(calls).not.toContain('GET /api/map3d?model=bge-m3');
   });
 
   test('/api/vector/index/* proxies to the remote vector sidecar', async () => {

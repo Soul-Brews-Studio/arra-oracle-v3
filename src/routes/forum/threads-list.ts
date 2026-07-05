@@ -1,13 +1,20 @@
 import { Elysia } from 'elysia';
 import { listThreads, getMessages } from '../../forum/handler.ts';
-import { threadsQuery } from './model.ts';
+import { parsePagination, parseThreadStatus, threadsQuery } from './model.ts';
 
-export const threadsListRoute = new Elysia().get('/api/threads', ({ query }) => {
-  const status = query.status as any;
-  const limit = parseInt(query.limit || '20');
-  const offset = parseInt(query.offset || '0');
+export const threadsListRoute = new Elysia().get('/api/threads', ({ query, set }) => {
+  const status = parseThreadStatus(query.status);
+  if (status === null) {
+    set.status = 400;
+    return { error: 'Invalid status (active|answered|pending|closed)' };
+  }
+  const page = parsePagination(query);
+  if ('error' in page) {
+    set.status = 400;
+    return { error: page.error };
+  }
 
-  const threadList = listThreads({ status, limit, offset });
+  const threadList = listThreads({ status, limit: page.limit, offset: page.offset });
   return {
     threads: threadList.threads.map((t) => ({
       id: t.id,

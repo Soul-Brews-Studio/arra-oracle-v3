@@ -1,176 +1,147 @@
-/**
- * Vector Store Factory
- *
- * Creates the right VectorStoreAdapter + EmbeddingProvider from env vars.
- * Supports model-based registry for multi-index (bge-m3 default, nomic, qwen3).
- */
-
-import path from 'path';
 import { VECTORS_DB_PATH, LANCEDB_DIR, CHROMADB_DIR } from '../config.ts';
 import { COLLECTION_NAME } from '../const.ts';
-import type { VectorStoreAdapter, VectorDBType, EmbeddingProviderType } from './types.ts';
+import type { VectorStoreAdapter } from './adapter.ts';
+import type { EmbedderConfig, VectorDBType, EmbeddingProviderType, EmbeddingProvider } from './types.ts';
 import { ChromaMcpAdapter } from './adapters/chroma-mcp.ts';
 import { SqliteVecAdapter } from './adapters/sqlite-vec.ts';
 import { LanceDBAdapter } from './adapters/lancedb.ts';
 import { QdrantAdapter } from './adapters/qdrant.ts';
-import { CloudflareVectorizeAdapter, CloudflareAIEmbeddings } from './adapters/cloudflare-vectorize.ts';
-import { createEmbeddingProvider } from './embeddings.ts';
-import { loadVectorConfig, configToModels, type VectorModelRegistryEntry } from './config.ts';
-import { localNativeVectorDisabledReason, logLocalVectorDisabled } from './cpu-capabilities.ts';
+import { createCloudflareVectorStore, type CloudflareAIWorkerBinding, type CloudflareD1Database, type CloudflareVectorizeBinding } from './adapters/cloudflare.ts';
+import { ProxyVectorAdapter } from './adapters/proxy.ts';
+import { requireVectorProxyContract } from './proxy-contract.ts';
+import { TurboVecAdapter } from './adapters/turbovec.ts';
+import { createEmbeddingProvider, FallbackEmbeddings } from './embeddings.ts';
+import { GeminiEmbeddings } from './providers/gemini.ts';
+import { resolveEmbeddingFallbackChain, resolveEmbeddingModel, resolveEmbeddingProviderType } from './embedder-config.ts';
+import { configPath, loadVectorConfig, resolveServiceEndpoint, configToModels, fallbackCollectionsFor, generateDefaultConfig } from './config.ts';
+import { tenantDataPath } from '../middleware/tenant.ts';
+import { withEmbedderIdentityGuard } from './embedder-identity.ts';
 
+export type { VectorStoreAdapter } from './adapter.ts';
 export interface VectorStoreConfig {
   type?: VectorDBType;
   collectionName?: string;
-  /** ChromaDB data dir, sqlite-vec DB path, or LanceDB directory */
   dataPath?: string;
   pythonVersion?: string;
   embeddingProvider?: EmbeddingProviderType;
   embeddingModel?: string;
-  /** Qdrant URL (default: http://localhost:6333) */
+  embeddingUrl?: string;
+  embeddingDimensions?: number;
+  embeddingFallbackChain?: EmbeddingProviderType[];
   qdrantUrl?: string;
-  /** Qdrant API key */
   qdrantApiKey?: string;
-  /** Cloudflare account ID */
   cfAccountId?: string;
-  /** Cloudflare API token */
   cfApiToken?: string;
+  cfAi?: CloudflareAIWorkerBinding;
+  cfVectorize?: CloudflareVectorizeBinding;
+  cfD1?: CloudflareD1Database;
+  cfD1Table?: string;
+  proxyEndpoint?: string;
 }
-
-/**
- * Create a VectorStoreAdapter from config or env vars.
- *
- * Env vars:
- *   ORACLE_VECTOR_DB          = 'chroma' | 'sqlite-vec' | 'lancedb' | 'qdrant' | 'cloudflare-vectorize'
- *   ORACLE_EMBEDDING_PROVIDER = 'chromadb-internal' | 'ollama' | 'openai' | 'cloudflare-ai'
- *   ORACLE_EMBEDDING_MODEL    = model name override
- *   ORACLE_VECTOR_DB_PATH     = sqlite-vec / lancedb path
- *   CLOUDFLARE_ACCOUNT_ID     = CF account (for cloudflare-vectorize)
- *   CLOUDFLARE_API_TOKEN      = CF API token (for cloudflare-vectorize)
- */
-export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAdapter {
-  const type = config.type
-    || (process.env.ORACLE_VECTOR_DB as VectorDBType)
-    || 'lancedb';
-
-  const collectionName = config.collectionName || COLLECTION_NAME;
-  const disabledReason = localNativeVectorDisabledReason(type);
-  if (disabledReason) {
-    logLocalVectorDisabled(disabledReason);
-    throw new Error(disabledReason);
+export interface EmbeddingModelConfig {
+  collection: string; model: string; adapter?: VectorDBType; dataPath?: string; embedder?: EmbedderConfig;
+  provider?: string; endpoint?: string; pythonVersion?: string; qdrantUrl?: string; qdrantApiKey?: string;
+  cfAccountId?: string; cfApiToken?: string;
+}
+function createConfiguredEmbedder(config: VectorStoreConfig) {
+  const provider = resolveEmbeddingProviderType(config.embeddingProvider ?? (config.embeddingModel ? 'ollama' : undefined));
+  const model = resolveEmbeddingModel(config.embeddingModel);
+  const fallbackChain = resolveEmbeddingFallbackChain(config.embeddingFallbackChain);
+  const options = { url: config.embeddingUrl, dimensions: config.embeddingDimensions, fallbackChain };
+  const chain = [provider, ...fallbackChain].filter((item, index, all) =>
+    item !== 'none' && all.indexOf(item) === index
+  );
+  if (chain.length > 1 && chain.includes('gemini')) {
+    const singleOptions = { url: config.embeddingUrl, dimensions: config.embeddingDimensions };
+    return new FallbackEmbeddings(chain.map((item) => item === 'gemini'
+      ? new GeminiEmbeddings({ model })
+      : createEmbeddingProvider(item, model, singleOptions)));
   }
-
+  if (provider === 'gemini' && fallbackChain.length === 0) return new GeminiEmbeddings({ model });
+  return createEmbeddingProvider(provider, model, options);
+}
+export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAdapter {
+  const type = (clean(config.type) || clean(process.env.ORACLE_VECTOR_DB) || 'lancedb').toLowerCase() as VectorDBType;
+  const collectionName = clean(config.collectionName) || COLLECTION_NAME;
   switch (type) {
     case 'sqlite-vec': {
-      const dbPath = config.dataPath
-        || process.env.ORACLE_VECTOR_DB_PATH
-        || VECTORS_DB_PATH;
-
-      const embeddingType = config.embeddingProvider
-        || (process.env.ORACLE_EMBEDDING_PROVIDER as EmbeddingProviderType)
-        || 'ollama';
-
-      const embeddingModel = config.embeddingModel
-        || process.env.ORACLE_EMBEDDING_MODEL;
-
-      const embedder = createEmbeddingProvider(embeddingType, embeddingModel);
-      return new SqliteVecAdapter(collectionName, dbPath, embedder);
+      const dbPath = tenantDataPath(clean(config.dataPath) || clean(process.env.ORACLE_VECTOR_DB_PATH) || VECTORS_DB_PATH);
+      const embedder = createConfiguredEmbedder(config);
+      return guardVectorStore(new SqliteVecAdapter(collectionName, dbPath, embedder), type, collectionName, embedder, dbPath, config.embeddingModel);
     }
-
     case 'lancedb': {
-      const dbPath = config.dataPath
-        || process.env.ORACLE_VECTOR_DB_PATH
-        || LANCEDB_DIR;
-
-      const embeddingType = config.embeddingProvider
-        || (process.env.ORACLE_EMBEDDING_PROVIDER as EmbeddingProviderType)
-        || 'ollama';
-
-      const embeddingModel = config.embeddingModel
-        || process.env.ORACLE_EMBEDDING_MODEL;
-
-      const embedder = createEmbeddingProvider(embeddingType, embeddingModel);
-      return new LanceDBAdapter(collectionName, dbPath, embedder);
+      const dbPath = tenantDataPath(clean(config.dataPath) || clean(process.env.ORACLE_VECTOR_DB_PATH) || LANCEDB_DIR);
+      const embedder = createConfiguredEmbedder(config);
+      return guardVectorStore(new LanceDBAdapter(collectionName, dbPath, embedder), type, collectionName, embedder, dbPath, config.embeddingModel);
     }
-
     case 'qdrant': {
-      const embeddingType = config.embeddingProvider
-        || (process.env.ORACLE_EMBEDDING_PROVIDER as EmbeddingProviderType)
-        || 'ollama';
-
-      const embeddingModel = config.embeddingModel
-        || process.env.ORACLE_EMBEDDING_MODEL;
-
-      const embedder = createEmbeddingProvider(embeddingType, embeddingModel);
-      return new QdrantAdapter(collectionName, embedder, {
-        url: config.qdrantUrl || process.env.QDRANT_URL,
-        apiKey: config.qdrantApiKey || process.env.QDRANT_API_KEY,
-      });
+      const embedder = createConfiguredEmbedder(config);
+      return guardVectorStore(new QdrantAdapter(collectionName, embedder, {
+        url: clean(config.qdrantUrl) || clean(process.env.QDRANT_URL),
+        apiKey: clean(config.qdrantApiKey) || clean(process.env.QDRANT_API_KEY),
+      }), type, collectionName, embedder, clean(config.qdrantUrl) || clean(process.env.QDRANT_URL), config.embeddingModel);
     }
-
     case 'cloudflare-vectorize': {
-      const cfConfig = {
-        accountId: config.cfAccountId || process.env.CLOUDFLARE_ACCOUNT_ID,
-        apiToken: config.cfApiToken || process.env.CLOUDFLARE_API_TOKEN,
-      };
-
-      const embeddingModel = config.embeddingModel
-        || process.env.ORACLE_EMBEDDING_MODEL;
-
-      // Default to Cloudflare AI embeddings (same platform, zero egress)
-      const embedder = new CloudflareAIEmbeddings({
-        ...cfConfig,
-        model: embeddingModel,
-      });
-
-      return new CloudflareVectorizeAdapter(collectionName, embedder, cfConfig);
+      return createCloudflareVectorStore(collectionName, config);
     }
-
+    case 'proxy': {
+      const contract = requireVectorProxyContract({
+        endpoint: config.proxyEndpoint,
+        collectionName,
+        backend: config.type,
+      });
+      return new ProxyVectorAdapter(collectionName, contract.baseUrl, contract.timeoutMs);
+    }
+    case 'turbovec': {
+      return new TurboVecAdapter(collectionName, clean(config.proxyEndpoint));
+    }
     case 'chroma':
     default: {
-      const dataPath = config.dataPath || CHROMADB_DIR;
-      const pythonVersion = config.pythonVersion || '3.12';
+      const dataPath = tenantDataPath(clean(config.dataPath) || CHROMADB_DIR);
+      const pythonVersion = clean(config.pythonVersion) || '3.12';
       return new ChromaMcpAdapter(collectionName, dataPath, pythonVersion);
     }
   }
 }
-
-// ============================================================================
-// Model-based registry for dual-index search
-// ============================================================================
-
-export function getEmbeddingModels(): Record<string, VectorModelRegistryEntry> {
-  // If vector-server.json exists, use it as source of truth (#1071 phase 2)
-  const cfg = loadVectorConfig();
-  if (cfg) return configToModels(cfg);
-
-  // Hardcoded fallback — always works even without config file
-  return {
-    nomic: {
-      adapter: 'lancedb',
-      collection: COLLECTION_NAME,
-      model: 'nomic-embed-text',
-      dataPath: LANCEDB_DIR,
-      provider: 'ollama',
-    },
-    qwen3: {
-      adapter: 'lancedb',
-      collection: 'oracle_knowledge_qwen3',
-      model: 'qwen3-embedding',
-      dataPath: LANCEDB_DIR,
-      provider: 'ollama',
-    },
-    'bge-m3': {
-      adapter: 'lancedb',
-      collection: 'oracle_knowledge_bge_m3',
-      model: 'bge-m3',
-      dataPath: LANCEDB_DIR,
-      provider: 'ollama',
-    },
-  };
+function guardVectorStore<T extends VectorStoreAdapter>(
+  store: T, adapterName: VectorDBType, collectionName: string, embedder: EmbeddingProvider,
+  storagePath?: string, modelName?: string,
+): T {
+  return withEmbedderIdentityGuard(store, {
+    adapterName,
+    collectionName,
+    embedder,
+    modelName: resolveEmbeddingModel(modelName),
+    storagePath,
+  });
 }
-
-/** @deprecated Use getEmbeddingModels() — kept for backward compat */
-export const EMBEDDING_MODELS = new Proxy({} as Record<string, VectorModelRegistryEntry>, {
+function loadActiveVectorConfig(): ReturnType<typeof loadVectorConfig> {
+  const dataDir = process.env.ORACLE_DATA_DIR;
+  return loadVectorConfig(dataDir ? configPath(dataDir) : configPath());
+}
+export function getEmbeddingModels(
+  cfg: ReturnType<typeof loadVectorConfig> = loadActiveVectorConfig(),
+): Record<string, EmbeddingModelConfig> {
+  const fallbackFromFallbackCollections = cfg ? fallbackCollectionsFor(cfg) : [];
+  if (cfg && Object.keys(cfg.collections).length > 0) return configToModels(cfg);
+  if (cfg && fallbackFromFallbackCollections.length > 0) {
+    const modelMap: Record<string, EmbeddingModelConfig> = {};
+    for (const col of fallbackFromFallbackCollections) {
+      const serviceName = col.service;
+      const storageService = serviceName ? cfg.storage?.services[serviceName] : undefined;
+      modelMap[col.collection] = {
+        collection: col.collection,
+        model: col.model,
+        adapter: storageService?.type === 'proxy' ? 'proxy' : col.adapter,
+        endpoint: resolveServiceEndpoint(cfg, serviceName),
+      };
+    }
+    return modelMap;
+  }
+  if (cfg) return configToModels(cfg);
+  return configToModels(generateDefaultConfig());
+}
+export const EMBEDDING_MODELS = new Proxy({} as Record<string, EmbeddingModelConfig>, {
   get(_, prop: string) { return getEmbeddingModels()[prop]; },
   has(_, prop: string) { return prop in getEmbeddingModels(); },
   ownKeys() { return Object.keys(getEmbeddingModels()); },
@@ -180,24 +151,29 @@ export const EMBEDDING_MODELS = new Proxy({} as Record<string, VectorModelRegist
     return undefined;
   },
 });
-
 const modelStoreCache = new Map<string, VectorStoreAdapter>();
-
-/**
- * Get a vector store for a specific embedding model.
- * Uses LanceDB + Ollama. Caches instances by model key.
- */
 const connectPromises = new Map<string, Promise<void>>();
-
-export function getVectorStoreConfigByModel(model?: string): VectorStoreConfig {
-  const models = getEmbeddingModels();
-  const key = model && models[model] ? model : 'bge-m3';
-  const preset = models[key];
+function resolveModelKey(model: string | undefined, models: Record<string, EmbeddingModelConfig>): string {
+  const key = model && models[model] ? model : (models['bge-m3'] ? 'bge-m3' : Object.keys(models)[0]);
+  if (!key) throw new Error('No embedding models configured');
+  return key;
+}
+export function createVectorStoreForModel(preset: EmbeddingModelConfig): VectorStoreAdapter {
+  return createVectorStore(vectorStoreConfigFromPreset(preset));
+}
+function vectorStoreConfigFromPreset(preset: EmbeddingModelConfig): VectorStoreConfig {
   return {
     type: preset.adapter || 'lancedb',
     collectionName: preset.collection,
-    embeddingProvider: preset.provider || 'ollama',
-    embeddingModel: preset.model,
+    embeddingProvider: resolveEmbeddingProviderType(
+      (preset.provider as EmbeddingProviderType | undefined) ?? preset.embedder?.backend,
+    ),
+    embeddingModel: preset.embedder?.model || preset.model,
+    embeddingUrl: preset.embedder?.url,
+    embeddingDimensions: preset.embedder?.dimensions,
+    embeddingFallbackChain: preset.embedder?.fallbackChain
+      ?? (preset.embedder?.fallback ? [preset.embedder.fallback] : undefined),
+    proxyEndpoint: preset.endpoint,
     ...(preset.dataPath && { dataPath: preset.dataPath }),
     ...(preset.pythonVersion && { pythonVersion: preset.pythonVersion }),
     ...(preset.qdrantUrl && { qdrantUrl: preset.qdrantUrl }),
@@ -206,28 +182,65 @@ export function getVectorStoreConfigByModel(model?: string): VectorStoreConfig {
     ...(preset.cfApiToken && { cfApiToken: preset.cfApiToken }),
   };
 }
-
-export function getVectorStoreByModel(model?: string): VectorStoreAdapter {
-  const models = getEmbeddingModels();
-  const key = model && models[model] ? model : 'bge-m3';
+export function getVectorStoreConfigByModel(
+  model?: string,
+  models = getEmbeddingModels(),
+): VectorStoreConfig {
+  const key = resolveModelKey(model, models);
+  return vectorStoreConfigFromPreset(models[key]);
+}
+export function getVectorStoreByModel(
+  model?: string,
+  models = getEmbeddingModels(),
+  connectStore: (store: VectorStoreAdapter) => Promise<void> = (store) => store.connect(),
+): VectorStoreAdapter {
+  const key = resolveModelKey(model, models);
   let store = modelStoreCache.get(key);
   if (!store) {
-    store = createVectorStore(getVectorStoreConfigByModel(model));
+    const preset = models[key];
+    store = createVectorStoreForModel(preset);
     modelStoreCache.set(key, store);
-    // Auto-connect in background (non-blocking)
-    connectPromises.set(key, store.connect().catch(e =>
+    const newStore = store;
+    connectPromises.set(key, Promise.resolve().then(() => connectStore(newStore)).catch(e =>
       console.warn(`[VectorRegistry] Failed to connect ${key}:`, e instanceof Error ? e.message : String(e))
     ));
   }
   return store;
 }
-
-/** Ensure a model's store is connected. Call before first query. */
-export async function ensureVectorStoreConnected(model?: string): Promise<VectorStoreAdapter> {
-  const models = getEmbeddingModels();
-  const key = model && models[model] ? model : 'bge-m3';
-  const store = getVectorStoreByModel(model);
+export async function ensureVectorStoreConnected(
+  model?: string,
+  models = getEmbeddingModels(),
+): Promise<VectorStoreAdapter> {
+  const key = resolveModelKey(model, models);
+  const store = getVectorStoreByModel(model, models);
   const pending = connectPromises.get(key);
   if (pending) await pending;
   return store;
+}
+export async function closeCachedVectorStores(): Promise<void> {
+  const stores = [...modelStoreCache.values()];
+  modelStoreCache.clear(); connectPromises.clear();
+  await Promise.all(stores.map((store) => store.close().catch((e) =>
+    console.warn(`[VectorRegistry] Failed to close ${store.name}:`, e instanceof Error ? e.message : String(e))
+  )));
+}
+export async function reloadCachedVectorStores(
+  models = getEmbeddingModels(),
+  connectStore: (store: VectorStoreAdapter) => Promise<void> = (store) => store.connect(),
+): Promise<{ reloaded: number }> {
+  const keys = [...modelStoreCache.keys()];
+  await closeCachedVectorStores();
+  const reloadKeys = keys.filter((key) => key in models);
+  await Promise.all(reloadKeys.map(async (key) => {
+    const store = getVectorStoreByModel(key, models, connectStore);
+    const pending = connectPromises.get(key);
+    if (pending) await pending;
+    return store;
+  }));
+  return { reloaded: reloadKeys.length };
+}
+
+function clean(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
 }

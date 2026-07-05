@@ -4,85 +4,40 @@
  * Phase 2 of #1071: the config file describes collections, models,
  * and deployment settings for the standalone vector server (Phase 3).
  *
- * The file is optional. When absent, getEmbeddingModels() returns
- * hardcoded defaults. When present, it's the source of truth.
+ * The file is optional. When absent, getEmbeddingModels() returns the
+ * default-safe sqlite-vec config. When present, it's the source of truth.
  */
 
 import fs from 'fs';
 import path from 'path';
-import { ORACLE_DATA_DIR, LANCEDB_DIR, VECTORS_DB_PATH } from '../config.ts';
-import { COLLECTION_NAME } from '../const.ts';
-import type { EmbeddingProviderType, VectorDBType } from './types.ts';
+import { ORACLE_DATA_DIR } from '../config.ts';
+import { DEFAULT_SAFE_VECTOR_ENGINE, DEFAULT_VECTOR_LOCAL_ENGINES } from '../config/defaults.ts';
+import { COLLECTION_NAME, LANCEDB_DIR_NAME, VECTORS_DB_FILE } from '../const.ts';
+import type { VectorDBType } from './types.ts';
+import type { LocalVectorEngine, VectorCollectionConfig, VectorConfigUpdate, VectorProxyManifest, VectorServerConfig, VectorStorageConfig } from './config-types.ts';
+import { zeroConfigEmbedder } from './default-embedder.ts';
+import { normalizeVectorConfig } from './config-normalize.ts';
 
 export const VECTOR_CONFIG_FILE = 'vector-server.json';
-export const LOCAL_VECTOR_ENGINES = ['lancedb', 'qdrant', 'sqlite-vec'] as const;
-export type LocalVectorEngine = typeof LOCAL_VECTOR_ENGINES[number];
+export const LOCAL_VECTOR_ENGINES = DEFAULT_VECTOR_LOCAL_ENGINES;
+export type { LocalVectorEngine, VectorCollectionConfig, VectorConfigUpdate, VectorProxyManifest, VectorServerConfig, VectorServerV2Storage, VectorStorageConfig, VectorStorageService, VectorModelRegistryEntry } from './config-types.ts';
+export { configToModels, resolveServiceEndpoint } from './config-models.ts';
 
-export interface VectorCollectionConfig {
-  collection: string;
-  model: string;
-  provider: EmbeddingProviderType;
-  adapter?: VectorDBType;
-  dataPath?: string;
-  pythonVersion?: string;
-  qdrantUrl?: string;
-  qdrantApiKey?: string;
-  cfAccountId?: string;
-  cfApiToken?: string;
-  primary?: boolean;
+function currentDataDir(): string {
+  return process.env.ORACLE_DATA_DIR || ORACLE_DATA_DIR;
 }
 
-
-export interface VectorConfigUpdateCollection {
-  collection?: string;
-  model?: string;
-  provider?: EmbeddingProviderType;
-  adapter?: LocalVectorEngine;
-  dataPath?: string;
-  pythonVersion?: string;
-  qdrantUrl?: string;
-  qdrantApiKey?: string;
-  primary?: boolean;
+function defaultLanceDbDir(): string {
+  return path.join(currentDataDir(), LANCEDB_DIR_NAME);
 }
 
-export interface VectorConfigUpdate {
-  enabled?: boolean;
-  engine?: LocalVectorEngine;
-  dataPath?: string;
-  embeddingEndpoint?: string;
-  /** Remote vector service base URL for backend-to-backend VECTOR_URL proxying. */
-  vectorProxyUrl?: string;
-  collections?: Record<string, VectorConfigUpdateCollection>;
-}
-
-export interface VectorServerConfig {
-  version: string;
-  enabled?: boolean;
-  host: string;
-  port: number;
-  /** Optional remote vector service base URL used by core server proxy mode. */
-  vectorProxyUrl?: string;
-  collections: Record<string, VectorCollectionConfig>;
-  dataPath: string;
-  embeddingEndpoint: string;
-}
-
-export interface VectorModelRegistryEntry {
-  collection: string;
-  model: string;
-  dataPath?: string;
-  adapter?: VectorDBType;
-  provider?: EmbeddingProviderType;
-  pythonVersion?: string;
-  qdrantUrl?: string;
-  qdrantApiKey?: string;
-  cfAccountId?: string;
-  cfApiToken?: string;
+function defaultVectorsDbPath(): string {
+  return path.join(currentDataDir(), VECTORS_DB_FILE);
 }
 
 /** Absolute path to vector-server.json inside ORACLE_DATA_DIR. */
-export function configPath(): string {
-  return path.join(ORACLE_DATA_DIR, VECTOR_CONFIG_FILE);
+export function configPath(dataDir = process.env.ORACLE_DATA_DIR || ORACLE_DATA_DIR): string {
+  return path.join(dataDir, VECTOR_CONFIG_FILE);
 }
 
 /**
@@ -90,6 +45,8 @@ export function configPath(): string {
  * This is the "factory" version — users can tweak after writing to disk.
  */
 export function generateDefaultConfig(): VectorServerConfig {
+  const adapter = DEFAULT_SAFE_VECTOR_ENGINE;
+  const dataPath = defaultDataPathForEngine(adapter);
   return {
     version: '1.0',
     enabled: false,
@@ -97,40 +54,57 @@ export function generateDefaultConfig(): VectorServerConfig {
     port: 8081,
     collections: {
       'bge-m3': {
-        adapter: 'lancedb',
         collection: 'oracle_knowledge_bge_m3',
         model: 'bge-m3',
         provider: 'ollama',
+        adapter,
         primary: true,
+        embedder: zeroConfigEmbedder('bge-m3'),
       },
       nomic: {
-        adapter: 'lancedb',
         collection: COLLECTION_NAME,
         model: 'nomic-embed-text',
         provider: 'ollama',
+        adapter,
+        embedder: zeroConfigEmbedder('nomic-embed-text'),
       },
       qwen3: {
-        adapter: 'lancedb',
         collection: 'oracle_knowledge_qwen3',
         model: 'qwen3-embedding',
         provider: 'ollama',
+        adapter,
+        embedder: zeroConfigEmbedder('qwen3-embedding'),
       },
     },
-    dataPath: LANCEDB_DIR,
-    embeddingEndpoint: 'http://localhost:11434',
+    dataPath,
+    embeddingEndpoint: '',
+    storage: {
+      default: adapter,
+      services: {
+        [adapter]: { type: 'builtin' },
+      },
+    },
+    proxy: defaultVectorProxyManifest(),
   };
+}
+
+export function defaultVectorProxyManifest(): VectorProxyManifest[] {
+  return [{
+    path: '/api/vector-db',
+    targetEnv: 'VECTOR_DB_URL',
+    stripPrefix: true,
+  }];
 }
 
 /**
  * Load vector-server.json from ORACLE_DATA_DIR.
  * Returns null if the file doesn't exist or is unparseable.
  */
-export function loadVectorConfig(): VectorServerConfig | null {
-  const fp = configPath();
+export function loadVectorConfig(fp = configPath()): VectorServerConfig | null {
   if (!fs.existsSync(fp)) return null;
   try {
     const raw = fs.readFileSync(fp, 'utf-8');
-    return JSON.parse(raw) as VectorServerConfig;
+    return normalizeVectorConfig(JSON.parse(raw), generateDefaultConfig());
   } catch (e) {
     console.warn('[VectorConfig] Failed to parse ' + fp + ':', e instanceof Error ? e.message : e);
     return null;
@@ -141,47 +115,32 @@ export function loadVectorConfig(): VectorServerConfig | null {
  * Write vector-server.json to ORACLE_DATA_DIR.
  * Creates the directory if needed.
  */
-export function writeVectorConfig(config: VectorServerConfig): string {
-  const fp = configPath();
+export function writeVectorConfig(config: VectorServerConfig, fp = configPath()): string {
   fs.mkdirSync(path.dirname(fp), { recursive: true });
   fs.writeFileSync(fp, JSON.stringify(config, null, 2) + '\n', 'utf-8');
   return fp;
 }
 
-/**
- * Derive the getEmbeddingModels()-compatible registry from a VectorServerConfig.
- * Used by factory.ts to let the config file override hardcoded models.
- */
-export function configToModels(
-  config: VectorServerConfig,
-): Record<string, VectorModelRegistryEntry> {
-  const out: Record<string, VectorModelRegistryEntry> = {};
-  for (const [key, col] of Object.entries(config.collections)) {
-    out[key] = {
-      collection: col.collection,
-      model: col.model,
-      adapter: col.adapter,
-      provider: col.provider,
-      dataPath: col.dataPath || config.dataPath || undefined,
-      pythonVersion: col.pythonVersion,
-      qdrantUrl: col.qdrantUrl,
-      qdrantApiKey: col.qdrantApiKey,
-      cfAccountId: col.cfAccountId,
-      cfApiToken: col.cfApiToken,
-    };
-  }
-  return out;
+export function isV2Config(config: VectorServerConfig): boolean {
+  return config.version.startsWith('2') || Boolean(config.storage);
 }
 
+export function getBuiltInStorageService(config: VectorServerConfig): VectorStorageConfig | null {
+  const storage = config.storage;
+  if (!storage) return null;
+  const primary = storage.services[storage.default];
+  if (!primary || primary.type !== 'builtin') return null;
+  return storage;
+}
 
 export function isLocalVectorEngine(value: unknown): value is LocalVectorEngine {
   return typeof value === 'string' && (LOCAL_VECTOR_ENGINES as readonly string[]).includes(value);
 }
 
 export function defaultDataPathForEngine(engine: LocalVectorEngine): string {
-  if (engine === 'sqlite-vec') return VECTORS_DB_PATH;
+  if (engine === 'sqlite-vec') return defaultVectorsDbPath();
   if (engine === 'qdrant') return '';
-  return LANCEDB_DIR;
+  return defaultLanceDbDir();
 }
 
 export function activeVectorEngine(config: VectorServerConfig): VectorDBType {
@@ -196,11 +155,8 @@ export function applyVectorConfigUpdate(
   const next: VectorServerConfig = structuredClone(base);
 
   if (update.enabled !== undefined) next.enabled = update.enabled;
-
   if (update.engine !== undefined) {
-    if (!isLocalVectorEngine(update.engine)) {
-      throw new Error(`Unsupported local vector engine: ${String(update.engine)}`);
-    }
+    if (!isLocalVectorEngine(update.engine)) throw new Error(`Unsupported local vector engine: ${String(update.engine)}`);
     next.dataPath = update.dataPath ?? defaultDataPathForEngine(update.engine);
     for (const collection of Object.values(next.collections)) {
       collection.adapter = update.engine;
@@ -223,7 +179,7 @@ export function applyVectorConfigUpdate(
     const existing = next.collections[key] ?? {
       collection: key,
       model: key,
-      provider: 'ollama' as EmbeddingProviderType,
+      provider: 'ollama',
       adapter: update.engine ?? activeVectorEngine(next),
     };
     if (patch.adapter !== undefined && !isLocalVectorEngine(patch.adapter)) {
@@ -245,11 +201,28 @@ export function applyVectorConfigUpdate(
     const keep = primaryKeys[0];
     for (const [key, collection] of Object.entries(next.collections)) collection.primary = key === keep;
   }
-
   return next;
 }
 
-
 export function isVectorSectionEnabled(config: VectorServerConfig | null = loadVectorConfig()): boolean {
   return config?.enabled === true || process.env.ORACLE_VECTOR_ENABLED === '1';
+}
+
+export function fallbackCollectionsFor(config: VectorServerConfig): VectorCollectionConfig[] {
+  if (Object.keys(config.collections).length > 0) return [];
+  if (!config.storage) return [];
+
+  const storageService = getBuiltInStorageService(config);
+  if (!storageService) return [];
+
+  return Object.entries(storageService.services)
+    .filter(([, svc]) => svc.type === 'builtin')
+    .map(([name]) => ({
+      collection: `oracle_knowledge_${name.replace(/[^a-z0-9]+/g, '_')}`,
+      model: 'bge-m3',
+      provider: 'none',
+      adapter: isLocalVectorEngine(name) ? name : DEFAULT_SAFE_VECTOR_ENGINE,
+      service: name,
+      primary: name === storageService.default,
+    }));
 }

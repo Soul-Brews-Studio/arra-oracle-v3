@@ -9,9 +9,15 @@ const ConceptsQuery = t.Object({
   type: t.Optional(t.String()),
 });
 
+function parseLimit(value: string | undefined): number | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed || !/^\d+$/.test(trimmed)) return undefined;
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 function toConceptsInput(query: { limit?: string; type?: string }): OracleConceptsInput {
-  const parsedLimit = query.limit ? parseInt(query.limit, 10) : NaN;
-  const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : undefined;
+  const limit = parseLimit(query.limit);
   const type = ['principle', 'pattern', 'learning', 'retro', 'all'].includes(query.type ?? '')
     ? query.type as OracleConceptsInput['type']
     : 'all';

@@ -1,19 +1,15 @@
 /**
  * ARRA Oracle HTTP API helper for arra-cli plugins.
  *
- * Resolves in priority order:
- * ORACLE_API env → --at <target> → project .arra config → global
- * ~/.config/arra config → localhost default.
- * Note: issue #770 spec listed 3457 — real oracle default is 47778.
+ * Resolves ORACLE_API, --at, project/global ARRA config, then legacy NEO_ARRA_API
+ * (default http://localhost:47778).
+ * Note: issue #770 spec listed 3457 — real oracle default is 47778 (ORACLE_DEFAULT_PORT).
+ * Override: ORACLE_API=http://localhost:47778 arra-cli <cmd>
  */
 
-import { resolveOracleApi } from "./config.ts";
+import { oracleApiBase } from "./config.ts";
 
-export function oracleApiBase(): string {
-  return resolveOracleApi().baseUrl;
-}
-
-export const BASE_URL = oracleApiBase();
+export { oracleApiBase };
 
 export async function apiFetch(path: string, opts?: RequestInit): Promise<Response> {
   const baseUrl = oracleApiBase();
@@ -25,7 +21,7 @@ export async function apiFetch(path: string, opts?: RequestInit): Promise<Respon
     throw new Error(
       `Cannot reach ARRA Oracle at ${baseUrl}\n` +
       `  → Is the server running? Try: bun run server  (in arra-oracle-v3 repo)\n` +
-      `  → Override with ORACLE_API=http://localhost:<port>\n` +
+      `  → Override with ORACLE_API=http://localhost:<port> or arra --at <target> <command>\n` +
       `  Original: ${msg}`
     );
   }

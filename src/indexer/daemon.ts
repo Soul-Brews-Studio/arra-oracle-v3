@@ -13,46 +13,46 @@
  * Design: ψ/lab/indexer-cli/DESIGN.md
  */
 
-import Database from 'bun:sqlite';
 import { Elysia } from 'elysia';
-import { DB_PATH, LANCEDB_DIR } from '../config.ts';
-import { createVectorStore, getEmbeddingModels } from '../vector/factory.ts';
+import { eq } from 'drizzle-orm';
+import { DB_PATH, REPO_ROOT } from '../config.ts';
+import { createDatabase, oracleFts } from '../db/index.ts';
+import { createVectorStoreForModel, getEmbeddingModels } from '../vector/factory.ts';
 import { runWorker, type WorkerEvent } from './worker.ts';
 import { daemonApiPlugin, makeEventBus } from '../routes/indexer-daemon/index.ts';
+import { startLearnWatcher, type StopWatch } from './learn-watcher.ts';
 
 const PORT = parseInt(process.env.INDEXER_PORT || '47779', 10);
 const HOST = process.env.INDEXER_HOST || '127.0.0.1';
 
 export async function startDaemon(): Promise<void> {
-  const db = new Database(DB_PATH);
+  const { sqlite, db, storage } = createDatabase(DB_PATH);
   // Ensure WAL so concurrent readers (arra-oracle-v3) don't block writes.
-  db.exec('PRAGMA journal_mode = WAL');
+  sqlite.exec('PRAGMA journal_mode = WAL');
 
   const models = getEmbeddingModels();
   const eventBus = makeEventBus<WorkerEvent>();
   let shuttingDown = false;
+  let stopLearnWatcher: StopWatch | undefined;
 
   // Resolve doc text via the FTS5 mirror table — same content oracle_learn writes.
   const getDocText = (docId: string): string | null => {
-    const row = db
-      .query<{ content: string }, [string]>('SELECT content FROM oracle_fts WHERE id = ?')
-      .get(docId);
+    const row = db.select({ content: oracleFts.content })
+      .from(oracleFts)
+      .where(eq(oracleFts.id, docId))
+      .get();
     return row?.content ?? null;
   };
 
   // Embed via the existing factory — produces a model-aware OllamaEmbeddings.
   // Lazy per model so we don't spin up unused embedders.
-  const stores = new Map<string, ReturnType<typeof createVectorStore>>();
-  const getStore = async (modelKey: string, collection: string) => {
+  const stores = new Map<string, ReturnType<typeof createVectorStoreForModel>>();
+  const getStore = async (modelKey: string) => {
     let s = stores.get(modelKey);
     if (!s) {
-      s = createVectorStore({
-        type: 'lancedb',
-        dataPath: LANCEDB_DIR,
-        collectionName: collection,
-        embeddingProvider: 'ollama',
-        embeddingModel: modelKey,
-      });
+      const preset = models[modelKey];
+      if (!preset) throw new Error(`Unknown model_key: ${modelKey}`);
+      s = createVectorStoreForModel(preset);
       await s.connect();
       await s.ensureCollection();
       stores.set(modelKey, s);
@@ -63,7 +63,7 @@ export async function startDaemon(): Promise<void> {
   const embed = async (modelKey: string, text: string): Promise<number[]> => {
     const preset = models[modelKey];
     if (!preset) throw new Error(`Unknown model_key: ${modelKey}`);
-    const store = await getStore(modelKey, preset.collection);
+    const store = await getStore(modelKey);
     const embedder = (store as { embedder?: { embed: (texts: string[], type?: 'query' | 'passage') => Promise<number[][]> } }).embedder;
     if (!embedder) throw new Error(`No embedder on store for ${modelKey}`);
     const [vector] = await embedder.embed([text], 'passage');
@@ -74,7 +74,7 @@ export async function startDaemon(): Promise<void> {
     const entry = Object.entries(models).find(([, m]) => m.collection === collection);
     if (!entry) throw new Error(`No registered model has collection: ${collection}`);
     const [modelKey] = entry;
-    const store = await getStore(modelKey, collection);
+    const store = await getStore(modelKey);
     await store.addDocuments([{ id: docId, document: '', metadata: { id: docId, indexed_at: Date.now() } }]);
     // TODO: extend VectorStoreAdapter with `upsert(id, vector, metadata)`
     // that doesn't re-embed. For now we accept the extra Ollama call.
@@ -84,7 +84,7 @@ export async function startDaemon(): Promise<void> {
   const workerPromises: Promise<unknown>[] = [];
   for (const modelKey of Object.keys(models)) {
     const p = runWorker(modelKey, {
-      db,
+      db: sqlite,
       getDocText,
       embed,
       upsertVector,
@@ -104,7 +104,7 @@ export async function startDaemon(): Promise<void> {
     })
     .use(
       daemonApiPlugin({
-        db,
+        db: sqlite,
         models,
         isShuttingDown: () => shuttingDown,
         requestShutdown: () => { shuttingDown = true; },
@@ -116,14 +116,22 @@ export async function startDaemon(): Promise<void> {
   console.log(`[arra-indexer] listening on http://${HOST}:${PORT}`);
   console.log(`[arra-indexer] models: ${Object.keys(models).join(', ')}`);
 
+  stopLearnWatcher = startLearnWatcher({
+    db: sqlite,
+    models,
+    repoRoot: REPO_ROOT,
+  });
+
   const shutdown = async (signal: string) => {
     console.log(`[arra-indexer] ${signal} — draining…`);
     shuttingDown = true;
+    stopLearnWatcher?.();
+    stopLearnWatcher = undefined;
     await app.stop();
     // Workers exit on next loop tick. Give them up to 5s of in-flight grace.
     const timeout = new Promise((resolve) => setTimeout(resolve, 5000));
     await Promise.race([Promise.all(workerPromises), timeout]);
-    db.close();
+    storage.close();
     console.log(`[arra-indexer] stopped.`);
     process.exit(0);
   };

@@ -8,10 +8,12 @@ function showHelp(): void {
 Usage:
   arra-oracle [serve] [options]
   arra-oracle mcp [--read-only]
+  arra-oracle mine <dir> [--watch]
 
 Commands:
   serve        Run the HTTP server (default)
   mcp          Run the stdio MCP server
+  mine         Ingest a folder into Oracle memory
 
 Serve options:
   --port <n>    Port to listen on (default: 47778, env: ORACLE_PORT)
@@ -21,17 +23,41 @@ Legacy aliases kept working: arra-oracle-v3, arra-oracle-v2.
 Once running, open the UI with: bunx oracle-studio`);
 }
 
+if (command === "mine") {
+  const { mineCommand } = await import("../src/cli/mine.ts");
+  process.exit(await mineCommand(args.slice(1)));
+}
+
 if (args.includes("--help") || args.includes("-h")) {
   showHelp();
   process.exit(0);
 }
 
 if (command === "mcp") {
+  const bad = args.slice(1).find((arg) => arg !== "--read-only");
+  if (bad) {
+    console.error(`Error: unknown mcp option: ${bad}`);
+    showHelp();
+    process.exit(1);
+  }
   process.env.ORACLE_LOG_TARGET ??= "stderr";
   console.log = (...data: unknown[]) => console.error(...data);
-  await import("../src/index.ts");
+  const { main } = await import("../src/index.ts");
+  await main();
 } else {
   const serveArgs = command === "serve" ? args.slice(1) : args;
+  for (let i = 0; i < serveArgs.length; i++) {
+    const arg = serveArgs[i];
+    if (arg === "--port") {
+      i++;
+      continue;
+    }
+    if (arg?.startsWith("-")) {
+      console.error(`Error: unknown serve option: ${arg}`);
+      showHelp();
+      process.exit(1);
+    }
+  }
   const portIdx = serveArgs.indexOf("--port");
   if (portIdx !== -1) {
     const val = serveArgs[portIdx + 1];
@@ -42,12 +68,7 @@ if (command === "mcp") {
     process.env.ORACLE_PORT = val;
   }
 
-  // Load server module (registers routes + plugins via Elysia setup).
-  // Bun's `export default { port, fetch }` auto-server pattern only fires when
-  // the file is the entry script. When bin/arra.ts wraps server.ts via
-  // `await import()`, the export becomes plain data and no listener is bound.
-  // Call Bun.serve() explicitly so the wrapper actually starts a server.
-  const { default: appSpec } = await import("../src/server.ts");
-  const server = Bun.serve(appSpec);
+  const { startServer } = await import("../src/server.ts");
+  const server = await startServer();
   console.log(`🔮 Arra Oracle HTTP server → http://localhost:${server.port}`);
 }

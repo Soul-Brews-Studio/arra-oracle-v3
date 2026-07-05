@@ -9,6 +9,7 @@ import {
   normalizeFtsScore,
   parseConceptsFromMetadata,
   combineResults,
+  applyEntityLinkBoost,
 } from '../search.ts';
 
 // ============================================================================
@@ -41,6 +42,13 @@ describe('sanitizeFtsQuery', () => {
   it('should preserve valid queries', () => {
     expect(sanitizeFtsQuery('oracle philosophy')).toBe('\"oracle\" OR \"philosophy\"');
     expect(sanitizeFtsQuery('git safety')).toBe('\"git\" OR \"safety\"');
+  });
+
+  it('should append acronym expansions to MCP search tokens', () => {
+    const query = sanitizeFtsQuery('CORS PNA vector URL preflight');
+    expect(query).toContain('\"Cross\" OR \"Origin\" OR \"Resource\" OR \"Sharing\"');
+    expect(query).toContain('\"Access\" OR \"Control\" OR \"Allow\"');
+    expect(query).toContain('\"vectorAvailable\"');
   });
 
   it('should handle colons which break FTS5', () => {
@@ -157,5 +165,38 @@ describe('combineResults', () => {
     expect(combineResults([], [])).toEqual([]);
     expect(combineResults(ftsResults, [])).toHaveLength(2);
     expect(combineResults([], vectorResults)).toHaveLength(2);
+  });
+});
+
+
+// ============================================================================
+// applyEntityLinkBoost
+// ============================================================================
+
+describe('applyEntityLinkBoost', () => {
+  const results = [
+    { id: 'plain', type: 'learning', content: 'Plain', source_file: 'plain.md', concepts: [], score: 0.6, source: 'fts' as const },
+    { id: 'linked', type: 'learning', content: 'Linked', source_file: 'linked.md', concepts: [], score: 0.45, source: 'fts' as const },
+  ];
+
+  it('should boost linked documents enough to affect rank', () => {
+    const boosted = applyEntityLinkBoost(results, [
+      { sourceDocId: 'linked', entity: 'Cloudflare Workers', score: 0.9 },
+    ]);
+
+    expect(boosted.boosted).toBe(1);
+    expect(boosted.results[0].id).toBe('linked');
+    expect(boosted.results[0].entityLinkScore).toBe(0.9);
+    expect(boosted.results[0].entityLinkMatches).toEqual(['Cloudflare Workers']);
+  });
+
+  it('should leave scores and order unchanged when no entity hits match', () => {
+    const boosted = applyEntityLinkBoost(results, [
+      { sourceDocId: 'other', entity: 'Other', score: 1 },
+    ]);
+
+    expect(boosted.boosted).toBe(0);
+    expect(boosted.results.map((result) => result.id)).toEqual(['plain', 'linked']);
+    expect(boosted.results.map((result) => result.score)).toEqual([0.6, 0.45]);
   });
 });

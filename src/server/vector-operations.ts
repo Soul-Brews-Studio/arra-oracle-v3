@@ -1,5 +1,6 @@
-import { inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { db, oracleDocuments } from '../db/index.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 import {
   createVectorStore,
   ensureVectorStoreConnected,
@@ -7,57 +8,10 @@ import {
   getVectorStoreConfigByModel,
 } from '../vector/factory.ts';
 import { localNativeVectorDisabledReason, localVectorIndexMissingReason } from '../vector/cpu-capabilities.ts';
-import type { EmbeddingProviderType, VectorDBType, VectorDocument, VectorStoreAdapter } from '../vector/types.ts';
+import { selectVectorSearchModelKeys } from '../vector/model-selection.ts';
+import type { VectorStoreAdapter } from '../vector/types.ts';
 import type { SearchResult } from './types.ts';
-
-export interface VectorSearchInput {
-  query: string;
-  type?: string;
-  limit?: number;
-  project?: string | null;
-  model?: string;
-}
-
-export interface VectorSearchOutput {
-  results: SearchResult[];
-  total?: number;
-}
-
-export interface VectorStatsOutput {
-  vector: { enabled: boolean; count: number; collection: string };
-  vectors?: Array<{ key: string; model: string; collection: string; count: number; enabled: boolean }>;
-}
-
-export interface VectorHealthOutput {
-  status: 'ok' | 'degraded' | 'down';
-  engines: Array<{ key: string; model: string; collection: string; ok: boolean; error?: string }>;
-  checked_at: string;
-}
-
-export interface VectorIndexModelInfo {
-  collection: string;
-  model: string;
-  adapter: VectorDBType;
-  provider: EmbeddingProviderType;
-  count?: number;
-}
-
-export type RebuildStrategy = 'replace' | 'delete-add';
-
-export interface VectorOperations {
-  search(input: VectorSearchInput): Promise<VectorSearchOutput>;
-  stats(timeoutMs?: number): Promise<VectorStatsOutput>;
-  health(timeoutMs?: number): Promise<VectorHealthOutput>;
-  modelStats(): Promise<Record<string, VectorIndexModelInfo>>;
-  rebuildCollection(
-    store: VectorStoreAdapter,
-    docs: VectorDocument[],
-    batchSize: number,
-    onProgress?: (current: number) => void,
-  ): Promise<{ strategy: RebuildStrategy }>;
-  createStoreForModel(model: string): { store: VectorStoreAdapter; config: ReturnType<typeof getVectorStoreConfigByModel> };
-}
-
+import type { VectorIndexModelInfo, VectorOperations, VectorSearchInput } from './vector-operation-types.ts';
 
 function cosineDistanceToSimilarity(distance: number): number {
   if (!Number.isFinite(distance)) return 0;
@@ -65,9 +19,7 @@ function cosineDistanceToSimilarity(distance: number): number {
 }
 
 function modelKeys(model?: string): Array<string | undefined> {
-  const models = getEmbeddingModels();
-  if (model === 'multi') return ['bge-m3', 'nomic'];
-  return [model && models[model] ? model : undefined];
+  return selectVectorSearchModelKeys(model, getEmbeddingModels());
 }
 
 async function searchOneModel(input: VectorSearchInput, model: string | undefined): Promise<SearchResult[]> {
@@ -76,13 +28,16 @@ async function searchOneModel(input: VectorSearchInput, model: string | undefine
   const limit = input.limit ?? 10;
   const isMulti = input.model === 'multi';
   const whereFilter = input.type && input.type !== 'all' ? { type: input.type } : undefined;
-  const vectorRows = await client.query(input.query, isMulti ? limit : limit * 2, whereFilter);
+  const vectorRows = await client.query(input.query, limit, whereFilter);
 
   if (!vectorRows.ids || vectorRows.ids.length === 0) return [];
 
+  const tenantId = currentTenantId();
+  const idFilter = inArray(oracleDocuments.id, vectorRows.ids);
+  const docFilter = tenantId ? and(idFilter, eq(oracleDocuments.tenantId, tenantId)) : idFilter;
   const rows = db.select({ id: oracleDocuments.id, project: oracleDocuments.project })
     .from(oracleDocuments)
-    .where(inArray(oracleDocuments.id, vectorRows.ids))
+    .where(docFilter)
     .all();
   const projectMap = new Map<string, string | null>();
   rows.forEach(r => projectMap.set(r.id, r.project));
@@ -105,7 +60,7 @@ async function searchOneModel(input: VectorSearchInput, model: string | undefine
         model: modelName,
       };
     })
-    .filter(r => !resolvedProject || r.project === resolvedProject || r.project === null);
+    .filter(r => (!tenantId || projectMap.has(r.id)) && (!resolvedProject || r.project === resolvedProject || r.project === null));
 }
 
 function dedupeMultiModel(results: SearchResult[]): SearchResult[] {

@@ -14,18 +14,28 @@ import fs from 'fs';
 import path from 'path';
 import { Database } from 'bun:sqlite';
 import { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
-import { eq, or, isNull, inArray } from 'drizzle-orm';
+import { and, eq, or, isNull, inArray, type SQL } from 'drizzle-orm';
 import * as schema from '../db/schema.ts';
 import { oracleDocuments } from '../db/schema.ts';
 import { createDatabase } from '../db/index.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 import { detectProject } from '../server/project-detect.ts';
 import type { OracleDocument, IndexerConfig } from '../types.ts';
 
 import { setIndexingStatus } from './status.ts';
 import { backupDatabase } from './backup.ts';
 import { parseResonanceFile, parseLearningFile, parseRetroFile, parseDistillationFile } from './parser.ts';
-import { collectDocuments, collectSecurityCorpus } from './collectors.ts';
-import { storeDocuments } from './storage.ts';
+import { getEmbeddingModels } from '../vector/factory.ts';
+import { collectDocuments, collectPsiLearn, collectSecurityCorpus } from './collectors.ts';
+import {
+  changedDocumentIds,
+  enqueueVectorReindexJobs,
+  snapshotActiveIndexerDocs,
+  supersedeReplacedSourceDocs,
+} from './reindex-state.ts';
+import { oracleFts, storeDocuments } from './storage.ts';
+import { chunkDocumentsForIndexing } from './chunker.ts';
+import { removeDocumentPointers } from '../search/pointer-index.ts';
 
 export interface IndexOptions {
   append?: boolean;
@@ -52,10 +62,15 @@ export class OracleIndexer {
    */
   async index(options: IndexOptions = {}): Promise<void> {
     const append = options.append === true;
+    const tenantId = currentTenantId();
+    const indexerOwnedWhere = tenantScopedWhere(
+      or(eq(oracleDocuments.createdBy, 'indexer'), isNull(oracleDocuments.createdBy))!,
+      tenantId,
+    );
     console.log(append ? 'Starting Oracle indexing in append mode...' : 'Starting Oracle indexing...');
     this.seenContentHashes.clear();
 
-    setIndexingStatus(this.sqlite, this.config, true, 0, 100);
+    setIndexingStatus(this.db, this.config, true, 0, 100);
     backupDatabase(this.sqlite, this.config);
 
     // Safety: verify the source directory layout exists. If ψ/memory/ is
@@ -64,7 +79,7 @@ export class OracleIndexer {
     const psiMemoryDir = path.join(this.config.repoRoot, '\u03c8', 'memory');
     const existingIndexerDocCount = this.db.select({ id: oracleDocuments.id })
       .from(oracleDocuments)
-      .where(or(eq(oracleDocuments.createdBy, 'indexer'), isNull(oracleDocuments.createdBy)))
+      .where(indexerOwnedWhere)
       .all().length;
 
     if (!append && !fs.existsSync(psiMemoryDir) && existingIndexerDocCount > 0) {
@@ -74,6 +89,8 @@ export class OracleIndexer {
       );
     }
 
+    const beforeDocs = snapshotActiveIndexerDocs(this.db, tenantId);
+
     // Collect documents from all source types
     const shared = { config: this.config, seenContentHashes: this.seenContentHashes };
     const documents: OracleDocument[] = [
@@ -81,6 +98,7 @@ export class OracleIndexer {
       ...collectDocuments({ ...shared, subdir: 'learnings', parseFn: parseLearningFile, label: 'learning' }),
       ...collectDocuments({ ...shared, subdir: 'retrospectives', parseFn: parseRetroFile, label: 'retrospective' }),
       ...collectDocuments({ ...shared, subdir: 'distillations', parseFn: parseDistillationFile, label: 'distillation' }),
+      ...collectPsiLearn(shared),
       ...collectSecurityCorpus(shared),
     ];
 
@@ -93,13 +111,18 @@ export class OracleIndexer {
       );
     }
 
+    const indexDocuments = chunkDocumentsForIndexing(documents);
+    if (indexDocuments.length !== documents.length) {
+      console.log(`Chunked ${documents.length} source documents into ${indexDocuments.length} index chunks`);
+    }
+
     if (append) {
       console.log('Append mode: skipping smart delete (preserving existing docs from other repo roots)');
     } else {
       // Smart deletion: remove indexer-created docs whose source file no longer exists
       const allIndexerDocs = this.db.select({ id: oracleDocuments.id, sourceFile: oracleDocuments.sourceFile })
         .from(oracleDocuments)
-        .where(or(eq(oracleDocuments.createdBy, 'indexer'), isNull(oracleDocuments.createdBy)))
+        .where(indexerOwnedWhere)
         .all();
 
       const idsToDelete = allIndexerDocs
@@ -130,24 +153,42 @@ export class OracleIndexer {
         const BATCH_SIZE = 500;
         for (let i = 0; i < idsToDelete.length; i += BATCH_SIZE) {
           const batch = idsToDelete.slice(i, i + BATCH_SIZE);
-          const placeholders = batch.map(() => '?').join(',');
-          this.sqlite.prepare(`DELETE FROM oracle_fts WHERE id IN (${placeholders})`).run(...batch);
+          this.db.delete(oracleFts).where(inArray(oracleFts.id, batch)).run();
+          removeDocumentPointers(this.sqlite, tenantId, batch);
         }
       }
     }
 
-    // Store in SQLite + FTS5 only. Vector indexing is a separate step
-    // (src/scripts/index-model.ts) that uses the canonical LanceDB path.
-    await storeDocuments(this.sqlite, this.db, null, this.project, documents);
+    const changedIds = changedDocumentIds(beforeDocs, indexDocuments);
 
-    setIndexingStatus(this.sqlite, this.config, false, documents.length, documents.length);
-    console.log(`Indexed ${documents.length} documents (SQLite + FTS5)`);
-    console.log('Run `bun src/scripts/index-model.ts bge-m3` to populate vector embeddings.');
+    // Store in SQLite + FTS5 first. Vector work is queued afterwards so
+    // embedding failures cannot roll back the source-of-truth text index.
+    await storeDocuments(this.sqlite, this.db, null, this.project, indexDocuments, { tenantId });
+    const superseded = supersedeReplacedSourceDocs(this.db, indexDocuments, tenantId);
+    const vectorJobs = safeEnqueueVectorJobs(this.db, indexDocuments, changedIds);
+
+    setIndexingStatus(this.db, this.config, false, indexDocuments.length, indexDocuments.length);
+    console.log(`Indexed ${indexDocuments.length} chunks (SQLite + FTS5)`);
+    if (superseded > 0) console.log(`Superseded ${superseded} stale document ids from reindexed sources`);
+    console.log(`Queued ${vectorJobs.queued} vector job(s); skipped ${vectorJobs.skipped}`);
+    if (vectorJobs.failed > 0) console.warn(`Failed to queue ${vectorJobs.failed} vector job(s); FTS5 index remains current`);
     console.log('Indexing complete!');
   }
 
   /** Close database connections */
   async close(): Promise<void> {
     this.sqlite.close();
+  }
+}
+
+function tenantScopedWhere(base: SQL, tenantId: string | undefined): SQL {
+  return tenantId ? and(base, eq(oracleDocuments.tenantId, tenantId))! : base;
+}
+
+function safeEnqueueVectorJobs(db: BunSQLiteDatabase<typeof schema>, documents: OracleDocument[], changedIds: Set<string>) {
+  try {
+    return enqueueVectorReindexJobs(db, documents, getEmbeddingModels(), changedIds);
+  } catch {
+    return { queued: 0, skipped: 0, failed: documents.length };
   }
 }
