@@ -48,9 +48,18 @@ function tableMap(): Map<string, ExportTable> {
 }
 
 function selectRows(connection: QueryConnection, table: ExportTable): ExportRecord[] {
-  const query = (connection.db as any).select().from(table).$dynamic();
-  const where = tenantWhereFor(table);
-  return normalizeRecords((where ? query.where(where) : query).all() as ExportRecord[]);
+  try {
+    const query = (connection.db as any).select().from(table).$dynamic();
+    const where = tenantWhereFor(table);
+    return normalizeRecords((where ? query.where(where) : query).all() as ExportRecord[]);
+  } catch (error) {
+    if (isMissingTableError(error)) return [];
+    throw error;
+  }
+}
+
+function isMissingTableError(error: unknown): boolean {
+  return String(error instanceof Error ? error.message : error).toLowerCase().includes('no such table:');
 }
 
 function readCollectionRows(connection: QueryConnection, collection: string): ExportRecord[] | null {

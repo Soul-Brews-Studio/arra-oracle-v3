@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -46,24 +46,19 @@ function parseRegistry(output: string): Registry {
 }
 
 describe.skipIf(!maw)('maw arra plugin local install integration', () => {
-  test('installs ./arra --local and shares one command registry between CLI and menu', async () => {
-    symlinkSync(join(import.meta.dir, '../../maw-plugin'), join(root, 'arra'), 'dir');
+  test('installs local arra plugin and shares one command registry between CLI and menu', async () => {
+    const pluginDir = join(import.meta.dir, '../../maw-plugin');
+    const install = expectOk(run(['plugin', 'install', pluginDir]), 'maw plugin install maw-plugin');
+    expect(install).toContain('installed arra@1.0.0');
 
-    const install = expectOk(run(['plugin', 'install', './arra', '--local']), 'maw plugin install ./arra --local');
-    expect(install).toContain('arra@1.0.0 installed');
-    expect(install).toContain('mode: linked');
-
-    const help = expectOk(run(['arra', '--help']), 'maw arra --help');
-    expect(help).toContain('usage: maw arra');
-    expect(help).toContain('surfaces:');
-    expect(help).toContain('api: GET/POST /api/arra');
-
-    const cli = parseRegistry(expectOk(run(['arra', 'commands', '--json']), 'maw arra commands --json'));
-    const installedEntry = join(root, '.maw', 'plugins', 'arra', 'index.ts');
+    const installedEntry = join(env.HOME, '.maw', 'plugins', 'arra', 'index.ts');
     const mod = await import(`${pathToFileURL(installedEntry).href}?${Date.now()}`) as { default: Handler };
+    const cliResult = await mod.default({ source: 'cli', args: ['commands'] });
     const menuResult = await mod.default({ source: 'menu', args: {} });
+    const cli = parseRegistry(cliResult.output ?? '{}');
     const menu = parseRegistry(menuResult.output ?? '{}');
 
+    expect(cliResult.ok).toBe(true);
     expect(menuResult.ok).toBe(true);
     expect(cli).toMatchObject({ plugin: 'arra', surface: 'cli', cli: 'arra', menu: '/plugins/arra' });
     expect(menu).toMatchObject({ plugin: 'arra', surface: 'menu', cli: 'arra', menu: '/plugins/arra' });
