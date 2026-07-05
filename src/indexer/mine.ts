@@ -3,9 +3,8 @@ import path from 'path';
 import { createHash } from 'crypto';
 import { and, eq, inArray } from 'drizzle-orm';
 import { createDatabase, oracleDocuments, oracleFts, type DatabaseConnection } from '../db/index.ts';
-import { detectProject } from '../server/project-detect.ts';
 import type { OracleDocument } from '../types.ts';
-import { deriveConceptsFromPath, extractConcepts, mergeConceptsWithTags } from './concepts.ts';
+import { autoDeriveStructure, projectFromRoot } from './auto-derive.ts';
 import { chunkDocumentForIndexing } from './chunk-text.ts';
 import { storeDocuments } from './storage.ts';
 
@@ -52,7 +51,7 @@ export async function mineFolder(options: MineOptions): Promise<MineResult> {
     throw new Error(`mine target must be a directory: ${options.dir}`);
   }
   const files = collectMineFiles(root);
-  const project = detectProject(root) || path.basename(root).toLowerCase();
+  const project = projectFromRoot(root) ?? path.basename(root).toLowerCase();
   const { sqlite, db, storage } = createDatabase(options.dbPath);
   try {
     const docs: OracleDocument[] = [];
@@ -168,14 +167,12 @@ function deleteStaleMineRows(db: OracleDb, rows: ExistingMineRow[], keep: Set<st
 function toMineDocument(root: string, file: string, content: string, version: number, project: string): OracleDocument {
   const source = relativeSource(root, file);
   const title = path.basename(file, path.extname(file));
-  const concepts = mergeConceptsWithTags(
-    extractConcepts(title, content),
-    [project, ...deriveConceptsFromPath(source)],
-  );
+  const structurePath = path.relative(root, file).split(path.sep).join('/');
+  const derived = autoDeriveStructure({ rootDir: root, sourceFile: source, structurePath, title, content, project });
   return {
     id: stableMineDocId(root, file), type: 'learning', source_file: source, content,
-    concepts, created_at: fs.statSync(file).birthtimeMs || version,
-    updated_at: version, project,
+    concepts: derived.concepts, created_at: fs.statSync(file).birthtimeMs || version,
+    updated_at: version, project: derived.project ?? project,
   };
 }
 

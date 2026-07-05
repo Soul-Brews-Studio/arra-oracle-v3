@@ -23,7 +23,7 @@ function tmp(): string {
 function rowsFor(dbPath: string, sourceFile: string): Array<Record<string, unknown>> {
   const { sqlite, storage } = createDatabase(dbPath);
   const rows = sqlite.prepare(`
-    SELECT d.id, d.source_file AS sourceFile, d.concepts, f.content
+    SELECT d.id, d.source_file AS sourceFile, d.project, d.concepts, f.content
     FROM oracle_documents d
     JOIN oracle_fts f ON f.id = d.id
     WHERE d.source_file = ?
@@ -64,8 +64,9 @@ describe('arra mine folder ingest', () => {
     storage.close();
 
     expect(row?.sourceFile).toBe('mine/notes/ops/deploy.md');
+    expect(row?.project).toBe('notes');
     expect(row?.createdBy).toBe('mine');
-    expect(JSON.parse(row?.concepts ?? '[]')).toContain('ops');
+    expect(JSON.parse(row?.concepts ?? '[]')).toEqual(expect.arrayContaining(['notes', 'ops', 'deploy']));
   });
 
   test('stores long notes as deterministic paragraph chunks', async () => {

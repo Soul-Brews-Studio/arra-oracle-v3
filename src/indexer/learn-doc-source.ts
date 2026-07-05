@@ -8,8 +8,7 @@ import { eq, sql } from 'drizzle-orm';
 import { asOracleDb, type OracleDb, type OracleDbInput } from '../db/drizzle-input.ts';
 import { oracleDocuments, oracleFts, oraclePointerIndex } from '../db/schema.ts';
 import type { OracleDocument } from '../types.ts';
-import { deriveConceptsFromPath, mergeConceptsWithTags } from './concepts.ts';
-import { inferProjectFromPath } from './discovery.ts';
+import { autoDeriveStructure } from './auto-derive.ts';
 import { parseLearningFile } from './parser.ts';
 import { enrichTextWithAcronyms } from '../search/acronyms.ts';
 import { chunkDocumentsForIndexing } from './chunk-text.ts';
@@ -55,13 +54,15 @@ export function parsePsiLearnFile(relativePath: string, content: string): Oracle
 }
 
 function withDerivedStructure(documents: OracleDocument[], sourceFile: string): OracleDocument[] {
-  const project = inferProjectFromPath(sourceFile);
-  const pathConcepts = deriveConceptsFromPath(sourceFile);
-  return documents.map((doc) => ({
-    ...doc,
-    project: doc.project ?? project ?? undefined,
-    concepts: mergeConceptsWithTags(doc.concepts, pathConcepts),
-  }));
+  return documents.map((doc) => {
+    const derived = autoDeriveStructure({
+      sourceFile,
+      content: doc.content,
+      project: doc.project,
+      existingConcepts: doc.concepts,
+    });
+    return { ...doc, project: derived.project ?? undefined, concepts: derived.concepts };
+  });
 }
 
 function psiLearnDocId(pathHash: string, id: string): string {
