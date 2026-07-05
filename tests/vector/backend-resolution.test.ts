@@ -10,7 +10,7 @@ test('fresh installs resolve a local vector backend without provider prompt', ()
   const resolution = resolveVectorBackend(cfg, 'defaults', {});
 
   expect(resolution).toMatchObject({
-    engine: 'lancedb',
+    engine: 'sqlite-vec',
     source: 'first-run-default',
     localDefault: true,
     returningUser: false,

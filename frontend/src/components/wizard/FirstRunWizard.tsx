@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ErrorMessage, LoadingPanel, Spinner } from '../AsyncState';
 import { apiFetch } from '../../api/oracle';
 import { useFirstRun } from '../../hooks/useFirstRun';
+import { DEFAULT_SAFE_VECTOR_ENGINE } from '../../../../src/config/defaults';
 
 type Step = 0 | 1 | 2 | 3;
 type LoadState = 'loading' | 'ready' | 'error';
@@ -46,7 +47,7 @@ function copyFor(step: Step): string {
 export function FirstRunWizard() {
   const { markSetupComplete, setupComplete } = useFirstRun();
   const [step, setStep] = useState<Step>(0);
-  const [backend, setBackend] = useState('lancedb');
+  const [backend, setBackend] = useState<string>(DEFAULT_SAFE_VECTOR_ENGINE);
   const [plans, setPlans] = useState(defaultPlans);
   const [state, setState] = useState<LoadState>('loading');
   const [busy, setBusy] = useState(false);
@@ -58,7 +59,7 @@ export function FirstRunWizard() {
     json<{ engine?: string; resolution?: { engine?: string } }>('/api/v1/vector/config')
       .then((body) => {
         if (!active) return;
-        setBackend(body.resolution?.engine ?? body.engine ?? 'lancedb');
+        setBackend(body.resolution?.engine ?? body.engine ?? DEFAULT_SAFE_VECTOR_ENGINE);
         setState('ready');
       })
       .catch((cause) => {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ErrorMessage, LoadingPanel, Spinner } from '../components/AsyncState';
 import { fetchJson, parseVectorConfigResponse, toRows, type VectorConfigRow } from './vectorSettingsHelpers';
+import { DEFAULT_VECTOR_COLLECTION, detectDefaultVectorBackend } from '../../../src/config/defaults';
 
 type WizardStep = 0 | 1 | 2 | 3;
 type StatsResponse = { total?: number; total_docs?: number; vector?: { enabled?: boolean; count?: number } };
@@ -25,6 +26,7 @@ export type FirstRunWizardProps = {
 };
 
 const steps = ['Welcome', 'Backend', 'Vault + index', 'Done'] as const;
+type WizardResolution = ReturnType<typeof detectFirstRunWizardResolution>;
 
 export function VectorFirstRunWizardPage() {
   const [rows, setRows] = useState<VectorConfigRow[]>([]);
@@ -51,7 +53,7 @@ export function VectorFirstRunWizardPage() {
       <header className="glass rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Vector onboarding</p>
         <h1 id="vector-first-run-title" className="mt-2 text-3xl font-semibold text-text">First-run setup wizard</h1>
-        <p className="mt-2 text-sm text-text-muted">Use the local vector backend default, review cost, choose the first vault collection, and start indexing.</p>
+        <p className="mt-2 text-sm text-text-muted">Arra selects sqlite-vec automatically. This page is optional/advanced for review, cost, and first index controls.</p>
       </header>
 
       <FirstRunWizard rows={rows} onRefresh={refresh} />
@@ -61,14 +63,27 @@ export function VectorFirstRunWizardPage() {
   );
 }
 
-function primaryKey(rows: VectorConfigRow[]): string | null {
-  return (rows.find((row) => row.primary) ?? rows[0])?.key ?? null;
+function primaryRow(rows: VectorConfigRow[]): VectorConfigRow | null {
+  return rows.find((row) => row.primary) ?? rows[0] ?? null;
 }
 
-function firstRun(stats: StatsResponse | null, rows: VectorConfigRow[]): boolean {
-  const total = stats?.total_docs ?? stats?.total ?? 0;
-  const vectorCount = stats?.vector?.count ?? rows.reduce((sum, row) => sum + (row.count ?? 0), 0);
-  return total === 0 || vectorCount === 0;
+function indexedCount(stats: StatsResponse | null, rows: VectorConfigRow[]): number {
+  return stats?.vector?.count ?? rows.reduce((sum, row) => sum + (row.count ?? 0), 0);
+}
+
+export function detectFirstRunWizardResolution(rows: VectorConfigRow[], stats: StatsResponse | null) {
+  const primary = primaryRow(rows);
+  const count = indexedCount(stats, rows);
+  const choice = detectDefaultVectorBackend({
+    configuredEngine: primary?.adapter,
+    hasExistingIndex: count > 0 || stats?.vector?.enabled === true,
+  });
+  return {
+    ...choice,
+    count,
+    key: primary?.key ?? DEFAULT_VECTOR_COLLECTION.key,
+    collection: primary?.collection ?? DEFAULT_VECTOR_COLLECTION.collection,
+  };
 }
 
 export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost = null }: FirstRunWizardProps) {
@@ -78,7 +93,8 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const showAsFirstRun = firstRun(stats, rows);
+  const resolution = detectFirstRunWizardResolution(rows, stats);
+  const showAsFirstRun = !resolution.returningUser && resolution.count === 0;
 
   useEffect(() => {
     let active = true;
@@ -108,8 +124,7 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
   }
 
   async function startIndex() {
-    const model = primaryKey(rows);
-    if (!model) return setError('No vector collection is available to index.');
+    const model = resolution.key;
     setBusy(true);
     setError('');
     try {
@@ -127,23 +142,23 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
     <section className={`glass rounded-3xl border bg-[oklch(0.16_0.02_265/0.35)] p-5 shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl sm:p-6 ${showAsFirstRun ? 'border-purple-300/20' : 'border-[oklch(1_0_0/0.08)]'}`} aria-labelledby="first-run-wizard-title">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">First-run wizard</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent2">Optional first-run wizard</p>
           <h2 id="first-run-wizard-title" className="mt-2 text-2xl font-semibold text-text">{steps[step]}</h2>
-          <p className="mt-2 max-w-3xl text-sm text-purple-100/80">{copyFor(step, showAsFirstRun)}</p>
+          <p className="mt-2 max-w-3xl text-sm text-purple-100/80">{copyFor(step, resolution, showAsFirstRun)}</p>
         </div>
         <ol className="flex gap-2" aria-label="First-run steps">{steps.map((item, index) => <li key={item} className={`h-2 w-10 rounded-full ${index <= step ? 'bg-purple-200' : 'bg-white/20'}`} />)}</ol>
       </div>
 
-      {step === 1 ? <BackendPlan rows={rows} /> : null}
-      {step === 2 ? <VaultPlan rows={rows} cost={cost} /> : null}
+      {step === 1 ? <BackendPlan resolution={resolution} /> : null}
+      {step === 2 ? <VaultPlan resolution={resolution} cost={cost} /> : null}
       {step === 3 ? <DoneActions /> : null}
       {message ? <p className="mt-4 rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] p-3 text-sm text-purple-100 backdrop-blur-md">{message}</p> : null}
       {error ? <div className="mt-4"><ErrorMessage title="First-run step failed." message={error} /></div> : null}
 
       <div className="mt-5 flex flex-wrap gap-2">
         <button className="focus-ring rounded-xl border border-border px-3 py-2 text-sm text-purple-100 disabled:opacity-50" disabled={step === 0} type="button" onClick={() => setStep((step - 1) as WizardStep)}>Back</button>
-        {step === 0 ? <button className="focus-ring rounded-xl bg-purple-200 px-3 py-2 text-sm font-semibold text-on-accent" type="button" onClick={() => void reloadHealth()}>{busy ? <Spinner label="Detecting" /> : 'Refresh local backend'}</button> : null}
-        {step === 2 ? <button className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-on-accent disabled:opacity-50" disabled={busy || !rows.length} type="button" onClick={() => void startIndex()}>{busy ? <Spinner label="Starting" /> : 'Start indexing'}</button> : null}
+        {step === 0 ? <button className="focus-ring rounded-xl bg-purple-200 px-3 py-2 text-sm font-semibold text-on-accent" type="button" onClick={() => void reloadHealth()}>{busy ? <Spinner label="Detecting" /> : 'Detect local defaults'}</button> : null}
+        {step === 2 ? <button className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-on-accent disabled:opacity-50" disabled={busy} type="button" onClick={() => void startIndex()}>{busy ? <Spinner label="Starting" /> : 'Start indexing'}</button> : null}
         <button className="focus-ring rounded-xl border border-purple-200/40 px-3 py-2 text-sm font-semibold text-purple-100 disabled:opacity-50" disabled={step === 3} type="button" onClick={() => setStep((step + 1) as WizardStep)}>Next</button>
         {step === 3 ? <a className="focus-ring rounded-xl bg-teal-200 px-3 py-2 text-sm font-semibold text-on-accent" href="/vector">Continue to dashboard</a> : null}
       </div>
@@ -151,10 +166,10 @@ export function FirstRunWizard({ rows, onRefresh, initialStep = 0, initialCost =
   );
 }
 
-function copyFor(step: WizardStep, firstRun: boolean): string {
-  if (step === 0) return firstRun ? 'No complete vector index was detected. A bundled local backend is already selected; build the first index when ready.' : 'Vector search is configured; use this optional wizard to refresh the backend or onboard a new vault.';
-  if (step === 1) return 'Arra auto-resolves local storage defaults for first run and keeps saved backend choices for returning users.';
-  if (step === 2) return 'Review the primary collection, estimated cost, and recommendation before indexing.';
+function copyFor(step: WizardStep, resolution: WizardResolution, firstRun: boolean): string {
+  if (step === 0) return firstRun ? `No provider prompt: ${resolution.engine} is selected automatically; build the first index when ready.` : `Existing backend detected (${resolution.engine}); this wizard is optional/advanced.`;
+  if (step === 1) return `detect() resolved ${resolution.engine} from ${resolution.source}; returning users keep saved backend choices.`;
+  if (step === 2) return `Review ${resolution.collection}, estimated cost, and recommendation before indexing.`;
   return 'Indexing has started. The Index Manager shows live progress and completion state.';
 }
 
@@ -172,23 +187,21 @@ function DoneActions() {
   );
 }
 
-function BackendPlan({ rows }: { rows: VectorConfigRow[] }) {
-  const primary = rows.find((row) => row.primary) ?? rows[0];
+function BackendPlan({ resolution }: { resolution: WizardResolution }) {
   return (
     <div className="mt-4 rounded-2xl border border-accent-border p-4 text-sm text-accent">
       <p className="font-semibold">Local backend default is active</p>
-      <p className="mt-1">No provider choice is required before indexing. Returning users keep their saved adapter automatically.</p>
-      <p className="mt-2 text-accent opacity-80">Primary adapter: {primary?.adapter ?? 'lancedb'} · collection {primary?.collection ?? 'default collections'}</p>
+      <p className="mt-1">No provider prompt or provider choice is required before indexing. Returning users keep their saved adapter automatically.</p>
+      <p className="mt-2 text-accent opacity-80">Primary adapter: {resolution.engine} · collection {resolution.collection}</p>
     </div>
   );
 }
 
-function VaultPlan({ rows, cost }: { rows: VectorConfigRow[]; cost: CostEstimate | null }) {
-  const primary = rows.find((row) => row.primary) ?? rows[0];
+function VaultPlan({ resolution, cost }: { resolution: WizardResolution; cost: CostEstimate | null }) {
   return (
     <div className="mt-4 grid gap-3 text-sm text-purple-100 lg:grid-cols-[1fr_1.3fr]">
       <div className="rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] p-4 backdrop-blur-md">
-        <p>Primary collection: <span className="font-semibold">{primary?.collection ?? 'none'}</span></p>
+        <p>Primary collection: <span className="font-semibold">{resolution.collection}</span></p>
         <p className="mt-1 text-purple-100/70">Vault selection is represented by indexed source documents; use Index now to backfill vectors for the primary model.</p>
       </div>
       <div className="rounded-2xl border border-accent-border p-4">

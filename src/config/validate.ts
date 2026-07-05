@@ -16,6 +16,7 @@ import {
   type RuntimeEnv,
 } from './schema.ts';
 import { applyProfileDefaults, resolveConfigProfile, type ConfigProfile } from './profiles.ts';
+import { DEFAULT_SAFE_VECTOR_ENGINE } from './defaults.ts';
 
 export class ConfigValidationError extends Error {
   constructor(readonly issues: string[]) {
@@ -168,7 +169,7 @@ function validateRuntimePaths(env: RuntimeEnv, issues: string[]): void {
   if (filled(env.ORACLE_REPO_ROOT)) validateWritablePath('ORACLE_REPO_ROOT', env.ORACLE_REPO_ROOT.trim(), issues, true);
 }
 function validateVectorConnectionConfig(env: RuntimeEnv, issues: string[]): void {
-  const type = (env.ORACLE_VECTOR_DB?.trim() || 'lancedb').toLowerCase();
+  const type = (env.ORACLE_VECTOR_DB?.trim() || DEFAULT_SAFE_VECTOR_ENGINE).toLowerCase();
   if (type === 'qdrant' && !filled(env.QDRANT_URL)) issues.push('Qdrant vector DB requires QDRANT_URL.');
   if (type === 'proxy' && !filled(env.ORACLE_PROXY_VECTOR_URL)) issues.push('Proxy vector DB requires ORACLE_PROXY_VECTOR_URL.');
   if (type === 'lancedb' || type === 'sqlite-vec') {

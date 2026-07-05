@@ -97,7 +97,7 @@ describe('vector engine/config selection coverage', () => {
         qdrantApiKey: 'secret-key',
       });
       expect(getVectorStoreConfigByModel('missing-model')).toMatchObject({
-        type: 'lancedb',
+        type: 'sqlite-vec',
         collectionName: 'oracle_knowledge_bge_m3',
         embeddingModel: 'bge-m3',
       });

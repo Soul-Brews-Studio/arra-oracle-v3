@@ -1,6 +1,7 @@
 import { SetupWizardCostEstimate } from "./SetupWizardCostEstimate";
 import { StateNotice } from "./StateNotice";
 import type { Step, VectorConfig, VectorIndexSource } from "./setupWizardTypes";
+import { DEFAULT_SAFE_VECTOR_ENGINE } from "../../../src/config/defaults";
 
 export const setupSteps = [
   "Welcome",
@@ -47,7 +48,7 @@ export function StepBody({
 }
 
 function LocalBackendPlan({ config }: { config: VectorConfig | null }) {
-  const engine = config?.resolution?.engine ?? "lancedb";
+  const engine = config?.resolution?.engine ?? DEFAULT_SAFE_VECTOR_ENGINE;
   const collections = Object.entries(config?.config?.collections ?? {});
   return (
     <div className="mt-3 rounded-xl border border-ok-border bg-ok-bg p-3 text-sm text-ok-text">

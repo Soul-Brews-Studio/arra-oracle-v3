@@ -1,4 +1,5 @@
 import { apiFetch } from '../api/oracle';
+import { DEFAULT_SAFE_VECTOR_ENGINE, DEFAULT_VECTOR_LOCAL_ENGINES } from '../../../src/config/defaults';
 
 export const ADAPTER_OPTIONS = ['chroma', 'sqlite-vec', 'lancedb', 'qdrant', 'cloudflare-vectorize', 'proxy', 'turbovec'] as const;
 export type VectorConfigAdapter = (typeof ADAPTER_OPTIONS)[number];
@@ -89,7 +90,7 @@ function isAdapter(value: unknown): value is VectorConfigAdapter {
 }
 
 export function safeAdapter(value: unknown): VectorConfigAdapter {
-  return isAdapter(value) ? value : 'lancedb';
+  return isAdapter(value) ? value : DEFAULT_SAFE_VECTOR_ENGINE;
 }
 
 export function parseVectorConfigResponse(value: unknown): VectorConfigResponse {
@@ -104,9 +105,9 @@ export function parseVectorConfigResponse(value: unknown): VectorConfigResponse 
       embeddingEndpoint: '',
       embedder: { backend: 'unknown' },
     },
-    engine: 'lancedb' as VectorConfigAdapter,
+    engine: DEFAULT_SAFE_VECTOR_ENGINE as VectorConfigAdapter,
     enabled: false,
-    options: { localEngines: ['lancedb', 'qdrant', 'sqlite-vec'] as VectorConfigAdapter[] },
+    options: { localEngines: [...DEFAULT_VECTOR_LOCAL_ENGINES] as VectorConfigAdapter[] },
     doc_counts: {},
     health: {},
     checked_at: new Date().toISOString(),
@@ -165,7 +166,7 @@ export function toRows(response: VectorConfigResponse): VectorConfigRow[] {
       collection: item.collection,
       model: item.model,
       provider: item.provider,
-      adapter: item.adapter ?? 'lancedb',
+      adapter: item.adapter ?? DEFAULT_SAFE_VECTOR_ENGINE,
       service: item.service,
       endpoint: item.endpoint,
       primary: item.primary,
