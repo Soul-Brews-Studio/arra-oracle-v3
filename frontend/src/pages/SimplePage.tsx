@@ -51,6 +51,11 @@ export function SimplePage() {
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-5xl flex-col py-6">
         <div className="grid flex-1 content-center gap-5">
           <HealthHero state={state} checkedAt={checkedAt} now={now} onAction={poll} />
+          {state === HealthState.Down ? (
+            <p className="rounded-2xl border border-err-border bg-err-bg p-4 text-sm text-err-text">
+              Recovery comes first: the cards below keep their text visible, but actions will report errors until the backend is reachable again.
+            </p>
+          ) : null}
           <SimpleSearch />
           <AddMemory />
           <IndexFolderCard />

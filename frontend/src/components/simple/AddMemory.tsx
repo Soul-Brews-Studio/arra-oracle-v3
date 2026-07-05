@@ -125,8 +125,15 @@ export function AddMemory({
 
   async function persistMemory(nextPattern = text) {
     const candidate = nextPattern.trim();
-    if (!candidate || status === 'saving') return;
+    if (status === 'saving') return;
     clearTimers();
+    if (!candidate) {
+      setLastFailed('');
+      setError('Write a memory first.');
+      setStatus('error');
+      setFading(false);
+      return;
+    }
     setStatus('saving');
     setError('');
     setFading(false);
@@ -149,7 +156,7 @@ export function AddMemory({
   }
 
   const saving = status === 'saving';
-  const disabled = saving || !text.trim();
+  const disabled = saving;
   return (
     <section className="grid gap-4 rounded-3xl border border-border bg-surface p-5 shadow-xl" aria-labelledby="simple-add-memory-title">
       <div>
@@ -165,6 +172,7 @@ export function AddMemory({
           id={textareaId}
           className="focus-ring min-h-32 rounded-2xl border border-border bg-field px-4 py-3 text-text placeholder:text-text-muted"
           disabled={saving}
+          aria-invalid={status === 'error' ? 'true' : undefined}
           placeholder="A detail, decision, or preference you want Oracle to recall."
           value={text}
           onChange={(event) => setText(event.currentTarget.value)}

@@ -78,6 +78,11 @@ export function SimpleSearch({ client = apiClient }: { client?: SimpleSearchClie
     setQuery(example);
   }
 
+  function retrySearch() {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    void runSearch(activeQuery || query);
+  }
+
   const status = simpleSearchStatus(state, activeQuery || query.trim(), results.length);
 
   return (
@@ -120,7 +125,20 @@ export function SimpleSearch({ client = apiClient }: { client?: SimpleSearchClie
       </div>
 
       <p className="mt-4 text-sm text-text-muted" aria-live="polite">{status}</p>
-      {error ? <p role="alert" className="mt-2 text-sm text-err-text">{error}</p> : null}
+      {error ? (
+        <div role="alert" className="mt-3 rounded-2xl border border-err-border bg-err-bg p-3 text-sm text-err-text">
+          <p className="font-semibold">Couldn’t search memory.</p>
+          <p className="mt-1 break-words">{error}</p>
+          <button
+            className="focus-ring mt-3 rounded-full border border-err-border px-4 py-2 font-semibold hover:bg-surface"
+            disabled={state === 'loading'}
+            type="button"
+            onClick={retrySearch}
+          >
+            Retry search
+          </button>
+        </div>
+      ) : null}
 
       <div className="mt-5 grid gap-3" aria-busy={state === 'loading'}>
         {state !== 'loading' ? results.map((result) => <SimpleResultCard key={result.id} result={result} />) : null}
