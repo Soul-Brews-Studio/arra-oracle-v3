@@ -11,6 +11,7 @@ import { compactSearchResults, parseSearchRetrievalMode } from '../../search/com
 import { rerankByEntityLinks } from '../../search/entity-ranking.ts';
 import { attachSupersedeStatus } from '../../search/supersede-status.ts';
 import { handleSearch } from '../../server/handlers.ts';
+import { asOfResponse } from './asof.ts';
 import { SearchQuery } from './model.ts';
 import { parseOptionalSearchModel } from './model-key.ts';
 import { parseOffset, parsePositiveInt, parseSearchMode } from './query.ts';
@@ -80,7 +81,7 @@ export const searchEndpoint = new Elysia().get(
         : null;
       if (compact) result.results = compact.results as unknown as typeof result.results;
       const metadata = compact ? { metadata: { ...('metadata' in result ? result.metadata as object : {}), retrieval: compact.metadata } } : {};
-      return { ...result, ...metadata, query: sanitizedQ, ...(asOf.value ? { asOf: new Date(asOf.value).toISOString() } : {}) };
+      return { ...result, ...metadata, query: sanitizedQ, ...asOfResponse(asOf.value) };
     } catch {
       set.status = 400;
       return { results: [], total: 0, query: sanitizedQ, error: 'Search failed' };
@@ -91,7 +92,7 @@ export const searchEndpoint = new Elysia().get(
     detail: {
       tags: ['search'],
       menu: { group: 'main', path: '/search', order: 10 },
-      summary: 'Hybrid search over oracle docs',
+      summary: 'Hybrid search over oracle docs with optional asOf valid-time filtering',
     },
   },
 );

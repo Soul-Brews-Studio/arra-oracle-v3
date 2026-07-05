@@ -25,4 +25,5 @@ export const ListQuery = t.Object({
   limit: t.Optional(t.String()),
   offset: t.Optional(t.String()),
   group: t.Optional(t.String()),
+  asOf: t.Optional(t.String()),
 });

@@ -80,26 +80,32 @@ export function handleTenantSearch(query: string, type = 'all', limit = 10, offs
   };
 }
 
-export function handleTenantList(type = 'all', limit = 10, offset = 0, groupByFile = true): SearchResponse | null {
+export function handleTenantList(type = 'all', limit = 10, offset = 0, groupByFile = true, asOfMs?: number): SearchResponse | null {
   const tenantId = currentTenantId();
   if (!tenantId) return null;
 
   const typeClause = type === 'all' ? '' : 'AND d.type = ?';
-  const params = type === 'all' ? [tenantId] : [type, tenantId];
+  const temporalJoin = asOfMs ? BI_TEMPORAL_JOIN : '';
+  const temporalClause = asOfMs ? `AND ${BI_TEMPORAL_WHERE}` : '';
+  const temporalSelect = asOfMs ? ', d.valid_time, COALESCE(s.valid_time, d.superseded_at) as valid_until' : '';
+  const temporalParams = asOfMs ? biTemporalParams(asOfMs) : [];
+  const params = type === 'all' ? [tenantId, ...temporalParams] : [type, tenantId, ...temporalParams];
   const countExpr = groupByFile ? 'count(distinct d.source_file)' : 'count(*)';
   const count = sqlite.prepare(`
     SELECT ${countExpr} as total
     FROM oracle_documents d
-    WHERE 1=1 ${typeClause} AND d.tenant_id = ?
+    ${temporalJoin}
+    WHERE 1=1 ${typeClause} AND d.tenant_id = ? ${temporalClause}
   `).get(...params) as { total: number };
 
   const indexedAt = groupByFile ? 'MAX(d.indexed_at)' : 'd.indexed_at';
   const groupSql = groupByFile ? 'GROUP BY d.source_file' : '';
   const rows = sqlite.prepare(`
-    SELECT d.id, d.type, d.source_file, d.concepts, d.project, ${indexedAt} as indexed_at, f.content
+    SELECT d.id, d.type, d.source_file, d.concepts, d.project, ${indexedAt} as indexed_at, f.content${temporalSelect}
     FROM oracle_documents d
     JOIN oracle_fts f ON d.id = f.id
-    WHERE 1=1 ${typeClause} AND d.tenant_id = ?
+    ${temporalJoin}
+    WHERE 1=1 ${typeClause} AND d.tenant_id = ? ${temporalClause}
     ${groupSql}
     ORDER BY indexed_at DESC
     LIMIT ? OFFSET ?
@@ -114,6 +120,7 @@ export function handleTenantList(type = 'all', limit = 10, offset = 0, groupByFi
       concepts: parseConcepts(row.concepts),
       project: row.project,
       indexed_at: row.indexed_at,
+      ...(asOfMs ? { valid_time: isoTimestamp(row.valid_time), valid_until: isoTimestamp(row.valid_until) } : {}),
     })),
     total: count.total,
     offset,

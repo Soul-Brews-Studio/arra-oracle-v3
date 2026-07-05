@@ -95,6 +95,21 @@ describe('bi-temporal search read', () => {
     });
   });
 
+
+  test('GET /api/list?asOf applies the same valid-time support contract', async () => {
+    const res = await request(`/api/list?group=false&asOf=2024-06-01T00:00:00.000Z`);
+    const body = await res.json() as { results: Array<Record<string, unknown>>; total: number; asOfSupportedEndpoints: string[] };
+
+    expect(res.status).toBe(200);
+    expect(body.total).toBe(1);
+    expect(body.results[0]).toMatchObject({
+      id: oldDocId,
+      valid_time: new Date(oldValid).toISOString(),
+      valid_until: new Date(newValid).toISOString(),
+    });
+    expect(body.asOfSupportedEndpoints).toEqual(['/api/search', '/api/list', '/api/vector/search']);
+  });
+
   test('GET /api/search rejects invalid asOf timestamps', async () => {
     const res = await request(`/api/search?q=${term}&mode=fts&asOf=not-a-date`);
     expect(res.status).toBe(400);
