@@ -39,11 +39,17 @@ arra-oracle-v3 serve --port "$ORACLE_PORT"
 Keep this shell open. In a second shell:
 
 ```bash
+open "http://localhost:$ORACLE_PORT/simple"   # human-first health screen
 curl -sf "http://localhost:$ORACLE_PORT/api/health"
 arra config add local "http://localhost:$ORACLE_PORT"
 arra config use local
 arra health
 ```
+
+Expected Simple Mode result: **Awake and remembering** when core health is
+ready, or an actionable degraded/down recovery message if DB, search/vector, or
+plugins need attention. Use `curl /api/health` and `arra health --json` as CLI
+fallbacks for the same health vocabulary.
 
 ## 3. Mine the sample notes
 

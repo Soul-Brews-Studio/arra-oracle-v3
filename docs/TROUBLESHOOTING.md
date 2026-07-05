@@ -6,12 +6,18 @@ fail. Start with the quickest health check, then narrow by symptom.
 ## Quick triage
 
 ```bash
+open http://localhost:47778/simple
 arra-oracle-v3 --help
 arra --help
 arra health
 curl -sf http://localhost:47778/api/health
 bunx tsc --noEmit
 ```
+
+Use Simple Mode first for human verification: it should show **Awake and
+remembering** or a specific recovery target for startup, DB, limited search,
+plugins, or a down backend. Use `arra health --json` and `curl /api/health`
+when you need machine-readable details.
 
 If the HTTP server runs on a non-default port, replace `47778` with that port or
 set the CLI target with `arra config add` and `arra config use`.
@@ -45,6 +51,7 @@ Symptoms: port binding errors, `EADDRINUSE`, or the CLI points at a dead server.
 
 ```bash
 ORACLE_PORT=47881 arra-oracle-v3 serve --port 47881
+open http://localhost:47881/simple
 arra config add local-47881 http://localhost:47881
 arra config use local-47881
 curl -sf http://localhost:47881/api/health

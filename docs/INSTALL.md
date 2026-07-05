@@ -51,13 +51,17 @@ arra-oracle-v3 serve --port "$ORACLE_PORT"
 From another shell:
 
 ```bash
+open "http://localhost:$ORACLE_PORT/simple"   # human-first health screen
 curl -sf "http://localhost:$ORACLE_PORT/api/health"
 arra config add local "http://localhost:$ORACLE_PORT"
 arra config use local
 arra health
 ```
 
-Expected health includes `status: ok` / `server: arra-oracle-v3`.
+Expected Simple Mode result: **Awake and remembering** when core health is
+ready, or an actionable recovery message if startup, DB, search/vector, or
+plugins are degraded. CLI fallback health includes `status: ok` /
+`server: arra-oracle-v3` and should use the same recovery targets.
 
 ## First memory
 

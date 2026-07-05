@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs';
 
 const readme = readFileSync('README.md', 'utf8');
 const docsIndex = readFileSync('docs/README.md', 'utf8');
+const install = readFileSync('docs/INSTALL.md', 'utf8');
+const quickstart = readFileSync('docs/QUICKSTART.md', 'utf8');
 const simpleSpec = readFileSync('docs/SIMPLE-MODE-SPEC.md', 'utf8');
+const troubleshooting = readFileSync('docs/TROUBLESHOOTING.md', 'utf8');
 const recap = readFileSync('src/tools/recap.ts', 'utf8');
 
 describe('Simple Mode docs for non-dev users', () => {
@@ -15,6 +18,14 @@ describe('Simple Mode docs for non-dev users', () => {
 
   test('docs index links the Simple Mode spec', () => {
     expect(docsIndex).toContain('[SIMPLE-MODE-SPEC.md](./SIMPLE-MODE-SPEC.md)');
+  });
+
+  test('install and recovery docs use /simple as the human-first health check', () => {
+    for (const doc of [install, quickstart, troubleshooting]) {
+      expect(doc).toContain('/simple');
+      expect(doc).toMatch(/Awake and\s+remembering/);
+      expect(doc).toMatch(/curl .*api\/health|curl \/api\/health/);
+    }
   });
 
   test('Simple Mode spec names the six never-silent health states', () => {
