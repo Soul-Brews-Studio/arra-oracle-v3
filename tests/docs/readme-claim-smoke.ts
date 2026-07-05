@@ -28,19 +28,25 @@ export async function smokeDockerHeroPath(repoRoot: string, scratch: string) {
   const suffix = `${process.pid}-${Date.now()}`;
   const image = `arra-readme-claims:${suffix}`;
   const name = `arra-readme-claims-${suffix}`;
-  const dataDir = join(scratch, `docker-data-${suffix}`);
-  mkdirSync(dataDir, { recursive: true });
+  const dataVolume = `arra-readme-claims-data-${suffix}`;
+  const notesDir = join(scratch, `docker-notes-${suffix}`);
+  mkdirSync(notesDir, { recursive: true });
+  writeFileSync(join(notesDir, 'readme-smoke.md'), '# README smoke\n');
   const port = await freePort();
   let container = '';
+  let volumeCreated = false;
   try {
     await runProcess(['docker', 'build', '--quiet', '--target', 'http-server', '-t', image, '.'], {
       cwd: repoRoot,
       timeoutMs: 180_000,
     });
-    const user = dockerUserArgs();
+    await runProcess(['docker', 'volume', 'create', dataVolume], { timeoutMs: 30_000 });
+    volumeCreated = true;
     const run = await runProcess([
-      'docker', 'run', '-d', '--name', name, ...user,
-      '-p', `127.0.0.1:${port}:47778`, '-v', `${dataDir}:/data`,
+      'docker', 'run', '-d', '--name', name,
+      '-p', `127.0.0.1:${port}:47778`,
+      '-v', `${dataVolume}:/data`,
+      '-v', `${notesDir}:${notesDir}:ro`,
       '-e', 'ORACLE_FILE_WATCHER=0', '-e', 'ORACLE_EMBEDDER=none',
       '-e', 'ORACLE_GATEWAY_HOT_RELOAD=0', '-e', 'VECTOR_URL=', image,
     ], { timeoutMs: 30_000 });
@@ -48,6 +54,7 @@ export async function smokeDockerHeroPath(repoRoot: string, scratch: string) {
     return await waitForHealth(port, container);
   } finally {
     if (container) await runProcess(['docker', 'rm', '-f', container], { allowFailure: true });
+    if (volumeCreated) await runProcess(['docker', 'volume', 'rm', dataVolume], { allowFailure: true });
     await runProcess(['docker', 'rmi', '-f', image], { allowFailure: true });
   }
 }
@@ -63,12 +70,6 @@ async function waitForHealth(port: number, container: string): Promise<Record<st
   }
   const logs = await runProcess(['docker', 'logs', container], { allowFailure: true });
   throw new Error(`Docker HTTP image did not serve /api/health\n${logs.stdout}${logs.stderr}`);
-}
-
-function dockerUserArgs(): string[] {
-  const uid = process.getuid?.();
-  const gid = process.getgid?.();
-  return uid === undefined || gid === undefined ? [] : ['--user', `${uid}:${gid}`];
 }
 
 async function runProcess(command: string[], options: RunOptions = {}): Promise<RunResult> {

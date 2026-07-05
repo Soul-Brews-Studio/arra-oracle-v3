@@ -94,8 +94,16 @@ describe('README/docs advertised claims', () => {
     expect(missing).toEqual([]);
   });
 
-  test('Docker hero path builds and serves health from /data', async () => {
-    expect(readme).toMatch(/export ORACLE_DATA_DIR=[\s\S]*docker run[\s\S]*--user \"\$\(id -u\):\$\(id -g\)\"[\s\S]*-p 47778:47778[\s\S]*-v \"\$ORACLE_DATA_DIR:\/data\"[\s\S]*arra-oracle-v3:http/);
+  test('Docker-first hero path advertises current defaults and serves health from /data', async () => {
+    const runBlock = readme.match(/### 1\. Run Arra Oracle[\s\S]*?```bash\n([\s\S]*?)```/)?.[1] ?? '';
+    expect(runBlock).toMatch(/export ARRA_CONTAINER="\$\{ARRA_CONTAINER:-arra-oracle\}"/);
+    expect(runBlock).toMatch(/export ARRA_NOTES_DIR="\$\{ARRA_NOTES_DIR:-\$HOME\/notes\}"/);
+    expect(runBlock).toMatch(/docker volume create "\$ARRA_VOLUME" >\/dev\/null/);
+    expect(runBlock).toMatch(/docker run --rm -d --name "\$ARRA_CONTAINER"[\s\S]*-p "\$\{ARRA_PORT\}:47778"[\s\S]*-v "\$\{ARRA_VOLUME\}:\/data"[\s\S]*-v "\$\{ARRA_NOTES_DIR\}:\$\{ARRA_NOTES_DIR\}:ro"[\s\S]*ghcr\.io\/soul-brews-studio\/arra-oracle-v3:http/);
+    expect(runBlock).toMatch(/until curl -sf "\$\{ARRA_URL\}\/api\/health" >/);
+    const mineBlock = readme.match(/### 2\. Mine your notes[\s\S]*?```bash\n([\s\S]*?)```/)?.[1] ?? '';
+    expect(mineBlock).toMatch(/docker exec "\$ARRA_CONTAINER" bun dist-cli\/index\.js "\$@"/);
+    expect(mineBlock).toMatch(/arra mine ~\/notes/);
     if (!(await dockerIsAvailable())) return;
     const health = await smokeDockerHeroPath(repoRoot, scratch);
     expect(health.status).toBe('ok');
