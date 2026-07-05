@@ -9,6 +9,7 @@ import { FeedPage } from './pages/FeedPage';
 import { ForumPage } from './pages/ForumPage';
 import { LearnPage } from './pages/LearnPage';
 import { MemoryPage } from './pages/MemoryPage';
+import { MemoryConsolidationPage } from './pages/MemoryConsolidationPage';
 import { MenuPage } from './pages/MenuPage';
 import { PluginsPage } from './pages/PluginsPage';
 import { CanvasAliasPage } from './pages/CanvasAliasPage';
@@ -46,6 +47,7 @@ export const frontendRoutes = [
   '/traces',
   '/learn',
   '/memory',
+  '/memory/consolidation',
   '/vector',
   '/vector/search',
   '/vector/documents',
@@ -121,6 +123,7 @@ export function DashboardRoutes({
       <Route path="/traces" element={<ActivityPage />} />
       <Route path="/learn" element={<LearnPage />} />
       <Route path="/memory" element={<MemoryPage />} />
+      <Route path="/memory/consolidation" element={<MemoryConsolidationPage />} />
       <Route path="/menu" element={menuPage} />
       <Route path="/vector" element={<VectorPage />} />
       <Route path="/vector/search" element={<VectorSearchPage />} />

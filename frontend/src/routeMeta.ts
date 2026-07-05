@@ -90,6 +90,13 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
     return base('Memory dashboard', 'Memory', description, [{ label: 'Memory dashboard' }]);
   }
 
+  if (pathname === '/memory/consolidation') {
+    return base('Consolidation review', 'Memory', 'Review pending supersede suggestions before applying them.', [
+      { label: 'Memory dashboard', to: '/memory' },
+      { label: 'Consolidation review' },
+    ]);
+  }
+
   if (pathname === '/plugins') return base('Plugin list', 'Plugins', 'Registered plugins and exposed runtime surfaces.', [{ label: 'Plugins' }]);
   if (pathname === '/status') return base('Server status', 'Status', 'Server health from /api/v1/health.', [{ label: 'Status' }]);
   if (pathname === '/canvas') return base('Canvas app', 'Canvas', 'Studio alias for canvas.buildwithoracle.com.', [{ label: 'Canvas app' }]);

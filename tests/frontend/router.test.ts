@@ -47,6 +47,7 @@ describe('frontend router', () => {
       '/traces',
       '/learn',
       '/memory',
+      '/memory/consolidation',
       '/vector',
       '/vector/search',
       '/vector/documents',
@@ -82,6 +83,7 @@ describe('frontend router', () => {
     expect(htmlAt('/learn')).toContain('Learn entries');
     expect(htmlAt('/memory')).toContain('Memory dashboard');
     expect(htmlAt('/memory')).toContain('Memory health');
+    expect(htmlAt('/memory/consolidation')).toContain('Consolidation review queue');
     expect(htmlAt('/vector')).toContain('Vector dashboard');
     expect(htmlAt('/vector/search')).toContain('Vector search preview');
     expect(htmlAt('/vector/documents')).toContain('Vector documents');

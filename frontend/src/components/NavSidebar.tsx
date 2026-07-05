@@ -16,7 +16,7 @@ type NavGroup = {
 const navGroups: NavGroup[] = [
   { label: 'Core', paths: ['/', '/plugins', '/status'] },
   { label: 'Search', paths: ['/search', '/feed'] },
-  { label: 'Knowledge', paths: ['/memory', '/learn', '/forum', '/activity', '/traces'] },
+  { label: 'Knowledge', paths: ['/memory', '/memory/consolidation', '/learn', '/forum', '/activity', '/traces'] },
   { label: 'Vector', paths: ['/vector', '/vector/documents', '/vector/index', '/vector/first-run', '/vector/search', '/vector/settings', '/vector/export'] },
   { label: 'System', paths: ['/mcp', '/canvas', '/canvas/plugins', '/metrics', '/storage', '/settings', '/export'] },
 ];

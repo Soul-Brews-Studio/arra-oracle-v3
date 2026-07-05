@@ -6,7 +6,7 @@ import { MemoryDashboardInsights } from '../components/MemoryDashboardInsights';
 import { MemoryDashboardContent } from './MemoryDashboardPage';
 import { MemoryHealthPanel } from '../components/MemoryHealthPanel';
 import { SearchResultCard } from '../components/SearchResultCard';
-import { memoryPath, vectorResultsPath } from '../routePaths';
+import { memoryConsolidationPath, memoryPath, vectorResultsPath } from '../routePaths';
 import type { SearchResponse, SearchResult } from '../types';
 
 type PageState = 'idle' | 'loading' | 'ready' | 'error';
@@ -28,6 +28,9 @@ function MemoryRouteLinks() {
       </Link>
       <Link className="focus-ring rounded-xl border border-border px-4 py-2 text-sm text-text hover:border-accent-border" to={vectorResultsPath('')}>
         Search results
+      </Link>
+      <Link className="focus-ring rounded-xl border border-border px-4 py-2 text-sm text-text hover:border-accent-border" to={memoryConsolidationPath()}>
+        Consolidation queue
       </Link>
     </div>
   );

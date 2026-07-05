@@ -77,6 +77,10 @@ export function memoryPath(query = ''): string {
   return `/memory?${new URLSearchParams({ q })}`;
 }
 
+export function memoryConsolidationPath(): string {
+  return '/memory/consolidation';
+}
+
 export function vectorDocumentsPath(): string {
   return '/vector/documents';
 }

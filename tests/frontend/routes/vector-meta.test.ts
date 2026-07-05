@@ -16,5 +16,9 @@ describe('vector route metadata', () => {
       title: 'First-run setup',
       description: 'Use the local backend default, review cost, and start the first vector index.',
     });
+    expect(routeMeta('/memory/consolidation')).toMatchObject({
+      title: 'Consolidation review',
+      description: 'Review pending supersede suggestions before applying them.',
+    });
   });
 });
