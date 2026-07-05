@@ -9,6 +9,7 @@ import { formatCloseoutMemory, type MemoryCloseoutInput } from './closeout.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
 import { rankMemories } from './rank.ts';
 import { createMemoryStatsEndpoint } from './stats.ts';
+import { createMemoryConsolidationRoutes } from './consolidation.ts';
 import { candidatePoolSize } from '../../search/retrieve-depth.ts';
 
 export function createMemoryRoutes(
@@ -44,6 +45,7 @@ export function createMemoryRoutes(
     })
     .use(createMemoryFanoutEndpoint())
     .use(createMemoryStatsEndpoint())
+    .use(createMemoryConsolidationRoutes())
     .get('/memory/morning-tape', ({ query }) => {
       const limit = parseMemoryLimit(query.limit, 8, 25);
       const tape = buildMorningTape(store.recall('', limit));

@@ -1,248 +1,194 @@
-# Arra Oracle V3 — MCP Memory, Search, and Plugin Layer
+# Arra Oracle V3 — Docker-first MCP Memory + Search
 
 [![CI](https://github.com/Soul-Brews-Studio/arra-oracle-v3/actions/workflows/ci.yml/badge.svg)](https://github.com/Soul-Brews-Studio/arra-oracle-v3/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](./LICENSE) [![Bun](https://img.shields.io/badge/runtime-Bun%201.2%2B-f9f1e1)](https://bun.sh)
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Soul-Brews-Studio/arra-oracle-v3)
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FSoul-Brews-Studio%2Farra-oracle-v3&env=ORACLE_URL&envDescription=Oracle%20HTTP%20API%20base%20URL%20for%20the%20Studio%20API%20proxy&envLink=https%3A%2F%2Fgithub.com%2FSoul-Brews-Studio%2Farra-oracle-v3%2Fblob%2Falpha%2Fdocs%2Fdeploy-vercel.md%23environment-variables&project-name=arra-oracle-studio&repository-name=arra-oracle-studio) — [Vercel quickstart](docs/deploy-vercel.md)
 
-> "The Oracle Keeps the Human Human" — queryable through MCP, HTTP, CLI, and
-> maw-js plugin surfaces.
+> Docker run → `arra mine ~/notes` → open the UI → search your memory.
 
-Arra Oracle V3 is the Oracle family's memory/search layer: an Elysia HTTP API,
-MCP tool server, vector indexer, unified plugin runtime, React/Tauri Studio UI,
-federation gateway, and operator CLI. It stores local knowledge in SQLite,
-indexes it with vector backends, and exposes the same capabilities to humans,
-agents, maw-js, and web frontends.
+Arra Oracle is the Oracle family's local memory and search layer. It stores your
+notes in SQLite, searches them with FTS/vector-capable APIs, and exposes the same
+memory through HTTP, MCP, the `arra` CLI, plugins, and the Studio UI.
 
-## Primary install: Docker + `arra mine`
+## Quick start: Docker is the primary path
 
-Use Docker first: one `/data` volume, non-root HTTP server plus MCP catalog, and `arra mine` to ingest notes before asking.
+You only need Docker, `curl`, and a notes folder. This path starts the HTTP
+server, mines `~/notes`, opens the built-in UI, and performs the first search.
+No local Bun install, API key, schema choice, or vector service is required.
+
+### 1. Run Arra Oracle
 
 ```bash
-export ORACLE_DATA_DIR="$HOME/.arra-oracle-v3"
-mkdir -p "$ORACLE_DATA_DIR"
+export ARRA_PORT="${ARRA_PORT:-47778}"
+export ARRA_URL="http://127.0.0.1:${ARRA_PORT}"
+export ARRA_CONTAINER="${ARRA_CONTAINER:-arra-oracle}"
+export ARRA_VOLUME="${ARRA_VOLUME:-arra-oracle-data}"
+export ARRA_NOTES_DIR="${ARRA_NOTES_DIR:-$HOME/notes}"
 
-docker run --rm --name arra-oracle --user "$(id -u):$(id -g)" \
-  -p 47778:47778 -e ORACLE_EMBEDDER=none -e ORACLE_DB_PATH=/data/oracle.db \
-  -v "$ORACLE_DATA_DIR:/data" \
+mkdir -p "$ARRA_NOTES_DIR"
+docker volume create "$ARRA_VOLUME" >/dev/null
+
+docker run --rm -d --name "$ARRA_CONTAINER" \
+  -p "${ARRA_PORT}:47778" \
+  -v "${ARRA_VOLUME}:/data" \
+  -v "${ARRA_NOTES_DIR}:${ARRA_NOTES_DIR}:ro" \
   ghcr.io/soul-brews-studio/arra-oracle-v3:http
+
+until curl -sf "${ARRA_URL}/api/health" >/dev/null; do sleep 1; done
+echo "Arra Oracle is ready: ${ARRA_URL}"
 ```
 
-`ORACLE_EMBEDDER=none` is zero-egress mode: no embedding-provider calls; FTS5 works immediately, vectors can be configured later.
+If port `47778` is busy, run `export ARRA_PORT=47878` first. If your notes live
+somewhere else, set `ARRA_NOTES_DIR=/path/to/notes` before `docker run`.
 
-In another shell, mine a folder into the same data dir and ask over HTTP:
+### 2. Mine your notes
+
+Use the CLI bundled inside the running container so ingestion writes to the same
+Docker volume as the server:
 
 ```bash
-export ORACLE_DATA_DIR="$HOME/.arra-oracle-v3"
-bunx --package arra-oracle-v3 arra mine ~/notes
-curl 'http://localhost:47778/api/v1/search?q=runbook&mode=fts'
+arra() {
+  docker exec "$ARRA_CONTAINER" bun dist-cli/index.js "$@"
+}
+
+arra mine ~/notes
 ```
 
-For MCP clients, point the stdio Docker image at the same data dir:
+Re-running `arra mine` is safe: unchanged Markdown, MDX, and text files are
+skipped with deterministic IDs. If you pointed `ARRA_NOTES_DIR` somewhere else,
+run `arra mine "$ARRA_NOTES_DIR"`.
+
+### 3. Open the UI
+
+Open Simple Mode in your browser:
 
 ```bash
-claude mcp add arra-oracle -- docker run --rm -i -e ORACLE_LOG_TARGET=stderr \
-  -v "$ORACLE_DATA_DIR:/data" ghcr.io/soul-brews-studio/arra-oracle-v3:stdio
-claude mcp list              # expect connected; tools/list exposes Oracle MCP tools
+echo "${ARRA_URL}/simple"
 ```
 
-### Developer source path
+Simple Mode shows health, save/search actions, and links to advanced surfaces.
 
-Use source only when editing core code:
+### 4. Search
+
+Use the UI search box, or call the HTTP API directly:
+
+```bash
+curl -sfS "${ARRA_URL}/api/v1/search?q=runbook&mode=fts&limit=5"
+```
+
+For grounded answers with citations:
+
+```bash
+curl -sfS "${ARRA_URL}/api/v1/ask" \
+  -H 'content-type: application/json' \
+  -d '{"q":"What did I write about runbooks?","limit":5,"llm":false}'
+```
+
+`"llm": false` keeps the answer extractive and local.
+
+## Stop, restart, or inspect
+
+```bash
+curl -sf "${ARRA_URL}/api/health"
+docker logs "$ARRA_CONTAINER"
+docker stop "$ARRA_CONTAINER"
+```
+
+Restart later by re-running the `docker run` block. Your memory remains in the
+Docker volume named by `$ARRA_VOLUME`.
+
+## MCP clients with Docker
+
+Use the stdio image when a desktop or agent needs Oracle MCP tools. It can share
+the same Docker volume as the HTTP server:
+
+```bash
+claude mcp add arra-oracle -- docker run --rm -i \
+  -e ORACLE_LOG_TARGET=stderr \
+  -v "${ARRA_VOLUME:-arra-oracle-data}:/data" \
+  ghcr.io/soul-brews-studio/arra-oracle-v3:stdio
+
+claude mcp list
+```
+
+The MCP surface includes Oracle search, read, learn, recap, profile, research
+note, trace, and tool-catalog capabilities.
+
+## What ships
+
+| Area | What it gives you |
+| --- | --- |
+| Docker HTTP image | Long-running local server on port `47778` with SQLite data in `/data`. |
+| `arra mine` | First ingestion path for folders of `.md`, `.mdx`, and `.txt` notes. |
+| Simple Mode UI | Browser entry point at `/simple` for health, save, and search. |
+| HTTP API | `/api/v1/search`, `/api/v1/ask`, `/api/v1/learn`, vector status, plugins, menu, and MCP tool discovery. |
+| MCP server | Stdio tool server for Claude, Codex, Docker MCP Toolkit, and agent fleets. |
+| Memory contracts | Confidence-ranked retrieval, reversible supersede history, provenance, and tenant-scoped reads/writes. |
+| Plugins | Unified manifests for CLI commands, API/menu rows, MCP tools, sidecars, exports, and lifecycle hooks. |
+| Edge/frontends | Cloudflare Worker shapes, Vercel Studio proxy, React/Tauri Studio, and canvas surfaces. |
+
+## Architecture at a glance
+
+```text
+Notes / agents / browsers / MCP clients
+        │
+        ├── Docker HTTP: ghcr.io/...:http on :47778
+        ├── Docker stdio MCP: ghcr.io/...:stdio
+        ├── CLI: arra mine/search/learn/export
+        └── Studio and Simple Mode UI
+                  │
+        Elysia routes + MCP tools + plugin registry
+                  │
+        SQLite + FTS + optional vector stores + local vault files
+```
+
+The design goal is one memory core with thin adapters. CLI, HTTP, MCP, plugins,
+canvas, and web/desktop surfaces reuse shared contracts instead of duplicating
+business logic.
+
+## Source development path
+
+Use a local checkout only when editing Arra Oracle itself:
 
 ```bash
 git clone https://github.com/Soul-Brews-Studio/arra-oracle-v3.git
 cd arra-oracle-v3
 bun install
 bunx tsc --noEmit
-bun run server                 # HTTP API on http://localhost:47778
+bun run server
 ```
 
-Useful checks: `curl -sf http://localhost:47778/api/health` and `bun cli/src/cli.ts health`. Non-dev UI: open `http://localhost:47778/simple` for Simple Mode. React dev UI: `cd frontend && bun install && bun run dev`. Tauri: `cd frontend && cargo tauri dev`. Benchmark: answerable Recall@3 is 1.000000 ±0.000000 over 5 temp-Ollama runs, with Reject-Recall 1.000000; see [benchmarks/RESULTS.md](benchmarks/RESULTS.md). Repro: `bun run benchmarks/hybrid-temp-backend.ts --out benchmarks/out/honest-recall.json --runs 5` (seeds a temp 20-doc backend, not the live vault).
+Then open `http://localhost:47778/simple` or call
+`http://localhost:47778/api/v1/search?q=oracle&mode=fts`.
 
-## Major features
-
-| Area | What ships |
-| --- | --- |
-| Modular backend | Elysia/SQLite core can run all-local, behind a maw plugin backend, behind edge proxies, or split from vector/MCP adapters. |
-| Runtime plug-in/out | Unified manifests enable/disable CLI, menu/API, MCP, proxy, server, export-format, and lifecycle surfaces without forks. |
-| MCP memory tools | 29 tools: `____IMPORTANT` plus 28 `oracle_*`, including `oracle_recap`, `oracle_research_note`, `oracle_profile`, and `oracle_trace_distill`. |
-| Memory confidence + supersede | Confidence receipts, reversible supersede chains, trace context, and async dry-run consolidation preserve history while deduping. |
-| HTTP API | Elysia route clusters under `/api/*`, with health, search, knowledge, vector, menu, plugins, canvas, tenants, settings, and opt-in federation surfaces. |
-| Vector search | Configurable providers, LanceDB/local stores, proxy services, export formats, status/config APIs, and FTS fallback paths. |
-| maw-js `arra` plugin | `maw arra ...` gives CLI/API/menu access to ARRA verbs, maintenance commands, vector config/health, and server controls. |
-| Edge/cloud deploy | Cloudflare Workers remote MCP/canvas/studio/federation shapes, Vercel Studio proxy, Docker, and local Bun modes. |
-| Multi-tenant HTTP isolation | Tenant headers and optional tenant tokens scope reads/writes by `tenant_id` for shared HTTP deployments. |
-| Federation | Opt-in `/api/federation/*` mesh capability provider for registered nodes, capability discovery, Workers relay smoke, and signed tunnel workflows. |
-| Studio + canvas UI | React/Tauri Studio plus `canvas.buildwithoracle.com` workers render search, vectors, plugins, MCP tools, and canvas plugins. |
-| Simple Mode | `/simple` is the non-dev first screen: health always visible, search/save obvious, advanced Studio optional. |
-
-## Architecture overview
-
-```text
-Clients / agents / maw-js / Studio
-        │
-        ├── CLI: cli/ + maw-plugin/
-        ├── MCP stdio: src/index.ts + src/tools/
-        ├── HTTP: src/server.ts + src/routes/*
-        └── Edge/frontends: src/workers/* + workers/* + api/proxy.ts
-                  │
-        Unified surfaces and services
-        ├── src/plugins/      # manifest loader, runtime plug-in/out surfaces
-        ├── src/vector/       # vector providers, export, registry, proxy adapters
-        ├── src/storage/      # Drizzle/SQLite backend selector
-        ├── src/indexer/      # collection/index jobs and workers
-        ├── src/federation/   # mesh capability provider and node registry
-        └── src/middleware/   # auth, tenant scope, logging, content negotiation
-                  │
-        Data: SQLite/Drizzle + FTS + vector stores + local vault files
-```
-
-The design goal is one capability core with thin adapters: CLI, menu/API, MCP,
-canvas, and web/desktop surfaces reuse shared registries instead of duplicating
-business logic; cloud adapters proxy thin edges while shared backend contracts own memory, supersede, vector, plugin, and federation behavior.
-
-## HTTP API and auth
-
-Start the API with `bun run server`. The default port is `47778`.
-
-Common endpoints:
-
-```text
-GET  /api/health
-GET  /api/v1/search?q=oracle&mode=fts
-POST /api/v1/learn
-GET  /api/v1/vector/config
-GET  /api/v1/vector/status
-GET  /api/v1/plugins
-GET  /api/v1/menu
-GET  /api/v1/canvas/plugins
-```
-
-Optional auth/tenant controls:
+Useful checks before a PR:
 
 ```bash
-export ARRA_API_TOKEN=secret                 # bearer token for protected API calls
-export ORACLE_TENANT_TOKENS='acme=secret,*=dev'
-curl -H 'Authorization: Bearer secret' -H 'X-Oracle-Tenant: acme' \
-  -H 'X-Oracle-Tenant-Token: secret' http://localhost:47778/api/v1/search?q=team
-# Tenant ID aliases: X-Tenant-ID, X-Org-Id; X-API-Key can map tenant keys.
-```
-
-## Vector backends and export
-
-Vector configuration is exposed through `/api/v1/vector/*` and the CLI:
-
-```bash
-bun run src/cli/index.ts vector-config list
-bun run src/cli/index.ts vector-config set bge-m3 adapter lancedb
-bun run src/cli/index.ts vector-config test bge-m3
-bun run src/cli/index.ts export --format markdown --out vault.md
-```
-
-Backends are selected by config. The system supports no-embedder/FTS operation,
-local providers, remote HTTP/provider fallbacks, proxy services, and collection
-exports (`json`, `jsonl`, `csv`, `markdown`).
-
-## Unified plugins
-
-Unified plugin manifests live under `src/plugins/` or installed plugin dirs. A
-manifest can contribute any mix of:
-
-- `cli` / `cliSubcommands` for operator commands.
-- `apiRoutes` and `menu` rows for Studio and HTTP discovery.
-- `mcpTools` for MCP-out tool registration.
-- `proxy` and `server` surfaces for sidecars and web apps.
-- `exportFormats` and lifecycle hooks.
-
-The built-in `arra` plugin declares CLI, menu, API, swappable DB config, optional
-embedder config, and vector health/config verbs.
-
-## maw-js CLI and serve commands
-
-Local plugin install during development:
-
-```bash
-ln -s "$PWD/maw-plugin" ~/.maw/plugins/arra
-maw plugin enable arra
-maw arra health
-```
-
-Representative `maw arra` verbs:
-
-```bash
-maw arra search "query" --mode fts --limit 5
-maw arra learn "new project fact" --project my-repo
-maw arra vector-config list --json
-maw arra health
-maw arra frontend --no-open
-maw arra canvas-plugins --json
-maw arra export --format markdown --out vault.md
-```
-
-Server controls:
-
-```bash
-maw arra serve                  # start bun run server in background
-maw arra serve --port 47779
-maw arra serve --status         # PID + health + tracked port/root
-maw arra serve --stop
-```
-
-Standalone canvas server:
-
-```bash
-bun run src/cli/index.ts canvas-serve --port 47779 --api-base http://localhost:47778
-bun run src/cli/index.ts canvas-plugins --json
-```
-
-## Canvas subdomain
-
-Canvas is available as both a Cloudflare Worker shape and local standalone app.
-It serves:
-
-- Three plugins: `cube`, `galaxy`, `torus`, `graph3d`, `solar`, `wave`, `map3d`.
-- React plugins: `map`, `planets`.
-- Registry endpoints: `/api/canvas/plugins` and `/api/canvas/registry`.
-- Worker-first proxying for other `/api/*` calls with no-store cache headers.
-- Browser cache hooks through localStorage and IndexedDB.
-
-## Project structure
-
-```text
-src/                  Elysia API, MCP tools, plugin runtime, vector, federation
-src/routes/           HTTP route clusters
-src/plugins/          Unified plugin manifests and loader
-src/workers/          Cloudflare canvas/MCP/federation worker adapters
-maw-plugin/           maw-js `arra` plugin surface
-cli/                  Published operator CLI package
-frontend/             React Studio + Tauri desktop shell
-tests/http/           Fetch/Elysia contract tests by route cluster
-docs/                 Deep-dive docs and runbooks
-catalog/              Docker MCP Toolkit catalog entry
-```
-
-## Testing and contribution gates
-
-```bash
-bunx tsc --noEmit                  # required build gate
-bun test tests/http/<cluster>/     # scoped HTTP tests
-bun test tests/http/canvas/        # canvas close-out flow
-cd frontend && bun run build       # frontend build when UI changes
+bunx tsc --noEmit
+bun test tests/http/<cluster>/
+bun test tests/docs/link-checker.test.ts
 ```
 
 Work targets `alpha`; never push or merge directly to `main`. Keep source, test,
-and docs files at or below 250 lines. Prefer scoped tests over bare `bun test`
-because worktree copies under `agents/` can pollute broad discovery.
+and docs files at or below 250 lines.
 
-## Docs navigation
+## More docs
 
-- [docs/README.md](docs/README.md) — docs index and feature knobs.
-- [docs/INSTALL.md](docs/INSTALL.md) — Bun, Docker, and MCP Toolkit install.
-- [docs/API.md](docs/API.md) — HTTP API reference.
-- [docs/FEDERATION.md](docs/FEDERATION.md) — opt-in federation mesh provider.
-- [docs/LOCAL-DEV.md](docs/LOCAL-DEV.md) — local development workflow.
-- [CHANGELOG.md](CHANGELOG.md) — alpha wave release notes.
+- [10-minute Docker quickstart](docs/QUICKSTART-10MIN.md)
+- [Docker MCP Toolkit](docs/DOCKER-MCP-TOOLKIT.md)
+- [HTTP API reference](docs/API-REFERENCE-INDEX.md)
+- [Plugin quickstart](docs/plugin-quickstart.md)
+- [DigitalOcean Docker deploy](docs/DEPLOY-DIGITALOCEAN.md)
+- [Local development](docs/LOCAL-DEV.md)
+- [Docs index](docs/README.md)
+- [Changelog](CHANGELOG.md)
+
+## License
+
+Arra Oracle V3 is licensed under BUSL-1.1. See [LICENSE](LICENSE).
 
 ## Acknowledgments
 
-Inspired by [claude-mem](https://github.com/thedotmack/claude-mem) by Alex Newman — process manager patterns, worker service architecture, and hook system concepts.
+Inspired by [claude-mem](https://github.com/thedotmack/claude-mem) by Alex
+Newman — process manager patterns, worker service architecture, and hook system
+concepts.
