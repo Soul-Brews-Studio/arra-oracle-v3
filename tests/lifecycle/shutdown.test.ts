@@ -15,7 +15,7 @@ describe('graceful shutdown', () => {
 
       fixture.process.kill('SIGTERM');
       const draining = await waitForDrainingHealth(fixture);
-      expect(draining.status).toBe(503);
+      expect(draining.status).toBe(200);
       expect(draining.body.status).toBe('draining');
 
       const exitCode = await Promise.race([
@@ -99,7 +99,10 @@ async function waitForDrainingHealth(fixture: ServerFixture): Promise<{ status: 
   while (Date.now() < deadline) {
     try {
       const res = await fetch(`${fixture.baseUrl}/api/health`);
-      if (res.status === 503) return { status: res.status, body: await res.json() };
+      if (res.status === 200) {
+        const body = await res.json();
+        if (body.status === 'draining') return { status: res.status, body };
+      }
     } catch {}
     await sleep(50);
   }

@@ -62,7 +62,7 @@ const scenarios: Scenario[] = [
   {
     name: 'down',
     headline: "Can't reach your Oracle",
-    cta: 'If using Docker, restart the container. If using Bun, run the server again.',
+    cta: 'Retry',
     dotColor: 'oklch(0.637 0.237 25.331)',
     health: { ...baseHealth, status: 'down' },
   },
@@ -94,6 +94,10 @@ test.describe('Simple Mode health hero', () => {
       await expect(hero).toHaveAttribute('data-health-state', scenario.name);
       await expect(page.getByRole('heading', { name: scenario.headline })).toBeVisible();
       await expect(page.getByRole('button', { name: scenario.cta })).toBeVisible();
+      if (scenario.name === 'down') {
+        await expect(page.getByText('Docker: docker compose up -d')).toBeVisible();
+        await expect(page.getByText('Bun: bun run server')).toBeVisible();
+      }
       await expect(page.getByTestId('simple-health-dot')).toHaveCSS('background-color', scenario.dotColor);
       await expect(page.getByText(/checked \d+s ago/)).toBeVisible();
 

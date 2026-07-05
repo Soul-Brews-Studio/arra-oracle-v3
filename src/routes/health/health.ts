@@ -95,9 +95,8 @@ function installedPluginCount(): number {
 }
 
 export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
-  return new Elysia().get('/health', async ({ set }) => {
+  return new Elysia().get('/health', async () => {
     if (options.isDraining?.()) {
-      set.status = 503;
       const healthStatus = 'down';
       return {
         status: 'draining', healthStatus, state: healthStatus,

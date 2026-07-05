@@ -14,7 +14,8 @@ describe('simple health state mapper', () => {
       'degraded-db', 'degraded-fts', 'degraded-plugin', 'down', 'healthy', 'starting',
     ].sort());
     expect(HEALTH_STATE_COPY[HealthState.Healthy].title).toBe('Awake and remembering');
-    expect(HEALTH_STATE_COPY[HealthState.Down].action).toContain('Docker');
+    expect(HEALTH_STATE_COPY[HealthState.Down].action).toBe('Retry');
+    expect(HEALTH_STATE_COPY[HealthState.Down].recovery?.join('\n')).toContain('docker compose up -d');
   });
 
   test('maps healthy payloads to healthy', () => {
@@ -69,6 +70,8 @@ describe('simple health state mapper', () => {
 
   test('maps explicit down payloads to down', () => {
     expect(mapHealthState({ msSinceLoad: 10_000, health: { status: 'down' } })).toBe(HealthState.Down);
+    expect(mapHealthState({ msSinceLoad: 10_000, health: { status: 'draining', healthStatus: 'down', draining: true } }))
+      .toBe(HealthState.Down);
   });
 
   test('prefers enriched healthStatus over legacy ok status', () => {

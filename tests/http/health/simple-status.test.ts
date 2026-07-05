@@ -57,7 +57,7 @@ test('GET /api/health maps draining to down with subsystem detail', async () => 
   const res = await app.handle(new Request('http://local/api/health'));
   const body = await res.json() as Record<string, any>;
 
-  expect(res.status).toBe(503);
+  expect(res.status).toBe(200);
   expect(checked).toBe(false);
   expect(body.status).toBe('draining');
   expect(body.healthStatus).toBe('down');

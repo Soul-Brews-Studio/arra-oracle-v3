@@ -40,6 +40,7 @@ export interface HealthStateCopy {
   detail: string;
   action: string;
   tone: 'good' | 'wait' | 'warn' | 'bad';
+  recovery?: string[];
 }
 
 export const HEALTH_STATE_COPY: Record<HealthState, HealthStateCopy> = {
@@ -76,7 +77,8 @@ export const HEALTH_STATE_COPY: Record<HealthState, HealthStateCopy> = {
   [HealthState.Down]: {
     title: "Can't reach your Oracle",
     detail: 'The browser could not reach the backend health endpoint.',
-    action: 'If using Docker, restart the container. If using Bun, run the server again.',
+    action: 'Retry',
+    recovery: ['Docker: docker compose up -d', 'Bun: bun run server'],
     tone: 'bad',
   },
 };
@@ -94,7 +96,8 @@ export function mapHealthState(input: HealthStateInput): HealthState {
 
   const legacyStatus = health.status?.toLowerCase();
   const status = (health.healthStatus ?? health.state)?.toLowerCase();
-  if (health.draining || status === 'starting' || legacyStatus === 'starting' || legacyStatus === 'draining') return HealthState.Starting;
+  if (health.draining || legacyStatus === 'draining') return status === 'down' ? HealthState.Down : HealthState.Starting;
+  if (status === 'starting' || legacyStatus === 'starting') return HealthState.Starting;
 
   if (dbIsBad(health)) return HealthState.DegradedDb;
   if (pluginIsBad(health)) return HealthState.DegradedPlugin;

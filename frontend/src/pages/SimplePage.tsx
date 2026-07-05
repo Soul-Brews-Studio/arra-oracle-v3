@@ -18,6 +18,7 @@ export function SimplePage() {
   const failedPolls = useRef(0);
   const [state, setState] = useState<HealthState>(HealthState.Starting);
   const [checkedAt, setCheckedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
 
   const poll = useCallback(async () => {
     try {
@@ -28,7 +29,9 @@ export function SimplePage() {
       failedPolls.current += 1;
       setState(mapHealthState({ error, failedPolls: failedPolls.current, msSinceLoad: Date.now() - loadedAt.current }));
     } finally {
-      setCheckedAt(Date.now());
+      const checked = Date.now();
+      setCheckedAt(checked);
+      setNow(checked);
     }
   }, []);
 
@@ -38,11 +41,16 @@ export function SimplePage() {
     return () => window.clearInterval(timer);
   }, [poll]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
     <main className="min-h-screen bg-field p-6 text-text">
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-5xl flex-col py-6">
         <div className="grid flex-1 content-center gap-5">
-          <HealthHero state={state} checkedAt={checkedAt} onAction={poll} />
+          <HealthHero state={state} checkedAt={checkedAt} now={now} onAction={poll} />
           <SimpleSearch />
           <AddMemory />
           <IndexFolderCard />

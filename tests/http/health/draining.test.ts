@@ -13,7 +13,7 @@ test('GET /api/health reports draining state before dependency checks', async ()
   const res = await app.handle(new Request('http://local/api/health'));
   const body = await res.json() as Record<string, unknown>;
 
-  expect(res.status).toBe(503);
+  expect(res.status).toBe(200);
   expect(body).toMatchObject({ status: 'draining', sandbox: 'dev', draining: true });
   expect(dbPingCalled).toBe(false);
   expect(vectorCalled).toBe(false);
