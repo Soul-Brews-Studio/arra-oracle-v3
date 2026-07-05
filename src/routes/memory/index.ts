@@ -9,6 +9,7 @@ import { formatCloseoutMemory, type MemoryCloseoutInput } from './closeout.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
 import { rankMemories } from './rank.ts';
 import { createMemoryStatsEndpoint } from './stats.ts';
+import { candidatePoolSize } from '../../search/retrieve-depth.ts';
 
 export function createMemoryRoutes(
   store: MemoryStore = memoryStore,
@@ -85,7 +86,8 @@ export function createMemoryRoutes(
       const limit = parseMemoryLimit(query.limit);
       try {
         isoAsOf(query.asOf);
-        const hits = await vectorIndex.search(query.q, limit);
+        const candidateLimit = candidatePoolSize(limit);
+        const hits = await vectorIndex.search(query.q, candidateLimit);
         const records = store.getByIds(hits.map((hit) => hit.memoryId), { asOf: query.asOf });
         const merged = mergeHits(hits, records);
         const scores = new Map(hits.map((hit) => [hit.memoryId, hit.score]));
@@ -96,7 +98,12 @@ export function createMemoryRoutes(
           score: (memory) => scores.get(memory.id),
           entityScore: (memory) => entityScores.get(memory.id),
         }).slice(0, limit);
-        return { success: true, query: query.q, asOf: isoAsOf(query.asOf), total: results.length, confidence: MEMORY_CONFIDENCE_STRATEGY, results };
+        return {
+          success: true, query: query.q, asOf: isoAsOf(query.asOf), total: results.length,
+          confidence: MEMORY_CONFIDENCE_STRATEGY,
+          ranking: { strategy: 'valid_time_confidence_heat_entity_match', candidatePool: candidateLimit },
+          results,
+        };
       } catch (error) {
         const message = error instanceof Error ? error.message : 'memory vector search failed';
         set.status = message.includes('valid-time') ? 400 : 503;
