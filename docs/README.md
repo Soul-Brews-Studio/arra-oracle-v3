@@ -33,6 +33,7 @@ is linked here; keep new docs in the right section when adding files.
 | [memory-demo.md](./memory-demo.md) | Run the #2251 memory walkthrough for provenance, confidence, heat, valid-time, and consolidation. | memory demo, provenance, confidence, heat |
 | [architecture/cloudflared-origin-contract.md](./architecture/cloudflared-origin-contract.md) | `ORACLE_ORIGIN_URL` secret and Cloudflare Tunnel origin contract for Workers. | Cloudflare Tunnel, origin URL, Workers secrets |
 | [architecture/proxy-terminology.md](./architecture/proxy-terminology.md) | Disambiguate request-tier, storage-tier, and manifest passthrough proxy meanings. | proxy vocabulary, external-only adapters |
+| [plugin-quickstart.md](./plugin-quickstart.md) | Build and smoke-test JS or HTTP Oracle plugins locally | plugin dev, sidecar, manifest |
 | [PLUGIN-GUIDE.md](./PLUGIN-GUIDE.md) | Author installable Oracle plugins | `plugin.json`, CLI/MCP/menu/API surfaces |
 | [API-REFERENCE-INDEX.md](./API-REFERENCE-INDEX.md) | Choose the right API reference | `/api/docs`, `openapi.json`, route family map |
 
