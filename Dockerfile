@@ -1,7 +1,8 @@
-# arra-oracle-v3 — multi-target image
-#   Default target: http-server  (port 47778)
+# arra-oracle-v3 — multi-stage, non-root, single-volume image
+#   Default target: http-server  (HTTP API + MCP tool catalog on port 47778)
 #   Alt target:     mcp-stdio    (stdio JSON-RPC MCP server)
 #   Test target:    test         (self-contained bun test + tsc)
+#   Runtime data:   /data        (HOME, SQLite, config, vectors)
 #
 # Build:
 #   docker build -t arra-oracle-v3 .
@@ -48,6 +49,8 @@ FROM oven/bun:1-slim AS production
 WORKDIR /app
 ENV HOME=/data \
     ORACLE_DATA_DIR=/data \
+    ORACLE_DB_PATH=/data/oracle.db \
+    ORACLE_LOG_TARGET=stderr \
     BUN_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist

@@ -2,6 +2,7 @@ services:
   arra:
     build:
       context: .
+      dockerfile: Dockerfile
       target: http-server
     image: arra-oracle-v3:http
     ports:
@@ -9,41 +10,20 @@ services:
     environment:
       HOME: /data
       ORACLE_DATA_DIR: /data
+      ORACLE_DB_PATH: /data/oracle.db
+      ORACLE_EMBEDDER: none
+      ORACLE_LOG_TARGET: stderr
       ORACLE_PORT: "47778"
       PORT: "47778"
     volumes:
       - arra-data:/data
+    healthcheck:
+      test: ["CMD", "bun", "-e", "const r=await fetch('http://127.0.0.1:47778/api/health');process.exit(r.ok?0:1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     restart: unless-stopped
-
-  test:
-    build:
-      context: .
-      target: http-server
-    environment:
-      HOME: /tmp/test-data
-      ORACLE_DATA_DIR: /tmp/test-data
-    volumes:
-      - ./src:/app/src:ro
-      - ./cli:/app/cli:ro
-      - ./tests:/app/tests:ro
-      - ./bunfig.toml:/app/bunfig.toml:ro
-      - ./tsconfig.json:/app/tsconfig.json:ro
-    entrypoint: ["bun"]
-    command: ["test", "--bail"]
-    profiles: ["test"]
-
-  typecheck:
-    build:
-      context: .
-      target: http-server
-    volumes:
-      - ./src:/app/src:ro
-      - ./cli:/app/cli:ro
-      - ./tests:/app/tests:ro
-      - ./tsconfig.json:/app/tsconfig.json:ro
-    entrypoint: ["bunx"]
-    command: ["tsc", "--noEmit"]
-    profiles: ["test"]
 
 volumes:
   arra-data:

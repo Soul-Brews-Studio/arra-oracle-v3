@@ -13,16 +13,16 @@ federation gateway, and operator CLI. It stores local knowledge in SQLite,
 indexes it with vector backends, and exposes the same capabilities to humans,
 agents, maw-js, and web frontends.
 
-## Quick start: Docker + `arra mine` (recommended)
+## Primary install: Docker + `arra mine`
 
-Use this path first: one local data dir, Docker for HTTP, and `arra mine` to ingest notes before asking.
+Use Docker first: one `/data` volume, non-root HTTP server plus MCP catalog, and `arra mine` to ingest notes before asking.
 
 ```bash
-export ORACLE_DATA_DIR="$HOME/.arra-oracle-v2"
+export ORACLE_DATA_DIR="$HOME/.arra-oracle-v3"
 mkdir -p "$ORACLE_DATA_DIR"
 
 docker run --rm --name arra-oracle --user "$(id -u):$(id -g)" \
-  -p 47778:47778 -e ORACLE_EMBEDDER=none \
+  -p 47778:47778 -e ORACLE_EMBEDDER=none -e ORACLE_DB_PATH=/data/oracle.db \
   -v "$ORACLE_DATA_DIR:/data" \
   ghcr.io/soul-brews-studio/arra-oracle-v3:http
 ```
@@ -32,7 +32,7 @@ docker run --rm --name arra-oracle --user "$(id -u):$(id -g)" \
 In another shell, mine a folder into the same data dir and ask over HTTP:
 
 ```bash
-export ORACLE_DATA_DIR="$HOME/.arra-oracle-v2"
+export ORACLE_DATA_DIR="$HOME/.arra-oracle-v3"
 bunx --package arra-oracle-v3 arra mine ~/notes
 curl 'http://localhost:47778/api/v1/search?q=runbook&mode=fts'
 ```
@@ -42,7 +42,7 @@ For MCP clients, point the stdio Docker image at the same data dir:
 ```bash
 claude mcp add arra-oracle -- docker run --rm -i -e ORACLE_LOG_TARGET=stderr \
   -v "$ORACLE_DATA_DIR:/data" ghcr.io/soul-brews-studio/arra-oracle-v3:stdio
-claude mcp list              # expect connected; tools/list exposes 28 tools
+claude mcp list              # expect connected; tools/list exposes Oracle MCP tools
 ```
 
 ### Developer source path
@@ -65,7 +65,7 @@ Useful checks: `curl -sf http://localhost:47778/api/health` and `bun cli/src/cli
 | --- | --- |
 | Modular backend | Elysia/SQLite core can run all-local, behind a maw plugin backend, behind edge proxies, or split from vector/MCP adapters. |
 | Runtime plug-in/out | Unified manifests enable/disable CLI, menu/API, MCP, proxy, server, export-format, and lifecycle surfaces without forks. |
-| MCP memory tools | 28 tools: `____IMPORTANT` plus 27 `oracle_*`, including `oracle_recap`, `oracle_research_note`, `oracle_profile`, and `oracle_trace_distill`. |
+| MCP memory tools | 29 tools: `____IMPORTANT` plus 28 `oracle_*`, including `oracle_recap`, `oracle_research_note`, `oracle_profile`, and `oracle_trace_distill`. |
 | Memory confidence + supersede | Confidence receipts, reversible supersede chains, trace context, and async dry-run consolidation preserve history while deduping. |
 | HTTP API | Elysia route clusters under `/api/*`, with health, search, knowledge, vector, menu, plugins, canvas, tenants, settings, and opt-in federation surfaces. |
 | Vector search | Configurable providers, LanceDB/local stores, proxy services, export formats, status/config APIs, and FTS fallback paths. |
