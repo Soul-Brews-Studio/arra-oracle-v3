@@ -152,4 +152,71 @@ describe('BackendGate shell', () => {
     expect(calls).toHaveLength(2);
     expect(calls[1]?.mode).toBe('no-cors');
   });
+
+  test('CORS-rejected health checks render origin-trust guidance, not the PNA prompt', async () => {
+    const restoreLocation = installBrowserLocation('https://studio.example/memory');
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = ((_url: string | URL | Request, init?: RequestInit) => init?.mode === 'no-cors'
+      ? Promise.resolve(new Response('', { status: 204 }))
+      : Promise.reject(new TypeError('Failed to fetch'))) as typeof fetch;
+
+    try {
+      await browserHealthCheck();
+      throw new Error('expected browserHealthCheck to reject');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BrowserHealthError);
+      const html = htmlFor(
+        <ConnectOracleSetup
+          accessIssue={(error as BrowserHealthError).issue}
+          isTauri={false}
+          message={(error as Error).message}
+          onRetry={() => {}}
+          onStartBackend={() => {}}
+          starting={false}
+          state="unreachable"
+        />,
+      );
+
+      expect(html).toContain('https://studio.example is not in the backend CORS allowlist');
+      expect(html).toContain('The backend answered, but this Studio origin is not trusted.');
+      expect(html).toContain('ARRA_CORS_ORIGINS');
+      expect(html).not.toContain('v4.buildwithoracle.com wants to');
+      expect(html).not.toContain('The real Chrome prompt appears here.');
+    } finally {
+      globalThis.fetch = previousFetch;
+      restoreLocation();
+    }
+  });
+
+  test('genuine connectivity failures still render the PNA guide', async () => {
+    const previousFetch = globalThis.fetch;
+    const original = new TypeError('Failed to fetch');
+    globalThis.fetch = (() => Promise.reject(original)) as typeof fetch;
+
+    try {
+      await browserHealthCheck();
+      throw new Error('expected browserHealthCheck to reject');
+    } catch (error) {
+      expect(error).toBe(original);
+      const html = htmlFor(
+        <ConnectOracleSetup
+          accessIssue="pna"
+          isTauri={false}
+          message={(error as Error).message}
+          onRetry={() => {}}
+          onStartBackend={() => {}}
+          starting={false}
+          state="unreachable"
+        />,
+      );
+
+      expect(html).toContain('Cannot reach http://localhost:47778: Failed to fetch');
+      expect(html).toContain('v4.buildwithoracle.com wants to');
+      expect(html).toContain('The real Chrome prompt appears here.');
+      expect(html).not.toContain('ARRA_CORS_ORIGINS');
+      expect(html).not.toContain('this Studio origin is not trusted');
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
 });
