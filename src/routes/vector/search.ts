@@ -7,6 +7,7 @@ import { filterResultsAsOf, parseAsOf } from '../../search/bitemporal.ts';
 import { getEmbeddingModels, getVectorStoreByModel } from '../../vector/factory.ts';
 import type { VectorQueryResult, VectorStoreAdapter } from '../../vector/types.ts';
 import { asOfResponse } from '../search/asof.ts';
+import { applyVectorEntityBoost } from './entity-boost.ts';
 
 type SortField = 'score' | 'distance' | 'date' | 'id' | 'type' | 'source_file';
 type SortOrder = 'asc' | 'desc';
@@ -153,8 +154,8 @@ export function createVectorSearchEndpoint(deps: VectorSearchDeps = {}) {
 
     let metadata: Record<string, unknown>;
     try {
-      metadata = metadataFilters(request, query.type);
       const tenantId = currentTenantId();
+      metadata = metadataFilters(request, query.type);
       if (tenantId) metadata.tenant_id = tenantId;
     } catch (error) {
       set.status = 400;
@@ -173,7 +174,8 @@ export function createVectorSearchEndpoint(deps: VectorSearchDeps = {}) {
       const filtered = filterAsOf(toHits(raw, collection), asOfDb, asOf.value)
         .filter((hit) => matchesMetadata(hit, metadata))
         .filter((hit) => withinDateRange(hit, from, to));
-      const sorted = sortHits(filtered, sort.field, sort.order);
+      const boosted = applyVectorEntityBoost(asOfDb, filtered, q, { tenantId: currentTenantId() });
+      const sorted = sortHits(boosted, sort.field, sort.order);
       return {
         results: sorted.slice(offset, offset + limit), total: sorted.length, offset, limit, query: q, mode: 'vector', collection,
         filters: { metadata, dateRange: { from: query.from ?? query.dateFrom, to: query.to ?? query.dateTo }, asOf: query.asOf },
