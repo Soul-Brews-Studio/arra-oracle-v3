@@ -18,6 +18,8 @@ import { ensureVectorStoreConnected, EMBEDDING_MODELS, getVectorStoreConfigByMod
 import { localVectorOperations } from './vector-operations.ts';
 import { detectProject } from './project-detect.ts';
 import { coerceConcepts } from '../tools/learn.ts';
+import { getVaultPsiRoot } from '../vault/discovery.ts';
+import { resolveLearnDir } from '../vault/learn-path.ts';
 import { createVectorProxy } from './vector-proxy.ts';
 import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
 import { localNativeVectorDisabledReason, localVectorIndexMissingReason, logLocalVectorDisabled, noteLocalVectorEnabled } from '../vector/cpu-capabilities.ts';
@@ -719,11 +721,12 @@ export function persistLearningDoc(opts: {
   project?: string | null;
   createdBy?: string;      // oracle_documents.created_by
   footer?: string;         // footer line under the content, e.g. '*Added via Oracle Learn*'
+  baseDir?: string;        // write anchor (vault root when configured); defaults to REPO_ROOT
 }): { file: string; id: string } {
   const { pattern, subdir, filename, id } = opts;
   const now = new Date();
 
-  const dir = path.join(currentRepoRoot(), subdir);
+  const dir = path.join(opts.baseDir ?? currentRepoRoot(), subdir);
   fs.mkdirSync(dir, { recursive: true });
   const filePath = path.join(dir, filename);
 
@@ -793,11 +796,20 @@ export function handleLearn(
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 
+  // Project-first vault layout via the shared helper — kept in lockstep with the
+  // embedded MCP tool (src/tools/learn.ts). See src/vault/learn-path.ts for the
+  // two-root drift history.
+  const vault = getVaultPsiRoot();
+  const vaultRoot = 'path' in vault ? vault.path : null;
+  const { baseDir, relDir: subdir, absDir: learningsDir } = resolveLearnDir({
+    project: resolvedProject,
+    vaultRoot,
+    repoRoot: currentRepoRoot(),
+  });
+
   // On slug collision (same date + same first-50-char prefix), append -2, -3, …
   // until unique. Prevents 500s when two writes share a slug within one day
   // (e.g. repeated hot-write snapshots from the same agent).
-  const subdir = 'ψ/memory/learnings';
-  const learningsDir = path.join(currentRepoRoot(), subdir);
   let uniqueSlug = slug;
   let suffix = 2;
   while (fs.existsSync(path.join(learningsDir, `${dateStr}_${uniqueSlug}.md`))) {
@@ -808,6 +820,7 @@ export function handleLearn(
   const { file, id } = persistLearningDoc({
     pattern,
     subdir,
+    baseDir,
     filename: `${dateStr}_${uniqueSlug}.md`,
     id: `learning_${dateStr}_${uniqueSlug}`,
     concepts,
@@ -841,6 +854,8 @@ export function handleSessionSummary(
 
   const { file, id } = persistLearningDoc({
     pattern: summary,
+    // INTENTIONALLY UNIVERSAL: session summaries are cross-project session artifacts,
+    // not project learnings — flat root is by design (do not re-flag in surface audits).
     subdir: 'ψ/memory/session-summaries',
     filename: `${safeSession}.md`,
     id: `session-summary_${safeSession}`,

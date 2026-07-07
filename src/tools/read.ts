@@ -111,7 +111,7 @@ function existingPathInside(root: string, relativePath: string): string | null {
  * Try to resolve a source_file path to a readable absolute path.
  * Returns the absolute path if found, null otherwise.
  */
-async function resolveFilePath(
+export async function resolveFilePath(
   sourceFile: string,
   repoRoot: string,
   ghqRoot: string,

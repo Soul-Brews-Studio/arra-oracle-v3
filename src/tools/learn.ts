@@ -11,6 +11,7 @@ import { oracleDocuments } from '../db/schema.ts';
 import { detectProject } from '../server/project-detect.ts';
 import { getVectorStoreByModel, getEmbeddingModels } from '../vector/factory.ts';
 import { REPO_ROOT } from '../config.ts';
+import { resolveLearnDir } from '../vault/learn-path.ts';
 import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
 
 // Lazy-loaded on first use — avoids top-level await which causes a TDZ
@@ -206,24 +207,16 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
   const project = normalizeProject(projectInput)
     || extractProjectFromSource(source)
     || detectProject(ctx.repoRoot);
-  const projectDir = (project || '_universal').toLowerCase();
 
-  let filePath: string;
-  let sourceFileRel: string;
-  if (vaultRoot) {
-    const dir = path.join(vaultRoot, projectDir, 'ψ', 'memory', 'learnings');
-    fs.mkdirSync(dir, { recursive: true });
-    filePath = path.join(dir, filename);
-    sourceFileRel = `${projectDir}/ψ/memory/learnings/${filename}`;
-  } else {
-    // Write to canonical REPO_ROOT, not ctx.repoRoot (the MCP server's cwd):
-    // the dashboard's /api/file resolves source_file against REPO_ROOT, so
-    // writing relative to cwd produces "local file not found" (#557).
-    const dir = path.join(REPO_ROOT, 'ψ/memory/learnings');
-    fs.mkdirSync(dir, { recursive: true });
-    filePath = path.join(dir, filename);
-    sourceFileRel = `ψ/memory/learnings/${filename}`;
-  }
+  // Shared path resolution — kept in lockstep with the HTTP handler
+  // (src/server/handlers.ts handleLearn) via src/vault/learn-path.ts.
+  // No-vault fallback anchors at canonical REPO_ROOT, not ctx.repoRoot (the MCP
+  // server's cwd): the dashboard's /api/file resolves source_file against
+  // REPO_ROOT, so writing relative to cwd produces "local file not found" (#557).
+  const { absDir, relDir } = resolveLearnDir({ project, vaultRoot, repoRoot: REPO_ROOT });
+  fs.mkdirSync(absDir, { recursive: true });
+  const filePath = path.join(absDir, filename);
+  const sourceFileRel = `${relDir}/${filename}`;
 
   if (fs.existsSync(filePath)) {
     throw new Error(`File already exists: ${filename}`);
