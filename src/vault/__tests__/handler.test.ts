@@ -198,9 +198,13 @@ describe('mapToVaultPath', () => {
       .toBe('github.com/soul-brews-studio/oracle-v2/ψ/memory/retrospectives/2026-01/15/session.md');
   });
 
-  it('prefixes inbox/handoff with project', () => {
+  it('keeps inbox/handoff universal (no project prefix) — bound 2026-07-07', () => {
+    // SPEC CHANGE (oracle-bound, Option B universal-inbox): handoff is
+    // host-level session mail with ONE inbox; every reader reads the root
+    // ψ/inbox/handoff only, so project-nested handoff mail was dark.
+    // Full contract: src/tools/__tests__/handoff-universal-inbox.test.ts
     expect(mapToVaultPath('ψ/inbox/handoff/context.md', project))
-      .toBe('github.com/soul-brews-studio/oracle-v2/ψ/inbox/handoff/context.md');
+      .toBe('ψ/inbox/handoff/context.md');
   });
 
   it('keeps resonance universal (no project prefix)', () => {

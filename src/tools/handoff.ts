@@ -7,7 +7,6 @@
 
 import path from 'path';
 import fs from 'fs';
-import { detectProject } from '../server/project-detect.ts';
 import type { ToolContext, ToolResponse, OracleHandoffInput } from './types.ts';
 
 let getVaultPsiRootFn: typeof import('../vault/handler.ts').getVaultPsiRoot | null = null;
@@ -109,16 +108,24 @@ export async function handleHandoff(ctx: ToolContext, input: OracleHandoffInput)
   if ('needsInit' in vault) console.error(`[Vault] ${vault.hint}`);
   const vaultRoot = 'path' in vault ? vault.path : null;
 
-  const project = detectProject(ctx.repoRoot)?.toLowerCase() || '_universal';
-
+  // Handoff = UNIVERSAL single inbox (bound 2026-07-07): every reader
+  // (oracle_inbox, GET /api/inbox, maw-plugin) reads ROOT ψ/inbox/handoff only.
+  // The old project-nested vault write put mail where no reader looks — and
+  // embedded mode is the lazy fallback during server outages, i.e. exactly
+  // when handoffs matter most. Do NOT reintroduce project nesting here.
   let dirPath: string;
-  let sourceFileRel: string;
+  const sourceFileRel = `ψ/inbox/handoff/${filename}`;
   if (vaultRoot) {
-    dirPath = path.join(vaultRoot, project, 'ψ', 'inbox', 'handoff');
-    sourceFileRel = `${project}/ψ/inbox/handoff/${filename}`;
+    dirPath = path.join(vaultRoot, 'ψ', 'inbox', 'handoff');
   } else {
+    // Last resort: vault unresolvable (unconfigured, or ghq lookup failed).
+    // Write locally so the mail is not lost, and SCREAM so it is findable —
+    // an orphan inbox outside the vault is invisible to every reader.
     dirPath = path.join(ctx.repoRoot, 'ψ/inbox/handoff');
-    sourceFileRel = `ψ/inbox/handoff/${filename}`;
+    console.error(
+      `[MCP:HANDOFF] ORPHAN handoff path — vault unresolvable, writing to ${dirPath}. ` +
+      `No inbox reader looks here; recover this file manually into the vault root inbox.`,
+    );
   }
 
   fs.mkdirSync(dirPath, { recursive: true });

@@ -6,6 +6,7 @@ import { execSync } from 'child_process';
 import { getSetting } from '../db/index.ts';
 import { detectProject } from '../server/project-detect.ts';
 import { mapToVaultPath, ensureFrontmatterProject } from './handler.ts';
+import { isProjectCategory } from './path-mapping.ts';
 import { ghqListPaths } from './ghq.ts';
 
 function resolveVaultPath(repo: string): string {
@@ -28,11 +29,10 @@ function walkFiles(dir: string, baseDir: string): Array<{ relativePath: string; 
   return results;
 }
 
-const PROJECT_CATEGORIES = ['ψ/memory/learnings/', 'ψ/memory/retrospectives/', 'ψ/inbox/handoff/'];
-
-function isProjectCategory(relativePath: string): boolean {
-  return PROJECT_CATEGORIES.some((cat) => relativePath.startsWith(cat));
-}
+// Category membership comes from the ONE shared list in path-mapping.ts.
+// A local duplicate list lived here until 2026-07-07 and had already drifted
+// from the shared one (handoff) — the same divergence-by-copy seed as the
+// three-path learn drift. Do not re-declare categories in this file.
 
 function sameFileContent(dest: string, source: string, content?: string): boolean {
   if (!fs.existsSync(dest)) return false;

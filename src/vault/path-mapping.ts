@@ -11,12 +11,18 @@ import path from 'node:path';
 export const PROJECT_CATEGORIES = [
   'ψ/memory/learnings/',
   'ψ/memory/retrospectives/',
-  'ψ/inbox/handoff/',
 ];
 
-// Universal categories — no project prefix
+// Universal categories — no project prefix.
+// handoff is UNIVERSAL by bound design (2026-07-07): host-level session mail
+// with ONE inbox — every reader (oracle_inbox, GET /api/inbox, maw-plugin)
+// reads root ψ/inbox/handoff only. It was previously declared project-nested
+// here while never consumed that way; mail written project-nested was dark.
+// Declaration aligned to consumed behavior — do not re-nest without moving
+// every reader in lockstep.
 export const UNIVERSAL_CATEGORIES = [
   'ψ/memory/resonance/',
+  'ψ/inbox/handoff/',
   'ψ/inbox/schedule.md',
   'ψ/inbox/focus-agent-main.md',
   'ψ/active/',
