@@ -119,12 +119,41 @@ describe('backward compat — pre-fix rows still readable', () => {
   });
 });
 
-describe('anti-divergence tripwire — both write paths consume the shared helper', () => {
-  it('server/handlers.ts and tools/learn.ts both call resolveLearnDir', () => {
-    const handlers = fs.readFileSync(path.join(import.meta.dir, '../handlers.ts'), 'utf-8');
-    const mcpLearn = fs.readFileSync(path.join(import.meta.dir, '../../tools/learn.ts'), 'utf-8');
-    expect(handlers).toContain('resolveLearnDir(');
-    expect(mcpLearn).toContain('resolveLearnDir(');
+describe('createLearning (learn CRUD route) — third write path, same contract', () => {
+  // Upstream alpha added routes/learn/crud.ts with its own hardcoded default
+  // 'ψ/memory/learnings/...' — the exact divergence class this suite guards.
+  // Caught live 2026-07-07: POST /api/learn on v26.7.5-alpha.1608 wrote to the
+  // vault root despite the handlers.ts fix, because the CRUD route won the mount.
+  it('default sourceFile is project-nested when project is passed', async () => {
+    const { createLearning } = await import('../../routes/learn/crud.ts');
+    const res = createLearning({ pattern: `crud project probe ${Date.now()}`, project: PROJECT });
+    expect(res.status).toBe(200);
+    const body = res.body as { success: boolean; file: string };
+    expect(body.file).toMatch(new RegExp(`^${PROJECT}/ψ/memory/learnings/`));
+  });
+
+  it('default sourceFile is _universal when no project', async () => {
+    const { createLearning } = await import('../../routes/learn/crud.ts');
+    const res = createLearning({ pattern: `crud universal probe ${Date.now()}` });
+    expect(res.status).toBe(200);
+    const body = res.body as { success: boolean; file: string };
+    expect(body.file).toMatch(/^_universal\/ψ\/memory\/learnings\//);
+  });
+});
+
+describe('anti-divergence tripwire — ALL write paths consume the shared helper', () => {
+  it('server/handlers.ts, tools/learn.ts, and routes/learn/crud.ts all call resolveLearnDir', () => {
+    for (const rel of ['../handlers.ts', '../../tools/learn.ts', '../../routes/learn/crud.ts']) {
+      const src = fs.readFileSync(path.join(import.meta.dir, rel), 'utf-8');
+      expect(src).toContain('resolveLearnDir(');
+    }
+  });
+
+  it('no learn write path carries a hardcoded root learnings literal outside the helper', () => {
+    for (const rel of ['../handlers.ts', '../../routes/learn/crud.ts']) {
+      const src = fs.readFileSync(path.join(import.meta.dir, rel), 'utf-8');
+      expect(src).not.toMatch(/[`'"]ψ\/memory\/learnings\//);
+    }
   });
 });
 

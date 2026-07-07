@@ -4,6 +4,9 @@ import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import fs from 'fs';
 import path from 'path';
 import { db, learnLog, oracleDocuments, sqlite } from '../../db/index.ts';
+import { REPO_ROOT } from '../../config.ts';
+import { getVaultPsiRoot } from '../../vault/discovery.ts';
+import { resolveLearnDir } from '../../vault/learn-path.ts';
 import { currentTenantId, tenantIdForWrite } from '../../middleware/tenant.ts';
 import { replaceEntityLinks } from '../../search/entity-ranking.ts';
 import { conceptsFrom, learningContent, slugFor } from './content.ts';
@@ -75,11 +78,27 @@ function upsertFts(id: string, content: string, concepts: string[]): void {
   db.delete(oracleFts).where(eq(oracleFts.id, id)).run();
   db.insert(oracleFts).values({ id, content, concepts: concepts.join(' ') }).run();
 }
-function nextIdentity(pattern: string, requestedId?: string, requestedSourceFile?: string) {
+/**
+ * Default write dir for a new learning — shared resolveLearnDir contract
+ * (project-first under the vault; see src/vault/learn-path.ts for the
+ * two-root drift history). Anchoring stays with learningSourcePath
+ * (repoRoot), so the relDir is what carries the project nesting.
+ */
+function defaultLearnRelDir(project?: string | null): string {
+  const vault = getVaultPsiRoot();
+  const vaultRoot = 'path' in vault ? vault.path : null;
+  return resolveLearnDir({
+    project: project ?? null,
+    vaultRoot,
+    repoRoot: process.env.ORACLE_REPO_ROOT || REPO_ROOT,
+  }).relDir;
+}
+function nextIdentity(pattern: string, requestedId?: string, requestedSourceFile?: string, project?: string | null) {
+  const relDir = defaultLearnRelDir(project);
   if (requestedId) {
     return {
       id: requestedId,
-      sourceFile: requestedSourceFile ?? `ψ/memory/learnings/${requestedId}.md`,
+      sourceFile: requestedSourceFile ?? `${relDir}/${requestedId}.md`,
     };
   }
   const date = new Date().toISOString().slice(0, 10);
@@ -88,7 +107,7 @@ function nextIdentity(pattern: string, requestedId?: string, requestedSourceFile
   while (true) {
     const tail = suffix === 1 ? slug : `${slug}-${suffix}`;
     const id = `learning_${date}_${tail}`;
-    const sourceFile = requestedSourceFile ?? `ψ/memory/learnings/${date}_${tail}.md`;
+    const sourceFile = requestedSourceFile ?? `${relDir}/${date}_${tail}.md`;
     const tenantId = currentTenantId();
     const where = tenantId ? and(eq(oracleDocuments.id, id), eq(oracleDocuments.tenantId, tenantId)) : eq(oracleDocuments.id, id);
     const existing = db.select({ id: oracleDocuments.id })
@@ -123,7 +142,7 @@ export function createLearning(body: LearnCreateBody) {
   if (requestedSourceFile === null) return { status: 400, body: { error: INVALID_LEARNING_SOURCE_FILE } };
   const now = Date.now();
   const concepts = conceptsFrom(body.concepts);
-  const identity = nextIdentity(pattern, body.id, requestedSourceFile);
+  const identity = nextIdentity(pattern, body.id, requestedSourceFile, body.project);
   if (rowById(identity.id)) return { status: 409, body: { error: 'Learning already exists' } };
   const content = learningContent(pattern, concepts, body.source);
   if (!writeLearningFile(identity.sourceFile, content)) {
