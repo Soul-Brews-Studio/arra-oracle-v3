@@ -96,6 +96,12 @@ const SHARED_REPO_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-learn-m5-ro
 process.env.ORACLE_REPO_ROOT = SHARED_REPO_ROOT;
 process.env.ORACLE_EMBEDDER = 'none';
 process.env.ORACLE_EMBEDDING_PROVIDER = 'none';
+// Hermetic ORACLE_DATA_DIR: without this, getSetting('vault_repo') reads the REAL
+// settings DB on any host with a configured vault and handleLearn writes test junk
+// into the real vault's _universal/ dir (observed live 2026-07-07: 20 test-pattern
+// files leaked into oracle-vault). DB_PATH is module-frozen — set before import.
+const SHARED_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-learn-m5-data-'));
+process.env.ORACLE_DATA_DIR = SHARED_DATA_DIR;
 const createdMarkdownFiles = new Set<string>();
 
 function markdownPathCandidates(relativePath: string): string[] {
