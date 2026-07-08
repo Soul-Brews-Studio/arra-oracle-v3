@@ -13,9 +13,14 @@ import { sessionShow } from "./commands/session-show.ts";
 import { sessionContext } from "./commands/session-context.ts";
 import { menuCommand } from "./commands/menu.ts";
 import { configCommand, useCommand } from "./commands/config.ts";
+import { askCommand } from "./commands/ask.ts";
 import { doctorCommand } from "./commands/doctor.ts";
 import { completionsCommand } from "./commands/completions.ts";
+import { installCommand } from "./commands/install.ts";
 import { huginnCommand } from "./commands/huginn.ts";
+import { mcpCommand } from "./commands/mcp.ts";
+import { searchCommand } from "./commands/search.ts";
+import { serveCommand, serveCommandPlan } from "./commands/serve.ts";
 import { vectorConfigCommand } from "./commands/vector-config.ts";
 import { CLI_VERSION, builtinHelpFor, hasHelpFlag, renderCommandHelp, renderRootHelp } from "../../src/cli/help.ts";
 
@@ -121,6 +126,39 @@ async function main() {
     if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
     const { changelogCommand } = await import("../../src/cli/commands/changelog.ts");
     process.exit(await changelogCommand(args.slice(1)));
+  }
+
+  if (cmd === "mcp") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    process.exit(await mcpCommand(args.slice(1)));
+  }
+
+  if (cmd === "search") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    process.exit(await searchCommand(args.slice(1)));
+  }
+
+  if (cmd === "ask") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    process.exit(await askCommand(args.slice(1)));
+  }
+
+  if (cmd === "install") {
+    if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
+    process.exit(await installCommand(args.slice(1)));
+  }
+
+  if (cmd === "serve") {
+    if (hasHelpFlag(args.slice(1))) return printScopedBuiltinHelp(cmd, args.slice(1));
+    const plan = serveCommandPlan(args);
+    if (plan.kind === "delegate") {
+      process.exit(await serveCommand(["serve", ...plan.args]));
+    }
+    if (plan.kind === "foreground") {
+      process.exit(await serveCommand(["serve", "foreground"]));
+    }
+    console.error(plan.message);
+    process.exit(1);
   }
 
   if (cmd === "release") {

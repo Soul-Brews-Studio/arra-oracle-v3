@@ -41,6 +41,11 @@ describe("arra-cli help output", () => {
   test("builtin subcommands include usage and examples", async () => {
     const menu = await cliHelp(["menu", "--help"]);
     const plugins = await cliHelp(["plugins", "--help"]);
+    const search = await cliHelp(["search", "--help"]);
+    const ask = await cliHelp(["ask", "--help"]);
+    const mcp = await cliHelp(["mcp", "--help"]);
+    const install = await cliHelp(["install", "--help"]);
+    const serve = await cliHelp(["serve", "--help"]);
     const doctor = await cliHelp(["doctor", "--help"]);
     const vectorConfig = await cliHelp(["vector-config", "--help"]);
     const config = await cliHelp(["-h", "config"]);
@@ -52,10 +57,19 @@ describe("arra-cli help output", () => {
     expect(menu).toContain("arra-cli menu list --json");
     expect(plugins).toContain("Usage: arra-cli plugins <subcommand>");
     expect(plugins).toContain("enable <name>");
+    expect(mcp).toContain("Usage: arra-cli mcp [--read-only]");
     expect(doctor).toContain("Usage: arra-cli doctor [--json]");
     expect(doctor).toContain("arra-cli doctor --json");
     expect(vectorConfig).toContain("Usage: arra-cli vector-config <subcommand>");
     expect(vectorConfig).toContain("set <collection> <field> <value>");
+    expect(search).toContain("search —");
+    expect(search).toContain("Usage: arra-cli search <query>");
+    expect(ask).toContain("ask —");
+    expect(ask).toContain("Usage: arra-cli ask <question>");
+    expect(install).toContain("install —");
+    expect(install).toContain("Usage: arra-cli install <url-or-path>");
+    expect(serve).toContain("serve —");
+    expect(serve).toContain("Usage: arra-cli serve [start|status|stop]");
     expect(config).toContain("Usage: arra-cli config [show|path|use <name>]");
     expect(config).toContain("arra-cli config use cafe");
     expect(menuAdd).toContain("Usage: arra-cli menu add --path /p --label L");

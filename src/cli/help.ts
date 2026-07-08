@@ -61,6 +61,56 @@ export const BUILTIN_HELP: CliHelpEntry[] = [
     examples: ["arra-cli doctor", "arra-cli doctor --json", "arra-cli --at cafe doctor"],
   },
   {
+    command: "search",
+    help: "arra-cli search <query> [--type X] [--limit N] [--offset N] [--project P]",
+    usage: "arra-cli search <query> [--type X] [--limit N] [--offset N] [--project P]",
+    flags: ["--type", "--limit", "--offset", "--project", "--json", "--help", "-h"],
+    examples: [
+      "arra-cli search 'how does this work?'",
+      "arra-cli search oracle --type all --limit 20",
+    ],
+  },
+  {
+    command: "ask",
+    help: "ask the knowledge base about a question",
+    usage: "arra-cli ask <question> [--limit N] [--type X] [--model M] [--project P] [--as-of DATE] [--no-llm] [--json]",
+    flags: ["--limit", "--type", "--model", "--project", "--as-of", "--no-llm", "--json", "--help", "-h"],
+    examples: [
+      "arra-cli ask \"how does sleep mode work?\"",
+      "arra-cli ask \"what changed?\" --limit 5 --type pattern",
+    ],
+  },
+  {
+    command: "mcp",
+    help: "run MCP stdio server",
+    usage: "arra-cli mcp [--read-only]",
+    flags: ["--read-only", "--help", "-h"],
+    examples: ["arra-cli mcp", "arra-cli mcp --read-only"],
+  },
+  {
+    command: "install",
+    help: "install a plugin from URL or path",
+    usage: "arra-cli install <url-or-path> [flags]",
+    flags: ["--force", "--dry-run", "--artifact", "--manifest", "--no-backup", "--backup-dir", "--yml", "--help", "-h"],
+    examples: [
+      "arra-cli install ./my-plugin",
+      "arra-cli install github.com/owner/repo --dry-run",
+      "arra-cli install --artifact ./plugin.wasm --manifest ./plugin.json",
+    ],
+  },
+  {
+    command: "serve",
+    help: "start, stop, or inspect server status",
+    usage: "arra-cli serve [start|status|stop] [--foreground|--background] [--json]",
+    subcommands: ["start", "status", "stop"],
+    flags: ["--foreground", "-f", "--background", "-b", "--json", "--help", "-h"],
+    examples: [
+      "arra-cli serve",
+      "arra-cli serve status --json",
+      "arra-cli serve stop",
+    ],
+  },
+  {
     command: "use",
     help: "set the global default API target",
     usage: "arra-cli use <name>",

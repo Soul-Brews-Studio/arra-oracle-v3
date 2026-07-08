@@ -108,6 +108,69 @@ describe("arra doctor", () => {
     expect(report.checks.find(c => c.id === "plugins.loaded")?.detail).toContain("plugin degraded");
   });
 
+  test("runDoctor shows stale global install warning when running from arra repo", async () => {
+    server = startDoctorServer();
+    const marker = join(root, "global", "global", "node_modules", "arra-oracle-v3");
+    mkdirSync(marker, { recursive: true });
+    writeJson(join(root, "package.json"), {
+      name: "arra-oracle-v3",
+      version: "0.0.0",
+      private: true,
+    });
+
+    const report = await runDoctor({
+      cwd: root,
+      env: {
+        HOME: join(root, "home"),
+        XDG_CONFIG_HOME: join(root, "xdg"),
+        ORACLE_API: server.url.href,
+        NEO_ARRA_API: "",
+        BUN_INSTALL: join(root, "global"),
+      },
+      mcpProbe: async () => ({ toolCount: 12, detail: "mock mcp tools" }),
+    });
+
+    const staleCheck = report.checks.find(c => c.id === "install.global");
+    expect(staleCheck?.status).toBe("warn");
+    expect(staleCheck?.detail).toContain("found global install candidate");
+    expect(staleCheck?.detail).toContain("bun remove -g arra-oracle-v3");
+  });
+
+  test("runDoctor appends embedder degradation reason when present", async () => {
+    server = startDoctorServer({
+      healthBody: {
+        healthStatus: "degraded",
+        subsystems: {
+          embedder: {
+            status: "degraded",
+            label: "embedder reachable",
+            critical: false,
+            detail: "embedding backend unavailable",
+            data: {
+              reason: "no model context available",
+            },
+          },
+        },
+      },
+    });
+
+    const report = await runDoctor({
+      cwd: root,
+      env: {
+        HOME: join(root, "home"),
+        XDG_CONFIG_HOME: join(root, "xdg"),
+        ORACLE_API: server.url.href,
+        NEO_ARRA_API: "",
+      },
+      mcpProbe: async () => ({ toolCount: 12, detail: "mock mcp tools" }),
+    });
+
+    const embedder = report.checks.find(c => c.id === "embedder.reachable");
+    expect(embedder?.status).toBe("warn");
+    expect(embedder?.detail).toContain("embedding backend unavailable");
+    expect(embedder?.detail).toContain("reason: no model context available");
+  });
+
   test("runDoctor fails when a critical server check fails", async () => {
     server = startDoctorServer({ healthStatus: 503 });
 

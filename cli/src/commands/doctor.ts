@@ -1,5 +1,6 @@
-import { existsSync } from "fs";
-import { resolve } from "path";
+import { existsSync, readFileSync } from "fs";
+import { homedir } from "os";
+import { dirname, join, parse, resolve } from "path";
 import { globalConfigPath, findProjectConfigPath, loadConfigSources, resolveOracleApiBase, type ResolvedApiBase } from "../lib/config.ts";
 import type { HealthStatusEnum, HealthSubsystem } from "../../../src/routes/health/subsystems.ts";
 
@@ -23,6 +24,7 @@ export interface DoctorReport {
 
 type DoctorOptions = { env?: NodeJS.ProcessEnv; cwd?: string; fetcher?: typeof fetch; mcpProbe?: McpProbe; timeoutMs?: number };
 type HealthPayload = { healthStatus?: HealthStatusEnum; state?: HealthStatusEnum; status?: string; subsystems?: Record<string, HealthSubsystem> };
+const CLI_PACKAGE = "arra-oracle-v3";
 
 function ok(id: string, label: string, detail?: string, data?: unknown): DoctorCheck {
   return { id, label, status: "pass", critical: true, detail, data };
@@ -45,8 +47,9 @@ async function fetchJson(baseUrl: string, path: string, fetcher: typeof fetch, t
 
 function subsystemCheck(id: string, label: string, subsystem: HealthSubsystem | undefined, mode: "strict" | "soft"): DoctorCheck {
   if (!subsystem) return fail(id, label, "missing from /api/health subsystem detail");
+  const detail = id === "embedder.reachable" ? appendSubsystemReason(subsystem) : subsystem.detail;
   if (subsystem.status === "healthy") return ok(id, label, subsystem.detail, subsystem.data);
-  if (mode === "soft" && subsystem.status === "degraded") return warn(id, label, subsystem.detail, subsystem.data);
+  if (mode === "soft" && subsystem.status === "degraded") return warn(id, label, detail, subsystem.data);
   return fail(id, label, subsystem.detail, subsystem.data);
 }
 
@@ -89,6 +92,12 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorRepo
   try { loadConfigSources({ env, cwd }); } catch (err) {
     checks.push(fail("config.files", "config files parse", err instanceof Error ? err.message : String(err)));
   }
+
+  const staleGlobalInstall = staleGlobalInstallRef({ env, cwd });
+  if (staleGlobalInstall) {
+    checks.push(warn("install.global", "stale global install reference", staleGlobalInstall));
+  }
+
   const projectPath = findProjectConfigPath(cwd);
   const globalPath = globalConfigPath(env);
   checks.push((projectPath && existsSync(projectPath)) ? ok("config.project", "project config file", projectPath) : warn("config.project", "project config file", "not found"));
@@ -122,6 +131,52 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<DoctorRepo
   }
 
   return { ok: checks.every(check => check.status !== "fail" || !check.critical), resolved, checks };
+}
+
+function staleGlobalInstallRef(options: { env: NodeJS.ProcessEnv; cwd: string }): string | undefined {
+  const installRoot = options.env.BUN_INSTALL?.trim();
+  if (!installRoot) return undefined;
+  const marker = join(installRoot, "global", "node_modules", CLI_PACKAGE);
+  if (!existsSync(marker)) return;
+
+  if (!isArraRepo(options.cwd)) return;
+
+  return `found global install candidate at ${marker}; remove stale package with: bun remove -g ${CLI_PACKAGE}`;
+}
+
+function isArraRepo(cwd: string): boolean {
+  let dir = resolve(cwd);
+  const stop = parse(homedir()).root;
+  while (dir && dir !== stop) {
+    const manifest = join(dir, "package.json");
+    if (existsSync(manifest)) {
+      try {
+        const raw = JSON.parse(readFileSync(manifest, "utf8"));
+        if (raw?.name === CLI_PACKAGE) return true;
+      } catch {
+        // Ignore malformed package manifests in ancestor directories.
+      }
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return false;
+}
+
+function appendSubsystemReason(subsystem: HealthSubsystem): string | undefined {
+  if (subsystem.status !== "degraded") return subsystem.detail;
+  const data = subsystem.data;
+  if (!data || typeof data !== "object") return subsystem.detail;
+  const reason = (data as Record<string, unknown>).reason;
+  if (typeof reason !== "string" || !reason.trim()) return subsystem.detail;
+
+  const normalized = subsystem.detail ? `; ${systemMessage(reason)}` : systemMessage(reason);
+  return `${subsystem.detail}${normalized}`;
+}
+
+function systemMessage(reason: string): string {
+  return `reason: ${reason}`;
 }
 
 async function defaultMcpProbe(input: { env: NodeJS.ProcessEnv; cwd: string; resolved: ResolvedApiBase }) {
