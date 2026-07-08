@@ -1,4 +1,4 @@
-export { serveCommand } from "../../src/cli/commands/serve.ts";
+export { serveCommand } from "../../../src/cli/commands/serve.ts";
 
 export type ServeDelegate =
   | { kind: "delegate"; args: string[] }

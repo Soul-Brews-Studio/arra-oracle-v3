@@ -30,7 +30,7 @@ export async function mcpCommand(args: string[]): Promise<number> {
   console.log = (...parts: unknown[]) => console.error(...parts);
 
   try {
-    const { main } = await import("../../src/index.ts");
+    const { main } = await import("../../../src/index.ts");
     await main();
     return 0;
   } catch (error) {
