@@ -14,7 +14,7 @@ import type { VectorStoreAdapter } from '../vector/types.ts';
 import { defaultMcpToolOrder, mcpToolByName, mcpTools, toMcpToolDefinition, type RuntimeMcpToolManifest } from '../tools/mcp-manifest.ts';
 import type { UnifiedRuntime } from '../plugins/unified-loader.ts';
 import type { EmbeddedDeps, OracleMCPServerOptions } from './server-options.ts';
-import { formatEmbedderDegradedWarning, probeConfiguredEmbedder, setEmbedderRuntimeStatus, type EmbedderRuntimeStatus } from '../vector/embedder-config.ts';
+import { formatEmbedderDegradedWarning, getEmbedderRuntimeStatus, probeConfiguredEmbedder, setEmbedderRuntimeStatus, type EmbedderRuntimeStatus } from '../vector/embedder-config.ts';
 import { resolveToolName } from './aliases.ts';
 import { proxyToolCall, resolveOracleApiBase } from './http-proxy.ts';
 import { pluginMcpToolsFrom } from './plugin-tools.ts';
@@ -25,7 +25,6 @@ import { createMcpPluginRuntime, type McpPluginRuntime } from './plugin-runtime.
 export type { OracleMCPServerOptions } from './server-options.ts';
 
 function errorResponse(text: string): ToolResponse { return { content: [{ type: 'text', text }], isError: true }; }
-
 export class OracleMCPServer {
   private server: Server;
   private sqlite: Database | null = null;
@@ -101,6 +100,7 @@ export class OracleMCPServer {
     this.embeddedReady ??= this.initEmbedded();
     await this.embeddedReady;
     if (!this.sqlite || !this.db || !this.vectorStore) throw new Error('Embedded Oracle resources failed to initialize');
+    this.applyEmbedderStatus(getEmbedderRuntimeStatus());
     return { db: this.db, sqlite: this.sqlite, repoRoot: this.repoRoot, vectorStore: this.vectorStore, vectorStatus: this.vectorStatus, vectorReason: this.vectorReason, embedderProvider: this.embedderProvider, version: this.version };
   }
 
@@ -129,6 +129,7 @@ export class OracleMCPServer {
   private applyEmbedderStatus(status: EmbedderRuntimeStatus): void {
     setEmbedderRuntimeStatus(status);
     this.embedderProvider = status.provider;
+    if (status.status === 'connected') { this.vectorStatus = 'connected'; this.vectorReason = undefined; return; }
     if (status.status !== 'degraded') return;
     this.vectorStatus = 'degraded';
     this.vectorReason = status.reason;
