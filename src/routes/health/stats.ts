@@ -2,13 +2,13 @@ import { Elysia, t } from 'elysia';
 import { DB_PATH } from '../../config.ts';
 import { getSetting, isDbLockError, sqlite } from '../../db/index.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
-import { getEmbedderRuntimeStatus } from '../../vector/embedder-config.ts';
+import { readEmbedderRuntimeStatus, type EmbedderRuntimeStatus } from '../../vector/embedder-config.ts';
 import { handleStats } from '../../server/handlers.ts';
 import { handleVectorStats } from '../../server/vector-handlers.ts';
 import { tenantStats } from './tenant-stats.ts';
 
 type VectorStats = Awaited<ReturnType<typeof handleVectorStats>>;
-type StatsEndpointOptions = { vectorStats?: () => Promise<VectorStats> };
+type StatsEndpointOptions = { vectorStats?: () => Promise<VectorStats>; embedderRuntime?: () => Promise<EmbedderRuntimeStatus> };
 type FtsStatus = 'healthy' | 'empty' | 'missing' | 'partial' | 'unavailable';
 type VectorStatus = 'ok' | 'degraded' | 'down';
 
@@ -82,8 +82,8 @@ export function createStatsEndpoint(options: StatsEndpointOptions = {}) {
       const stats = tenantStats() ?? handleStats(DB_PATH);
       const vaultRepo = getSetting('vault_repo');
       const fts = readFtsHealth(totalDocs(stats));
-      const embedder = getEmbedderRuntimeStatus();
-      const embedderFields = embedder.reason ? { vector_reason: embedder.reason, embedder_provider: embedder.provider } : {};
+      const embedder = await (options.embedderRuntime?.() ?? readEmbedderRuntimeStatus());
+      const embedderFields = { embedder_provider: embedder.provider, ...(embedder.reason ? { vector_reason: embedder.reason } : {}) };
       try {
         const vectorStats = await readVectorStats();
         const status = embedder.status === 'degraded' ? 'degraded' : vectorStatus(vectorStats);
