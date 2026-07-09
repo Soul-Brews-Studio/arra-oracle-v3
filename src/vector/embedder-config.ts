@@ -32,12 +32,15 @@ export type EmbedderRuntimeStatus = {
   explicit: boolean;
   checkedAt?: string;
   reason?: string;
+  consecutiveFailures?: number;
 };
 
 type ProbePreset = { provider?: string; model?: string; endpoint?: string; embedder?: EmbedderConfig };
 type ProbeOptions = { timeoutMs?: number; text?: string };
+type RuntimeProbeOptions = ProbeOptions & { force?: boolean; preset?: ProbePreset; ttlMs?: number; probe?: () => Promise<EmbedderRuntimeStatus> };
 
 let runtimeStatus: EmbedderRuntimeStatus | null = null;
+let runtimeProbe: Promise<EmbedderRuntimeStatus> | null = null;
 
 export function resolveEmbeddingProviderSelection(
   configured?: EmbeddingProviderType,
@@ -77,6 +80,7 @@ export function setEmbedderRuntimeStatus(status: EmbedderRuntimeStatus): Embedde
 
 export function clearEmbedderRuntimeStatusForTests(): void {
   runtimeStatus = null;
+  runtimeProbe = null;
 }
 
 export function formatEmbedderDegradedWarning(provider: string, reason: string): string {
@@ -91,6 +95,9 @@ export async function probeConfiguredEmbedder(
   const selection = resolveEmbeddingProviderSelection(
     (preset?.provider as EmbeddingProviderType | undefined) ?? embedder?.backend,
   );
+  if (shouldReportNoEmbedder(selection)) {
+    return setEmbedderRuntimeStatus(degraded(selection, noEmbedderReason(selection)));
+  }
   try {
     if (selection.provider === 'chromadb-internal') {
       return setEmbedderRuntimeStatus({ status: 'connected', ...selection, checkedAt: new Date().toISOString() });
@@ -104,6 +111,47 @@ export async function probeConfiguredEmbedder(
   } catch (error) {
     return setEmbedderRuntimeStatus(degraded(selection, reasonOf(error)));
   }
+}
+
+export async function readEmbedderRuntimeStatus(options: RuntimeProbeOptions = {}): Promise<EmbedderRuntimeStatus> {
+  const ttlMs = positiveInt(process.env.ORACLE_EMBEDDER_STATUS_TTL_MS, options.ttlMs ?? 15_000);
+  if (!options.force && runtimeStatus?.checkedAt && Date.now() - Date.parse(runtimeStatus.checkedAt) < ttlMs) {
+    return runtimeStatus;
+  }
+  if (runtimeProbe && !options.force) return runtimeProbe;
+  runtimeProbe = (options.probe ? options.probe() : probeConfiguredEmbedder(options.preset, options))
+    .finally(() => { runtimeProbe = null; });
+  return runtimeProbe;
+}
+
+export function recordEmbedderRuntimeSuccess(selection: EmbeddingProviderSelection): EmbedderRuntimeStatus {
+  return setEmbedderRuntimeStatus({ status: 'connected', ...selection, checkedAt: new Date().toISOString(), consecutiveFailures: 0 });
+}
+
+export function recordEmbedderRuntimeFailure(selection: EmbeddingProviderSelection, error: unknown): EmbedderRuntimeStatus {
+  const failures = runtimeStatus?.provider === selection.provider ? (runtimeStatus.consecutiveFailures ?? 0) + 1 : 1;
+  const threshold = positiveInt(process.env.ORACLE_EMBEDDER_FAILURE_THRESHOLD, 1);
+  if (failures < threshold) {
+    return setEmbedderRuntimeStatus({ ...getEmbedderRuntimeStatus(), ...selection, checkedAt: new Date().toISOString(), consecutiveFailures: failures });
+  }
+  return setEmbedderRuntimeStatus(degraded(selection, reasonOf(error), failures));
+}
+
+export function observeEmbeddingProvider(provider: EmbeddingProvider, selection: EmbeddingProviderSelection): EmbeddingProvider {
+  return {
+    get name() { return provider.name; },
+    get dimensions() { return provider.dimensions; },
+    async embed(texts, type) {
+      try {
+        const vectors = await provider.embed(texts, type);
+        recordEmbedderRuntimeSuccess(selection);
+        return vectors;
+      } catch (error) {
+        recordEmbedderRuntimeFailure(selection, error);
+        throw error;
+      }
+    },
+  };
 }
 
 export async function probeEmbeddingProvider(
@@ -146,8 +194,8 @@ function selection(
   return { provider, source, explicit };
 }
 
-function degraded(selection: EmbeddingProviderSelection, reason: string): EmbedderRuntimeStatus {
-  return { status: 'degraded', ...selection, reason, checkedAt: new Date().toISOString() };
+function degraded(selection: EmbeddingProviderSelection, reason: string, consecutiveFailures = 1): EmbedderRuntimeStatus {
+  return { status: 'degraded', ...selection, reason: prettyReason(selection, reason), checkedAt: new Date().toISOString(), consecutiveFailures };
 }
 
 function positiveInt(raw: string | undefined, fallback: number): number {
@@ -164,6 +212,32 @@ function timeout<T>(promise: Promise<T>, ms: number): Promise<T> {
       (error) => { clearTimeout(timer); reject(error); },
     );
   });
+}
+
+function shouldReportNoEmbedder(selection: EmbeddingProviderSelection): boolean {
+  if (selection.provider === 'none') return true;
+  if (selection.provider !== 'ollama' && selection.provider !== 'local') return false;
+  return !firstFilled(
+    process.env.ORACLE_EMBEDDING_PROVIDER,
+    process.env.ORACLE_EMBEDDER,
+    process.env.ORACLE_EMBEDDER_BACKEND,
+    process.env.EMBEDDER_TYPE,
+    process.env.OLLAMA_BASE_URL,
+    process.env.OLLAMA_HOST,
+  );
+}
+
+function noEmbedderReason(selection: EmbeddingProviderSelection): string {
+  return selection.provider === 'none' ? 'no embedder — FTS5-only' : 'no embedder configured/reachable — FTS5-only';
+}
+
+function prettyReason(selection: EmbeddingProviderSelection, reason: string): string {
+  if (reason.includes('FTS5-only')) return reason;
+  if (shouldReportNoEmbedder(selection)) return noEmbedderReason(selection);
+  if (/required|missing|not configured|ECONNREFUSED|timed out|abort|failed to fetch/i.test(reason)) {
+    return `no embedder configured/reachable — FTS5-only (${reason})`;
+  }
+  return reason;
 }
 
 function reasonOf(error: unknown): string {
