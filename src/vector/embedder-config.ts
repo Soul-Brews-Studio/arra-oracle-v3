@@ -234,7 +234,7 @@ function noEmbedderReason(selection: EmbeddingProviderSelection): string {
 function prettyReason(selection: EmbeddingProviderSelection, reason: string): string {
   if (reason.includes('FTS5-only')) return reason;
   if (shouldReportNoEmbedder(selection)) return noEmbedderReason(selection);
-  if (/required|missing|not configured|ECONNREFUSED|timed out|abort|failed to fetch/i.test(reason)) {
+  if (/required|missing|not configured|ECONNREFUSED|timed out|timeout|unable to connect|abort|failed to fetch/i.test(reason)) {
     return `no embedder configured/reachable — FTS5-only (${reason})`;
   }
   return reason;
