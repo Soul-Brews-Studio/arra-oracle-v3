@@ -1,6 +1,6 @@
 import { DB_PATH } from '../../config.ts';
 import { sqlite } from '../../db/index.ts';
-import { getEmbedderRuntimeStatus, resolveEmbeddingProviderSelection, type EmbeddingProviderSelection } from '../../vector/embedder-config.ts';
+import { getEmbedderRuntimeStatus, resolveEmbeddingProviderSelection, type EmbedderRuntimeStatus, type EmbeddingProviderSelection } from '../../vector/embedder-config.ts';
 import { getDetectedEmbeddingProviders, type DetectedEmbeddingProvider } from '../../vector/provider-detection.ts';
 import { readEntityCoverageStats, type EntityCoverageStats } from '../../search/entity-coverage.ts';
 import type { VectorBackendHealth } from '../../vector/health.ts';
@@ -42,6 +42,7 @@ export async function buildHealthSubsystems(input: {
   uptimeSeconds: number;
   embeddingProviders?: EmbeddingProviderProbe;
   embeddingProviderSelection?: EmbeddingProviderSelection;
+  embedderStatus?: EmbedderRuntimeStatus;
   entityCoverage?: EntityCoverageStats;
 }): Promise<HealthSubsystems> {
   return withAliases({
@@ -49,7 +50,7 @@ export async function buildHealthSubsystems(input: {
     database: databaseSubsystem(input.dbStatus),
     fts: ftsSubsystem(input.dbStatus),
     vector: vectorSubsystem(input.vector, input.vectorServer, input.vectorRuntime),
-    embedder: await embedderSubsystem(input.embeddingProviders, input.vector, input.embeddingProviderSelection),
+    embedder: await embedderSubsystem(input.embeddingProviders, input.vector, input.embeddingProviderSelection, input.embedderStatus),
     entities: entityCoverageSubsystem(input.entityCoverage ?? readEntityCoverageStats()),
     mcp: mcpSubsystem(input.toolCount),
     plugins: pluginSubsystem(input.pluginStatus, input.pluginCount),
@@ -129,12 +130,15 @@ function vectorSubsystem(vector: VectorBackendHealth, server: VectorServerHealth
   return degraded('vector backend', `degraded: FTS-only (${vector.engines[0]?.error ?? 'no vector collections available'})`);
 }
 
-async function embedderSubsystem(read?: EmbeddingProviderProbe, vector?: VectorBackendHealth, selectedByOptions?: EmbeddingProviderSelection): Promise<HealthSubsystem> {
+async function embedderSubsystem(read?: EmbeddingProviderProbe, vector?: VectorBackendHealth, selectedByOptions?: EmbeddingProviderSelection, runtimeStatus?: EmbedderRuntimeStatus): Promise<HealthSubsystem> {
   const probe = read ?? (() => getDetectedEmbeddingProviders(false, { timeoutMs: 750 }));
   const selection = selectedByOptions ?? resolveEmbeddingProviderSelection();
   const selected = selection.provider;
-  const runtime = getEmbedderRuntimeStatus();
-  if (runtime.status === 'degraded' && runtime.provider === selected) {
+  const runtime = runtimeStatus ?? getEmbedderRuntimeStatus();
+  if (runtime.status === 'connected') {
+    return healthy('embedder reachable', `${runtime.provider} available`, { provider: runtime.provider, source: runtime.source, checkedAt: runtime.checkedAt });
+  }
+  if (runtime.status === 'degraded') {
     return degraded(
       'embedder reachable',
       `degraded: FTS-only (${runtime.reason ?? 'embedder unavailable'})`,
