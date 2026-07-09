@@ -4,7 +4,7 @@ import { MCP_SERVER_NAME } from '../../const.ts';
 import { sqlite } from '../../db/index.ts';
 import { scanPlugins } from '../plugins/model.ts';
 import { readVectorBackendHealth } from '../../vector/health.ts';
-import { getEmbedderRuntimeStatus } from '../../vector/embedder-config.ts';
+import { readEmbedderRuntimeStatus, type EmbedderRuntimeStatus } from '../../vector/embedder-config.ts';
 import { getVectorRuntimeStatus, type VectorRuntimeStatus } from '../../vector/runtime-status.ts';
 import { readVectorServerHealth, type VectorServerHealth } from './vector-server.ts';
 import { memoryConfidenceRerankConfig } from '../memory/rerank-config.ts';
@@ -42,6 +42,7 @@ export interface HealthEndpointOptions {
   pluginStatuses?: () => UnifiedPluginStatus[] | Promise<UnifiedPluginStatus[]>;
   embeddingProviders?: EmbeddingProviderProbe;
   embeddingProviderSelection?: EmbeddingProviderSelection;
+  embedderRuntime?: () => Promise<EmbedderRuntimeStatus>;
   vectorRuntime?: () => VectorRuntimeStatus;
   dbPing?: DbPing;
   diskPath?: string;
@@ -124,14 +125,14 @@ export function createHealthEndpoint(options: HealthEndpointOptions = {}) {
     const vectorRuntime = options.vectorRuntime?.() ?? (options.vectorHealth
       ? { vectorMode: 'embedded' as const }
       : getVectorRuntimeStatus());
-    const embedderStatus = getEmbedderRuntimeStatus();
+    const embedderStatus = await (options.embedderRuntime?.() ?? readEmbedderRuntimeStatus());
     const serviceUptime = Math.round(uptimeSeconds * 1000) / 1000;
     const vectorIsAvailable = embedderStatus.status === 'degraded' ? false : vectorAvailable(vectorRuntime, vector, vectorServer);
     const entityCoverage = options.entityCoverage?.() ?? readEntityCoverageStats();
     const subsystems = await buildHealthSubsystems({
       dbStatus, vector, vectorServer, vectorRuntime, pluginStatus, pluginCount,
       toolCount, uptimeSeconds: serviceUptime, embeddingProviders: options.embeddingProviders,
-      embeddingProviderSelection: options.embeddingProviderSelection, entityCoverage,
+      embeddingProviderSelection: options.embeddingProviderSelection, embedderStatus, entityCoverage,
     });
     const healthStatus = rollupHealthStatus(subsystems);
 
