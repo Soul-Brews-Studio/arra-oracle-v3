@@ -13,6 +13,7 @@ export type GistFetchResult = {
 };
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const GIST_FETCH_TIMEOUT_MS = 1_000;
 
 type CacheEntry = { result: GistFetchResult | null; at: number };
 const cache = new Map<string, CacheEntry>();
@@ -54,11 +55,21 @@ function sleep(ms: number): Promise<void> {
 
 async function fetchWithRetry(url: string): Promise<Response | null> {
   for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new Error("fetch timeout")), GIST_FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch(url);
+      const timeout = new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), GIST_FETCH_TIMEOUT_MS);
+      });
+      const res = await Promise.race([fetch(url, { signal: controller.signal }), timeout]);
+      if (!res) {
+        continue;
+      }
       if (res.ok) return res;
     } catch {
       // network error — fall through to retry
+    } finally {
+      clearTimeout(timer);
     }
     if (attempt < retryDelays.length) {
       await sleep(retryDelays[attempt]);
