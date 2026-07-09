@@ -12,7 +12,7 @@ import { requireVectorProxyContract } from './proxy-contract.ts';
 import { TurboVecAdapter } from './adapters/turbovec.ts';
 import { createEmbeddingProvider, FallbackEmbeddings } from './embeddings.ts';
 import { GeminiEmbeddings } from './providers/gemini.ts';
-import { resolveEmbeddingFallbackChain, resolveEmbeddingModel, resolveEmbeddingProviderType } from './embedder-config.ts';
+import { observeEmbeddingProvider, resolveEmbeddingFallbackChain, resolveEmbeddingModel, resolveEmbeddingProviderSelection, resolveEmbeddingProviderType } from './embedder-config.ts';
 import { configPath, loadVectorConfig, resolveServiceEndpoint, configToModels, fallbackCollectionsFor, generateDefaultConfig } from './config.ts';
 import { tenantDataPath } from '../middleware/tenant.ts';
 import { withEmbedderIdentityGuard } from './embedder-identity.ts';
@@ -44,21 +44,23 @@ export interface EmbeddingModelConfig {
   cfAccountId?: string; cfApiToken?: string;
 }
 function createConfiguredEmbedder(config: VectorStoreConfig) {
-  const provider = resolveEmbeddingProviderType(config.embeddingProvider ?? (config.embeddingModel ? 'ollama' : undefined));
+  const selection = resolveEmbeddingProviderSelection(config.embeddingProvider ?? (config.embeddingModel ? 'ollama' : undefined));
+  const provider = selection.provider;
   const model = resolveEmbeddingModel(config.embeddingModel);
   const fallbackChain = resolveEmbeddingFallbackChain(config.embeddingFallbackChain);
   const options = { url: config.embeddingUrl, dimensions: config.embeddingDimensions, fallbackChain };
+  const observe = (embedder: EmbeddingProvider) => observeEmbeddingProvider(embedder, selection);
   const chain = [provider, ...fallbackChain].filter((item, index, all) =>
     item !== 'none' && all.indexOf(item) === index
   );
   if (chain.length > 1 && chain.includes('gemini')) {
     const singleOptions = { url: config.embeddingUrl, dimensions: config.embeddingDimensions };
-    return new FallbackEmbeddings(chain.map((item) => item === 'gemini'
+    return observe(new FallbackEmbeddings(chain.map((item) => item === 'gemini'
       ? new GeminiEmbeddings({ model })
-      : createEmbeddingProvider(item, model, singleOptions)));
+      : createEmbeddingProvider(item, model, singleOptions))));
   }
-  if (provider === 'gemini' && fallbackChain.length === 0) return new GeminiEmbeddings({ model });
-  return createEmbeddingProvider(provider, model, options);
+  if (provider === 'gemini' && fallbackChain.length === 0) return observe(new GeminiEmbeddings({ model }));
+  return observe(createEmbeddingProvider(provider, model, options));
 }
 export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAdapter {
   const type = (clean(config.type) || clean(process.env.ORACLE_VECTOR_DB) || 'lancedb').toLowerCase() as VectorDBType;
