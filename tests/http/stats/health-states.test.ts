@@ -71,7 +71,8 @@ test('/api/stats marks empty KB and disabled vectors explicitly', async () => {
   expect(body.by_type).toEqual({});
   expect(body.fts).toMatchObject({ status: 'empty', indexed: 0, missing: 0 });
   expect(body.fts_status).toBe('empty');
-  expect(body.vector_status).toBe('down');
+  expect(body.vector_status).toBe('degraded');
+  expect(body.vector_reason).toContain('no embedder');
 });
 
 test('/api/stats reports partial FTS and degraded vector health', async () => {
@@ -98,7 +99,8 @@ test('/api/stats keeps a shaped response when vector stats throw', async () => {
   const { body } = await statsJson(async () => { throw new Error('vector offline'); });
 
   expect(body.vector).toMatchObject({ enabled: false, count: 0 });
-  expect(body.vector_status).toBe('down');
+  expect(body.vector_status).toBe('degraded');
+  expect(body.vector_reason).toContain('no embedder');
   expect(body.vector_error).toContain('vector offline');
   expect(body.fts_status).toBe('empty');
 });
