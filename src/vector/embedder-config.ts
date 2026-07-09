@@ -115,9 +115,8 @@ export async function probeConfiguredEmbedder(
 
 export async function readEmbedderRuntimeStatus(options: RuntimeProbeOptions = {}): Promise<EmbedderRuntimeStatus> {
   const ttlMs = positiveInt(process.env.ORACLE_EMBEDDER_STATUS_TTL_MS, options.ttlMs ?? 15_000);
-  if (!options.force && runtimeStatus?.checkedAt && Date.now() - Date.parse(runtimeStatus.checkedAt) < ttlMs) {
-    return runtimeStatus;
-  }
+  const checkedAt = runtimeStatus?.checkedAt ? Date.parse(runtimeStatus.checkedAt) : NaN;
+  if (!options.force && runtimeStatus?.checkedAt && (!Number.isFinite(checkedAt) || Date.now() - checkedAt < ttlMs)) return runtimeStatus;
   if (runtimeProbe && !options.force) return runtimeProbe;
   runtimeProbe = (options.probe ? options.probe() : probeConfiguredEmbedder(options.preset, options))
     .finally(() => { runtimeProbe = null; });
