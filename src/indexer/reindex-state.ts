@@ -138,9 +138,15 @@ function activeIndexerWhere(tenantId?: string) {
 
 function hasIndexingJobsTable(db: OracleDb): boolean {
   try {
-    const row = db.get<{ name: string }>(
-      sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'indexing_jobs'`,
-    );
+    // Use the select() builder: drizzle's db.get(sql`...`) returns a positional
+    // values array, not an object, so the prior `row?.name` form introduced by
+    // the #2611 Drizzle migration silently returned false here (vector queue
+    // never enrolled jobs; FTS5 fallback masked it). select() maps columns to a
+    // typed object so the `row?.name` check works as written.
+    const row = db.select({ name: sql<string>`name` })
+      .from(sql`sqlite_master`)
+      .where(sql`type = 'table' AND name = 'indexing_jobs'`)
+      .get();
     return row?.name === 'indexing_jobs';
   } catch {
     return false;
