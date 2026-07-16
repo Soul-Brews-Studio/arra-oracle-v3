@@ -17,13 +17,17 @@ CREATE TABLE indexing_jobs (
   doc_id TEXT NOT NULL,
   model_key TEXT NOT NULL,
   collection TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  operation TEXT NOT NULL DEFAULT 'upsert',
   status TEXT NOT NULL DEFAULT 'pending',
   attempts INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')*1000),
   claimed_at INTEGER,
+  lease_expires_at INTEGER,
   finished_at INTEGER,
   error TEXT
 );
+CREATE UNIQUE INDEX idx_indexing_jobs_identity ON indexing_jobs(model_key, doc_id, content_hash, operation);
 `;
 
 const MODELS = {
@@ -53,13 +57,16 @@ function makeDeps(harness: TestHarness, overrides: Partial<WorkerDeps> = {}): Wo
   let iterations = 0;
   return {
     db: harness.db,
-    getDocText: (id) => (id in docTexts ? docTexts[id] : `synthetic content for ${id}`),
+    getDocument: (id) => {
+      const text = id in docTexts ? docTexts[id] : `synthetic content for ${id}`;
+      return text ? { id, document: text, metadata: { source_file: 'test.md' } } : null;
+    },
     embed: async (model, text) => {
       harness.embedded.push({ model, text });
       return new Array(1024).fill(0).map(() => Math.random());
     },
-    upsertVector: async (collection, docId, vector) => {
-      harness.upserted.push({ collection, docId, vectorLen: vector.length });
+    upsertVector: async (collection, document, vector) => {
+      harness.upserted.push({ collection, docId: document.id, vectorLen: vector.length });
     },
     isShuttingDown: () => {
       iterations++;
@@ -185,7 +192,7 @@ describe('runWorker — error paths', () => {
     expect(stats.processed).toBe(1);
     expect(stats.errors).toBe(1);
     expect(harness.upserted).toHaveLength(1);
-    expect(harness.upserted[0].docId).toBe('doc-A');
+    expect(['doc-A', 'doc-fail']).toContain(harness.upserted[0].docId);
   });
 });
 

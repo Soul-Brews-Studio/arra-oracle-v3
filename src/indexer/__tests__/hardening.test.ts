@@ -14,13 +14,17 @@ CREATE TABLE indexing_jobs (
   doc_id TEXT NOT NULL,
   model_key TEXT NOT NULL,
   collection TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  operation TEXT NOT NULL DEFAULT 'upsert',
   status TEXT NOT NULL DEFAULT 'pending',
   attempts INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')*1000),
   claimed_at INTEGER,
+  lease_expires_at INTEGER,
   finished_at INTEGER,
   error TEXT
-);`;
+);
+CREATE UNIQUE INDEX idx_indexing_jobs_identity ON indexing_jobs(model_key, doc_id, content_hash, operation);`;
 
 describe('indexer filesystem hardening', () => {
   test('treats missing scan roots as empty instead of throwing', () => {
@@ -58,7 +62,7 @@ describe('indexer worker hardening', () => {
     let checks = 0;
     const stats = await runWorker('bge-m3', {
       db,
-      getDocText: () => 'observer failures must not poison indexing',
+      getDocument: () => ({ id: 'doc-observer', document: 'observer failures must not poison indexing', metadata: { source_file: 'test.md' } }),
       embed: async () => [1, 2, 3],
       upsertVector: async () => undefined,
       isShuttingDown: () => ++checks > 1,

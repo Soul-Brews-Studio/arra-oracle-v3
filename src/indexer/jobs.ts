@@ -1,30 +1,28 @@
 /**
- * Indexer job-queue helpers — M1 of the indexer-CLI design.
+ * Durable, hash-keyed queue for incremental vector indexing.
  *
- * Synchronous Drizzle operations against the `indexing_jobs` table. No
- * embedding, no Ollama, no LanceDB. Just queue plumbing — the daemon
- * (M2) is what does the actual work.
- *
- * Plug-and-play invariants:
- *   - One row per (doc_id, model_key) — adding a model adds queue entries,
- *     never touches oracle_documents or other models' collections
- *   - claimNextJob() is atomic via UPDATE...RETURNING with WHERE status filter
- *   - markJobError() preserves the row (no destruction); attempts increments
- *
- * Design rationale: ψ/lab/indexer-cli/DESIGN.md in arra-mcp-installation-guide-oracle
+ * SQLite owns delivery state. A logical vector job is unique by
+ * (model_key, doc_id, content_hash, operation), so repeated scanners and
+ * concurrent producers cannot enqueue the same canonical payload twice.
  */
 
 import type Database from 'bun:sqlite';
-import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, lt, or, sql } from 'drizzle-orm';
 import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../db/schema.ts';
-import { indexingJobs } from '../db/schema.ts';
+import { indexingJobs, vectorIndexManifest } from '../db/schema.ts';
+import { vectorManifestId } from './vector-index-manifest.ts';
+
+export type VectorOperation = 'upsert';
 
 export interface EnqueueOptions {
   docId: string;
-  /** If omitted → enqueue for ALL models in the registry (typical oracle_learn case). */
+  /** SHA-256 for the canonical text + metadata payload. */
+  contentHash?: string;
+  operation?: VectorOperation;
+  /** If omitted, enqueue once per registered model. */
   modelKey?: string;
-  /** Registry of model_key → collection. Caller passes this in (no global state). */
+  /** Registry of model_key → collection. */
   models: Record<string, { collection: string }>;
 }
 
@@ -33,13 +31,19 @@ export interface EnqueuedJob {
   docId: string;
   modelKey: string;
   collection: string;
+  contentHash: string;
+  operation: VectorOperation;
+}
+
+export interface IndexedVectorJob extends EnqueuedJob {
+  sourceFile: string;
 }
 
 const RANDOM_SUFFIX_LENGTH = 6;
+const DEFAULT_LEASE_MS = 2 * 60 * 1000;
 type JobsDb = Database | BunSQLiteDatabase<typeof schema>;
 
 function jobId(modelKey: string): string {
-  // "idx-<ms>-<modelKey>-<rand>" — short, sortable, unique enough for our scale.
   const safe = modelKey.replace(/[^a-z0-9]/gi, '');
   const rand = Math.random().toString(36).slice(2, 2 + RANDOM_SUFFIX_LENGTH);
   return `idx-${Date.now()}-${safe}-${rand}`;
@@ -53,11 +57,8 @@ function asDrizzle(conn: JobsDb): BunSQLiteDatabase<typeof schema> {
 }
 
 /**
- * Insert one or more job rows. Returns the rows that were inserted.
- *
- * For unset `modelKey`, inserts one row per entry in `models`. For a specified
- * `modelKey` not in `models`, returns [] (nothing to enqueue — caller's choice
- * to fail loudly or silently).
+ * Insert jobs idempotently. `manual:<docId>` is intentionally only a fallback
+ * for the operator CLI; production reconciliations always pass a real hash.
  */
 export function enqueueIndexJob(conn: JobsDb, opts: EnqueueOptions): EnqueuedJob[] {
   const targets: Array<{ key: string; collection: string }> = opts.modelKey
@@ -65,36 +66,51 @@ export function enqueueIndexJob(conn: JobsDb, opts: EnqueueOptions): EnqueuedJob
       ? [{ key: opts.modelKey, collection: opts.models[opts.modelKey].collection }]
       : []
     : Object.entries(opts.models).map(([key, { collection }]) => ({ key, collection }));
-
   if (targets.length === 0) return [];
 
   const db = asDrizzle(conn);
-
+  const contentHash = opts.contentHash ?? `manual:${opts.docId}`;
+  const operation = opts.operation ?? 'upsert';
   const out: EnqueuedJob[] = [];
+
   for (const { key, collection } of targets) {
-    const id = jobId(key);
-    db.insert(indexingJobs).values({
-      id,
-      docId: opts.docId,
-      modelKey: key,
-      collection,
-      status: 'pending',
-      attempts: 0,
-    }).run();
-    out.push({ id, docId: opts.docId, modelKey: key, collection });
+    const inserted = db.insert(indexingJobs)
+      .values({
+        id: jobId(key),
+        docId: opts.docId,
+        modelKey: key,
+        collection,
+        contentHash,
+        operation,
+        status: 'pending',
+        attempts: 0,
+      })
+      .onConflictDoNothing({
+        target: [indexingJobs.modelKey, indexingJobs.docId, indexingJobs.contentHash, indexingJobs.operation],
+      })
+      .returning({
+        id: indexingJobs.id,
+        docId: indexingJobs.docId,
+        modelKey: indexingJobs.modelKey,
+        collection: indexingJobs.collection,
+        contentHash: indexingJobs.contentHash,
+        operation: indexingJobs.operation,
+      })
+      .get();
+    if (inserted) out.push({ ...inserted, operation: inserted.operation as VectorOperation });
   }
   return out;
 }
 
-/**
- * Atomically claim the next pending job for a worker.
- * Uses UPDATE…RETURNING so SQLite gives us exactly one row even under
- * concurrent claimers (only one wins per row).
- *
- * Returns null when the queue is empty for that model.
- */
-export function claimNextJob(conn: JobsDb, modelKey: string): EnqueuedJob | null {
+/** Atomically claim one pending job and issue a finite crash-recovery lease. */
+export function claimNextJob(
+  conn: JobsDb,
+  modelKey: string,
+  opts: { now?: number; leaseMs?: number } = {},
+): EnqueuedJob | null {
   const db = asDrizzle(conn);
+  const now = opts.now ?? Date.now();
+  const leaseExpiresAt = now + (opts.leaseMs ?? DEFAULT_LEASE_MS);
   const nextPending = db.select({ id: indexingJobs.id })
     .from(indexingJobs)
     .where(and(eq(indexingJobs.status, 'pending'), eq(indexingJobs.modelKey, modelKey)))
@@ -104,7 +120,8 @@ export function claimNextJob(conn: JobsDb, modelKey: string): EnqueuedJob | null
   const row = db.update(indexingJobs)
     .set({
       status: 'claimed',
-      claimedAt: Date.now(),
+      claimedAt: now,
+      leaseExpiresAt,
       attempts: sql`${indexingJobs.attempts} + 1`,
     })
     .where(inArray(indexingJobs.id, nextPending))
@@ -113,36 +130,89 @@ export function claimNextJob(conn: JobsDb, modelKey: string): EnqueuedJob | null
       docId: indexingJobs.docId,
       modelKey: indexingJobs.modelKey,
       collection: indexingJobs.collection,
+      contentHash: indexingJobs.contentHash,
+      operation: indexingJobs.operation,
     })
     .get();
 
-  if (!row) return null;
-  return row;
+  return row ? { ...row, operation: row.operation as VectorOperation } : null;
 }
 
 export function markJobDone(conn: JobsDb, id: string): void {
   const db = asDrizzle(conn);
   db.update(indexingJobs)
-    .set({ status: 'done', finishedAt: Date.now(), error: null })
+    .set({ status: 'done', finishedAt: Date.now(), error: null, leaseExpiresAt: null })
     .where(eq(indexingJobs.id, id))
     .run();
+}
+
+/**
+ * Commit the durable completion receipt only after LanceDB accepted the row.
+ * If the process dies after LanceDB but before this transaction, retrying the
+ * same stable id is harmless because the vector adapter performs an upsert.
+ */
+export function markJobDoneAndManifest(conn: JobsDb, job: IndexedVectorJob): void {
+  const db = asDrizzle(conn);
+  const now = Date.now();
+  db.transaction((tx) => {
+    tx.insert(vectorIndexManifest)
+      .values({
+        id: vectorManifestId(job.modelKey, job.docId),
+        chunkId: job.docId,
+        sourceFile: job.sourceFile,
+        modelKey: job.modelKey,
+        contentHash: job.contentHash,
+        updatedAt: now,
+        indexedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: vectorIndexManifest.id,
+        set: {
+          chunkId: job.docId,
+          sourceFile: job.sourceFile,
+          modelKey: job.modelKey,
+          contentHash: job.contentHash,
+          updatedAt: now,
+          indexedAt: now,
+        },
+      })
+      .run();
+    tx.update(indexingJobs)
+      .set({ status: 'done', finishedAt: now, error: null, leaseExpiresAt: null })
+      .where(eq(indexingJobs.id, job.id))
+      .run();
+  });
 }
 
 export function markJobError(conn: JobsDb, id: string, error: string): void {
-  // Preserve the row, set status, store the error string. Attempts already
-  // incremented at claim time — caller decides retry policy.
   const db = asDrizzle(conn);
   db.update(indexingJobs)
-    .set({ status: 'error', finishedAt: Date.now(), error })
+    .set({ status: 'error', finishedAt: Date.now(), error, leaseExpiresAt: null })
     .where(eq(indexingJobs.id, id))
     .run();
 }
 
-/** Reset a stuck `claimed` job back to `pending` — for daemon-crash recovery. */
+/** Return expired claims to pending on daemon start; terminal states are never changed. */
+export function reclaimExpiredJobs(conn: JobsDb, now = Date.now()): number {
+  const db = asDrizzle(conn);
+  const expiredWhere = and(
+    eq(indexingJobs.status, 'claimed'),
+    or(lt(indexingJobs.leaseExpiresAt, now), sql`${indexingJobs.leaseExpiresAt} IS NULL`),
+  );
+  const expired = db.select({ total: count() }).from(indexingJobs).where(expiredWhere).get()?.total ?? 0;
+  if (expired === 0) return 0;
+  db.update(indexingJobs)
+    .set({ status: 'pending', claimedAt: null, leaseExpiresAt: null })
+    .where(expiredWhere)
+    .run();
+  return expired;
+}
+
+/** Reset one claimed job for focused recovery/testing. */
 export function reclaimStaleJob(conn: JobsDb, id: string): void {
   const db = asDrizzle(conn);
   db.update(indexingJobs)
-    .set({ status: 'pending', claimedAt: null })
+    .set({ status: 'pending', claimedAt: null, leaseExpiresAt: null })
     .where(and(eq(indexingJobs.id, id), eq(indexingJobs.status, 'claimed')))
     .run();
 }
@@ -153,20 +223,11 @@ export function jobsByStatus(
 ): Array<{ status: string; model_key: string; count: number }> {
   const db = asDrizzle(conn);
   const where = modelKey ? eq(indexingJobs.modelKey, modelKey) : undefined;
-  const rows = db.select({
-    status: indexingJobs.status,
-    modelKey: indexingJobs.modelKey,
-    count: count(),
-  })
+  const rows = db.select({ status: indexingJobs.status, modelKey: indexingJobs.modelKey, count: count() })
     .from(indexingJobs)
     .where(where)
     .groupBy(indexingJobs.status, indexingJobs.modelKey)
     .orderBy(modelKey ? asc(indexingJobs.status) : asc(indexingJobs.modelKey), asc(indexingJobs.status))
     .all();
-
-  return rows.map((row) => ({
-    status: row.status,
-    model_key: row.modelKey,
-    count: row.count,
-  }));
+  return rows.map((row) => ({ status: row.status, model_key: row.modelKey, count: row.count }));
 }

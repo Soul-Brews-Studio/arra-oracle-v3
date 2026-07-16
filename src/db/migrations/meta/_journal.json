@@ -240,6 +240,7 @@
     { "idx": 37, "version": "6", "when": 1781703700000, "tag": "0037_memory_tiered_salience", "breakpoints": true },
     { "idx": 38, "version": "6", "when": 1781703800000, "tag": "0038_pointer_index", "breakpoints": true },
     { "idx": 39, "version": "6", "when": 1781703900000, "tag": "0039_vector_index_manifest", "breakpoints": true },
-    { "idx": 40, "version": "6", "when": 1781704000000, "tag": "0040_oracle_findings", "breakpoints": true }
+    { "idx": 40, "version": "6", "when": 1781704000000, "tag": "0040_oracle_findings", "breakpoints": true },
+    { "idx": 41, "version": "6", "when": 1784185399368, "tag": "0041_incremental_vector_jobs", "breakpoints": true }
   ]
 }

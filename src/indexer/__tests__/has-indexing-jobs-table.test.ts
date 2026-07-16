@@ -44,6 +44,8 @@ beforeAll(() => {
       },
     ])
     .run();
+  sqlite.prepare('INSERT INTO oracle_fts (id, content) VALUES (?, ?), (?, ?)')
+    .run('doc-a', 'alpha', 'doc-b', 'beta');
   sqlite.close();
 });
 
@@ -79,7 +81,7 @@ describe('enqueueVectorReindexJobs — hasIndexingJobsTable regression (#2611)',
         },
       ];
       const models = { 'bge-m3': { collection: 'oracle_knowledge_bge_m3' } };
-      const stats = enqueueVectorReindexJobs(db, docs, models, new Set(docs.map((d) => d.id)));
+      const stats = enqueueVectorReindexJobs(db, docs, models);
 
       // Before the fix: hasIndexingJobsTable returned false because drizzle's
       // db.get(sql`...`) returns a positional array, not an object — so the
@@ -112,7 +114,7 @@ describe('enqueueVectorReindexJobs — hasIndexingJobsTable regression (#2611)',
       },
     ];
     const models = { 'bge-m3': { collection: 'oracle_knowledge_bge_m3' } };
-    const stats = enqueueVectorReindexJobs(db, docs, models, new Set(['doc-a']));
+    const stats = enqueueVectorReindexJobs(db, docs, models);
 
     expect(stats.failed).toBe(1);
     expect(stats.queued).toBe(0);

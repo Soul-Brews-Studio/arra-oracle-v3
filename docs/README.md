@@ -72,6 +72,7 @@ is linked here; keep new docs in the right section when adding files.
 | [CLOUD-VECTOR-PROXY.md](./CLOUD-VECTOR-PROXY.md) | Cloud vector proxy runbook. |
 | [cloudflare-vector-backend.md](./cloudflare-vector-backend.md) | Cloudflare vector backend configuration and tradeoffs. |
 | [vector-runtime.md](./vector-runtime.md) | Vector runtime mode reference. |
+| [INCREMENTAL-VECTOR-INDEXING-SPEC.md](./INCREMENTAL-VECTOR-INDEXING-SPEC.md) | Local implementation spec for hash-keyed, daemon-owned incremental vector indexing. |
 | [openapi.json](./openapi.json) | Machine-readable OpenAPI export. |
 
 ## Plugins, menus, UI, and canvas

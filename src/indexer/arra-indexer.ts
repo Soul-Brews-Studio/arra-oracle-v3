@@ -2,10 +2,9 @@ import type Database from 'bun:sqlite';
 import { and, count, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../db/schema.ts';
-import type { EnqueuedJob } from './jobs.ts';
+import { enqueueIndexJob, type EnqueuedJob } from './jobs.ts';
 
 const { indexingJobs } = schema;
-const RANDOM_SUFFIX_LENGTH = 6;
 
 export interface ParsedArgs { subcommand: string; positional: string[]; flags: Record<string, string | boolean> }
 
@@ -79,32 +78,8 @@ function orm(deps: CliDeps) {
   return drizzle(deps.db, { schema });
 }
 
-function jobId(modelKey: string): string {
-  const safe = modelKey.replace(/[^a-z0-9]/gi, '');
-  const rand = Math.random().toString(36).slice(2, 2 + RANDOM_SUFFIX_LENGTH);
-  return `idx-${Date.now()}-${safe}-${rand}`;
-}
-
 function enqueueJobs(deps: CliDeps, docId: string, modelKey?: string): EnqueuedJob[] {
-  const targets = modelKey
-    ? deps.models[modelKey] ? [{ key: modelKey, collection: deps.models[modelKey].collection }] : []
-    : Object.entries(deps.models).map(([key, { collection }]) => ({ key, collection }));
-  if (targets.length === 0) return [];
-  const jobs = targets.map(({ key, collection }) => ({
-    id: jobId(key),
-    docId,
-    modelKey: key,
-    collection,
-  }));
-  orm(deps).insert(indexingJobs).values(jobs.map((job) => ({
-    id: job.id,
-    docId: job.docId,
-    modelKey: job.modelKey,
-    collection: job.collection,
-    status: 'pending',
-    attempts: 0,
-  }))).run();
-  return jobs;
+  return enqueueIndexJob(deps.db, { docId, modelKey, models: deps.models });
 }
 
 export function cmdStatus(deps: CliDeps, args: ParsedArgs): number {

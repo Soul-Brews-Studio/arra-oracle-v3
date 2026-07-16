@@ -118,13 +118,12 @@ export class LanceDBAdapter implements VectorStoreAdapter {
       vector: doc.vector ?? fresh[freshIdx++],
     }));
 
-    await this.table.add(rows);
+    await this.table.mergeInsert('id')
+      .whenMatchedUpdateAll()
+      .whenNotMatchedInsertAll()
+      .execute(rows);
     const reused = docs.length - needEmbed.length;
-    if (reused > 0) {
-      console.error(`[LanceDB] Added ${docs.length} documents (${reused} with precomputed vectors)`);
-    } else {
-      console.error(`[LanceDB] Added ${docs.length} documents`);
-    }
+    console.error(`[LanceDB] Upserted ${docs.length} documents${reused > 0 ? ` (${reused} with precomputed vectors)` : ''}`);
   }
 
   async replaceDocuments(docs: VectorDocument[]): Promise<void> {

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 export const tenants = sqliteTable('tenants', {
   id: text('id').primaryKey(),
   name: text('name'),
@@ -95,13 +95,22 @@ export const indexingJobs = sqliteTable('indexing_jobs', {
   docId: text('doc_id').notNull(),
   modelKey: text('model_key').notNull(),
   collection: text('collection').notNull(),
+  /** SHA-256 of the canonical vector payload (text + stable metadata). */
+  contentHash: text('content_hash').notNull(),
+  /** UPSERT is current; retained as a field so DELETE can be added without another identity migration. */
+  operation: text('operation').default('upsert').notNull(),
   status: text('status').default('pending').notNull(),
   attempts: integer('attempts').default(0).notNull(),
   createdAt: integer('created_at').default(sql`(strftime('%s','now')*1000)`).notNull(),
   claimedAt: integer('claimed_at'),
+  /** Claim lease enables safe recovery after a daemon crash. */
+  leaseExpiresAt: integer('lease_expires_at'),
   finishedAt: integer('finished_at'),
   error: text('error'),
-});
+}, (table) => [
+  index('idx_indexing_jobs_doc').on(table.docId),
+  uniqueIndex('idx_indexing_jobs_identity').on(table.modelKey, table.docId, table.contentHash, table.operation),
+]);
 export const vectorIndexManifest = sqliteTable('vector_index_manifest', {
   id: text('id').primaryKey(), chunkId: text('chunk_id').notNull(),
   sourceFile: text('source_file').notNull(), modelKey: text('model_key').notNull(),

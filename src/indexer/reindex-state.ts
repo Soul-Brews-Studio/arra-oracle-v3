@@ -1,10 +1,11 @@
-import { and, desc, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
-import { indexingJobs, oracleDocuments, oracleFts } from '../db/schema.ts';
+import { and, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
+import { indexingJobs, oracleDocuments, vectorIndexManifest } from '../db/schema.ts';
 import { asOracleDb, type OracleDb, type OracleDbInput } from '../db/drizzle-input.ts';
 import type { OracleDocument } from '../types.ts';
 import { enqueueIndexJob } from './jobs.ts';
+import { vectorContentHash } from './vector-index-manifest.ts';
+import { loadCanonicalVectorDocumentFromDb } from './vector-source.ts';
 
-export type DocSnapshot = Map<string, { sourceFile: string; content: string | null }>;
 export type ModelRegistry = Record<string, { collection: string }>;
 
 export interface VectorQueueStats {
@@ -14,33 +15,6 @@ export interface VectorQueueStats {
 }
 
 const REINDEX_REASON = 'superseded by indexer reindex';
-
-export function snapshotActiveIndexerDocs(input: OracleDbInput, tenantId?: string): DocSnapshot {
-  const db = asOracleDb(input);
-  const rows = db.select({
-    id: oracleDocuments.id,
-    sourceFile: oracleDocuments.sourceFile,
-    content: sql<string | null>`(
-      SELECT GROUP_CONCAT(${oracleFts.content}, '\n')
-      FROM ${oracleFts}
-      WHERE ${oracleFts.id} = ${oracleDocuments.id}
-    )`,
-  })
-    .from(oracleDocuments)
-    .where(activeIndexerWhere(tenantId))
-    .all();
-
-  return new Map(rows.map((row) => [row.id, { sourceFile: row.sourceFile, content: row.content }]));
-}
-
-export function changedDocumentIds(before: DocSnapshot, documents: OracleDocument[]): Set<string> {
-  const changed = new Set<string>();
-  for (const doc of documents) {
-    const prior = before.get(doc.id);
-    if (!prior || prior.content !== doc.content) changed.add(doc.id);
-  }
-  return changed;
-}
 
 export function supersedeReplacedSourceDocs(
   input: OracleDbInput,
@@ -74,11 +48,17 @@ export function supersedeReplacedSourceDocs(
   return superseded;
 }
 
+/**
+ * Reconcile fresh SQLite/FTS chunks into hash-keyed vector jobs.
+ *
+ * No parser-text comparison is used. The canonical persisted vector payload is
+ * hashed after `storeDocuments()` so FTS enrichment, metadata and daemon input
+ * are the same bytes. A matching manifest is the only successful-vector proof.
+ */
 export function enqueueVectorReindexJobs(
   input: OracleDbInput,
   documents: OracleDocument[],
   models: ModelRegistry,
-  changedIds: Set<string>,
 ): VectorQueueStats {
   const db = asOracleDb(input);
   const modelKeys = Object.keys(models);
@@ -91,14 +71,19 @@ export function enqueueVectorReindexJobs(
   }
 
   for (const docId of docIds) {
-    const changed = changedIds.has(docId);
+    const vectorDoc = loadCanonicalVectorDocumentFromDb(db, docId);
+    if (!vectorDoc) {
+      stats.failed += modelKeys.length;
+      continue;
+    }
+    const contentHash = vectorContentHash(vectorDoc);
     for (const modelKey of modelKeys) {
       try {
-        if (!needsVectorJob(db, docId, modelKey, changed)) {
+        if (!needsVectorJob(db, docId, modelKey, contentHash)) {
           stats.skipped++;
           continue;
         }
-        const jobs = enqueueIndexJob(db, { docId, modelKey, models });
+        const jobs = enqueueIndexJob(db, { docId, contentHash, modelKey, models });
         stats.queued += jobs.length;
         if (jobs.length === 0) stats.failed++;
       } catch {
@@ -107,6 +92,15 @@ export function enqueueVectorReindexJobs(
     }
   }
   return stats;
+}
+
+/** Reconcile all canonical rows, used by the former direct-write cron command. */
+export function enqueueCanonicalVectorJobs(
+  input: OracleDbInput,
+  docIds: string[],
+  models: ModelRegistry,
+): VectorQueueStats {
+  return enqueueVectorReindexJobs(input, docIds.map((id) => ({ id } as OracleDocument)), models);
 }
 
 function activeIndexerIdsForSource(
@@ -138,11 +132,6 @@ function activeIndexerWhere(tenantId?: string) {
 
 function hasIndexingJobsTable(db: OracleDb): boolean {
   try {
-    // Use the select() builder: drizzle's db.get(sql`...`) returns a positional
-    // values array, not an object, so the prior `row?.name` form introduced by
-    // the #2611 Drizzle migration silently returned false here (vector queue
-    // never enrolled jobs; FTS5 fallback masked it). select() maps columns to a
-    // typed object so the `row?.name` check works as written.
     const row = db.select({ name: sql<string>`name` })
       .from(sql`sqlite_master`)
       .where(sql`type = 'table' AND name = 'indexing_jobs'`)
@@ -157,15 +146,22 @@ function needsVectorJob(
   db: OracleDb,
   docId: string,
   modelKey: string,
-  changed: boolean,
+  contentHash: string,
 ): boolean {
-  const rows = db.select({ status: indexingJobs.status })
+  const manifest = db.select({ contentHash: vectorIndexManifest.contentHash })
+    .from(vectorIndexManifest)
+    .where(and(eq(vectorIndexManifest.chunkId, docId), eq(vectorIndexManifest.modelKey, modelKey)))
+    .get();
+  if (manifest?.contentHash === contentHash) return false;
+
+  const inFlight = db.select({ status: indexingJobs.status })
     .from(indexingJobs)
-    .where(and(eq(indexingJobs.docId, docId), eq(indexingJobs.modelKey, modelKey)))
-    .orderBy(desc(indexingJobs.createdAt))
+    .where(and(
+      eq(indexingJobs.docId, docId),
+      eq(indexingJobs.modelKey, modelKey),
+      eq(indexingJobs.contentHash, contentHash),
+      eq(indexingJobs.operation, 'upsert'),
+    ))
     .all();
-  if (changed) return !rows.some((row) => row.status === 'pending');
-  return !rows.some((row) => row.status === 'pending'
-    || row.status === 'claimed'
-    || row.status === 'done');
+  return !inFlight.some((row) => row.status === 'pending' || row.status === 'claimed');
 }
