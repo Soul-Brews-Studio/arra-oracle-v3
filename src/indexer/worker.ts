@@ -65,7 +65,17 @@ export interface BatchWorkerDeps {
 export async function runBatchWorker(modelKey: string, deps: BatchWorkerDeps): Promise<WorkerStats> {
   const stats: WorkerStats = { modelKey, processed: 0, errors: 0, emptyPolls: 0 };
   while (!deps.isShuttingDown()) {
-    const jobs = claimNextJobs(deps.db, modelKey, deps.batchSize ?? 16);
+    let jobs: EnqueuedJob[];
+    try {
+      jobs = claimNextJobs(deps.db, modelKey, deps.batchSize ?? 16);
+    } catch (error) {
+      // SQLite writers (the CLI reindex) may briefly hold the WAL write lock.
+      // A poll collision must not terminate the long-lived daemon.
+      stats.errors++;
+      console.warn(`[arra-indexer] queue claim deferred for ${modelKey}: ${error instanceof Error ? error.message : String(error)}`);
+      await sleep(deps.pollIntervalMs ?? DEFAULT_POLL_MS);
+      continue;
+    }
     if (jobs.length === 0) { stats.emptyPolls++; emit(deps as unknown as WorkerDeps, { type: 'idle', modelKey }); await sleep(deps.pollIntervalMs ?? DEFAULT_POLL_MS); continue; }
     jobs.forEach((job) => emit(deps as unknown as WorkerDeps, { type: 'claimed', job }));
     const deletes = jobs.filter((job) => job.operation === 'delete');
