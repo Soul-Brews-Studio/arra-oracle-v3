@@ -13,7 +13,7 @@ import * as schema from '../db/schema.ts';
 import { indexingJobs, vectorIndexManifest } from '../db/schema.ts';
 import { vectorManifestId } from './vector-index-manifest.ts';
 
-export type VectorOperation = 'upsert';
+export type VectorOperation = 'upsert' | 'delete';
 
 export interface EnqueueOptions {
   docId: string;
@@ -138,6 +138,19 @@ export function claimNextJob(
   return row ? { ...row, operation: row.operation as VectorOperation } : null;
 }
 
+/** Claim a small FIFO batch. Each claim is atomic, so competing daemons cannot
+ * receive the same job; batching only changes work scheduling, not delivery semantics. */
+export function claimNextJobs(conn: JobsDb, modelKey: string, batchSize: number): EnqueuedJob[] {
+  const jobs: EnqueuedJob[] = [];
+  const size = Math.max(1, Math.trunc(batchSize));
+  for (let i = 0; i < size; i++) {
+    const job = claimNextJob(conn, modelKey);
+    if (!job) break;
+    jobs.push(job);
+  }
+  return jobs;
+}
+
 export function markJobDone(conn: JobsDb, id: string): void {
   const db = asDrizzle(conn);
   db.update(indexingJobs)
@@ -181,6 +194,29 @@ export function markJobDoneAndManifest(conn: JobsDb, job: IndexedVectorJob): voi
       .set({ status: 'done', finishedAt: now, error: null, leaseExpiresAt: null })
       .where(eq(indexingJobs.id, job.id))
       .run();
+  });
+}
+
+/** Complete a homogeneous batch after its LanceDB write succeeded. */
+export function markJobsDoneAndManifest(conn: JobsDb, jobs: IndexedVectorJob[]): void {
+  if (jobs.length === 0) return;
+  const db = asDrizzle(conn);
+  const now = Date.now();
+  db.transaction((tx) => {
+    for (const job of jobs) {
+      if (job.operation === 'delete') {
+        tx.delete(vectorIndexManifest).where(eq(vectorIndexManifest.id, vectorManifestId(job.modelKey, job.docId))).run();
+      } else {
+        tx.insert(vectorIndexManifest).values({
+          id: vectorManifestId(job.modelKey, job.docId), chunkId: job.docId, sourceFile: job.sourceFile,
+          modelKey: job.modelKey, contentHash: job.contentHash, updatedAt: now, indexedAt: now,
+        }).onConflictDoUpdate({ target: vectorIndexManifest.id, set: {
+          chunkId: job.docId, sourceFile: job.sourceFile, modelKey: job.modelKey, contentHash: job.contentHash, updatedAt: now, indexedAt: now,
+        } }).run();
+      }
+    }
+    tx.update(indexingJobs).set({ status: 'done', finishedAt: now, error: null, leaseExpiresAt: null })
+      .where(inArray(indexingJobs.id, jobs.map((job) => job.id))).run();
   });
 }
 

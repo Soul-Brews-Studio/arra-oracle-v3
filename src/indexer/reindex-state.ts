@@ -19,8 +19,9 @@ const REINDEX_REASON = 'superseded by indexer reindex';
 export function supersedeReplacedSourceDocs(
   input: OracleDbInput,
   documents: OracleDocument[],
+  models: ModelRegistry,
   tenantId?: string,
-): number {
+): string[] {
   const db = asOracleDb(input);
   const bySource = new Map<string, string[]>();
   for (const doc of documents) {
@@ -29,7 +30,7 @@ export function supersedeReplacedSourceDocs(
     bySource.set(doc.source_file, ids);
   }
 
-  let superseded = 0;
+  const staleIds: string[] = [];
   const now = Date.now();
   for (const [sourceFile, currentIds] of bySource) {
     const stale = activeIndexerIdsForSource(db, sourceFile, currentIds, tenantId);
@@ -43,9 +44,24 @@ export function supersedeReplacedSourceDocs(
         isNull(oracleDocuments.supersededAt),
       ))
       .run();
-    superseded += stale.length;
+    staleIds.push(...stale);
   }
-  return superseded;
+  enqueueVectorDeleteJobs(db, staleIds, models);
+  return staleIds;
+}
+
+export function enqueueVectorDeleteJobs(input: OracleDbInput, docIds: string[], models: ModelRegistry): number {
+  const db = asOracleDb(input);
+  let queued = 0;
+  for (const docId of [...new Set(docIds)]) {
+    for (const modelKey of Object.keys(models)) {
+      const manifest = db.select({ id: vectorIndexManifest.id }).from(vectorIndexManifest)
+        .where(and(eq(vectorIndexManifest.chunkId, docId), eq(vectorIndexManifest.modelKey, modelKey))).get();
+      if (!manifest) continue;
+      queued += enqueueIndexJob(db, { docId, contentHash: `delete:${docId}`, operation: 'delete', modelKey, models }).length;
+    }
+  }
+  return queued;
 }
 
 /**

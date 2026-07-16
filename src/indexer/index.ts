@@ -159,12 +159,12 @@ export class OracleIndexer {
     // canonical persisted payload, not parser snapshots, so unchanged scans
     // cannot manufacture false "changed" jobs.
     await storeDocuments(this.sqlite, this.db, null, this.project, indexDocuments, { tenantId });
-    const superseded = supersedeReplacedSourceDocs(this.db, indexDocuments, tenantId);
+    const superseded = supersedeReplacedSourceDocs(this.db, indexDocuments, getEmbeddingModels(), tenantId);
     const vectorJobs = safeEnqueueVectorJobs(this.db, indexDocuments);
 
     setIndexingStatus(this.db, this.config, false, indexDocuments.length, indexDocuments.length);
     console.log(`Indexed ${indexDocuments.length} chunks (SQLite + FTS5)`);
-    if (superseded > 0) console.log(`Superseded ${superseded} stale document ids from reindexed sources`);
+    if (superseded.length > 0) console.log(`Superseded ${superseded.length} stale document ids from reindexed sources`);
     console.log(`Queued ${vectorJobs.queued} vector job(s); skipped ${vectorJobs.skipped}`);
     if (vectorJobs.failed > 0) console.warn(`Failed to queue ${vectorJobs.failed} vector job(s); FTS5 index remains current`);
     console.log('Indexing complete!');

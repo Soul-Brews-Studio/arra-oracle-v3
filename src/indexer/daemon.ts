@@ -17,10 +17,10 @@ import { Elysia } from 'elysia';
 import { eq } from 'drizzle-orm';
 import { DB_PATH, REPO_ROOT } from '../config.ts';
 import { createDatabase } from '../db/index.ts';
-import { markJobDoneAndManifest, reclaimExpiredJobs } from './jobs.ts';
+import { markJobsDoneAndManifest, reclaimExpiredJobs } from './jobs.ts';
 import { loadCanonicalVectorDocument } from './vector-source.ts';
 import { createVectorStoreForModel, getEmbeddingModels } from '../vector/factory.ts';
-import { runWorker, type WorkerEvent } from './worker.ts';
+import { runBatchWorker, type WorkerEvent } from './worker.ts';
 import { daemonApiPlugin, makeEventBus } from '../routes/indexer-daemon/index.ts';
 import { startLearnWatcher, type StopWatch } from './learn-watcher.ts';
 
@@ -57,36 +57,38 @@ export async function startDaemon(): Promise<void> {
     return s;
   };
 
-  const embed = async (modelKey: string, text: string): Promise<number[]> => {
+  const embedBatch = async (modelKey: string, texts: string[]): Promise<number[][]> => {
     const preset = models[modelKey];
     if (!preset) throw new Error(`Unknown model_key: ${modelKey}`);
     const store = await getStore(modelKey);
     const embedder = (store as { embedder?: { embed: (texts: string[], type?: 'query' | 'passage') => Promise<number[][]> } }).embedder;
     if (!embedder) throw new Error(`No embedder on store for ${modelKey}`);
-    const [vector] = await embedder.embed([text], 'passage');
-    return vector;
+    return embedder.embed(texts, 'passage');
   };
 
-  const upsertVector = async (collection: string, document: import('../vector/types.ts').VectorDocument, vector: number[]): Promise<void> => {
+  const upsertVectors = async (collection: string, documents: import('../vector/types.ts').VectorDocument[]): Promise<void> => {
     const entry = Object.entries(models).find(([, m]) => m.collection === collection);
     if (!entry) throw new Error(`No registered model has collection: ${collection}`);
-    const store = await getStore(entry[0]);
-    await store.addDocuments([{ ...document, vector }]);
+    await (await getStore(entry[0])).addDocuments(documents);
+  };
+  const deleteVectors = async (collection: string, ids: string[]): Promise<void> => {
+    const entry = Object.entries(models).find(([, m]) => m.collection === collection);
+    if (!entry) throw new Error(`No registered model has collection: ${collection}`);
+    await (await getStore(entry[0])).deleteDocuments?.(ids);
   };
 
   const workerPromises: Promise<unknown>[] = [];
   for (const modelKey of Object.keys(models)) {
-    const p = runWorker(modelKey, {
+    const p = runBatchWorker(modelKey, {
       db: sqlite,
       getDocument,
-      embed,
-      upsertVector,
-      commitSuccess: (job, document) => markJobDoneAndManifest(sqlite, {
-        ...job,
-        sourceFile: String(document.metadata.source_file ?? ''),
-      }),
+      embedBatch,
+      upsertVectors,
+      deleteVectors,
+      commitSuccess: (jobs) => markJobsDoneAndManifest(sqlite, jobs),
       isShuttingDown: () => shuttingDown,
       onEvent: eventBus.publish,
+      batchSize: Math.max(1, Number(process.env.ORACLE_EMBED_BATCH_SIZE ?? 16)),
       pollIntervalMs: 1000,
     });
     workerPromises.push(p);

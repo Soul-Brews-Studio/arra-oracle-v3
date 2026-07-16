@@ -1,6 +1,6 @@
 import type Database from 'bun:sqlite';
 import type { VectorDocument } from '../vector/types.ts';
-import { claimNextJob, markJobDone, markJobError, type EnqueuedJob } from './jobs.ts';
+import { claimNextJob, claimNextJobs, markJobDone, markJobError, type EnqueuedJob, type IndexedVectorJob } from './jobs.ts';
 
 export interface WorkerDeps {
   db: Database;
@@ -43,6 +43,56 @@ export async function runWorker(modelKey: string, deps: WorkerDeps): Promise<Wor
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       markJobError(deps.db, job.id, message); stats.errors++; emit(deps, { type: 'error', job, error: message });
+    }
+  }
+  return stats;
+}
+
+export interface BatchWorkerDeps {
+  db: Database;
+  getDocument: (docId: string) => VectorDocument | null;
+  embedBatch: (modelKey: string, texts: string[]) => Promise<number[][]>;
+  upsertVectors: (collection: string, documents: VectorDocument[]) => Promise<void>;
+  deleteVectors: (collection: string, ids: string[]) => Promise<void>;
+  commitSuccess: (jobs: IndexedVectorJob[]) => void;
+  isShuttingDown: () => boolean;
+  batchSize?: number;
+  pollIntervalMs?: number;
+  onEvent?: (ev: WorkerEvent) => void;
+}
+
+/** Batch daemon worker: one embedding call and one LanceDB merge/delete per job kind. */
+export async function runBatchWorker(modelKey: string, deps: BatchWorkerDeps): Promise<WorkerStats> {
+  const stats: WorkerStats = { modelKey, processed: 0, errors: 0, emptyPolls: 0 };
+  while (!deps.isShuttingDown()) {
+    const jobs = claimNextJobs(deps.db, modelKey, deps.batchSize ?? 16);
+    if (jobs.length === 0) { stats.emptyPolls++; emit(deps as unknown as WorkerDeps, { type: 'idle', modelKey }); await sleep(deps.pollIntervalMs ?? DEFAULT_POLL_MS); continue; }
+    jobs.forEach((job) => emit(deps as unknown as WorkerDeps, { type: 'claimed', job }));
+    const deletes = jobs.filter((job) => job.operation === 'delete');
+    if (deletes.length > 0) {
+      try { await deps.deleteVectors(deletes[0].collection, deletes.map((job) => job.docId)); deps.commitSuccess(deletes.map((job) => ({ ...job, sourceFile: '' }))); stats.processed += deletes.length; deletes.forEach((job) => emit(deps as unknown as WorkerDeps, { type: 'done', job, durationMs: 0 })); }
+      catch (error) { const message = error instanceof Error ? error.message : String(error); deletes.forEach((job) => { markJobError(deps.db, job.id, message); emit(deps as unknown as WorkerDeps, { type: 'error', job, error: message }); }); stats.errors += deletes.length; }
+    }
+    const candidates: Array<{ job: EnqueuedJob; document: VectorDocument }> = [];
+    const { vectorContentHash } = await import('./vector-index-manifest.ts');
+    for (const job of jobs.filter((job) => job.operation === 'upsert')) {
+      const document = deps.getDocument(job.docId);
+      if (!document) { markJobDone(deps.db, job.id); stats.processed++; emit(deps as unknown as WorkerDeps, { type: 'doc_missing', job }); continue; }
+      if (!job.contentHash.startsWith('manual:') && vectorContentHash(document) !== job.contentHash) { markJobDone(deps.db, job.id); stats.processed++; emit(deps as unknown as WorkerDeps, { type: 'stale_payload', job }); continue; }
+      candidates.push({ job, document });
+    }
+    if (candidates.length === 0) continue;
+    try {
+      const vectors = await deps.embedBatch(modelKey, candidates.map(({ document }) => document.document));
+      if (vectors.length !== candidates.length) throw new Error(`Embedding batch cardinality mismatch: ${vectors.length}/${candidates.length}`);
+      const docs = candidates.map(({ document }, i) => ({ ...document, vector: vectors[i] }));
+      await deps.upsertVectors(candidates[0].job.collection, docs);
+      const completed = candidates.map(({ job, document }) => ({ ...job, sourceFile: String(document.metadata.source_file ?? '') }));
+      deps.commitSuccess(completed); stats.processed += completed.length;
+      completed.forEach((job) => emit(deps as unknown as WorkerDeps, { type: 'done', job, durationMs: 0 }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      candidates.forEach(({ job }) => { markJobError(deps.db, job.id, message); emit(deps as unknown as WorkerDeps, { type: 'error', job, error: message }); }); stats.errors += candidates.length;
     }
   }
   return stats;
