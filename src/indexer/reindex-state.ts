@@ -14,6 +14,11 @@ export interface VectorQueueStats {
   failed: number;
 }
 
+export interface VectorReconcileOptions {
+  /** Explicit maintenance mode: re-upsert every active canonical vector receipt. */
+  force?: boolean;
+}
+
 const REINDEX_REASON = 'superseded by indexer reindex';
 
 export function supersedeReplacedSourceDocs(
@@ -75,6 +80,7 @@ export function enqueueVectorReindexJobs(
   input: OracleDbInput,
   documents: OracleDocument[],
   models: ModelRegistry,
+  options: VectorReconcileOptions = {},
 ): VectorQueueStats {
   const db = asOracleDb(input);
   const modelKeys = Object.keys(models);
@@ -95,11 +101,11 @@ export function enqueueVectorReindexJobs(
     const contentHash = vectorContentHash(vectorDoc);
     for (const modelKey of modelKeys) {
       try {
-        if (!needsVectorJob(db, docId, modelKey, contentHash)) {
+        if (!options.force && !needsVectorJob(db, docId, modelKey, contentHash)) {
           stats.skipped++;
           continue;
         }
-        const jobs = enqueueIndexJob(db, { docId, contentHash, modelKey, models });
+        const jobs = enqueueIndexJob(db, { docId, contentHash, modelKey, models, force: options.force });
         stats.queued += jobs.length;
         if (jobs.length === 0) stats.failed++;
       } catch {
@@ -110,13 +116,51 @@ export function enqueueVectorReindexJobs(
   return stats;
 }
 
-/** Reconcile all canonical rows, used by the former direct-write cron command. */
+/**
+ * Full-scope reconciliation for the queue-only cron command.
+ *
+ * `docIds` must be the complete active canonical vector set for the configured
+ * models. In addition to current upserts, reconcile old manifest receipts that
+ * no longer belong to that set into durable DELETE jobs. This catches historical
+ * supersessions that predate the delete-aware pipeline; no direct LanceDB cleanup
+ * is performed here.
+ */
 export function enqueueCanonicalVectorJobs(
   input: OracleDbInput,
   docIds: string[],
   models: ModelRegistry,
+  options: VectorReconcileOptions = {},
 ): VectorQueueStats {
-  return enqueueVectorReindexJobs(input, docIds.map((id) => ({ id } as OracleDocument)), models);
+  const db = asOracleDb(input);
+  const stats = enqueueVectorReindexJobs(db, docIds.map((id) => ({ id } as OracleDocument)), models, options);
+  stats.queued += enqueueInactiveManifestDeleteJobs(db, docIds, models);
+  return stats;
+}
+
+/** Queue deletes for receipts outside a complete active canonical document set. */
+export function enqueueInactiveManifestDeleteJobs(
+  input: OracleDbInput,
+  activeDocIds: string[],
+  models: ModelRegistry,
+): number {
+  const db = asOracleDb(input);
+  const active = new Set(activeDocIds);
+  let queued = 0;
+  const manifests = db.select({ chunkId: vectorIndexManifest.chunkId, modelKey: vectorIndexManifest.modelKey })
+    .from(vectorIndexManifest)
+    .all();
+
+  for (const manifest of manifests) {
+    if (active.has(manifest.chunkId) || !models[manifest.modelKey]) continue;
+    queued += enqueueIndexJob(db, {
+      docId: manifest.chunkId,
+      contentHash: `delete:${manifest.chunkId}`,
+      operation: 'delete',
+      modelKey: manifest.modelKey,
+      models,
+    }).length;
+  }
+  return queued;
 }
 
 function activeIndexerIdsForSource(

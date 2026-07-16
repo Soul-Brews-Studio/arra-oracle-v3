@@ -1,162 +1,103 @@
-# Incremental vector indexing specification
+# Incremental vector indexing
 
-**Status:** approved for local implementation on 2026-07-16. No upstream PR or push is authorized.
+**Status:** implemented on the `fix/indexer-has-indexing-jobs-table` branch. The branch is under upstream review; this document describes the shipped design and its verification contract.
 
 ## Objective
 
-Make vector indexing truly incremental, retry-safe, and bounded in disk growth.
+Keep vector indexing incremental, retry-safe, and bounded:
 
-- An unchanged second reindex creates no vector jobs and performs no LanceDB write.
-- A changed chunk creates exactly one versioned job per embedding model.
-- Crashes may retry work but cannot create duplicate logical vector rows.
-- SQLite remains canonical; LanceDB remains derived and rebuildable.
+- An unchanged reconciliation creates no jobs and performs no LanceDB write.
+- A changed active chunk creates one versioned `upsert` job per embedding model.
+- A canonical chunk that becomes inactive creates one durable `delete` job per model.
+- SQLite/FTS is canonical; LanceDB and `vector_index_manifest` are derived and rebuildable.
+- Crashes may retry a job but cannot create duplicate logical vector rows.
 
-## Current facts
-
-The live database is `/home/dump/.arra-oracle-v2/oracle.db`. It is healthy (`PRAGMA integrity_check = ok`) and currently has 1,700 chunk rows, 1,452 live rows, and 1,700 bge-m3 manifest rows.
-
-The current architecture has two unsynchronised LanceDB writers:
-
-1. `src/scripts/index-model.ts` embeds canonical FTS text directly, writes LanceDB, then writes `vector_index_manifest`.
-2. `src/indexer/daemon.ts` consumes `indexing_jobs`, embeds and writes LanceDB, but does not update the manifest. Its former implementation discarded computed vectors and used `addDocuments`; a local patch passes the vector but still does delete-then-add with empty text and reduced metadata.
-
-`src/indexer/reindex-state.ts` currently compares raw parser content to `GROUP_CONCAT(oracle_fts.content)`. Stored FTS content is enriched with search expansions, so unchanged documents can be marked changed. `GROUP_CONCAT` also lacks a stable per-document identity/order.
-
-## Non-goals
-
-- Do not recreate `oracle.db`.
-- Do not delete LanceDB internal directories.
-- Do not introduce Redis, Temporal, or an external queue.
-- Do not change search API contracts or embedding models.
-
-## Target ownership
+## Ownership and flow
 
 ```text
-vault/inbox -> SQLite + FTS sync -> vector job reconciliation -> indexing_jobs
-                                                               -> daemon -> LanceDB
-                                                                          -> manifest
+vault / inbox
+  -> CLI or API source sync (SQLite + FTS)
+  -> canonical-vector reconciliation
+  -> indexing_jobs (durable SQLite queue)
+  -> daemon (only normal LanceDB writer)
+  -> LanceDB + vector_index_manifest receipt
 ```
 
-The daemon is the **only normal LanceDB writer**. Cron and learn-watcher only sync canonical content and reconcile jobs. `index-model.ts` becomes enqueue/reconcile-only, or recovery-only and excluded from cron.
+`src/scripts/index-model.ts` is queue reconciliation only. It never embeds or writes LanceDB directly; it reports `writer: "daemon"`. Cron and learn-watcher may produce canonical content and reconcile jobs, but the daemon owns vector writes.
 
-## Canonical vector source
+## Canonical payload and identity
 
-Create `src/indexer/vector-source.ts` with one source builder used by reconciliation, daemon, and repair tooling:
+`src/indexer/vector-source.ts` builds one canonical vector payload for reconciliation and daemon work. The content hash covers the exact embedded text and stable metadata.
 
-```ts
-type CanonicalVectorSource = {
-  id: string;
-  document: string;
-  metadata: Record<string, string | number>;
-  contentHash: string;
-};
+A queue identity is unique by:
+
+```text
+(model_key, doc_id, content_hash, operation)
 ```
 
-It must join current `oracle_documents` and canonical FTS content for one active, vector-eligible chunk; include the existing canonical metadata (`type`, `source_file`, `concepts`, `tenant_id`, optional `project`); and compute the existing `vectorContentHash` over exactly the embedded payload. It must not use `GROUP_CONCAT`.
+`operation` is `upsert` or `delete`. A unique SQLite index is authoritative; repeated or concurrent reconciliation cannot insert duplicate logical jobs. Claimed jobs have a finite lease so a replacement daemon can reclaim work after a crash.
 
-## Durable job identity
+## Reconciliation rules
 
-Migrate `indexing_jobs` to add:
+1. Load the complete active canonical vector set for each configured model.
+2. If a manifest hash equals the canonical hash, skip it.
+3. If it differs, enqueue/reactivate an `upsert` for that exact hash.
+4. If a manifest receipt is outside the complete active set, enqueue a durable `delete`.
+5. The daemon reloads canonical source before embedding. A missing source or hash mismatch becomes obsolete work and is not written.
 
-```sql
-content_hash TEXT NOT NULL,
-operation TEXT NOT NULL DEFAULT 'upsert', -- upsert | delete
-lease_expires_at INTEGER,
-available_at INTEGER NOT NULL
+Step 4 is intentionally part of full-scope `index-model.ts` reconciliation. It also sweeps historical supersessions created before delete-aware queueing existed. It does not delete LanceDB storage directly.
+
+## Worker behavior
+
+The daemon claims a small FIFO batch atomically. It separates `upsert` and `delete` work:
+
+- **Upsert:** batch embed canonical text, then batch-upsert full documents with precomputed vectors.
+- **Delete:** remove the LanceDB row for each chunk.
+- Only after the LanceDB operation succeeds does one SQLite transaction update/delete manifest receipts and mark jobs done.
+- A retry after a process crash is safe because writes use a stable document identity and the vector adapter is idempotent.
+
+A transient SQLite `SQLITE_BUSY` while CLI reindex overlaps queue claiming is logged as a deferred poll; it must not terminate the daemon.
+
+## Operations
+
+Use the lifecycle wrapper or equivalent service manager:
+
+```bash
+arra-oracle-ctl reindex       # disk -> SQLite/FTS, then full vector reconciliation
+arra-oracle-ctl index         # full vector reconciliation only
+arra-oracle-ctl index --repair # explicit durable re-upsert of every active chunk after vector-store recovery
+arra-oracle-ctl daemon status
 ```
 
-Add:
+A production supervisor (systemd, launchd, supervisord, or a container restart policy) is responsible for immediate process restart. The daemon's durable queue/lease design makes restart safe.
 
-```sql
-CREATE UNIQUE INDEX idx_indexing_jobs_identity
-ON indexing_jobs(model_key, doc_id, content_hash, operation);
+For a no-change corpus, expected reconciliation output is:
 
-CREATE INDEX idx_indexing_jobs_claim
-ON indexing_jobs(model_key, status, available_at, lease_expires_at, created_at);
-
-CREATE UNIQUE INDEX idx_vector_manifest_model_chunk
-ON vector_index_manifest(model_key, chunk_id);
+```json
+{"queued":0,"failed":0,"writer":"daemon"}
 ```
 
-The deterministic job ID is SHA-256 of `modelKey + operation + chunkId + contentHash`. The composite unique index is authoritative.
+and queue status should have no `pending`, `claimed`, or `error` jobs. `skipped` equals the number of active canonical vector chunks when all manifests match.
 
-Migration requirements:
+## Safety boundaries
 
-1. Create a Drizzle migration; do not execute raw schema DDL from runtime code.
-2. Back up the live DB before applying it.
-3. Give historical rows non-equivalent `legacy:<id>` hashes so history is preserved without claiming that an old job matches current content.
-4. Confirm there are no duplicate `(model_key, chunk_id)` manifest rows before its unique index.
+- Do not recreate the SQLite database for normal recovery.
+- Do not manually delete LanceDB internal files or transaction/version directories.
+- Do not mark a job done before its LanceDB operation succeeds.
+- Use the Drizzle migration path for schema changes; back up before applying migrations.
 
-## Reconciliation
+## Verification contract
 
-Replace `DocSnapshot`, `snapshotActiveIndexerDocs`, `changedDocumentIds`, and `needsVectorJob(... changed)` in `reindex-state.ts` with desired-state reconciliation after SQLite/FTS writes commit.
+Required regression coverage:
 
-For each active canonical vector source and model:
+1. Unchanged source rerun queues zero jobs.
+2. Changed chunk queues one versioned `upsert`.
+3. Repeated/concurrent reconciliation preserves one job identity.
+4. A historical manifest outside the active canonical set queues one durable `delete` and does not duplicate it on rerun.
+5. A stale claimed payload is not embedded.
+6. Repeated Lance upsert remains one current vector row.
+7. A crash between LanceDB and SQLite receipt retry is safe.
+8. Delete completion removes both LanceDB row and manifest receipt.
+9. A SQLite lock during daemon claim defers polling rather than stopping the daemon.
 
-1. Calculate its current canonical hash.
-2. Compare it with the manifest row for `(model, chunk)`.
-3. If equal, create no job.
-4. If different, insert or reactivate a pending `upsert` job for that exact hash.
-5. For manifest chunks no longer active, queue a `delete` job.
-
-A content sequence `h1 -> h2 -> h1` must reactivate `h1` if the manifest currently records `h2`; plain `INSERT OR IGNORE` is insufficient.
-
-## Worker and LanceDB behavior
-
-A worker atomically claims available or expired-lease jobs. Before embedding, it reloads the canonical source.
-
-- Missing source or hash mismatch: mark the job obsolete; do not write.
-- Upsert: embed canonical text, then batch-write full canonical documents with precomputed vectors.
-- Delete: delete the Lance row for the chunk.
-- After LanceDB succeeds, one SQLite transaction updates/deletes manifest state and marks the job done.
-
-Use LanceDB `mergeInsert('id').whenMatchedUpdateAll().whenNotMatchedInsertAll()` in batches, not delete-then-add. This avoids a missing-vector window and makes retry idempotent. Do not mark a job done before the Lance write. If a crash occurs after LanceDB but before SQLite completion, retrying the same stable identity is safe.
-
-Run LanceDB `optimize` only via a supported scheduled/threshold maintenance path, never by manually deleting `_versions`, `_transactions`, or `_deletions`.
-
-## File plan
-
-| File | Change |
-| --- | --- |
-| `src/db/schema.ts` + new Drizzle migration | durable-job columns and indexes |
-| `src/indexer/vector-source.ts` | canonical payload and hash |
-| `src/indexer/reindex-state.ts` | desired-state reconciliation |
-| `src/indexer/index.ts` | reconcile after SQLite/FTS sync |
-| `src/indexer/jobs.ts`, `worker.ts`, `daemon.ts` | leases, obsolete state, batch worker |
-| `src/indexer/vector-index-manifest.ts` | manifest commit after worker success |
-| `src/vector/adapters/lancedb.ts` | batch `upsertDocuments` using mergeInsert |
-| `src/scripts/index-model.ts`, `~/.hermes/scripts/oracle-index.sh` | eliminate direct cron LanceDB writes |
-
-## Required regression tests
-
-1. FTS enrichment: unchanged source rerun queues zero jobs.
-2. One changed chunk queues one job; unchanged chunks do not queue.
-3. Repeated/concurrent reconcile has one job identity.
-4. `h1 -> h2 -> h1` reactivates the correct job.
-5. Claimed stale hash becomes obsolete without embedding.
-6. Same Lance upsert twice yields one row with current payload and no second embedding.
-7. Crash after Lance write but before SQLite completion retries safely.
-8. Supersession/deletion removes both Lance row and manifest row.
-9. Two unchanged cron runs produce zero new jobs and zero Lance writes on run two.
-
-## Verification evidence
-
-- 2026-07-16: `bun run build` passed.
-- 2026-07-16: focused queue, worker, daemon-dispatch, hardening, and reconciliation tests passed (33 assertions suites; 0 failures).
-- 2026-07-16: `0041_incremental_vector_jobs` was first tested on a disposable DB copy, then applied to the live canonical DB after a timestamped pre-migration backup; `PRAGMA integrity_check = ok`.
-- 2026-07-16: two live `index-model.ts bge-m3` reconciliation runs each reported `queued: 0`, `skipped: 1700`, and `failed: 0`; the queue stayed `done:1452` and no daemon was started.
-- The repository-wide test command has unrelated environment failures because spawned child tests cannot resolve `bun` in PATH; the focused acceptance suite is clean.
-
-## Work protocol and recovery
-
-Work in small verified milestones. At each milestone: update this spec's status/checkpoint, run scoped tests plus `bun run tsc --noEmit`, save a Hermes Oracle handoff, and commit only after tests pass. If context compacts, resume from this file first, then inspect `git status`, the migration state, and `TODO` checklist below.
-
-## Checklist
-
-- [ ] Baseline captured; no migration applied
-- [ ] Schema migration and migration tests
-- [ ] Canonical source and desired-state reconciliation
-- [ ] Idempotent daemon/Lance batch upsert
-- [ ] Cron changed to queue-only
-- [ ] End-to-end unchanged-twice proof
-- [ ] Local commit, no push or PR
+Before operational rollout, verify `PRAGMA integrity_check`, daemon health, queue state, and manifest/live-chunk counts against the configured database. Historical cleanup is complete only when manifests for inactive chunks are zero after the daemon drains the queued deletes.

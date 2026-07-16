@@ -24,6 +24,8 @@ export interface EnqueueOptions {
   modelKey?: string;
   /** Registry of model_key → collection. */
   models: Record<string, { collection: string }>;
+  /** Explicit maintenance mode: reactivate a terminal matching job for a durable re-upsert. */
+  force?: boolean;
 }
 
 export interface EnqueuedJob {
@@ -74,29 +76,45 @@ export function enqueueIndexJob(conn: JobsDb, opts: EnqueueOptions): EnqueuedJob
   const out: EnqueuedJob[] = [];
 
   for (const { key, collection } of targets) {
-    const inserted = db.insert(indexingJobs)
-      .values({
-        id: jobId(key),
-        docId: opts.docId,
-        modelKey: key,
-        collection,
-        contentHash,
-        operation,
-        status: 'pending',
-        attempts: 0,
-      })
-      .onConflictDoNothing({
-        target: [indexingJobs.modelKey, indexingJobs.docId, indexingJobs.contentHash, indexingJobs.operation],
-      })
-      .returning({
-        id: indexingJobs.id,
-        docId: indexingJobs.docId,
-        modelKey: indexingJobs.modelKey,
-        collection: indexingJobs.collection,
-        contentHash: indexingJobs.contentHash,
-        operation: indexingJobs.operation,
-      })
-      .get();
+    const values = {
+      id: jobId(key),
+      docId: opts.docId,
+      modelKey: key,
+      collection,
+      contentHash,
+      operation,
+      status: 'pending' as const,
+      attempts: 0,
+    };
+    const target = [indexingJobs.modelKey, indexingJobs.docId, indexingJobs.contentHash, indexingJobs.operation];
+    const inserted = opts.force
+      ? db.insert(indexingJobs)
+        .values(values)
+        .onConflictDoUpdate({
+          target,
+          set: { status: 'pending', attempts: 0, claimedAt: null, leaseExpiresAt: null, finishedAt: null, error: null },
+        })
+        .returning({
+          id: indexingJobs.id,
+          docId: indexingJobs.docId,
+          modelKey: indexingJobs.modelKey,
+          collection: indexingJobs.collection,
+          contentHash: indexingJobs.contentHash,
+          operation: indexingJobs.operation,
+        })
+        .get()
+      : db.insert(indexingJobs)
+        .values(values)
+        .onConflictDoNothing({ target })
+        .returning({
+          id: indexingJobs.id,
+          docId: indexingJobs.docId,
+          modelKey: indexingJobs.modelKey,
+          collection: indexingJobs.collection,
+          contentHash: indexingJobs.contentHash,
+          operation: indexingJobs.operation,
+        })
+        .get();
     if (inserted) out.push({ ...inserted, operation: inserted.operation as VectorOperation });
   }
   return out;

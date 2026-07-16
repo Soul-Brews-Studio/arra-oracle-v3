@@ -6,7 +6,7 @@
  */
 
 import type Database from 'bun:sqlite';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import { asOracleDb, type OracleDbInput } from '../db/drizzle-input.ts';
 import { oracleDocuments, oracleFts } from '../db/schema.ts';
 import type { VectorDocument } from '../vector/types.ts';
@@ -27,6 +27,7 @@ const VECTOR_ROWS_SQL = `
     d.source_file, d.concepts, d.project, d.created_at
   FROM oracle_documents d
   JOIN oracle_fts f ON d.id = f.id
+  WHERE d.superseded_by IS NULL OR d.superseded_by = ''
   GROUP BY d.id
   ORDER BY d.created_at DESC
 `;
@@ -65,7 +66,10 @@ export function loadCanonicalVectorDocumentFromDb(input: OracleDbInput, docId: s
   })
     .from(oracleDocuments)
     .innerJoin(oracleFts, eq(oracleDocuments.id, oracleFts.id))
-    .where(eq(oracleDocuments.id, docId))
+    .where(and(
+      eq(oracleDocuments.id, docId),
+      or(isNull(oracleDocuments.supersededBy), eq(oracleDocuments.supersededBy, '')),
+    ))
     .groupBy(oracleDocuments.id)
     .get();
   return row ? vectorDocumentFromRow(row) : null;

@@ -16,8 +16,9 @@ process.env.ORACLE_DB_PATH = dbPath;
 
 const { createDatabase, closeDb, resetDefaultDatabaseForTests } = await import('../../db/index.ts');
 resetDefaultDatabaseForTests(dbPath);
-const { oracleDocuments } = await import('../../db/schema.ts');
-const { enqueueVectorReindexJobs } = await import('../reindex-state.ts');
+const { oracleDocuments, vectorIndexManifest } = await import('../../db/schema.ts');
+const { enqueueCanonicalVectorJobs, enqueueVectorReindexJobs } = await import('../reindex-state.ts');
+const { loadCanonicalVectorDocuments } = await import('../vector-source.ts');
 
 beforeAll(() => {
   const { sqlite, db } = createDatabase(dbPath);
@@ -98,26 +99,66 @@ describe('enqueueVectorReindexJobs — hasIndexingJobsTable regression (#2611)',
     const { drizzle } = require('drizzle-orm/bun-sqlite');
     const sqlitePath = path.join(tmp, 'no-jobs-table.db');
     const sqlite = new Database(sqlitePath);
-    // No migration; no indexing_jobs table.
     sqlite.run('CREATE TABLE oracle_documents (id TEXT PRIMARY KEY)');
     const db = drizzle(sqlite);
 
-    const docs = [
-      {
-        id: 'doc-a',
-        type: 'learning' as const,
-        sourceFile: 'ψ/memory/learnings/a.md',
-        concepts: ['alpha'],
-        content: 'alpha',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      },
-    ];
+    const docs = [{
+      id: 'doc-a', type: 'learning' as const, sourceFile: 'ψ/memory/learnings/a.md', concepts: ['alpha'],
+      content: 'alpha', createdAt: Date.now(), updatedAt: Date.now(),
+    }];
     const models = { 'bge-m3': { collection: 'oracle_knowledge_bge_m3' } };
-    const stats = enqueueVectorReindexJobs(db, docs, models);
+    const stats = enqueueVectorReindexJobs(db, docs as never, models);
 
     expect(stats.failed).toBe(1);
     expect(stats.queued).toBe(0);
     sqlite.close();
+  });
+
+  test('queues one durable DELETE for a historical manifest outside the full active set', () => {
+    const { db, sqlite } = createDatabase(dbPath);
+    try {
+      const now = Date.now();
+      db.insert(oracleDocuments).values({
+        id: 'doc-historical',
+        type: 'learning',
+        sourceFile: 'ψ/memory/learnings/historical.md',
+        concepts: 'historical',
+        createdAt: now,
+        updatedAt: now,
+        indexedAt: now,
+        supersededBy: 'doc-a',
+        supersededAt: now,
+      }).run();
+      db.insert(vectorIndexManifest).values({
+        id: 'bge-m3:doc-historical',
+        chunkId: 'doc-historical',
+        sourceFile: 'ψ/memory/learnings/historical.md',
+        modelKey: 'bge-m3',
+        contentHash: 'legacy-hash',
+        indexedAt: now,
+        updatedAt: now,
+      }).run();
+
+      sqlite.prepare('INSERT INTO oracle_fts (id, content) VALUES (?, ?)').run('doc-historical', 'historical');
+      const canonical = loadCanonicalVectorDocuments(sqlite);
+      expect(canonical.map((doc) => doc.id)).not.toContain('doc-historical');
+
+      const models = { 'bge-m3': { collection: 'oracle_knowledge_bge_m3' } };
+      const first = enqueueCanonicalVectorJobs(db, canonical.map((doc) => doc.id), models);
+      const deletesAfterFirst = sqlite.prepare(
+        "SELECT COUNT(*) AS total FROM indexing_jobs WHERE doc_id = ? AND model_key = ? AND operation = 'delete'",
+      ).get('doc-historical', 'bge-m3') as { total: number };
+      const second = enqueueCanonicalVectorJobs(db, canonical.map((doc) => doc.id), models);
+      const deletesAfterSecond = sqlite.prepare(
+        "SELECT COUNT(*) AS total FROM indexing_jobs WHERE doc_id = ? AND model_key = ? AND operation = 'delete'",
+      ).get('doc-historical', 'bge-m3') as { total: number };
+
+      expect(first.queued).toBeGreaterThan(0);
+      expect(deletesAfterFirst.total).toBe(1);
+      expect(second.failed).toBe(0);
+      expect(deletesAfterSecond.total).toBe(1);
+    } finally {
+      sqlite.close();
+    }
   });
 });

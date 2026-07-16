@@ -78,6 +78,24 @@ describe('enqueueIndexJob', () => {
     expect(a).toHaveLength(1);
     expect(b).toHaveLength(0);
   });
+
+  it('reactivates a terminal matching job only when force is explicit', () => {
+    const [created] = enqueueIndexJob(db, { docId: 'doc-1', contentHash: 'hash-1', modelKey: 'bge-m3', models: MODELS });
+    markJobDone(db, created.id);
+
+    expect(enqueueIndexJob(db, { docId: 'doc-1', contentHash: 'hash-1', modelKey: 'bge-m3', models: MODELS })).toEqual([]);
+    const [repaired] = enqueueIndexJob(db, {
+      docId: 'doc-1', contentHash: 'hash-1', modelKey: 'bge-m3', models: MODELS, force: true,
+    });
+    const row = db.query('SELECT id, status, attempts, finished_at FROM indexing_jobs WHERE id = ?').get(repaired.id) as {
+      id: string; status: string; attempts: number; finished_at: number | null;
+    };
+
+    expect(repaired.id).toBe(created.id);
+    expect(row.status).toBe('pending');
+    expect(row.attempts).toBe(0);
+    expect(row.finished_at).toBeNull();
+  });
 });
 
 describe('claimNextJob', () => {
