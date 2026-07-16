@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import type { OracleDocument, IndexerConfig } from '../types.ts';
 import { parseResonanceFile, parseLearningFile, parseRetroFile, parseSecurityCorpusFile } from './parser.ts';
-import { discoverProjectPsiDirs } from './discovery.ts';
+import { discoverProjectPsiDirs, discoverCrewPsiDirs } from './discovery.ts';
 
 const SECURITY_CORPUS_EXTENSIONS = ['.md', '.txt', '.yaml', '.yml', '.json', '.rst'];
 const SECURITY_CORPUS_MAX_FILE_BYTES = 200 * 1024;  // 200KB cap per file
@@ -70,9 +70,12 @@ export function collectDocuments(opts: CollectOpts): OracleDocument[] {
     totalFiles += files.length;
   }
 
-  // 2. Project-first vault dirs
+  // 2. Project-first vault dirs + crew ψ-brains (same memory/{subdir} contract)
   let skippedDupes = 0;
-  const projectDirs = discoverProjectPsiDirs(config.repoRoot);
+  const projectDirs = [
+    ...discoverProjectPsiDirs(config.repoRoot),
+    ...discoverCrewPsiDirs(config.repoRoot),
+  ];
   for (const projectDir of projectDirs) {
     const projectSubdir = path.join(projectDir, 'memory', subdir);
     if (!fs.existsSync(projectSubdir)) continue;
@@ -89,6 +92,73 @@ export function collectDocuments(opts: CollectOpts): OracleDocument[] {
   }
 
   console.log(`Indexed ${documents.length} ${label} documents from ${totalFiles} files (skipped ${skippedDupes} duplicate files)`);
+  return documents;
+}
+
+/**
+ * Vault-extras collector: crew brains beyond memory/ (learn/, inbox/, outbox/,
+ * CLAUDE.md identity files), vault-level inbox/outbox handoffs, and top-level
+ * ψ/learn notes. Complements collectDocuments, which only walks
+ * memory/{subdir} trees. Everything indexes as learning-type documents.
+ * Set ORACLE_INDEX_CREW=0 to disable (same switch as crew memory discovery).
+ * Skips ψ/learn/security-corpus — that tree has its own opt-in collector.
+ */
+export function collectVaultExtraDocuments(opts: {
+  config: IndexerConfig;
+  seenContentHashes: Set<string>;
+}): OracleDocument[] {
+  if (process.env.ORACLE_INDEX_CREW === '0') return [];
+  const { config, seenContentHashes } = opts;
+  const psi = (...parts: string[]) => path.join(config.repoRoot, 'ψ', ...parts);
+
+  // Directory trees to walk recursively
+  const roots: string[] = [psi('inbox'), psi('outbox')];
+  // Single files worth indexing as-is
+  const singles: string[] = [psi('crew', 'README.md')];
+
+  // ψ/learn minus security-corpus (has its own opt-in collector)
+  const learnRoot = psi('learn');
+  if (fs.existsSync(learnRoot)) {
+    for (const item of fs.readdirSync(learnRoot, { withFileTypes: true })) {
+      if (item.name === 'security-corpus') continue;
+      const full = path.join(learnRoot, item.name);
+      if (item.isDirectory()) roots.push(full);
+      else if (item.name.endsWith('.md')) singles.push(full);
+    }
+  }
+
+  // Crew members: learn/ + inbox/ + outbox/ trees, CLAUDE.md identity file
+  const crewRoot = psi('crew');
+  if (fs.existsSync(crewRoot)) {
+    for (const member of fs.readdirSync(crewRoot, { withFileTypes: true })) {
+      if (!member.isDirectory()) continue;
+      roots.push(path.join(crewRoot, member.name, 'learn'));
+      roots.push(path.join(crewRoot, member.name, 'inbox'));
+      roots.push(path.join(crewRoot, member.name, 'outbox'));
+      singles.push(path.join(crewRoot, member.name, 'CLAUDE.md'));
+    }
+  }
+
+  const files: string[] = [];
+  for (const root of roots) {
+    if (fs.existsSync(root)) files.push(...getAllMarkdownFiles(root));
+  }
+  for (const single of singles) {
+    if (fs.existsSync(single)) files.push(single);
+  }
+
+  const documents: OracleDocument[] = [];
+  let skippedDupes = 0;
+  for (const filePath of files) {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const contentHash = Bun.hash(content).toString(36);
+    if (seenContentHashes.has(contentHash)) { skippedDupes++; continue; }
+    seenContentHashes.add(contentHash);
+    const relPath = path.relative(config.repoRoot, filePath);
+    documents.push(...parseLearningFile(relPath, content, relPath));
+  }
+
+  console.log(`Indexed ${documents.length} vault-extra documents from ${files.length} files (skipped ${skippedDupes} duplicate files)`);
   return documents;
 }
 

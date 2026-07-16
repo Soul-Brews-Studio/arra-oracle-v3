@@ -38,6 +38,39 @@ export function discoverProjectPsiDirs(repoRoot: string): string[] {
 }
 
 /**
+ * Discover crew \u03c8-brain directories in vault.
+ * Scans {repoRoot}/\u03c8/crew/<member>/ for dirs containing memory/.
+ * Each returned dir satisfies the same {dir}/memory/{subdir} contract as
+ * project-first vault dirs, so collectDocuments can walk them unchanged.
+ * Set ORACLE_INDEX_CREW=0 to disable.
+ */
+export function discoverCrewPsiDirs(repoRoot: string): string[] {
+  if (process.env.ORACLE_INDEX_CREW === '0') return [];
+  const dirs: string[] = [];
+  const crewRoot = path.join(repoRoot, '\u03c8', 'crew');
+  if (!fs.existsSync(crewRoot)) return dirs;
+
+  for (const member of fs.readdirSync(crewRoot)) {
+    const memberDir = path.join(crewRoot, member);
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(memberDir);
+    } catch {
+      continue;
+    }
+    if (!stat.isDirectory()) continue;
+    if (fs.existsSync(path.join(memberDir, 'memory'))) {
+      dirs.push(memberDir);
+    }
+  }
+
+  if (dirs.length > 0) {
+    console.log(`Discovered ${dirs.length} crew \u03c8-brain directories`);
+  }
+  return dirs;
+}
+
+/**
  * Infer project from a vault-nested path.
  * Project-first layout: "github.com/org/repo/psi/..." -> "github.com/org/repo"
  * Also supports legacy layout: "psi/memory/{category}/github.com/org/repo/..."

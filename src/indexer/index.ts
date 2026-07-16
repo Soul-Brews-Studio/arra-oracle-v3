@@ -24,7 +24,7 @@ import type { OracleDocument, IndexerConfig } from '../types.ts';
 import { setIndexingStatus } from './status.ts';
 import { backupDatabase } from './backup.ts';
 import { parseResonanceFile, parseLearningFile, parseRetroFile, parseDistillationFile } from './parser.ts';
-import { collectDocuments, collectSecurityCorpus } from './collectors.ts';
+import { collectDocuments, collectSecurityCorpus, collectVaultExtraDocuments } from './collectors.ts';
 import { storeDocuments } from './storage.ts';
 
 export interface IndexOptions {
@@ -81,6 +81,7 @@ export class OracleIndexer {
       ...collectDocuments({ ...shared, subdir: 'learnings', parseFn: parseLearningFile, label: 'learning' }),
       ...collectDocuments({ ...shared, subdir: 'retrospectives', parseFn: parseRetroFile, label: 'retrospective' }),
       ...collectDocuments({ ...shared, subdir: 'distillations', parseFn: parseDistillationFile, label: 'distillation' }),
+      ...collectVaultExtraDocuments(shared),
       ...collectSecurityCorpus(shared),
     ];
 
