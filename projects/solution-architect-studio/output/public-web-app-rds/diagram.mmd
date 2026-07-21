@@ -1,0 +1,65 @@
+%% design slug: public-web-app-rds
+%% Referenced by design.md - "Topology Decision" section.
+%% VPC network topology: 2 AZs, public/private-app/private-data subnet tiers,
+%% single NAT Gateway (budget trade-off, see design.md Cost Optimization notes).
+flowchart TB
+    Users((Internet Users))
+    R53[Route 53<br/>Hosted Zone + Alias Record]
+
+    subgraph AWS["AWS Account - us-east-1 (single region)"]
+        IGW[Internet Gateway]
+
+        subgraph VPC["VPC 10.0.0.0/16"]
+
+            subgraph AZA["Availability Zone A"]
+                subgraph PubA["Public Subnet 10.0.0.0/24"]
+                    ALBa[ALB ENI - AZ-A]
+                    NAT[NAT Gateway<br/>single, AZ-A only]
+                end
+                subgraph AppA["Private App Subnet 10.0.10.0/24"]
+                    FargateA[ECS Fargate Task]
+                end
+                subgraph DataA["Private Data Subnet 10.0.20.0/24"]
+                    RDSPrimary[(RDS PostgreSQL<br/>Primary)]
+                end
+            end
+
+            subgraph AZB["Availability Zone B"]
+                subgraph PubB["Public Subnet 10.0.1.0/24"]
+                    ALBb[ALB ENI - AZ-B]
+                end
+                subgraph AppB["Private App Subnet 10.0.11.0/24"]
+                    FargateB[ECS Fargate Task]
+                end
+                subgraph DataB["Private Data Subnet 10.0.21.0/24"]
+                    RDSStandby[(RDS PostgreSQL<br/>Standby)]
+                end
+            end
+
+        end
+
+        Secrets[Secrets Manager<br/>DB credentials]
+        S3[(S3 Bucket<br/>static/media assets)]
+    end
+
+    Users --> R53 --> IGW
+    IGW --> ALBa
+    IGW --> ALBb
+
+    ALBa --> FargateA
+    ALBa --> FargateB
+    ALBb --> FargateA
+    ALBb --> FargateB
+
+    FargateA --> RDSPrimary
+    FargateB --> RDSPrimary
+    RDSPrimary -. synchronous replication .-> RDSStandby
+
+    FargateA -. outbound only .-> NAT
+    FargateB -. outbound only, cross-AZ .-> NAT
+    NAT --> IGW
+
+    FargateA --> Secrets
+    FargateB --> Secrets
+    FargateA --> S3
+    FargateB --> S3

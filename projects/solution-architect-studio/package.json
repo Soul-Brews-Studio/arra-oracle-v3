@@ -1,0 +1,17 @@
+{
+  "name": "solution-architect-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Diagram-rendering pipeline for the solution-architect-studio (see PLAN.md). CLI first; Elysia HTTP surface is a later build-order step.",
+  "scripts": {
+    "render": "bun run bin/render.ts"
+  },
+  "dependencies": {
+    "@mermaid-js/mermaid-cli": "^11.4.2"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.0",
+    "typescript": "^5.5.0"
+  }
+}

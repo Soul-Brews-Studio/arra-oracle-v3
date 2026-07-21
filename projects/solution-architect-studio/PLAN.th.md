@@ -51,11 +51,14 @@ someday-maybe
 
 ## ส่วนประกอบหลัก
 
-1. **การเก็บ constraint** — แบบฟอร์มสั้นๆ ที่มีโครงสร้าง (compliance, เพดานงบประมาณ,
-   scale/RTO-RPO ที่คาดไว้, ข้อจำกัดที่มีอยู่) เป็นไฟล์ Markdown/YAML frontmatter
-   ที่ผู้ใช้กรอกเองหรือบอก agent ให้เขียนให้ นี่คือ input ที่ persona ของ Yasmin
-   บอกอยู่แล้วว่าเธอจะจดไว้ก่อนเสนอ topology — เครื่องมือแค่ให้มันมีที่อยู่ถาวรและ diff ได้
-   แทนที่จะอยู่แค่ในแชท
+1. **การเก็บ constraint** — สองเส้นทาง ไฟล์เดียวที่เป็นทางการ: คนจะ (ก) กรอก
+   `constraints.yaml` เองโดยตรง (compliance, เพดานงบประมาณ, scale/RTO-RPO
+   ที่คาดไว้, ข้อจำกัดที่มีอยู่) เป็นไฟล์ Markdown/YAML frontmatter ที่มีโครงสร้าง หรือ
+   (ข) คุยแบบสนทนากับ agent แล้วให้ agent serialize บทสนทนานั้นออกมาเป็นไฟล์
+   `constraints.yaml` รูปแบบเดียวกัน ไม่ว่าทางไหน `constraints.yaml` — ไม่ใช่บท
+   สนทนาดิบ — คือ source เดียวที่ทุกขั้นตอนถัดไปอ่าน นี่คือ input ที่ persona ของ
+   Yasmin บอกอยู่แล้วว่าเธอจะจดไว้ก่อนเสนอ topology — เครื่องมือแค่ให้มันมีที่อยู่ถาวร
+   และ diff ได้ แทนที่จะอยู่แค่ในแชท
 2. **ขั้นตอนสร้างดีไซน์** — agent (ใช้ persona `solution-architect`) อ่านไฟล์ constraint
    แล้วร่าง: (ก) รายการ component และการตัดสินใจเรื่อง topology, (ข) หมายเหตุ trade-off
    ที่ชัดเจน ("เลือก X แทน Y เพราะ Z"), (ค) source ของ diagram (ดูด้านล่าง) ขั้นตอนนี้เป็น
@@ -63,15 +66,39 @@ someday-maybe
 3. **ขั้นตอน render diagram** — แปลง source text ของ diagram เป็นผลลัพธ์ที่ render แล้ว
    แยกเป็นขั้นตอนกลไกล้วนๆ (ไม่ใช่วิจารณญาณของ agent) เพื่อให้ diagram ยัง reproducible
    และ diff ได้ใน git
-4. **ขั้นตอน output/review** — ประกอบ diagram ที่ render แล้ว + บทความ trade-off
-   เป็นเอกสารออกแบบเดียว เก็บไว้ที่ `docs/` ของโปรเจกต์ (หรือที่ repo ปลายทางเก็บ ADR)
-   โดยมีรูปแบบการตั้งชื่อที่แน่นอนเพื่อให้แก้ไขแบบ append-only ได้ง่าย (ตรงกับปรัชญา
-   Oracle/Shadow "ไม่มีอะไรถูกลบ" — แทนที่ด้วยเวอร์ชันใหม่ ไม่ใช่เขียนทับ)
+4. **ขั้นตอน output/review/versioning** — ประกอบ diagram ที่ render แล้ว + บทความ
+   trade-off เป็นเอกสารออกแบบเดียว เขียนไว้ใต้ `projects/solution-architect-studio/
+   output/<design-slug>/` ของโปรเจกต์นี้เอง — ไม่เขียนเข้า repo ปลายทางที่ดีไซน์นั้น
+   เป็นของเลย ทำให้ไม่ต้องมีความสามารถเขียนข้าม repo หรือ credential ของ repo อื่น
+   วิศวกรก๊อปปี้เอกสารที่เสร็จแล้วไปเองถ้าอยากให้มันอยู่ที่นั่น การเปลี่ยน constraint จะ
+   สร้างไฟล์แทนที่ ไม่ใช่แก้ในที่เดิม — `design-v2.md`/`diagram-v2.mmd` จะอยู่ข้างๆ
+   ไฟล์เดิม ไม่เขียนทับ ตรงกับ pattern append-only ที่ใช้กับ `diagram-history.jsonl`
+   อยู่แล้ว และปรัชญา Oracle/Shadow "ไม่มีอะไรถูกลบ" (ถ้าใช้ไฟล์เดียวที่พัฒนาไปเรื่อยๆ
+   พร้อม changelog จะฝังบริบทของการตัดสินใจแต่ละครั้งไว้ในบทความ changelog แทนที่จะ
+   diff ได้อย่างอิสระ) ส่วน review คือ PR ปกติต่อ monorepo นี้ — artifact ที่สร้างขึ้น
+   จะอยู่บน branch, เปิดเป็น PR, ให้คนอ่าน git diff ตามปกติ พร้อมอนุมัติชัดเจนก่อน
+   merge ตาม convention GitHub-flow ที่เรโปนี้ใช้อยู่แล้ว ไม่ใช่กลไก approval ที่สร้าง
+   ขึ้นใหม่
 
-Flow คร่าวๆ: `constraints.yaml` → agent ร่าง `design.md` (topology + trade-off)
-+ `diagram.mmd` → ขั้นตอน render ได้ `diagram.svg`/`.png` → ประกอบทั้งหมดเป็นเอกสารสุดท้าย
-แต่ละ artifact เป็น plain text หรือรูปภาพ static ทั้งหมดจึง diff ได้ใน git โดยไม่ต้องมี
-server/database สำหรับ V1
+Flow คร่าวๆ: `constraints.yaml` (กรอกเองหรือ agent serialize จากการสนทนา) →
+agent ร่าง `design.md` + `diagram.mmd` → ขั้นตอน render ได้ `diagram.svg`/`.png`
+→ artifact ทั้งหมดไปอยู่ใต้ `projects/solution-architect-studio/output/
+<design-slug>/` → เปิดเป็น PR เพื่อ review แต่ละ artifact เป็น plain text หรือ
+รูปภาพ static ทั้งหมดจึง diff ได้ใน git โดยไม่ต้องมี server/database สำหรับ V1
+
+## Interface: CLI + Skill + HTTP Service
+
+ทำทั้งสามอย่าง — ไม่ใช่เลือกอันเดียว — แต่ไม่ได้ทำให้งานจริงเพิ่มเป็นสามเท่า ตรรกะการ
+สร้างดีไซน์ + render เป็น core module เดียวที่ใช้ร่วมกัน (อ่าน constraint → agent ร่าง →
+render → ประกอบ) ส่วน CLI และ skill เป็นแค่ wrapper บางๆ ที่เรียก core ตัวนั้น
+(`bun run design ...` และ slash-command ตามลำดับ) และทำพร้อมกับ core เลย
+เพราะทั้งคู่ไม่ได้เพิ่ม surface จริงอะไรนอกจากการเรียกใช้ ส่วน HTTP service ก็ยังทำทีหลัง
+ไม่ทำพร้อมกัน — แต่ไม่ใช่เพราะ auth: สำหรับ V1 ไม่มีกลไก auth เลย ตัว service แค่
+bind เข้ากับ localhost เท่านั้น (เข้าถึงไม่ได้จากนอกเครื่อง) ซึ่งแทบไม่มีงานเพิ่มเลย ไม่ใช่
+feature จริงที่ต้องสร้าง เหตุผลจริงที่มันทำทีหลัง CLI/skill คือ routing กับ request
+validation ซึ่งเป็น surface ใหม่จริงๆ ที่อีกสองอย่างไม่มี เพราะตอนนี้มี HTTP surface
+จริงแล้ว convention Bun/Elysia จึงเกี่ยวข้องด้วย (ตาม policy การ migrate Hono →
+Elysia ของเรโปนี้) — route ของมันอยู่ที่ `src/routes-elysia/` ไม่ใช่ server แยกเดี่ยวๆ
 
 ## แนวทางเรื่อง Diagram
 
@@ -143,25 +170,14 @@ edit-commit event จะเพิ่มหนึ่งบรรทัดใน `
 source ที่เป็นทางการปัจจุบัน ไม่ใช่ version chain) แต่ `diagram-history.jsonl` คือ timeline
 ที่คงอยู่และค้นหาได้ของทุกการแก้ไขและสิ่งที่ agent เสนอหรือคนยอมรับ/ปฏิเสธ
 
-## คำถามสำคัญที่ต้องให้คนตัดสินใจก่อนทำต่อ
+## คำถามสำคัญ
 
-- เอกสารออกแบบจะ "อยู่" ที่ไหนหลังสร้างเสร็จ — อยู่ใน monorepo นี้ (เช่น
-  `projects/solution-architect-studio/output/`) หรือเครื่องมือเขียนเข้า repo ปลายทาง
-  ที่ดีไซน์นั้นเป็นของ? เรื่องนี้เปลี่ยนไปว่า V1 ต้องมีความสามารถเขียนข้าม repo หรือไม่เลย
-- นี่ควรเป็น CLI (`bun run design ...`) ที่เรียกเป็นครั้งๆ ไป, slash-command/skill
-  ที่วางทับ agent เดิม, หรือ HTTP service เล็กๆ ที่มี route ของตัวเอง? มีผลว่า
-  convention ของ Bun/Elysia เกี่ยวข้องด้วยหรือไม่ หรือจริงๆ แล้วใกล้เคียงกับ skill + agent
-  persona ที่ไม่มี server เลย
-- การเก็บ constraint ควรเป็นฟอร์ม (ไฟล์ที่มีโครงสร้างให้คนแก้เอง) หรือเป็นการสนทนาที่
-  agent รันแล้ว serialize ออกมาเอง? มีผลว่า V1 ต้องมี UI หรือไม่
-- "review" หมายถึงคนอ่าน Markdown เฉยๆ หรือต้องมีกลไก diff/approve (เช่นผ่าน PR)
-  สำหรับ V1 ด้วยไหม?
-- รูปแบบเวอร์ชัน/การตั้งชื่อเอกสารออกแบบเมื่อ constraint เปลี่ยน — แทนที่ไฟล์เดิม
-  (`design-v2.md`) หรือไฟล์เดียวที่พัฒนาไปเรื่อยๆ พร้อมส่วน changelog?
-
-(การจัดการข้อขัดแย้ง, ประวัติการแก้ไข, และความละเอียดของตัวกระตุ้น reconciliation
-สำหรับการแก้ diagram ผ่าน canvas ใน V1.1 เคยเป็นคำถามค้างอยู่ตรงนี้ — ตอนนี้ทั้งสามข้อ
-ตัดสินใจแล้ว ดูส่วนกลไก V1.1 ด้านบนสำหรับรายละเอียดการตัดสินใจ)
+ไม่มีคำถามค้างสำหรับขอบเขต V1/V1.1 ณ revision นี้แล้ว (ที่อยู่/versioning ของเอกสาร
+ออกแบบ, interface และลำดับการสร้าง, เส้นทางการเก็บ constraint, กลไก review,
+conflict resolution/ประวัติการแก้ไข/ความละเอียดของตัวกระตุ้น reconciliation ของ
+V1.1, และ HTTP surface auth — bind เข้ากับ localhost เท่านั้น ไม่มี token/password
+scheme — ล้วนตัดสินใจแล้วตลอด revision นี้และก่อนหน้า ดูส่วนประกอบหลัก, Interface,
+และส่วน V1.1 ด้านบน)
 
 ## Milestone แรก ("เสร็จ" สำหรับชิ้นเล็กสุดที่ใช้งานได้)
 
