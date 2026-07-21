@@ -50,3 +50,9 @@ vault-data.json
 
 services/**/__pycache__/
 services/**/*.pyc
+
+# macOS
+.DS_Store
+
+# Standalone web-shop project (not part of this repo's history)
+web-shop/
