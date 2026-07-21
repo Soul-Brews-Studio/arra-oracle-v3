@@ -56,12 +56,16 @@ someday-maybe.
 
 ## Core Components
 
-1. **Constraint capture** — a short structured intake (compliance, budget
-   ceiling, expected scale/RTO-RPO, existing constraints) as a Markdown/YAML
-   frontmatter file the user fills in or dictates to the agent. This is the
-   input Yasmin's persona already says she writes down before proposing a
-   topology — the tool just gives it a durable, diffable home instead of
-   living only in chat.
+1. **Constraint capture** — two paths, one authoritative file: a human
+   either (a) fills in `constraints.yaml` directly (compliance, budget
+   ceiling, expected scale/RTO-RPO, existing constraints) as a structured
+   Markdown/YAML frontmatter file, or (b) runs a conversational intake with
+   the agent, which ends by serializing that conversation into the same
+   `constraints.yaml` format. `constraints.yaml` — not the conversation
+   transcript — is the one source every later step reads from either way.
+   This is the input Yasmin's persona already says she writes down before
+   proposing a topology — the tool just gives it a durable, diffable home
+   instead of living only in chat.
 2. **Design generation step** — the agent (using the `solution-architect`
    persona) reads the constraints file and drafts: (a) a component list and
    topology decision, (b) explicit trade-off notes ("chose X over Y because
@@ -70,16 +74,45 @@ someday-maybe.
 3. **Diagram rendering step** — turns diagram source text into a rendered
    artifact. Kept as a separate, mechanical step (not agent judgment) so
    diagrams stay reproducible and diffable in git.
-4. **Output/review step** — assembles rendered diagram(s) + trade-off prose
-   into one design doc, saved to the project's `docs/` (or wherever the
-   consuming repo keeps ADRs), with a stable naming scheme so revisions are
-   append-only-friendly (matches Oracle/Shadow "nothing is deleted"
-   philosophy — supersede, don't overwrite).
+4. **Output/review/versioning step** — assembles rendered diagram(s) +
+   trade-off prose into one design doc, written under this project's own
+   `projects/solution-architect-studio/output/<design-slug>/` — never into
+   the *target* repo the design is for, so no multi-repo write capability or
+   foreign-repo credentials are needed; an engineer copies the finished doc
+   over by hand if they want it there. Constraint changes supersede rather
+   than edit in place — `design-v2.md`/`diagram-v2.mmd` land alongside the
+   originals, never overwriting them, matching the append-only pattern
+   already used for `diagram-history.jsonl` and Oracle/Shadow's "nothing is
+   deleted" philosophy (a single evolving file + changelog would bury each
+   past decision inside changelog prose instead of leaving it independently
+   diffable). Review is an ordinary PR against this monorepo — generated
+   artifacts land on a branch, open as a PR, get a normal git-diff read plus
+   explicit human approval before merge, per this repo's existing
+   GitHub-flow convention, not a bespoke approval mechanism.
 
-Rough flow: `constraints.yaml` → agent drafts `design.md` (topology + trade-offs)
-+ `diagram.mmd` → render step produces `diagram.svg`/`.png` → both assembled
-into the final doc. Each artifact is plain text or a static image, so the
-whole thing is diffable in git with no server/database needed for V1.
+Rough flow: `constraints.yaml` (hand-filled or agent-serialized from a
+conversational intake) → agent drafts `design.md` + `diagram.mmd` → render
+step produces `diagram.svg`/`.png` → artifacts land under
+`projects/solution-architect-studio/output/<design-slug>/` → opened as a PR
+for review. Each artifact is plain text or a static image, so the whole
+thing is diffable in git with no server/database needed for V1.
+
+## Interfaces: CLI + Skill + HTTP Service
+
+All three ship — not one pick — but they don't triple the real work. The
+design-generation + rendering logic is one shared core module (read
+constraints → agent draft → render → assemble); the CLI and the skill are
+thin invocation wrappers around that core (`bun run design ...` and a
+slash-command respectively) and ship together with the core, since neither
+adds real surface beyond invoking it. The HTTP service still ships right
+after, not simultaneously — but not because of auth: for V1 there is no auth
+mechanism at all, the service simply binds to localhost only (not reachable
+beyond the local machine), which is close to zero extra work, not a real
+feature to build. The actual reason it trails CLI/skill is routing and
+request validation, which are genuine new surface the other two don't have.
+Because there's now a real HTTP surface, Bun/Elysia conventions apply to it
+(per this repo's Hono → Elysia migration policy): its routes live in
+`src/routes-elysia/`, not a one-off server.
 
 ## Diagram Approach
 
@@ -160,27 +193,14 @@ authoritative source, not a version chain), but `diagram-history.jsonl` is
 the durable, queryable timeline of every edit and what the agent proposed
 or the human accepted/rejected in response.
 
-## Key Open Questions (need a human decision before building further)
+## Key Open Questions
 
-- Where does a design doc "live" once produced — inside this monorepo (e.g.
-  `projects/solution-architect-studio/output/`), or does the tool write into
-  the *target* repo the design is for? This changes whether V1 needs any
-  multi-repo write capability at all.
-- Is this a CLI (`bun run design ...`) invoked ad hoc, a slash-command/skill
-  layered on the existing agent, or a small HTTP service with its own
-  routes? Affects whether Bun/Elysia conventions apply at all, or whether
-  this is closer to a skill + agent persona with no server.
-- Should constraint capture be a form (structured file the human edits) or a
-  conversational intake the agent runs and then serializes? Affects whether
-  V1 needs any UI at all.
-- Does "review" mean a human just reads the Markdown, or do we need any diff/
-  approval mechanism (e.g. PR-based) for V1?
-- Version/naming scheme for design docs as constraints change — supersede
-  files (`design-v2.md`) or single evolving file with a changelog section?
-
-(Conflict resolution, edit history, and reconciliation-trigger granularity
-for V1.1 canvas editing were open questions here — all three are now
-resolved; see the V1.1 mechanism section above for the decisions.)
+No open questions remain for V1/V1.1 scope as of this revision. (Design-doc
+location/versioning, interfaces and build order, constraint-capture path,
+review mechanism, V1.1's conflict resolution/edit history/reconciliation-
+trigger granularity, and HTTP surface auth — bind to localhost only, no
+token/password scheme — were resolved across this and prior revisions; see
+Core Components, Interfaces, and the V1.1 section above.)
 
 ## First Milestone ("done" for the smallest useful slice)
 
