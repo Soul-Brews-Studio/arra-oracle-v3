@@ -475,5 +475,19 @@ See `.claude/knowledge/oracle-philosophy.md` for full details.
 
 ---
 
-**Last Updated**: 2025-12-24
-**Version**: 1.0.0
+### Session Continuity — External Brain (`.omx/` + `ψ/memory/`)
+
+**Session start**: before doing any work, read:
+1. `.omx/project-memory.json` — current active threads + a snapshot of core policies.
+2. The last 3–5 entries at the bottom of `ψ/memory/world-state.md` — append-only log of what happened in recent sessions.
+
+These exist so a new terminal/session doesn't start from zero. If either file is missing/empty, note it and proceed — don't block on it.
+
+**Session end**: append one dated entry to `ψ/memory/world-state.md` summarizing what changed and where artifacts live. Never edit or delete a prior entry — add a newer one instead. Update `active_threads` in `.omx/project-memory.json` if a thread closed or a new one opened (mark closed, don't remove).
+
+**Per-task logging (cheap, do this constantly)**: don't wait for session end. After finishing each discrete subtask, append a short entry to `ψ/memory/world-state.md` — timestamp (GMT+7), one line on what changed, file paths touched. Terse log lines, not prose paragraphs. This is what keeps the log fresh without paying any rendering cost.
+
+**Dashboard rendering (expensive, do this on demand only)**: do NOT render an HTML/Artifact dashboard after every task — the CSS/HTML boilerplate cost is fixed per render, so paying it once a day (or when the user explicitly asks to see one) is far cheaper than paying it per subtask. When asked, build the dashboard by reading the accumulated `world-state.md` entries since the last render, not by re-deriving history from git mtimes/log archaeology.
+
+**Last Updated**: 2026-07-21
+**Version**: 1.0.2
