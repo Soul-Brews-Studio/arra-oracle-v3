@@ -1,6 +1,6 @@
 # Meeting Recorder — Rough Plan (v0.1, scoping only)
 
-Owner persona: Tomás Reyes (`.claude/agents/meeting-recorder-engineer.md`). This is a
+Owner persona: Tomás Reyes (`.claude/agents/engineering/meeting-recorder-engineer.md`). This is a
 sub-project living under `projects/meeting-recorder/` — self-contained (own
 `package.json`, own README) the way `web-shop/` is, not wired into arra-oracle's
 server/MCP surface unless a later phase decides it should be.
