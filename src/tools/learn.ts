@@ -5,13 +5,13 @@
  * Exports normalizeProject and extractProjectFromSource for testability.
  */
 
-import path from 'path';
-import fs from 'fs';
+import { eq } from 'drizzle-orm';
 import { oracleDocuments } from '../db/schema.ts';
-import { detectProject } from '../server/project-detect.ts';
 import { getVectorStoreByModel, getEmbeddingModels } from '../vector/factory.ts';
 import { REPO_ROOT } from '../config.ts';
-import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
+import { buildLearningMarkdown, dateSlug, learningSlug } from '../learn/markdown.ts';
+import { resolveProjectAuthority } from '../learn/authority.ts';
+import { reserveGeneratedLearning, resolveVaultLearnTarget } from '../learn/target.ts';
 
 // Lazy-loaded on first use — avoids top-level await which causes a TDZ
 // error in consumers that import learnToolDef synchronously (the tools
@@ -29,10 +29,10 @@ async function loadEnqueue(): Promise<typeof enqueueIndexJob> {
   }
   return enqueueIndexJob;
 }
-let getVaultPsiRootFn: typeof import('../vault/handler.ts').getVaultPsiRoot | null = null;
-async function loadGetVaultPsiRoot(): Promise<typeof import('../vault/handler.ts').getVaultPsiRoot> {
+let getVaultPsiRootFn: typeof import('../vault/discovery.ts').getVaultPsiRoot | null = null;
+async function loadGetVaultPsiRoot(): Promise<typeof import('../vault/discovery.ts').getVaultPsiRoot> {
   if (!getVaultPsiRootFn) {
-    getVaultPsiRootFn = (await import('../vault/handler.ts')).getVaultPsiRoot;
+    getVaultPsiRootFn = (await import('../vault/discovery.ts')).getVaultPsiRoot;
   }
   return getVaultPsiRootFn;
 }
@@ -65,8 +65,8 @@ export const learnToolDef = {
         description: 'Optional concept tags (e.g., ["git", "safety", "trust"])'
       },
       project: {
-        type: 'string',
-        description: 'Source project. Accepts: "github.com/owner/repo", "owner/repo", local path with ghq/Code prefix, or GitHub URL. Auto-normalized to "github.com/owner/repo" format.'
+        type: ['string', 'null'],
+        description: 'Canonical source project such as "github.com/owner/repo", or null for universal.'
       }
     },
     required: ['pattern']
@@ -186,16 +186,18 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
 
   const now = new Date();
   const dateStr = dateSlug(now);
+  const slug = learningSlug(pattern);
 
-  const slug = pattern
-    .substring(0, 50)
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-
-  const filename = `${dateStr}_${slug}.md`;
+  const authority = resolveProjectAuthority(projectInput, {
+    explicit: Object.prototype.hasOwnProperty.call(input, 'project'),
+  });
+  if ('invalid' in authority) {
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'Invalid project authority' }, null, 2) }],
+      isError: true,
+    };
+  }
+  const project = authority.project;
 
   // Resolve vault root for central writes
   const getVaultPsiRoot = await loadGetVaultPsiRoot();
@@ -203,66 +205,41 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
   if ('needsInit' in vault) console.error(`[Vault] ${vault.hint}`);
   const vaultRoot = 'path' in vault ? vault.path : null;
 
-  const project = normalizeProject(projectInput)
-    || extractProjectFromSource(source)
-    || detectProject(ctx.repoRoot);
-  const projectDir = (project || '_universal').toLowerCase();
-
-  let filePath: string;
-  let sourceFileRel: string;
-  if (vaultRoot) {
-    const dir = path.join(vaultRoot, projectDir, 'ψ', 'memory', 'learnings');
-    fs.mkdirSync(dir, { recursive: true });
-    filePath = path.join(dir, filename);
-    sourceFileRel = `${projectDir}/ψ/memory/learnings/${filename}`;
-  } else {
-    // Write to canonical REPO_ROOT, not ctx.repoRoot (the MCP server's cwd):
-    // the dashboard's /api/file resolves source_file against REPO_ROOT, so
-    // writing relative to cwd produces "local file not found" (#557).
-    const dir = path.join(REPO_ROOT, 'ψ/memory/learnings');
-    fs.mkdirSync(dir, { recursive: true });
-    filePath = path.join(dir, filename);
-    sourceFileRel = `ψ/memory/learnings/${filename}`;
-  }
-
-  if (fs.existsSync(filePath)) {
-    throw new Error(`File already exists: ${filename}`);
-  }
-
-  const id = `learning_${dateStr}_${slug}`;
   const title = pattern.split('\n')[0].substring(0, 80);
   const conceptsList = coerceConcepts(concepts);
-  const frontmatter = buildLearningMarkdown({
-    id,
-    pattern,
-    title,
-    concepts: conceptsList,
-    createdAt: now,
-    source,
-    project,
+  const target = resolveVaultLearnTarget(project, vaultRoot, 'ψ/memory/learnings', REPO_ROOT);
+  let frontmatter = '';
+  const reserved = reserveGeneratedLearning({
+    dateStr,
+    slug,
+    target,
+    idExists: (id) => !!ctx.db.select({ id: oracleDocuments.id }).from(oracleDocuments).where(eq(oracleDocuments.id, id)).get(),
+    content: ({ id }) => (frontmatter = buildLearningMarkdown({
+      id, pattern, title, concepts: conceptsList, createdAt: now, source, project,
+    })),
   });
+  const { id, sourceFile: sourceFileRel, filePath } = reserved;
 
-  fs.writeFileSync(filePath, frontmatter, 'utf-8');
+  try {
+    ctx.db.insert(oracleDocuments).values({
+      id,
+      type: 'learning',
+      sourceFile: sourceFileRel,
+      concepts: JSON.stringify(conceptsList),
+      createdAt: now.getTime(),
+      updatedAt: now.getTime(),
+      indexedAt: now.getTime(),
+      origin: null,
+      project,
+      createdBy: 'oracle_learn',
+    }).run();
 
-  ctx.db.insert(oracleDocuments).values({
-    id,
-    type: 'learning',
-    sourceFile: sourceFileRel,
-    concepts: JSON.stringify(conceptsList),
-    createdAt: now.getTime(),
-    updatedAt: now.getTime(),
-    indexedAt: now.getTime(),
-    origin: null,
-    project,
-    createdBy: 'oracle_learn',
-  }).run();
-
-  // FTS5 has no unique constraint on id — delete-then-insert to be idempotent.
-  ctx.sqlite.prepare(`DELETE FROM oracle_fts WHERE id = ?`).run(id);
-  ctx.sqlite.prepare(`
-    INSERT INTO oracle_fts (id, content, concepts)
-    VALUES (?, ?, ?)
-  `).run(id, frontmatter, conceptsList.join(' '));
+    ctx.sqlite.prepare(`DELETE FROM oracle_fts WHERE id = ?`).run(id);
+    ctx.sqlite.prepare(`INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)`)
+      .run(id, frontmatter, conceptsList.join(' '));
+  } catch (error) {
+    throw new Error(`Learning persistence failed after file reservation; orphan file: ${filePath}`, { cause: error });
+  }
 
   // Vector indexing — two paths:
   //   - Default (env unset): inline embed via Ollama. Keeps DB + lancedb in

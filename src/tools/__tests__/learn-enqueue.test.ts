@@ -1,19 +1,6 @@
-/**
- * M5 — verifies the env-gated enqueue branch in handleLearn.
- *
- * Cases:
- *   - default (env unset) → no enqueue (existing inline-embed path runs;
- *     embedder may fail in tests without Ollama, but ingest still succeeds)
- *   - ORACLE_INDEXER_ENQUEUE=1 → one row per registered model in indexing_jobs
- *   - enqueue throws → ingest still succeeds (graceful: degrade > error)
- *   - any value other than literal "1" → no enqueue (strict equality)
- *
- * Hermetic: tmp dir for writes (set ORACLE_REPO_ROOT before importing
- * learn.ts via dynamic import, since main's REPO_ROOT is module-frozen),
- * :memory: SQLite, no Ollama needed (default path will fail-soft).
- */
+/** Hermetic enqueue coverage: temp vault, fake vectors, in-memory SQLite. */
 
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, mock } from 'bun:test';
 import path from 'path';
 import os from 'os';
 import fs from 'fs';
@@ -21,7 +8,6 @@ import Database from 'bun:sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../../db/schema.ts';
 import type { ToolContext } from '../types.ts';
-
 const FULL_SCHEMA = `
 CREATE TABLE oracle_documents (
   id TEXT PRIMARY KEY,
@@ -48,12 +34,16 @@ CREATE TABLE indexing_jobs (
   doc_id TEXT NOT NULL,
   model_key TEXT NOT NULL,
   collection TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  operation TEXT NOT NULL DEFAULT 'upsert',
   status TEXT NOT NULL DEFAULT 'pending',
   attempts INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')*1000),
   claimed_at INTEGER,
+  lease_expires_at INTEGER,
   finished_at INTEGER,
-  error TEXT
+  error TEXT,
+  UNIQUE(model_key, doc_id, content_hash, operation)
 );
 `;
 
@@ -61,6 +51,24 @@ const ORIGINAL_ENQUEUE = process.env.ORACLE_INDEXER_ENQUEUE;
 const ORIGINAL_REPO_ROOT = process.env.ORACLE_REPO_ROOT;
 const ORIGINAL_EMBEDDER = process.env.ORACLE_EMBEDDER;
 const ORIGINAL_EMBEDDING_PROVIDER = process.env.ORACLE_EMBEDDING_PROVIDER;
+const TEST_VAULT_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-learn-m5-vault-'));
+const vectorWrites: Array<Array<{ id: string; metadata?: Record<string, unknown> }>> = [];
+const fakeVectorStore = {
+  addDocuments: async (docs: Array<{ id: string; metadata?: Record<string, unknown> }>) => {
+    vectorWrites.push(docs);
+  },
+};
+mock.module('../../vector/factory.ts', () => ({
+  getVectorStoreByModel: () => fakeVectorStore,
+  getEmbeddingModels: () => ({
+    'bge-m3': { collection: 'test-bge-m3' },
+    nomic: { collection: 'test-nomic' },
+    qwen3: { collection: 'test-qwen3' },
+  }),
+}));
+mock.module('../../vault/discovery.ts', () => ({
+  getVaultPsiRoot: () => ({ path: TEST_VAULT_ROOT }),
+}));
 
 interface Harness {
   ctx: ToolContext;
@@ -77,7 +85,7 @@ function makeHarness(): Harness {
     db,
     sqlite,
     repoRoot: tmpRoot,
-    // vectorStore is irrelevant to handleLearn — it doesn't touch it.
+    // handleLearn uses the module-injected fake vector store.
     vectorStore: null as unknown as ToolContext['vectorStore'],
     vectorStatus: 'unknown',
     version: 'test',
@@ -90,41 +98,34 @@ function cleanupHarness(h: Harness): void {
   try { fs.rmSync(h.tmpRoot, { recursive: true, force: true }); } catch {}
 }
 
-// Top-level: stable tmp dir, set as ORACLE_REPO_ROOT BEFORE the dynamic
-// import below — main's REPO_ROOT is module-frozen at first import.
+// Set fallback root before importing learn.ts; config paths are module-frozen.
 const SHARED_REPO_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-learn-m5-root-'));
 process.env.ORACLE_REPO_ROOT = SHARED_REPO_ROOT;
 process.env.ORACLE_EMBEDDER = 'none';
 process.env.ORACLE_EMBEDDING_PROVIDER = 'none';
 const createdMarkdownFiles = new Set<string>();
 
-function markdownPathCandidates(relativePath: string): string[] {
-  const dataRoot = process.env.ORACLE_DATA_DIR || path.join(os.homedir(), '.arra-oracle-v2');
-  const tmpRoots = fs.readdirSync(os.tmpdir(), { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith('arra-'))
-    .map((entry) => path.join(os.tmpdir(), entry.name));
-  const roots = [SHARED_REPO_ROOT, ORIGINAL_REPO_ROOT, process.cwd(), dataRoot, ...tmpRoots]
-    .filter((root): root is string => Boolean(root));
-  return Array.from(new Set(roots)).map((root) => path.join(root, relativePath));
+function markdownPath(relativePath: string): string {
+  const candidate = path.resolve(TEST_VAULT_ROOT, relativePath);
+  const root = path.resolve(TEST_VAULT_ROOT);
+  expect(candidate.startsWith(`${root}${path.sep}`)).toBe(true);
+  return candidate;
 }
 
 function rememberMarkdown(relativePath: string): void {
-  for (const candidate of markdownPathCandidates(relativePath)) {
-    if (fs.existsSync(candidate)) createdMarkdownFiles.add(candidate);
-  }
+  const candidate = markdownPath(relativePath);
+  if (fs.existsSync(candidate)) createdMarkdownFiles.add(candidate);
 }
 
 function readMarkdown(relativePath: string): string {
-  for (const candidate of markdownPathCandidates(relativePath)) {
-    if (fs.existsSync(candidate)) {
-      createdMarkdownFiles.add(candidate);
-      return fs.readFileSync(candidate, 'utf-8');
-    }
+  const candidate = markdownPath(relativePath);
+  if (fs.existsSync(candidate)) {
+    createdMarkdownFiles.add(candidate);
+    return fs.readFileSync(candidate, 'utf-8');
   }
   throw new Error(`Missing learning markdown file: ${relativePath}`);
 }
 
-// Dynamic import after env is set. Top-level await is supported in Bun.
 const { handleLearn } = await import('../learn.ts');
 
 describe('handleLearn — M5 enqueue branch', () => {
@@ -132,6 +133,7 @@ describe('handleLearn — M5 enqueue branch', () => {
 
   beforeEach(() => {
     delete process.env.ORACLE_INDEXER_ENQUEUE;
+    vectorWrites.length = 0;
     h = makeHarness();
   });
 
@@ -162,6 +164,8 @@ describe('handleLearn — M5 enqueue branch', () => {
 
     // Response shape preserved: still has `embedding` field (main's contract)
     expect(parsed.embedding).toBeDefined();
+    expect(vectorWrites).toHaveLength(1);
+    expect(vectorWrites[0][0]?.metadata?.source_file).toBe(parsed.file);
   });
 
   it('writes vault interchange frontmatter fields to the learning markdown file', async () => {
@@ -184,6 +188,11 @@ describe('handleLearn — M5 enqueue branch', () => {
     expect(markdown).toContain(`arra_id: ${parsed.id}`);
     expect(markdown).toContain('arra_type: learning');
     expect(markdown).toContain('arra_concepts: [frontmatter, vector]');
+    expect(vectorWrites[0][0]?.metadata).toMatchObject({
+      source_file: parsed.file,
+      project: '',
+      concepts: 'frontmatter,vector',
+    });
   });
 
   it('ORACLE_INDEXER_ENQUEUE=1 → enqueues one job per registered model', async () => {
@@ -232,6 +241,7 @@ describe('handleLearn — M5 enqueue branch', () => {
 // so we can't rm in afterEach — but we don't want the dir to leak forever).
 process.on('exit', () => {
   try { fs.rmSync(SHARED_REPO_ROOT, { recursive: true, force: true }); } catch {}
+  try { fs.rmSync(TEST_VAULT_ROOT, { recursive: true, force: true }); } catch {}
   if (ORIGINAL_REPO_ROOT) process.env.ORACLE_REPO_ROOT = ORIGINAL_REPO_ROOT;
   if (ORIGINAL_EMBEDDER) process.env.ORACLE_EMBEDDER = ORIGINAL_EMBEDDER;
   else delete process.env.ORACLE_EMBEDDER;

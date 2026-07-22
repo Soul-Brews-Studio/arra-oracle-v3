@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import Database from 'bun:sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import fs from 'fs';
@@ -6,8 +6,6 @@ import os from 'os';
 import path from 'path';
 
 import * as schema from '../../db/schema.ts';
-import { REPO_ROOT } from '../../config.ts';
-import { handleLearn } from '../learn.ts';
 import type { ToolContext } from '../types.ts';
 
 const SCHEMA = `
@@ -36,16 +34,23 @@ CREATE TABLE indexing_jobs (
   doc_id TEXT NOT NULL,
   model_key TEXT NOT NULL,
   collection TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  operation TEXT NOT NULL DEFAULT 'upsert',
   status TEXT NOT NULL DEFAULT 'pending',
   attempts INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')*1000),
   claimed_at INTEGER,
+  lease_expires_at INTEGER,
   finished_at INTEGER,
-  error TEXT
+  error TEXT,
+  UNIQUE(model_key, doc_id, content_hash, operation)
 );
 `;
 
 const ORIGINAL_ENQUEUE = process.env.ORACLE_INDEXER_ENQUEUE;
+const vaultRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-learn-frontmatter-vault-'));
+mock.module('../../vault/discovery.ts', () => ({ getVaultPsiRoot: () => ({ path: vaultRoot }) }));
+const { handleLearn } = await import('../learn.ts');
 
 let sqlite: Database;
 let tmpRoot: string;
@@ -67,6 +72,10 @@ afterEach(() => {
   else delete process.env.ORACLE_INDEXER_ENQUEUE;
 });
 
+afterAll(() => {
+  if (fs.existsSync(vaultRoot)) fs.rmSync(vaultRoot, { recursive: true });
+});
+
 describe('handleLearn vault interchange frontmatter', () => {
   test('writes source, tags, and project fields into indexed markdown', async () => {
     const ctx: ToolContext = {
@@ -85,7 +94,9 @@ describe('handleLearn vault interchange frontmatter', () => {
       project: 'github.com/Soul-Brews-Studio/arra-oracle-v3',
     });
     const parsed = JSON.parse(res.content[0].text);
-    filePath = path.join(REPO_ROOT, parsed.file);
+    filePath = path.resolve(vaultRoot, parsed.file);
+    expect(filePath.startsWith(`${path.resolve(vaultRoot)}${path.sep}`)).toBe(true);
+    expect(fs.existsSync(filePath)).toBe(true);
     const row = sqlite.query('SELECT content FROM oracle_fts WHERE id = ?').get(parsed.id) as {
       content: string;
     };

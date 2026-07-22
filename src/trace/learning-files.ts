@@ -1,62 +1,48 @@
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
-import { dirname, join } from 'path';
+import { eq } from 'drizzle-orm';
 import { REPO_ROOT } from '../config.ts';
+import { db, oracleDocuments } from '../db/index.ts';
+import { resolveProjectAuthority } from '../learn/authority.ts';
+import { buildLearningMarkdown, dateSlug, learningSlug } from '../learn/markdown.ts';
+import { reserveGeneratedLearning, resolveVaultLearnTarget } from '../learn/target.ts';
+import { getVaultPsiRoot } from '../vault/discovery.ts';
 
 function isLearningFilePath(learning: string): boolean {
   return learning.startsWith('ψ/') || learning.includes('/memory/learnings/');
 }
 
-function dateStamp(now = new Date()): string {
-  return [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-  ].join('-');
-}
-
-function slugifySnippet(text: string): string {
-  const slug = text
-    .slice(0, 50)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-  return slug || 'learning';
-}
-
-function yamlSafe(value: string): string {
-  return JSON.stringify(value).replace(/^"|"$/g, '');
-}
-
-function createLearningFile(text: string, project: string | null, traceQuery: string): string {
-  const dateStr = dateStamp();
-  const filename = `${dateStr}_trace-${slugifySnippet(text)}.md`;
-  const relativePath = `ψ/memory/learnings/${filename}`;
-  const fullPath = join(REPO_ROOT, relativePath);
-  const title = text.slice(0, 80).trim() || 'Trace learning';
-
-  const dir = dirname(fullPath);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-
-  const content = `---
-title: ${yamlSafe(title)}
-tags: [trace-learning${project ? `, ${project.split('/').pop()}` : ''}]
-created: ${dateStr}
-source: Trace discovery
-project: ${project || 'unknown'}
-trace_query: "${traceQuery.replace(/"/g, '\\"')}"
----
-
-# ${title}
-
-${text}
-
----
-*Auto-generated from trace: "${traceQuery}"*
-${project ? `*Source project: ${project}*` : ''}
-`;
-
-  writeFileSync(fullPath, content, 'utf-8');
-  return relativePath;
+function createLearningFile(text: string, projectInput: string | null, traceQuery: string): string {
+  const authority = resolveProjectAuthority(projectInput, { explicit: true });
+  if ('invalid' in authority) throw new TypeError('Invalid project authority');
+  const project = authority.project;
+  const now = new Date();
+  const vault = getVaultPsiRoot();
+  const target = resolveVaultLearnTarget(
+    project,
+    'path' in vault ? vault.path : null,
+    'ψ/memory/learnings',
+    process.env.ORACLE_REPO_ROOT || REPO_ROOT,
+  );
+  const pattern = text.trim();
+  const title = pattern.slice(0, 80) || 'Trace learning';
+  const concepts = ['trace-learning', ...(project ? [project.split('/').at(-1)!] : [])];
+  const reserved = reserveGeneratedLearning({
+    dateStr: dateSlug(now),
+    slug: `trace-${learningSlug(pattern)}`,
+    target,
+    idExists: (id) => !!db.select({ id: oracleDocuments.id }).from(oracleDocuments)
+      .where(eq(oracleDocuments.id, id)).get(),
+    content: ({ id }) => buildLearningMarkdown({
+      id,
+      pattern,
+      title,
+      concepts,
+      createdAt: now,
+      source: 'Trace discovery',
+      project,
+      footer: `*Auto-generated from trace: ${traceQuery.replace(/\r?\n/g, ' ').trim()}*`,
+    }),
+  });
+  return reserved.sourceFile;
 }
 
 export function processLearnings(

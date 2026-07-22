@@ -20,6 +20,9 @@ import { detectProject } from './project-detect.ts';
 import { coerceConcepts } from '../tools/learn.ts';
 import { createVectorProxy } from './vector-proxy.ts';
 import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
+import { resolveProjectAuthority } from '../learn/authority.ts';
+import { reserveGeneratedLearning, resolveVaultLearnTarget } from '../learn/target.ts';
+import { getVaultPsiRoot } from '../vault/discovery.ts';
 import { localNativeVectorDisabledReason, localVectorIndexMissingReason, logLocalVectorDisabled, noteLocalVectorEnabled } from '../vector/cpu-capabilities.ts';
 import { isVectorSectionEnabled } from '../vector/config.ts';
 import { candidatePoolSize } from '../search/retrieve-depth.ts';
@@ -712,6 +715,51 @@ export function persistLearningDoc(opts: {
 }): { file: string; id: string } {
   const { pattern, subdir, filename, id } = opts;
   const now = new Date();
+
+  if (subdir === 'ψ/memory/learnings') {
+    const authority = resolveProjectAuthority(opts.project, {
+      explicit: Object.prototype.hasOwnProperty.call(opts, 'project'),
+    });
+    if ('invalid' in authority) throw new TypeError('Invalid project authority');
+    const project = authority.project;
+    const vault = getVaultPsiRoot();
+    const target = resolveVaultLearnTarget(
+      project,
+      'path' in vault ? vault.path : null,
+      subdir,
+      currentRepoRoot(),
+    );
+    const title = pattern.split('\n')[0].substring(0, 80);
+    const conceptsList = coerceConcepts(opts.concepts);
+    let frontmatter = '';
+    const reserved = reserveGeneratedLearning({
+      dateStr: dateSlug(now),
+      slug: filename.replace(/^\d{4}-\d{2}-\d{2}_/, '').replace(/\.md$/, ''),
+      target,
+      idExists: (candidateId) => !!db.select({ id: oracleDocuments.id }).from(oracleDocuments)
+        .where(eq(oracleDocuments.id, candidateId)).get(),
+      content: ({ id: finalId }) => (frontmatter = buildLearningMarkdown({
+        id: finalId, pattern, title, concepts: conceptsList, createdAt: now,
+        source: opts.source, project, footer: opts.footer,
+      })),
+    });
+
+    try {
+      db.insert(oracleDocuments).values({
+        id: reserved.id, type: 'learning', sourceFile: reserved.sourceFile,
+        concepts: JSON.stringify(conceptsList), createdAt: now.getTime(), updatedAt: now.getTime(),
+        indexedAt: now.getTime(), origin: opts.origin || null, project,
+        createdBy: opts.createdBy || 'oracle_learn',
+      }).run();
+      sqlite.prepare('DELETE FROM oracle_fts WHERE id = ?').run(reserved.id);
+      sqlite.prepare('INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)')
+        .run(reserved.id, frontmatter, conceptsList.join(' '));
+      logLearning(reserved.id, pattern, opts.source || 'Oracle Learn', conceptsList, project ?? undefined);
+    } catch (error) {
+      throw new Error(`Learning persistence failed after file reservation; orphan file: ${reserved.filePath}`, { cause: error });
+    }
+    return { file: reserved.sourceFile, id: reserved.id };
+  }
 
   const dir = path.join(currentRepoRoot(), subdir);
   fs.mkdirSync(dir, { recursive: true });

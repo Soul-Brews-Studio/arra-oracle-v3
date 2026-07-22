@@ -1,18 +1,19 @@
 import { Elysia, t } from 'elysia';
 import { and, eq } from 'drizzle-orm';
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import fs from 'fs';
-import path from 'path';
 import { db, learnLog, oracleDocuments, sqlite } from '../../db/index.ts';
+import { REPO_ROOT } from '../../config.ts';
+import { resolveProjectAuthority } from '../../learn/authority.ts';
+import { buildLearningMarkdown, dateSlug } from '../../learn/markdown.ts';
+import { reserveExplicitLearning, reserveGeneratedLearning, resolveVaultLearnTarget } from '../../learn/target.ts';
 import { currentTenantId, tenantIdForWrite } from '../../middleware/tenant.ts';
 import { replaceEntityLinks } from '../../search/entity-ranking.ts';
+import { getVaultPsiRoot } from '../../vault/discovery.ts';
 import { conceptsFrom, learningContent, slugFor } from './content.ts';
 import {
   INVALID_LEARNING_ID,
   INVALID_LEARNING_SOURCE_FILE,
-  learningSourcePath,
   safeLearningId,
-  safeLearningSourceFile,
 } from './safety.ts';
 type LearnDoc = typeof oracleDocuments.$inferSelect;
 const oracleFts = sqliteTable('oracle_fts', {
@@ -52,19 +53,6 @@ const UpdateBody = t.Object({
   supersededBy: t.Optional(t.Nullable(t.String())),
   supersededReason: t.Optional(t.Nullable(t.String())),
 });
-function writeLearningFile(sourceFile: string, content: string): boolean {
-  const filePath = learningSourcePath(sourceFile);
-  if (!filePath) throw new Error(INVALID_LEARNING_SOURCE_FILE);
-  if (fs.existsSync(filePath)) return false;
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  try {
-    fs.writeFileSync(filePath, content, { encoding: 'utf-8', flag: 'wx' });
-  } catch (error) {
-    if ((error as { code?: string }).code === 'EEXIST') return false;
-    throw error;
-  }
-  return true;
-}
 function ftsContent(id: string): string | null {
   return db.select({ content: oracleFts.content })
     .from(oracleFts)
@@ -75,35 +63,8 @@ function upsertFts(id: string, content: string, concepts: string[]): void {
   db.delete(oracleFts).where(eq(oracleFts.id, id)).run();
   db.insert(oracleFts).values({ id, content, concepts: concepts.join(' ') }).run();
 }
-function nextIdentity(pattern: string, requestedId?: string, requestedSourceFile?: string) {
-  if (requestedId) {
-    return {
-      id: requestedId,
-      sourceFile: requestedSourceFile ?? `ψ/memory/learnings/${requestedId}.md`,
-    };
-  }
-  const date = new Date().toISOString().slice(0, 10);
-  const slug = slugFor(pattern);
-  let suffix = 1;
-  while (true) {
-    const tail = suffix === 1 ? slug : `${slug}-${suffix}`;
-    const id = `learning_${date}_${tail}`;
-    const sourceFile = requestedSourceFile ?? `ψ/memory/learnings/${date}_${tail}.md`;
-    const tenantId = currentTenantId();
-    const where = tenantId ? and(eq(oracleDocuments.id, id), eq(oracleDocuments.tenantId, tenantId)) : eq(oracleDocuments.id, id);
-    const existing = db.select({ id: oracleDocuments.id })
-      .from(oracleDocuments)
-      .where(where)
-      .get();
-    const filePath = learningSourcePath(sourceFile);
-    if (!existing && filePath && !fs.existsSync(filePath)) {
-      return {
-        id,
-        sourceFile,
-      };
-    }
-    suffix += 1;
-  }
+function globalIdExists(id: string): boolean {
+  return !!db.select({ id: oracleDocuments.id }).from(oracleDocuments).where(eq(oracleDocuments.id, id)).get();
 }
 function rowById(id: string): LearnDoc | undefined {
   const tenantId = currentTenantId();
@@ -119,41 +80,57 @@ export function createLearning(body: LearnCreateBody) {
   const pattern = body.pattern?.trim();
   if (!pattern) return { status: 400, body: { error: 'Missing required field: pattern' } };
   if (body.id !== undefined && !safeLearningId(body.id)) return { status: 400, body: { error: INVALID_LEARNING_ID } };
-  const requestedSourceFile = body.sourceFile === undefined ? undefined : safeLearningSourceFile(body.sourceFile);
-  if (requestedSourceFile === null) return { status: 400, body: { error: INVALID_LEARNING_SOURCE_FILE } };
-  const now = Date.now();
+  if (body.sourceFile !== undefined && body.id === undefined) return { status: 400, body: { error: INVALID_LEARNING_SOURCE_FILE } };
+  const authority = resolveProjectAuthority(body.project, {
+    explicit: Object.prototype.hasOwnProperty.call(body, 'project'),
+  });
+  if ('invalid' in authority) return { status: 400, body: { error: 'Invalid project authority' } };
+  const project = authority.project;
+  const now = new Date();
   const concepts = conceptsFrom(body.concepts);
-  const identity = nextIdentity(pattern, body.id, requestedSourceFile);
-  if (rowById(identity.id)) return { status: 409, body: { error: 'Learning already exists' } };
-  const content = learningContent(pattern, concepts, body.source);
-  if (!writeLearningFile(identity.sourceFile, content)) {
-    return { status: 409, body: { error: 'Learning sourceFile already exists' } };
+  const vault = getVaultPsiRoot();
+  const vaultRoot = 'path' in vault ? vault.path : null;
+  const target = resolveVaultLearnTarget(project, vaultRoot, 'ψ/memory/learnings', process.env.ORACLE_REPO_ROOT || REPO_ROOT);
+  const markdown = ({ id }: { id: string }) => buildLearningMarkdown({
+    id, pattern, title: pattern.split('\n')[0].slice(0, 80), concepts, createdAt: now,
+    source: body.source, project,
+  });
+  let identity;
+  try {
+    identity = body.id
+      ? reserveExplicitLearning({
+        id: body.id,
+        sourceFile: body.sourceFile ?? `ψ/memory/learnings/${body.id}.md`,
+        target,
+        idExists: globalIdExists,
+        content: markdown,
+      })
+      : reserveGeneratedLearning({
+        dateStr: dateSlug(now), slug: slugFor(pattern), target,
+        idExists: globalIdExists, content: markdown,
+      });
+  } catch (error) {
+    if (error instanceof TypeError) return { status: 400, body: { error: INVALID_LEARNING_SOURCE_FILE } };
+    throw error;
   }
+  if (!identity) return { status: 409, body: { error: 'Learning already exists or sourceFile already exists' } };
+  const content = markdown(identity);
   const tenantId = tenantIdForWrite();
-  db.insert(oracleDocuments).values({
-    id: identity.id,
-    tenantId,
-    type: 'learning',
-    sourceFile: identity.sourceFile,
-    concepts: JSON.stringify(concepts),
-    createdAt: now,
-    updatedAt: now,
-    indexedAt: now,
-    origin: body.origin ?? null,
-    project: body.project?.toLowerCase() ?? null,
-    createdBy: 'oracle_learn',
-  }).run();
-  upsertFts(identity.id, content, concepts);
-  replaceEntityLinks(sqlite, { documentId: identity.id, tenantId, content, concepts, now });
-  db.insert(learnLog).values({
-    documentId: identity.id,
-    tenantId,
-    patternPreview: pattern.slice(0, 200),
-    source: body.source ?? 'Oracle Learn',
-    concepts: JSON.stringify(concepts),
-    createdAt: now,
-    project: body.project?.toLowerCase() ?? null,
-  }).run();
+  try {
+    db.insert(oracleDocuments).values({
+      id: identity.id, tenantId, type: 'learning', sourceFile: identity.sourceFile,
+      concepts: JSON.stringify(concepts), createdAt: now.getTime(), updatedAt: now.getTime(), indexedAt: now.getTime(),
+      origin: body.origin ?? null, project, createdBy: 'oracle_learn',
+    }).run();
+    upsertFts(identity.id, content, concepts);
+    replaceEntityLinks(sqlite, { documentId: identity.id, tenantId, content, concepts, now: now.getTime() });
+    db.insert(learnLog).values({
+      documentId: identity.id, tenantId, patternPreview: pattern.slice(0, 200),
+      source: body.source ?? 'Oracle Learn', concepts: JSON.stringify(concepts), createdAt: now.getTime(), project,
+    }).run();
+  } catch (error) {
+    throw new Error(`Learning persistence failed after file reservation; orphan file: ${identity.filePath}`, { cause: error });
+  }
   return { status: 200, body: { success: true, file: identity.sourceFile, id: identity.id } };
 }
 function updateLearning(id: string, body: LearnUpdateBody) {
@@ -162,13 +139,15 @@ function updateLearning(id: string, body: LearnUpdateBody) {
   const now = Date.now();
   const set: Partial<LearnDoc> = { updatedAt: now, indexedAt: now };
   if (body.sourceFile !== undefined) {
-    const sourceFile = safeLearningSourceFile(body.sourceFile);
-    if (!sourceFile) return { status: 400, body: { error: INVALID_LEARNING_SOURCE_FILE } };
-    set.sourceFile = sourceFile;
+    if (body.sourceFile !== existing.sourceFile) return { status: 400, body: { error: 'Learning sourceFile is immutable' } };
   }
   if (body.concepts !== undefined) set.concepts = JSON.stringify(conceptsFrom(body.concepts));
   if (body.origin !== undefined) set.origin = body.origin;
-  if (body.project !== undefined) set.project = body.project?.toLowerCase() ?? null;
+  if (body.project !== undefined) {
+    const authority = resolveProjectAuthority(body.project, { explicit: true });
+    if ('invalid' in authority) return { status: 400, body: { error: 'Invalid project authority' } };
+    if (authority.project !== existing.project) return { status: 400, body: { error: 'Learning project is immutable' } };
+  }
   if (body.supersededBy !== undefined) set.supersededBy = body.supersededBy;
   if (body.supersededReason !== undefined) set.supersededReason = body.supersededReason;
   const nextConcepts = body.concepts === undefined ? conceptsFrom(existing.concepts) : conceptsFrom(body.concepts);

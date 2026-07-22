@@ -36,6 +36,7 @@ async function call(method: string, path: string, body?: unknown) {
 }
 
 beforeEach(() => {
+  rmSync(join(repoRoot, 'ψ/memory/learnings'), { recursive: true, force: true });
   dbMod.db.delete(dbMod.learnLog).run();
   dbMod.db.delete(dbMod.oracleDocuments)
     .where(eq(dbMod.oracleDocuments.type, 'learning'))
@@ -56,7 +57,7 @@ describe('POST/DELETE /api/learn edge cases', () => {
       id: 'learning_edge_explicit',
       pattern: 'Explicit learn edge coverage',
       concepts: 'edge, coverage',
-      sourceFile: 'ψ/memory/learnings/edge-explicit.md',
+      sourceFile: 'ψ/memory/learnings/learning_edge_explicit.md',
     });
     expect(created.status).toBe(200);
     expect(created.json).toMatchObject({ id: 'learning_edge_explicit' });
@@ -106,7 +107,7 @@ describe('POST/DELETE /api/learn edge cases', () => {
     const created = await call('POST', '/api/learn', {
       id: 'learning_safe_source',
       pattern: 'Safe learning source',
-      sourceFile: 'ψ/memory/learnings/safe-source.md',
+      sourceFile: 'ψ/memory/learnings/learning_safe_source.md',
     });
     expect(created.status).toBe(200);
 
@@ -114,10 +115,10 @@ describe('POST/DELETE /api/learn edge cases', () => {
       sourceFile: '../../outside.md',
     });
     expect(update.status).toBe(400);
-    expect(update.json.error).toBe('Invalid learning sourceFile');
+    expect(update.json.error).toBe('Learning sourceFile is immutable');
 
     const read = await call('GET', '/api/learn/learning_safe_source');
-    expect(read.json.sourceFile).toBe('ψ/memory/learnings/safe-source.md');
+    expect(read.json.sourceFile).toBe('ψ/memory/learnings/learning_safe_source.md');
   });
 
   test('sanitizes markdown frontmatter scalars when creating learnings', async () => {
@@ -126,14 +127,15 @@ describe('POST/DELETE /api/learn edge cases', () => {
       pattern: 'Frontmatter title\nproject: evil\n---\nbody stays in markdown',
       concepts: ['alpha, beta', 'gamma\nproject: evil'],
       source: 'ui\nhash: fake',
-      sourceFile: 'ψ/memory/learnings/injection-safe.md',
+      sourceFile: 'ψ/memory/learnings/learning_injection_safe.md',
     });
     expect(created.status).toBe(200);
 
-    const markdown = readFileSync(join(repoRoot, 'ψ/memory/learnings/injection-safe.md'), 'utf-8');
+    const markdown = readFileSync(join(repoRoot, created.json.file), 'utf-8');
     const frontmatter = markdown.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? '';
     expect(frontmatter.match(/^source:/gm)).toHaveLength(1);
-    expect(frontmatter.match(/^hash:/gm)).toBeNull();
+    expect(frontmatter.match(/^hash:/gm)).toHaveLength(1);
+    expect(frontmatter).not.toMatch(/^hash: fake$/m);
     expect(frontmatter.match(/^project:/gm)).toBeNull();
     expect(frontmatter).toContain('tags: [alpha beta, gamma project evil]');
     expect(markdown).toContain('body stays in markdown');

@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, mock, test } from 'bun:test';
 import { mkdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -7,12 +7,15 @@ const savedDataDir = process.env.ORACLE_DATA_DIR;
 const savedDbPath = process.env.ORACLE_DB_PATH;
 const root = join(tmpdir(), `arra-trace-store-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 const dbPath = join(root, 'oracle.db');
+const vaultRoot = join(root, 'vault');
 mkdirSync(root, { recursive: true });
+mkdirSync(vaultRoot, { recursive: true });
 process.env.ORACLE_DATA_DIR = root;
 process.env.ORACLE_DB_PATH = dbPath;
 
 const dbMod = await import('../../db/index.ts');
 dbMod.resetDefaultDatabaseForTests(dbPath);
+mock.module('../../vault/discovery.ts', () => ({ getVaultPsiRoot: () => ({ path: vaultRoot }) }));
 const { createTrace, getTrace, listTraces } = await import('../handler.ts');
 
 const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -80,5 +83,31 @@ describe('trace storage edge hardening', () => {
 
     expect(result.traces).toHaveLength(1);
     expect(result.hasMore).toBe(false);
+  });
+
+  test('explicit empty and malformed project stop before learning file and trace row', () => {
+    for (const project of ['', 'owner/repo', 'github.com/acme/widgets.git']) {
+      const beforeRows = dbMod.sqlite.query('SELECT count(*) AS n FROM trace_log').get() as { n: number };
+      const beforeFiles = Array.from(new Bun.Glob('**/*.md').scanSync(vaultRoot));
+      expect(() => createTrace({ query: `invalid authority ${project}`, project, foundLearnings: ['must not write'] }))
+        .toThrow('Invalid project authority');
+      const afterRows = dbMod.sqlite.query('SELECT count(*) AS n FROM trace_log').get() as { n: number };
+      expect(afterRows.n).toBe(beforeRows.n);
+      expect(Array.from(new Bun.Glob('**/*.md').scanSync(vaultRoot))).toEqual(beforeFiles);
+    }
+  });
+
+  test('omitted project writes universal and mixed-case project stores canonical authority', () => {
+    const universal = createTrace({ query: 'omitted authority', foundLearnings: ['universal trace learning'] });
+    const universalTrace = getTrace(universal.traceId);
+    expect(universalTrace?.project).toBeNull();
+    expect(universalTrace?.foundLearnings[0]).toStartWith('_universal/ψ/memory/learnings/');
+
+    const canonical = createTrace({
+      query: 'canonical authority', project: 'GitHub.com/Acme/Widgets', foundLearnings: ['project trace learning'],
+    });
+    const canonicalTrace = getTrace(canonical.traceId);
+    expect(canonicalTrace?.project).toBe('github.com/acme/widgets');
+    expect(canonicalTrace?.foundLearnings[0]).toStartWith('github.com/acme/widgets/ψ/memory/learnings/');
   });
 });

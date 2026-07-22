@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { eq } from 'drizzle-orm';
 import { db, traceLog } from '../db/index.ts';
+import { resolveProjectAuthority } from '../learn/authority.ts';
 import type { CreateTraceInput, CreateTraceResult, TraceRecord } from './types.ts';
 import { processLearnings } from './learning-files.ts';
 import { parseJsonArray, parseTraceRow, serializeJsonArray } from './row.ts';
@@ -19,7 +20,12 @@ export function createTrace(input: CreateTraceInput): CreateTraceResult {
   const traceId = randomUUID();
   const now = Date.now();
   const query = normalizedQuery(input);
-  const processedLearnings = processLearnings(input.foundLearnings, input.project || null, query);
+  const authority = resolveProjectAuthority(input.project, {
+    explicit: Object.prototype.hasOwnProperty.call(input, 'project'),
+  });
+  if ('invalid' in authority) throw new TypeError('Invalid project authority');
+  const project = authority.project;
+  const processedLearnings = processLearnings(input.foundLearnings, project, query);
   const fileCount =
     arrayCount(input.foundFiles) +
     arrayCount(input.foundRetrospectives) +
@@ -52,7 +58,7 @@ export function createTrace(input: CreateTraceInput): CreateTraceResult {
     parentTraceId: parent ? input.parentTraceId! : null,
     childTraceIds: '[]',
     scope: input.scope || 'project',
-    project: input.project || null,
+    project,
     sessionId: input.sessionId || null,
     agentCount: input.agentCount || 1,
     durationMs: input.durationMs || null,

@@ -43,6 +43,7 @@ async function call(method: string, path: string, body?: unknown) {
 }
 
 beforeEach(() => {
+  rmSync(join(root, 'ψ/memory/learnings'), { recursive: true, force: true });
   dbMod.db.delete(dbMod.learnLog).run();
   dbMod.db.delete(dbMod.oracleDocuments)
     .where(eq(dbMod.oracleDocuments.type, 'learning'))
@@ -111,14 +112,14 @@ describe('POST/GET/PUT/DELETE /api/learn', () => {
     const updated = await call('PUT', `/api/learn/${created.json.id}`, {
       concepts: 'learn,updated',
       origin: 'human',
-      sourceFile: 'ψ/memory/learnings/updated.md',
+      sourceFile: created.json.file,
     });
     expect(updated.status).toBe(200);
     expect(updated.json).toMatchObject({
       id: created.json.id,
       concepts: ['learn', 'updated'],
       origin: 'human',
-      sourceFile: 'ψ/memory/learnings/updated.md',
+      sourceFile: created.json.file,
     });
     expect(updated.json.updatedAt).toBeGreaterThanOrEqual(stored!.updatedAt);
 

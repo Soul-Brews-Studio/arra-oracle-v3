@@ -55,7 +55,7 @@ export interface OracleLearnInput {
   pattern: string;
   source?: string;
   concepts?: string[];
-  project?: string;
+  project?: string | null;
 }
 
 export interface OracleListInput {
