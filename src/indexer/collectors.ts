@@ -67,8 +67,12 @@ export function collectDocuments(opts: CollectOpts): OracleDocument[] {
   const { config, seenContentHashes, subdir, parseFn, label } = opts;
   const documents: OracleDocument[] = [];
   let totalFiles = 0;
+  let skippedDupes = 0;
 
-  // 1. Root path
+  // 1. Root path (flat). Seeds seenContentHashes FIRST so an exact byte-duplicate
+  // that also exists under a project-first dir is indexed once, flat taking
+  // precedence. Without this seed the nested loop below cannot see the flat copy
+  // and one physical file becomes two indexed documents.
   const sourcePath = path.join(config.repoRoot, `\u03c8/memory/${subdir}`);
   if (fs.existsSync(sourcePath)) {
     const files = getAllMarkdownFiles(sourcePath);
@@ -77,6 +81,9 @@ export function collectDocuments(opts: CollectOpts): OracleDocument[] {
     }
     for (const filePath of files) {
       const content = fs.readFileSync(filePath, 'utf-8');
+      const contentHash = Bun.hash(content).toString(36);
+      if (seenContentHashes.has(contentHash)) { skippedDupes++; continue; }
+      seenContentHashes.add(contentHash);
       const relPath = path.relative(config.repoRoot, filePath);
       documents.push(...parseFn(relPath, content, relPath));
     }
@@ -84,7 +91,6 @@ export function collectDocuments(opts: CollectOpts): OracleDocument[] {
   }
 
   // 2. Project-first vault dirs
-  let skippedDupes = 0;
   const projectDirs = discoverProjectPsiDirs(config.repoRoot);
   for (const projectDir of projectDirs) {
     const projectSubdir = path.join(projectDir, 'memory', subdir);

@@ -2,7 +2,93 @@ import { describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { collectPsiLearn, getAllMarkdownFiles } from '../collectors.ts';
+import { collectDocuments, collectPsiLearn, getAllMarkdownFiles } from '../collectors.ts';
+import { parseLearningFile } from '../parser.ts';
+
+const LEARN_CONFIG = (repoRoot: string) => ({
+  repoRoot,
+  dbPath: ':memory:',
+  chromaPath: '',
+  sourcePaths: {
+    resonance: 'ψ/memory/resonance',
+    learnings: 'ψ/memory/learnings',
+    retrospectives: 'ψ/memory/retrospectives',
+    distillations: 'ψ/memory/distillations',
+    learn: 'ψ/learn',
+  },
+});
+
+function writeLearn(dir: string, name: string, content: string): void {
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, name), content, 'utf-8');
+}
+
+describe('collectDocuments — mixed flat/nested dedup (S2)', () => {
+  test('exact byte-duplicate present flat AND nested indexes once, flat precedence', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-mixed-dedup-'));
+    try {
+      const body = '---\ntitle: Shared\ncreated: 2026-07-22\n---\n\n# Shared\n\nExact same bytes in both roots.\n';
+      writeLearn(path.join(tmp, 'ψ', 'memory', 'learnings'), 'dup.md', body);
+      writeLearn(path.join(tmp, 'github.com', 'dumpdumpy', 'demo', 'ψ', 'memory', 'learnings'), 'dup.md', body);
+
+      const docs = collectDocuments({
+        config: LEARN_CONFIG(tmp),
+        seenContentHashes: new Set(),
+        subdir: 'learnings',
+        parseFn: parseLearningFile,
+        label: 'learning',
+      });
+
+      expect(docs).toHaveLength(1);
+      expect(docs[0].source_file).toBe('ψ/memory/learnings/dup.md');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('different bytes under two roots remain two documents', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-mixed-distinct-'));
+    try {
+      writeLearn(path.join(tmp, 'ψ', 'memory', 'learnings'), 'a.md',
+        '---\ntitle: A\ncreated: 2026-07-22\n---\n\n# A\n\nFlat body.\n');
+      writeLearn(path.join(tmp, 'github.com', 'dumpdumpy', 'demo', 'ψ', 'memory', 'learnings'), 'b.md',
+        '---\ntitle: B\ncreated: 2026-07-22\nproject: github.com/dumpdumpy/demo\n---\n\n# B\n\nNested body.\n');
+
+      const docs = collectDocuments({
+        config: LEARN_CONFIG(tmp),
+        seenContentHashes: new Set(),
+        subdir: 'learnings',
+        parseFn: parseLearningFile,
+        label: 'learning',
+      });
+
+      expect(docs).toHaveLength(2);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('nested-only historical file still indexes', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-nested-only-'));
+    try {
+      writeLearn(path.join(tmp, 'github.com', 'dumpdumpy', 'demo', 'ψ', 'memory', 'learnings'), 'hist.md',
+        '---\ntitle: Hist\ncreated: 2026-07-01\nproject: github.com/dumpdumpy/demo\n---\n\n# Hist\n\nHistorical nested learning.\n');
+
+      const docs = collectDocuments({
+        config: LEARN_CONFIG(tmp),
+        seenContentHashes: new Set(),
+        subdir: 'learnings',
+        parseFn: parseLearningFile,
+        label: 'learning',
+      });
+
+      expect(docs).toHaveLength(1);
+      expect(docs[0].source_file).toBe('github.com/dumpdumpy/demo/ψ/memory/learnings/hist.md');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
 
 describe('getAllMarkdownFiles', () => {
   test('skips broken symlinks instead of crashing on ENOENT', () => {
