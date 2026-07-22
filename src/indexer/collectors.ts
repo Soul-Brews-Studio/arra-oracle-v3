@@ -69,16 +69,24 @@ export function collectDocuments(opts: CollectOpts): OracleDocument[] {
   let totalFiles = 0;
   let skippedDupes = 0;
 
-  // 1. Root path (flat). Seeds seenContentHashes FIRST so an exact byte-duplicate
-  // that also exists under a project-first dir is indexed once, flat taking
-  // precedence. Without this seed the nested loop below cannot see the flat copy
-  // and one physical file becomes two indexed documents.
-  const sourcePath = path.join(config.repoRoot, `\u03c8/memory/${subdir}`);
-  if (fs.existsSync(sourcePath)) {
-    const files = getAllMarkdownFiles(sourcePath);
-    if (files.length === 0) {
-      console.log(`Warning: ${sourcePath} exists but contains no .md files`);
-    }
+  // 1. Project-first vault dirs FIRST \u2014 nested is canonical for vault-enabled
+  // writes, so it seeds seenContentHashes before the flat legacy scan. An exact
+  // byte-duplicate present both nested and flat therefore resolves to the nested
+  // source_file; the flat copy is suppressed. Nested precedence.
+  //
+  // The union includes _universal/\u03c8: upstream tools/learn.ts maps a null project
+  // to _universal/\u03c8/memory/<subdir>, but discoverProjectPsiDirs only enumerates
+  // host/owner/repo dirs. Without _universal a valid upstream-native universal
+  // learning would be invisible to full rebuild.
+  const universalPsi = path.join(config.repoRoot, '_universal', '\u03c8');
+  const projectDirs = discoverProjectPsiDirs(config.repoRoot);
+  const nestedPsiRoots = fs.existsSync(universalPsi) && !projectDirs.includes(universalPsi)
+    ? [...projectDirs, universalPsi]
+    : projectDirs;
+  for (const projectDir of nestedPsiRoots) {
+    const projectSubdir = path.join(projectDir, 'memory', subdir);
+    if (!fs.existsSync(projectSubdir)) continue;
+    const files = getAllMarkdownFiles(projectSubdir);
     for (const filePath of files) {
       const content = fs.readFileSync(filePath, 'utf-8');
       const contentHash = Bun.hash(content).toString(36);
@@ -90,12 +98,14 @@ export function collectDocuments(opts: CollectOpts): OracleDocument[] {
     totalFiles += files.length;
   }
 
-  // 2. Project-first vault dirs
-  const projectDirs = discoverProjectPsiDirs(config.repoRoot);
-  for (const projectDir of projectDirs) {
-    const projectSubdir = path.join(projectDir, 'memory', subdir);
-    if (!fs.existsSync(projectSubdir)) continue;
-    const files = getAllMarkdownFiles(projectSubdir);
+  // 2. Root path (flat legacy) SECOND \u2014 a byte-duplicate already indexed from a
+  // project-first dir is suppressed here; flat-only legacy files still index.
+  const sourcePath = path.join(config.repoRoot, `\u03c8/memory/${subdir}`);
+  if (fs.existsSync(sourcePath)) {
+    const files = getAllMarkdownFiles(sourcePath);
+    if (files.length === 0) {
+      console.log(`Warning: ${sourcePath} exists but contains no .md files`);
+    }
     for (const filePath of files) {
       const content = fs.readFileSync(filePath, 'utf-8');
       const contentHash = Bun.hash(content).toString(36);

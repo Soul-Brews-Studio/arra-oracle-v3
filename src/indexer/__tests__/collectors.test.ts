@@ -24,7 +24,7 @@ function writeLearn(dir: string, name: string, content: string): void {
 }
 
 describe('collectDocuments — mixed flat/nested dedup (S2)', () => {
-  test('exact byte-duplicate present flat AND nested indexes once, flat precedence', () => {
+  test('exact byte-duplicate present flat AND nested indexes once, NESTED precedence', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-mixed-dedup-'));
     try {
       const body = '---\ntitle: Shared\ncreated: 2026-07-22\n---\n\n# Shared\n\nExact same bytes in both roots.\n';
@@ -40,7 +40,28 @@ describe('collectDocuments — mixed flat/nested dedup (S2)', () => {
       });
 
       expect(docs).toHaveLength(1);
-      expect(docs[0].source_file).toBe('ψ/memory/learnings/dup.md');
+      expect(docs[0].source_file).toBe('github.com/dumpdumpy/demo/ψ/memory/learnings/dup.md');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('flat-only legacy file still indexes', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-flat-only-'));
+    try {
+      writeLearn(path.join(tmp, 'ψ', 'memory', 'learnings'), 'legacy.md',
+        '---\ntitle: Legacy\ncreated: 2026-07-15\n---\n\n# Legacy\n\nFlat legacy learning with no nested twin.\n');
+
+      const docs = collectDocuments({
+        config: LEARN_CONFIG(tmp),
+        seenContentHashes: new Set(),
+        subdir: 'learnings',
+        parseFn: parseLearningFile,
+        label: 'learning',
+      });
+
+      expect(docs).toHaveLength(1);
+      expect(docs[0].source_file).toBe('ψ/memory/learnings/legacy.md');
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
@@ -63,6 +84,50 @@ describe('collectDocuments — mixed flat/nested dedup (S2)', () => {
       });
 
       expect(docs).toHaveLength(2);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('_universal nested-only learning is indexed with _universal source_file and null project', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-universal-only-'));
+    try {
+      writeLearn(path.join(tmp, '_universal', 'ψ', 'memory', 'learnings'), 'u.md',
+        '---\ntitle: U\ncreated: 2026-07-22\n---\n\n# U\n\nUniversal learning, no project.\n');
+
+      const docs = collectDocuments({
+        config: LEARN_CONFIG(tmp),
+        seenContentHashes: new Set(),
+        subdir: 'learnings',
+        parseFn: parseLearningFile,
+        label: 'learning',
+      });
+
+      expect(docs).toHaveLength(1);
+      expect(docs[0].source_file).toBe('_universal/ψ/memory/learnings/u.md');
+      expect(docs[0].project ?? null).toBeNull();
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('exact bytes under _universal nested AND flat choose the _universal source_file once', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-universal-dup-'));
+    try {
+      const body = '---\ntitle: UDup\ncreated: 2026-07-22\n---\n\n# UDup\n\nSame bytes universal and flat.\n';
+      writeLearn(path.join(tmp, 'ψ', 'memory', 'learnings'), 'udup.md', body);
+      writeLearn(path.join(tmp, '_universal', 'ψ', 'memory', 'learnings'), 'udup.md', body);
+
+      const docs = collectDocuments({
+        config: LEARN_CONFIG(tmp),
+        seenContentHashes: new Set(),
+        subdir: 'learnings',
+        parseFn: parseLearningFile,
+        label: 'learning',
+      });
+
+      expect(docs).toHaveLength(1);
+      expect(docs[0].source_file).toBe('_universal/ψ/memory/learnings/udup.md');
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
