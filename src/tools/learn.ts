@@ -8,6 +8,7 @@
 import path from 'path';
 import fs from 'fs';
 import { oracleDocuments } from '../db/schema.ts';
+import { recordConceptRelations } from './concept-graph.ts';
 import { detectProject } from '../server/project-detect.ts';
 import { getVectorStoreByModel, getEmbeddingModels } from '../vector/factory.ts';
 import { REPO_ROOT } from '../config.ts';
@@ -67,6 +68,10 @@ export const learnToolDef = {
       project: {
         type: 'string',
         description: 'Source project. Accepts: "github.com/owner/repo", "owner/repo", local path with ghq/Code prefix, or GitHub URL. Auto-normalized to "github.com/owner/repo" format.'
+      },
+      traceId: {
+        type: 'string',
+        description: 'Optional: links this learning back to the /trace session (trace_log.trace_id) it was distilled from, for provenance via oracle_trace.'
       }
     },
     required: ['pattern']
@@ -164,7 +169,7 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
     };
   }
 
-  const { pattern, source, concepts, project: projectInput } = input;
+  const { pattern, source, concepts, project: projectInput, traceId } = input;
 
   // Validate pattern: must be a non-empty string before any string ops or filename derivation.
   // (Cast through `unknown` so the runtime check survives even when callers pass undefined despite TS typing.)
@@ -255,7 +260,10 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
     origin: null,
     project,
     createdBy: 'oracle_learn',
+    traceId: typeof traceId === 'string' && traceId.length > 0 ? traceId : null,
   }).run();
+
+  recordConceptRelations(ctx.db, id, conceptsList, now.getTime());
 
   // FTS5 has no unique constraint on id — delete-then-insert to be idempotent.
   ctx.sqlite.prepare(`DELETE FROM oracle_fts WHERE id = ?`).run(id);

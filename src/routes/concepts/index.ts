@@ -7,15 +7,16 @@ import type { OracleConceptsInput } from '../../tools/types.ts';
 const ConceptsQuery = t.Object({
   limit: t.Optional(t.String()),
   type: t.Optional(t.String()),
+  related: t.Optional(t.String()),
 });
 
-function toConceptsInput(query: { limit?: string; type?: string }): OracleConceptsInput {
+function toConceptsInput(query: { limit?: string; type?: string; related?: string }): OracleConceptsInput {
   const parsedLimit = query.limit ? parseInt(query.limit, 10) : NaN;
   const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : undefined;
   const type = ['principle', 'pattern', 'learning', 'retro', 'all'].includes(query.type ?? '')
     ? query.type as OracleConceptsInput['type']
     : 'all';
-  return { limit, type };
+  return { limit, type, related: query.related || undefined };
 }
 
 export const conceptsRoutes = new Elysia({ prefix: '/api' }).get('/concepts', ({ query }) => (

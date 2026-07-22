@@ -21,16 +21,63 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   supersededBy: text('superseded_by'),      // ID of newer document
   supersededAt: integer('superseded_at'),   // When it was superseded
   supersededReason: text('superseded_reason'), // Why (optional)
+  // Wikidata-style rank, additive to supersededBy: lets readers default-filter
+  // on a cheap indexed predicate (status != 'superseded') instead of needing
+  // to know supersededBy is null, and leaves room for 'deprecated' (still
+  // current but flagged) without a second supersession.
+  status: text('status').default('current').notNull(), // 'current' | 'superseded' | 'deprecated'
+  // Bitemporal validity window (optional) — when this fact was/is true in the
+  // world, separate from indexedAt (when Oracle learned it). Lets oracle_verify
+  // answer "what was true as of time T", not just "what's true now".
+  validFrom: integer('valid_from'),
+  validUntil: integer('valid_until'),
   // Provenance tracking (Issue #22)
   origin: text('origin'),                   // 'mother' | 'arthur' | 'volt' | 'human' | null (legacy)
   project: text('project'),                 // ghq-style: 'github.com/laris-co/arra-oracle'
   createdBy: text('created_by'),            // 'indexer' | 'oracle_learn' | 'manual'
+  // Provenance: links this fact back to the /trace session (trace_log.trace_id)
+  // that produced it, when known. Optional — most documents aren't trace
+  // distillations. Populated by oracle_learn's optional traceId input.
+  traceId: text('trace_id'),
 }, (table) => [
   index('idx_source').on(table.sourceFile),
   index('idx_type').on(table.type),
   index('idx_superseded').on(table.supersededBy),
+  index('idx_status').on(table.status),
   index('idx_origin').on(table.origin),
   index('idx_project').on(table.project),
+  index('idx_doc_trace_id').on(table.traceId),
+]);
+
+// ============================================================================
+// Concept Graph (thin entity/relation layer on top of hybrid search)
+//
+// Populated as a side effect of oracle_reflect/oracle_learn; oracle_concepts
+// uses this for graph-style "what relates to X" navigation on top of, not
+// instead of, the existing FTS5+vector retrieval pipeline.
+// ============================================================================
+
+export const conceptEntities = sqliteTable('concept_entities', {
+  id: text('id').primaryKey(),         // slug, e.g. "nothing-is-deleted"
+  name: text('name').notNull(),        // display form, e.g. "Nothing is Deleted"
+  type: text('type'),                  // free-form entity type, e.g. "principle" | "person" | "system"
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, (table) => [
+  index('idx_concept_entity_name').on(table.name),
+]);
+
+export const conceptRelations = sqliteTable('concept_relations', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  subjectId: text('subject_id').notNull().references(() => conceptEntities.id),
+  predicate: text('predicate').notNull(),   // active-voice edge, e.g. "supports", "contradicts"
+  objectId: text('object_id').notNull().references(() => conceptEntities.id),
+  sourceDocId: text('source_doc_id').references(() => oracleDocuments.id), // where this relation was observed
+  createdAt: integer('created_at').notNull(),
+}, (table) => [
+  index('idx_concept_rel_subject').on(table.subjectId),
+  index('idx_concept_rel_object').on(table.objectId),
+  index('idx_concept_rel_source').on(table.sourceDocId),
 ]);
 
 // Indexing status tracking

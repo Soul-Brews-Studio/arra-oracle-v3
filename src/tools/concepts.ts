@@ -6,6 +6,7 @@
 
 import { eq, and, ne, isNotNull } from 'drizzle-orm';
 import { oracleDocuments } from '../db/schema.ts';
+import { getRelatedConcepts } from './concept-graph.ts';
 import type { ToolContext, ToolResponse, OracleConceptsInput } from './types.ts';
 
 export const conceptsToolDef = {
@@ -24,6 +25,10 @@ export const conceptsToolDef = {
         enum: ['principle', 'pattern', 'learning', 'retro', 'all'],
         description: 'Filter concepts by document type',
         default: 'all'
+      },
+      related: {
+        type: 'string',
+        description: 'When set, returns concepts that co-occur with this one (via the concept graph) instead of the global tag list.'
       }
     },
     required: []
@@ -31,7 +36,14 @@ export const conceptsToolDef = {
 };
 
 export function listConcepts(db: ToolContext['db'], input: OracleConceptsInput) {
-  const { limit = 50, type = 'all' } = input;
+  const { limit = 50, type = 'all', related } = input;
+
+  if (related) {
+    return {
+      concept: related,
+      related: getRelatedConcepts(db, related, limit),
+    };
+  }
 
   const baseCondition = and(isNotNull(oracleDocuments.concepts), ne(oracleDocuments.concepts, '[]'));
   const rows = type === 'all'

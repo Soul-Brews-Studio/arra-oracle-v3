@@ -710,6 +710,7 @@ export function persistLearningDoc(opts: {
   project?: string | null;
   createdBy?: string;      // oracle_documents.created_by
   footer?: string;         // footer line under the content, e.g. '*Added via Oracle Learn*'
+  traceId?: string | null; // links back to trace_log.trace_id, if this learning was distilled from a /trace session
 }): { file: string; id: string } {
   const { pattern, subdir, filename, id } = opts;
   const now = new Date();
@@ -750,6 +751,7 @@ export function persistLearningDoc(opts: {
     origin: opts.origin || null,
     project: opts.project || null,
     createdBy: opts.createdBy || 'oracle_learn',
+    traceId: opts.traceId || null,
   }).run();
 
   // FTS5 has no unique constraint on id — delete-then-insert to be idempotent.
@@ -770,7 +772,8 @@ export function handleLearn(
   concepts?: string[],
   origin?: string,
   project?: string,
-  cwd?: string
+  cwd?: string,
+  traceId?: string
 ) {
   const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
   const d = new Date();
@@ -806,6 +809,7 @@ export function handleLearn(
     origin,
     project: resolvedProject,
     createdBy: 'oracle_learn',
+    traceId: traceId || null,
   });
 
   return { success: true, file, id };
