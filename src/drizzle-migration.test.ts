@@ -42,9 +42,13 @@ beforeAll(() => {
       superseded_by TEXT,
       superseded_at INTEGER,
       superseded_reason TEXT,
+      status TEXT NOT NULL DEFAULT 'current',
+      valid_from INTEGER,
+      valid_until INTEGER,
       origin TEXT,
       project TEXT,
-      created_by TEXT
+      created_by TEXT,
+      trace_id TEXT
     );
 
     CREATE INDEX idx_type ON oracle_documents(type);
