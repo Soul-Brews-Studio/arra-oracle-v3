@@ -10,6 +10,27 @@ export const SupersedeQuery = t.Object({
   offset: t.Optional(t.String()),
 });
 
-export const SupersedeBody = t.Any();
+// Fields kept optional at the schema level (not `t.Any()`) — the route
+// handlers already enforce required-ness themselves with custom 400 error
+// messages (see create.ts / runSupersede). Making a field `required` here
+// would let Elysia's own validation error pre-empt those handler-level
+// checks and change the response shape tests rely on. This layer only
+// upgrades "anything goes" to "if present, must be the right type."
+export const SupersedeBody = t.Object({
+  old_path: t.Optional(t.String()),
+  old_id: t.Optional(t.String()),
+  old_title: t.Optional(t.String()),
+  old_type: t.Optional(t.String()),
+  new_path: t.Optional(t.String()),
+  new_id: t.Optional(t.String()),
+  new_title: t.Optional(t.String()),
+  reason: t.Optional(t.String()),
+  superseded_by: t.Optional(t.String()),
+  project: t.Optional(t.String()),
+});
 
-export const SupersedeDocumentBody = t.Any();
+export const SupersedeDocumentBody = t.Object({
+  oldId: t.Optional(t.String()),
+  newId: t.Optional(t.String()),
+  reason: t.Optional(t.String()),
+});
