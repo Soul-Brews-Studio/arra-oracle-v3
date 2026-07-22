@@ -9,7 +9,31 @@ import {
   normalizeFtsScore,
   parseConceptsFromMetadata,
   combineResults,
+  checkEmbeddingDimensionDrift,
+  RRF_K,
 } from '../search.ts';
+import type { ToolContext } from '../types.ts';
+import type { VectorStoreAdapter } from '../../vector/types.ts';
+
+function fakeCtx(vectorStore: VectorStoreAdapter): ToolContext {
+  return { vectorStore } as ToolContext;
+}
+
+function fakeStore(overrides: Partial<VectorStoreAdapter> = {}): VectorStoreAdapter {
+  return {
+    name: 'fake',
+    connect: async () => {},
+    close: async () => {},
+    ensureCollection: async () => {},
+    deleteCollection: async () => {},
+    addDocuments: async () => {},
+    query: async () => ({ ids: [], documents: [], distances: [], metadatas: [] }),
+    queryById: async () => ({ ids: [], documents: [], distances: [], metadatas: [] }),
+    getStats: async () => ({ count: 0 }),
+    getCollectionInfo: async () => ({ count: 0, name: 'fake' }),
+    ...overrides,
+  };
+}
 
 // ============================================================================
 // sanitizeFtsQuery
@@ -139,11 +163,32 @@ describe('combineResults', () => {
     expect(combined.find(r => r.id === 'doc3')?.source).toBe('vector');
   });
 
-  it('should apply 10% boost for hybrid results', () => {
-    const combined = combineResults(ftsResults, vectorResults, 0.5, 0.5);
+  it('should fuse hybrid results via Reciprocal Rank Fusion (rank 1 in both lists)', () => {
+    const combined = combineResults(ftsResults, vectorResults);
     const doc1 = combined.find(r => r.id === 'doc1');
-    // ((0.5 * 0.8) + (0.5 * 0.9)) * 1.1 = 0.935
-    expect(doc1?.score).toBeCloseTo(0.935, 2);
+    // doc1 is rank 1 in both the FTS and vector lists: 1/(k+1) + 1/(k+1)
+    const expected = 1 / (RRF_K + 1) + 1 / (RRF_K + 1);
+    expect(doc1?.score).toBeCloseTo(expected, 6);
+  });
+
+  it('should rank a hybrid (both-list) hit above a single-list hit at the same rank', () => {
+    const combined = combineResults(ftsResults, vectorResults);
+    const doc1 = combined.find(r => r.id === 'doc1'); // hybrid, rank 1 in both
+    const doc2 = combined.find(r => r.id === 'doc2'); // fts-only, rank 2
+    expect(doc1!.score).toBeGreaterThan(doc2!.score);
+  });
+
+  it('should not require score normalization between FTS and vector scales', () => {
+    // RRF only depends on rank position, not on the raw score magnitude,
+    // so wildly different raw score scales should not affect fusion order.
+    const skewedVector = [
+      { id: 'doc1', type: 'principle', content: 'Content 1', source_file: 'f1.md', concepts: ['trust'], score: 9999, distance: 0, model: 'bge-m3', source: 'vector' as const },
+      { id: 'doc3', type: 'retro', content: 'Content 3', source_file: 'f3.md', concepts: ['decision'], score: 9998, distance: 0, model: 'bge-m3', source: 'vector' as const },
+    ];
+    const combined = combineResults(ftsResults, skewedVector);
+    const doc1 = combined.find(r => r.id === 'doc1');
+    const expected = 1 / (RRF_K + 1) + 1 / (RRF_K + 1);
+    expect(doc1?.score).toBeCloseTo(expected, 6);
   });
 
   it('should sort by score descending', () => {
@@ -157,5 +202,50 @@ describe('combineResults', () => {
     expect(combineResults([], [])).toEqual([]);
     expect(combineResults(ftsResults, [])).toHaveLength(2);
     expect(combineResults([], vectorResults)).toHaveLength(2);
+  });
+});
+
+// ============================================================================
+// checkEmbeddingDimensionDrift
+// ============================================================================
+
+describe('checkEmbeddingDimensionDrift', () => {
+  it('returns undefined when the adapter does not report dimensions', async () => {
+    const ctx = fakeCtx(fakeStore());
+    expect(await checkEmbeddingDimensionDrift(ctx)).toBeUndefined();
+  });
+
+  it('returns undefined when stored dimension is unknown (empty collection)', async () => {
+    const ctx = fakeCtx(fakeStore({
+      getExpectedDimension: () => 1024,
+      getStoredDimension: async () => null,
+    }));
+    expect(await checkEmbeddingDimensionDrift(ctx)).toBeUndefined();
+  });
+
+  it('returns undefined when expected and stored dimensions match', async () => {
+    const ctx = fakeCtx(fakeStore({
+      getExpectedDimension: () => 1024,
+      getStoredDimension: async () => 1024,
+    }));
+    expect(await checkEmbeddingDimensionDrift(ctx)).toBeUndefined();
+  });
+
+  it('returns a warning when expected and stored dimensions disagree', async () => {
+    const ctx = fakeCtx(fakeStore({
+      getExpectedDimension: () => 768,
+      getStoredDimension: async () => 1024,
+    }));
+    const warning = await checkEmbeddingDimensionDrift(ctx);
+    expect(warning).toMatch(/dimension mismatch/i);
+    expect(warning).toContain('768');
+    expect(warning).toContain('1024');
+  });
+
+  it('never throws even if the adapter methods throw', async () => {
+    const ctx = fakeCtx(fakeStore({
+      getExpectedDimension: () => { throw new Error('boom'); },
+    }));
+    expect(await checkEmbeddingDimensionDrift(ctx)).toBeUndefined();
   });
 });
