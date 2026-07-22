@@ -1,7 +1,7 @@
 # Solution Architect Studio — Rough Plan
 
 Status: **draft scoping, no implementation yet**
-Owner persona: Yasmin Al-Rashid (`.claude/agents/solution-architect.md`)
+Owner persona: Yasmin Al-Rashid (`.claude/agents/engineering/solution-architect.md`)
 
 ## Goal
 

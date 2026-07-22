@@ -1,6 +1,6 @@
 # Meeting Recorder — แผนคร่าวๆ (v0.1 กำหนดขอบเขตเท่านั้น)
 
-Persona เจ้าของงาน: Tomás Reyes (`.claude/agents/meeting-recorder-engineer.md`)
+Persona เจ้าของงาน: Tomás Reyes (`.claude/agents/engineering/meeting-recorder-engineer.md`)
 นี่คือ sub-project ที่อยู่ใต้ `projects/meeting-recorder/` — เป็นตัวของตัวเอง
 (มี `package.json`, README ของตัวเอง) แบบเดียวกับ `web-shop/` ยังไม่เชื่อมเข้ากับ
 server/MCP หลักของ arra-oracle จนกว่าเฟสถัดไปจะตัดสินใจว่าควรทำ

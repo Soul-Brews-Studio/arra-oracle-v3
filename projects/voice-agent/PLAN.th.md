@@ -1,7 +1,7 @@
 # Voice Agent — แผนคร่าวๆ (กำหนดขอบเขต V1)
 
 สถานะ: ร่าง วางแผนอย่างเดียว ยังไม่มีการลงมือทำ
-Persona เจ้าของงาน: Nadia Kowalski, `.claude/agents/voice-agent-engineer.md`
+Persona เจ้าของงาน: Nadia Kowalski, `.claude/agents/engineering/voice-agent-engineer.md`
 ตัวอย่าง sub-project ที่เป็นของตัวเองใน monorepo นี้: `web-shop/` (แอป Astro ที่ root ของ repo)
 
 ## เป้าหมาย

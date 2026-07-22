@@ -1,7 +1,7 @@
 # Solution Architect Studio — แผนคร่าวๆ
 
 สถานะ: **ร่างกำหนดขอบเขต ยังไม่มีการลงมือทำจริง**
-Persona เจ้าของงาน: Yasmin Al-Rashid (`.claude/agents/solution-architect.md`)
+Persona เจ้าของงาน: Yasmin Al-Rashid (`.claude/agents/engineering/solution-architect.md`)
 
 ## เป้าหมาย
 

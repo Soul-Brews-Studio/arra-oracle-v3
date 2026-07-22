@@ -1,7 +1,7 @@
 # Voice Agent — Rough Plan (V1 Scoping)
 
 Status: draft, planning only, no implementation yet.
-Owner persona: Nadia Kowalski, `.claude/agents/voice-agent-engineer.md`.
+Owner persona: Nadia Kowalski, `.claude/agents/engineering/voice-agent-engineer.md`.
 Sibling example of a self-contained sub-project in this monorepo: `web-shop/` (Astro app at repo root).
 
 ## Goal
