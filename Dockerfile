@@ -17,6 +17,9 @@
 #
 # Run mcp-stdio (manual; Docker MCP Gateway normally does this):
 #   docker run -i --rm -v arra-data:/data arra-oracle-v3:stdio
+#
+# Railway: the `arra-oracle-memory` service builds this file (http-server
+# target, the default) directly from this repo's `main` branch.
 
 # ─────────────────────────────────────────────────────────────────────────
 # Stage 1 — builder: resolve production deps, prune cross-arch dead weight
