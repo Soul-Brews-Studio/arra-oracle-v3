@@ -25,6 +25,16 @@ Updated 2026-04-19. These override anything below that conflicts.
 ### Runtime
 - **Bun ≥ 1.2.** Use `bun test`, `bun run`, `bunx --bun`. Do not add Node-specific APIs.
 
+### Remote MCP transport
+- `POST/GET/DELETE /mcp` on the same Elysia HTTP server (`src/server.ts`, port `47778`/`ORACLE_PORT`) exposes the MCP spec's Streamable HTTP transport (`@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js`), so any MCP client that supports "remote MCP via URL" can connect directly — no local stdio process needed. Implementation: `src/http/mcp-route.ts`. Reuses the exact same tool handlers as the stdio server (`src/index.ts`'s `OracleMCPServer` — untouched, still works via `bun src/index.ts`) by constructing a fresh `OracleMCPServer` per session and connecting its `getSdkServer()` to the transport instead of `StdioServerTransport`.
+- **Auth**: same bearer-token guard as `/api/*` (`src/http/auth.ts` — `Authorization: Bearer <ARRA_API_TOKEN>`, fail-closed to loopback bind when `ARRA_API_TOKEN` is unset).
+- **Client config shape** (e.g. Claude Code / Kiro remote-MCP entry):
+  ```json
+  { "url": "https://<railway-host>/mcp", "headers": { "Authorization": "Bearer <ARRA_API_TOKEN>" } }
+  ```
+- Sessions are stateful and in-memory per process (client gets an `Mcp-Session-Id` on `initialize`, reuses it on every subsequent request, `DELETE /mcp` ends it) — fine for a single instance, not for a horizontally-scaled fleet.
+- Tests: `tests/http/mcp/streamable-http.test.ts` (real SDK client round trip: `initialize` → `listTools` → `callTool(oracle_stats)`, plus the 401/400 auth and session-id contract checks).
+
 ## Table of Contents
 
 1.  [Executive Summary](#executive-summary)
