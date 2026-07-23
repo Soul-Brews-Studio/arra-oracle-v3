@@ -19,7 +19,8 @@
 #   docker run -i --rm -v arra-data:/data arra-oracle-v3:stdio
 #
 # Railway: the `arra-oracle-memory` service builds this file (http-server
-# target, the default) directly from this repo's `main` branch.
+# target, the default) directly from this repo's `main` branch on every
+# push, via the installed Railway GitHub App.
 
 # ─────────────────────────────────────────────────────────────────────────
 # Stage 1 — builder: resolve production deps, prune cross-arch dead weight
