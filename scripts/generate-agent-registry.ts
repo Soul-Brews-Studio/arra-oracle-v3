@@ -51,6 +51,29 @@ async function walk(dir: string): Promise<string[]> {
   return files;
 }
 
+// Static doctrine, not derived from agent frontmatter — kept here (not hand-edited
+// into REGISTRY.md) so it survives regeneration. Source: multi-agent-orchestration-book
+// Ch.2 ("The Three Tiers") + Appendix B, adapted to this repo's actual tool names.
+const TIERING_DOCTRINE: string[] = [
+  '## Subagent Tiering Doctrine',
+  '',
+  'Match the tool to the job — reflexive over-delegation is the named anti-pattern here, not under-delegation.',
+  '',
+  '| Tier | Tool | Shape | Use for |',
+  '|---|---|---|---|',
+  '| 1 | `Agent` (single call, incl. `fork`) | One-shot, in-process, dies with the turn | Read/research/transform under ~5min: a lookup, a targeted search, a single review pass |',
+  '| 2 | `Agent` (parallel calls) or `Workflow` | Coordinated squad with defined roles, results merged back | 5–30min tasks needing several angles at once, or a deterministic multi-phase pipeline (find → verify → synthesize) |',
+  '| 3 | `maw` (tmux fleet) | Long-running, persistent, cross-machine, survives the session | Work that outlives this conversation, needs a human to check in on later, or spans multiple repos/hosts |',
+  '',
+  '**When NOT to spawn an agent at all** — do it inline instead:',
+  '- The task is a one-liner (a single file read, a single grep, a single edit).',
+  '- There is no plan yet — spawning before you know what you are asking for just burns tokens on a vague brief.',
+  '- The work is read-only and fits comfortably in the current context window.',
+  '- It would finish in under ~5 minutes doing it directly.',
+  '- The steps need to see each other\'s intermediate changes as they happen (a fork/subagent cannot watch another one work in real time — sequence them yourself, or use `Workflow`\'s `pipeline()` if the dependency is real).',
+  '',
+];
+
 async function main() {
   const files = (await walk(AGENTS_DIR)).sort();
   const rows: AgentEntry[] = [];
@@ -90,7 +113,7 @@ async function main() {
     lines.push(`| ${row.department} | [${row.name}](${row.path}) | ${row.model} | ${desc} |`);
   }
 
-  lines.push('');
+  lines.push('', ...TIERING_DOCTRINE);
   await writeFile(OUTPUT_FILE, lines.join('\n'), 'utf-8');
   console.log(`Wrote ${OUTPUT_FILE} (${rows.length} agents)`);
 }
