@@ -20,6 +20,8 @@ import {
 
 import { PORT, ORACLE_DATA_DIR, VECTOR_URL } from './config.ts';
 import { MCP_SERVER_NAME } from './const.ts';
+import { apiAuthGuard } from './http/auth.ts';
+import { mcpRoutes } from './http/mcp-route.ts';
 import { db, sqlite, closeDb, indexingStatus } from './db/index.ts';
 import { seedMenuItems, type HasRoutes as SeedHasRoutes } from './db/seeders/menu-seeder.ts';
 import { createBuiltinServerPlugins } from './server/plugin/builtin.ts';
@@ -149,6 +151,7 @@ const app = new Elysia()
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     }),
   )
+  .use(apiAuthGuard())
   .onAfterHandle(({ set }) => {
     set.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
     set.headers['X-Content-Type-Options'] = 'nosniff';
@@ -188,7 +191,12 @@ const app = new Elysia()
     status: 'ok',
     docs: '/swagger',
     api: '/api',
-  }));
+    mcp: '/mcp',
+  }))
+  // Remote MCP transport (Streamable HTTP) — same tool handlers as the
+  // stdio server (src/index.ts), reachable by any MCP client that supports
+  // "remote MCP via URL". Guarded by apiAuthGuard() above. See mcp-route.ts.
+  .use(mcpRoutes());
 
 try {
   const result = seedMenuItems(menuSeedRoutes(enabledPlugins) as unknown as SeedHasRoutes[]);
@@ -206,15 +214,36 @@ pluginLifecycle = await startServerPlugins(enabledPlugins, {
   logger: console,
 });
 
+// SECURITY: fail closed, not open. Every /api/* request requires
+// `Authorization: Bearer <ARRA_API_TOKEN>` (enforced in apiAuthGuard above).
+// If no ARRA_API_TOKEN is set at all, we don't silently serve an unauthenticated
+// API on the network — instead we bind to loopback only (127.0.0.1), which
+// keeps `bun run server` with zero env vars working for local dev (matches
+// this repo's tests/dev workflow) while making it impossible for an
+// un-authed deploy (e.g. Railway, or anything binding non-loopback) to be
+// reachable at all. Set ARRA_API_TOKEN in the environment to both enable
+// auth and unlock the public (0.0.0.0) bind.
+const hasApiToken = !!process.env.ARRA_API_TOKEN?.trim();
+const HOSTNAME = hasApiToken ? '0.0.0.0' : '127.0.0.1';
+if (!hasApiToken) {
+  console.warn(
+    '⚠️  ARRA_API_TOKEN is not set — API auth is DISABLED and the server is bound to ' +
+    '127.0.0.1 (loopback only, not reachable over the network). Set ARRA_API_TOKEN ' +
+    'before deploying (e.g. Railway) to enable auth and allow a public bind.',
+  );
+}
+
 console.log(`
 🔮 Arra Oracle HTTP Server running! (Elysia)
 
-   URL:     http://localhost:${PORT}
+   URL:     http://${hasApiToken ? '0.0.0.0' : 'localhost'}:${PORT}
    Swagger: http://localhost:${PORT}/swagger
    Version: ${pkg.version}
+   Auth:    ${hasApiToken ? 'enabled (Bearer token required on /api/*)' : 'DISABLED (loopback-only bind)'}
 `);
 
 export default {
   port: Number(PORT),
+  hostname: HOSTNAME,
   fetch: app.fetch,
 };
