@@ -256,6 +256,29 @@ export class LanceDBAdapter implements VectorStoreAdapter {
     return { count: stats.count, name: this.collectionName };
   }
 
+  /** Dimension the current embedder would produce (config-side truth). */
+  getExpectedDimension(): number {
+    return this.embedder.dimensions;
+  }
+
+  /**
+   * Dimension actually stored in the table, read from one live row.
+   * Returns null for an empty/missing collection — nothing to compare yet.
+   */
+  async getStoredDimension(): Promise<number | null> {
+    if (!this.table) {
+      try { await this.ensureCollection(); } catch { return null; }
+    }
+    await this.checkoutLatest();
+    try {
+      const rows = await this.table.query().limit(1).toArray();
+      if (rows.length === 0 || !rows[0].vector) return null;
+      return Array.from(rows[0].vector as ArrayLike<number>).length;
+    } catch {
+      return null;
+    }
+  }
+
   async getAllEmbeddings(limit: number = 5000): Promise<{ ids: string[]; embeddings: number[][]; metadatas: any[] }> {
     if (!this.table) return { ids: [], embeddings: [], metadatas: [] };
     await this.checkoutLatest();

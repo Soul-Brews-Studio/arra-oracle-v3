@@ -120,6 +120,34 @@ export function parseConceptsFromMetadata(concepts: unknown): string[] {
 }
 
 /**
+ * Detect embedding model/dimension drift before querying: if the store can
+ * report both what the current embedder would produce and what's actually
+ * stored, and they disagree, querying would silently fuse cosine scores
+ * between incompatible embedding spaces (e.g. the vector config was
+ * repointed at a different model without reindexing). Best-effort only —
+ * never throws, and no-ops for adapters that don't implement the optional
+ * dimension-reporting methods.
+ */
+export async function checkEmbeddingDimensionDrift(
+  ctx: ToolContext,
+  model?: string
+): Promise<string | undefined> {
+  try {
+    const store = model ? await ensureVectorStoreConnected(model) : ctx.vectorStore;
+    const expected = store.getExpectedDimension?.();
+    if (expected === undefined) return undefined;
+    const stored = await store.getStoredDimension?.();
+    if (stored === undefined || stored === null) return undefined;
+    if (stored !== expected) {
+      return `Embedding dimension mismatch: querying with ${expected}-dim vectors against a collection built with ${stored}-dim vectors (model=${model || 'default'} may not match how this collection was indexed). Vector results for this query are unreliable — falling back to FTS5-scored ranking.`;
+    }
+  } catch {
+    // Diagnostic only — never fail the search over this check.
+  }
+  return undefined;
+}
+
+/**
  * Vector search using ChromaMcpClient.
  * Performs semantic similarity search on the oracle_knowledge collection.
  */
@@ -191,8 +219,18 @@ export async function vectorSearch(
 }
 
 /**
- * Combine FTS and vector search results.
- * Deduplicates by document id, calculates hybrid score with 10% boost.
+ * Reciprocal Rank Fusion constant. Standard value (see Cormack et al. 2009 and
+ * the FTS5+vector hybrid implementations this was adapted from) — not tuned
+ * per-dataset, which is the point: RRF needs no weight tuning because it
+ * fuses on rank position rather than raw score magnitude (FTS5 rank and
+ * vector cosine/distance scores aren't on comparable scales).
+ */
+export const RRF_K = 60;
+
+/**
+ * Combine FTS and vector search results via Reciprocal Rank Fusion.
+ * Deduplicates by document id; score = sum(1 / (k + rank)) across whichever
+ * of the two (already best-first sorted) input lists the doc appears in.
  */
 export function combineResults(
   ftsResults: Array<{
@@ -215,8 +253,7 @@ export function combineResults(
     model: string;
     source: 'vector';
   }>,
-  ftsWeight: number = 0.5,
-  vectorWeight: number = 0.5
+  k: number = RRF_K
 ): Array<{
   id: string;
   type: string;
@@ -237,14 +274,16 @@ export function combineResults(
     source_file: string;
     concepts: string[];
     ftsScore?: number;
+    ftsRank?: number;
     vectorScore?: number;
+    vectorRank?: number;
     distance?: number;
     model?: string;
     source: 'fts' | 'vector' | 'hybrid';
   }>();
 
-  // Add FTS results
-  for (const result of ftsResults) {
+  // Add FTS results (rank = 1-indexed position in the already-sorted list)
+  ftsResults.forEach((result, index) => {
     resultMap.set(result.id, {
       id: result.id,
       type: result.type,
@@ -252,15 +291,17 @@ export function combineResults(
       source_file: result.source_file,
       concepts: result.concepts,
       ftsScore: result.score,
+      ftsRank: index + 1,
       source: 'fts',
     });
-  }
+  });
 
   // Add/merge vector results
-  for (const result of vectorResults) {
+  vectorResults.forEach((result, index) => {
     const existing = resultMap.get(result.id);
     if (existing) {
       existing.vectorScore = result.score;
+      existing.vectorRank = index + 1;
       existing.source = 'hybrid';
       existing.distance = result.distance;
       existing.model = result.model;
@@ -272,26 +313,19 @@ export function combineResults(
         source_file: result.source_file,
         concepts: result.concepts,
         vectorScore: result.score,
+        vectorRank: index + 1,
         distance: result.distance,
         model: result.model,
         source: 'vector',
       });
     }
-  }
+  });
 
-  // Calculate hybrid scores
+  // RRF score: sum of 1/(k+rank) over each list the doc appears in.
   const combined = Array.from(resultMap.values()).map((result) => {
-    let score: number;
-
-    if (result.source === 'hybrid') {
-      const fts = result.ftsScore ?? 0;
-      const vec = result.vectorScore ?? 0;
-      score = ((ftsWeight * fts) + (vectorWeight * vec)) * 1.1;
-    } else if (result.source === 'fts') {
-      score = (result.ftsScore ?? 0) * ftsWeight;
-    } else {
-      score = (result.vectorScore ?? 0) * vectorWeight;
-    }
+    let score = 0;
+    if (result.ftsRank !== undefined) score += 1 / (k + result.ftsRank);
+    if (result.vectorRank !== undefined) score += 1 / (k + result.vectorRank);
 
     return {
       id: result.id,
@@ -382,7 +416,14 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
 
   // Run vector search (skip if fts-only mode or vector section is disabled)
   let vecResults: Awaited<ReturnType<typeof vectorSearch>> = [];
+  let dimensionDriftWarning: string | undefined;
   if (effectiveMode !== 'fts') {
+    dimensionDriftWarning = await checkEmbeddingDimensionDrift(ctx, model);
+    if (dimensionDriftWarning) {
+      warning = dimensionDriftWarning;
+      console.error('[VectorSearch]', dimensionDriftWarning);
+    }
+
     try {
       vecResults = await vectorSearch(ctx, query, type, limit * 2, model);
     } catch (error) {
@@ -390,10 +431,10 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
       vectorAvailable = false;
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('[ChromaDB]', errorMessage);
-      warning = `Vector search unavailable: ${errorMessage}. Using FTS5 only.`;
+      warning = dimensionDriftWarning || `Vector search unavailable: ${errorMessage}. Using FTS5 only.`;
     }
 
-    if (vecResults.length === 0 && !vectorSearchError) {
+    if (vecResults.length === 0 && !vectorSearchError && !dimensionDriftWarning) {
       warning = warning || 'Vector search returned no results. Using FTS5 results.';
     }
   }

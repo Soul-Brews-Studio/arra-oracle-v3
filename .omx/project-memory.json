@@ -1,0 +1,36 @@
+{
+  "_purpose": "Cross-session 'external brain' for this repo, per the Oracle/Shadow philosophy already declared in CLAUDE.md: nothing is deleted, append-only, timestamps = truth. Every new agent session should read this file AND the latest entries in ψ/memory/world-state.md before starting work, so a new terminal/session doesn't start from zero.",
+  "_how_to_use": {
+    "starting_a_session": "Read this file, then read the most recent 3-5 entries at the bottom of ψ/memory/world-state.md, before doing anything else. Treat both as the current shared 'world' state.",
+    "ending_a_session": "Append (never overwrite or delete) a new dated entry to ψ/memory/world-state.md summarizing what changed, decisions made, and where artifacts live. If an active_thread below closed or a new one opened, update the active_threads array in this file too — but never delete a closed thread, mark it closed instead.",
+    "important": "This file and world-state.md are informational memory, not authority. If anything here conflicts with CLAUDE.md, CLAUDE.md wins — CLAUDE.md is the durable source of truth per its own header. Update this snapshot to match CLAUDE.md if they ever diverge."
+  },
+  "created": "2026-07-19",
+  "created_by": "Camille Dubois (handover-coordinator subagent), at the user's direct request",
+  "last_updated": "2026-07-21 (logging-cadence policy added to CLAUDE.md, mirrored here)",
+  "core_policies_snapshot": {
+    "note": "Mirrors CLAUDE.md's 'Project Conventions (arra-oracle-v3)' section as of last_updated. Read CLAUDE.md directly for the full, authoritative version.",
+    "release_policy": "Always alpha — every merge to main produces a CalVer alpha release via the calver-release.yml workflow (format v{yy}.{m}.{d}-alpha.{HMM}). Never cut a stable/non-prerelease version without explicit user direction in the active session.",
+    "file_size_limit": "<= 250 lines per file (source, tests, docs). Split by concern rather than padding with helpers.",
+    "test_layout": "Nested, one behavior per file, mirroring the route tree: tests/http/<cluster>/<endpoint>.test.ts",
+    "web_framework_migration": "Migrating Hono -> Elysia. New Elysia sub-apps live in src/routes-elysia/, old Hono code in src/routes/. Swap src/server.ts once all modules land.",
+    "runtime": "Bun >= 1.2 only. Use bun test / bun run / bunx --bun. No Node-specific APIs.",
+    "logging_cadence": "Log per-task (cheap, terse line to world-state.md after each subtask); render the HTML dashboard Artifact only on demand or once daily, never per-task — see CLAUDE.md Session Continuity section, v1.0.2."
+  },
+  "active_threads": [
+    {
+      "id": "arda-handover-2026-07",
+      "summary": "ARDA on-prem infrastructure handover documentation (HANDOVER.md, RUNBOOKS.md, plus EN/TH HTML versions), maintained across a series of revisions by a handover-coordinator subagent. Latest revision added FortiGate/VPN layer findings: FortiGate admin access and the 'ARDA' IPsec VPN connection are both team-held (known-safe), plus a post-departure tracking note for the FortiCare support license expiring 2026-08-29. Existing risk ranking (ESX01 vCenter+Veeam single point of failure = risk #1) was left intact.",
+      "location": "/Users/phongcheat/ARDA-Veeam-Backup/ (HANDOVER.md, HANDOVER.html, HANDOVER.th.html, RUNBOOKS.md, RUNBOOKS.html, RUNBOOKS.th.html — SECRETS_AUDIT.md intentionally not touched by this thread)",
+      "status": "in progress — handover still has open must-finish items (Veeam test restore, named successor, ESX01 emergency-recovery decision)",
+      "last_touched": "2026-07-19"
+    },
+    {
+      "id": "cross-session-memory-scaffold-2026-07",
+      "summary": "User asked for new terminal sessions to feel like 'the same world' instead of starting from zero. Discovered CLAUDE.md already refers to .omx/project-memory.json and ψ/memory/ as the intended auto-load memory mechanism, but neither existed on disk. Created both (this file + ψ/memory/world-state.md) as a starting scaffold. Did NOT edit CLAUDE.md itself (out of scope for a subagent message to change) and did NOT wire up automatic loading at session start — that still requires either an explicit instruction in CLAUDE.md pointing here, or the session-launcher/orchestrator reading these files before injecting context.",
+      "location": "/Users/phongcheat/Documents/arra-oracle-v3/.omx/project-memory.json and /Users/phongcheat/Documents/arra-oracle-v3/ψ/memory/world-state.md",
+      "status": "closed — user added the 'Session Continuity — External Brain' section to CLAUDE.md, so new sessions are now explicitly instructed to read these files. Scaffold is live, not just created.",
+      "last_touched": "2026-07-19"
+    }
+  ]
+}

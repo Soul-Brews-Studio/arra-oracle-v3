@@ -1,0 +1,79 @@
+# constraints.yaml
+# Design slug: public-web-app-rds
+# Filled in by: Yasmin Al-Rashid (solution-architect), from a one-line brief:
+#   "public web app + RDS, must be HA within one region, budget-conscious"
+# This is the single authoritative input for design.md + diagram.mmd.
+# Any change to this file supersedes into a new design-v2.md/diagram-v2.mmd —
+# never edited in place once a design has been drafted from it.
+
+workload:
+  name: "Public web app (customer-facing) with relational backend"
+  description: >
+    A standard three-tier public web application: browser/API clients hit a
+    web/app tier over HTTPS, app tier talks to a relational database for
+    transactional data. No batch/ML/streaming component. Greenfield build,
+    not a migration.
+  greenfield: true
+
+compliance:
+  regime: none
+  notes: >
+    No stated compliance regime (no PCI/HIPAA/SOC2 requirement given). If one
+    emerges later (e.g. PCI for payment data), revisit network segmentation
+    and encryption-at-rest key management — not designed against a compliance
+    control set in this revision.
+
+budget:
+  posture: budget-conscious
+  notes: >
+    Favor cost-efficient managed services over over-provisioned redundancy.
+    Prefer pay-per-use compute over reserved/always-on capacity at this scale.
+    Avoid duplicate infrastructure (e.g. per-AZ NAT Gateways, read replicas,
+    multi-region failover) unless the availability requirement below actually
+    demands it.
+
+scale:
+  profile: small-to-medium public web app
+  notes: >
+    Not enterprise scale. Assume low-to-moderate steady traffic with
+    occasional bursts (marketing pushes, not viral/global scale). No stated
+    requirement for horizontal scale beyond a single region or for
+    read-heavy database scaling (no read replica requirement given).
+
+availability:
+  requirement: "HA within one region"
+  interpretation: >
+    Must survive the loss of a single Availability Zone without full outage.
+    Does NOT require multi-region failover or active-active across regions —
+    explicitly out of scope per this constraint.
+  rto: "under 5 minutes for the database tier (RDS Multi-AZ automatic
+    failover, typically 60-120s); web/app tier RTO is near-zero since ALB
+    stops routing to unhealthy targets within its health-check interval."
+  rpo: "near-zero for the database (synchronous Multi-AZ replication);
+    no acceptable data loss window beyond in-flight transactions during
+    failover."
+
+region:
+  count: 1
+  chosen: "us-east-1 (representative single region; not fixed by a stated
+    constraint, picked for the example)"
+  az_count_required: 2
+
+network:
+  existing_hardware: none
+  existing_vpc: none
+  vpn_or_direct_connect_required: false
+  notes: "Greenfield VPC, no on-prem connectivity required."
+
+security:
+  public_internet_facing: true
+  notes: >
+    Only the load balancer is internet-facing. App and database tiers must
+    not be directly reachable from the public internet.
+
+other_constraints:
+  - "Single AWS account (no AWS Organizations / multi-account split)."
+  - "No IaC generation requested — design doc + diagrams only for this
+    milestone."
+  - "No cost estimation/pricing calculator requested — budget posture is
+    qualitative (favor cheaper managed options), not a dollar ceiling."

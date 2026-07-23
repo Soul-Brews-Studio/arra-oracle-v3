@@ -54,6 +54,16 @@ export interface VectorStoreAdapter {
   getStats(): Promise<{ count: number }>;
   getCollectionInfo(): Promise<{ count: number; name: string }>;
   getAllEmbeddings?(limit?: number): Promise<{ ids: string[]; embeddings: number[][]; metadatas: any[] }>;
+  /** Dimension the current embedder would produce for a query (config-side truth). */
+  getExpectedDimension?(): number;
+  /**
+   * Dimension actually stored in the collection, read from a live row.
+   * Returns null for an empty collection (nothing to compare against yet).
+   * Lets callers detect embedding model/dimension drift — e.g. the vector
+   * config was repointed at a different model without reindexing — instead
+   * of silently fusing cosine scores between incompatible embedding spaces.
+   */
+  getStoredDimension?(): Promise<number | null>;
 }
 
 export type EmbedType = 'query' | 'passage';

@@ -17,14 +17,23 @@ Updated 2026-04-19. These override anything below that conflicts.
 - **Nested, one behavior per file** — mirror the route tree:
   `tests/http/<cluster>/<endpoint>.test.ts` (e.g. `tests/http/forum/thread-create.test.ts`).
 - `bunfig.toml` sets `roots = ["src", "tests"]`. `bun test tests/http/forum/` scopes to a cluster.
-- HTTP contract tests are fetch-based against a spawned server (see `src/integration/http.test.ts` pattern) — works against Hono today and Elysia after migration.
+- HTTP contract tests are fetch-based against a spawned server (see `src/integration/http.test.ts` pattern).
 
 ### Web framework
-- **Migrating Hono → Elysia** (bun-native, TypeBox schemas, faster). maw-js is the reference implementation in this family.
-- During migration: new Elysia sub-apps live in `src/routes-elysia/`, old Hono code in `src/routes/`. Swap `src/server.ts` once all modules land.
+- **Elysia** (bun-native, TypeBox schemas). The Hono → Elysia migration is complete — `package.json` has no `hono` dependency, every route under `src/routes/` imports from `elysia`, and `src/server.ts` is a pure Elysia app. `src/routes-elysia/` no longer exists; all routes live in `src/routes/`.
 
 ### Runtime
 - **Bun ≥ 1.2.** Use `bun test`, `bun run`, `bunx --bun`. Do not add Node-specific APIs.
+
+### Remote MCP transport
+- `POST/GET/DELETE /mcp` on the same Elysia HTTP server (`src/server.ts`, port `47778`/`ORACLE_PORT`) exposes the MCP spec's Streamable HTTP transport (`@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js`), so any MCP client that supports "remote MCP via URL" can connect directly — no local stdio process needed. Implementation: `src/http/mcp-route.ts`. Reuses the exact same tool handlers as the stdio server (`src/index.ts`'s `OracleMCPServer` — untouched, still works via `bun src/index.ts`) by constructing a fresh `OracleMCPServer` per session and connecting its `getSdkServer()` to the transport instead of `StdioServerTransport`.
+- **Auth**: same bearer-token guard as `/api/*` (`src/http/auth.ts` — `Authorization: Bearer <ARRA_API_TOKEN>`, fail-closed to loopback bind when `ARRA_API_TOKEN` is unset).
+- **Client config shape** (e.g. Claude Code / Kiro remote-MCP entry):
+  ```json
+  { "url": "https://<railway-host>/mcp", "headers": { "Authorization": "Bearer <ARRA_API_TOKEN>" } }
+  ```
+- Sessions are stateful and in-memory per process (client gets an `Mcp-Session-Id` on `initialize`, reuses it on every subsequent request, `DELETE /mcp` ends it) — fine for a single instance, not for a horizontally-scaled fleet.
+- Tests: `tests/http/mcp/streamable-http.test.ts` (real SDK client round trip: `initialize` → `listTools` → `callTool(oracle_stats)`, plus the 401/400 auth and session-id contract checks).
 
 ## Table of Contents
 
@@ -475,5 +484,19 @@ See `.claude/knowledge/oracle-philosophy.md` for full details.
 
 ---
 
-**Last Updated**: 2025-12-24
-**Version**: 1.0.0
+### Session Continuity — External Brain (`.omx/` + `ψ/memory/`)
+
+**Session start**: before doing any work, read:
+1. `.omx/project-memory.json` — current active threads + a snapshot of core policies.
+2. The last 3–5 entries at the bottom of `ψ/memory/world-state.md` — append-only log of what happened in recent sessions.
+
+These exist so a new terminal/session doesn't start from zero. If either file is missing/empty, note it and proceed — don't block on it.
+
+**Session end**: append one dated entry to `ψ/memory/world-state.md` summarizing what changed and where artifacts live. Never edit or delete a prior entry — add a newer one instead. Update `active_threads` in `.omx/project-memory.json` if a thread closed or a new one opened (mark closed, don't remove).
+
+**Per-task logging (cheap, do this constantly)**: don't wait for session end. After finishing each discrete subtask, append a short entry to `ψ/memory/world-state.md` — timestamp (GMT+7), one line on what changed, file paths touched. Terse log lines, not prose paragraphs. This is what keeps the log fresh without paying any rendering cost.
+
+**Dashboard rendering (expensive, do this on demand only)**: do NOT render an HTML/Artifact dashboard after every task — the CSS/HTML boilerplate cost is fixed per render, so paying it once a day (or when the user explicitly asks to see one) is far cheaper than paying it per subtask. When asked, build the dashboard by reading the accumulated `world-state.md` entries since the last render, not by re-deriving history from git mtimes/log archaeology.
+
+**Last Updated**: 2026-07-21
+**Version**: 1.0.2

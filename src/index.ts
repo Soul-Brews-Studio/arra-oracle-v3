@@ -299,7 +299,7 @@ function httpPayloadToToolResponse(payload: unknown, isError = false): ToolRespo
   };
 }
 
-class OracleMCPServer {
+export class OracleMCPServer {
   private server: Server;
   private sqlite: Database | null = null;
   private db: BunSQLiteDatabase<typeof schema> | null = null;
@@ -654,6 +654,30 @@ class OracleMCPServer {
         };
       }
     });
+  }
+
+  /**
+   * Access to the underlying SDK `Server` for use with a non-stdio transport
+   * (e.g. remote Streamable HTTP — see src/http/mcp-route.ts). This is the
+   * SAME instance wired up in setupHandlers() above, so every tool handler,
+   * alias, and tool-group filter applies identically regardless of transport.
+   * A `Server`/Protocol instance can only be connected to one transport at a
+   * time (the SDK throws otherwise) — callers wanting concurrent remote
+   * sessions must construct a fresh `OracleMCPServer` per session.
+   */
+  getSdkServer(): Server {
+    return this.server;
+  }
+
+  /**
+   * Releases resources held by this instance (hot-reload watcher, embedded
+   * sqlite/vector connections if the embedded fallback was ever used). Call
+   * this once the owning transport/session has closed. Safe to call even
+   * when this instance only ever proxied to ORACLE_API (nothing to close).
+   */
+  async dispose(): Promise<void> {
+    this.stopToolGroupsWatch?.();
+    await this.cleanup();
   }
 
   async preConnectVector(): Promise<void> {
