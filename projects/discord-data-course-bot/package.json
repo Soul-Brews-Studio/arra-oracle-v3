@@ -6,14 +6,17 @@
   "description": "V1 slice: Discord bot that teaches a data course and answers student questions via Claude. Self-contained sub-project, not wired into arra-oracle's server/MCP surface.",
   "scripts": {
     "start": "bun run src/index.ts",
-    "test": "bun test tests/"
+    "test": "bun test tests/",
+    "db:generate": "bunx drizzle-kit generate"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.114.0",
-    "discord.js": "^14.16.3"
+    "discord.js": "^14.16.3",
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
     "@types/bun": "^1.1.0",
+    "drizzle-kit": "^0.31.10",
     "typescript": "^5.5.0"
   }
 }

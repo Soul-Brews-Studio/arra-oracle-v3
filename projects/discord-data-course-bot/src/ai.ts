@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { buildSystemPrompt } from "./course";
+import type { ConversationTurn } from "./conversation";
 
 // Swap to "claude-haiku-4-5" for lower per-message cost on a high-traffic server.
 const MODEL = "claude-opus-4-8";
@@ -12,14 +13,17 @@ function getClient(): Anthropic {
   return client;
 }
 
-export async function answerQuestion(question: string): Promise<string> {
+export async function answerQuestion(
+  question: string,
+  history: ConversationTurn[] = [],
+): Promise<string> {
   const response = await getClient().messages.create({
     model: MODEL,
     max_tokens: MAX_TOKENS,
     thinking: { type: "adaptive" },
     output_config: { effort: "medium" },
     system: buildSystemPrompt(),
-    messages: [{ role: "user", content: question }],
+    messages: [...history, { role: "user", content: question }],
   });
 
   if (response.stop_reason === "refusal") {

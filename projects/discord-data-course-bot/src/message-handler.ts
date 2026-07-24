@@ -22,6 +22,20 @@ export function extractQuestion(content: string, mentionPattern: RegExp): string
   return content.replace(mentionPattern, "").trim();
 }
 
+const DISCORD_THREAD_NAME_LIMIT = 100;
+
+// Discord thread names are capped at 100 chars — derive one from the
+// opening question so each topic gets a recognizable thread.
+export function deriveThreadName(
+  question: string,
+  limit = DISCORD_THREAD_NAME_LIMIT,
+): string {
+  const singleLine = question.replace(/\s+/g, " ").trim();
+  if (!singleLine) return "Course Q&A";
+  if (singleLine.length <= limit) return singleLine;
+  return `${singleLine.slice(0, limit - 1)}…`;
+}
+
 const DISCORD_MESSAGE_LIMIT = 2000;
 
 // Splits on paragraph/line boundaries where possible so code blocks and

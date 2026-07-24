@@ -8,16 +8,19 @@ using Claude (`claude-opus-4-8`) as the answering model.
 
 ## V1 scope
 
-- Single Discord bot process (discord.js), no database.
+- Single Discord bot process (discord.js) + a local SQLite DB (Drizzle) for
+  per-thread conversation history.
 - Curriculum lives as static content in `src/course.ts` — no CMS, no
   per-user progress tracking.
-- Bot responds to a message when:
-  - the bot is `@mentioned` anywhere, or
-  - the message is posted in a channel listed in
-    `DISCORD_COURSE_CHANNEL_IDS` (a dedicated Q&A channel).
-- One-shot Q&A per message — no multi-turn memory across messages (each
-  question is answered independently, using the curriculum as system-prompt
-  context). Discord's own message history is the only "memory".
+- Topic-focused threads: when the bot is `@mentioned` (anywhere) or a
+  message lands in a channel listed in `DISCORD_COURSE_CHANNEL_IDS`, it
+  opens a new Discord thread named after the question and answers there.
+  Any follow-up message inside that thread continues the same
+  conversation — no mention needed — with full turn history replayed to
+  Claude so the bot stays on that thread's specific topic.
+- Conversation history is persisted (`threads` / `thread_messages` tables),
+  so a thread survives a bot restart; the last 20 turns are replayed as
+  context per reply.
 
 ## Explicitly out of scope for V1
 
@@ -26,15 +29,24 @@ using Claude (`claude-opus-4-8`) as the answering model.
 - RAG over external documents — the curriculum is small enough to embed
   directly in the system prompt.
 - Multi-server (guild) configuration — one bot instance, one curriculum.
+- Cross-thread memory — each thread's history is isolated to that thread.
 
 ## Key files
 
 - `src/course.ts` — curriculum outline + system prompt builder.
-- `src/ai.ts` — Anthropic client wrapper (`answerQuestion`).
+- `src/ai.ts` — Anthropic client wrapper (`answerQuestion`, takes optional
+  conversation history).
+- `src/conversation.ts` — thread/message persistence (tracked-thread check,
+  history read/append) on top of `src/db`.
+- `src/db/schema.ts` + `src/db/index.ts` — Drizzle SQLite schema and client
+  (migrations in `src/db/migrations`, generated via `bun run db:generate`;
+  never hand-edit the schema outside Drizzle — see repo `CLAUDE.md`).
 - `src/message-handler.ts` — pure decision logic (should this message get a
-  reply, and what's the question text) — kept separate from `discord-client.ts`
-  so it's testable without a live Discord/Anthropic connection.
-- `src/discord-client.ts` — discord.js wiring; calls `message-handler` + `ai`.
+  reply, thread name derivation, Discord message chunking) — kept separate
+  from `discord-client.ts` so it's testable without a live Discord/Anthropic
+  connection.
+- `src/discord-client.ts` — discord.js wiring: opens a topic thread on first
+  mention, continues tracked threads with full history.
 - `src/index.ts` — entrypoint.
 
 ## Open questions
@@ -42,3 +54,6 @@ using Claude (`claude-opus-4-8`) as the answering model.
 - Model choice: defaults to `claude-opus-4-8` per the repo's Claude API
   conventions. Swap to `claude-haiku-4-5` in `src/ai.ts` if per-message cost
   matters more than answer quality for a high-traffic course server.
+- History cap: last 20 turns per thread (`MAX_HISTORY_TURNS` in
+  `src/conversation.ts`). Revisit if threads regularly run longer and start
+  losing early context.

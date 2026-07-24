@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   buildMentionPattern,
   chunkForDiscord,
+  deriveThreadName,
   extractQuestion,
   shouldRespond,
   type IncomingMessage,
@@ -75,5 +76,27 @@ describe("chunkForDiscord", () => {
   it("hard-splits a single line longer than the limit", () => {
     const chunks = chunkForDiscord("y".repeat(25), 10);
     expect(chunks).toEqual(["y".repeat(10), "y".repeat(10), "y".repeat(5)]);
+  });
+});
+
+describe("deriveThreadName", () => {
+  it("uses the question as-is when short enough", () => {
+    expect(deriveThreadName("what is overfitting?")).toBe("what is overfitting?");
+  });
+
+  it("collapses newlines and extra whitespace to single spaces", () => {
+    expect(deriveThreadName("what is\n\noverfitting?  ")).toBe("what is overfitting?");
+  });
+
+  it("falls back to a default name for an empty question", () => {
+    expect(deriveThreadName("   ")).toBe("Course Q&A");
+  });
+
+  it("truncates with an ellipsis at the limit", () => {
+    const long = "x".repeat(150);
+    const name = deriveThreadName(long, 100);
+    expect(name.length).toBe(100);
+    expect(name.endsWith("…")).toBe(true);
+    expect(name.startsWith("x".repeat(99))).toBe(true);
   });
 });

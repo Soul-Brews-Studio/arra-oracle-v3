@@ -2,6 +2,7 @@ export interface Config {
   discordBotToken: string;
   anthropicApiKey?: string;
   alwaysAnswerChannelIds: string[];
+  dbPath: string;
 }
 
 function requireEnv(name: string): string {
@@ -22,5 +23,6 @@ export function loadConfig(): Config {
       .split(",")
       .map((id) => id.trim())
       .filter((id) => id.length > 0),
+    dbPath: process.env.DISCORD_BOT_DB_PATH ?? "./data/discord-bot.sqlite",
   };
 }
