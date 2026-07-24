@@ -36,6 +36,17 @@ export function deriveThreadName(
   return `${singleLine.slice(0, limit - 1)}…`;
 }
 
+const DEBATE_PREFIX_PATTERN = /^debate\s*:?\s*/i;
+
+// A mention like "@bot debate: is X or Y better?" starts a two-persona
+// discussion thread (src/debate.ts) instead of a normal Q&A thread.
+// Returns null when the question isn't a debate request.
+export function parseDebateTopic(question: string): string | null {
+  if (!DEBATE_PREFIX_PATTERN.test(question)) return null;
+  const topic = question.replace(DEBATE_PREFIX_PATTERN, "").trim();
+  return topic || null;
+}
+
 const DISCORD_MESSAGE_LIMIT = 2000;
 
 // Splits on paragraph/line boundaries where possible so code blocks and

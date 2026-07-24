@@ -4,6 +4,7 @@ import {
   chunkForDiscord,
   deriveThreadName,
   extractQuestion,
+  parseDebateTopic,
   shouldRespond,
   type IncomingMessage,
 } from "../src/message-handler";
@@ -98,5 +99,27 @@ describe("deriveThreadName", () => {
     expect(name.length).toBe(100);
     expect(name.endsWith("…")).toBe(true);
     expect(name.startsWith("x".repeat(99))).toBe(true);
+  });
+});
+
+describe("parseDebateTopic", () => {
+  it("extracts the topic after a 'debate:' prefix", () => {
+    expect(parseDebateTopic("debate: is SQL or NoSQL better?")).toBe(
+      "is SQL or NoSQL better?",
+    );
+  });
+
+  it("is case-insensitive and tolerates missing colon/extra spaces", () => {
+    expect(parseDebateTopic("Debate   overfitting vs underfitting")).toBe(
+      "overfitting vs underfitting",
+    );
+  });
+
+  it("returns null for a plain question with no debate prefix", () => {
+    expect(parseDebateTopic("what is overfitting?")).toBeNull();
+  });
+
+  it("returns null when the prefix has no topic after it", () => {
+    expect(parseDebateTopic("debate:")).toBeNull();
   });
 });

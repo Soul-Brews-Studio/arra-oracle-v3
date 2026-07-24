@@ -6,14 +6,20 @@ import {
   getHistory,
   isTrackedThread,
 } from "./conversation";
+import { debateTopicPrompt, runDebate } from "./debate";
 import type { AppDatabase } from "./db/index.ts";
 import {
   buildMentionPattern,
   chunkForDiscord,
   deriveThreadName,
   extractQuestion,
+  parseDebateTopic,
   shouldRespond,
 } from "./message-handler";
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export function createDiscordClient(
   db: AppDatabase,
@@ -56,6 +62,12 @@ export function createDiscordClient(
       const question = extractQuestion(message.content, buildMentionPattern(botUserId));
       if (!question) return;
 
+      const debateTopic = parseDebateTopic(question);
+      if (debateTopic) {
+        await startDebateThread(db, message, debateTopic);
+        return;
+      }
+
       await startTopicThread(db, message, question);
     } catch (error) {
       console.error("Failed to handle message:", error);
@@ -86,6 +98,36 @@ async function startTopicThread(
 
   for (const chunk of chunkForDiscord(answer)) {
     await thread.send(chunk);
+  }
+}
+
+const DEBATE_TURN_DELAY_MS = 1500;
+
+// Opens a thread where two AI personas (Instructor / Skeptic, see
+// src/debate.ts) discuss the topic for students to watch. Every turn is
+// persisted as an "assistant" message so students can keep chatting in the
+// thread afterward via the normal continueThread flow above.
+async function startDebateThread(
+  db: AppDatabase,
+  message: Message,
+  topic: string,
+): Promise<void> {
+  const thread = await message.startThread({
+    name: deriveThreadName(`Debate: ${topic}`),
+    reason: "Data course debate thread",
+  });
+
+  createThreadRecord(db, thread.id, message.channelId, `Debate: ${topic}`);
+  appendMessage(db, thread.id, "user", debateTopicPrompt(topic));
+
+  const transcript = await runDebate(topic);
+  for (const turn of transcript) {
+    const line = `**${turn.persona}:** ${turn.text}`;
+    appendMessage(db, thread.id, "assistant", line);
+    for (const chunk of chunkForDiscord(line)) {
+      await thread.send(chunk);
+    }
+    await sleep(DEBATE_TURN_DELAY_MS);
   }
 }
 

@@ -21,6 +21,14 @@ using Claude (`claude-opus-4-8`) as the answering model.
 - Conversation history is persisted (`threads` / `thread_messages` tables),
   so a thread survives a bot restart; the last 20 turns are replayed as
   context per reply.
+- Debate mode: `@bot debate: <topic>` opens a thread where two fixed AI
+  personas (Instructor / Skeptic, see `src/debate.ts`) discuss the topic for
+  a few rounds so students can watch, before the thread reverts to normal
+  Q&A for any follow-up messages.
+- Provider-agnostic: model, `ANTHROPIC_BASE_URL`, and `ANTHROPIC_AUTH_TOKEN`
+  are all read from env, so the same code runs against Anthropic directly or
+  an Anthropic-compatible provider (e.g. z.ai's GLM models) with no code
+  changes — see `.env.example`.
 
 ## Explicitly out of scope for V1
 
@@ -34,8 +42,12 @@ using Claude (`claude-opus-4-8`) as the answering model.
 ## Key files
 
 - `src/course.ts` — curriculum outline + system prompt builder.
-- `src/ai.ts` — Anthropic client wrapper (`answerQuestion`, takes optional
-  conversation history).
+- `src/ai.ts` — Anthropic client wrapper. `generateReply` is the low-level
+  call (custom system prompt + messages); `answerQuestion` wraps it for
+  normal Q&A.
+- `src/debate.ts` — two-persona debate: persona definitions, per-persona
+  history builder (`buildDebateHistory`), and the turn-taking loop
+  (`runDebate`).
 - `src/conversation.ts` — thread/message persistence (tracked-thread check,
   history read/append) on top of `src/db`.
 - `src/db/schema.ts` + `src/db/index.ts` — Drizzle SQLite schema and client
