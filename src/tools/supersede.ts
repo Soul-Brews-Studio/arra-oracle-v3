@@ -105,6 +105,8 @@ export function runSupersede(db: ToolContext['db'], input: OracleSupersededInput
       supersededBy: newId,
       supersededAt: now,
       supersededReason: typeof reason === 'string' ? reason : null,
+      status: 'superseded',
+      validUntil: now,
     })
     .where(eq(oracleDocuments.id, oldId))
     .run();

@@ -17,6 +17,10 @@
 #
 # Run mcp-stdio (manual; Docker MCP Gateway normally does this):
 #   docker run -i --rm -v arra-data:/data arra-oracle-v3:stdio
+#
+# Railway: the `arra-oracle-memory` service builds this file (http-server
+# target, the default) directly from this repo's `main` branch on every
+# push, via the installed Railway GitHub App.
 
 # ─────────────────────────────────────────────────────────────────────────
 # Stage 1 — builder: resolve production deps, prune cross-arch dead weight
@@ -52,8 +56,10 @@ COPY package.json bun.lock ./
 COPY src ./src
 
 # Persistent state lives here — mount a volume to keep the index across runs.
+# No VOLUME instruction: Railway's Dockerfile builder rejects it ("use
+# Railway Volumes" instead — configured at the service level, not the
+# image). Plain `docker run -v arra-data:/data` still works without it.
 RUN mkdir -p /data
-VOLUME ["/data"]
 
 # ─────────────────────────────────────────────────────────────────────────
 # Target — mcp-stdio (for Docker MCP Toolkit + Gateway)

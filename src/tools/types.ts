@@ -40,13 +40,22 @@ export interface OracleSearchInput {
   model?: 'nomic' | 'qwen3' | 'bge-m3';
 }
 
-export interface OracleReflectInput {}
+export interface OracleReflectInput {
+  /**
+   * When > 1, returns a small digest of `count` random docs (max 10) grouped
+   * by shared concept tags instead of a single document. Additive — omitting
+   * this preserves the exact original single-doc response shape.
+   */
+  count?: number;
+}
 
 export interface OracleLearnInput {
   pattern: string;
   source?: string;
   concepts?: string[];
   project?: string;
+  /** Links this learning back to the /trace session (trace_log.trace_id) it was distilled from, if any. */
+  traceId?: string;
 }
 
 export interface OracleListInput {
@@ -60,6 +69,8 @@ export interface OracleStatsInput {}
 export interface OracleConceptsInput {
   limit?: number;
   type?: 'principle' | 'pattern' | 'learning' | 'retro' | 'all';
+  /** When set, returns concepts that co-occur with this one instead of the global tag list. */
+  related?: string;
 }
 
 export interface OracleSupersededInput {

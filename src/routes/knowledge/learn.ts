@@ -23,6 +23,7 @@ export const learnEndpoint = new Elysia()
           data.origin,
           data.project,
           data.cwd,
+          data.traceId,
         );
       } catch (error) {
         set.status = 500;

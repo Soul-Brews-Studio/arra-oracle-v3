@@ -13,6 +13,25 @@ import type {
 
 import type { ToolResponse } from './types.ts';
 
+/**
+ * Facts distilled from this trace session — resolved by the reverse
+ * oracle_documents.trace_id pointer (set optionally via oracle_learn's
+ * traceId input), not just the forward trace_log.distilled_to_id column.
+ *
+ * Dynamically imports '../db/index.ts' (like loadTraceHandler() above)
+ * rather than a top-level import: this module is loaded eagerly by the
+ * tools barrel even in ORACLE_API proxy mode, where the local SQLite DB
+ * must never be opened (see mcp-trace-proxy.test.ts).
+ */
+async function getDistilledDocuments(traceId: string): Promise<Array<{ id: string; type: string; sourceFile: string }>> {
+  const { eq } = await import('drizzle-orm');
+  const { db, oracleDocuments } = await import('../db/index.ts');
+  return db.select({ id: oracleDocuments.id, type: oracleDocuments.type, sourceFile: oracleDocuments.sourceFile })
+    .from(oracleDocuments)
+    .where(eq(oracleDocuments.traceId, traceId))
+    .all();
+}
+
 type TraceHandlerModule = typeof import('../trace/handler.ts');
 let traceHandlerModule: TraceHandlerModule | null = null;
 async function loadTraceHandler(): Promise<TraceHandlerModule> {
@@ -265,6 +284,7 @@ export async function handleTraceGet(input: GetTraceInput): Promise<ToolResponse
         duration_ms: trace.durationMs,
         awakening: trace.awakening,
         distilled_to_id: trace.distilledToId,
+        distilled_documents: await getDistilledDocuments(input.traceId),
         created_at: new Date(trace.createdAt).toISOString(),
         updated_at: new Date(trace.updatedAt).toISOString(),
         chain: chain ? {
