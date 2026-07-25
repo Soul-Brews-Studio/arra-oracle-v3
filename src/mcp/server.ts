@@ -15,7 +15,7 @@ import { defaultMcpToolOrder, mcpToolByName, mcpTools, toMcpToolDefinition, type
 import type { UnifiedRuntime } from '../plugins/unified-loader.ts';
 import type { EmbeddedDeps, OracleMCPServerOptions } from './server-options.ts';
 import { formatEmbedderDegradedWarning, getEmbedderRuntimeStatus, probeConfiguredEmbedder, setEmbedderRuntimeStatus, type EmbedderRuntimeStatus } from '../vector/embedder-config.ts';
-import { resolveToolName } from './aliases.ts';
+import { resolveInboundToolName } from './aliases.ts';
 import { proxyToolCall, resolveOracleApiBase } from './http-proxy.ts';
 import { pluginMcpToolsFrom } from './plugin-tools.ts';
 import { runWithTenant } from '../middleware/tenant.ts';
@@ -197,7 +197,7 @@ export class OracleMCPServer {
       if (typeof request.params.name !== 'string' || !request.params.name.trim()) {
         return errorResponse('Error: Tool name must be a non-empty string');
       }
-      const toolName = resolveToolName(request.params.name);
+      const toolName = resolveInboundToolName(request.params.name);
       const tool = (await this.toolRegistry()).get(toolName);
       if (!tool) return errorResponse(`Error: Unknown tool: ${toolName}`);
       if (!this.isAllowed(tool)) return errorResponse(`Error: Unknown tool: ${toolName}`);

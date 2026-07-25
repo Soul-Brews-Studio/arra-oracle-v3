@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { resolveToolName } from '../index.ts';
+import { resolveToolName, deprecatedAliasWarning, resolveInboundToolName } from '../index.ts';
 
 describe('resolveToolName — 3-generation alias chain (arra_* | muninn_* → oracle_*)', () => {
   describe('arra_* (original, pre-#1172)', () => {
@@ -86,6 +86,62 @@ describe('resolveToolName — 3-generation alias chain (arra_* | muninn_* → or
       // Highly unlikely real-world name, but verify deterministic behavior:
       // first prefix in ALIAS_PREFIXES wins (arra_ comes before muninn_).
       expect(resolveToolName('arra_muninn_x')).toBe('oracle_muninn_x');
+    });
+  });
+
+  describe('deprecation warning (#2824 — muninn_* warns for one release, then goes)', () => {
+    const collect = (name: string) => {
+      const logs: string[] = [];
+      const resolved = resolveInboundToolName(name, (m) => logs.push(m));
+      return { resolved, logs };
+    };
+
+    it('still resolves muninn_* AND warns, naming the replacement', () => {
+      const { resolved, logs } = collect('muninn_search');
+      expect(resolved).toBe('oracle_search');
+      expect(logs).toHaveLength(1);
+      expect(logs[0]).toBe(
+        '[MCP] tool alias "muninn_search" is deprecated — use "oracle_search" (removal planned next release)',
+      );
+    });
+
+    it('resolves arra_* with NO warning — arra_ is not deprecated', () => {
+      const { resolved, logs } = collect('arra_search');
+      expect(resolved).toBe('oracle_search');
+      expect(logs).toEqual([]);
+      expect(deprecatedAliasWarning('arra_search')).toBeNull();
+    });
+
+    it('stays silent when no rewrite happened', () => {
+      // Nothing was aliased away, so there is nothing to migrate off of.
+      for (const name of ['oracle_search', 'muninn_', 'not_muninn_thing', 'search', '']) {
+        expect(deprecatedAliasWarning(name)).toBeNull();
+        expect(collect(name).logs).toEqual([]);
+      }
+    });
+
+    it('does not warn for arra_muninn_x — arra_ wins the prefix scan', () => {
+      const { resolved, logs } = collect('arra_muninn_x');
+      expect(resolved).toBe('oracle_muninn_x');
+      expect(logs).toEqual([]);
+    });
+
+    it('warns on the trimmed name for padded muninn_* input', () => {
+      expect(deprecatedAliasWarning('  muninn_oracle_search  ')).toBe(
+        '[MCP] tool alias "muninn_oracle_search" is deprecated — use "oracle_search" (removal planned next release)',
+      );
+    });
+
+    it('keeps resolveToolName itself pure — resolving never logs', () => {
+      const errors: unknown[] = [];
+      const original = console.error;
+      console.error = (...args: unknown[]) => void errors.push(args);
+      try {
+        expect(resolveToolName('muninn_search')).toBe('oracle_search');
+      } finally {
+        console.error = original;
+      }
+      expect(errors).toEqual([]);
     });
   });
 });
