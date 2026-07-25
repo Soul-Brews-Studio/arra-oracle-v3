@@ -11,6 +11,7 @@ import { ForumPage } from './pages/ForumPage';
 import { LearnPage } from './pages/LearnPage';
 import { MemoryPage } from './pages/MemoryPage';
 import { MemoryConsolidationPage } from './pages/MemoryConsolidationPage';
+import { StudioSummary } from './components/StudioSummary';
 import { MenuPage } from './pages/MenuPage';
 import { OracleDigPage } from './pages/OracleDigPage';
 import { PluginsPage } from './pages/PluginsPage';
@@ -113,7 +114,23 @@ export function DashboardRoutes({
   updatedAt,
   onRefresh,
 }: DashboardRoutesProps) {
-  const menuPage = <MenuPage />;
+  // The backend counters belong to the dashboard, not the shell. They used to
+  // render in AppShell above {children}, so all 34 routes carried them — on
+  // /metrics that was 13 stat cards, five of them about menu/plugin inventory.
+  const menuPage = (
+    <>
+      <StudioSummary
+        loading={isRouteLoading(states.menu) || isRouteLoading(states.plugins)}
+        menuCount={menu.length}
+        pluginCount={plugins.length}
+        surfaceCount={surfaceCount}
+        metrics={metrics}
+        metricsLoading={isRouteLoading(states.metrics)}
+        updatedAt={updatedAt}
+      />
+      <MenuPage />
+    </>
+  );
   const pluginPage = <PluginsPage plugins={plugins} loading={isRouteLoading(states.plugins)} />;
   return (
     <Routes>

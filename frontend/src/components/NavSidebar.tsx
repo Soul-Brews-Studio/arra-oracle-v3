@@ -52,7 +52,10 @@ export function NavSidebar({ items }: { items: NavItem[] }) {
       <div className="glass flex min-w-0 flex-col gap-4 overflow-hidden rounded-3xl border border-[oklch(1_0_0/0.08)] bg-[oklch(0.16_0.02_265/0.35)] p-3 shadow-[0_8px_32px_oklch(0_0_0/0.4)] backdrop-blur-xl sm:p-4 lg:h-[calc(100vh-2rem)] lg:max-h-[calc(100dvh-2rem)]">
         <NavLink to="/menu" aria-label="Arra Oracle control surface home" className="focus-ring min-w-0 rounded-2xl p-2">
           <p className="text-xs font-medium uppercase tracking-[0.28em] text-accent">Arra Oracle</p>
-          <h1 className="mt-2 text-xl font-bold tracking-tight text-text sm:text-2xl">Control Surface</h1>
+          {/* Brand mark, not the document title — every page renders its own <h1>.
+              Two <h1> per screen made screen readers announce "Control Surface" as the
+              page title on all 34 routes. */}
+          <p className="mt-2 text-xl font-bold tracking-tight text-text sm:text-2xl">Control Surface</p>
           <p className="mt-2 text-sm text-text-muted">React routes over the Elysia API.</p>
         </NavLink>
 
