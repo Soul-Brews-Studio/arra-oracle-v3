@@ -11,7 +11,7 @@ import { oracleDocuments } from '../db/schema.ts';
 import { detectProject } from '../server/project-detect.ts';
 import { getVectorStoreByModel, getEmbeddingModels } from '../vector/factory.ts';
 import { REPO_ROOT } from '../config.ts';
-import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
+import { buildLearningMarkdown, dateSlug, learningSlug, uniqueTail } from '../learn/markdown.ts';
 
 // Lazy-loaded on first use — avoids top-level await which causes a TDZ
 // error in consumers that import learnToolDef synchronously (the tools
@@ -187,15 +187,13 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
   const now = new Date();
   const dateStr = dateSlug(now);
 
-  const slug = pattern
-    .substring(0, 50)
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-
-  const filename = `${dateStr}_${slug}.md`;
+  // Was an inline copy of the slug logic WITHOUT learningSlug's `|| 'learning'`
+  // fallback. The regex strips everything outside [a-z0-9\s-], so a wholly
+  // non-ASCII pattern — Thai, Japanese, Cyrillic — slugged to the empty string,
+  // the file became `<date>_.md`, and the SECOND such learning on the same day
+  // hit the "File already exists" throw below. The caller is an AI that does not
+  // retry, so the learning was silently lost. See #2819.
+  const slug = learningSlug(pattern);
 
   // Resolve vault root for central writes
   const getVaultPsiRoot = await loadGetVaultPsiRoot();
@@ -208,28 +206,26 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
     || detectProject(ctx.repoRoot);
   const projectDir = (project || '_universal').toLowerCase();
 
-  let filePath: string;
-  let sourceFileRel: string;
-  if (vaultRoot) {
-    const dir = path.join(vaultRoot, projectDir, 'ψ', 'memory', 'learnings');
-    fs.mkdirSync(dir, { recursive: true });
-    filePath = path.join(dir, filename);
-    sourceFileRel = `${projectDir}/ψ/memory/learnings/${filename}`;
-  } else {
+  const dir = vaultRoot
+    ? path.join(vaultRoot, projectDir, 'ψ', 'memory', 'learnings')
     // Write to canonical REPO_ROOT, not ctx.repoRoot (the MCP server's cwd):
     // the dashboard's /api/file resolves source_file against REPO_ROOT, so
     // writing relative to cwd produces "local file not found" (#557).
-    const dir = path.join(REPO_ROOT, 'ψ/memory/learnings');
-    fs.mkdirSync(dir, { recursive: true });
-    filePath = path.join(dir, filename);
-    sourceFileRel = `ψ/memory/learnings/${filename}`;
-  }
+    : path.join(REPO_ROOT, 'ψ/memory/learnings');
+  fs.mkdirSync(dir, { recursive: true });
 
-  if (fs.existsSync(filePath)) {
-    throw new Error(`File already exists: ${filename}`);
-  }
+  // Suffix instead of throwing. Two learnings a day sharing a slug is ordinary —
+  // and now guaranteed for non-ASCII patterns, which all fall back to the same
+  // 'learning' slug. Throwing loses the second one because the caller is an AI
+  // that does not retry. Mirrors routes/learn/crud.ts:78-107. (#2819)
+  const tail = uniqueTail(dir, dateStr, slug);
+  const filename = `${dateStr}_${tail}.md`;
+  const filePath = path.join(dir, filename);
+  const sourceFileRel = vaultRoot
+    ? `${projectDir}/ψ/memory/learnings/${filename}`
+    : `ψ/memory/learnings/${filename}`;
 
-  const id = `learning_${dateStr}_${slug}`;
+  const id = `learning_${dateStr}_${tail}`;
   const title = pattern.split('\n')[0].substring(0, 80);
   const conceptsList = coerceConcepts(concepts);
   const frontmatter = buildLearningMarkdown({

@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { createHash } from 'node:crypto';
 
 export interface LearningMarkdownOptions {
@@ -32,6 +34,19 @@ export function learningSlug(pattern: string): string {
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
   return slug || 'learning';
+}
+
+/**
+ * First free `<date>_<slug>[-N]` in `dir`. Bounded so a pathological directory
+ * cannot spin the caller; past the cap we fall back to a timestamp, which is
+ * always unique — losing the learning is never an acceptable outcome. (#2819)
+ */
+export function uniqueTail(dir: string, dateStr: string, slug: string, max = 500): string {
+  for (let suffix = 1; suffix <= max; suffix += 1) {
+    const tail = suffix === 1 ? slug : `${slug}-${suffix}`;
+    if (!fs.existsSync(path.join(dir, `${dateStr}_${tail}.md`))) return tail;
+  }
+  return `${slug}-${Date.now()}`;
 }
 
 export function dateSlug(date: Date): string {
