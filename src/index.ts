@@ -4,7 +4,7 @@
 import { OracleMCPServer } from './mcp/server.ts';
 import { resolveToolName } from './mcp/aliases.ts';
 export { OracleMCPServer } from './mcp/server.ts';
-export { resolveToolName } from './mcp/aliases.ts';
+export { resolveToolName, deprecatedAliasWarning, resolveInboundToolName } from './mcp/aliases.ts';
 
 export type AdvertisedTool = { name: string };
 
