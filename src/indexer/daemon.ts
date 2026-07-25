@@ -19,6 +19,7 @@ import { DB_PATH, REPO_ROOT } from '../config.ts';
 import { createDatabase, oracleFts } from '../db/index.ts';
 import { createVectorStoreForModel, getEmbeddingModels } from '../vector/factory.ts';
 import { runWorker, type WorkerEvent } from './worker.ts';
+import { makeUpsertVector } from './upsert-vector.ts';
 import { daemonApiPlugin, makeEventBus } from '../routes/indexer-daemon/index.ts';
 import { startLearnWatcher, type StopWatch } from './learn-watcher.ts';
 
@@ -70,16 +71,10 @@ export async function startDaemon(): Promise<void> {
     return vector;
   };
 
-  const upsertVector = async (collection: string, docId: string, vector: number[]): Promise<void> => {
-    const entry = Object.entries(models).find(([, m]) => m.collection === collection);
-    if (!entry) throw new Error(`No registered model has collection: ${collection}`);
-    const [modelKey] = entry;
-    const store = await getStore(modelKey);
-    await store.addDocuments([{ id: docId, document: '', metadata: { id: docId, indexed_at: Date.now() } }]);
-    // TODO: extend VectorStoreAdapter with `upsert(id, vector, metadata)`
-    // that doesn't re-embed. For now we accept the extra Ollama call.
-    void vector;
-  };
+  // Stores the document's real text alongside its precomputed vector, and deletes before
+  // adding so a re-index replaces the row instead of appending. Extracted to its own module
+  // because it is untestable from here — that is why #2806 survived on both branches.
+  const upsertVector = makeUpsertVector({ models, getStore });
 
   const workerPromises: Promise<unknown>[] = [];
   for (const modelKey of Object.keys(models)) {
