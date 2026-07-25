@@ -23,10 +23,12 @@ Environment variables are applied on top of whichever file wins:
 `ORACLE_ENABLED_TOOLS` is a strict allow-list, `ORACLE_DISABLED_TOOLS` is
 subtractive, and the block list wins where both name the same tool.
 
-> **Known inert:** the top-level `mcp` boolean is parsed and counts toward
-> whether a file is treated as tool config, but nothing reads it — it does not
-> disable the MCP surface. Tracked separately from #2822; use `disabled_tools`
-> for the bridge tools instead.
+> **`mcp` is a live kill-switch, not a tool filter.** Setting `"mcp": false`
+> removes the Streamable HTTP `/mcp` endpoint entirely —
+> `src/routes/mcp/streamable.ts:30` reads it (`loadToolGroupConfig(repoRoot).mcp !== false`).
+> Verified: `{"mcp": true}` → `POST /mcp` returns 401 (auth challenge, endpoint live);
+> `{"mcp": false}` → 404 (endpoint gone). It does not filter individual tools —
+> use `disabled_tools` for that.
 
 ```json
 {
