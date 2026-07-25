@@ -5,7 +5,8 @@ import path from 'path';
 import { execSync } from 'child_process';
 import { getSetting } from '../db/index.ts';
 import { detectProject } from '../server/project-detect.ts';
-import { mapToVaultPath, ensureFrontmatterProject } from './handler.ts';
+import { belongsInVault, ensureFrontmatterProject, isProjectCategory, mapToVaultPath } from './path-mapping.ts';
+import { walkFiles } from './discovery.ts';
 import { ghqListPaths } from './ghq.ts';
 
 function resolveVaultPath(repo: string): string {
@@ -14,24 +15,21 @@ function resolveVaultPath(repo: string): string {
   return first;
 }
 
-function walkFiles(dir: string, baseDir: string): Array<{ relativePath: string; fullPath: string }> {
-  const results: Array<{ relativePath: string; fullPath: string }> = [];
-  if (!fs.existsSync(dir)) return results;
-
-  for (const item of fs.readdirSync(dir)) {
-    const fullPath = path.join(dir, item);
-    const stat = fs.lstatSync(fullPath);
-    if (stat.isSymbolicLink()) continue;
-    if (stat.isDirectory()) results.push(...walkFiles(fullPath, baseDir));
-    else results.push({ relativePath: path.relative(baseDir, fullPath), fullPath });
-  }
-  return results;
-}
-
-const PROJECT_CATEGORIES = ['ψ/memory/learnings/', 'ψ/memory/retrospectives/', 'ψ/inbox/handoff/'];
-
-function isProjectCategory(relativePath: string): boolean {
-  return PROJECT_CATEGORIES.some((cat) => relativePath.startsWith(cat));
+/**
+ * The files a migrate run would actually copy out of one repo's ψ/.
+ *
+ * `--list` and the copy loop must agree on this number, so both call it. They used to
+ * disagree: `--list` printed the raw walk while the loop skipped `.gitkeep` inline, so the
+ * count it advertised was never the count it copied.
+ *
+ * This replaces a private near-duplicate of `walkFiles` that had drifted from the exported
+ * one in `discovery.ts` — it lacked the `try/catch` around `lstat` and the separator
+ * normalisation that `belongsInVault`/`isProjectCategory` need to match a `ψ/…` prefix.
+ */
+function migratableFiles(psiDir: string, repoPath: string): Array<{ relativePath: string; fullPath: string }> {
+  return walkFiles(psiDir, repoPath).filter(
+    ({ relativePath }) => path.basename(relativePath) !== '.gitkeep' && belongsInVault(relativePath),
+  );
 }
 
 function sameFileContent(dest: string, source: string, content?: string): boolean {
@@ -117,10 +115,9 @@ function migrate(opts: MigrateOptions): MigrateResult {
       continue;
     }
 
-    const files = walkFiles(psiDir, repoPath);
+    const files = migratableFiles(psiDir, repoPath);
     let fileCount = 0;
     for (const { relativePath, fullPath } of files) {
-      if (path.basename(relativePath) === '.gitkeep') continue;
       const vaultRelPath = mapToVaultPath(relativePath, project);
       const dest = path.join(vaultPath, vaultRelPath);
       const content = fullPath.endsWith('.md') && isProjectCategory(relativePath)
@@ -172,7 +169,7 @@ function migrate(opts: MigrateOptions): MigrateResult {
   return result;
 }
 
-export { findPsiRepos, migrate, projectMatchesTenant, walkFiles };
+export { findPsiRepos, migrate, migratableFiles, projectMatchesTenant };
 export type { MigrateOptions, MigrateResult, RepoInfo };
 
 if (import.meta.main) {

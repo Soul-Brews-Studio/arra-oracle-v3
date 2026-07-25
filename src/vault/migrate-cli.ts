@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { detectProject } from '../server/project-detect.ts';
-import { findPsiRepos, migrate, walkFiles } from './migrate.ts';
+import { findPsiRepos, migrate, migratableFiles } from './migrate.ts';
 
 export function runVaultMigrateCli(args = process.argv.slice(2)): void {
   if (args.includes('--list')) {
@@ -10,7 +10,7 @@ export function runVaultMigrateCli(args = process.argv.slice(2)): void {
       const project = detectProject(repoPath) ?? '(unknown)';
       const isSymlink = fs.lstatSync(psiDir).isSymbolicLink();
       if (isSymlink) console.log(`  ${project} ✓ symlinked`);
-      else console.log(`  ${project} (${walkFiles(psiDir, repoPath).length} files) ← local`);
+      else console.log(`  ${project} (${migratableFiles(psiDir, repoPath).length} files) ← local`);
       console.log(`    ${repoPath}`);
     }
     return;
