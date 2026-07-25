@@ -6,6 +6,7 @@ import { readEmbedderRuntimeStatus, type EmbedderRuntimeStatus } from '../../vec
 import { handleStats } from '../../server/handlers.ts';
 import { handleVectorStats } from '../../server/vector-handlers.ts';
 import { tenantStats } from './tenant-stats.ts';
+import { withEnvelope } from '../response-envelope.ts';
 
 type VectorStats = Awaited<ReturnType<typeof handleVectorStats>>;
 type StatsEndpointOptions = { vectorStats?: () => Promise<VectorStats>; embedderRuntime?: () => Promise<EmbedderRuntimeStatus> };
@@ -97,7 +98,7 @@ export function createStatsEndpoint(options: StatsEndpointOptions = {}) {
       throw err;
     }
   }, {
-    response: statsResponseSchema(),
+    response: withEnvelope(statsResponseSchema()),
     detail: {
       tags: ['health'],
       menu: { group: 'tools', order: 50 },

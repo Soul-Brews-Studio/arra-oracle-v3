@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { getOracleProfile, listOracleProfiles } from '../../oracles/registry.ts';
 import type { OracleProfile } from '../../oracles/model.ts';
+import { withEnvelope } from '../response-envelope.ts';
 
 function oracleCapabilitySchema() {
   return t.Object({
@@ -51,7 +52,7 @@ export function createOracleProfilesEndpoint() {
       const profiles = sortedProfiles();
       return { profiles, total: profiles.length };
     }, {
-      response: profilesResponseSchema(),
+      response: withEnvelope(profilesResponseSchema()),
       detail: { tags: ['health'], menu: { group: 'hidden' }, summary: 'List code-backed Oracle profiles' },
     })
     .get('/oracles/profiles/:slug', ({ params, set }) => {
@@ -64,7 +65,7 @@ export function createOracleProfilesEndpoint() {
       return profile;
     }, {
       params: t.Object({ slug: t.String({ minLength: 1 }) }),
-      response: t.Union([oracleProfileSchema(), notFoundSchema]),
+      response: withEnvelope(t.Union([oracleProfileSchema(), notFoundSchema])),
       detail: { tags: ['health'], menu: { group: 'hidden' }, summary: 'Read one code-backed Oracle profile' },
     });
 }
