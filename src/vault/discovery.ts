@@ -8,6 +8,19 @@ import { getSetting } from '../db/index.ts';
 import { ghqListPaths } from './ghq.ts';
 
 /**
+ * Directory names that are never knowledge, and are never descended into.
+ *
+ * A repo with a nested checkout or a vendored dependency inside ψ/ otherwise drags its
+ * whole object database into the walk — thousands of binary pack files, and an EACCES on
+ * the read-only ones. `.git` is matched as a bare name so the gitfile *pointer* a
+ * submodule or worktree leaves behind is skipped too; that file is not knowledge either.
+ *
+ * Reported against `vault:migrate` by @tenzaitech (#2802), but the guard belongs here:
+ * every caller of this walker wants it, and `vault:sync` walked the same trees.
+ */
+const NEVER_WALK = new Set(['.git', 'node_modules']);
+
+/**
  * Walk all files under dir, skipping symlinks.
  * Returns paths relative to baseDir.
  */
@@ -26,6 +39,7 @@ export function walkFiles(
   }
 
   for (const item of items) {
+    if (NEVER_WALK.has(item)) continue;
     const fullPath = path.join(dir, item);
     let stat: fs.Stats;
     try {

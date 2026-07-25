@@ -27,6 +27,28 @@ export function isProjectCategory(relativePath: string): boolean {
   return PROJECT_CATEGORIES.some((cat) => safePath.startsWith(cat));
 }
 
+const INBOX_PREFIX = 'ψ/inbox/';
+
+/**
+ * Does this local ψ/ path hold knowledge that belongs in a shared vault?
+ *
+ * `ψ/inbox/` is fleet comms — messages addressed to this oracle. `vault:migrate` swept all
+ * of it into the vault (#2803, @tenzaitech), so one house's unread mail became another
+ * house's knowledge corpus.
+ *
+ * The carve-out is **derived from the category lists above, not hardcoded**, and that
+ * distinction is load-bearing: `ψ/inbox/handoff/` is a PROJECT_CATEGORY, and
+ * `ψ/inbox/schedule.md` + `ψ/inbox/focus-agent-main.md` are UNIVERSAL_CATEGORIES. A blanket
+ * "skip ψ/inbox/ except handoff/" — the shape the original report proposed — would silently
+ * drop those two files, which `mapToVaultPath` deliberately maps to the vault root. Reading
+ * the answer off the declarations means adding a category can never desync the two.
+ */
+export function belongsInVault(relativePath: string): boolean {
+  const safePath = normalizeVaultRelativePath(relativePath);
+  if (!safePath.startsWith(INBOX_PREFIX)) return true;
+  return [...PROJECT_CATEGORIES, ...UNIVERSAL_CATEGORIES].some((cat) => safePath.startsWith(cat));
+}
+
 export function normalizeVaultRelativePath(value: string, label = 'vault path'): string {
   const raw = String(value ?? '').replaceAll('\\', '/').trim();
   if (!raw || raw.includes('\0') || raw.startsWith('/')) {
