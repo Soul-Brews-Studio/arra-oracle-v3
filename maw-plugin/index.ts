@@ -178,7 +178,7 @@ export const COMMANDS: Record<string, Spec> = {
 };
 
 const LOCAL_COMMANDS = { commands: 'commands', mcp_call: MCP_CLIENT_HELP, frontend: 'frontend [--no-open]', ui: 'ui [--no-open]', open: 'open [--no-open]', serve: 'serve [--backend] [--in-process] [--stop|--status] [--port N]', server: 'server [start|stop|status]', studio: 'studio [--port N]', ...LOCAL_CLI_HELP } as const;
-const MCP_COMMANDS = new Set(['commands', ...Object.entries(COMMANDS).filter(([name, spec]) => name !== 'vector_config' && !spec.write && spec.method === 'GET').map(([name]) => name)]);
+export const MCP_COMMANDS = new Set(['commands', ...Object.entries(COMMANDS).filter(([name, spec]) => name !== 'vector_config' && !spec.write && spec.method === 'GET').map(([name]) => name)]);
 function usage(): InvokeResult {
   const commandNames = [...Object.keys(COMMANDS), ...Object.keys(LOCAL_COMMANDS)].sort();
   return { ok: false, error: 'usage', output: ['usage: maw arra <subcommand> [args]', `subcommands: ${commandNames.join('|')}`, '', ...Object.entries(LOCAL_COMMANDS).sort().map(([name, help]) => `  ${name}  ${help}`), ...Object.entries(COMMANDS).sort().map(([name, spec]) => `  ${name}  ${spec.help}`)].join('\n') };
