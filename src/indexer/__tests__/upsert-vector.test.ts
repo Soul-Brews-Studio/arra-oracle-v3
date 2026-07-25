@@ -19,25 +19,23 @@ type Row = { id: string; document: string; metadata: Record<string, string | num
 
 const MODELS = { 'bge-m3': { collection: 'oracle_bge_m3' }, nomic: { collection: 'oracle_nomic' } };
 
-/** A store that behaves like LanceDB: add appends, delete removes by id. */
-function fakeStore(opts: { withDelete?: boolean; name?: string } = {}) {
+/**
+ * A store that behaves like the LanceDB adapter after #2796's `mergeInsert`: writing an
+ * existing id REPLACES that row rather than appending a second one.
+ */
+function fakeStore(opts: { name?: string } = {}) {
   const rows: Row[] = [];
   const calls: string[] = [];
   const store: UpsertCapableStore = {
     name: opts.name ?? 'fake-lancedb',
     async addDocuments(docs) {
       calls.push('add');
-      rows.push(...(docs as Row[]));
+      for (const doc of docs as Row[]) {
+        const at = rows.findIndex((row) => row.id === doc.id);
+        if (at >= 0) rows[at] = doc;
+        else rows.push(doc);
+      }
     },
-    ...(opts.withDelete === false ? {} : {
-      async deleteDocuments(ids: string[]) {
-        calls.push('delete');
-        for (const id of ids) {
-          const at = rows.findIndex((row) => row.id === id);
-          if (at >= 0) rows.splice(at, 1);
-        }
-      },
-    }),
   };
   return { store, rows, calls };
 }
@@ -46,16 +44,14 @@ function fakeStore(opts: { withDelete?: boolean; name?: string } = {}) {
 const EMBED_OF_EMPTY = [0, 0, 0, 0];
 const REAL_VECTOR = [0.11, -0.42, 0.87, 0.03];
 
-function harness(opts: { withDelete?: boolean; name?: string } = {}) {
+function harness(opts: { name?: string } = {}) {
   const fake = fakeStore(opts);
-  const warnings: string[] = [];
   const upsert = makeUpsertVector({
     models: MODELS,
     getStore: async () => fake.store,
     now: () => 1_700_000_000_000,
-    warn: (message) => warnings.push(message),
   });
-  return { ...fake, warnings, upsert };
+  return { ...fake, upsert };
 }
 
 describe('the stored row carries the real content, not an empty string', () => {
@@ -110,11 +106,14 @@ describe('re-indexing a document replaces its row instead of appending', () => {
     expect(h.rows[0].vector).toEqual([0.3]);
   });
 
-  test('the delete happens before the add, every time', async () => {
+  test('one write per document — row identity is the adapter\'s job, not this layer\'s', async () => {
+    // Deliberately NOT a delete-then-add here: the LanceDB adapter does a native
+    // mergeInsert upsert (#2796), so doing it again at this layer would add a round-trip
+    // and a window where the row is absent.
     const h = harness();
     await h.upsert('oracle_bge_m3', 'doc-1', REAL_VECTOR, 'a');
     await h.upsert('oracle_bge_m3', 'doc-1', REAL_VECTOR, 'b');
-    expect(h.calls).toEqual(['delete', 'add', 'delete', 'add']);
+    expect(h.calls).toEqual(['add', 'add']);
   });
 
   test('distinct ids each keep their own row', async () => {
@@ -125,24 +124,6 @@ describe('re-indexing a document replaces its row instead of appending', () => {
 
     expect(h.rows).toHaveLength(2);
     expect(h.rows.map((row) => row.id).sort()).toEqual(['doc-1', 'doc-2']);
-  });
-});
-
-describe('an adapter without deleteDocuments is warned about, not silently appended to', () => {
-  test('warns once per model, not once per document', async () => {
-    const h = harness({ withDelete: false, name: 'qdrant' });
-    for (const id of ['a', 'b', 'c']) await h.upsert('oracle_bge_m3', id, REAL_VECTOR, id);
-
-    expect(h.warnings).toHaveLength(1);
-    expect(h.warnings[0]).toContain('qdrant');
-    expect(h.warnings[0]).toContain('deleteDocuments');
-  });
-
-  test('documents are still written — the warning is not a refusal', async () => {
-    const h = harness({ withDelete: false });
-    await h.upsert('oracle_bge_m3', 'doc-1', REAL_VECTOR, 'content');
-    expect(h.rows).toHaveLength(1);
-    expect(h.rows[0].document).toBe('content');
   });
 });
 

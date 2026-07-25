@@ -16,8 +16,6 @@ export interface UpsertCapableStore {
   addDocuments(
     docs: Array<{ id: string; document: string; metadata: Record<string, string | number>; vector?: number[] }>,
   ): Promise<void>;
-  /** Optional on the adapter interface — only LanceDB implements it today. */
-  deleteDocuments?(ids: string[]): Promise<void>;
 }
 
 export interface UpsertVectorDeps {
@@ -26,8 +24,6 @@ export interface UpsertVectorDeps {
   getStore: (modelKey: string) => Promise<UpsertCapableStore>;
   /** Injectable for tests. Defaults to `Date.now`. */
   now?: () => number;
-  /** Injectable for tests. Defaults to `console.error`. */
-  warn?: (message: string) => void;
 }
 
 export type UpsertVector = (
@@ -40,22 +36,22 @@ export type UpsertVector = (
 /**
  * Build the daemon's `upsertVector`.
  *
- * Three properties this guarantees, each of which was violated before #2806:
+ * Two properties this guarantees, both violated before #2806:
  *
  * 1. **The row stores the text the vector came from.** The old code passed `document: ''`
  *    and dropped the vector with `void vector`, so the store embedded the empty string and
  *    every daemon-indexed document got the same meaningless embedding.
- * 2. **Re-indexing one document does not grow the collection.** `addDocuments` appends on a
- *    duplicate id — a re-index took one deployment from 3,325 to 3,953 rows — so the delete
- *    has to happen first. `deleteDocuments` is optional on the adapter interface; where it is
- *    missing we warn once per model instead of silently appending.
- * 3. **An unusable vector fails the job.** A thrown error is marked on the queue row; a
+ * 2. **An unusable vector fails the job.** A thrown error is marked on the queue row; a
  *    stored bad vector is invisible. Loud beats silent.
+ *
+ * Row *identity* is deliberately not handled here. `addDocuments` used to append on a
+ * duplicate id — a re-index took one deployment from 3,325 to 3,953 rows — but that is an
+ * adapter concern, and the LanceDB adapter now does a native `mergeInsert` upsert
+ * (@DUMPDUMPY, #2796). Papering over it here would have fixed one caller and left every
+ * other one broken.
  */
 export function makeUpsertVector(deps: UpsertVectorDeps): UpsertVector {
   const now = deps.now ?? Date.now;
-  const warn = deps.warn ?? ((message: string) => console.error(message));
-  const warnedNoDelete = new Set<string>();
 
   return async function upsertVector(collection, docId, vector, text) {
     const entry = Object.entries(deps.models).find(([, model]) => model.collection === collection);
@@ -67,16 +63,6 @@ export function makeUpsertVector(deps: UpsertVectorDeps): UpsertVector {
     }
 
     const store = await deps.getStore(modelKey);
-
-    if (typeof store.deleteDocuments === 'function') {
-      await store.deleteDocuments([docId]);
-    } else if (!warnedNoDelete.has(modelKey)) {
-      warnedNoDelete.add(modelKey);
-      warn(
-        `[arra-indexer] ${store.name} has no deleteDocuments — re-indexing a doc will append a duplicate row instead of replacing it`,
-      );
-    }
-
     await store.addDocuments([
       { id: docId, document: text, vector, metadata: { id: docId, indexed_at: now() } },
     ]);

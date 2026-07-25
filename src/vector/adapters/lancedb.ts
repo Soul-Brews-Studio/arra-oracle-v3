@@ -1,4 +1,5 @@
 import type { VectorStoreAdapter, VectorDocument, VectorQueryResult, EmbeddingProvider } from '../types.ts';
+import { buildLanceRows } from './lancedb-rows.ts';
 
 export class LanceDBAdapter implements VectorStoreAdapter {
   readonly name = 'lancedb';
@@ -100,31 +101,25 @@ export class LanceDBAdapter implements VectorStoreAdapter {
     if (!this.table) await this.ensureCollection();
     await this.checkoutLatest();
 
-    const needEmbed: number[] = [];
-    for (let i = 0; i < docs.length; i++) {
-      if (!docs[i].vector) needEmbed.push(i);
-    }
-    let fresh: number[][] = [];
-    if (needEmbed.length > 0) {
-      const texts = needEmbed.map(i => docs[i].document);
-      fresh = await this.embedder.embed(texts, 'passage');
-    }
-    let freshIdx = 0;
+    const { rows, reused } = await buildLanceRows(docs, this.embedder);
 
-    const rows = docs.map((doc) => ({
-      id: doc.id,
-      text: doc.document,
-      metadata: JSON.stringify(doc.metadata),
-      vector: doc.vector ?? fresh[freshIdx++],
-    }));
-
-    await this.table.add(rows);
-    const reused = docs.length - needEmbed.length;
-    if (reused > 0) {
-      console.error(`[LanceDB] Added ${docs.length} documents (${reused} with precomputed vectors)`);
-    } else {
-      console.error(`[LanceDB] Added ${docs.length} documents`);
-    }
+    // `table.add` APPENDS, so re-indexing one document left a second row with the same id
+    // and both were returned by search — one deployment grew 3,325 → 3,953 rows while trying
+    // to repair corrupted entries (#2806). `mergeInsert` is LanceDB's native atomic upsert:
+    // one round-trip, and no window where the row is absent.
+    //
+    // Safe because ids are unique per row: chunks get `${doc.id}__chunk_${i}`
+    // (`src/indexer/chunker.ts:62`), so two rows never legitimately share an id.
+    //
+    // Fix by @DUMPDUMPY (#2796), adopted here in preference to the delete-then-add this PR
+    // originally used at the daemon level — it is atomic, and it fixes every caller of
+    // addDocuments rather than only the daemon.
+    await this.table
+      .mergeInsert('id')
+      .whenMatchedUpdateAll()
+      .whenNotMatchedInsertAll()
+      .execute(rows);
+    console.error(`[LanceDB] Upserted ${docs.length} documents${reused > 0 ? ` (${reused} with precomputed vectors)` : ''}`);
   }
 
   async replaceDocuments(docs: VectorDocument[]): Promise<void> {
@@ -137,25 +132,9 @@ export class LanceDBAdapter implements VectorStoreAdapter {
       return;
     }
 
-    const needEmbed: number[] = [];
-    for (let i = 0; i < docs.length; i++) {
-      if (!docs[i].vector) needEmbed.push(i);
-    }
-    let fresh: number[][] = [];
-    if (needEmbed.length > 0) {
-      const texts = needEmbed.map(i => docs[i].document);
-      fresh = await this.embedder.embed(texts, 'passage');
-    }
-    let freshIdx = 0;
-    const rows = docs.map((doc) => ({
-      id: doc.id,
-      text: doc.document,
-      metadata: JSON.stringify(doc.metadata),
-      vector: doc.vector ?? fresh[freshIdx++],
-    }));
+    const { rows, reused } = await buildLanceRows(docs, this.embedder);
 
     await this.table.add(rows, { mode: 'overwrite' });
-    const reused = docs.length - needEmbed.length;
     console.error(`[LanceDB] Replaced collection with ${docs.length} documents${reused > 0 ? ` (${reused} with precomputed vectors)` : ''}`);
   }
 
