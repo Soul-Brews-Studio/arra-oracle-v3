@@ -91,6 +91,29 @@ export interface CreateAppOptions {
   vectorUrl?: string;
 }
 
+// GMT+7 (Asia/Bangkok) ISO timestamp — the fleet's primary time zone.
+function gmt7Now(): string {
+  return new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().replace('Z', '+07:00');
+}
+
+// Cheap SQLite counts for the root status endpoint. Full breakdown (by-type +
+// embeddings) lives at /api/v1/stats; this is the lightweight at-a-glance view.
+// Guarded so a blank/fresh instance (no tables yet) reports nulls, not a 500.
+function rootCounts(): { documents: number | null; ftsIndexed: number | null; indexing: boolean | null } {
+  const one = (q: string): number | null => {
+    try { return (sqlite.prepare(q).get() as { c: number }).c; } catch { return null; }
+  };
+  const indexing = (() => {
+    try { return ((sqlite.prepare('SELECT is_indexing AS c FROM indexing_status LIMIT 1').get() as { c: number } | undefined)?.c ?? 0) === 1; }
+    catch { return null; }
+  })();
+  return {
+    documents: one('SELECT COUNT(*) AS c FROM oracle_documents'),
+    ftsIndexed: one('SELECT COUNT(*) AS c FROM oracle_fts'),
+    indexing,
+  };
+}
+
 export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef(unifiedPlugins), dataDir = ORACLE_DATA_DIR, vectorUrl = VECTOR_URL }: CreateAppOptions) {
   const app = new Elysia()
     .use(createRequestLoggingMiddleware())
@@ -130,6 +153,7 @@ export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef
       uptimeSeconds: Math.floor(process.uptime()),
       plugins: unifiedPlugins.pluginCount,
       pluginMcpTools: unifiedPlugins.mcpTools.length,
+      counts: rootCounts(),
       docs: '/api/docs',
       api: '/api/v1',
       endpoints: {
@@ -138,6 +162,7 @@ export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef
         api: '/api/v1',
         mcp: '/mcp',
         health: '/api/v1/health',
+        stats: '/api/v1/stats',
         simple: '/simple',
       },
       config: {
@@ -146,7 +171,7 @@ export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef
         vector: vectorUrl ? `proxy:${vectorUrl}` : 'local',
       },
       runtime: { bun: Bun.version },
-      generatedAt: new Date().toISOString(),
+      generatedAt: gmt7Now(),
     }));
 
   const routeModules = createServerRouteModules(unifiedPlugins, runtimeRef);
