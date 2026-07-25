@@ -2,6 +2,7 @@ import type { Database } from 'bun:sqlite';
 import { runWithTenant } from '../middleware/tenant.ts';
 import { runSupersede } from '../tools/supersede.ts';
 import type { ToolContext } from '../tools/types.ts';
+import { contentForPage, docsSql, objectExists } from './consolidation-docs.ts';
 import { runFactCuration, type FactCurationOptions, type FactCurationResult } from './fact-curation.ts';
 
 type Db = ToolContext['db'];
@@ -108,35 +109,15 @@ function confidenceFor(doc: RawDoc, tokens: string[], now: number, staleDays: nu
     reasons: [stale ? 'stale_document' : 'fresh_document', doc.project ? 'project_provenance' : 'missing_project', tokens.length >= 40 ? 'content_complete' : 'content_sparse'] };
 }
 
-function docsSql(hasFts: boolean, tenantId?: string): string {
-  const content = hasFts ? "coalesce(f.content, '')" : "''";
-  const join = hasFts ? 'LEFT JOIN oracle_fts f ON f.id = d.id' : '';
-  const tenant = tenantId ? 'AND d.tenant_id = ?' : '';
-  return `
-    SELECT d.id, d.tenant_id AS tenantId, d.type, d.source_file AS sourceFile,
-      d.concepts, d.created_at AS createdAt, d.updated_at AS updatedAt,
-      d.indexed_at AS indexedAt, d.project, d.created_by AS createdBy, ${content} AS content
-    FROM oracle_documents d
-    ${join}
-    WHERE d.superseded_by IS NULL ${tenant}
-    ORDER BY d.updated_at DESC
-    LIMIT ?`;
-}
-
-function objectExists(sqlite: Database, name: string): boolean {
-  const row = sqlite.query<{ name: string }, [string]>(
-    'SELECT name FROM sqlite_master WHERE name = ? LIMIT 1',
-  ).get(name);
-  return Boolean(row);
-}
 
 function loadDocs(sqlite: Database, options: ResolvedOptions): CandidateDoc[] {
   const params = options.tenantId ? [options.tenantId, options.limit] : [options.limit];
-  const rows = sqlite.query<RawDoc, (string | number)[]>(docsSql(objectExists(sqlite, 'oracle_fts'), options.tenantId))
-    .all(...params);
+  const rows = sqlite.query<RawDoc, (string | number)[]>(docsSql(options.tenantId)).all(...params);
+  const contents = contentForPage(sqlite, rows.map((row) => row.id));
   return rows.map((row) => {
-    const tokens = tokenize(`${row.content}\n${row.concepts}\n${row.sourceFile}`);
-    return { ...row, content: row.content ?? '', tokens, tokenSet: new Set(tokens), confidence: confidenceFor(row, tokens, options.now, options.staleDays) };
+    const content = contents.get(row.id) ?? '';
+    const tokens = tokenize(`${content}\n${row.concepts}\n${row.sourceFile}`);
+    return { ...row, content, tokens, tokenSet: new Set(tokens), confidence: confidenceFor(row, tokens, options.now, options.staleDays) };
   });
 }
 
