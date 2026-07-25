@@ -8,7 +8,7 @@ Schema changes must flow through `src/db/schema.ts`, generated migrations in
 
 `drizzle.config.ts` is the canonical drizzle-kit config:
 
-- `schema`: `./src/db/schema.ts`
+- `schema`: `./src/db/drizzle-schema.ts` (CLI barrel; excludes FTS5 virtual tables)
 - `out`: `./src/db/migrations`
 - `dialect`: `sqlite`
 - DB path: `ORACLE_DB_PATH`, or `${ORACLE_DATA_DIR}/oracle.db`, or
@@ -17,7 +17,7 @@ Schema changes must flow through `src/db/schema.ts`, generated migrations in
 
 ## Change workflow
 
-1. Edit `src/db/schema.ts` with Drizzle ORM table/index definitions.
+1. Edit `src/db/schema.ts` with Drizzle ORM table/index definitions, then export managed non-FTS tables through `src/db/drizzle-schema.ts`.
 2. Generate a migration:
 
    ```bash
