@@ -43,12 +43,14 @@ describe('frontend router', () => {
       '/ask',
       '/export',
       '/feed',
+      '/fleet-log',
       '/forum',
       '/activity',
       '/traces',
       '/learn',
       '/memory',
       '/memory/consolidation',
+      '/oracle-dig',
       '/vector',
       '/vector/search',
       '/vector/documents',
@@ -60,6 +62,7 @@ describe('frontend router', () => {
       '/mcp',
       '/storage',
       '/settings',
+      '/tools/config',
       '/simple',
     ]);
   });
