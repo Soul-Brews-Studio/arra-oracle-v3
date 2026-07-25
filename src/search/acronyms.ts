@@ -26,6 +26,28 @@ export function expansionsForText(text: string): string[] {
   return uniqueMissing(text, additions);
 }
 
+/**
+ * Every full form applicable to `text`, whether or not it already appears in it.
+ *
+ * `expansionsForText` returns only what is **missing**, which is right for augmenting a query
+ * — you do not append what is already there. It is wrong for anything that consumes an
+ * already-augmented string: ranking receives the augmented query, so `expansionsForText`
+ * returns `[]` and a caller relying on it silently gets nothing.
+ *
+ * That is not hypothetical. #2877 added `expansionsForText` to entity-key derivation and was a
+ * no-op in production for exactly this reason — its test passed the raw query while
+ * `rerankByEntityLinks` is called with the augmented one.
+ */
+export function expansionPhrasesForText(text: string): string[] {
+  const normalized = normalize(text);
+  const phrases: string[] = [];
+  for (const item of EXPANSIONS) {
+    if (!matchesExpansion(normalized, item)) continue;
+    for (const form of item.fullForms) if (!phrases.includes(form)) phrases.push(form);
+  }
+  return phrases;
+}
+
 export function augmentQueryWithAcronyms(query: string): string {
   const additions = expansionsForText(query);
   return additions.length ? `${query} ${additions.join(' ')}` : query;

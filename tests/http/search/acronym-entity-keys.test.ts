@@ -22,6 +22,15 @@
  * These assertions are about *what the ranker looks for*, which is the thing that broke. They
  * do not assert an ordering: #2874 showed that pinning an exact ranking order is itself a
  * source of flakiness.
+ *
+ * ⚠️ Every query below goes through `augmentQueryWithAcronyms` FIRST, because that is what
+ * production passes: `ask/index.ts:80` and `tools/search/handler.ts:89` both call
+ * `rerankByEntityLinks` with the augmented string.
+ *
+ * The first version of this file passed the RAW query. It went green while the fix it guarded
+ * was a no-op in production — `expansionsForText` returns only what is *missing*, and nothing
+ * is missing from an already-augmented query, so it returned `[]`. A test that feeds different
+ * input than production proves nothing about production.
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -31,6 +40,7 @@ import { createDatabase } from '../../../src/db/create.ts';
 import { oracleDocuments, oracleEntityLinks, tenants } from '../../../src/db/schema.ts';
 import { entityKey, entitySignalsForCandidates } from '../../../src/search/entity-ranking.ts';
 import { augmentQueryWithAcronyms } from '../../../src/search/acronyms.ts';
+import { queryPointers } from '../../../src/search/pointer-index.ts';
 
 const API_KEY = entityKey('Application Programming Interface');
 const DB_KEY = entityKey('Database');
@@ -94,7 +104,7 @@ describe('the expansion keys actually find an entity link', () => {
   });
 
   test('a two-acronym query finds the document linked to both expansions', () => {
-    const signals = entitySignalsForCandidates(db as never, [DOC], 'what does the API and db do');
+    const signals = entitySignalsForCandidates(db as never, [DOC], augmentQueryWithAcronyms('what does the API and db do'));
     const matches = signals.get(DOC)?.matches ?? [];
 
     // Before the fix the merged phrase produced no key, so this map was empty.
@@ -103,11 +113,38 @@ describe('the expansion keys actually find an entity link', () => {
   });
 
   test('a single-acronym query finds its own expansion', () => {
-    const matches = entitySignalsForCandidates(db as never, [DOC], 'tell me about the API').get(DOC)?.matches ?? [];
+    const matches = entitySignalsForCandidates(db as never, [DOC], augmentQueryWithAcronyms('tell me about the API')).get(DOC)?.matches ?? [];
     expect(matches).toContain('Application Programming Interface');
   });
 
   test('an unrelated query finds nothing — the match is not unconditional', () => {
-    expect(entitySignalsForCandidates(db as never, [DOC], 'unrelated words entirely').size).toBe(0);
+    expect(entitySignalsForCandidates(db as never, [DOC], augmentQueryWithAcronyms('unrelated words entirely')).size).toBe(0);
+  });
+});
+
+describe('pointer-index loses the same keys, and must not', () => {
+  /**
+   * `queryPointers` builds entity pointers from `extractEntities` too, so the merged phrase hit
+   * it identically. `tools/search/handler.ts:63` passes the augmented query.
+   *
+   * Single-word expansions survived by accident — every word is separately added as an entity
+   * pointer — so only multi-word expansions were lost. That is why `database` looked fine while
+   * `application-programming-interface` vanished.
+   */
+  const augmented = augmentQueryWithAcronyms('what does the API and db do');
+  const entityPointers = () => queryPointers(augmented).filter((p) => p.kind === 'entity').map((p) => p.key);
+
+  test('the multi-word expansion is a pointer', () => {
+    expect(entityPointers()).toContain(API_KEY);
+  });
+
+  test('the single-word expansion is too', () => {
+    expect(entityPointers()).toContain(DB_KEY);
+  });
+
+  test('the merged phrase may still appear, but it is not the only entity pointer', () => {
+    const keys = entityPointers();
+    expect(keys.length).toBeGreaterThan(1);
+    expect(keys).toContain(API_KEY);
   });
 });
