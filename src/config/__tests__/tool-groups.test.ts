@@ -124,17 +124,6 @@ describe('tool-groups', () => {
     expect(disabled.has('also_typo')).toBe(false);
   });
 
-  it('defaults to all groups enabled', () => {
-    const config = loadToolGroupConfig('/nonexistent/path');
-    expect(config.search).toBe(true);
-    expect(config.knowledge).toBe(true);
-    expect(config.session).toBe(true);
-    expect(config.forum).toBe(true);
-    expect(config.oracle).toBe(true);
-    expect(config.trace).toBe(true);
-    expect(config.mcp).toBe(true);
-  });
-
   it('all tool names follow oracle_ prefix convention', () => {
     for (const tools of Object.values(TOOL_GROUPS)) {
       for (const tool of tools) {

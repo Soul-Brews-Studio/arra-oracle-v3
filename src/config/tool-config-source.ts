@@ -59,22 +59,22 @@ interface SourceCandidate extends Omit<ToolConfigSource, 'found'> {
  * are not merged. Keep this list and the watcher in `tool-groups-watch.ts` in
  * sync; both must observe the same files.
  */
-export function configSources(root: string): SourceCandidate[] {
+export function configSources(root: string, dataDir: string = ORACLE_DATA_DIR): SourceCandidate[] {
   return [
     { path: path.join(root, 'arra.config.json'), label: 'arra.config.json from repo root', accept: hasToolConfig },
     { path: path.join(root, 'plugins.json'), label: 'plugins.json from repo root', accept: hasPluginManifest },
-    { path: path.join(ORACLE_DATA_DIR, 'config.json'), label: `${ORACLE_DATA_DIR}/config.json`, accept: hasToolConfig },
-    { path: path.join(ORACLE_DATA_DIR, 'plugins.json'), label: `${ORACLE_DATA_DIR}/plugins.json`, accept: hasPluginManifest },
+    { path: path.join(dataDir, 'config.json'), label: `${dataDir}/config.json`, accept: hasToolConfig },
+    { path: path.join(dataDir, 'plugins.json'), label: `${dataDir}/plugins.json`, accept: hasPluginManifest },
   ];
 }
 
 /** Tier used when no config file exists yet — the settings API creates this one. */
-function writeTarget(root: string): SourceCandidate {
-  return configSources(root)[2]!;
+function writeTarget(root: string, dataDir?: string): SourceCandidate {
+  return configSources(root, dataDir)[2]!;
 }
 
-export function resolveConfigSourceWithRaw(root: string): { source: ToolConfigSource; raw: Record<string, any> | null } {
-  for (const candidate of configSources(root)) {
+export function resolveConfigSourceWithRaw(root: string, dataDir?: string): { source: ToolConfigSource; raw: Record<string, any> | null } {
+  for (const candidate of configSources(root, dataDir)) {
     const raw = readJsonSafe(candidate.path);
     if (!raw || !candidate.accept(raw)) continue;
     return { source: { path: candidate.path, label: candidate.label, found: true }, raw };
