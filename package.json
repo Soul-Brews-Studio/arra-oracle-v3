@@ -93,6 +93,7 @@
     "vault:status": "bun src/vault/cli.ts status",
     "vault:migrate": "bun src/vault/cli.ts migrate",
     "vault:rsync": "./scripts/vault-rsync.sh",
+    "fleet:ingest:vault": "bun scripts/ingest-fleet-vault.ts",
     "huginn:capture": "bun scripts/huginn-capture-hook.ts",
     "test:huginn": "bun test src/huginn/__tests__/capture.test.ts src/huginn/__tests__/sweep.test.ts",
     "huginn:sweep": "bun scripts/huginn-sweep.ts",

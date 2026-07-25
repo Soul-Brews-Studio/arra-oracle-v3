@@ -168,41 +168,6 @@ export const documentAccess = sqliteTable('document_access', {
   index('idx_access_created').on(table.createdAt),
   index('idx_access_doc').on(table.documentId),
 ]);
-export const forumThreads = sqliteTable('forum_threads', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  title: text('title').notNull(),
-  tenantId: text('tenant_id').default('default').notNull(),
-  createdBy: text('created_by').default('human'),
-  status: text('status').default('active'),
-  issueUrl: text('issue_url'),
-  issueNumber: integer('issue_number'),
-  project: text('project'),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-  syncedAt: integer('synced_at'),
-}, (table) => [
-  index('idx_thread_status').on(table.status),
-  index('idx_thread_project').on(table.project),
-  index('idx_thread_tenant').on(table.tenantId),
-  index('idx_thread_created').on(table.createdAt),
-  index('idx_thread_tenant_status_updated').on(table.tenantId, table.status, table.updatedAt),
-]);
-export const forumMessages = sqliteTable('forum_messages', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  threadId: integer('thread_id').notNull().references(() => forumThreads.id),
-  role: text('role').notNull(),
-  content: text('content').notNull(),
-  author: text('author'),
-  principlesFound: integer('principles_found'),
-  patternsFound: integer('patterns_found'),
-  searchQuery: text('search_query'),
-  commentId: integer('comment_id'),
-  createdAt: integer('created_at').notNull(),
-}, (table) => [
-  index('idx_message_thread').on(table.threadId),
-  index('idx_message_role').on(table.role),
-  index('idx_message_created').on(table.createdAt),
-]);
 export const traceLog = sqliteTable('trace_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   traceId: text('trace_id').unique().notNull(),
@@ -245,6 +210,8 @@ export const traceLog = sqliteTable('trace_log', {
   index('idx_trace_created').on(table.createdAt),
 ]);
 export { exportJobs } from './export-schema.ts';
+export { forumMessages, forumThreads } from './forum-schema.ts';
+export { fleetIngestCursor, fleetMessages } from './fleet-log-schema.ts';
 export { oracleFindingEvidence, oracleFindings } from './oracle-dig-schema.ts';
 export { activityLog, menuItems, schedule, settings, supersedeLog } from './logistics-schema.ts';
 export { assertSqliteIdentifier, oracleVectorDocuments, sqliteVecEmbeddingsTable, sqliteVecMetadataTable, vectorDocumentsTable } from './vector-schema.ts';

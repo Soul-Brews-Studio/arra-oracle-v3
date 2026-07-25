@@ -233,13 +233,68 @@
       "tag": "0032_schema_integrity_guards",
       "breakpoints": true
     },
-    { "idx": 33, "version": "6", "when": 1781686800000, "tag": "0033_memory_valid_time", "breakpoints": true },
-    { "idx": 34, "version": "6", "when": 1781700000000, "tag": "0034_memory_ttl", "breakpoints": true },
-    { "idx": 35, "version": "6", "when": 1781669700000, "tag": "0035_entity_links_ranking_sidecar", "breakpoints": true },
-    { "idx": 36, "version": "6", "when": 1781703600000, "tag": "0036_memory_consolidation", "breakpoints": true },
-    { "idx": 37, "version": "6", "when": 1781703700000, "tag": "0037_memory_tiered_salience", "breakpoints": true },
-    { "idx": 38, "version": "6", "when": 1781703800000, "tag": "0038_pointer_index", "breakpoints": true },
-    { "idx": 39, "version": "6", "when": 1781703900000, "tag": "0039_vector_index_manifest", "breakpoints": true },
-    { "idx": 40, "version": "6", "when": 1781704000000, "tag": "0040_oracle_findings", "breakpoints": true }
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1781686800000,
+      "tag": "0033_memory_valid_time",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1781700000000,
+      "tag": "0034_memory_ttl",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1781669700000,
+      "tag": "0035_entity_links_ranking_sidecar",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1781703600000,
+      "tag": "0036_memory_consolidation",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1781703700000,
+      "tag": "0037_memory_tiered_salience",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1781703800000,
+      "tag": "0038_pointer_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1781703900000,
+      "tag": "0039_vector_index_manifest",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1781704000000,
+      "tag": "0040_oracle_findings",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1783717000000,
+      "tag": "0041_fleet_log",
+      "breakpoints": true
+    }
   ]
 }
