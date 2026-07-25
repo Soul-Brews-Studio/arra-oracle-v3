@@ -4,6 +4,7 @@ import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import * as schema from '../db/schema.ts';
 import { extractEntities } from '../vector/entities.ts';
+import { expansionPhrasesForText } from './acronyms.ts';
 import { entityKey } from './entity-ranking.ts';
 
 type OracleDb = BunSQLiteDatabase<typeof schema>;
@@ -131,6 +132,15 @@ export function queryPointers(query: string): Pointer[] {
     ...words.map((word) => pointer('topic', word)),
     ...adjacent(words).map((phrase) => pointer('topic', phrase)),
     ...extractEntities(query).map((entity) => pointer('entity', entity)),
+    // Acronym expansions as known phrases, not recovered from the text.
+    //
+    // `augmentQueryWithAcronyms` appends expansions bare, so two of them end up adjacent and
+    // `extractEntities` merges them: "what does the API and db do" yields the entity pointer
+    // `application-programming-interface-database`, and the real
+    // `application-programming-interface` is absent. Single-word expansions like `database`
+    // survive only by accident — every word is also added as an entity pointer below — so the
+    // loss is silent and hits multi-word expansions only. Same defect as #2876, second signal.
+    ...expansionPhrasesForText(query).map((expansion) => pointer('entity', expansion)),
     ...words.map((word) => pointer('entity', word)),
     ...dateKeysFromText(query).map((key) => ({ kind: 'date' as const, key, label: key })),
   ]).slice(0, 24);

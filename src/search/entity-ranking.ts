@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/bun-sqlite';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../db/schema.ts';
 import { extractEntities } from '../vector/entities.ts';
-import { expansionsForText } from './acronyms.ts';
+import { expansionPhrasesForText } from './acronyms.ts';
 
 const ENTITY_BOOST_PER_MATCH = 0.08;
 const ENTITY_BOOST_CAP = 0.24;
@@ -169,7 +169,7 @@ function entityKeysForQuery(query: string): string[] {
   //
   // Inserted before the loop so these survive the MAX_ENTITY_QUERY_KEYS cap — a Set keeps
   // insertion order, and these are the highest-signal keys in the query.
-  for (const expansion of expansionsForText(query)) keys.add(entityKey(expansion));
+  for (const expansion of expansionPhrasesForText(query)) keys.add(entityKey(expansion));
 
   const words = query.normalize('NFKC').match(/[\p{L}\p{N}][\p{L}\p{N}._-]{2,}/gu)
     ?.map((word) => word.toLowerCase()).filter((word) => !QUERY_STOPWORDS.has(word)) ?? [];
