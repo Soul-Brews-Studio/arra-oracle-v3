@@ -75,6 +75,7 @@ import { fileWatcherService } from './services/file-watcher.ts';
 import { createSleepConsolidationWorker } from './workers/sleep-consolidation.ts';
 import { createEntityBackfillWorker } from './workers/entity-backfill.ts';
 import { gatewayPlugin } from './gateway/index.ts';
+import { createSpaMiddleware } from './middleware/spa.ts';
 import { simpleModeResponse } from './simple-mode.ts';
 import pkg from '../package.json' with { type: 'json' };
 
@@ -131,6 +132,7 @@ export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef
     .use(swagger(createOpenApiSwaggerConfig(pkg.version)))
     .use(createResponseFormatMiddleware())
     .use(createCompressMiddleware())
+    .use(createSpaMiddleware())
     .use(createEtagMiddleware())
     .onBeforeHandle(({ request, set }) => {
       const pathname = new URL(request.url).pathname;
