@@ -19,7 +19,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { $ } from 'bun';
+
 
 const ROOT = join(import.meta.dir, '..', '..');
 const WORKFLOW = readFileSync(join(ROOT, '.github/workflows/test.yml'), 'utf-8');
@@ -39,9 +39,17 @@ function ciGroups(): string[] {
     .filter((entry) => entry.startsWith('src') || entry.startsWith('tests'));
 }
 
-/** Top-level groups that actually contain test files, from git — not from a glob. */
-async function suiteGroups(): Promise<string[]> {
-  const tracked = (await $`git -C ${ROOT} ls-files`.text()).split('\n');
+/**
+ * Top-level groups that actually contain test files, from git — not from a glob, so
+ * .gitignore is respected and an untracked scratch file cannot fail the gate.
+ *
+ * `Bun.spawnSync` rather than the `$` shell helper: the shell form took over 5 s on the CI
+ * runner and tripped bun's default per-test timeout, failing this gate for a reason that had
+ * nothing to do with coverage.
+ */
+function suiteGroups(): string[] {
+  const proc = Bun.spawnSync(['git', '-C', ROOT, 'ls-files'], { stdout: 'pipe' });
+  const tracked = new TextDecoder().decode(proc.stdout).split('\n');
   const groups = new Set<string>();
   for (const file of tracked) {
     if (!/\.test\.tsx?$/.test(file)) continue;
@@ -64,9 +72,9 @@ const DELIBERATELY_EXCLUDED: Record<string, string> = {
 };
 
 describe('CI runs the whole test suite', () => {
-  test('every group containing tests is either run by CI or explicitly excluded', async () => {
+  test('every group containing tests is either run by CI or explicitly excluded', () => {
     const covered = new Set(ciGroups());
-    const missing = (await suiteGroups()).filter(
+    const missing = suiteGroups().filter(
       (group) => !covered.has(group) && !(group in DELIBERATELY_EXCLUDED),
     );
 
