@@ -148,9 +148,14 @@ function knownTool(tool: string, source: string): boolean {
   return false;
 }
 
-export function loadToolGroupConfig(repoRoot?: string): ToolGroupConfig {
+/**
+ * @param dataDir override for the global tier. Exists so tests can isolate from
+ *   the developer's own ~/.arra-oracle-v2/config.json — passing a nonexistent
+ *   repoRoot is NOT enough, the lookup falls through to it.
+ */
+export function loadToolGroupConfig(repoRoot?: string, dataDir?: string): ToolGroupConfig {
   const root = repoRoot || process.env.ORACLE_REPO_ROOT || process.cwd();
-  const { source, raw } = resolveConfigSourceWithRaw(root);
+  const { source, raw } = resolveConfigSourceWithRaw(root, dataDir);
   if (!raw) return applyToolEnvOverrides({ ...DEFAULT_CONFIG });
   console.error(`[ToolGroups] Using ${source.label}`);
   return applyToolEnvOverrides(mergeRaw(raw));
