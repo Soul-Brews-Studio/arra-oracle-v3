@@ -56,7 +56,8 @@ PRs + review verdict, anything dispatched, anything stuck-nudged.
 1. Lead orchestrates, codex codes — lead writes only reference modules.
 2. Issue → PR → merge greens immediately (standing approval active).
 3. Build gate: `tsc --noEmit` + a SCOPED `bun test tests/http/<cluster>/` must pass.
-   (Bare `bun test` pulls in agents/ worktree copies — never use it for a verdict.)
+   (`bunfig.toml` sets `pathIgnorePatterns = ["**/agents/**"]` so sibling worktrees are excluded.
+   Scoping alone never did that — `bun test <path>` is a substring filter, not a path. See #2825.)
 4. No file > 250 lines.
 5. No force operations; never push/merge to `main` (a hook blocks it).
 6. Coders report starting (ACK) + blocked + done — suppress intermediate failures.

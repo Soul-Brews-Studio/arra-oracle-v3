@@ -7,3 +7,11 @@ roots = ["src", "tests"]
 # Isolate test files to prevent cross-file DB lock contamination.
 # Without this, parallel test files sharing oracle.db cause "disk I/O error".
 isolate = true
+# Exclude sibling worktrees. `agents/` holds full checkouts of this repo
+# (gitignored), so without this every run also executes their copies of the
+# suite. `bun test <path>` treats its argument as a SUBSTRING FILTER, not a
+# path, so scoping does not exclude them either — measured before this line
+# existed: `bun test tests/http/response-format/` reported 36 tests across 6
+# files where exactly 1 file exists, and `bun test tests/http/` ran 1,692
+# files (282 exist) in 111s. See #2825.
+pathIgnorePatterns = ["**/agents/**"]
