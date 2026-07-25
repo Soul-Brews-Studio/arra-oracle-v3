@@ -8,9 +8,22 @@
  */
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import type { Subprocess } from "bun";
+import fs from "fs";
+import os from "os";
 import path from "path";
 
-const BASE_URL = "http://localhost:47778";
+/**
+ * Its own port and its own data directory.
+ *
+ * This used to point at **47778 — the developer default** — and begin with
+ * `if (await isUp()) return;`, adopting whatever was listening and then POSTing to
+ * /api/learn. 168 `compare-http-test-*` documents reached the live corpus that way between
+ * 2026-05-03 and 2026-06-16. It also raced `core.test.ts` on the same port, which is how CI
+ * saw a healthy /api/health and then a 503 mid-run.
+ */
+const PORT = 47792;
+const BASE_URL = `http://localhost:${PORT}`;
+let dataDir = "";
 const SEED_TAG = `compare-http-test-${Date.now()}`;
 const JSON_HEADERS = { "Content-Type": "application/json" };
 let serverProcess: Subprocess | null = null;
@@ -33,18 +46,32 @@ async function seedLearn(pattern: string, concepts: string[] = []) {
 
 describe("HTTP Contract — GET /api/compare", () => {
   beforeAll(async () => {
-    if (await isUp()) return;
+    if (await isUp()) {
+      throw new Error(
+        `Port ${PORT} is already in use. This suite must own its server — refusing to seed data into someone else's.`,
+      );
+    }
+    dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "compare-http-"));
     serverProcess = Bun.spawn(["bun", "run", "src/server.ts"], {
       cwd: path.resolve(import.meta.dir, "../.."),
       stdout: "pipe", stderr: "pipe",
-      env: { ...process.env, ORACLE_CHROMA_TIMEOUT: "3000" },
+      env: {
+        ...process.env,
+        ORACLE_PORT: String(PORT),
+        ORACLE_DATA_DIR: dataDir,
+        ORACLE_DB_PATH: path.join(dataDir, "oracle.db"),
+        ORACLE_CHROMA_TIMEOUT: "3000",
+      },
     });
     if (!(await waitUp())) throw new Error("Server failed to start within 15s");
     // Best-effort seed so some model columns have real results
     try { await seedLearn(`${SEED_TAG} — alpha about compare endpoint`); } catch { /* ignore */ }
     try { await seedLearn(`${SEED_TAG} — beta on compare agreement`); } catch { /* ignore */ }
   }, 60_000);
-  afterAll(() => { if (serverProcess) serverProcess.kill(); });
+  afterAll(() => {
+    if (serverProcess) serverProcess.kill();
+    if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true });
+  });
 
   test("rejects missing query param", async () => {
     const res = await fetch(`${BASE_URL}/api/compare`);

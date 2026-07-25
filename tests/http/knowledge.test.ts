@@ -31,7 +31,18 @@ async function seedLearn(pattern: string, concepts: string[] = []) {
 
 describe("HTTP Contract — search / knowledge / supersede", () => {
   beforeAll(async () => {
-    if (await isUp()) return;
+    // NEVER adopt a server that happens to be listening. This used to begin with
+    // `if (await isUp()) return;`, which short-circuited PAST the temp dataDir below — so an
+    // adopted server was seeded through /api/learn with no isolation whatsoever. On a
+    // developer machine that is the live Oracle: 432 `yellow-http-test-*` documents reached
+    // the real corpus between 2026-05-03 and 2026-06-16, indexed, and ranking in real search.
+    // Writes only stopped by accident, when /api/learn began 308-ing to /api/v1/learn and the
+    // failure was swallowed by seedLearn's try/catch — dormant, not fixed.
+    if (await isUp()) {
+      throw new Error(
+        `Port ${PORT} is already in use. This suite must own its server — refusing to seed data into someone else's.`,
+      );
+    }
     dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "knowledge-http-"));
     serverProcess = Bun.spawn(["bun", "run", "src/server.ts"], {
       cwd: path.resolve(import.meta.dir, "../.."),
