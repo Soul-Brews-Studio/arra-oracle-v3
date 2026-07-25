@@ -14,7 +14,8 @@ import type { VectorStoreAdapter } from '../vector/types.ts';
 import { defaultMcpToolOrder, mcpToolByName, mcpTools, toMcpToolDefinition, type RuntimeMcpToolManifest } from '../tools/mcp-manifest.ts';
 import type { UnifiedRuntime } from '../plugins/unified-loader.ts';
 import type { EmbeddedDeps, OracleMCPServerOptions } from './server-options.ts';
-import { formatEmbedderDegradedWarning, getEmbedderRuntimeStatus, probeConfiguredEmbedder, setEmbedderRuntimeStatus, type EmbedderRuntimeStatus } from '../vector/embedder-config.ts';
+import { probeVectorStore } from './vector-health.ts';
+import { formatEmbedderDegradedWarning, probeConfiguredEmbedder, readEmbedderRuntimeStatus, setEmbedderRuntimeStatus, type EmbedderRuntimeStatus } from '../vector/embedder-config.ts';
 import { resolveInboundToolName } from './aliases.ts';
 import { proxyToolCall, resolveOracleApiBase } from './http-proxy.ts';
 import { pluginMcpToolsFrom } from './plugin-tools.ts';
@@ -95,7 +96,10 @@ export class OracleMCPServer {
     this.embeddedReady ??= this.initEmbedded();
     await this.embeddedReady;
     if (!this.sqlite || !this.db || !this.vectorStore) throw new Error('Embedded Oracle resources failed to initialize');
-    this.applyEmbedderStatus(getEmbedderRuntimeStatus());
+    // Re-probes behind a TTL, as /api/v1/stats and /api/v1/health already do. The snapshot
+    // reader never re-probes, so this reported boot-time truth forever — see #2817 and
+    // tests/mcp/stats-embedder-freshness.test.ts.
+    this.applyEmbedderStatus(await readEmbedderRuntimeStatus());
     return { db: this.db, sqlite: this.sqlite, repoRoot: this.repoRoot, vectorStore: this.vectorStore, vectorStatus: this.vectorStatus, vectorReason: this.vectorReason, embedderProvider: this.embedderProvider, version: this.version };
   }
 
@@ -137,20 +141,7 @@ export class OracleMCPServer {
   }
 
   private async verifyVectorHealth(): Promise<void> {
-    if (!this.vectorStore) {
-      this.vectorStatus = 'unavailable';
-      return;
-    }
-    try {
-      const stats = await this.vectorStore.getStats();
-      if (this.vectorStatus !== 'degraded') this.vectorStatus = 'connected';
-      console.error(stats.count > 0
-        ? `[VectorDB:${this.vectorStore.name}] ✓ oracle_knowledge: ${stats.count} documents`
-        : `[VectorDB:${this.vectorStore.name}] ✓ Connected but collection empty`);
-    } catch (e) {
-      if (this.vectorStatus !== 'degraded') this.vectorStatus = 'unavailable';
-      console.error(`[VectorDB:${this.vectorStore.name}] ✗ Cannot connect:`, e instanceof Error ? e.message : String(e));
-    }
+    this.vectorStatus = await probeVectorStore(this.vectorStore, this.vectorStatus);
   }
 
   private setupErrorHandling(installSignalHandlers: boolean): void {
