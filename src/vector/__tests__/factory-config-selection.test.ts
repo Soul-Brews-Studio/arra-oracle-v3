@@ -111,23 +111,58 @@ describe('vector engine/config selection coverage', () => {
   test('factory constructors wire lancedb/qdrant/sqlite config without connecting', async () => {
     const { createVectorStore } = await import('../factory.ts');
 
-    const lance = createVectorStore({ type: 'lancedb', collectionName: 'col_lance', dataPath: '/tmp/lance-a', embeddingModel: 'm1' }) as any;
+    const lance = createVectorStore({ type: 'lancedb', collectionName: 'col_lance', dataPath: '/tmp/lance-a', embeddingModel: 'bge-m3' }) as any;
     expect(lance.name).toBe('lancedb');
     expect(lance.collectionName).toBe('col_lance');
     expect(lance.dbPath).toBe('/tmp/lance-a');
-    expect(lance.embedder.model).toBe('m1');
 
-    const qdrant = createVectorStore({ type: 'qdrant', collectionName: 'col_q', qdrantUrl: 'http://q:6333', qdrantApiKey: 'key', embeddingModel: 'm2' }) as any;
+    const qdrant = createVectorStore({ type: 'qdrant', collectionName: 'col_q', qdrantUrl: 'http://q:6333', qdrantApiKey: 'key', embeddingModel: 'bge-m3' }) as any;
     expect(qdrant.name).toBe('qdrant');
     expect(qdrant.collectionName).toBe('col_q');
     expect(qdrant.url).toBe('http://q:6333');
     expect(qdrant.apiKey).toBe('key');
-    expect(qdrant.embedder.model).toBe('m2');
 
-    const sqlite = createVectorStore({ type: 'sqlite-vec', collectionName: 'col_s', dataPath: '/tmp/sqlite.db', embeddingModel: 'm3' }) as any;
+    const sqlite = createVectorStore({ type: 'sqlite-vec', collectionName: 'col_s', dataPath: '/tmp/sqlite.db', embeddingModel: 'bge-m3' }) as any;
     expect(sqlite.name).toBe('sqlite-vec');
     expect(sqlite.collectionName).toBe('col_s');
     expect(sqlite.dbPath).toBe('/tmp/sqlite.db');
-    expect(sqlite.embedder.model).toBe('m3');
+  });
+
+  /**
+   * #2858 — this used to assert `store.embedder.model === 'm1'` and received `undefined`.
+   *
+   * The wiring was never broken. `createConfiguredEmbedder` returns `observe(...)`, which
+   * builds a fresh object exposing only `{ name, dimensions, embed }`, and `OllamaEmbeddings`
+   * declares `model` private — so the field simply is not on the surface any more.
+   *
+   * Deleting the assertion would have been wrong: proving the requested model actually
+   * reaches the embedder is this test's entire job, and a wrapper could just as easily have
+   * been swallowing it. `dimensions` is the honest replacement — `OllamaEmbeddings` derives
+   * it from the model (`KNOWN_DIMS[this.model] || 768`, embeddings.ts:47), so a differing
+   * dimension proves the model was *consumed*, not merely stored. That is a stronger claim
+   * than reading back a field.
+   */
+  test('the requested embedding model reaches the embedder through the observe() wrapper', async () => {
+    const { createVectorStore } = await import('../factory.ts');
+    const dimsFor = (embeddingModel: string) =>
+      (createVectorStore({ type: 'lancedb', collectionName: 'c', dataPath: '/tmp/dim', embeddingModel }) as any).embedder.dimensions;
+
+    expect(dimsFor('bge-m3')).toBe(1024);
+    expect(dimsFor('all-minilm')).toBe(384);
+    expect(dimsFor('qwen3-embedding:8b')).toBe(4096);
+
+    // Distinct models must not collapse to one value — that is what "ignored" would look like.
+    expect(dimsFor('all-minilm')).not.toBe(dimsFor('bge-m3'));
+
+    // An unrecognised model falls back to 768 rather than throwing.
+    expect(dimsFor('totally-unknown-model')).toBe(768);
+  });
+
+  test('every adapter type gets the model, not just lancedb', async () => {
+    const { createVectorStore } = await import('../factory.ts');
+    for (const type of ['lancedb', 'sqlite-vec', 'qdrant'] as const) {
+      const store = createVectorStore({ type, collectionName: 'c', dataPath: '/tmp/dim', qdrantUrl: 'http://q:6333', embeddingModel: 'all-minilm' }) as any;
+      expect(store.embedder.dimensions).toBe(384);
+    }
   });
 });
