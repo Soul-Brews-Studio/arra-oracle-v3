@@ -13,6 +13,7 @@ import {
   resolveToolConfigSource,
   type ToolGroupName,
 } from '../../config/tool-groups.ts';
+import { warnDeprecatedAlias } from '../../config/tool-alias-warn.ts';
 
 /** Ordered projection of the shared config vocabulary — the same set the loader governs. */
 const ALL_TOOL_LIST = [...ALL_TOOL_NAMES];
@@ -67,6 +68,11 @@ export const toolSettingsRoute = new Elysia()
     },
   })
   .put('/tools', ({ body, set }) => {
+    // Announce the rewrite BEFORE validation, so a body that also carries an
+    // unknown tool still tells the caller its `muninn_` names are on the way out
+    // rather than 400-ing with that half of the story missing. Unguarded on
+    // purpose: every PUT is a fresh operator action, unlike the polled config file.
+    for (const name of body.enabled_tools) warnDeprecatedAlias(name);
     const normalized = Array.from(new Set(body.enabled_tools.map(normalizeToolName)));
     const unknown = normalized.filter((name) => !ALL_TOOL_NAMES.has(name));
     if (unknown.length) {
