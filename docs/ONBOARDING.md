@@ -56,15 +56,23 @@ When the tool list is too large for the task, trim it.
 
 ### Config file / env
 
-Persist a strict allow-list in `.arra/config.json`:
+Persist a strict allow-list in `arra.config.json` (repo root) or
+`~/.arra-oracle-v2/config.json` (global). Both keys are required: `enabled_tools`
+is additive, so an allow-list only becomes exclusive once its complement is in
+`disabled_tools`.
 
 ```json
 {
-  "allowed_tools": ["oracle_search", "oracle_read", "oracle_list", "oracle_stats"]
+  "enabled_tools": ["oracle_search", "oracle_read", "oracle_list", "oracle_stats"],
+  "disabled_tools": ["oracle_learn", "oracle_thread", "oracle_trace"]
 }
 ```
 
-Equivalent env controls are available for deploys and temporary sessions:
+See [mcp-tools.md](./mcp-tools.md) for the full first-match-wins precedence
+chain — a repo-root file shadows the global one rather than merging with it.
+
+Equivalent env controls are available for deploys and temporary sessions. They
+are applied on top of whichever config file wins:
 
 ```bash
 ORACLE_ENABLED_TOOLS=oracle_search,oracle_read,oracle_list,oracle_stats bun src/index.ts
@@ -72,16 +80,21 @@ ORACLE_ENABLED_TOOLS=oracle_search,oracle_read,oracle_list,oracle_stats bun src/
 ORACLE_DISABLED_TOOLS=oracle_trace,oracle_thread bun src/index.ts
 ```
 
-### Web toggle UI
+### HTTP API
 
-Open `/tools/config`. It reads and writes the same MCP tool enablement surface through:
+The same MCP tool enablement surface is reachable over HTTP:
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/settings/tools` | Read current groups, enabled tools, disabled tools, and config path. |
-| `PUT /api/settings/tools` | Persist selected MCP tools as `allowed_tools`. |
+| `GET /api/v1/settings/tools` | Read current groups, enabled/disabled tools, always-on tools, and the config file that is actually in play (`config_path`, `config_exists`, `env_override`). |
+| `PUT /api/v1/settings/tools` | Persist the selected MCP tools to `config_path` as `enabled_tools` plus the complementary `disabled_tools`. |
 
-Saved toggles apply on the next MCP tool-list refresh / process reload.
+`PUT` writes to the file the loader will read next, so saved toggles apply on the
+next MCP tool-list refresh / process reload. When `env_override` is `true` the
+environment still wins over the saved file.
+
+There is no `/tools/config` web page yet — the menu entry on these routes is
+reserved for one.
 
 ## 3. Connect page, token, and MCP install snippet (#1374)
 
