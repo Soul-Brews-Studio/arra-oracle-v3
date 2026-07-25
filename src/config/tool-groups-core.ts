@@ -1,5 +1,5 @@
 import { envToolList, isRecord, resolveConfigSourceWithRaw } from './tool-config-source.ts';
-import { warnDeprecatedAliasOnce } from './tool-alias-warn.ts';
+import { warnDeprecatedAliasOnce, warnOnce } from './tool-alias-warn.ts';
 
 export const TOOL_GROUPS = {
   search: ['oracle_search', 'oracle_search_chain', 'oracle_read', 'oracle_list', 'oracle_concepts', 'oracle_ask'],
@@ -145,8 +145,20 @@ export function applyToolEnvOverrides(config: ToolGroupConfig): ToolGroupConfig 
   const next: ToolGroupConfig = { ...config };
   if (allowEnv) {
     const keep = new Set(allowEnv.filter((tool) => knownTool(tool, 'ORACLE_ENABLED_TOOLS')));
-    next.enabled_tools = [...keep];
-    next.disabled_tools = [...ALL_TOOL_NAMES].filter((tool) => !keep.has(tool));
+    // An allow-list naming ONLY unrecognised tools must not serve zero tools.
+    // `ORACLE_ENABLED_TOOLS=oracle_dig` did exactly that — oracle_dig is a
+    // plugin tool the product advertises but which lives outside ALL_TOOL_NAMES,
+    // so a plausible value silently disabled the entire MCP surface. A filter
+    // that matches nothing means "no usable filter", not "allow nothing".
+    if (keep.size === 0) {
+      warnOnce(
+        'allowlist-empty',
+        '[ToolGroups] ORACLE_ENABLED_TOOLS named no recognised tool — ignoring it rather than serving zero tools',
+      );
+    } else {
+      next.enabled_tools = [...keep];
+      next.disabled_tools = [...ALL_TOOL_NAMES].filter((tool) => !keep.has(tool));
+    }
   }
   if (blockEnv) {
     const block = new Set(blockEnv.filter((tool) => knownTool(tool, 'ORACLE_DISABLED_TOOLS')));
@@ -158,7 +170,9 @@ export function applyToolEnvOverrides(config: ToolGroupConfig): ToolGroupConfig 
 
 function knownTool(tool: string, source: string): boolean {
   if (ALL_TOOL_NAMES.has(tool)) return true;
-  console.error(`[ToolGroups] ${source}: unknown tool "${tool}" — ignored`);
+  // Through the once-guard: this is reached from loadToolGroupConfig, which the
+  // watcher polls at 10Hz, so an unguarded console.error here is ~864k lines/day.
+  warnOnce(`unknown:${source}:${tool}`, `[ToolGroups] ${source}: unknown tool "${tool}" — ignored`);
   return false;
 }
 

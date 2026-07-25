@@ -46,6 +46,19 @@ export function warnDeprecatedAliasOnce(name: string, log: (m: string) => void =
 }
 
 /**
+ * Warn at most once per distinct key, for warnings that are NOT about aliases.
+ *
+ * Same mandate as above: anything reached from `loadToolGroupConfig` is on the
+ * 100ms watcher path, so an unguarded `console.error` there is ~864k lines/day.
+ * `knownTool()` shipped exactly that in #2826 — three lines from this file.
+ */
+export function warnOnce(key: string, message: string, log: (m: string) => void = console.error): void {
+  if (warned.has(key)) return;
+  warned.add(key);
+  log(message);
+}
+
+/**
  * Clear the once-guard. Tests only — the Set is process-global, so without this
  * a test asserting "it warns" would depend on no earlier test having warmed it.
  */
