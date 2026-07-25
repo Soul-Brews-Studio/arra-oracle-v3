@@ -206,7 +206,16 @@ cd frontend && bun run build
 bun run server              # http://localhost:47778
 ```
 
-In production, the backend serves both API endpoints and the built React app from `frontend/dist/`.
+In production, the backend serves both API endpoints and the built React app from `frontend/dist/`
+(`src/middleware/spa.ts`). It **content-negotiates** rather than mounting the app at `/`: a request
+that explicitly accepts `text/html` gets the app shell — including deep links like `/settings` and
+`/tools/config` — while every other client keeps today's JSON byte-for-byte, because `/` is the JSON
+root endpoint that `maw arra` and the #2820 enrichment read. Paths under `/api`, `/mcp` and `/simple`
+are never intercepted, so a missing endpoint still 404s as JSON instead of silently returning HTML.
+
+Set `ORACLE_FRONTEND_DIST` to serve a build from elsewhere. If no build exists the middleware is
+inert, so API-only deploys need no flag. Pinned by `tests/http/frontend/spa-serving.test.ts` — this
+paragraph described behaviour that did not exist until #2831.
 
 ## Development Workflows
 
