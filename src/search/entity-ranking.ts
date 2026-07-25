@@ -4,6 +4,7 @@ import { drizzle } from 'drizzle-orm/bun-sqlite';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../db/schema.ts';
 import { extractEntities } from '../vector/entities.ts';
+import { expansionsForText } from './acronyms.ts';
 
 const ENTITY_BOOST_PER_MATCH = 0.08;
 const ENTITY_BOOST_CAP = 0.24;
@@ -154,6 +155,22 @@ export function entitySignalsForCandidates(
 
 function entityKeysForQuery(query: string): string[] {
   const keys = new Set(extractEntities(query).map(entityKey).filter(Boolean));
+
+  // Acronym expansions are added as known phrases rather than recovered from the text.
+  //
+  // `augmentQueryWithAcronyms` appends expansions bare — `"…API and db do Application
+  // Programming Interface Database"` — so `extractEntities` merges the adjacent capitalised
+  // runs into one entity ("Application Programming Interface Database") whose key matches
+  // nothing. Both real keys were lost, silently, and entity-link boosting simply did not
+  // happen for any query containing two acronyms (#2876).
+  //
+  // The word/bigram loop below cannot recover them either: those phrases are trigrams and it
+  // only builds adjacent pairs.
+  //
+  // Inserted before the loop so these survive the MAX_ENTITY_QUERY_KEYS cap — a Set keeps
+  // insertion order, and these are the highest-signal keys in the query.
+  for (const expansion of expansionsForText(query)) keys.add(entityKey(expansion));
+
   const words = query.normalize('NFKC').match(/[\p{L}\p{N}][\p{L}\p{N}._-]{2,}/gu)
     ?.map((word) => word.toLowerCase()).filter((word) => !QUERY_STOPWORDS.has(word)) ?? [];
   for (const word of words) keys.add(entityKey(word));
