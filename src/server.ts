@@ -123,7 +123,31 @@ export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef
     .get('/swagger/json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
     .get('/api/openapi.json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
     .get('/simple', ({ set }) => simpleModeResponse(set), { detail: { tags: ['frontend'], summary: 'Simple Mode entry page' } })
-    .get('/', () => ({ server: MCP_SERVER_NAME, version: pkg.version, status: 'ok', docs: '/api/docs', api: '/api/v1' }));
+    .get('/', () => ({
+      server: MCP_SERVER_NAME,
+      version: pkg.version,
+      status: 'ok',
+      uptimeSeconds: Math.floor(process.uptime()),
+      plugins: unifiedPlugins.pluginCount,
+      pluginMcpTools: unifiedPlugins.mcpTools.length,
+      docs: '/api/docs',
+      api: '/api/v1',
+      endpoints: {
+        docs: '/api/docs',
+        openapi: '/api/docs/json',
+        api: '/api/v1',
+        mcp: '/mcp',
+        health: '/api/v1/health',
+        simple: '/simple',
+      },
+      config: {
+        port: Number(PORT),
+        dataDir,
+        vector: vectorUrl ? `proxy:${vectorUrl}` : 'local',
+      },
+      runtime: { bun: Bun.version },
+      generatedAt: new Date().toISOString(),
+    }));
 
   const routeModules = createServerRouteModules(unifiedPlugins, runtimeRef);
   mountRouteModules(app, routeModules);
