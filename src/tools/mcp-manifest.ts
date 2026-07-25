@@ -1,4 +1,5 @@
 import type { UnifiedMcpToolManifest } from '../plugins/unified-manifest.ts';
+import { ALWAYS_ON_TOOLS } from '../config/tool-groups.ts';
 import { GUIDE_TOOL_NAME, guideToolDefinition, guideToolResponse } from '../mcp/guide.ts';
 import type { ToolContext, ToolResponse } from './types.ts';
 import { recapToolDef, handleRecap } from './recap.ts';
@@ -82,6 +83,9 @@ export function toMcpToolDefinition(tool: RuntimeMcpToolManifest) {
 
 export function defaultMcpToolOrder(configOrder: string[]): string[] {
   const seen = new Set<string>();
-  return [GUIDE_TOOL_NAME, ...configOrder, ...mcpTools.filter((t) => t.group === 'mcp' && t.enabledByDefault !== false).map((t) => t.name)]
+  // ALWAYS_ON_TOOLS, not a `group === 'mcp'` scan: manifest groups are display
+  // metadata (see UnifiedMcpToolManifest.group) and must not steer enablement.
+  // Tools appended here are still subject to disabled_tools in the caller.
+  return [GUIDE_TOOL_NAME, ...configOrder, ...ALWAYS_ON_TOOLS]
     .filter((name) => mcpToolByName.has(name) && !seen.has(name) && seen.add(name));
 }

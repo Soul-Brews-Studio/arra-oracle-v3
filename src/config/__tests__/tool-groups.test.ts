@@ -3,6 +3,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import {
+  ALL_TOOL_NAMES,
+  ALWAYS_ON_TOOLS,
   TOOL_GROUPS,
   TOOL_PLUGINS,
   getDisabledTools,
@@ -14,9 +16,10 @@ import {
 describe('tool-groups', () => {
   it('defines groups with correct tool counts', () => {
     expect(Object.keys(TOOL_GROUPS)).toHaveLength(7);
-    expect(TOOL_GROUPS.search).toHaveLength(5);
+    expect(TOOL_GROUPS.search).toHaveLength(6);
+    expect(TOOL_GROUPS.search).toContain('oracle_ask');
     expect(TOOL_GROUPS.knowledge).toHaveLength(4);
-    expect(TOOL_GROUPS.oracle).toEqual(['oracle_profile']);
+    expect(TOOL_GROUPS.oracle).toEqual(['oracle_profile', 'oracle_recap']);
     expect(TOOL_GROUPS.trace).toHaveLength(7);
     expect(TOOL_GROUPS.standalone).toHaveLength(2);
   });
@@ -25,7 +28,24 @@ describe('tool-groups', () => {
     expect(TOOL_PLUGINS.trace.tools).toEqual(['oracle_trace', 'oracle_trace_distill']);
     expect(TOOL_PLUGINS.dig.tools).toContain('oracle_trace_get');
     expect(TOOL_PLUGINS.dig.tools).not.toContain('oracle_trace');
-    expect(TOOL_PLUGINS.oracle.tools).toEqual(['oracle_profile']);
+    expect(TOOL_PLUGINS.oracle.tools).toEqual(['oracle_profile', 'oracle_recap']);
+  });
+
+  it('keeps always-on bridge tools enabled by default but still disableable', () => {
+    const config: ToolGroupConfig = {
+      search: false, knowledge: false, session: false,
+      forum: false, oracle: false, trace: false, standalone: false,
+    };
+    for (const tool of ALWAYS_ON_TOOLS) {
+      expect(ALL_TOOL_NAMES.has(tool)).toBe(true);
+      expect(getEnabledToolNames(config)).toContain(tool);
+      expect(getDisabledTools(config).has(tool)).toBe(false);
+    }
+    const blocked = { ...config, disabled_tools: [...ALWAYS_ON_TOOLS] };
+    for (const tool of ALWAYS_ON_TOOLS) {
+      expect(getEnabledToolNames(blocked)).not.toContain(tool);
+      expect(getDisabledTools(blocked).has(tool)).toBe(true);
+    }
   });
 
   it('returns empty set when all groups enabled', () => {

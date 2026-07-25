@@ -1,6 +1,9 @@
 export {
+  ALL_TOOL_NAMES,
+  ALWAYS_ON_TOOLS,
   TOOL_GROUPS,
   TOOL_PLUGINS,
+  applyToolEnvOverrides,
   getDisabledTools,
   getEnabledToolNames,
   loadToolGroupConfig,
@@ -13,4 +16,6 @@ export type {
   ToolGroupName,
   ToolPlugin,
 } from './tool-groups-core.ts';
+export { envToolList, resolveToolConfigSource } from './tool-config-source.ts';
+export type { ToolConfigSource } from './tool-config-source.ts';
 export { watchToolGroupConfig } from './tool-groups-watch.ts';

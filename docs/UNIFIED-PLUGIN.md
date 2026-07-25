@@ -129,12 +129,16 @@ Resolution should stay the same:
 
 1. disabled groups;
 2. `disabled_tools` blocklist;
-3. `enabled_tools` whitelist;
-4. `allowed_tools` strict allow-list.
+3. `enabled_tools` whitelist (additive — pair it with the complementary
+   `disabled_tools` for a strict allow-list).
 
-For groups, plugin tools can use their manifest `group` field. If no group is
-provided, default to `plugin:<manifest.name>`. Existing config files keep working
-because no static tool names change.
+There is no `allowed_tools` key. It was written by the settings API but never
+read by the loader; #2822 removed it rather than leaving a lever that looks
+authoritative and does nothing.
+
+Manifest `group` is inert display metadata and must stay that way — it is not
+validated against `TOOL_GROUPS` and steers no enablement. Existing config files
+keep working because no static tool names change.
 
 ## Mapping existing plugin types
 

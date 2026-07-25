@@ -11,6 +11,7 @@ export interface UnifiedMcpToolManifest {
   description: string;
   inputSchema: Record<string, unknown>;
   handler: string;
+  /** INERT display metadata — unvalidated, steers no enablement; that lives in src/config/tool-groups*.ts (#2822). */
   group?: string;
   readOnly?: boolean;
   enabled?: boolean;

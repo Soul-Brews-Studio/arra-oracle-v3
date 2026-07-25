@@ -3,22 +3,26 @@ import path from 'path';
 import { Elysia, t } from 'elysia';
 import { REPO_ROOT } from '../../config.ts';
 import {
+  ALL_TOOL_NAMES,
+  ALWAYS_ON_TOOLS,
   TOOL_GROUPS,
+  envToolList,
   getEnabledToolNames,
   loadToolGroupConfig,
   normalizeToolName,
+  resolveToolConfigSource,
   type ToolGroupName,
 } from '../../config/tool-groups.ts';
 
-const ALL_TOOL_NAMES = Object.values(TOOL_GROUPS).flat();
-const ALL_TOOL_SET: ReadonlySet<string> = new Set(ALL_TOOL_NAMES);
+/** Ordered projection of the shared config vocabulary — the same set the loader governs. */
+const ALL_TOOL_LIST = [...ALL_TOOL_NAMES];
 
 const UpdateToolsBody = t.Object({
   enabled_tools: t.Array(t.String()),
 });
 
-function configPath(): string {
-  return path.join(process.env.ORACLE_REPO_ROOT || REPO_ROOT, '.arra', 'config.json');
+function repoRoot(): string {
+  return process.env.ORACLE_REPO_ROOT || REPO_ROOT;
 }
 
 function readExistingConfig(filePath: string): Record<string, unknown> {
@@ -31,18 +35,26 @@ function readExistingConfig(filePath: string): Record<string, unknown> {
 }
 
 function serializeToolConfig() {
-  const config = loadToolGroupConfig(process.env.ORACLE_REPO_ROOT || REPO_ROOT);
+  const source = resolveToolConfigSource(repoRoot());
+  const config = loadToolGroupConfig(repoRoot());
   const enabled = new Set(getEnabledToolNames(config));
-  const envOverride = Boolean(process.env.ORACLE_ENABLED_TOOLS?.trim() || process.env.ORACLE_DISABLED_TOOLS?.trim());
   return {
     groups: Object.entries(TOOL_GROUPS).map(([group, tools]) => ({
       group: group as ToolGroupName,
       tools: tools.map((name) => ({ name, enabled: enabled.has(name) })),
     })),
-    enabled_tools: ALL_TOOL_NAMES.filter((name) => enabled.has(name)),
-    disabled_tools: ALL_TOOL_NAMES.filter((name) => !enabled.has(name)),
-    config_path: configPath(),
-    env_override: envOverride,
+    enabled_tools: ALL_TOOL_LIST.filter((name) => enabled.has(name)),
+    disabled_tools: ALL_TOOL_LIST.filter((name) => !enabled.has(name)),
+    // Tools with no group: deliberately on by default, still disableable. See
+    // ALWAYS_ON_TOOLS in src/config/tool-groups-core.ts.
+    always_on_tools: [...ALWAYS_ON_TOOLS],
+    // The file a PUT will write. First-match-wins: a repo-root arra.config.json
+    // shadows the global one, so surface which file is actually in play.
+    config_path: source.path,
+    config_exists: source.found,
+    // True when ORACLE_ENABLED_TOOLS / ORACLE_DISABLED_TOOLS are in effect. Env
+    // beats the file, so a PUT will not visibly change the surface while set.
+    env_override: Boolean(envToolList('ORACLE_ENABLED_TOOLS') || envToolList('ORACLE_DISABLED_TOOLS')),
   };
 }
 
@@ -56,21 +68,25 @@ export const toolSettingsRoute = new Elysia()
   })
   .put('/tools', ({ body, set }) => {
     const normalized = Array.from(new Set(body.enabled_tools.map(normalizeToolName)));
-    const unknown = normalized.filter((name) => !ALL_TOOL_SET.has(name));
+    const unknown = normalized.filter((name) => !ALL_TOOL_NAMES.has(name));
     if (unknown.length) {
       set.status = 400;
       return { error: 'Unknown MCP tools', unknown };
     }
 
-    const filePath = configPath();
+    const filePath = resolveToolConfigSource(repoRoot()).path;
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    const existing = readExistingConfig(filePath);
+    const { allowed_tools: _dead, ...existing } = readExistingConfig(filePath);
+    const selected = new Set(normalized);
     const next = {
       ...existing,
-      // allowed_tools is the strict allow-list that #1372 already resolves via
-      // getEnabledToolNames/getDisabledTools. Persisting the visual toggle as
-      // an allow-list avoids duplicating group/filter semantics in the UI.
-      allowed_tools: ALL_TOOL_NAMES.filter((name) => normalized.includes(name)),
+      // BOTH sides are required. `enabled_tools` is additive in
+      // getEnabledToolNames, so an allow-list only becomes exclusive once its
+      // complement lands in `disabled_tools`. The old `allowed_tools` key this
+      // endpoint used to write is not a key the loader reads at all — it is
+      // dropped here rather than left behind looking authoritative. (#2822)
+      enabled_tools: ALL_TOOL_LIST.filter((name) => selected.has(name)),
+      disabled_tools: ALL_TOOL_LIST.filter((name) => !selected.has(name)),
     };
     fs.writeFileSync(filePath, JSON.stringify(next, null, 2) + '\n');
     return { success: true, ...serializeToolConfig() };
