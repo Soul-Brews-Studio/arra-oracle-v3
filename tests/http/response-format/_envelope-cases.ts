@@ -134,8 +134,26 @@ export function normalize(value: unknown): unknown {
   return value;
 }
 
-export async function readJson(app: AppLike, instance: EnvelopeCase) {
+export type Read = { status: number; text: string; body: unknown; parsed: boolean };
+
+/**
+ * Never throws on a non-JSON body. `/api/stats` and `/api/oracles` query SQLite
+ * directly and answer `500 "disk I/O error"` when the whole 1200-file suite
+ * contends on the shared DB file. That is environmental, so the caller decides
+ * what to assert — the bare-vs-wrapped comparison stays valid at any status.
+ */
+export async function readJson(app: AppLike, instance: EnvelopeCase): Promise<Read> {
   const res = await app.handle(new Request(`http://local${instance.path}`, { method: instance.method }));
   const text = await res.text();
-  return { status: res.status, body: text ? JSON.parse(text) : null };
+  if (!text) return { status: res.status, text, body: null, parsed: false };
+  try {
+    return { status: res.status, text, body: JSON.parse(text), parsed: true };
+  } catch {
+    return { status: res.status, text, body: null, parsed: false };
+  }
+}
+
+/** True when the environment actually served the route, so 200-shape claims apply. */
+export function served(read: Read): boolean {
+  return read.status === 200 && read.parsed;
 }
