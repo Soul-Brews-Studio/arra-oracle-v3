@@ -35,8 +35,16 @@ export interface WorkerDeps {
   getDocText: (docId: string) => string | null;
   /** Embed text for `modelKey`. Throws on Ollama errors → marks job error. */
   embed: (modelKey: string, text: string) => Promise<number[]>;
-  /** Upsert into the model's LanceDB collection. Throws → marks job error. */
-  upsertVector: (collection: string, docId: string, vector: number[]) => Promise<void>;
+  /**
+   * Upsert into the model's LanceDB collection. Throws → marks job error.
+   *
+   * `text` is the document body the vector was computed from. It is passed even though
+   * the vector is already computed, because the row must store the text it was embedded
+   * from: the daemon previously wrote `document: ''` and discarded the vector, so the
+   * store re-embedded the empty string and every daemon-indexed document ended up with
+   * the same meaningless embedding (#2806, reported by Berlin).
+   */
+  upsertVector: (collection: string, docId: string, vector: number[], text: string) => Promise<void>;
   /** Returns true when the worker should exit cleanly. Caller wires SIGTERM/SIGINT. */
   isShuttingDown: () => boolean;
   /** Sleep between empty-queue polls (default 1000ms). */
@@ -116,7 +124,7 @@ export async function runWorker(
 
       const t0 = performance.now();
       const vector = await deps.embed(job.modelKey, text);
-      await deps.upsertVector(job.collection, job.docId, vector);
+      await deps.upsertVector(job.collection, job.docId, vector, text);
       markJobDone(deps.db, job.id);
       stats.processed++;
       emit(deps, {
