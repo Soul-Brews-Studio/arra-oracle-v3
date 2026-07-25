@@ -7,10 +7,7 @@
  * Pattern mirrors tests/http/knowledge.test.ts (subprocess + fetch).
  */
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import type { Subprocess } from "bun";
-import fs from "fs";
-import os from "os";
-import path from "path";
+import { startOwnedServer, type LiveServer } from "./_live-server.ts";
 
 /**
  * Its own port and its own data directory.
@@ -23,20 +20,10 @@ import path from "path";
  */
 const PORT = 47792;
 const BASE_URL = `http://localhost:${PORT}`;
-let dataDir = "";
+let server: LiveServer;
 const SEED_TAG = `compare-http-test-${Date.now()}`;
-const JSON_HEADERS = { "Content-Type": "application/json" };
-let serverProcess: Subprocess | null = null;
 
-const isUp = async () => {
-  try { return (await fetch(`${BASE_URL}/api/health`)).ok; } catch { return false; }
-};
-const waitUp = async (n = 30) => {
-  for (let i = 0; i < n; i++) { if (await isUp()) return true; await Bun.sleep(500); }
-  return false;
-};
-const post = (url: string, body: unknown) =>
-  fetch(`${BASE_URL}${url}`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body) });
+const post = (url: string, body: unknown) => server.post(url, body);
 
 async function seedLearn(pattern: string, concepts: string[] = []) {
   const res = await post("/api/learn", { pattern, source: SEED_TAG, concepts: [SEED_TAG, ...concepts] });
@@ -46,32 +33,16 @@ async function seedLearn(pattern: string, concepts: string[] = []) {
 
 describe("HTTP Contract — GET /api/compare", () => {
   beforeAll(async () => {
-    if (await isUp()) {
-      throw new Error(
-        `Port ${PORT} is already in use. This suite must own its server — refusing to seed data into someone else's.`,
-      );
-    }
-    dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "compare-http-"));
-    serverProcess = Bun.spawn(["bun", "run", "src/server.ts"], {
-      cwd: path.resolve(import.meta.dir, "../.."),
-      stdout: "pipe", stderr: "pipe",
-      env: {
-        ...process.env,
-        ORACLE_PORT: String(PORT),
-        ORACLE_DATA_DIR: dataDir,
-        ORACLE_DB_PATH: path.join(dataDir, "oracle.db"),
-        ORACLE_CHROMA_TIMEOUT: "3000",
-      },
-    });
-    if (!(await waitUp())) throw new Error("Server failed to start within 15s");
-    // Best-effort seed so some model columns have real results
+    // Owns its server — see _live-server.ts. This used to point at 47778 (the developer
+    // default) and adopt whatever was listening, putting 168 documents into the live corpus
+    // and racing core.test.ts on the same port.
+    server = await startOwnedServer(PORT, "compare-http");
+    // Best-effort seed so some model columns have real results.
     try { await seedLearn(`${SEED_TAG} — alpha about compare endpoint`); } catch { /* ignore */ }
     try { await seedLearn(`${SEED_TAG} — beta on compare agreement`); } catch { /* ignore */ }
   }, 60_000);
-  afterAll(() => {
-    if (serverProcess) serverProcess.kill();
-    if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true });
-  });
+
+  afterAll(() => { server?.stop(); });
 
   test("rejects missing query param", async () => {
     const res = await fetch(`${BASE_URL}/api/compare`);
