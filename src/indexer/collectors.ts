@@ -7,7 +7,7 @@ import path from 'path';
 import type { OracleDocument, IndexerConfig } from '../types.ts';
 import { parseResonanceFile, parseLearningFile, parseRetroFile, parseSecurityCorpusFile } from './parser.ts';
 import { isPsiLearnSource, parsePsiLearnFile } from './learn-doc-source.ts';
-import { discoverProjectPsiDirs } from './discovery.ts';
+import { discoverCrewPsiDirs, discoverProjectPsiDirs } from './discovery.ts';
 
 const SECURITY_CORPUS_EXTENSIONS = ['.md', '.txt', '.yaml', '.yml', '.json', '.rst'];
 const SECURITY_CORPUS_MAX_FILE_BYTES = 200 * 1024;  // 200KB cap per file
@@ -83,9 +83,13 @@ export function collectDocuments(opts: CollectOpts): OracleDocument[] {
     totalFiles += files.length;
   }
 
-  // 2. Project-first vault dirs
+  // 2. Project-first vault dirs, plus crew ψ-brains — both satisfy {dir}/memory/{subdir},
+  //    so the same loop walks them with no special-casing (#2800, @Anurak112).
   let skippedDupes = 0;
-  const projectDirs = discoverProjectPsiDirs(config.repoRoot);
+  const projectDirs = [
+    ...discoverProjectPsiDirs(config.repoRoot),
+    ...discoverCrewPsiDirs(config.repoRoot),
+  ];
   for (const projectDir of projectDirs) {
     const projectSubdir = path.join(projectDir, 'memory', subdir);
     if (!fs.existsSync(projectSubdir)) continue;

@@ -38,6 +38,58 @@ export function discoverProjectPsiDirs(repoRoot: string): string[] {
 }
 
 /**
+ * A crew member's ψ-brain is disabled by any of these, not just the literal "0".
+ *
+ * The repo's prevailing style is a bare `=== '0'`, which quietly ignores
+ * `ORACLE_INDEX_CREW=false` / `=off` / `=no`. #2822 was the issue about levers that are
+ * declared but do nothing, and #2846 was two more of the same shape — so a flag that only
+ * honours one spelling of "off" is a known-expensive shortcut here. There are ~14 other
+ * `process.env.ORACLE_* === '0'|'1'` sites that would benefit from one shared parser; that
+ * is a separate change, deliberately not made here.
+ */
+function crewIndexingDisabled(): boolean {
+  const raw = process.env.ORACLE_INDEX_CREW;
+  if (raw === undefined) return false;
+  return ['0', 'false', 'off', 'no'].includes(raw.trim().toLowerCase());
+}
+
+/**
+ * Discover crew ψ-brain directories in the vault.
+ *
+ * Scans `{repoRoot}/ψ/crew/<member>/` for members that have a `memory/` subdir, so each
+ * returned path satisfies the same `{dir}/memory/{subdir}` contract as a project-first vault
+ * dir and `collectDocuments` can walk it unchanged.
+ *
+ * Indexed by default, matching `discoverProjectPsiDirs` — crew memory is the vault's own
+ * knowledge, so it follows the project-dir precedent rather than `collectSecurityCorpus`'s
+ * opt-in (that one ingests a *foreign* corpus). Set `ORACLE_INDEX_CREW=0` to disable.
+ *
+ * Design by @Anurak112 (#2800).
+ */
+export function discoverCrewPsiDirs(repoRoot: string): string[] {
+  const dirs: string[] = [];
+  if (crewIndexingDisabled()) return dirs;
+
+  const crewRoot = path.join(repoRoot, 'ψ', 'crew');
+  if (!fs.existsSync(crewRoot)) return dirs;
+
+  for (const member of fs.readdirSync(crewRoot)) {
+    const memberDir = path.join(crewRoot, member);
+    let stat: fs.Stats;
+    try {
+      stat = fs.statSync(memberDir);
+    } catch {
+      continue;
+    }
+    if (!stat.isDirectory()) continue;
+    if (fs.existsSync(path.join(memberDir, 'memory'))) dirs.push(memberDir);
+  }
+
+  if (dirs.length > 0) console.log(`Discovered ${dirs.length} crew ψ-brain directories`);
+  return dirs;
+}
+
+/**
  * Infer project from a vault-nested path.
  * Project-first layout: "github.com/org/repo/psi/..." -> "github.com/org/repo"
  * Also supports legacy layout: "psi/memory/{category}/github.com/org/repo/..."
@@ -49,6 +101,16 @@ export function inferProjectFromPath(relativePath: string): string | null {
   );
   if (projectFirst) {
     return `${projectFirst[1]}/${projectFirst[2]}`.toLowerCase();
+  }
+
+  // Crew ψ-brain: ψ/crew/{member}/... -> crew/{member}
+  // Without this, every crew document falls through to null and lands in the same
+  // unattributed bucket as root-level docs — which makes "which crew member wrote this"
+  // unanswerable, and that attribution is the entire reason for indexing crew brains
+  // separately. Frontmatter `project:` still wins over this (see parser.ts:21).
+  const crew = relativePath.match(/^ψ\/crew\/([^/]+)\//);
+  if (crew) {
+    return `crew/${crew[1]}`.toLowerCase();
   }
 
   // Local bulk ingest: psi/learn/{org}/{repo}/... -> github.com/org/repo
