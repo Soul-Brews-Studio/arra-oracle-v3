@@ -5,7 +5,7 @@
 Updated 2026-04-19. These override anything below that conflicts.
 
 ### Versioning
-- **Always alpha.** `v{YY}.{M}.{D}-alpha.{HOUR}` per `scripts/calver.ts`. README says "Always Nightly." Never cut a stable version without explicit user direction in the active session.
+- **Always alpha.** `v{YY}.{M}.{D}-alpha.{HMM}` per `scripts/calver.ts` — the suffix is wall-clock `H*100+M`, so a bump at 02:27 is `-alpha.227`. It said `{HOUR}` until 2026-07-26; `scripts/calver.ts:55` has rejected `--hour` with *"deprecated; CalVer uses HMM wall-clock suffixes"* for longer than that. README says "Always Nightly." Never cut a stable version without explicit user direction in the active session.
 - Stable release (`--stable` flag) only for rare intentional milestones — not the default.
 - **Branch ↔ channel mapping** (enforced by `calver-release.yml`, triggered on `package.json` changes):
   - **`alpha` branch → PRE-RELEASE cut** → tag `vX.Y.Z-alpha.N` (prerelease, NOT marked latest). **This is the working trunk — push/PR feature work here** (via a `bump/alpha.N` PR so auto-tag + release workflows fire cleanly).
