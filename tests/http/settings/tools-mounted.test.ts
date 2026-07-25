@@ -7,13 +7,11 @@ const tempData = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-tools-data-'));
 const tempRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-tools-repo-'));
 const previous = {
   data: process.env.ORACLE_DATA_DIR,
-  db: process.env.ORACLE_DB_PATH,
   root: process.env.ORACLE_REPO_ROOT,
   allow: process.env.ORACLE_ENABLED_TOOLS,
   block: process.env.ORACLE_DISABLED_TOOLS,
 };
 process.env.ORACLE_DATA_DIR = tempData;
-process.env.ORACLE_DB_PATH = path.join(tempData, 'oracle.db');
 process.env.ORACLE_REPO_ROOT = tempRepo;
 delete process.env.ORACLE_ENABLED_TOOLS;
 delete process.env.ORACLE_DISABLED_TOOLS;
@@ -41,7 +39,7 @@ const base = `http://127.0.0.1:${server.port}`;
 afterAll(() => {
   server.stop(true);
   for (const [key, value] of [
-    ['ORACLE_DATA_DIR', previous.data], ['ORACLE_DB_PATH', previous.db],
+    ['ORACLE_DATA_DIR', previous.data],
     ['ORACLE_REPO_ROOT', previous.root], ['ORACLE_ENABLED_TOOLS', previous.allow],
     ['ORACLE_DISABLED_TOOLS', previous.block],
   ] as const) {

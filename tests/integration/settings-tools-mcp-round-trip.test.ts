@@ -85,6 +85,12 @@ afterAll(() => {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
   }
+  // Rebind the shared db singleton back. Restoring the env alone is NOT enough:
+  // resetDefaultDatabaseForTests(tempDbPath) above bound the module-level handle
+  // to the temp file, and bun shares that module across test FILES. Leaving it
+  // bound made every later file read an empty database — tests/http/health/
+  // went red purely from run order, green in isolation. (P9 in miniature.)
+  dbModule.resetDefaultDatabaseForTests(previous.db);
   for (const dir of [tempData, tempRepo, tempHome]) fs.rmSync(dir, { recursive: true });
 });
 
