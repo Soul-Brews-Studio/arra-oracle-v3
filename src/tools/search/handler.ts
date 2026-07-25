@@ -3,6 +3,7 @@ import { augmentQueryWithAcronyms } from '../../search/acronyms.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
 import { rerankByEntityLinks } from '../../search/entity-ranking.ts';
 import { queryPointerIndex } from '../../search/pointer-index.ts';
+import { noteRankingSignalCoverage } from '../../search/signal-health.ts';
 import { rerankCandidates } from '../../server/reranker.ts';
 import type { SearchResult } from '../../server/types.ts';
 import { filterResultsAsOf, parseAsOf } from '../../search/bitemporal.ts';
@@ -59,6 +60,8 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
     }
   }
 
+  // Announce a dark signal once rather than letting it stay invisible (#2880).
+  noteRankingSignalCoverage(ctx.sqlite, 'pointer-index', 'oracle_pointer_index');
   const pointerResults = queryPointerIndex(ctx.sqlite, {
     query: augmentedQuery,
     type,
