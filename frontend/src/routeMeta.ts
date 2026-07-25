@@ -82,6 +82,13 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
     ]);
   }
 
+  if (pathname === '/tools/config') {
+    return base('Tool configuration', 'Settings', 'Enable or disable the MCP tools this Oracle serves.', [
+      { label: 'Settings', to: '/settings' },
+      { label: 'Tools' },
+    ]);
+  }
+
   if (pathname === '/memory') {
     const query = new URLSearchParams(search).get('q')?.trim();
     const description = query

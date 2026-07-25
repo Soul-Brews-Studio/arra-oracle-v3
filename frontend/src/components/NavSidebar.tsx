@@ -18,7 +18,7 @@ const navGroups: NavGroup[] = [
   { label: 'Search', paths: ['/search', '/ask', '/feed'] },
   { label: 'Knowledge', paths: ['/memory', '/memory/consolidation', '/oracle-dig', '/learn', '/fleet-log', '/forum', '/activity', '/traces'] },
   { label: 'Vector', paths: ['/vector', '/vector/documents', '/vector/index', '/vector/first-run', '/vector/search', '/vector/settings', '/vector/export'] },
-  { label: 'System', paths: ['/mcp', '/canvas', '/canvas/plugins', '/metrics', '/storage', '/settings', '/export'] },
+  { label: 'System', paths: ['/mcp', '/canvas', '/canvas/plugins', '/metrics', '/storage', '/settings', '/tools/config', '/export'] },
 ];
 
 function itemPath(item: NavItem): string {

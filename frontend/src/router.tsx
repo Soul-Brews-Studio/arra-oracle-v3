@@ -28,6 +28,7 @@ import { VectorSearchPage } from './pages/VectorSearchPage';
 import { VectorDocumentsPage } from './pages/VectorDocumentsPage';
 import { VectorSearchResultsPage } from './pages/VectorSearchResultsPage';
 import { VectorExportPage } from './pages/VectorExportPage';
+import { ToolsConfigPage } from './pages/ToolsConfigPage';
 import { VectorSettingsPage } from './pages/VectorSettingsPage';
 import { VectorFirstRunWizardPage } from './pages/FirstRunWizard';
 import { IndexManagerPanel } from './pages/IndexManagerPanel';
@@ -65,6 +66,7 @@ export const frontendRoutes = [
   '/mcp',
   '/storage',
   '/settings',
+  '/tools/config',
   '/simple',
 ] as const;
 export type FrontendRoute = typeof frontendRoutes[number];
@@ -149,6 +151,7 @@ export function DashboardRoutes({
         path="/settings"
         element={<SettingsPage menuCount={menu.length} pluginCount={plugins.length} surfaceCount={surfaceCount} updatedAt={updatedAt} onRefresh={onRefresh} />}
       />
+      <Route path="/tools/config" element={<ToolsConfigPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

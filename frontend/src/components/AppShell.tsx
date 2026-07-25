@@ -75,6 +75,7 @@ export function AppShell({
     { to: '/vector/search', label: 'Vector Search', description: 'Semantic preview by collection' },
     { to: '/vector/settings', label: 'Vector settings', description: 'Collection config and index controls' },
     { to: '/vector/export', label: 'Export', description: 'Download vector collections' },
+    { to: '/tools/config', label: 'Tool configuration', description: 'Enable or disable served MCP tools' },
     { to: '/learn', label: 'Learn', description: 'Create and edit learnings' },
     { to: '/memory', label: 'Memory Dashboard', description: 'Confidence, heat, provenance, valid-time, and recency' },
     { to: '/memory/consolidation', label: 'Consolidation Queue', description: 'Review suggested supersede actions' },
