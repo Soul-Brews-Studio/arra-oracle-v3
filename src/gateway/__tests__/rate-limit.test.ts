@@ -63,16 +63,42 @@ describe('rate-limit hook', () => {
     expect((blocked as Response).status).toBe(429);
   });
 
+  /**
+   * Time is advanced, not awaited.
+   *
+   * This used to `await setTimeout(50)` and assume 50ms of wall clock had produced 50 tokens.
+   * That is a race with the machine: it passed 5/5 locally and failed on CI once the runner
+   * started executing all 29 test groups in one job (#2853). A refill test should assert the
+   * refill *arithmetic*, which is deterministic — the scheduler's punctuality is not the
+   * behaviour under test.
+   *
+   * `Date.now` is stubbed rather than injected because the hook reads it directly
+   * (`hooks/rate-limit.ts:95`) and a flaky test does not justify reshaping production code.
+   */
   it('refills tokens over time', async () => {
-    // 100 tokens per 100ms = 1 per ms. burst=1 → 1ms of wait should refill.
+    // 100 tokens per 100ms = 1 per ms, burst 1.
     const opts = { tokens_per_window: 100, window_ms: 100, burst: 1 };
-    expect(await run(ctxFor('5.5.5.5', opts))).toBeUndefined();
-    // Immediately after, blocked
-    const blocked = await run(ctxFor('5.5.5.5', opts));
-    expect((blocked as Response).status).toBe(429);
-    // Wait long enough for the bucket to refill
-    await new Promise((r) => setTimeout(r, 50));
-    expect(await run(ctxFor('5.5.5.5', opts))).toBeUndefined();
+    const realNow = Date.now;
+    try {
+      let clock = realNow();
+      Date.now = () => clock;
+
+      expect(await run(ctxFor('5.5.5.5', opts))).toBeUndefined();
+
+      // Same instant: the single burst token is spent.
+      const blocked = await run(ctxFor('5.5.5.5', opts));
+      expect((blocked as Response).status).toBe(429);
+
+      // Still blocked just before a whole token has accrued.
+      clock += 0.5;
+      expect(((await run(ctxFor('5.5.5.5', opts))) as Response).status).toBe(429);
+
+      // One full token later, allowed — no sleeping, no tolerance window.
+      clock += 50;
+      expect(await run(ctxFor('5.5.5.5', opts))).toBeUndefined();
+    } finally {
+      Date.now = realNow;
+    }
   });
 
   it('uses leftmost IP from a comma-separated X-Forwarded-For chain', async () => {
