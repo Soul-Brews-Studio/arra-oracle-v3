@@ -1,3 +1,25 @@
+/**
+ * Consolidation for the `oracle_memories` table.
+ *
+ * ⚠️ **NOT WIRED.** `runMemoryConsolidationWorker` has no production caller — verified by
+ * symbol across the whole tracked repo, where it appears only here, in its own test, and in
+ * `docs/architecture/memory-layer.md`. It is reachable by nothing at runtime.
+ *
+ * That is deliberate, not an oversight: **the memory tier is manual by decision** (Nat,
+ * 2026-07-25). A memory is created by `POST /api/v1/memory` or from Simple mode; nothing
+ * distils learnings or retrospectives into memories automatically. This file is kept because
+ * it is complete and tested, and because the decision could reasonably be revisited.
+ *
+ * It is documented here rather than deleted because a worker that *looks* wired is worse than
+ * one labelled unwired — that is the defect class of #2822 (levers that turn nothing), #2831
+ * (docs describing behaviour that did not exist) and #2825. See #2859.
+ *
+ * **If you wire it, update all three:** this comment, the "Memory-table worker" row in
+ * `docs/architecture/memory-layer.md`, and the empty state in
+ * `frontend/src/pages/MemoryDashboardPage.tsx`, which currently tells users memories are
+ * written by hand.
+ */
+
 import { and, eq, isNull } from 'drizzle-orm';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import { oracleMemories } from '../db/schema.ts';

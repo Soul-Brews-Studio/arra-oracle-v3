@@ -61,12 +61,46 @@ function MemoryCard({ memory }: { memory: RankedMemory }) {
   );
 }
 
-export function MemoryDashboardContent({ items, total, asOf, state, error }: {
+/**
+ * Shown when the memory tier holds nothing.
+ *
+ * The old copy was "No memories matched this dashboard filter", which is wrong when no filter
+ * was applied — it made an empty tier look like a failed query. Nat compared this page's
+ * "1 active KB memories" against the overview's 35,179 documents and reasonably concluded
+ * something was broken. Nothing was: they are different tables, and this one is written by
+ * hand. An empty state has to let a reader tell *empty* from *broken* without reading the
+ * schema, so this one says which of the two it is and why. See #2859.
+ */
+function MemoryEmptyState({ filtered }: { filtered: boolean }) {
+  const shell = 'rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4';
+  if (filtered) {
+    return <p className={`${shell} text-sm text-text-muted`}>No memories matched this filter. Clear it to see the whole tier.</p>;
+  }
+  return (
+    <section className={shell} aria-label="Memory tier is empty">
+      <h2 className="text-sm font-semibold text-text">No memories yet — this is empty, not broken.</h2>
+      <p className="mt-2 text-sm leading-6 text-text-muted">
+        Memories are written by hand. One is created by <code className="font-mono text-accent">POST /api/v1/memory</code>{' '}
+        or from Simple mode; nothing distils them automatically.
+      </p>
+      <p className="mt-2 text-sm leading-6 text-text-muted">
+        <strong className="text-text">This is not the document corpus.</strong> Indexed learnings,
+        retrospectives and principles are a separate store — browse them under Feed, Vector
+        Dashboard or Document Browser. A document count in the thousands and an empty memory tier
+        are both normal at the same time.
+      </p>
+    </section>
+  );
+}
+
+export function MemoryDashboardContent({ items, total, asOf, state, error, filtered = false }: {
   items: RankedMemory[];
   total: number;
   asOf?: string;
   state: PageState;
   error?: string;
+  /** True when a query or as-of filter produced this result set. */
+  filtered?: boolean;
 }) {
   const summary = useMemo(() => memoryDashboardSummary(items), [items]);
   const shown = items.length;
@@ -76,13 +110,15 @@ export function MemoryDashboardContent({ items, total, asOf, state, error }: {
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Memory</p>
         <h1 id="memory-dashboard-title" className="mt-2 text-3xl font-semibold text-text">Memory dashboard</h1>
         <p className="mt-2 max-w-3xl text-sm text-text-muted">
-          One Studio view for KB provenance, confidence, retrieval heat, and valid-time windows from /api/memory/recall.
+          Provenance, confidence, retrieval heat and valid-time for the hand-written memory tier,
+          from /api/memory/recall. Separate from the indexed document corpus — these counts do not
+          track it.
         </p>
         {asOf ? <p className="mt-3 text-xs text-text-muted">Snapshot as of {asOf}</p> : null}
       </section>
 
       <section className="grid min-w-0 gap-3 sm:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[repeat(5,minmax(0,1fr))]" aria-label="Memory signal summary">
-        <StatCard label="Memories" value={shown} detail={total > shown ? `${total} total available` : 'active KB memories'} tone="accent" />
+        <StatCard label="Memories" value={shown} detail={total > shown ? `${total} total available` : 'hand-written memory tier'} tone="accent" />
         <StatCard label="High confidence" value={summary.highConfidenceCount} detail={`${percentText(summary.avgConfidence)} average`} tone="success" />
         <StatCard label="Source coverage" value={percentText(summary.sourceCoverage)} detail={`${percentText(summary.avgProvenance)} provenance avg`} tone="accent" />
         <StatCard label="Heat" value={percentText(summary.avgHeat)} detail="retrieval reinforcement" tone="warning" />
@@ -100,7 +136,7 @@ export function MemoryDashboardContent({ items, total, asOf, state, error }: {
 
       {state === 'loading' ? <LoadingPanel title="Loading memory dashboard" detail="Fetching /api/memory/recall for confidence and valid-time signals." /> : null}
       {state === 'error' ? <ErrorMessage title="Memory dashboard failed." message={error || 'Unable to load memory recall.'} /> : null}
-      {state === 'ready' && !items.length ? <p className="rounded-2xl border border-[oklch(1_0_0/0.05)] bg-[oklch(0.20_0.02_265/0.25)] backdrop-blur-md p-4 text-sm text-text-muted">No memories matched this dashboard filter.</p> : null}
+      {state === 'ready' && !items.length ? <MemoryEmptyState filtered={filtered} /> : null}
       <div className="grid min-w-0 gap-3 xl:grid-cols-[repeat(2,minmax(0,1fr))]" aria-label="Memory dashboard results">
         {items.map((memory) => <MemoryCard key={memory.id} memory={memory} />)}
       </div>
@@ -150,7 +186,7 @@ export function MemoryDashboardPage({ client = fetchMemoryRecall }: { client?: M
           {state === 'loading' ? 'Loading…' : 'Refresh' }
         </button>
       </form>
-      <MemoryDashboardContent items={items} total={total} asOf={responseAsOf} state={state} error={error} />
+      <MemoryDashboardContent items={items} total={total} asOf={responseAsOf} state={state} error={error} filtered={Boolean(query.trim() || asOf.trim())} />
     </div>
   );
 }
