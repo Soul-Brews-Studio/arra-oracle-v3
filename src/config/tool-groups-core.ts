@@ -1,4 +1,5 @@
 import { envToolList, isRecord, resolveConfigSourceWithRaw } from './tool-config-source.ts';
+import { warnDeprecatedAliasOnce } from './tool-alias-warn.ts';
 
 export const TOOL_GROUPS = {
   search: ['oracle_search', 'oracle_search_chain', 'oracle_read', 'oracle_list', 'oracle_concepts', 'oracle_ask'],
@@ -84,6 +85,19 @@ export function normalizeToolName(name: string): string {
   return name;
 }
 
+/**
+ * Normalize a name arriving from OUTSIDE — a user-authored config file or an
+ * operator's env var — announcing the rewrite when the alias is deprecated.
+ *
+ * Only for inbound boundaries. The re-normalization inside `getDisabledTools` /
+ * `getEnabledToolNames` runs over values `mergeRaw` already canonicalized, so
+ * warning there would double-report a rewrite the operator has been told about.
+ */
+function normalizeInboundToolName(name: string): string {
+  warnDeprecatedAliasOnce(name);
+  return normalizeToolName(name);
+}
+
 function mergeRaw(raw: Record<string, any>): ToolGroupConfig {
   const merged: ToolGroupConfig = { ...DEFAULT_CONFIG };
   if (isRecord(raw.tools)) {
@@ -95,8 +109,8 @@ function mergeRaw(raw: Record<string, any>): ToolGroupConfig {
   if (Array.isArray(raw.plugins)) {
     merged.plugins = raw.plugins.map(normalizePluginEntry).filter((p): p is PluginManifestEntry => !!p);
   }
-  if (Array.isArray(raw.disabled_tools)) merged.disabled_tools = raw.disabled_tools.filter((t: unknown) => typeof t === 'string').map(normalizeToolName);
-  if (Array.isArray(raw.enabled_tools)) merged.enabled_tools = raw.enabled_tools.filter((t: unknown) => typeof t === 'string').map(normalizeToolName);
+  if (Array.isArray(raw.disabled_tools)) merged.disabled_tools = raw.disabled_tools.filter((t: unknown) => typeof t === 'string').map(normalizeInboundToolName);
+  if (Array.isArray(raw.enabled_tools)) merged.enabled_tools = raw.enabled_tools.filter((t: unknown) => typeof t === 'string').map(normalizeInboundToolName);
   return merged;
 }
 
@@ -125,8 +139,8 @@ function isPluginTier(value: unknown): value is PluginTier {
  * container or in CI where no config file can be written. (#2822 defect 2)
  */
 export function applyToolEnvOverrides(config: ToolGroupConfig): ToolGroupConfig {
-  const allowEnv = envToolList('ORACLE_ENABLED_TOOLS')?.map(normalizeToolName);
-  const blockEnv = envToolList('ORACLE_DISABLED_TOOLS')?.map(normalizeToolName);
+  const allowEnv = envToolList('ORACLE_ENABLED_TOOLS')?.map(normalizeInboundToolName);
+  const blockEnv = envToolList('ORACLE_DISABLED_TOOLS')?.map(normalizeInboundToolName);
   if (!allowEnv && !blockEnv) return config;
   const next: ToolGroupConfig = { ...config };
   if (allowEnv) {
