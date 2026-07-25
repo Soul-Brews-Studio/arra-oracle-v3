@@ -10,6 +10,12 @@
 - Personality: technical, calm, observability-first Oracle tooling.
 - Trust signals: live API status, explicit loading/error/empty states, visible metadata.
 - Avoid: decorative UI that hides operational state.
+- Glass is deliberate, not decoration. `backdrop-blur` on the sidebar, stat cards
+  and panel surfaces is the Studio's committed visual language — it separates
+  floating chrome from the routed page beneath without adding a hard border.
+  It is kept because it aids that separation, not despite the cost. Do not treat
+  it as an anti-pattern to be stripped; if it ever hurts legibility of a
+  diagnostic, fix the contrast, not the blur. (Decided 2026-07-25.)
 
 ## Product goals
 - Goals: expose routed pages for `/api/menu`, `/api/plugins`, vector search, MCP tools, and frontend runtime settings.
@@ -24,7 +30,16 @@
 ## Information architecture
 - Primary navigation: responsive React Router sidebar for Menu, Plugins, Vector, MCP, and Settings.
 - Core routes/screens: `/menu`, `/plugins`, `/vector`, `/mcp`, `/settings`; `/` redirects to `/menu`.
-- Content hierarchy: sidebar navigation, breadcrumb trail, route-specific title, connection/status summary, then one focused routed page at a time.
+- Content hierarchy: sidebar navigation, breadcrumb trail, route-specific title,
+  then one focused routed page at a time.
+- **The shell carries chrome; the route carries content.** Backend-wide counters
+  (menu items, plugins, surfaces, requests, latency) are dashboard content and
+  live in `StudioSummary`, rendered by the `/` route only. They previously sat in
+  `AppShell` above `{children}` and therefore appeared on all 34 routes — on
+  `/metrics` that was 13 stat cards, five of which were about menu and plugin
+  inventory that page is not about.
+- **Exactly one `<h1>` per screen, owned by the page.** The sidebar brand mark is
+  a `<p>`; it is not the document title.
 
 ## Design principles
 - Principle 1: make live system state visible before details.

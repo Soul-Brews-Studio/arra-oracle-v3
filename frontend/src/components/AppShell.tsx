@@ -4,7 +4,6 @@ import { ErrorMessage, Spinner } from './AsyncState';
 import { NavSidebar, type NavItem } from './NavSidebar';
 import { routeMeta } from '../routeMeta';
 import { PageChrome } from './PageChrome';
-import { StatCard } from './StatCard';
 import { CommandPalette } from './CommandPalette';
 import { TauriBadge } from './TauriBadge';
 import { ThemeToggle } from './ThemeToggle';
@@ -85,11 +84,6 @@ export function AppShell({
     { to: '/storage', label: 'Storage', description: 'Backend config from /api/settings/system' },
     { to: '/settings', label: 'Settings', description: 'Storage, embedder, and DB status' },
   ];
-  const requestValue = metricsLoading ? <Spinner label="Loading metrics" /> : metrics?.requestCount ?? '—';
-  const responseValue = metricsLoading ? <Spinner label="Loading metrics" /> : `${metrics?.avgResponseMs ?? 0} ms`;
-  const metricsDetail = metrics
-    ? `${metrics.activeConnections} active · uptime ${Math.round(metrics.uptime)}s`
-    : 'from /api/v1/metrics';
   const retry = (
     <button
       aria-label="Retry loading backend dashboard data"
@@ -139,13 +133,6 @@ export function AppShell({
             </div>
           </header>
 
-          <section className="grid gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-5 xl:gap-6 [&>article]:border-[oklch(1_0_0/0.08)] [&>article]:bg-[oklch(0.16_0.02_265/0.35)] [&>article]:shadow-[0_8px_32px_oklch(0_0_0/0.28)] [&>article]:backdrop-blur-xl" aria-label="Summary">
-            <StatCard label="Menu items" value={loading ? <Spinner label="Loading" /> : menuCount} detail="from /api/menu" tone="accent" />
-            <StatCard label="Plugins" value={loading ? <Spinner label="Loading" /> : pluginCount} detail="from /api/plugins" tone="success" />
-            <StatCard label="Surfaces" value={loading ? <Spinner label="Loading" /> : surfaceCount} detail={`updated ${updatedAt}`} tone="accent" />
-            <StatCard label="Requests" value={requestValue} detail={metricsDetail} tone="neutral" />
-            <StatCard label="Avg response" value={responseValue} detail="real-time backend latency" tone="neutral" />
-          </section>
 
           {error ? <ErrorMessage title="Could not load backend data." message={error} action={retry} /> : null}
           <div id="main-content" ref={contentRef} tabIndex={-1} className="w-full min-w-0 focus:outline-none">
