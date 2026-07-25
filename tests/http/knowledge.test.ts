@@ -1,27 +1,13 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import type { Subprocess } from "bun";
-import fs from "fs";
-import os from "os";
-import path from "path";
+import { startOwnedServer, type LiveServer } from "./_live-server.ts";
 
 const PORT = 47791;
+let server: LiveServer;
 const BASE_URL = `http://localhost:${PORT}`;
-const JSON_HEADERS = { "Content-Type": "application/json" };
 const SEED_TAG = `yellow-http-test-${Date.now()}`;
-let serverProcess: Subprocess | null = null;
-let dataDir = "";
 
-const isUp = async () => {
-  try { return (await fetch(`${BASE_URL}/api/health`)).ok; } catch { return false; }
-};
-
-const waitUp = async (n = 30) => {
-  for (let i = 0; i < n; i++) { if (await isUp()) return true; await Bun.sleep(500); }
-  return false;
-};
-
-const post = (url: string, body: unknown) =>
-  fetch(`${BASE_URL}${url}`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body) });
+const JSON_HEADERS = { "Content-Type": "application/json" };
+const post = (url: string, body: unknown) => server.post(url, body);
 
 async function seedLearn(pattern: string, concepts: string[] = []) {
   const res = await post("/api/learn", { pattern, source: SEED_TAG, concepts: [SEED_TAG, ...concepts] });
@@ -31,29 +17,14 @@ async function seedLearn(pattern: string, concepts: string[] = []) {
 
 describe("HTTP Contract — search / knowledge / supersede", () => {
   beforeAll(async () => {
-    if (await isUp()) return;
-    dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "knowledge-http-"));
-    serverProcess = Bun.spawn(["bun", "run", "src/server.ts"], {
-      cwd: path.resolve(import.meta.dir, "../.."),
-      stdout: "pipe", stderr: "pipe",
-      env: {
-        ...process.env,
-        ORACLE_CHROMA_TIMEOUT: "3000",
-        ORACLE_DATA_DIR: dataDir,
-        ORACLE_DB_PATH: path.join(dataDir, "oracle.db"),
-        ORACLE_REPO_ROOT: dataDir,
-        ORACLE_PORT: String(PORT),
-      },
-    });
-    if (!(await waitUp())) throw new Error("Server failed to start within 15s");
+    // This suite OWNS its server — see _live-server.ts for why that matters. It used to begin
+    // with `if (await isUp()) return;`, adopting whatever was listening and seeding it, which
+    // put 432 `yellow-http-test-*` documents into the live corpus.
+    server = await startOwnedServer(PORT, "knowledge-http");
   }, 30_000);
-  afterAll(async () => {
-    if (serverProcess) {
-      serverProcess.kill();
-      await serverProcess.exited;
-      await Bun.sleep(500);
-    }
-    if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true });
+
+  afterAll(() => {
+    server?.stop();
   });
 
   describe("POST /api/learn", () => {
