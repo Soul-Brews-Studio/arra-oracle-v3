@@ -36,12 +36,26 @@ async function isServerRunning(): Promise<boolean> {
 }
 
 /**
- * Decided once, before the suite is declared, so the skip is visible in the test output
- * rather than surfacing as 15 identical connection failures.
+ * Opt-in, deliberately — NOT auto-detected.
+ *
+ * The first attempt at this sniffed the environment: probe /api/health, run if it answers.
+ * That is itself a race, and CI proved it. Something else in the `tests/http/` run binds
+ * :47778; the probe saw a healthy 200, the suite started, and by the time the assertions ran
+ * the server was returning **503**. Sniffing turned "no server" into "a server that was there
+ * a moment ago", which is strictly worse than either.
+ *
+ * So it runs only when a human says so:
+ *
+ *     ORACLE_LIVE_CONTRACT=1 bun test --isolate tests/http/core.test.ts
+ *
+ * Deterministic in CI (never), deterministic locally (only when asked). `isServerRunning()`
+ * still guards the opt-in case so an explicit run against a dead port skips rather than
+ * emitting 15 identical connection errors.
  */
-const LIVE_SERVER = await isServerRunning();
-if (!LIVE_SERVER) {
-  console.log(`[core.test.ts] no server on ${BASE_URL} — skipping live contract tests (in-process coverage runs regardless)`);
+const OPTED_IN = process.env.ORACLE_LIVE_CONTRACT === '1';
+const LIVE_SERVER = OPTED_IN && (await isServerRunning());
+if (OPTED_IN && !LIVE_SERVER) {
+  console.log(`[core.test.ts] ORACLE_LIVE_CONTRACT=1 but nothing healthy on ${BASE_URL} — skipping`);
 }
 
 describe.skipIf(!LIVE_SERVER)("HTTP Contract — Core Routes", () => {

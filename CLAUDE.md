@@ -33,6 +33,11 @@ Updated 2026-04-19. These override anything below that conflicts.
   reported 36 tests across 6 files where 1 file exists; `bun test tests/http/` ran 1,692 files in 111s.
   Do not remove that line — `tests/build/test-scope.test.ts` fails if you do. See #2825.
 - HTTP contract tests are fetch-based against a spawned Elysia server (see `src/integration/http.test.ts` pattern).
+- **`tests/http/core.test.ts` is opt-in**: it is the only file under `tests/http/` that talks to a
+  real port (:47778). Run it deliberately with `ORACLE_LIVE_CONTRACT=1 bun test --isolate
+  tests/http/core.test.ts`; otherwise it skips. It first tried auto-detecting a live server,
+  which is a race — CI's probe saw a healthy `/api/health`, then the server returned 503 mid-run.
+  Every route it covers is also covered in-process by files that always run.
 
 ### Web framework
 - **Elysia** (bun-native, TypeBox schemas, faster). The Hono → Elysia migration is **COMPLETE** — every route cluster in `src/routes/` is a native Elysia sub-app composed in `src/server.ts`; no Hono dependency remains and there is no `src/routes-elysia/` staging dir. maw-js is the reference implementation in this family.
