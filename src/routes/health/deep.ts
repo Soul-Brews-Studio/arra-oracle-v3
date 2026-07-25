@@ -5,6 +5,7 @@ import { DB_PATH, ORACLE_DATA_DIR } from '../../config.ts';
 import { sqlite } from '../../db/index.ts';
 import { readVectorBackendHealth } from '../../vector/health.ts';
 import type { HealthEndpointOptions } from './health.ts';
+import { withEnvelope } from '../response-envelope.ts';
 
 type ComponentStatus = 'ok' | 'degraded' | 'down';
 type DbStatus = { status: 'connected' } | { status: 'error'; error: string };
@@ -132,7 +133,7 @@ export function createDeepHealthEndpoint(options: DeepHealthOptions = {}) {
     const memory = options.memoryUsage?.() ?? process.memoryUsage();
     return { status: overallStatus(db, vector, disk), checked_at: new Date().toISOString(), db, vector, disk, memory };
   }, {
-    response: deepHealthResponseSchema(),
+    response: withEnvelope(deepHealthResponseSchema()),
     detail: {
       tags: ['health'],
       menu: { group: 'hidden' },

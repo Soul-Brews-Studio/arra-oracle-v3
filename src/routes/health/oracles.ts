@@ -1,6 +1,7 @@
 import { Elysia, t } from 'elysia';
 import { sqlite } from '../../db/index.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
+import { withEnvelope } from '../response-envelope.ts';
 
 function oraclesQuerySchema() {
   return t.Object({ hours: t.Optional(t.String()) });
@@ -115,7 +116,7 @@ export function createOraclesEndpoint() {
     return result;
   }, {
     query: oraclesQuerySchema(),
-    response: oraclesResponseSchema(),
+    response: withEnvelope(oraclesResponseSchema()),
     detail: {
       tags: ['health'],
       menu: { group: 'hidden' },

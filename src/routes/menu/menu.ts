@@ -13,6 +13,7 @@ import { t } from 'elysia';
 import { MenuItemSchema, type MenuItem } from './model.ts';
 import { getMenuSource, reloadMenuConfig } from '../../menu/config.ts';
 import { createMenuListEndpoint } from './list-paginated.ts';
+import { withEnvelope } from '../response-envelope.ts';
 
 export type MenuExtras = {
   items?: MenuItem[];
@@ -34,7 +35,7 @@ const MenuSourceSchema = t.Object({
 export function createMenuEndpoint(pluginItems: MenuItem[] = []) {
   return createMenuListEndpoint(pluginItems)
     .get('/menu/source', () => getMenuSource(), {
-      response: MenuSourceSchema,
+      response: withEnvelope(MenuSourceSchema),
       detail: {
         tags: ['menu'],
         menu: { group: 'hidden' },
@@ -48,7 +49,7 @@ export function createMenuEndpoint(pluginItems: MenuItem[] = []) {
         return getMenuSource();
       },
       {
-        response: MenuSourceSchema,
+        response: withEnvelope(MenuSourceSchema),
         detail: {
           tags: ['menu'],
           menu: { group: 'hidden' },

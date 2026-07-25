@@ -10,6 +10,7 @@
 
 import { Elysia, t } from 'elysia';
 import { MenuItemSchema } from './model.ts';
+import { withEnvelope } from '../response-envelope.ts';
 import {
   addCustomMenuItem,
   listCustomMenuItems,
@@ -34,7 +35,7 @@ export function createCustomMenuRoutes() {
           menu: { group: 'hidden' },
           summary: 'List user-added custom menu items',
         },
-        response: t.Object({ items: t.Array(MenuItemSchema) }),
+        response: withEnvelope(t.Object({ items: t.Array(MenuItemSchema) })),
       },
     )
     .post(

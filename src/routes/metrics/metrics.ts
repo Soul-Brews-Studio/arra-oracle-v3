@@ -1,5 +1,6 @@
 import { Elysia, t } from 'elysia';
 import { currentTenantId } from '../../middleware/tenant.ts';
+import { withEnvelope } from '../response-envelope.ts';
 
 export interface MemoryUsageSnapshot {
   rss: number;
@@ -234,7 +235,7 @@ export function createMetricsLifecycle(tracker: MetricsTracker = serverMetrics) 
 
 export function createMetricsRoutes(tracker: MetricsTracker = serverMetrics) {
   return new Elysia({ prefix: '/api' }).get('/metrics', () => tracker.snapshot(), {
-    response: MetricsResponseSchema,
+    response: withEnvelope(MetricsResponseSchema),
     detail: {
       tags: ['metrics'],
       menu: { group: 'hidden' },
