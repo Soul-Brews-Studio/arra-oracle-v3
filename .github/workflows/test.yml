@@ -61,30 +61,44 @@ jobs:
       - name: Cargo check (Tauri)
         run: cd frontend/src-tauri && cargo check
 
-      - name: Run scoped unit tests
+      # CI used to run a hand-maintained find(1) list of 183 files — 15% of the 1,221
+      # test files in this repo. Whole directories were never executed, including
+      # tests/frontend/ (228 files) and tests/build/, which holds the 250-line ratchet and
+      # the test-scope guard. Four tests went red on alpha for hours after #2848 and CI
+      # stayed green; two more in src/routes/menu have been red since #1857. See #2853.
+      #
+      # Groups rather than one `bun test --isolate tests/`: that form crashes bun 1.3.14
+      # (exit 133). Groups rather than per-file: 1,221 process spawns is ~25 min, groups
+      # are ~4. Every group below was measured green on alpha before being added.
+      #
+      # --isolate is REQUIRED, not decorative: without it a process-wide mock.module in
+      # src/vault/__tests__/handler.test.ts leaks into sibling files and fails 2 unrelated
+      # tests. CI has always used it; the docs told contributors to run the form that does
+      # not, which is half of what #2853 is about.
+      # Trailing slashes are load-bearing. `bun test <path>` is a SUBSTRING FILTER: bare
+      # `tests/server` matched `integration-tests/serverless.test.mjs` in a *different
+      # repository* two levels up the ghq tree and tried to run it. `tests/server/` does not.
+      - name: Run unit tests
         shell: bash
         run: |
           set -euo pipefail
-          while IFS= read -r test_file; do
-            echo "::group::${test_file}"
-            bun test --isolate "${test_file}"
+          for group in \
+            src/ \
+            tests/build/ tests/frontend/ tests/http/ tests/mcp/ tests/vector/ \
+            tests/cli/ tests/plugins/ tests/storage/ tests/workers/ tests/tools/ \
+            tests/docs/ tests/config/ tests/process-manager/ tests/lifecycle/ \
+            tests/smoke/ tests/export/ tests/services/ tests/knowledge/ tests/forum/ tests/eval/ \
+            tests/bin/ tests/canvas/ tests/db/ tests/indexer/ tests/lib/ tests/oracles/ \
+            tests/runtime/ tests/server/
+          do
+            echo "::group::${group}"
+            bun test --isolate "${group}"
             echo "::endgroup::"
-          done < <(
-            find \
-              src/tools/__tests__ \
-              src/server/__tests__ \
-              tests/storage \
-              tests/http/swagger \
-              tests/http/health \
-              tests/lifecycle \
-              tests/plugins \
-              src/vault/__tests__ \
-              src/indexer/__tests__ \
-              -name '*.test.ts' -print
-            printf '%s\n' \
-              src/drizzle-migration.test.ts \
-              src/indexer-preservation.test.ts
-          )
+          done
 
+      # Deliberately NOT in the loop above:
+      #   tests/integration/  — one test needs a live docker compose stack (tracked separately)
+      #   tests/benchmarks/   — timing-sensitive, belongs in a scheduled job not a PR gate
+      #   tests/e2e/          — *.e2e.ts, needs a browser; not picked up by bun test anyway
       - name: Run scoped integration tests
         run: bun test --isolate src/integration/

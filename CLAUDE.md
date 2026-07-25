@@ -21,7 +21,12 @@ Updated 2026-04-19. These override anything below that conflicts.
 ### Test layout
 - **Nested, one behavior per file** — mirror the route tree:
   `tests/http/<cluster>/<endpoint>.test.ts` (e.g. `tests/http/forum/thread-create.test.ts`).
-- `bunfig.toml` sets `roots = ["src", "tests"]`. `bun test tests/http/forum/` scopes to a cluster.
+- **Always `bun test --isolate <path>`.** `bunfig.toml` sets `roots = ["src", "tests"]`, so
+  `bun test --isolate tests/http/forum/` scopes to a cluster. The `--isolate` is not optional:
+  without it, a process-wide `mock.module()` in `src/vault/__tests__/handler.test.ts` leaks into
+  sibling files and fails two unrelated `syncVault lock` tests. CI has always used `--isolate`;
+  this line used to omit it, so the documented local gate and the CI gate were different
+  commands with different module semantics (#2853).
 - ⚠️ **`bun test <path>` is a SUBSTRING FILTER, not a path.** `bunfig.toml` therefore also sets
   `pathIgnorePatterns = ["**/agents/**"]` — without it, every run (scoped or not) also executes the
   sibling worktrees under `agents/`. Measured before the fix: `bun test tests/http/response-format/`
@@ -418,6 +423,12 @@ Closes #[issue-number]
 -   **Drizzle db:push index bug** - Drizzle doesn't use `IF NOT EXISTS` for indexes. If indexes already exist (schema drift), db:push fails. Workaround: manually run `CREATE INDEX IF NOT EXISTS` or drop indexes first. Always backup before migrations!
 -   **Committing directly to main** - Always use GitHub flow: create feature branch → push → PR → wait for review/merge approval
 -   **maw hey without --from** - ~~always use `--from "m5:arra-oracle-v3"`~~ **FIXED in maw-rs v26.7.7** (2026-07-05): sender now resolves from tmux window name; `--from` is optional. If `[m5:mawjs]` ever reappears, check `maw --version` ≥ 26.7.7 before re-debugging. Historical root cause: `DEFAULT_ORACLE = "mawjs"` in `maw-auth/federation_headers.rs:14`.
+-   **Trusting a green CI without knowing what it runs** - CI ran a hand-maintained list of
+    183 files: **15% of the repo's 1,221 test files**. `tests/frontend/` (228 files) and
+    `tests/build/` — which holds the 250-line ratchet — were never executed. #2848 left four
+    tests red on `alpha` for hours while CI stayed green, and two tests in
+    `src/routes/menu/__tests__` had been red since #1857 (#2862). Fixed in #2853 by running
+    directory groups covering the whole suite. Before trusting a green check, know its scope.
 -   **Trusting green-in-worktree (P9)** - A PR that's green in its own worktree can still be red on the integrated base. Re-run the full gate (`bunx tsc --noEmit` + scoped `bun test`) against alpha after EVERY merge, and late finishers must rebase before their final gate. Corroborated in 3 repos on the same day (2026-07-05): arra-oracle-v3 (PR #2678 red from pre-existing README↔`tests/docs/readme-claims.test.ts` drift → #2679), maw-rs rebase cascade, fable-learn-speckit T102. CI red on a PR is not necessarily the PR's fault — check whether the base is already red first.
 
 ### Useful Tricks Discovered

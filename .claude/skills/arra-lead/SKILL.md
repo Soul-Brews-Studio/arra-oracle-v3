@@ -55,7 +55,7 @@ PRs + review verdict, anything dispatched, anything stuck-nudged.
 ## Principles
 1. Lead orchestrates, codex codes — lead writes only reference modules.
 2. Issue → PR → merge greens immediately (standing approval active).
-3. Build gate: `tsc --noEmit` + a SCOPED `bun test tests/http/<cluster>/` must pass.
+3. Build gate: `tsc --noEmit` + a SCOPED `bun test --isolate tests/http/<cluster>/` must pass.
    (`bunfig.toml` sets `pathIgnorePatterns = ["**/agents/**"]` so sibling worktrees are excluded.
    Scoping alone never did that — `bun test <path>` is a substring filter, not a path. See #2825.)
 4. No file > 250 lines.

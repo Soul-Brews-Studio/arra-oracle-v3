@@ -136,12 +136,36 @@ function activeIndexerWhere(tenantId?: string) {
   )!;
 }
 
+/**
+ * Does the vector job queue exist?
+ *
+ * This returned `false` unconditionally, so `enqueueVectorReindexJobs` short-circuited on
+ * every run and **the indexer never queued a single vector job**. Measured on a fresh DB
+ * where the table demonstrably exists:
+ *
+ * ```
+ * raw sqlite sees table          : true
+ * db.get(sql`SELECT name …`)     : ["indexing_jobs"]     ← a positional array
+ * row?.name === 'indexing_jobs'  : false
+ * ```
+ *
+ * Drizzle's `db.get()` with a raw `sql` template yields the row as an **array**, not an
+ * object. The `<{ name: string }>` type argument described a shape that never existed at
+ * runtime — a generic is an assertion, not a check, so `tsc` had nothing to catch. The two
+ * `tests/indexer/reindex-hardening.test.ts` cases have been failing on this since #2434 and
+ * were invisible because CI did not run `tests/indexer/` (#2853).
+ *
+ * Both shapes are handled: a raw `sql` template gives the array, while a query built from a
+ * Drizzle table gives the object, and this helper should not care which the caller used.
+ */
 function hasIndexingJobsTable(db: OracleDb): boolean {
   try {
-    const row = db.get<{ name: string }>(
+    const row = db.get<{ name?: string } | [string] | undefined>(
       sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'indexing_jobs'`,
     );
-    return row?.name === 'indexing_jobs';
+    if (!row) return false;
+    const name = Array.isArray(row) ? row[0] : row.name;
+    return name === 'indexing_jobs';
   } catch {
     return false;
   }
