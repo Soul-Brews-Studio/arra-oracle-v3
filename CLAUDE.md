@@ -22,6 +22,11 @@ Updated 2026-04-19. These override anything below that conflicts.
 - **Nested, one behavior per file** — mirror the route tree:
   `tests/http/<cluster>/<endpoint>.test.ts` (e.g. `tests/http/forum/thread-create.test.ts`).
 - `bunfig.toml` sets `roots = ["src", "tests"]`. `bun test tests/http/forum/` scopes to a cluster.
+- ⚠️ **`bun test <path>` is a SUBSTRING FILTER, not a path.** `bunfig.toml` therefore also sets
+  `pathIgnorePatterns = ["**/agents/**"]` — without it, every run (scoped or not) also executes the
+  sibling worktrees under `agents/`. Measured before the fix: `bun test tests/http/response-format/`
+  reported 36 tests across 6 files where 1 file exists; `bun test tests/http/` ran 1,692 files in 111s.
+  Do not remove that line — `tests/build/test-scope.test.ts` fails if you do. See #2825.
 - HTTP contract tests are fetch-based against a spawned Elysia server (see `src/integration/http.test.ts` pattern).
 
 ### Web framework
