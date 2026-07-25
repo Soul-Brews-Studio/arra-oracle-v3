@@ -1,0 +1,10 @@
+# Swift Package Manager build artifacts
+.build/
+.swiftpm/
+
+# toggle.sh runtime state (PID/log already covered by root .gitignore's
+# *.pid / *.log, this one isn't)
+.record-meeting.session-dir
+
+# macOS
+.DS_Store

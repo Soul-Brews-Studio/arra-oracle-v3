@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meeting Audio Recorder — Capture Flow</title>
+<style>
+  :root {
+    --paper: #f4ede1;
+    --ink: #2b241a;
+    --ink-dim: #6b6152;
+    --teal: #0f5c56;
+    --teal-dim: #3d7d78;
+    --line: #d8cbb4;
+    --box-bg: #fbf7ef;
+    --code-bg: #eee3cd;
+  }
+  :root[data-theme="dark"] {
+    --paper: #1b1a17;
+    --ink: #e9e2d3;
+    --ink-dim: #a79c88;
+    --teal: #6fc9c1;
+    --teal-dim: #3f8b84;
+    --line: #423d33;
+    --box-bg: #242220;
+    --code-bg: #2c2924;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #1b1a17;
+      --ink: #e9e2d3;
+      --ink-dim: #a79c88;
+      --teal: #6fc9c1;
+      --teal-dim: #3f8b84;
+      --line: #423d33;
+      --box-bg: #242220;
+      --code-bg: #2c2924;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2.5rem 1.5rem 4rem;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.5;
+  }
+  main { max-width: 780px; margin: 0 auto; }
+  h1 {
+    font-size: 1.35rem;
+    margin: 0 0 0.15rem;
+    color: var(--teal);
+    letter-spacing: -0.01em;
+  }
+  .subtitle {
+    color: var(--ink-dim);
+    font-size: 0.9rem;
+    margin: 0 0 2.2rem;
+  }
+  code, .mono {
+    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85em;
+  }
+  code {
+    background: var(--code-bg);
+    padding: 0.1em 0.4em;
+    border-radius: 3px;
+  }
+  .col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 1.5rem;
+    align-items: start;
+  }
+  .stage {
+    border: 1px solid var(--line);
+    background: var(--box-bg);
+    border-radius: 6px;
+    padding: 0.85rem 1rem;
+    margin: 0 0 0.4rem;
+  }
+  .stage h2 {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--teal-dim);
+    margin: 0 0 0.3rem;
+    font-weight: 600;
+  }
+  .stage p {
+    margin: 0;
+    font-size: 0.88rem;
+    color: var(--ink);
+  }
+  .arrow-down {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--teal-dim);
+    font-size: 1.1rem;
+    margin: 0.1rem 0;
+    line-height: 1;
+  }
+  .merge-row {
+    grid-column: 1 / -1;
+  }
+  .merge-row .stage { border-color: var(--teal-dim); }
+  .outputs {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
+    margin-top: 0.3rem;
+  }
+  .outputs .stage {
+    text-align: center;
+    padding: 0.7rem 0.5rem;
+  }
+  .outputs .stage.combined { border-color: var(--teal); }
+  .outputs code { display: block; margin-top: 0.2rem; }
+  .control {
+    margin-top: 2.4rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--line);
+  }
+  .control h2 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-dim);
+    margin: 0 0 0.6rem;
+  }
+  .control ol {
+    margin: 0;
+    padding-left: 1.2rem;
+    font-size: 0.88rem;
+  }
+  .control li { margin-bottom: 0.35rem; }
+  .note {
+    margin-top: 2rem;
+    font-size: 0.8rem;
+    color: var(--ink-dim);
+  }
+  .note strong { color: var(--ink); }
+  footer {
+    margin-top: 2.5rem;
+    font-size: 0.75rem;
+    color: var(--ink-dim);
+    border-top: 1px solid var(--line);
+    padding-top: 0.8rem;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Meeting Audio Recorder — Capture Flow</h1>
+  <p class="subtitle">projects/meeting-audio-recorder/ — local mic + system audio, no cloud, no transcription</p>
+
+  <div class="col">
+    <div class="stage">
+      <h2>Source A — Microphone</h2>
+      <p><code>AVAudioEngine</code> input-node tap. Standard mic capture, no permission quirks beyond the usual mic prompt.</p>
+    </div>
+    <div class="stage">
+      <h2>Source B — System Audio</h2>
+      <p><code>ScreenCaptureKit</code> <code>SCStream</code>, audio-only config. Requires Screen Recording permission (one-time grant).</p>
+    </div>
+
+    <div class="arrow-down">↓</div>
+    <div class="arrow-down" style="grid-column:1">↓</div>
+    <div class="arrow-down" style="grid-column:2">↓</div>
+
+    <div class="stage">
+      <h2>Write — as buffers arrive</h2>
+      <p>Independent <code>AVAudioFile</code> writer. No resampling, no shared buffer with Source B.</p>
+    </div>
+    <div class="stage">
+      <h2>Write — as buffers arrive</h2>
+      <p>Independent <code>AVAudioFile</code> writer. No resampling, no shared buffer with Source A.</p>
+    </div>
+
+    <div class="merge-row">
+      <div class="arrow-down">↓ &nbsp; toggle.sh sends SIGTERM, both writers close &nbsp; ↓</div>
+      <div class="stage">
+        <h2>Merge — post-processing step, not real-time</h2>
+        <p>On stop, orchestrator shells out to <code>ffmpeg</code> once: channel-merge (not sum) <code>mic.wav</code> + <code>system.wav</code> into a 2-channel file. No mixing logic inside the Swift capture binary.</p>
+      </div>
+    </div>
+
+    <div class="outputs">
+      <div class="stage">
+        <div>raw</div>
+        <code>mic.wav</code>
+      </div>
+      <div class="stage">
+        <div>raw</div>
+        <code>system.wav</code>
+      </div>
+      <div class="stage combined">
+        <div>convenience</div>
+        <code>combined.wav</code>
+      </div>
+    </div>
+  </div>
+
+  <div class="control">
+    <h2>Control mechanism</h2>
+    <ol>
+      <li>Keyboard shortcut (Automator Quick Action, same pattern as <code>projects/voice-to-terminal/toggle.sh</code>) invokes <code>toggle.sh</code>.</li>
+      <li>Not running → create <code class="mono">~/Documents/MeetingRecordings/&lt;YYYY-MM-DD_HHMMSS&gt;/</code>, launch the Swift <code>record-meeting</code> binary in the background, write its PID to a pidfile.</li>
+      <li>Already running → <code>SIGTERM</code> the PID, wait for clean exit, run the one <code>ffmpeg</code> merge command, remove the pidfile.</li>
+    </ol>
+  </div>
+
+  <p class="note"><strong>Not built here:</strong> transcription, cloud upload, Zoom/Meet/Teams API integration, diarization, retention policy, ACL, GUI. See <code>PLAN.md</code> for the full reasoning and open questions.</p>
+
+  <footer>meeting-audio-recorder · Tomás Reyes · planning artifact, not shipped code</footer>
+</main>
+</body>
+</html>
