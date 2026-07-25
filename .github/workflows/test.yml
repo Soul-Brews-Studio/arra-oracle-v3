@@ -15,7 +15,12 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.2.15
+          # Pinned to the version this repo is developed and verified against. It was 1.2.15
+          # — the only workflow here not on a current bun — while `--isolate`, which this
+          # gate now depends on, is a newer flag. The suite passed locally on 1.3.14 and
+          # failed in CI on 1.2.15 with the exact two `syncVault lock` tests that --isolate
+          # exists to keep apart. A gate must run the runtime it is validated on.
+          bun-version: 1.3.14
 
       - name: Cache bun deps
         uses: actions/cache@v4
