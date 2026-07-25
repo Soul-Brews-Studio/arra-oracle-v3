@@ -21,6 +21,7 @@ import { closeCachedVectorStores } from './vector/factory.ts';
 import { warmEmbeddingProviderDetection } from './vector/provider-detection.ts';
 import { preflightVectorRuntime } from './vector/preflight.ts';
 import { drainingResponseFor, isDraining, registerGracefulShutdown, runShutdownSteps, trackRequest } from './lifecycle/shutdown.ts';
+import { PUBLIC_ENDPOINTS, apiRootResponse } from './routes/meta/endpoints.ts';
 import { createErrorMiddleware } from './middleware/errors.ts';
 import { validateStartupEnv } from './config/validate.ts';
 import { printStartupBanner } from './lifecycle/banner.ts';
@@ -147,6 +148,11 @@ export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef
     .get('/swagger', () => Response.redirect('/api/docs', 308), { detail: { hide: true } })
     .get('/swagger/json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
     .get('/api/openapi.json', () => Response.redirect('/api/docs/json', 308), { detail: { hide: true } })
+    // Registered at '/api', which is the PUBLIC '/api/v1' — api-version.ts rewrites the
+    // versioned prefix away before routing. Advertised as `api` and returned 404 until now.
+    .get('/api', () => apiRootResponse(pkg.version), {
+      detail: { tags: ['meta'], summary: 'API root — lists versioned endpoints' },
+    })
     .get('/simple', ({ set }) => simpleModeResponse(set), { detail: { tags: ['frontend'], summary: 'Simple Mode entry page' } })
     .get('/', () => ({
       server: MCP_SERVER_NAME,
@@ -156,17 +162,9 @@ export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef
       plugins: unifiedPlugins.pluginCount,
       pluginMcpTools: unifiedPlugins.mcpTools.length,
       counts: rootCounts(),
-      docs: '/api/docs',
-      api: '/api/v1',
-      endpoints: {
-        docs: '/api/docs',
-        openapi: '/api/docs/json',
-        api: '/api/v1',
-        mcp: '/mcp',
-        health: '/api/v1/health',
-        stats: '/api/v1/stats',
-        simple: '/simple',
-      },
+      docs: PUBLIC_ENDPOINTS.docs,
+      api: PUBLIC_ENDPOINTS.api,
+      endpoints: PUBLIC_ENDPOINTS,
       config: {
         port: Number(PORT),
         dataDir,
