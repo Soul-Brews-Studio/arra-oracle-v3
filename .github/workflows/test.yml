@@ -97,7 +97,30 @@ jobs:
             tests/runtime/ tests/server/
           do
             echo "::group::${group}"
+            # Exit 133 is bun CRASHING (SIGTRAP), not a test failing — the two are
+            # indistinguishable by exit status alone, and conflating them is how a sweep ends
+            # up reporting "tests/http/ FAILED" when nothing failed. `bun test --isolate
+            # tests/http/` (290 files) crashes intermittently on bun 1.3.14: measured ~1 run
+            # in 4 on macOS, with no single file or subdirectory responsible — all 65 subdirs
+            # pass together, all 8 loose files pass together, and it still happens with the
+            # server-spawning suites removed. It is the size of one invocation. See #2867.
+            #
+            # So: retry ONCE on 133 only. A real test failure (any other non-zero) fails
+            # immediately and is never retried — retrying those would hide flaky tests, which
+            # is the opposite of what this gate is for.
+            set +e
             bun test --isolate "${group}"
+            status=$?
+            if [ "$status" -eq 133 ]; then
+              echo "::warning::bun crashed (exit 133) on ${group} — retrying once, see #2867"
+              bun test --isolate "${group}"
+              status=$?
+            fi
+            set -e
+            if [ "$status" -ne 0 ]; then
+              echo "::error::${group} failed with exit ${status}"
+              exit "$status"
+            fi
             echo "::endgroup::"
           done
 

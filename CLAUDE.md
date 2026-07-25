@@ -33,6 +33,12 @@ Updated 2026-04-19. These override anything below that conflicts.
   reported 36 tests across 6 files where 1 file exists; `bun test tests/http/` ran 1,692 files in 111s.
   Do not remove that line — `tests/build/test-scope.test.ts` fails if you do. See #2825.
 - HTTP contract tests are fetch-based against a spawned Elysia server (see `src/integration/http.test.ts` pattern).
+- ⚠️ **Exit 133 is bun crashing, not a test failing.** `bun test --isolate tests/http/` (290
+  files) crashes intermittently on bun 1.3.14 — ~1 run in 4 on macOS, no single file at fault
+  (all 65 subdirs pass together; all 8 loose files pass together). Run `tests/http/<subdir>/`
+  locally instead. A local sweep that reports a group as "failing" on exit 133 is reporting a
+  crash; check the code before believing a test broke (#2867). CI retries once on 133 only, and
+  never on a real failure.
 - **`tests/http/core.test.ts` is opt-in**: it is the only file under `tests/http/` that talks to a
   real port (:47778). Run it deliberately with `ORACLE_LIVE_CONTRACT=1 bun test --isolate
   tests/http/core.test.ts`; otherwise it skips. It first tried auto-detecting a live server,
