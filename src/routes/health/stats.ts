@@ -5,11 +5,12 @@ import { currentTenantId } from '../../middleware/tenant.ts';
 import { readEmbedderRuntimeStatus, type EmbedderRuntimeStatus } from '../../vector/embedder-config.ts';
 import { handleStats } from '../../server/handlers.ts';
 import { handleVectorStats } from '../../server/vector-handlers.ts';
+import { createStatsCache, type StatsCache } from './stats-cache.ts';
 import { tenantStats } from './tenant-stats.ts';
 import { withEnvelope } from '../response-envelope.ts';
 
 type VectorStats = Awaited<ReturnType<typeof handleVectorStats>>;
-type StatsEndpointOptions = { vectorStats?: () => Promise<VectorStats>; embedderRuntime?: () => Promise<EmbedderRuntimeStatus> };
+type StatsEndpointOptions = { vectorStats?: () => Promise<VectorStats>; embedderRuntime?: () => Promise<EmbedderRuntimeStatus>; cache?: StatsCache<any> };
 type FtsStatus = 'healthy' | 'empty' | 'missing' | 'partial' | 'unavailable';
 type VectorStatus = 'ok' | 'degraded' | 'down';
 
@@ -78,7 +79,11 @@ function vectorStatus(stats: VectorStats): VectorStatus {
 
 export function createStatsEndpoint(options: StatsEndpointOptions = {}) {
   const readVectorStats = options.vectorStats ?? handleVectorStats;
-  return new Elysia().get('/stats', async (): Promise<any> => {
+  // Short TTL + in-flight collapsing. Every field below is a live probe, the
+  // Studio calls this on each page load, and the server is single-threaded.
+  // ORACLE_STATS_CACHE_TTL_MS=0 disables it. See #2843.
+  const cache = options.cache ?? createStatsCache<any>();
+  return new Elysia().get('/stats', async (): Promise<any> => cache.get(async () => {
     try {
       const stats = tenantStats() ?? handleStats(DB_PATH);
       const vaultRepo = getSetting('vault_repo');
@@ -97,7 +102,7 @@ export function createStatsEndpoint(options: StatsEndpointOptions = {}) {
       if (isDbLockError(err)) return { total_docs: 0, by_type: {}, indexing: true, error: 'db temporarily unavailable' };
       throw err;
     }
-  }, {
+  }), {
     response: withEnvelope(statsResponseSchema()),
     detail: {
       tags: ['health'],
