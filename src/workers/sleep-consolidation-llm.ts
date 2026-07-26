@@ -6,6 +6,7 @@ import { ensureVectorStoreConnected, getEmbeddingModels, type EmbeddingModelConf
 import type { VectorQueryResult, VectorStoreAdapter } from '../vector/types.ts';
 import type { ConsolidationPlan } from './consolidation.ts';
 import { queueConsolidationSuggestions } from './consolidation-queue.ts';
+import { tokenSetForConsolidation } from './tokenize.ts';
 
 type Env = Record<string, string | undefined>;
 type Logger = Pick<Console, 'warn'>;
@@ -207,7 +208,7 @@ function similarityFromDistance(value: unknown): number {
 }
 // Unicode-aware (#2912). Like sleep-consolidation.ts this one has no NFKC and no filters;
 // only the character class changes here.
-function tokens(doc: RawDoc): Set<string> { return new Set((`${doc.content}\n${doc.concepts}\n${doc.sourceFile}`).toLowerCase().match(/[\p{L}\p{N}_:-]+/gu) ?? []); }
+function tokens(doc: RawDoc): Set<string> { return tokenSetForConsolidation(`${doc.content}\n${doc.concepts}\n${doc.sourceFile}`); }
 function tagList(value: string): string[] { try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed.map(String) : []; } catch { return []; } }
 function tokenOverlap(left: Set<string>, right: Set<string>): number {
   const [smallest, largest] = left.size <= right.size ? [left, right] : [right, left];
