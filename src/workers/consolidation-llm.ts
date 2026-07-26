@@ -50,7 +50,7 @@ function stripLlm(input: LlmConsolidationOptions): ConsolidationOptions {
 }
 
 function tokens(value: string): Set<string> {
-  return new Set((value.toLowerCase().normalize('NFKC').match(/[a-z0-9_:-]+/g) ?? [])
+  return new Set((value.toLowerCase().normalize('NFKC').match(/[\p{L}\p{N}_:-]+/gu) ?? [])
     .filter((token) => token.length > 2 && !STOP.has(token)));
 }
 

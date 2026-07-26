@@ -205,7 +205,9 @@ function similarityFromDistance(value: unknown): number {
   if (!Number.isFinite(distance) || distance < 0) return 0;
   return round(distance <= 1 ? 1 - distance : 1 / (1 + distance));
 }
-function tokens(doc: RawDoc): Set<string> { return new Set((`${doc.content}\n${doc.concepts}\n${doc.sourceFile}`).toLowerCase().match(/[a-z0-9_:-]+/g) ?? []); }
+// Unicode-aware (#2912). Like sleep-consolidation.ts this one has no NFKC and no filters;
+// only the character class changes here.
+function tokens(doc: RawDoc): Set<string> { return new Set((`${doc.content}\n${doc.concepts}\n${doc.sourceFile}`).toLowerCase().match(/[\p{L}\p{N}_:-]+/gu) ?? []); }
 function tagList(value: string): string[] { try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed.map(String) : []; } catch { return []; } }
 function tokenOverlap(left: Set<string>, right: Set<string>): number {
   const [smallest, largest] = left.size <= right.size ? [left, right] : [right, left];
