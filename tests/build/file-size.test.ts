@@ -39,7 +39,6 @@ const GRANDFATHERED: Record<string, number> = {
   'src/vector/adapters/cloudflare-vectorize.ts': 324,
   'src/tools/learn.ts': 324,
   'tests/http/menu/config.test.ts': 322,
-  'src/cli/help.ts': 294,
   // 293, not the 291 on alpha: PR #2832 adds one .use() line for the SPA
   // middleware. Recording the post-merge count keeps that merge from turning
   // alpha red the moment it lands (P9 — green in a worktree is not green on base).

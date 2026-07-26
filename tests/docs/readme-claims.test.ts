@@ -119,7 +119,12 @@ describe('README/docs advertised claims', () => {
   }, 240_000);
 
   test('arra mine smoke ingests a folder through the advertised CLI', async () => {
-    expect(readFileSync('src/cli/help.ts', 'utf8')).toContain('arra-cli mine <dir>');
+    // Asserted through the API rather than by grepping a source file: the claim is that the
+    // CLI *advertises* this usage, which is true wherever the entry happens to live. The file
+    // read broke when the help tables moved to help-entries.ts (#2833) without the advertised
+    // behaviour changing at all.
+    const { builtinHelpFor } = await import('../../src/cli/help.ts');
+    expect(builtinHelpFor('mine')?.usage ?? '').toContain('arra-cli mine <dir>');
     const result = await smokeArraMine(repoRoot, scratch);
     expect(result.stdout).toContain('Mined 1 document');
     expect(result.rows).toHaveLength(1);
