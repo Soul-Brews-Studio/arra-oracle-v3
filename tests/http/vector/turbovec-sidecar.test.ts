@@ -91,3 +91,4 @@ test('TurboVec sidecar reference speaks the vector proxy protocol', async () => 
   expect(await json(`${base}/vectors/collection`, { method: 'DELETE' })).toMatchObject({ success: true });
   expect(await json(`${base}/vectors/stats`)).toMatchObject({ count: 0 });
 }, 10_000);
+
