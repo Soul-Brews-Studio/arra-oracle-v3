@@ -36,31 +36,35 @@ function applyCapturingWarnings(): { warnings: string[]; next: ToolGroupConfig }
   console.error = (...args: unknown[]) => { lines.push(args.join(' ')); };
   try {
     const next = applyToolEnvOverrides({ ...BASE });
-    return { warnings: lines.filter((line) => line.includes('is deprecated')), next };
+    const notice = (line: string) => line.includes('is deprecated') || line.includes('was REMOVED');
+    return { warnings: lines.filter(notice), next };
   } finally {
     console.error = real;
   }
 }
 
-test('ORACLE_ENABLED_TOOLS warns on a muninn_ name and still resolves it', () => {
+test('ORACLE_ENABLED_TOOLS reports a retired muninn_ name and no longer resolves it', () => {
   process.env.ORACLE_ENABLED_TOOLS = 'muninn_search,arra_read,oracle_list';
   const { warnings, next } = applyCapturingWarnings();
 
   // arra_read rides along in the same list and must NOT produce a line.
-  expect(warnings).toEqual([
-    '[MCP] tool alias "muninn_search" is deprecated — use "oracle_search" (removal planned next release)',
-  ]);
-  expect(next.enabled_tools).toEqual(['oracle_search', 'oracle_read', 'oracle_list']);
+  expect(warnings).toHaveLength(1);
+  expect(warnings[0]).toContain('was REMOVED');
+  expect(warnings[0]).toContain('oracle_search');
+  // Retired AND dropped: the allow-list keeps only recognised tools (knownTool filter), so
+  // muninn_search selects nothing rather than silently standing in for oracle_search.
+  expect(next.enabled_tools).toEqual(['oracle_read', 'oracle_list']);
 });
 
-test('ORACLE_DISABLED_TOOLS warns on a muninn_ name and still resolves it', () => {
+test('ORACLE_DISABLED_TOOLS reports a retired muninn_ name and no longer resolves it', () => {
   process.env.ORACLE_DISABLED_TOOLS = 'muninn_read';
   const { warnings, next } = applyCapturingWarnings();
 
-  expect(warnings).toEqual([
-    '[MCP] tool alias "muninn_read" is deprecated — use "oracle_read" (removal planned next release)',
-  ]);
-  expect(next.disabled_tools).toContain('oracle_read');
+  expect(warnings).toHaveLength(1);
+  expect(warnings[0]).toContain('was REMOVED');
+  expect(warnings[0]).toContain('oracle_read');
+  // It no longer disables oracle_read — which is exactly why the notice has to be loud.
+  expect(next.disabled_tools).not.toContain('oracle_read');
 });
 
 test('an all-arra_ env list stays completely silent', () => {
