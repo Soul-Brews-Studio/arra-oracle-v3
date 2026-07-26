@@ -21,15 +21,39 @@ function tempDir(prefix: string): string {
   return dir;
 }
 
-async function waitForHealth(baseUrl: string): Promise<void> {
+/**
+ * Wait for the spawned server, and say why if it never arrives (#2918).
+ *
+ * The server is spawned with `stdout: 'pipe', stderr: 'pipe'`, which captures both into
+ * streams nothing read — so a startup failure discarded the one artefact that would explain
+ * it, and CI showed only `server did not become healthy: http://127.0.0.1:PORT`.
+ *
+ * That silence is what let the turbovec flake (#2905) survive three CI cycles and two wrong
+ * diagnoses. #2906 added exactly this there, and the next failure identified the root cause
+ * in ten minutes.
+ */
+async function waitForHealth(baseUrl: string, server: Bun.Subprocess): Promise<void> {
   for (let i = 0; i < 60; i++) {
     try {
       const res = await fetch(`${baseUrl}/api/health`);
       if (res.ok) return;
     } catch { /* server still booting */ }
+    if (server.exitCode !== null) break;   // died — stop waiting out the full 15s
     await Bun.sleep(250);
   }
-  throw new Error(`server did not become healthy: ${baseUrl}`);
+
+  const read = async (stream: ReadableStream<Uint8Array> | null | undefined) => {
+    if (!stream) return '';
+    try { return (await new Response(stream).text()).trim(); } catch { return ''; }
+  };
+  const [out, err] = await Promise.all([read(server.stdout as never), read(server.stderr as never)]);
+  const detail = [
+    server.exitCode !== null ? `child exited: code=${server.exitCode} signal=${server.signalCode ?? 'null'}` : 'child still running',
+    err && `--- server stderr ---\n${err}`,
+    out && `--- server stdout ---\n${out}`,
+  ].filter(Boolean).join('\n');
+
+  throw new Error(`server did not become healthy: ${baseUrl}\n${detail || '(server produced no output)'}`);
 }
 
 afterEach(() => {
@@ -59,7 +83,7 @@ test('oracle_trace proxies through ORACLE_API without opening the MCP DB', async
     },
   });
   childProcesses.push(server);
-  await waitForHealth(baseUrl);
+  await waitForHealth(baseUrl, server);
 
   const transport = new StdioClientTransport({
     command: 'bun',
