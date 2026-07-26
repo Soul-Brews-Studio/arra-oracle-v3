@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm';
 import { docParams } from './model.ts';
 import { currentTenantId, tenantIdForWrite } from '../../middleware/tenant.ts';
 import { replaceEntityLinks } from '../../search/entity-ranking.ts';
+import { replaceDocumentPointers } from '../../search/pointer-index.ts';
 
 // Body schemas for PATCH/POST.
 const PatchDocBody = t.Object({
@@ -126,6 +127,13 @@ export const docRoute = new Elysia()
             concepts: linkRow?.concepts,
             now,
           });
+          replaceDocumentPointers(sqlite, {
+            documentId: params.id,
+            tenantId: linkRow?.tenant_id,
+            content: linkRow?.content ?? '',
+            concepts: linkRow?.concepts,
+            timestamp: now,
+          });
         }
 
         return { ok: true, id: params.id };
@@ -191,6 +199,13 @@ export const docRoute = new Elysia()
           content: data.content,
           concepts: conceptsArr,
           now,
+        });
+        replaceDocumentPointers(sqlite, {
+          documentId: id,
+          tenantId,
+          content: data.content,
+          concepts: conceptsArr,
+          timestamp: now,
         });
 
         return { ok: true, id };

@@ -5,6 +5,7 @@ import { setIndexingStatus } from '../../indexer/status.ts';
 import { DB_PATH, REPO_ROOT } from '../../config.ts';
 import { currentTenantId, runWithTenant } from '../../middleware/tenant.ts';
 import { replaceEntityLinks } from '../../search/entity-ranking.ts';
+import { replaceDocumentPointers } from '../../search/pointer-index.ts';
 import { entityCollectionName, entityDocumentsFor } from '../../vector/entities.ts';
 import {
   applyVectorIndexPlan,
@@ -161,6 +162,12 @@ export function createStartRoute(deps: StartRouteDeps = {}) {
         if (plan.changedDocs.length > 0) {
           for (const doc of plan.changedDocs) {
             replaceEntityLinks(sqlite, {
+              documentId: doc.id,
+              tenantId: String(doc.metadata.tenant_id ?? ''),
+              content: doc.document,
+              concepts: doc.metadata.concepts,
+            });
+            replaceDocumentPointers(sqlite, {
               documentId: doc.id,
               tenantId: String(doc.metadata.tenant_id ?? ''),
               content: doc.document,

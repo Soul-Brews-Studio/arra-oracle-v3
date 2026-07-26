@@ -1,6 +1,7 @@
 import type { Database } from 'bun:sqlite';
 import { currentTenantId } from '../middleware/tenant.ts';
 import { entityLinksForDocument, replaceEntityLinks } from '../search/entity-ranking.ts';
+import { replaceDocumentPointers } from '../search/pointer-index.ts';
 import { readEntityCoverageStats, type EntityCoverageStats } from '../search/entity-coverage.ts';
 import { entityCollectionName, entityDocumentsFor } from '../vector/entities.ts';
 import { createVectorStoreForModel, getEmbeddingModels, type EmbeddingModelConfig } from '../vector/factory.ts';
@@ -118,7 +119,11 @@ async function sidecarPlans(docs: IndexedDoc[], input: EntityBackfillOptions, sc
 async function applyPlan(sqlite: Database, planned: Plan, input: EntityBackfillOptions): Promise<EntityBackfillApplied> {
   let linksWritten = 0, entityDocsWritten = 0; const errors: string[] = [];
   for (const doc of planned.linkDocs) {
-    try { replaceEntityLinks(sqlite, { documentId: doc.id, tenantId: doc.tenantId, content: doc.content, concepts: doc.concepts }); linksWritten += entityKeys(doc).size; }
+    try {
+      replaceEntityLinks(sqlite, { documentId: doc.id, tenantId: doc.tenantId, content: doc.content, concepts: doc.concepts });
+      replaceDocumentPointers(sqlite, { documentId: doc.id, tenantId: doc.tenantId, content: doc.content, concepts: doc.concepts });
+      linksWritten += entityKeys(doc).size;
+    }
     catch (error) { errors.push(message(error)); }
   }
   const createStore = input.createStore ?? createVectorStoreForModel;
