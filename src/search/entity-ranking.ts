@@ -5,6 +5,7 @@ import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../db/schema.ts';
 import { extractEntities } from '../vector/entities.ts';
 import { expansionPhrasesForText } from './acronyms.ts';
+import { noteEntityBoostOutcome } from './signal-health.ts';
 
 const ENTITY_BOOST_PER_MATCH = 0.08;
 const ENTITY_BOOST_CAP = 0.24;
@@ -90,6 +91,9 @@ export function rerankByEntityLinks<T extends Rankable>(
 ): Array<T & EntityRankFields> {
   const ids = results.map((result) => result.id).filter(Boolean).slice(0, MAX_RANKING_CANDIDATES);
   const signals = entitySignalsForCandidates(dbInput, ids, query, tenantId);
+  // Recorded either way: a boost that never applies is otherwise indistinguishable from one
+  // that applies and changes nothing (#2876, #2878).
+  noteEntityBoostOutcome(signals.size > 0);
   if (signals.size === 0) return results;
 
   return results.map((result, index) => {

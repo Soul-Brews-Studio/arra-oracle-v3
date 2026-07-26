@@ -48,9 +48,37 @@ export function expansionPhrasesForText(text: string): string[] {
   return phrases;
 }
 
+/**
+ * Separator between the query and each appended expansion (#2876).
+ *
+ * Expansions used to be appended as bare space-joined text, so two adjacent ones merged under
+ * entity extraction into a phrase that matches nothing:
+ *
+ *   "what does the API and db do"
+ *     → "… Application Programming Interface Database"
+ *     → entities: ["API", "Application Programming Interface Database"]
+ *
+ * Neither `application-programming-interface` nor `database` survived as a key, so entity-link
+ * boosting was **silently skipped**. Even a single acronym merged with its own expansion:
+ * `"API"` produced the entity `"API Application Programming Interface"`.
+ *
+ * **This does not change retrieval.** `buildTenantFtsQuery` (src/search/query.ts:49) and
+ * `src/tools/search/helpers.ts` both build the FTS query with `.match(/[\p{L}\p{N}_]+/gu)`,
+ * which takes only letters, digits and underscores — punctuation is invisible to them, so the
+ * token set is byte-identical either way. That is what made this safe to change: the issue
+ * deferred the fix because the augmented string also feeds FTS, and it turns out the FTS path
+ * never sees the separator at all. `tests/search/acronym-boundary.test.ts` pins that.
+ *
+ * A semicolon rather than a comma or period: `extractEntities` treats a period as part of the
+ * run (`"…Interface. Database"` stays merged), and commas occur in ordinary queries.
+ */
+export const ACRONYM_EXPANSION_SEPARATOR = ';';
+
 export function augmentQueryWithAcronyms(query: string): string {
   const additions = expansionsForText(query);
-  return additions.length ? `${query} ${additions.join(' ')}` : query;
+  if (!additions.length) return query;
+  const sep = `${ACRONYM_EXPANSION_SEPARATOR} `;
+  return `${query}${sep}${additions.join(sep)}`;
 }
 
 export function enrichTextWithAcronyms(text: string): string {
