@@ -7,8 +7,9 @@ import { getSetting, setSetting } from '../db/index.ts';
 import { detectProject } from '../server/project-detect.ts';
 import { ORACLE_DATA_DIR } from '../config.ts';
 import { walkFiles, resolveVaultPath, cleanEmptyDirs } from './discovery.ts';
-import { mapToVaultPath, ensureFrontmatterProject, isProjectCategory, UNIVERSAL_CATEGORIES } from './path-mapping.ts';
+import { UNIVERSAL_CATEGORIES } from './path-mapping.ts';
 import { parseGitStatus } from './git.ts';
+import { planSync } from './sync-plan.ts';
 import { ghqGet, ghqListPaths, normalizeGhqRepo } from './ghq.ts';
 
 // Re-export sub-modules for backward compatibility
@@ -49,15 +50,6 @@ export interface SyncResult {
   commitHash?: string; project?: string | null;
 }
 
-type SyncWriteOp = { source: string; dest: string; content?: string };
-type SyncDeleteOp = { path: string; stopAt: string };
-type SyncPlan = {
-  writes: SyncWriteOp[];
-  deletes: SyncDeleteOp[];
-  added: number;
-  modified: number;
-  deleted: number;
-};
 type SyncLock = { path: string; release: () => void };
 
 const SYNC_LOCK_FILE = 'vault-sync.lock';
@@ -111,46 +103,6 @@ function acquireSyncLock(): SyncLock {
       if (current.pid === process.pid) fs.rmSync(lockPath, { force: true });
     },
   };
-}
-
-function sameFileContent(dest: string, source: string, content?: string): boolean {
-  if (!fs.existsSync(dest)) return false;
-  if (content !== undefined) return fs.readFileSync(dest, 'utf-8') === content;
-  return fs.readFileSync(dest).equals(fs.readFileSync(source));
-}
-
-function planSync(psiDir: string, repoRoot: string, vaultPath: string, project: string | null): SyncPlan {
-  const diskFiles = walkFiles(psiDir, repoRoot);
-  const vaultDestPaths = new Set<string>();
-  const writes: SyncWriteOp[] = [];
-  const deletes: SyncDeleteOp[] = [];
-  let added = 0;
-  let modified = 0;
-
-  for (const { relativePath, fullPath } of diskFiles) {
-    const vaultRelPath = mapToVaultPath(relativePath, project);
-    vaultDestPaths.add(vaultRelPath);
-    const dest = path.join(vaultPath, vaultRelPath);
-    const content = project && fullPath.endsWith('.md') && isProjectCategory(relativePath)
-      ? ensureFrontmatterProject(fs.readFileSync(fullPath, 'utf-8'), project)
-      : undefined;
-
-    if (!sameFileContent(dest, fullPath, content)) {
-      fs.existsSync(dest) ? modified++ : added++;
-      writes.push({ source: fullPath, dest, content });
-    }
-  }
-
-  // Clean up vault files that no longer exist locally
-  if (project) {
-    const vaultProjectDir = path.join(vaultPath, project, 'ψ');
-    if (fs.existsSync(vaultProjectDir)) {
-      for (const { relativePath: vr, fullPath: vf } of walkFiles(vaultProjectDir, vaultPath)) {
-        if (!vaultDestPaths.has(vr)) deletes.push({ path: vf, stopAt: path.join(vaultPath, project) });
-      }
-    }
-  }
-  return { writes, deletes, added, modified, deleted: deletes.length };
 }
 
 export function syncVault(opts: { dryRun?: boolean; repoRoot: string }): SyncResult {
