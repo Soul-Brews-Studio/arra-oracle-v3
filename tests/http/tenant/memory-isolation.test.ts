@@ -2,7 +2,6 @@ import { afterAll, expect, test } from 'bun:test';
 import { inArray } from 'drizzle-orm';
 import { db, oracleMemories, resetDefaultDatabaseForTests } from '../../../src/db/index.ts';
 
-resetDefaultDatabaseForTests();
 import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant.ts';
 import { createMemoryRoutes } from '../../../src/routes/memory/index.ts';
 import { MemoryStore, type MemoryRecord } from '../../../src/routes/memory/store.ts';

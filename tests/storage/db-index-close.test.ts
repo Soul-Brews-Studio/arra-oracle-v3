@@ -11,6 +11,5 @@ test('db/index closeDb closes the active default storage connection', () => {
   closeDb();
 
   expect(true).toBe(true);
-  resetDefaultDatabaseForTests();
   if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true });
 });

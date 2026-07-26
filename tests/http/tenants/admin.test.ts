@@ -3,7 +3,6 @@ import { Elysia } from 'elysia';
 import { eq, inArray } from 'drizzle-orm';
 
 const dbMod = await import('../../../src/db/index.ts');
-dbMod.resetDefaultDatabaseForTests();
 const { tenantsRoutes } = await import('../../../src/routes/tenants/index.ts');
 
 const app = new Elysia().use(tenantsRoutes);

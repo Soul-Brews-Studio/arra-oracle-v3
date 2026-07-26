@@ -5,7 +5,6 @@ import os from 'os';
 import path from 'path';
 import { db, oracleDocuments, resetDefaultDatabaseForTests, sqlite } from '../../../src/db/index.ts';
 
-resetDefaultDatabaseForTests();
 import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant.ts';
 import { createLearnCrudRoutes } from '../../../src/routes/learn/crud.ts';
 

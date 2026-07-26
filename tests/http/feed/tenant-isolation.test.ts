@@ -36,7 +36,6 @@ const { createFeedRoute } = await import('../../../src/routes/feed/create.ts');
 const { listFeedRoute } = await import('../../../src/routes/feed/list.ts');
 const { dashboardRoutes } = await import('../../../src/routes/dashboard/index.ts');
 const dbMod = await import('../../../src/db/index.ts');
-dbMod.resetDefaultDatabaseForTests();
 const { learnLog, oracleDocuments, searchLog } = dbMod;
 
 const feedApp = new Elysia({ prefix: '/api/feed' }).use(createFeedRoute).use(listFeedRoute);

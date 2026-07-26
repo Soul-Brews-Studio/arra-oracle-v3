@@ -86,7 +86,6 @@ afterAll(() => {
   restore('ORACLE_DATA_DIR', savedDataDir);
   restore('ORACLE_DB_PATH', savedDbPath);
   restore('ORACLE_REPO_ROOT', savedRepoRoot);
-  dbMod.resetDefaultDatabaseForTests();
   rmSync(root, { recursive: true, force: true });
 });
 

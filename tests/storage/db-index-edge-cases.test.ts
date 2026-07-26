@@ -33,8 +33,6 @@ test('resetDefaultDatabaseForTests treats blank ORACLE_DB_PATH as unset', () => 
   process.chdir(tempDir);
   process.env.ORACLE_DB_PATH = '   ';
   process.env.ORACLE_DATA_DIR = path.join(tempDir, 'data');
-
-  resetDefaultDatabaseForTests();
   setSetting('blank_path_marker', 'ok');
 
   expect(getSetting('blank_path_marker')).toBe('ok');

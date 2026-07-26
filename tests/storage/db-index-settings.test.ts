@@ -13,7 +13,6 @@ afterEach(() => {
   else process.env.ORACLE_DATA_DIR = savedDataDir;
   if (savedDbPath === undefined) delete process.env.ORACLE_DB_PATH;
   else process.env.ORACLE_DB_PATH = savedDbPath;
-  resetDefaultDatabaseForTests();
   if (tempDir && fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true });
 });
 

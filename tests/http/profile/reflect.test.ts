@@ -2,7 +2,6 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
 const dbMod = await import('../../../src/db/index.ts');
-dbMod.resetDefaultDatabaseForTests();
 const { searchRoutes } = await import('../../../src/routes/search/index.ts');
 const { handleReflect } = await import('../../../src/tools/reflect.ts');
 
