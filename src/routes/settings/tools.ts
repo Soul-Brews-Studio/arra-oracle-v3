@@ -14,6 +14,7 @@ import {
   type ToolGroupName,
 } from '../../config/tool-groups.ts';
 import { warnDeprecatedAlias } from '../../config/tool-alias-warn.ts';
+import { retiredAliasNotice } from '../../mcp/aliases.ts';
 
 /** Ordered projection of the shared config vocabulary — the same set the loader governs. */
 const ALL_TOOL_LIST = [...ALL_TOOL_NAMES];
@@ -68,16 +69,21 @@ export const toolSettingsRoute = new Elysia()
     },
   })
   .put('/tools', ({ body, set }) => {
-    // Announce the rewrite BEFORE validation, so a body that also carries an
-    // unknown tool still tells the caller its `muninn_` names are on the way out
-    // rather than 400-ing with that half of the story missing. Unguarded on
-    // purpose: every PUT is a fresh operator action, unlike the polled config file.
+    // Announce BEFORE validation, so a body that also carries an unknown tool still tells
+    // the caller about its retired names rather than 400-ing with that half of the story
+    // missing. Unguarded on purpose: every PUT is a fresh operator action, unlike the polled
+    // config file.
     for (const name of body.enabled_tools) warnDeprecatedAlias(name);
     const normalized = Array.from(new Set(body.enabled_tools.map(normalizeToolName)));
     const unknown = normalized.filter((name) => !ALL_TOOL_NAMES.has(name));
     if (unknown.length) {
       set.status = 400;
-      return { error: 'Unknown MCP tools', unknown };
+      // A retired alias is "unknown" now, so say which one and what replaced it. Without
+      // this the operator gets a bare 400 for a name that worked last release (#2824).
+      const retired = unknown.map((name) => retiredAliasNotice(name)).filter((n): n is string => n !== null);
+      return retired.length
+        ? { error: 'Unknown MCP tools', unknown, notices: retired }
+        : { error: 'Unknown MCP tools', unknown };
     }
 
     const filePath = resolveToolConfigSource(repoRoot()).path;

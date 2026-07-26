@@ -60,25 +60,31 @@ async function putCapturingWarnings(enabled_tools: string[]): Promise<{ res: Res
     });
     // Body must be drained before restoring: the handler logs while serializing.
     await res.clone().text();
-    return { res, warnings: lines.filter((line) => line.includes('is deprecated')) };
+    return { res, warnings: lines.filter((line) => line.includes('is deprecated') || line.includes('was REMOVED')) };
   } finally {
     console.error = real;
   }
 }
 
-test('PUT /api/v1/settings/tools warns that a muninn_ name is deprecated, and still resolves it', async () => {
+test('PUT /api/v1/settings/tools REJECTS a retired muninn_ name and names the replacement', async () => {
+  // Behaviour change from the #2824 removal: the alias no longer resolves, so it is an
+  // unknown tool. The 400 has to explain that, or an operator sees a name that worked last
+  // release rejected with no reason.
   const { res, warnings } = await putCapturingWarnings(['muninn_search', 'oracle_list']);
-  expect(res.status).toBe(200);
+  expect(res.status).toBe(400);
 
-  // Exact format, shared with the MCP path via deprecatedAliasWarning.
-  expect(warnings).toEqual([
-    '[MCP] tool alias "muninn_search" is deprecated — use "oracle_search" (removal planned next release)',
-  ]);
+  const body = await res.json() as { error: string; unknown: string[]; notices?: string[] };
+  expect(body.unknown).toContain('muninn_search');
+  expect(body.notices?.join(' ')).toContain('oracle_search');
+  expect(body.notices?.join(' ')).toContain('was REMOVED');
 
-  // Warning is an announcement, not a rejection — the rewrite still happens.
+  // The same notice reaches the logs, from the single shared source.
+  expect(warnings).toHaveLength(1);
+  expect(warnings[0]).toContain('was REMOVED');
+
+  // Nothing was written — a rejected PUT must not half-apply.
   const written = JSON.parse(fs.readFileSync(repoConfig, 'utf-8')) as Record<string, string[]>;
-  expect(written.enabled_tools).toEqual(['oracle_search', 'oracle_list']);
-  expect((await res.json() as { enabled_tools: string[] }).enabled_tools).toEqual(['oracle_search', 'oracle_list']);
+  expect(written.enabled_tools ?? []).not.toContain('muninn_search');
 });
 
 test('PUT /api/v1/settings/tools stays silent for arra_ names, and still resolves them', async () => {

@@ -67,9 +67,11 @@ describe('ORACLE_ENABLED_TOOLS / ORACLE_DISABLED_TOOLS', () => {
     });
   });
 
-  it('normalizes aliases and ignores unknown names', () => {
+  it('normalizes the arra_ alias and ignores unknown names', () => {
+    // `muninn_read` is now an unknown name, not an alias — retired in #2824, so it is
+    // dropped exactly like `not_a_tool` rather than resolving to `oracle_read`.
     withEnv({ ORACLE_ENABLED_TOOLS: 'arra_search,muninn_read,not_a_tool' }, () => {
-      expect(getEnabledToolNames(applyToolEnvOverrides(ALL_ON)).sort()).toEqual(['oracle_read', 'oracle_search']);
+      expect(getEnabledToolNames(applyToolEnvOverrides(ALL_ON)).sort()).toEqual(['oracle_search']);
     });
   });
 
