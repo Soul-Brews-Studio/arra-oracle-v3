@@ -104,5 +104,4 @@ afterAll(() => {
   else delete process.env.ORACLE_DATA_DIR;
   if (ORIGINAL_DB_PATH) process.env.ORACLE_DB_PATH = ORIGINAL_DB_PATH;
   else delete process.env.ORACLE_DB_PATH;
-  resetDefaultDatabaseForTests();
 });

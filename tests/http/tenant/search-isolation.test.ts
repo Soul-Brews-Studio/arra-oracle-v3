@@ -2,7 +2,6 @@ import { afterAll, expect, test } from 'bun:test';
 import { inArray } from 'drizzle-orm';
 import { db, oracleDocuments, resetDefaultDatabaseForTests, sqlite } from '../../../src/db/index.ts';
 
-resetDefaultDatabaseForTests();
 import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant.ts';
 import { searchRoutes } from '../../../src/routes/search/index.ts';
 

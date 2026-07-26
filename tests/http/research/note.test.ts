@@ -10,7 +10,6 @@ const repoRoot = mkdtempSync(join(tmpdir(), 'arra-research-route-'));
 process.env.ORACLE_REPO_ROOT = repoRoot;
 
 const dbMod = await import('../../../src/db/index.ts');
-dbMod.resetDefaultDatabaseForTests();
 const { createTenantFetch, TENANT_HEADER } = await import('../../../src/middleware/tenant.ts');
 const { researchRoutes } = await import('../../../src/routes/research/index.ts');
 

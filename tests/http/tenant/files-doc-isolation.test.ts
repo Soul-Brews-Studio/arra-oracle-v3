@@ -4,7 +4,6 @@ import { db, oracleDocuments, resetDefaultDatabaseForTests, sqlite } from '../..
 import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant.ts';
 import { docRoute } from '../../../src/routes/files/doc.ts';
 
-resetDefaultDatabaseForTests();
 
 const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const tenantA = `tenant-a-${stamp}`;

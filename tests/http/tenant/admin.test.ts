@@ -2,7 +2,6 @@ import { afterAll, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
 import { db, resetDefaultDatabaseForTests, tenants } from '../../../src/db/index.ts';
 
-resetDefaultDatabaseForTests();
 import { tenantsRoutes } from '../../../src/routes/tenants/index.ts';
 
 const tenantId = `admin-tenant-${Date.now()}-${Math.random().toString(16).slice(2)}`;

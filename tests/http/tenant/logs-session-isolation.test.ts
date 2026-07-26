@@ -5,7 +5,6 @@ import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant
 import { sessionStatsEndpoint } from '../../../src/routes/dashboard/session-stats.ts';
 import { logsRoute } from '../../../src/routes/files/logs.ts';
 
-resetDefaultDatabaseForTests();
 
 const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const tenantA = `tenant-a-${stamp}`;
