@@ -16,7 +16,7 @@ import type { UnifiedRuntime } from '../plugins/unified-loader.ts';
 import type { EmbeddedDeps, OracleMCPServerOptions } from './server-options.ts';
 import { probeVectorStore } from './vector-health.ts';
 import { formatEmbedderDegradedWarning, probeConfiguredEmbedder, readEmbedderRuntimeStatus, setEmbedderRuntimeStatus, type EmbedderRuntimeStatus } from '../vector/embedder-config.ts';
-import { resolveInboundToolName } from './aliases.ts';
+import { resolveInboundToolName, retiredAliasNotice } from './aliases.ts';
 import { proxyToolCall, resolveOracleApiBase } from './http-proxy.ts';
 import { pluginMcpToolsFrom } from './plugin-tools.ts';
 import { runWithTenant } from '../middleware/tenant.ts';
@@ -190,7 +190,13 @@ export class OracleMCPServer {
       }
       const toolName = resolveInboundToolName(request.params.name);
       const tool = (await this.toolRegistry()).get(toolName);
-      if (!tool) return errorResponse(`Error: Unknown tool: ${toolName}`);
+      if (!tool) {
+        // A retired alias fails like any unknown tool, but the CLIENT gets told why.
+        // `resolveInboundToolName` already logged it to stderr, which the caller may never
+        // see; #2824 flagged exactly this — "a confusing error with no hint about the rename".
+        const retired = retiredAliasNotice(request.params.name);
+        return errorResponse(retired ? `Error: Unknown tool: ${toolName}. ${retired}` : `Error: Unknown tool: ${toolName}`);
+      }
       if (!this.isAllowed(tool)) return errorResponse(`Error: Unknown tool: ${toolName}`);
       if (this.isDisabled(tool)) {
         return errorResponse(`Error: Tool "${toolName}" is disabled by tool group config. Check ${ORACLE_DATA_DIR}/config.json or arra.config.json.`);

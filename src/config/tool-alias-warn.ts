@@ -1,4 +1,4 @@
-import { deprecatedAliasWarning } from '../mcp/aliases.ts';
+import { aliasNotice } from '../mcp/aliases.ts';
 
 /**
  * Deprecation warnings for the NON-MCP inbound surfaces.
@@ -8,7 +8,7 @@ import { deprecatedAliasWarning } from '../mcp/aliases.ts';
  * the `arra.config.json` file and the ORACLE_*_TOOLS env vars all rewrite the
  * alias through `normalizeToolName` and, before this module, did so in silence.
  *
- * The MESSAGE deliberately lives in exactly one place — `deprecatedAliasWarning`
+ * The MESSAGE deliberately lives in exactly one place — `aliasNotice`
  * in src/mcp/aliases.ts — so these surfaces can never drift into a second dialect
  * of the same notice. The `[MCP]` tag it carries is kept even here: the noun being
  * labelled is an MCP tool name, whatever transport carried it.
@@ -20,10 +20,10 @@ import { deprecatedAliasWarning } from '../mcp/aliases.ts';
  * hide a real second event.
  *
  * Silent for `arra_` (supported, not deprecated) and for canonical `oracle_*`,
- * because `deprecatedAliasWarning` returns null for both.
+ * because `aliasNotice` returns null for both.
  */
 export function warnDeprecatedAlias(name: string, log: (m: string) => void = console.error): void {
-  const warning = deprecatedAliasWarning(name);
+  const warning = aliasNotice(name);
   if (warning) log(warning);
 }
 
@@ -39,7 +39,7 @@ const warned = new Set<string>();
  * log flood, not a notice — one `muninn_` entry would emit ~864k lines/day.
  */
 export function warnDeprecatedAliasOnce(name: string, log: (m: string) => void = console.error): void {
-  const warning = deprecatedAliasWarning(name);
+  const warning = aliasNotice(name);
   if (!warning || warned.has(name)) return;
   warned.add(name);
   log(warning);

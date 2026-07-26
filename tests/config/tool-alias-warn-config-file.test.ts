@@ -31,27 +31,30 @@ function loadCapturingWarnings(times = 1): { warnings: string[]; last: ReturnTyp
   try {
     let last = loadToolGroupConfig(tempRepo);
     for (let i = 1; i < times; i += 1) last = loadToolGroupConfig(tempRepo);
-    return { warnings: lines.filter((line) => line.includes('is deprecated')), last };
+    // Matches both dialects from the single source: 'is deprecated' and 'was REMOVED'.
+    const notice = (line: string) => line.includes('is deprecated') || line.includes('was REMOVED');
+    return { warnings: lines.filter(notice), last };
   } finally {
     console.error = real;
   }
 }
 
-test('a muninn_ entry in arra.config.json warns once and still resolves', () => {
+test('a muninn_ entry in arra.config.json is reported as REMOVED and no longer resolves', () => {
+  // #2824: the prefix completed its deprecation cycle. A config file still naming it gets a
+  // notice on every distinct entry — going silent here would leave the operator with a config
+  // that quietly selects nothing.
   seed({ enabled_tools: ['muninn_search'], disabled_tools: ['muninn_read'] });
   const { warnings, last } = loadCapturingWarnings();
 
-  // Order is incidental (mergeRaw happens to read disabled_tools first), so assert
-  // the exact format of each line without pinning the sequence.
+  // Order is incidental (mergeRaw happens to read disabled_tools first).
   expect(warnings).toHaveLength(2);
-  expect(warnings).toContain(
-    '[MCP] tool alias "muninn_search" is deprecated — use "oracle_search" (removal planned next release)',
-  );
-  expect(warnings).toContain(
-    '[MCP] tool alias "muninn_read" is deprecated — use "oracle_read" (removal planned next release)',
-  );
-  expect(last.enabled_tools).toEqual(['oracle_search']);
-  expect(last.disabled_tools).toEqual(['oracle_read']);
+  expect(warnings.join(' ')).toContain('oracle_search');
+  expect(warnings.join(' ')).toContain('oracle_read');
+  expect(warnings.every((line) => line.includes('was REMOVED'))).toBe(true);
+
+  // Unresolved: the names stay as written, so they match no known tool.
+  expect(last.enabled_tools).toEqual(['muninn_search']);
+  expect(last.disabled_tools).toEqual(['muninn_read']);
 });
 
 test('repeated loads do NOT re-warn — the watcher polls this path 10x/sec', () => {
@@ -61,7 +64,7 @@ test('repeated loads do NOT re-warn — the watcher polls this path 10x/sec', ()
   // the once-guard this is 20 lines, and a long-running server emits ~864k/day.
   const { warnings, last } = loadCapturingWarnings(20);
   expect(warnings).toHaveLength(1);
-  expect(last.enabled_tools).toEqual(['oracle_search']);
+  expect(last.enabled_tools).toEqual(['muninn_search']);
 });
 
 test('an arra_ entry in arra.config.json resolves silently — arra_ is not deprecated', () => {

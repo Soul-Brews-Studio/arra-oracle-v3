@@ -1,5 +1,6 @@
 import { envToolList, isRecord, resolveConfigSourceWithRaw } from './tool-config-source.ts';
 import { warnDeprecatedAliasOnce, warnOnce } from './tool-alias-warn.ts';
+import { resolveToolName } from '../mcp/aliases.ts';
 
 export const TOOL_GROUPS = {
   search: ['oracle_search', 'oracle_search_chain', 'oracle_read', 'oracle_list', 'oracle_concepts', 'oracle_ask'],
@@ -79,10 +80,17 @@ const DEFAULT_TOOL_ORDER = Object.values(TOOL_PLUGINS)
   .sort((a, b) => a.weight - b.weight || a.name.localeCompare(b.name))
   .flatMap((p) => p.tools);
 
+/**
+ * Delegates to `resolveToolName` — there must be exactly ONE definition of what an alias is.
+ *
+ * This used to hardcode both prefixes itself, which is why removing `muninn_` from
+ * `ALIAS_PREFIXES` (#2824) left the settings API still resolving it: the rule lived in two
+ * places and only one of them was retired. Same shape as the three `withTimeout` copies in
+ * #2850 and the two `walkFiles` in #2849 — a rule with two implementations has already drifted,
+ * it just has not been noticed yet.
+ */
 export function normalizeToolName(name: string): string {
-  if (name.startsWith('arra_')) return `oracle_${name.slice('arra_'.length)}`;
-  if (name.startsWith('muninn_')) return `oracle_${name.slice('muninn_'.length)}`;
-  return name;
+  return resolveToolName(name);
 }
 
 /**

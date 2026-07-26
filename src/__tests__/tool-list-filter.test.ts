@@ -23,12 +23,22 @@ describe('filterAdvertisedTools', () => {
     expect(listed.map((t) => t.name)).toEqual(['oracle_search']);
   });
 
-  test('normalizes legacy aliases before matching disabled tools', () => {
+  test('normalizes the arra_ alias before matching disabled tools', () => {
     const listed = filterAdvertisedTools(
-      [{ name: 'muninn_search' }, { name: 'arra_learn' }, { name: 'custom_tool' }],
+      [{ name: 'arra_learn' }, { name: 'custom_tool' }],
       new Set(['oracle_search', 'oracle_learn']),
     );
 
     expect(listed.map((t) => t.name)).toEqual(['custom_tool']);
+  });
+
+  test('muninn_ is no longer normalized, so it no longer matches its oracle_ target (#2824)', () => {
+    // Retired: `muninn_search` is now just a name, not an alias for `oracle_search`.
+    const listed = filterAdvertisedTools(
+      [{ name: 'muninn_search' }, { name: 'custom_tool' }],
+      new Set(['oracle_search']),
+    );
+
+    expect(listed.map((t) => t.name)).toEqual(['muninn_search', 'custom_tool']);
   });
 });
