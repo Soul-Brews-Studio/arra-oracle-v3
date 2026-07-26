@@ -15,50 +15,7 @@ import {
   dispatch,
   type CliDeps,
 } from '../arra-indexer.ts';
-
-const MIGRATION_SQL = `
-CREATE TABLE indexing_jobs (
-  id TEXT PRIMARY KEY,
-  doc_id TEXT NOT NULL,
-  model_key TEXT NOT NULL,
-  collection TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending',
-  attempts INTEGER NOT NULL DEFAULT 0,
-  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')*1000),
-  claimed_at INTEGER,
-  finished_at INTEGER,
-  error TEXT
-);
-`;
-
-const MODELS = {
-  'bge-m3': { collection: 'oracle_knowledge_bge_m3' },
-  qwen3: { collection: 'oracle_knowledge_qwen3' },
-};
-
-interface RecordingDeps extends CliDeps {
-  stdout: string[];
-  stderr: string[];
-}
-
-function makeDeps(): RecordingDeps {
-  const db = new Database(':memory:');
-  db.exec(MIGRATION_SQL);
-  const stdout: string[] = [];
-  const stderr: string[] = [];
-  return {
-    db,
-    models: MODELS,
-    stdout,
-    stderr,
-    out: (s) => { stdout.push(s); },
-    err: (s) => { stderr.push(s); },
-  };
-}
-
-// ============================================================================
-// parseCli
-// ============================================================================
+import { MODELS, makeDeps, type RecordingDeps } from './arra-indexer-harness.ts';
 
 describe('parseCli', () => {
   it('returns empty subcommand for empty argv', () => {

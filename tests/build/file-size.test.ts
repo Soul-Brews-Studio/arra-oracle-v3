@@ -44,7 +44,6 @@ const GRANDFATHERED: Record<string, number> = {
   // alpha red the moment it lands (P9 — green in a worktree is not green on base).
   'src/server.ts': 293,
   'cli/src/cli.ts': 286,
-  'src/indexer/__tests__/arra-indexer.test.ts': 284,
   'src/vector/__tests__/benchmark.ts': 278,
 };
 
