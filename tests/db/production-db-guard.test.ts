@@ -78,6 +78,26 @@ describe('the paths tests legitimately use stay allowed', () => {
   });
 });
 
+describe('a suite that redirects ORACLE_DATA_DIR is the safe case, not the unsafe one', () => {
+  /**
+   * CI caught this as a false positive on the first version of the guard. It compared against
+   * the `ORACLE_DATA_DIR` constant — but that constant is
+   * `envText('ORACLE_DATA_DIR') || join(HOME_DIR, …)`, so a suite that redirects the variable
+   * to a temp dir makes the constant BECOME the temp dir, and the guard then refuses the very
+   * tests doing the right thing. `README/docs claim integrity` failed with
+   * `production data dir = /tmp/arra-readme-claims-fJYYP3/data`.
+   *
+   * The fix compares against the home-directory default instead, which no env var can move.
+   */
+  test('a db inside a redirected temp data dir is allowed', () => {
+    process.env.NODE_ENV = 'test';
+    const temp = '/tmp/arra-readme-claims-fJYYP3/data';
+    const db = join(temp, 'oracle.db');
+    // The production dir passed in is the real home-directory one, NOT the redirect.
+    expect(assertNotProductionDb(db, PROD)).toBe(db);
+  });
+});
+
 describe('outside tests, nothing is refused', () => {
   test('production itself may open the production database', () => {
     process.env.NODE_ENV = 'production';

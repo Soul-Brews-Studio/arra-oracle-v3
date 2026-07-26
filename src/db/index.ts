@@ -11,7 +11,7 @@ import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import type { Database } from 'bun:sqlite';
 import path from 'path';
 import * as schema from './schema.ts';
-import { DB_PATH, ORACLE_DATA_DIR } from '../config.ts';
+import { DB_PATH, DEFAULT_ORACLE_DATA_DIR, ORACLE_DATA_DIR } from '../config.ts';
 import { assertNotProductionDb } from './production-db-guard.ts';
 import { createStorageBackend } from '../storage/registry.ts';
 import type { StorageBackend } from '../storage/types.ts';
@@ -93,12 +93,16 @@ export function resetDefaultDatabaseForTests(dbPath?: string): void {
 }
 
 /**
- * The guard compares against the *constant*, never `process.env.ORACLE_DATA_DIR`. A test that
- * redirects both variables to a temp directory is the safe case and must stay allowed — using
- * the env override here would refuse exactly the tests that are doing the right thing.
+ * The guard compares against `DEFAULT_ORACLE_DATA_DIR` — the home-directory path, computed
+ * without the env override.
+ *
+ * `ORACLE_DATA_DIR` is `envText('ORACLE_DATA_DIR') || join(HOME_DIR, …)`, so a test that
+ * redirects it to a temp dir makes that constant equal the temp dir, and a guard reading it
+ * refuses the very tests doing the right thing. CI caught exactly that: the README-claims suite
+ * failed with `production data dir = /tmp/arra-readme-claims-…/data`.
  */
 function productionDataDir(): string {
-  return ORACLE_DATA_DIR;
+  return DEFAULT_ORACLE_DATA_DIR;
 }
 
 function defaultDbPathForReset(): string {

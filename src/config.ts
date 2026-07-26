@@ -45,6 +45,15 @@ function pathFromDatabaseUrl(value?: string): string {
 }
 
 export const PORT = parseInt(String(envText('ORACLE_PORT') || envText('PORT') || C.ORACLE_DEFAULT_PORT), 10);
+/**
+ * The user's real data directory, independent of any env override.
+ *
+ * `ORACLE_DATA_DIR` below honours `process.env.ORACLE_DATA_DIR`, so a test that redirects it
+ * to a temp dir makes the constant BECOME that temp dir. Anything wanting to ask "is this the
+ * live user data?" must compare against this instead, or it answers yes for exactly the tests
+ * that are doing the right thing.
+ */
+export const DEFAULT_ORACLE_DATA_DIR = path.join(HOME_DIR, C.ORACLE_DATA_DIR_NAME);
 export const ORACLE_DATA_DIR = envText('ORACLE_DATA_DIR') || path.join(HOME_DIR, C.ORACLE_DATA_DIR_NAME);
 export const DB_PATH = envText('ORACLE_DB_PATH') || pathFromDatabaseUrl(envText('DATABASE_URL')) || path.join(ORACLE_DATA_DIR, C.ORACLE_DB_FILE);
 
