@@ -50,7 +50,16 @@ export function menuItemsFromRoutes(sources: HasRoutes[]): MenuItem[] {
       const menu = detail.menu;
       if (!menu?.group) continue;
 
-      const studio = studioPathFor(route.path);
+      // A route that declares its own frontend path is believed. `API_TO_STUDIO` stays as the
+      // fallback for the ~80 routes that declare a group but no path (#2862).
+      //
+      // Measured before changing this: 93 routes declare `menu: {…}` but only 11 declare a
+      // `path`, and 9 of those 11 already resolve to the same value through the lookup table.
+      // So honouring the field adds exactly two entries — `/ask` and `/tools/config` — not the
+      // ~80 the issue estimated. That is what makes this a bug fix rather than a navigation
+      // redesign: the declaration and the behaviour now agree, and the menu barely moves.
+      const declaredPath = typeof menu.path === 'string' && menu.path.trim() ? menu.path.trim() : undefined;
+      const studio = declaredPath ?? studioPathFor(route.path);
       if (!studio) continue;
 
       const key = `${menu.group}:${studio}`;
@@ -61,7 +70,15 @@ export function menuItemsFromRoutes(sources: HasRoutes[]): MenuItem[] {
         typeof menu.order === 'number' && Number.isFinite(menu.order) ? menu.order : 999;
       const slug = studio.replace(/^\//, '') || 'home';
       const label = menu.label ?? slug.charAt(0).toUpperCase() + slug.slice(1);
-      items.push({ path: studio, label, group: menu.group, order, source: 'api' });
+      items.push({
+        path: studio,
+        label,
+        group: menu.group,
+        order,
+        source: 'api',
+        // Declared, typed, documented and schema'd since #1857 — and never emitted until now.
+        ...(menu.studio ? { studio: menu.studio } : {}),
+      });
     }
   }
 
