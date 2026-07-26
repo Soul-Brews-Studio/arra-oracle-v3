@@ -70,6 +70,24 @@ jobs:
             echo "No Studio worker tests found yet."
           fi
 
+      - name: Check deploy credentials
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # Fail here rather than after install + typecheck + build. Both deploys have been
+          # red since 2026-07-05 (#2680) with the cause — an absent token — buried under
+          # ~3 minutes of successful build output and a wrangler stack trace. A workflow that
+          # is permanently red for an unreadable reason trains everyone to ignore it.
+          missing=""
+          [ -z "${CF_TOKEN}" ]   && missing="${missing} CLOUDFLARE_API_TOKEN"
+          [ -z "${CF_ACCOUNT}" ] && missing="${missing} CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "${missing}" ]; then
+            echo "::error::Missing deploy credential(s):${missing}. Add them as repository secrets, or as environment secrets on this job's environment. Measured 2026-07-27: the repo had 0 Actions secrets and both worker environments had 0. See #2680."
+            exit 1
+          fi
+          echo "Deploy credentials present."
+
       - name: Deploy Cloudflare Worker
         if: steps.studio.outputs.ready == 'true'
         uses: cloudflare/wrangler-action@v3
