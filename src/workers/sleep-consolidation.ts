@@ -228,7 +228,8 @@ function objectExists(sqlite: Database, name: string): boolean {
 }
 
 function tokens(doc: RawDoc): Set<string> { return new Set(tokenize(`${doc.content}\n${doc.concepts}\n${doc.sourceFile}`)); }
-function tokenize(text: string): string[] { return text.toLowerCase().match(/[a-z0-9_:-]+/g) ?? []; }
+// Unicode-aware (#2912). Its missing NFKC/length/stopword filters are left as-is there.
+function tokenize(text: string): string[] { return text.toLowerCase().match(/[\p{L}\p{N}_:-]+/gu) ?? []; }
 function tagList(value: string): string[] { try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed.map(String) : []; } catch { return []; } }
 function tokenOverlap(left: Set<string>, right: Set<string>): number {
   const [smallest, largest] = left.size <= right.size ? [left, right] : [right, left];

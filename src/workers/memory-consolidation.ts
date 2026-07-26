@@ -162,8 +162,21 @@ function heat(row: Row, now: Date): number {
   return round(0.5 ** (ageDays / 30));
 }
 
+// Unicode-aware: `[a-z0-9_:-]` matched ASCII only, so a Thai, Japanese or Cyrillic
+// document tokenized to fewer tokens — or, for 10 documents in the live corpus, to NOTHING,
+// and `cosine()` returns 0 for an empty side, so they were never consolidation candidates
+// at all (#2912).
+//
+// Measured before changing it, on the 900 Thai-containing documents where this differs most
+// (404,550 pairwise comparisons at the shipped 0.96/0.9 thresholds):
+//   ascii   -> 117 candidate pairs, 8 documents tokenizing to nothing
+//   unicode -> 117 candidate pairs, 0 documents tokenizing to nothing
+//   pairs unique to either: 0 — the SETS are identical, not merely the counts
+//
+// For pure-ASCII text the two regexes match identical runs after `.toLowerCase()`, so this is
+// a no-op everywhere except the non-ASCII population that was being dropped.
 function tokenize(text: string): string[] {
-  return (text.toLowerCase().normalize('NFKC').match(/[a-z0-9_:-]+/g) ?? [])
+  return (text.toLowerCase().normalize('NFKC').match(/[\p{L}\p{N}_:-]+/gu) ?? [])
     .filter((token) => token.length > 2 && !STOP.has(token));
 }
 
