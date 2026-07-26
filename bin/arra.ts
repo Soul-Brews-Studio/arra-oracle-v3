@@ -29,7 +29,11 @@ if (args.includes("--help") || args.includes("-h")) {
 if (command === "mcp") {
   process.env.ORACLE_LOG_TARGET ??= "stderr";
   console.log = (...data: unknown[]) => console.error(...data);
-  await import("../src/index.ts");
+  // `import.meta.main` inside src/index.ts is false when loaded via this
+  // wrapper's `await import()` (same pattern as the serve path above), so
+  // main() must be invoked explicitly instead of relying on the guard.
+  const { main } = await import("../src/index.ts");
+  await main();
 } else {
   const serveArgs = command === "serve" ? args.slice(1) : args;
   const portIdx = serveArgs.indexOf("--port");

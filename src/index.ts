@@ -673,7 +673,7 @@ class OracleMCPServer {
   }
 }
 
-async function main() {
+export async function main() {
   const readOnly = process.env.ORACLE_READ_ONLY === 'true' || process.argv.includes('--read-only');
   const server = new OracleMCPServer({ readOnly });
 
