@@ -12,6 +12,7 @@ import type { Database } from 'bun:sqlite';
 import path from 'path';
 import * as schema from './schema.ts';
 import { DB_PATH, ORACLE_DATA_DIR } from '../config.ts';
+import { assertNotProductionDb } from './production-db-guard.ts';
 import { createStorageBackend } from '../storage/registry.ts';
 import type { StorageBackend } from '../storage/types.ts';
 import { resolveDatabasePath } from './create.ts';
@@ -53,7 +54,7 @@ function openDefaultStorage(): StorageBackend {
 
 function defaultDbPath(): string {
   const envPath = process.env.ORACLE_DB_PATH?.trim();
-  if (envPath) return envPath;
+  if (envPath) return assertNotProductionDb(envPath, productionDataDir());
   if (process.env.NODE_ENV === 'test') return ':memory:';
   return DB_PATH;
 }
@@ -91,9 +92,18 @@ export function resetDefaultDatabaseForTests(dbPath?: string): void {
   defaultStorage = createStorageBackend({ dbPath: resolveDatabasePath(dbPath, defaultDbPathForReset()) });
 }
 
+/**
+ * The guard compares against the *constant*, never `process.env.ORACLE_DATA_DIR`. A test that
+ * redirects both variables to a temp directory is the safe case and must stay allowed — using
+ * the env override here would refuse exactly the tests that are doing the right thing.
+ */
+function productionDataDir(): string {
+  return ORACLE_DATA_DIR;
+}
+
 function defaultDbPathForReset(): string {
   const envPath = process.env.ORACLE_DB_PATH?.trim();
-  if (envPath) return envPath;
+  if (envPath) return assertNotProductionDb(envPath, productionDataDir());
   if (process.env.NODE_ENV === 'test') return ':memory:';
   return path.join(process.env.ORACLE_DATA_DIR?.trim() || ORACLE_DATA_DIR, 'oracle.db');
 }
