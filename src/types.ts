@@ -130,6 +130,7 @@ export interface IndexerConfig {
     retrospectives: string;
     distillations: string;
     learn: string;              // ψ/learn/ — auto-learned repo exploration docs
+    inbox?: string;             // ψ/inbox/ — fleet correspondence, indexed as knowledge (#2855)
     security_corpus?: string;  // Optional: ψ/learn/security-corpus/ — opt-in via ORACLE_INDEX_SECURITY_CORPUS=1
   };
 }

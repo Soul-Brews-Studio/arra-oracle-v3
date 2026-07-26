@@ -27,6 +27,7 @@ import { backupDatabase } from './backup.ts';
 import { parseResonanceFile, parseLearningFile, parseRetroFile, parseDistillationFile } from './parser.ts';
 import { getEmbeddingModels } from '../vector/factory.ts';
 import { collectDocuments, collectPsiLearn, collectSecurityCorpus } from './collectors.ts';
+import { collectPsiInbox } from './collect-inbox.ts';
 import {
   changedDocumentIds,
   enqueueVectorReindexJobs,
@@ -99,6 +100,7 @@ export class OracleIndexer {
       ...collectDocuments({ ...shared, subdir: 'retrospectives', parseFn: parseRetroFile, label: 'retrospective' }),
       ...collectDocuments({ ...shared, subdir: 'distillations', parseFn: parseDistillationFile, label: 'distillation' }),
       ...collectPsiLearn(shared),
+      ...collectPsiInbox(shared),
       ...collectSecurityCorpus(shared),
     ];
 
