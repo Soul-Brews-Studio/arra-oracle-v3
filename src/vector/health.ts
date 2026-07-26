@@ -10,6 +10,7 @@ import { isVectorSectionEnabled } from './config.ts';
 import { localNativeVectorDisabledReason, localVectorIndexMissingReason } from './cpu-capabilities.ts';
 import { currentTenantId } from '../middleware/tenant.ts';
 import type { HealthStatus, RegisteredVectorService } from './service-registry.ts';
+import { withYieldingTimeout } from '../util/yielding-timeout.ts';
 
 export type VectorBackendEngine = {
   key: string;
@@ -137,14 +138,6 @@ export function buildVectorFreshness(
   };
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('timeout')), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => { if (timer) clearTimeout(timer); });
-}
-
 function vectorEngineDetails(preset: EmbeddingModelConfig) {
   return {
     adapter: preset.adapter || 'lancedb',
@@ -169,7 +162,7 @@ export async function readVectorBackendHealth(): Promise<VectorBackendHealth> {
         });
       if (unavailable) throw new Error(unavailable);
       const store = await ensureVectorStoreConnected(key);
-      const stats = await withTimeout(store.getStats(), timeout);
+      const stats = await withYieldingTimeout(store.getStats(), timeout);
       return {
         key,
         model: preset.model,

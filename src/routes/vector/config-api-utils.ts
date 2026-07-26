@@ -12,6 +12,7 @@ import {
 import { createVectorStoreForModel } from '../../vector/factory.ts';
 import { localNativeVectorDisabledReason, localVectorIndexMissingReason } from '../../vector/cpu-capabilities.ts';
 import type { VectorDBType } from '../../vector/types.ts';
+import { withYieldingTimeout } from '../../util/yielding-timeout.ts';
 
 export type CollectionUpdate = Partial<Pick<VectorCollectionConfig,
   'adapter' | 'model' | 'provider' | 'service' | 'endpoint' | 'enabled' | 'primary' | 'embedder'
@@ -68,12 +69,6 @@ export function atomicWriteVectorConfig(config: VectorServerConfig): string {
   } catch (e) { try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch {} throw e; }
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), ms); });
-  return Promise.race([promise, timeout]).finally(() => { if (timer) clearTimeout(timer); });
-}
-
 export async function inspectCollection(
   key: string,
   col: VectorCollectionConfig,
@@ -106,8 +101,8 @@ export async function inspectCollection(
   if (!preset) throw new Error(`Collection ${key} is not enabled`);
   const store = createVectorStoreForModel(preset);
   try {
-    await withTimeout(store.connect(), timeout);
-    const stats = await withTimeout(store.getStats(), timeout);
+    await withYieldingTimeout(store.connect(), timeout);
+    const stats = await withYieldingTimeout(store.getStats(), timeout);
     return {
       key, collection: col.collection, model: col.model, provider: col.provider,
       adapter, service: col.service, endpoint: col.endpoint,
