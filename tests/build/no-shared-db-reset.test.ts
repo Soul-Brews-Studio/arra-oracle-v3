@@ -34,7 +34,14 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const REPO_ROOT = join(import.meta.dir, '..', '..');
-const EXEMPT = new Set(['tests/storage/db-index-reset-default.test.ts']);
+const EXEMPT = new Set([
+  // The function's own test.
+  'tests/storage/db-index-reset-default.test.ts',
+  // This file, which names the banned pattern in prose. Caught by CI rather than locally,
+  // because `git ls-files` cannot see an untracked file — a guard is only honest about a new
+  // file once that file is staged.
+  'tests/build/no-shared-db-reset.test.ts',
+]);
 
 /**
  * `git ls-files` rather than a filesystem walk: it skips `agents/` worktrees and node_modules
