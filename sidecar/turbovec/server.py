@@ -26,6 +26,17 @@ from vector_index import DIMENSIONS, PROTOCOL, VERSION, VectorIndex
 class Handler(BaseHTTPRequestHandler):
     index: VectorIndex
 
+    # BaseHTTPRequestHandler defaults to HTTP/1.0, which closes the socket after every
+    # response. Clients that pool connections — bun's fetch does — reuse a socket the server
+    # has already closed and get ECONNRESET on a later request. That is the intermittent CI
+    # failure in #2905: no traceback, no exit, the server perfectly healthy, and the failing
+    # endpoint varying between /vectors/add and /vectors/query depending on which request
+    # happened to land on a reused connection.
+    #
+    # Safe to raise here because send_json() always sets content-length, so the client can
+    # find the message boundary — which is what HTTP/1.1 keep-alive requires.
+    protocol_version = "HTTP/1.1"
+
     def log_message(self, fmt: str, *args: Any) -> None:
         print(f"[turbovec-sidecar] {self.address_string()} {fmt % args}")
 
