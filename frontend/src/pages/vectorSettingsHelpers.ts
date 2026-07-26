@@ -194,5 +194,31 @@ export async function fetchJson<T>(path: string, init: RequestInit = {}): Promis
     const message = isRecord(payload) && typeof payload.error === 'string' ? payload.error : response.statusText;
     throw new Error(`${path} returned ${response.status}: ${message}`);
   }
-  return payload as T;
+  return unwrapEnvelope(payload) as T;
+}
+
+/**
+ * Read either envelope shape, so the backend can stop duplicating fields (#2821).
+ *
+ * `src/middleware/response-format.ts:41` currently returns `{ success, data: response,
+ * ...response }` — every field twice, once nested and once spread at top level. The spread is a
+ * transitional shim from #1777 that was never removed, and callers here read the top-level copy.
+ *
+ * Removing it backend-side would make those reads silently `undefined`, because `payload as T`
+ * is a cast: tsc cannot see the mismatch and nothing would fail until a page rendered blank.
+ * So the frontend learns to prefer `data` first, and the backend cleanup becomes a change that
+ * cannot break this file whichever shape arrives.
+ *
+ * Deliberately conservative: only unwraps when the payload looks exactly like the envelope —
+ * `success` present and `data` an object. A response that legitimately has its own `data` field
+ * without `success` is left alone.
+ */
+export function unwrapEnvelope(payload: unknown): unknown {
+  if (!isRecord(payload)) return payload;
+  if (!('success' in payload)) return payload;
+  const inner = payload.data;
+  if (inner === null || typeof inner !== 'object') return payload;
+  // Keep any envelope-level keys the caller might read (e.g. `success`) but let the
+  // nested fields win, since those are the ones that survive the backend cleanup.
+  return { ...payload, ...(inner as Record<string, unknown>) };
 }
