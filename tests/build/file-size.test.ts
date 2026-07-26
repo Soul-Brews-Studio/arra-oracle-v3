@@ -49,7 +49,6 @@ const GRANDFATHERED: Record<string, number> = {
   'src/vector/__tests__/benchmark.ts': 278,
   'src/indexer/__tests__/api.test.ts': 269,
   'src/indexer/__tests__/worker.test.ts': 265,
-  'src/ensure-server.ts': 258,
 };
 
 /**
