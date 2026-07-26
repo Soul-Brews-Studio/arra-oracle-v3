@@ -58,6 +58,36 @@ export function noteRankingSignalCoverage(sqlite: Database, signal: string, tabl
 }
 
 /** Tests only — the guard is process-global. */
+const entityBoostCounters = { applied: 0, skipped: 0 };
+
+export function noteEntityBoostOutcome(applied: boolean): void {
+  if (applied) entityBoostCounters.applied += 1;
+  else entityBoostCounters.skipped += 1;
+}
+
+/**
+ * A snapshot of ranking-signal outcomes since process start.
+ *
+ * `skipped` climbing while `applied` stays at zero is the shape of a silently dead boost — the
+ * thing that was invisible in #2876 and #2878.
+ */
+export function rankingSignalCounters(): { entityBoost: { applied: number; skipped: number } } {
+  return { entityBoost: { ...entityBoostCounters } };
+}
 export function resetSignalHealth(): void {
   checked.clear();
+  entityBoostCounters.applied = 0;
+  entityBoostCounters.skipped = 0;
 }
+
+/**
+ * Cumulative outcomes for the entity boost (#2876, acceptance criterion 4).
+ *
+ * A *warning* would be wrong here: a query that matches no linked entity is an ordinary,
+ * frequent outcome, not a defect, so warning per query would cry wolf on the search hot path.
+ * What was missing is the ability to answer "is this boost ever applying?" at all — #2876 shows
+ * the boost being skipped for every two-acronym query with nothing recording it, and #2878
+ * shows a fix that was a no-op in production for the same reason: no counter, no signal.
+ *
+ * Counting is O(1) and allocation-free, so it is safe on every request.
+ */
