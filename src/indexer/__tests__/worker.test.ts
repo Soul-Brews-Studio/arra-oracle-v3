@@ -9,67 +9,8 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import Database from 'bun:sqlite';
 import { enqueueIndexJob } from '../jobs.ts';
-import { runWorker, type WorkerDeps, type WorkerEvent } from '../worker.ts';
-
-const MIGRATION_SQL = `
-CREATE TABLE indexing_jobs (
-  id TEXT PRIMARY KEY,
-  doc_id TEXT NOT NULL,
-  model_key TEXT NOT NULL,
-  collection TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending',
-  attempts INTEGER NOT NULL DEFAULT 0,
-  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')*1000),
-  claimed_at INTEGER,
-  finished_at INTEGER,
-  error TEXT
-);
-`;
-
-const MODELS = {
-  'bge-m3': { collection: 'oracle_knowledge_bge_m3' },
-};
-
-function freshDb(): Database {
-  const db = new Database(':memory:');
-  db.exec(MIGRATION_SQL);
-  return db;
-}
-
-interface TestHarness {
-  db: Database;
-  embedded: Array<{ model: string; text: string }>;
-  upserted: Array<{ collection: string; docId: string; vectorLen: number }>;
-  events: WorkerEvent[];
-  shutdownAfter: number;  // signal shutdown after this many job iterations
-}
-
-function makeDeps(harness: TestHarness, overrides: Partial<WorkerDeps> = {}): WorkerDeps {
-  const docTexts: Record<string, string | null> = {
-    'doc-A': 'air quality monitoring with PM2.5 sensors',
-    'doc-B': 'flood radar accuracy on JIBCHAIN L1 blockchain',
-    'doc-deleted': null,
-  };
-  let iterations = 0;
-  return {
-    db: harness.db,
-    getDocText: (id) => (id in docTexts ? docTexts[id] : `synthetic content for ${id}`),
-    embed: async (model, text) => {
-      harness.embedded.push({ model, text });
-      return new Array(1024).fill(0).map(() => Math.random());
-    },
-    upsertVector: async (collection, docId, vector) => {
-      harness.upserted.push({ collection, docId, vectorLen: vector.length });
-    },
-    isShuttingDown: () => {
-      iterations++;
-      return iterations > harness.shutdownAfter;
-    },
-    pollIntervalMs: 5,  // fast empty-queue polls in tests
-    onEvent: (ev) => harness.events.push(ev),
-    ...overrides,
-  };
-}
+import { runWorker } from '../worker.ts';
+import { MODELS, freshDb, makeDeps, type TestHarness } from './worker-harness.ts';
 
 describe('runWorker — happy path', () => {
   it('processes one job: claim → embed → upsert → mark done', async () => {
