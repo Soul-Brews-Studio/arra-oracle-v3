@@ -32,7 +32,6 @@ const GRANDFATHERED: Record<string, number> = {
   'src/chroma-mcp.ts': 494,
   'src/vault/__tests__/handler.test.ts': 433,
   'cli/src/commands/plugins-install.ts': 395,
-  'tests/http/menu/gist-source.test.ts': 393,
   'src/tools/trace.ts': 360,
   'src/tools/schedule.ts': 345,
   'src/tools/forum.ts': 332,
