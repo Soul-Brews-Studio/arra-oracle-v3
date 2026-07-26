@@ -13,6 +13,7 @@ import { cosineDistanceToSimilarity } from '../vector/scoring.ts';
 import type { VectorStoreAdapter } from '../vector/types.ts';
 import type { SearchResult } from './types.ts';
 import type { VectorIndexModelInfo, VectorOperations, VectorSearchInput } from './vector-operation-types.ts';
+import { withYieldingTimeout } from '../util/yielding-timeout.ts';
 
 function modelKeys(model?: string): Array<string | undefined> {
   return selectVectorSearchModelKeys(model, getEmbeddingModels());
@@ -74,13 +75,6 @@ function dedupeMultiModel(results: SearchResult[]): SearchResult[] {
   return Array.from(bestByDoc.values());
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), timeoutMs)),
-  ]);
-}
-
 export const localVectorOperations: VectorOperations = {
   async search(input) {
     const settled = await Promise.allSettled(modelKeys(input.model).map(model => searchOneModel(input, model)));
@@ -107,7 +101,7 @@ export const localVectorOperations: VectorOperations = {
           return;
         }
         const store = await ensureVectorStoreConnected(key);
-        const stats = await withTimeout(store.getStats(), timeoutMs);
+        const stats = await withYieldingTimeout(store.getStats(), timeoutMs);
         engines.push({ key, model: preset.model, collection: preset.collection, count: stats.count, enabled: true });
       } catch {
         engines.push({ key, model: preset.model, collection: preset.collection, count: 0, enabled: false });
@@ -138,7 +132,7 @@ export const localVectorOperations: VectorOperations = {
           return;
         }
         const store = await ensureVectorStoreConnected(key);
-        await withTimeout(store.getStats(), timeoutMs);
+        await withYieldingTimeout(store.getStats(), timeoutMs);
         engines.push({ key, model: preset.model, collection: preset.collection, ok: true });
       } catch (error) {
         engines.push({ key, model: preset.model, collection: preset.collection, ok: false, error: error instanceof Error ? error.message : String(error) });
