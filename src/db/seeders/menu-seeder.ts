@@ -77,7 +77,10 @@ export function collectRouteMenuRows(sources: HasRoutes[]): RouteMenuRow[] {
       const menu = detail.menu;
       if (!menu || !menu.group || !isVisibleMenuGroup(menu.group)) continue;
 
-      const studio = studioPathFor(route.path);
+      // Honour a route-declared path, same as menu-items.ts — the two builders must not
+      // disagree about where a route lives (#2862).
+      const declaredPath = typeof menu.path === 'string' && menu.path.trim() ? menu.path.trim() : undefined;
+      const studio = declaredPath ?? studioPathFor(route.path);
       if (!studio) continue;
 
       const slug = studio.replace(/^\//, '') || 'home';
@@ -91,7 +94,7 @@ export function collectRouteMenuRows(sources: HasRoutes[]): RouteMenuRow[] {
         position: order,
         access: menu.access ?? 'public',
         icon: menu.icon ?? null,
-        studio: null,
+        studio: menu.studio ?? null,
       };
       const seenRow = { ...row, apiPath: route.path };
       const key = routeMenuKey(row.path, row.studio);

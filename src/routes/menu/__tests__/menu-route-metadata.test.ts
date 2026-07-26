@@ -37,15 +37,18 @@ function routeSource() {
  * every one has `studio: null`. `MenuMeta.studio` is typed, documented and schema-validated
  * (model.ts:19-22, :53) and read by nothing.
  *
- * Skipped rather than deleted because the assertion is a specification, and un-skipping it is
- * the acceptance criterion for #2862. Honouring the fields would take /api/menu from 10
- * route-derived entries to ~90 — a product decision, not a test fix.
+ * UN-SKIPPED: the specification is now implemented, and the estimate that made it a product
+ * decision did not survive measurement.
  *
- * Skipped rather than left failing because #2853 expands CI to run src/, and a permanently
- * red gate teaches everyone to ignore it. A skip that names its issue stays visible in the
- * test output; an unrun directory does not.
+ * "Honouring the fields would take /api/menu from 10 route-derived entries to ~90" counted the
+ * 93 routes declaring `menu: {…}`. Only **11 declare a `path`**, and 9 of those 11 already
+ * resolve to the same value through `API_TO_STUDIO`. Honouring the field adds exactly two
+ * entries — `/ask` and `/tools/config` — so this is a bug fix, not a navigation redesign.
+ *
+ * The skip was still the right call at the time: it kept a specification visible instead of
+ * teaching everyone to ignore a permanently red gate. It just needed the number checked.
  */
-describe.skip('route-declared menu metadata', () => {
+describe('route-declared menu metadata', () => {
   it('uses detail.menu.path/studio instead of deriving from API path', () => {
     expect(menuItemsFromRoutes([routeSource()])).toEqual([
       {
