@@ -6,6 +6,7 @@ import { db, oracleDocuments, sqlite } from '../../db/index.ts';
 import { buildLearningMarkdown } from '../../learn/markdown.ts';
 import { DEFAULT_TENANT_ID, tenantIdForWrite } from '../../middleware/tenant.ts';
 import { replaceEntityLinks } from '../../search/entity-ranking.ts';
+import { replaceDocumentPointers } from '../../search/pointer-index.ts';
 import { logLearning } from '../../server/logging.ts';
 import { MAX_SUMMARY_CHARS } from './model.ts';
 
@@ -104,6 +105,7 @@ export function persistSessionSummary(
   sqlite.prepare('INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)')
     .run(identity.id, content, concepts.join(' '));
   replaceEntityLinks(sqlite, { documentId: identity.id, tenantId, content, concepts, now: now.getTime() });
+  replaceDocumentPointers(sqlite, { documentId: identity.id, tenantId, content, concepts, timestamp: now.getTime() });
   logLearning(identity.id, cleanPattern, source, concepts);
 
   return { ok: true, source_file: identity.sourceFile, learning_id: identity.id, tenant_id: tenantId };

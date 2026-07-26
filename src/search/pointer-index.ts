@@ -1,24 +1,20 @@
-import { and, eq, inArray, isNull, or, type SQL } from 'drizzle-orm';
+import { and, eq, or, type SQL } from 'drizzle-orm';
 import type { Database } from 'bun:sqlite';
 import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import * as schema from '../db/schema.ts';
 import { extractEntities } from '../vector/entities.ts';
 import { expansionPhrasesForText } from './acronyms.ts';
+import { conceptValues, dateKeys, dateKeysFromText, parseIds, rankDocs } from './pointer-ranking.ts';
+import { hydratePointerDocs } from './pointer-hydrate.ts';
 import { entityKey } from './entity-ranking.ts';
 
 type OracleDb = BunSQLiteDatabase<typeof schema>;
 type OracleDbInput = OracleDb | Database;
 type PointerKind = 'topic' | 'entity' | 'date';
 type Pointer = { kind: PointerKind; key: string; label: string };
+export type PointerKindName = PointerKind;
 type PointerRow = { id: string; kind: PointerKind; key: string; docIds: string };
-type DocRow = { id: string; type: string; sourceFile: string; concepts: string | null; content: string | null };
 
-const oracleFts = sqliteTable('oracle_fts', {
-  id: text('id'),
-  content: text('content'),
-  concepts: text('concepts'),
-});
 
 export type PointerInput = {
   documentId: string;
@@ -36,7 +32,6 @@ export type PointerSearchOptions = {
 };
 
 const STOPWORDS = new Set(['and', 'are', 'for', 'from', 'into', 'the', 'this', 'that', 'with', 'what', 'when', 'where']);
-const KIND_WEIGHT: Record<PointerKind, number> = { entity: 0.55, topic: 0.35, date: 0.25 };
 
 function toDb(input: OracleDbInput): OracleDb {
   return 'prepare' in input ? drizzle(input, { schema }) : input;
@@ -163,57 +158,6 @@ function lookupPointerRows(db: OracleDb, tenantId: string, keys: Pointer[]): Poi
     .all() as PointerRow[];
 }
 
-function rankDocs(rows: PointerRow[], wanted: Pointer[]): Map<string, { score: number; matches: string[] }> {
-  const wantedLabels = new Map(wanted.map((item) => [`${item.kind}:${item.key}`, item.label]));
-  const ranked = new Map<string, { score: number; matches: string[] }>();
-  for (const row of rows) {
-    const label = wantedLabels.get(`${row.kind}:${row.key}`) ?? row.key;
-    for (const docId of parseIds(row.docIds)) {
-      const hit = ranked.get(docId) ?? { score: 0, matches: [] };
-      hit.score += KIND_WEIGHT[row.kind];
-      if (!hit.matches.includes(label)) hit.matches.push(label);
-      ranked.set(docId, hit);
-    }
-  }
-  return ranked;
-}
-
-function hydratePointerDocs(db: OracleDb, ranked: Map<string, { score: number; matches: string[] }>, options: Required<Pick<PointerSearchOptions, 'tenantId' | 'limit'>> & PointerSearchOptions): PointerSearchResult[] {
-  const ids = [...ranked.keys()];
-  if (ids.length === 0) return [];
-  const filters = [
-    eq(schema.oracleDocuments.tenantId, options.tenantId),
-    inArray(schema.oracleDocuments.id, ids),
-    ...(options.type && options.type !== 'all' ? [eq(schema.oracleDocuments.type, options.type)] : []),
-    ...(options.project ? [or(eq(schema.oracleDocuments.project, options.project), isNull(schema.oracleDocuments.project))] : []),
-  ];
-  const rows = db.select({
-    id: schema.oracleDocuments.id,
-    type: schema.oracleDocuments.type,
-    sourceFile: schema.oracleDocuments.sourceFile,
-    concepts: schema.oracleDocuments.concepts,
-    content: oracleFts.content,
-  }).from(schema.oracleDocuments)
-    .leftJoin(oracleFts, eq(oracleFts.id, schema.oracleDocuments.id))
-    .where(and(...filters))
-    .all() as DocRow[];
-  return rows.map((row) => {
-    const hit = ranked.get(row.id)!;
-    const pointerScore = clamp(hit.score / 1.4);
-    return {
-      id: row.id,
-      type: row.type,
-      content: (row.content ?? '').slice(0, 500),
-      source_file: row.sourceFile,
-      concepts: conceptValues(row.concepts),
-      score: pointerScore,
-      source: 'pointer' as const,
-      pointerScore,
-      pointerMatches: hit.matches.slice(0, 8),
-    };
-  }).sort((a, b) => b.pointerScore - a.pointerScore).slice(0, options.limit);
-}
-
 function pointer(kind: PointerKind, value: string): Pointer { return { kind, key: entityKey(value), label: value.trim() }; }
 function pointerId(tenantId: string, kind: PointerKind, key: string): string { return `${tenantId}:${kind}:${key}`; }
 function uniquePointers(items: Pointer[]): Pointer[] {
@@ -222,28 +166,5 @@ function uniquePointers(items: Pointer[]): Pointer[] {
   return [...out.values()];
 }
 function adjacent(words: string[]): string[] { return words.slice(0, -1).map((word, i) => `${word} ${words[i + 1]}`); }
-function parseIds(raw: string | undefined): string[] {
-  try { const parsed = JSON.parse(raw || '[]'); return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : []; } catch { return []; }
-}
-function conceptValues(raw: unknown): string[] {
-  if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
-  if (typeof raw !== 'string' || !raw.trim()) return [];
-  try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : []; } catch { return raw.split(',').map((item) => item.trim()).filter(Boolean); }
-}
-function dateKeys(timestamp: number | undefined): string[] {
-  if (!timestamp || !Number.isFinite(timestamp)) return [];
-  const iso = new Date(timestamp).toISOString();
-  return [iso.slice(0, 4), iso.slice(0, 7), iso.slice(0, 10)];
-}
-function dateKeysFromText(text: string): string[] {
-  const keys = new Set<string>();
-  for (const match of text.matchAll(/\b(19\d{2}|20\d{2})(?:[-/](0?[1-9]|1[0-2])(?:[-/](0?[1-9]|[12]\d|3[01]))?)?\b/g)) {
-    const [, year, month, day] = match;
-    keys.add(year);
-    if (month) keys.add(`${year}-${month.padStart(2, '0')}`);
-    if (month && day) keys.add(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
-  }
-  return [...keys];
-}
-function clamp(value: number): number { return Number.isFinite(value) ? Math.max(0, Math.min(1, Number(value.toFixed(6)))) : 0; }
+
 function missingPointerTable(error: unknown): boolean { return String(error instanceof Error ? error.message : error).includes('oracle_pointer_index'); }

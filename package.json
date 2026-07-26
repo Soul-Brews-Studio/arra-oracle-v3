@@ -91,6 +91,7 @@
     "vault:sync": "bun src/vault/cli.ts sync",
     "vault:pull": "bun src/vault/cli.ts pull",
     "vault:status": "bun src/vault/cli.ts status",
+    "pointers:backfill": "bun src/workers/pointer-backfill-cli.ts",
     "vault:migrate": "bun src/vault/cli.ts migrate",
     "vault:rsync": "./scripts/vault-rsync.sh",
     "fleet:ingest:vault": "bun scripts/ingest-fleet-vault.ts",

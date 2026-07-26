@@ -6,6 +6,7 @@ import path from 'path';
 import { db, learnLog, oracleDocuments, sqlite } from '../../db/index.ts';
 import { currentTenantId, tenantIdForWrite } from '../../middleware/tenant.ts';
 import { replaceEntityLinks } from '../../search/entity-ranking.ts';
+import { replaceDocumentPointers } from '../../search/pointer-index.ts';
 import { conceptsFrom, learningContent, slugFor } from './content.ts';
 import {
   INVALID_LEARNING_ID,
@@ -145,6 +146,7 @@ export function createLearning(body: LearnCreateBody) {
   }).run();
   upsertFts(identity.id, content, concepts);
   replaceEntityLinks(sqlite, { documentId: identity.id, tenantId, content, concepts, now });
+  replaceDocumentPointers(sqlite, { documentId: identity.id, tenantId, content, concepts, timestamp: now });
   db.insert(learnLog).values({
     documentId: identity.id,
     tenantId,
@@ -183,6 +185,7 @@ function updateLearning(id: string, body: LearnUpdateBody) {
     .returning()
     .get();
   replaceEntityLinks(sqlite, { documentId: id, tenantId: row.tenantId, content, concepts: nextConcepts, now });
+  replaceDocumentPointers(sqlite, { documentId: id, tenantId: row.tenantId, content, concepts: nextConcepts, timestamp: now });
   return { status: 200, body: responseRow(row) };
 }
 function softDeleteLearning(id: string) {
@@ -201,7 +204,9 @@ function softDeleteLearning(id: string) {
     .returning()
     .get();
   db.delete(oracleFts).where(eq(oracleFts.id, id)).run();
+  // Empty content derives no pointers, so this clears them — the delete-path equivalent.
   replaceEntityLinks(sqlite, { documentId: id, tenantId: row.tenantId, content: '', concepts: [], now });
+  replaceDocumentPointers(sqlite, { documentId: id, tenantId: row.tenantId, content: '', concepts: [], timestamp: now });
   return { status: 200, body: { id: row.id, deleted: 'soft', supersededAt: row.supersededAt } };
 }
 export function createLearnCrudRoutes() {
