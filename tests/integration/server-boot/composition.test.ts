@@ -32,7 +32,16 @@ describe('server createApp composition', () => {
 
     const root = await app.fetch(new Request('http://server.test/'));
     expect(root.status).toBe(200);
-    expect(await root.json()).toMatchObject({ status: 'ok', docs: '/api/docs' });
+    // `/api/v1/docs` — the VERSIONED path, which is what the root handler advertises since
+    // #2870. Verified against a full server on current alpha: `/api/v1/docs` answers 200 and
+    // `/api/docs` 308s to it. This assertion said `/api/docs` and had been red ever since,
+    // unnoticed because CI does not run tests/integration/ (it needs docker).
+    //
+    // Note the asymmetry that makes this confusing: `createApp()` here has no version-rewrite
+    // middleware, so in THIS harness `/api/v1/docs` 404s while `/api/docs` answers — the
+    // opposite of the real server. The handler's advertised string is what is asserted, not
+    // what this partial stack happens to route.
+    expect(await root.json()).toMatchObject({ status: 'ok', docs: '/api/v1/docs' });
   });
 
   test('keeps structured error boundary active for composed routes', async () => {
