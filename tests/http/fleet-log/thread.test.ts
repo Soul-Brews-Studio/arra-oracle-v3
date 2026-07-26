@@ -8,9 +8,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
-import { db, resetDefaultDatabaseForTests, sqlite } from '../../../src/db/index.ts';
-
-resetDefaultDatabaseForTests();
+import { db } from '../../../src/db/index.ts';
 import { fleetMessages } from '../../../src/db/fleet-log-schema.ts';
 import { createTenantFetch, TENANT_HEADER } from '../../../src/middleware/tenant.ts';
 import { createFleetLogRoutes } from '../../../src/routes/fleet-log/index.ts';
@@ -45,7 +43,6 @@ beforeAll(() => {
 
 afterAll(() => {
   for (const row of ROWS) db.delete(fleetMessages).where(eq(fleetMessages.id, row.id)).run();
-  sqlite.prepare('DELETE FROM fleet_messages WHERE tenant_id = ?').run(TENANT);
 });
 
 describe('a thread reads as a conversation', () => {
