@@ -8,6 +8,7 @@ import {
   type ConsolidationPlan,
   type ConsolidationResult,
 } from './consolidation.ts';
+import { tokenSetForConsolidation } from './tokenize.ts';
 
 type Db = ToolContext['db'];
 type LlmDoc = { id: string; tenantId: string; type: string; sourceFile: string; updatedAt: number; content: string };
@@ -24,7 +25,6 @@ export type LlmConsolidationResult = ConsolidationResult & {
 };
 
 const DEFAULT_LLM = { limit: 80, maxPairs: 20, minSharedTokens: 3 };
-const STOP = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'into', 'are', 'was']);
 
 function llmEnabled(input: LlmConsolidationOptions): boolean {
   return input.llm?.enabled ?? ['1', 'true', 'yes'].includes(String(process.env.ORACLE_CONSOLIDATION_LLM ?? '').toLowerCase());
@@ -50,8 +50,7 @@ function stripLlm(input: LlmConsolidationOptions): ConsolidationOptions {
 }
 
 function tokens(value: string): Set<string> {
-  return new Set((value.toLowerCase().normalize('NFKC').match(/[\p{L}\p{N}_:-]+/gu) ?? [])
-    .filter((token) => token.length > 2 && !STOP.has(token)));
+  return tokenSetForConsolidation(value);
 }
 
 function shared(left: LlmDoc, right: LlmDoc): number {

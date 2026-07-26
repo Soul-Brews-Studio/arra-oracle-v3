@@ -27,6 +27,7 @@ import { runWithTenant } from '../middleware/tenant.ts';
 import { memoryConfidence } from '../routes/memory/confidence.ts';
 import type { MemoryRecord } from '../routes/memory/store.ts';
 import type * as schema from '../db/schema.ts';
+import { tokenizeForConsolidation } from './tokenize.ts';
 
 type Db = BunSQLiteDatabase<typeof schema>;
 type Row = typeof oracleMemories.$inferSelect;
@@ -73,7 +74,6 @@ export type MemoryConsolidationResult = {
 
 const DEFAULTS = { dryRun: true, limit: 250, minCosine: 0.96, minOverlap: 0.9 };
 const DAY_MS = 86_400_000;
-const STOP = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'into']);
 
 export async function runMemoryConsolidationWorker(
   db: Db,
@@ -176,8 +176,7 @@ function heat(row: Row, now: Date): number {
 // For pure-ASCII text the two regexes match identical runs after `.toLowerCase()`, so this is
 // a no-op everywhere except the non-ASCII population that was being dropped.
 function tokenize(text: string): string[] {
-  return (text.toLowerCase().normalize('NFKC').match(/[\p{L}\p{N}_:-]+/gu) ?? [])
-    .filter((token) => token.length > 2 && !STOP.has(token));
+  return tokenizeForConsolidation(text);
 }
 
 function cosine(left: string[], right: string[]): number {

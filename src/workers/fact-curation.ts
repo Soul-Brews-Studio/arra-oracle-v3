@@ -2,6 +2,7 @@ import type { Database } from 'bun:sqlite';
 import { runWithTenant } from '../middleware/tenant.ts';
 import { runSupersede } from '../tools/supersede.ts';
 import type { ToolContext } from '../tools/types.ts';
+import { tokenizeForConsolidation } from './tokenize.ts';
 
 type Db = ToolContext['db'];
 type Logger = Pick<Console, 'log' | 'warn'>;
@@ -32,7 +33,6 @@ export type FactCurationResult = {
 
 const DEFAULTS = { dryRun: true, limit: 120, topK: 5, minSimilarity: 0.55, minOverlap: 0.35, minNoveltyTokens: 4 };
 const MAX_LIMIT = 500;
-const STOP = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'into', 'are', 'was', 'use', 'uses']);
 
 function clamp(value: number, min = 0, max = 1): number { return Math.min(max, Math.max(min, value)); }
 function finite(value: unknown, fallback: number): number { return typeof value === 'number' && Number.isFinite(value) ? value : fallback; }
@@ -66,8 +66,7 @@ function resolve(input: FactCurationOptions): Resolved {
 // For pure-ASCII text the two regexes match identical runs after `.toLowerCase()`, so this is
 // a no-op everywhere except the non-ASCII population that was being dropped.
 function tokenize(text: string): string[] {
-  return (text.toLowerCase().normalize('NFKC').match(/[\p{L}\p{N}_:-]+/gu) ?? [])
-    .filter((token) => token.length > 2 && !STOP.has(token));
+  return tokenizeForConsolidation(text);
 }
 
 function cosine(left: string[], right: string[]): number {

@@ -4,6 +4,7 @@ import { runSupersede } from '../tools/supersede.ts';
 import type { ToolContext } from '../tools/types.ts';
 import { contentForPage, docsSql, objectExists } from './consolidation-docs.ts';
 import { runFactCuration, type FactCurationOptions, type FactCurationResult } from './fact-curation.ts';
+import { tokenizeForConsolidation } from './tokenize.ts';
 
 type Db = ToolContext['db'];
 type Logger = Pick<Console, 'log' | 'warn' | 'error'>;
@@ -41,7 +42,6 @@ const DAY_MS = 86_400_000;
 const DEFAULTS = { dryRun: true, limit: 250, minCosine: 0.94, minFtsOverlap: 0.86, staleDays: 45 };
 const MAX_SCAN_LIMIT = 1_000;
 const MIN_EVIDENCE_TOKENS = 6;
-const STOP_WORDS = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'into', 'are', 'was']);
 
 function clamp(value: number, min = 0, max = 1): number { return Math.min(max, Math.max(min, value)); }
 
@@ -81,8 +81,7 @@ function resolveFactCuration(input: ConsolidationOptions): FactCurationOptions |
 // For pure-ASCII text the two regexes match identical runs after `.toLowerCase()`, so this is
 // a no-op everywhere except the non-ASCII population that was being dropped.
 function tokenize(text: string): string[] {
-  return (text.toLowerCase().normalize('NFKC').match(/[\p{L}\p{N}_:-]+/gu) ?? [])
-    .filter((token) => token.length > 2 && !STOP_WORDS.has(token));
+  return tokenizeForConsolidation(text);
 }
 
 function cosine(left: string[], right: string[]): number {

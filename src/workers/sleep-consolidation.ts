@@ -8,6 +8,7 @@ import type { AskClient } from '../routes/ask/synthesis.ts';
 import type { ConsolidationPlan } from './consolidation.ts';
 import { queueConsolidationSuggestions, queuedConsolidationCount } from './consolidation-queue.ts';
 import { llmConsolidationEnabled, llmConsolidationStatus, runLlmConsolidationPass, type LlmConsolidationPassResult } from './sleep-consolidation-llm.ts';
+import { tokenizeForConsolidation } from './tokenize.ts';
 
 type QueryStore = Pick<VectorStoreAdapter, 'queryById'>;
 type Env = Record<string, string | undefined>;
@@ -228,8 +229,7 @@ function objectExists(sqlite: Database, name: string): boolean {
 }
 
 function tokens(doc: RawDoc): Set<string> { return new Set(tokenize(`${doc.content}\n${doc.concepts}\n${doc.sourceFile}`)); }
-// Unicode-aware (#2912). Its missing NFKC/length/stopword filters are left as-is there.
-function tokenize(text: string): string[] { return text.toLowerCase().match(/[\p{L}\p{N}_:-]+/gu) ?? []; }
+function tokenize(text: string): string[] { return tokenizeForConsolidation(text); }
 function tagList(value: string): string[] { try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed.map(String) : []; } catch { return []; } }
 function tokenOverlap(left: Set<string>, right: Set<string>): number {
   const [smallest, largest] = left.size <= right.size ? [left, right] : [right, left];
