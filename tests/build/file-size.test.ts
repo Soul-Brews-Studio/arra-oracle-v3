@@ -30,7 +30,6 @@ const GRANDFATHERED: Record<string, number> = {
   'src/drizzle-migration.test.ts': 673,
   'src/vector/__tests__/adapters.test.ts': 615,
   'src/chroma-mcp.ts': 494,
-  'src/vault/__tests__/handler.test.ts': 433,
   'cli/src/commands/plugins-install.ts': 395,
   'src/tools/trace.ts': 360,
   'src/tools/schedule.ts': 345,
