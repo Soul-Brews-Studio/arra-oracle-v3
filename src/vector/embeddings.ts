@@ -28,11 +28,17 @@ export class OllamaEmbeddings implements EmbeddingProvider {
   dimensions: number;
   private baseUrl: string;
   private model: string;
+  private token: string;
   private _dimensionsDetected = false;
 
-  constructor(config: { baseUrl?: string; model?: string } = {}) {
+  constructor(config: { baseUrl?: string; model?: string; token?: string } = {}) {
     this.baseUrl = config.baseUrl || process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     this.model = config.model || 'nomic-embed-text';
+    // A remote/self-hosted Ollama can sit behind a bearer-token gateway. Without
+    // this the only reachable backend is an unauthenticated localhost instance,
+    // which is exactly what is missing on machines that use a shared GPU host
+    // for embeddings. Empty token → no header → unchanged local behaviour.
+    this.token = config.token || process.env.ORACLE_OLLAMA_TOKEN || process.env.OLLAMA_TOKEN || '';
     // Known model dimensions (fallback before auto-detect).
     // For unknown models, set to 0 → adapters MUST probe via embed() before
     // creating columns (see #qwen3-dim-fallback issue).
@@ -87,13 +93,21 @@ export class OllamaEmbeddings implements EmbeddingProvider {
 
       const response = await fetch(`${this.baseUrl}/api/embeddings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+        },
         body: JSON.stringify({ model: this.model, prompt: truncated }),
       });
 
       if (!response.ok) {
         const error = await response.text();
-        throw new Error(`Ollama API error: ${error}`);
+        // 401/403 from a token-gated host is the common misconfiguration —
+        // name it, rather than surfacing an opaque body.
+        const hint = (response.status === 401 || response.status === 403)
+          ? ` (HTTP ${response.status} — set ORACLE_OLLAMA_TOKEN/OLLAMA_TOKEN for ${this.baseUrl})`
+          : ` (HTTP ${response.status})`;
+        throw new Error(`Ollama API error${hint}: ${error}`);
       }
 
       const data = await response.json() as { embedding: number[] };
