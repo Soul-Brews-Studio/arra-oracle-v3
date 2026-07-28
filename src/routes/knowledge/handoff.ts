@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { REPO_ROOT } from '../../config.ts';
 import { HandoffBody } from './model.ts';
+import { slugifyPattern } from '../../slug.ts';
 
 export const handoffEndpoint = new Elysia().post(
   '/handoff',
@@ -22,13 +23,7 @@ export const handoffEndpoint = new Elysia().post(
       const dateStr = now.toISOString().split('T')[0];
       const timeStr = `${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
 
-      const slug = data.slug || data.content
-        .substring(0, 50)
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '') || 'handoff';
+      const slug = data.slug || slugifyPattern(data.content) || 'handoff';
 
       const filename = `${dateStr}_${timeStr}_${slug}.md`;
       const dirPath = path.join(REPO_ROOT, 'ψ/inbox/handoff');

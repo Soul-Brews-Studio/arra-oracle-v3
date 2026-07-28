@@ -10,6 +10,7 @@ import fs from 'fs';
 import { getVaultPsiRoot } from '../vault/handler.ts';
 import { detectProject } from '../server/project-detect.ts';
 import type { ToolContext, ToolResponse, OracleHandoffInput } from './types.ts';
+import { slugifyPattern } from '../slug.ts';
 
 export const handoffToolDef = {
   name: 'arra_handoff',
@@ -37,13 +38,7 @@ export async function handleHandoff(ctx: ToolContext, input: OracleHandoffInput)
   const dateStr = now.toISOString().split('T')[0];
   const timeStr = `${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
 
-  const slug = slugInput || content
-    .substring(0, 50)
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '') || 'handoff';
+  const slug = slugInput || slugifyPattern(content) || 'handoff';
 
   const filename = `${dateStr}_${timeStr}_${slug}.md`;
 

@@ -12,6 +12,7 @@ import { detectProject } from '../server/project-detect.ts';
 import { getVaultPsiRoot } from '../vault/handler.ts';
 import { getVectorStoreByModel } from '../vector/factory.ts';
 import { REPO_ROOT } from '../config.ts';
+import { slugifyPattern } from '../slug.ts';
 import type { ToolContext, ToolResponse, OracleLearnInput } from './types.ts';
 
 /** Coerce concepts to string[] — handles string, array, or undefined from MCP input */
@@ -108,13 +109,7 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
 
-  const slug = pattern
-    .substring(0, 50)
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
+  const slug = slugifyPattern(pattern);
 
   const filename = `${dateStr}_${slug}.md`;
 

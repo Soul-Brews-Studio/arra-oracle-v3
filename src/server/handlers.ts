@@ -16,6 +16,7 @@ import { getVectorStoreByModel, ensureVectorStoreConnected, getEmbeddingModels, 
 import type { VectorStoreAdapter } from '../vector/types.ts';
 import { detectProject } from './project-detect.ts';
 import { coerceConcepts } from '../tools/learn.ts';
+import { slugifyPattern } from '../slug.ts';
 
 // Use shared model-based vector store registry
 async function getVectorStore(model?: string): Promise<VectorStoreAdapter> {
@@ -1320,13 +1321,7 @@ export function handleLearn(
   const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
   const dateStr = new Date().toISOString().split('T')[0];
 
-  const slug = pattern
-    .substring(0, 50)
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
+  const slug = slugifyPattern(pattern);
 
   const { file, id } = persistLearningDoc({
     pattern,
