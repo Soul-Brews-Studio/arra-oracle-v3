@@ -9,7 +9,7 @@ import { oracleDocuments } from '../db/schema.ts';
 import type { ToolContext, ToolResponse, OracleStatsInput } from './types.ts';
 
 export const statsToolDef = {
-  name: 'arra_stats',
+  name: 'oracle_stats',
   description: 'Get Oracle knowledge base statistics and health status. Returns document counts by type, indexing status, and ChromaDB connection status.',
   inputSchema: {
     type: 'object',

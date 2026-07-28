@@ -5,12 +5,14 @@ const CARDS = [
   { href: "/search", title: "Search", body: "Hybrid semantic + keyword over your Oracle memory." },
   { href: "/learn", title: "Learn", body: "Ingest documents and URLs into your knowledge base." },
   { href: "/tools", title: "Tools", body: "Browse all 22 MCP tools — trace, concepts, stats…" },
+  { href: "/connect", title: "Connect", body: "Save ARRA_API_TOKEN and copy Claude MCP install snippets." },
+  { href: "/traces", title: "Audit Log", body: "Review AI search and trace history with clickable detail." },
   { href: "/canvas/", title: "Canvas", body: "Three.js host with pluggable ESM modules — cube, galaxy, torus." },
 ];
 
 const INSTALL = [
   { label: "Backend (MCP server)", cmd: "bunx --bun arra-oracle-v3@github:Soul-Brews-Studio/arra-oracle-v3" },
-  { label: "CLI (plugin runner)", cmd: "bunx --bun neo-arra@github:Soul-Brews-Studio/arra-oracle-v3 --help" },
+  { label: "CLI (plugin runner)", cmd: "bunx --bun arra-oracle@github:Soul-Brews-Studio/arra-oracle-v3 --help" },
   { label: "UI (Oracle Studio)", cmd: "bunx --bun oracle-studio@github:Soul-Brews-Studio/oracle-studio" },
 ];
 ---
@@ -29,10 +31,10 @@ const INSTALL = [
       </p>
       <div id="connect-ui">
         <a
-          href="/?api=http://localhost:47778"
+          href="/connect?api=http://localhost:47778"
           class="inline-block bg-teal-500 hover:bg-teal-400 text-gray-950 font-semibold px-8 py-3 rounded-lg transition-colors ring-1 ring-teal-400/40 hover:ring-teal-300/70 shadow-lg shadow-teal-500/20"
         >
-          Connect to localhost
+          Connect / token setup
         </a>
       </div>
     </div>
@@ -67,11 +69,17 @@ const INSTALL = [
   </main>
 
   <script>
+    const oldApiKey = ["NEO", "ARRA", "API"].join("_");
+    const oldApi = localStorage.getItem(oldApiKey);
+    if (oldApi) {
+      localStorage.setItem("ORACLE_API", oldApi);
+      localStorage.removeItem(oldApiKey);
+    }
     const params = new URLSearchParams(window.location.search);
-    const apiUrl = params.get("api") || localStorage.getItem("NEO_ARRA_API") || "";
+    const apiUrl = params.get("api") || localStorage.getItem("ORACLE_API") || "";
     if (!apiUrl) { /* nothing to do */ }
     else {
-      localStorage.setItem("NEO_ARRA_API", apiUrl);
+      localStorage.setItem("ORACLE_API", apiUrl);
       const ui = document.getElementById("connect-ui");
       if (ui) {
         ui.innerHTML = `
@@ -85,7 +93,7 @@ const INSTALL = [
           </div>`;
       }
       document.getElementById("disconnect-btn")?.addEventListener("click", () => {
-        localStorage.removeItem("NEO_ARRA_API");
+        localStorage.removeItem("ORACLE_API");
         const u = new URL(location.href); u.searchParams.delete("api"); location.href = u.toString();
       });
       const dot = document.getElementById("status-dot");

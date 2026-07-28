@@ -6,14 +6,23 @@
  * combineResults, vectorSearch) for testability.
  */
 
-import { logSearch } from '../server/logging.ts';
 import { detectProject } from '../server/project-detect.ts';
+import { rerankCandidates } from '../server/reranker.ts';
 import { ensureVectorStoreConnected } from '../vector/factory.ts';
+import { isVectorSectionEnabled } from '../vector/config.ts';
 import type { SearchResult } from '../server/types.ts';
 import type { ToolContext, ToolResponse, OracleSearchInput } from './types.ts';
 
+let logSearchFn: typeof import('../server/logging.ts').logSearch | null = null;
+async function loadLogSearch(): Promise<typeof import('../server/logging.ts').logSearch> {
+  if (!logSearchFn) {
+    logSearchFn = (await import('../server/logging.ts')).logSearch;
+  }
+  return logSearchFn;
+}
+
 export const searchToolDef = {
-  name: 'arra_search',
+  name: 'oracle_search',
   description: 'Search Oracle knowledge base using hybrid search (FTS5 keywords + ChromaDB vectors). Finds relevant principles, patterns, learnings, or retrospectives. Falls back to FTS5-only if ChromaDB unavailable.',
   inputSchema: {
     type: 'object',
@@ -71,17 +80,16 @@ export const searchToolDef = {
  * Removes FTS5 special characters that cause syntax errors.
  */
 export function sanitizeFtsQuery(query: string): string {
-  let sanitized = query
-    .replace(/[?*+\-()^~"':.\/]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const tokens = query
+    .replace(/<[^>]*>/g, ' ')
+    .normalize('NFKC')
+    .match(/[\p{L}\p{N}_]+/gu)
+    ?.map((token) => token.trim())
+    .filter((token) => token.length > 0)
+    .slice(0, 8) ?? [];
 
-  if (!sanitized) {
-    console.error('[FTS5] Query became empty after sanitization:', query);
-    return query;
-  }
-
-  return sanitized;
+  const uniqueTokens = Array.from(new Set(tokens));
+  return uniqueTokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(' OR ');
 }
 
 /**
@@ -330,40 +338,56 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
 
   let warning: string | undefined;
   let vectorSearchError = false;
+  const requestedMode = mode;
+  let effectiveMode = mode;
+  const vectorSectionEnabled = requestedMode !== 'fts' && isVectorSectionEnabled();
+  let vectorAvailable = requestedMode !== 'fts' ? vectorSectionEnabled : undefined;
 
-  // Run FTS5 search (skip if vector-only mode)
+  if (requestedMode !== 'fts' && !vectorSectionEnabled) {
+    effectiveMode = 'fts';
+  }
+
+  // Run FTS5 search (skip only when vector is both requested and available)
   let ftsRawResults: any[] = [];
-  if (mode !== 'vector') {
-    if (type === 'all') {
-      const stmt = ctx.sqlite.prepare(`
-        SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
-        FROM oracle_fts f
-        JOIN oracle_documents d ON f.id = d.id
-        WHERE oracle_fts MATCH ? ${projectFilter}
-        ORDER BY rank
-        LIMIT ?
-      `);
-      ftsRawResults = stmt.all(safeQuery, ...projectParams, limit * 2);
-    } else {
-      const stmt = ctx.sqlite.prepare(`
-        SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
-        FROM oracle_fts f
-        JOIN oracle_documents d ON f.id = d.id
-        WHERE oracle_fts MATCH ? AND d.type = ? ${projectFilter}
-        ORDER BY rank
-        LIMIT ?
-      `);
-      ftsRawResults = stmt.all(safeQuery, type, ...projectParams, limit * 2);
+  if (effectiveMode !== 'vector' && safeQuery) {
+    try {
+      if (type === 'all') {
+        const stmt = ctx.sqlite.prepare(`
+          SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
+          FROM oracle_fts f
+          JOIN oracle_documents d ON f.id = d.id
+          WHERE oracle_fts MATCH ? ${projectFilter}
+          ORDER BY rank
+          LIMIT ?
+        `);
+        ftsRawResults = stmt.all(safeQuery, ...projectParams, limit * 3);
+      } else {
+        const stmt = ctx.sqlite.prepare(`
+          SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
+          FROM oracle_fts f
+          JOIN oracle_documents d ON f.id = d.id
+          WHERE oracle_fts MATCH ? AND d.type = ? ${projectFilter}
+          ORDER BY rank
+          LIMIT ?
+        `);
+        ftsRawResults = stmt.all(safeQuery, type, ...projectParams, limit * 3);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      warning = `FTS5 keyword search unavailable: ${errorMessage}`;
+      console.error('[FTS5]', errorMessage);
+      ftsRawResults = [];
     }
   }
 
-  // Run vector search (skip if fts-only mode)
+  // Run vector search (skip if fts-only mode or vector section is disabled)
   let vecResults: Awaited<ReturnType<typeof vectorSearch>> = [];
-  if (mode !== 'fts') {
+  if (effectiveMode !== 'fts') {
     try {
       vecResults = await vectorSearch(ctx, query, type, limit * 2, model);
     } catch (error) {
       vectorSearchError = true;
+      vectorAvailable = false;
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('[ChromaDB]', errorMessage);
       warning = `Vector search unavailable: ${errorMessage}. Using FTS5 only.`;
@@ -392,12 +416,28 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
   }));
 
   const combinedResults = combineResults(ftsResults, normalizedVectorResults);
-  const totalMatches = combinedResults.length;
-  const results: Array<Record<string, unknown>> = combinedResults.slice(offset, offset + limit);
+
+  // Reranker pass — cross-encoder over the top of the hybrid list.
+  // No-op when ORACLE_RERANKER_URL is unset (the helper pass-throughs).
+  // Empirical lift: +14.3 pts R@1 on cross-language Thai/EN smoke test.
+  const RERANK_POOL_SIZE = 50;
+  const rerankHead = combinedResults.slice(0, RERANK_POOL_SIZE);
+  const rerankTail = combinedResults.slice(RERANK_POOL_SIZE);
+  const reranked = await rerankCandidates({
+    query,
+    candidates: rerankHead,
+    getText: (r) => r.content,
+  });
+  const finalResults = reranked.reranked
+    ? [...reranked.results, ...rerankTail]
+    : combinedResults;
+
+  const totalMatches = finalResults.length;
+  const results: Array<Record<string, unknown>> = finalResults.slice(offset, offset + limit);
 
   // Enrich with supersede flags (P-001 "Nothing is Deleted" — superseded docs
   // remain searchable; callers need to see the flag to decide whether to
-  // follow the replacement pointer). Fixes drift where arra_supersede claimed
+  // follow the replacement pointer). Fixes drift where oracle_supersede claimed
   // "will appear in searches with a warning" but search never flagged them.
   if (results.length > 0) {
     const ids = results.map(r => r.id as string);
@@ -437,6 +477,9 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
     vectorMatches: number;
     sources: { fts: number; vector: number; hybrid: number };
     searchTime: number;
+    vectorAvailable?: boolean;
+    reranked?: boolean;
+    rerankFallbackReason?: string;
     warning?: string;
   } = {
     mode,
@@ -447,6 +490,9 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
     vectorMatches: vecResults.length,
     sources: { fts: ftsCount, vector: vectorCount, hybrid: hybridCount },
     searchTime,
+    ...(requestedMode !== 'fts' ? { vectorAvailable: vectorAvailable === true } : {}),
+    reranked: reranked.reranked,
+    ...(reranked.fallbackReason ? { rerankFallbackReason: reranked.fallbackReason } : {}),
   };
 
   if (warning) {
@@ -456,6 +502,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
   console.error(`[MCP:SEARCH] "${query}" (${type}, ${mode}, model=${model || 'default'}) → ${results.length} results in ${searchTime}ms`);
 
   try {
+    const logSearch = await loadLogSearch();
     logSearch(query, type, mode, results.length, searchTime, results as unknown as SearchResult[]);
   } catch (e) {
     console.error('[MCP:SEARCH] Failed to log search to database:', e);

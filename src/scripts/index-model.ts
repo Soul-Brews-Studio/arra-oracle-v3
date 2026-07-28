@@ -24,8 +24,9 @@ if (!modelKey || !EMBEDDING_MODELS[modelKey]) {
 
 const preset = EMBEDDING_MODELS[modelKey];
 
-// Larger models get smaller batches to avoid OOM / timeouts
-const BATCH_SIZE = modelKey === 'nomic' ? 100 : 50;
+// Keep script batches aligned with OllamaEmbeddings' /api/embed batching default.
+const parsedBatchSize = Number.parseInt(process.env.ORACLE_EMBED_BATCH_SIZE || '50', 10);
+const BATCH_SIZE = Number.isFinite(parsedBatchSize) && parsedBatchSize > 0 ? parsedBatchSize : 50;
 
 async function main() {
   console.log(`=== ${modelKey} Indexer ===`);
@@ -49,9 +50,9 @@ async function main() {
 
   await store.connect();
 
-  // Fresh index
-  try { await store.deleteCollection(); } catch {}
-  await store.ensureCollection();
+  if (!store.replaceDocuments) {
+    throw new Error(`Vector adapter '${store.name}' does not support safe replaceDocuments(); refusing drop/recreate reindex (#987).`);
+  }
 
   // FTS5 join requires raw SQL — Drizzle doesn't support virtual tables
   const rows = sqlite.prepare(`
@@ -75,6 +76,10 @@ async function main() {
   let errors = 0;
   const startTime = Date.now();
 
+  if (rows.length === 0) {
+    await store.replaceDocuments([]);
+  }
+
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);
     const batchNum = Math.floor(i / BATCH_SIZE) + 1;
@@ -91,7 +96,15 @@ async function main() {
     }));
 
     try {
-      await store.addDocuments(docs);
+      if (i === 0) {
+        // Replace the first batch in-place instead of drop/recreate. Dropping
+        // the LanceDB table invalidates long-lived server/MCP table handles and
+        // caused silent vector-store corruption after index-model backfills
+        // (#987). Subsequent batches append to the same table version chain.
+        await store.replaceDocuments(docs);
+      } else {
+        await store.addDocuments(docs);
+      }
       indexed += docs.length;
 
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
@@ -101,6 +114,11 @@ async function main() {
     } catch (e) {
       errors++;
       console.error(`  Batch ${batchNum} FAILED:`, e instanceof Error ? e.message : String(e));
+      if (i === 0) {
+        throw new Error('First reindex batch failed during safe replace; aborting to avoid appending into stale pre-reindex data.', {
+          cause: e,
+        });
+      }
     }
   }
 

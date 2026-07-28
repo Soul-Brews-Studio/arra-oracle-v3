@@ -7,7 +7,7 @@ const base: DocMeta = {
   arra_type: "learning",
   arra_project: "Soul-Brews-Studio/arra-oracle-v3",
   arra_created: "2026-04-19T10:00:00Z",
-  arra_concepts: ["menu_ui", "drizzle"],
+  muninn_concepts: ["menu_ui", "drizzle"],
   arra_model: "bge-m3",
   arra_similarity_threshold: 0.75,
 };
@@ -24,7 +24,7 @@ describe("renderFrontmatter", () => {
   });
 
   test("merges type + concepts into tags and dedupes", () => {
-    const out = renderFrontmatter({ ...base, arra_concepts: ["learning", "menu_ui"] });
+    const out = renderFrontmatter({ ...base, muninn_concepts: ["learning", "menu_ui"] });
     expect(out).toContain("tags: [learning, menu_ui]");
   });
 
@@ -40,8 +40,8 @@ describe("renderFrontmatter", () => {
   });
 
   test("empty concepts array renders as []", () => {
-    const out = renderFrontmatter({ ...base, arra_concepts: [] });
-    expect(out).toContain("arra_concepts: []");
+    const out = renderFrontmatter({ ...base, muninn_concepts: [] });
+    expect(out).toContain("muninn_concepts: []");
     expect(out).toContain("tags: [learning]");
   });
 
@@ -53,7 +53,7 @@ describe("renderFrontmatter", () => {
     const out = renderFrontmatter({
       arra_id: "x",
       arra_type: "retro",
-      arra_concepts: [],
+      muninn_concepts: [],
       arra_model: "bge-m3",
       arra_similarity_threshold: 0.8,
     });

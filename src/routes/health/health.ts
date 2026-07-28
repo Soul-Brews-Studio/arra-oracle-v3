@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia';
 import { PORT } from '../../config.ts';
 import { MCP_SERVER_NAME } from '../../const.ts';
+import { getVectorRuntimeStatus } from '../../vector/runtime-status.ts';
 import pkg from '../../../package.json' with { type: 'json' };
 
 export const healthEndpoint = new Elysia().get('/health', () => ({
@@ -9,6 +10,7 @@ export const healthEndpoint = new Elysia().get('/health', () => ({
   version: pkg.version,
   port: PORT,
   oracle: 'connected',
+  ...getVectorRuntimeStatus(),
 }), {
   detail: {
     tags: ['health'],

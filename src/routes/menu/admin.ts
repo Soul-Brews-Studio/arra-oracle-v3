@@ -7,6 +7,7 @@
 import { Elysia, t } from 'elysia';
 import { eq, asc } from 'drizzle-orm';
 import { db, menuItems } from '../../db/index.ts';
+import { ScopeSchema } from './model.ts';
 
 type MenuRow = typeof menuItems.$inferSelect;
 
@@ -47,6 +48,7 @@ export function toResponse(row: MenuRow) {
     icon: row.icon,
     host: row.host,
     hidden: row.hidden,
+    scope: row.scope,
     query: parseQuery(row.query),
     touchedAt: row.touchedAt ? row.touchedAt.getTime() : null,
     createdAt: row.createdAt.getTime(),
@@ -123,6 +125,7 @@ export function createMenuAdminRoutes() {
               icon: body.icon ?? null,
               host: body.host ?? null,
               hidden: body.hidden ?? false,
+              scope: body.scope ?? 'main',
               query: body.query ? JSON.stringify(body.query) : null,
               touchedAt: now,
               createdAt: now,
@@ -149,6 +152,7 @@ export function createMenuAdminRoutes() {
           icon: t.Optional(t.String()),
           host: t.Optional(t.Nullable(t.String())),
           hidden: t.Optional(t.Boolean()),
+          scope: t.Optional(ScopeSchema),
           query: t.Optional(t.Nullable(t.Record(t.String(), t.String()))),
         }),
         detail: {
@@ -177,6 +181,7 @@ export function createMenuAdminRoutes() {
         if (body.icon !== undefined) patch.icon = body.icon;
         if (body.host !== undefined) patch.host = body.host;
         if (body.hidden !== undefined) patch.hidden = body.hidden;
+        if (body.scope !== undefined) patch.scope = body.scope;
         if (body.query !== undefined) patch.query = body.query == null ? null : JSON.stringify(body.query);
 
         const updated = db
@@ -203,6 +208,7 @@ export function createMenuAdminRoutes() {
           icon: t.Optional(t.Nullable(t.String())),
           host: t.Optional(t.Nullable(t.String())),
           hidden: t.Optional(t.Boolean()),
+          scope: t.Optional(ScopeSchema),
           query: t.Optional(t.Nullable(t.Record(t.String(), t.String()))),
         }),
         detail: {

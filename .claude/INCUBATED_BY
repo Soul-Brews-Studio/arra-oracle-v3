@@ -1,0 +1,5 @@
+oracle: sage-vector-fix-oracle
+oracle-repo: https://github.com/Soul-Brews-Studio/sage-vector-fix-oracle
+date: 2026-05-02
+mode: default
+source: https://github.com/Soul-Brews-Studio/arra-oracle-v3

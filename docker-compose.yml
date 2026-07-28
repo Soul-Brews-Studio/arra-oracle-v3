@@ -1,0 +1,95 @@
+# arra-oracle-v3 — Docker stack
+#
+# Default: HTTP server + Ollama embedding sidecar. Arra still serves FTS5 while
+# models/indexes warm up.
+#
+#   docker compose up -d
+#   curl -sf localhost:47778/api/health | jq .
+#
+# Standalone vector sidecar profile (#1071/#1405): run core + vector process.
+# Core keeps SQLite/FTS5 and proxies vector operations to the vector service.
+#
+#   VECTOR_URL=http://vector:47779 docker compose --profile vector up -d
+#   curl -sf localhost:47778/api/health | jq .vectorMode
+#
+# Stop:
+#   docker compose down             # volumes persist
+#   docker compose down -v          # wipe data/models
+
+x-arra-http: &arra-http
+  build:
+    context: .
+    target: http-server
+  image: arra-oracle-v3:slim
+  environment: &arra-http-env
+    OLLAMA_BASE_URL: http://ollama:11434
+    ORACLE_DATA_DIR: /data
+    HOME: /data
+    ORACLE_PORT: "47778"
+  volumes:
+    - arra-data:/data
+  depends_on:
+    ollama:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  # Core server. Set VECTOR_URL=http://vector:47779 when enabling the vector
+  # profile so vector operations route to the sidecar service.
+  arra:
+    <<: *arra-http
+    ports:
+      - "47778:47778"
+    environment:
+      <<: *arra-http-env
+      VECTOR_URL: ${VECTOR_URL:-}
+
+  vector:
+    profiles: ["vector"]
+    build:
+      context: .
+      target: vector-server
+    image: arra-oracle-v3:vector
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      ORACLE_DATA_DIR: /data
+      HOME: /data
+      VECTOR_PORT: "47779"
+      ORACLE_VECTOR_SERVER: "1"
+      ORACLE_VECTOR_READONLY: "1"
+    volumes:
+      - arra-data:/data
+    expose:
+      - "47779"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "ollama pull bge-m3 &&
+       ollama pull nomic-embed-text"
+    restart: "no"
+
+volumes:
+  arra-data:
+  ollama-models:

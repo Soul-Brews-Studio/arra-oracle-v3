@@ -134,6 +134,17 @@ bun run server
 
 Without uvx, Oracle falls back to FTS5-only search (still works).
 
+### Docker vector sidecar
+
+For process separation, build/run the `vector-server` Docker target or use the compose `vector` profile:
+
+```bash
+docker build -t arra-oracle-v3:vector --target vector-server .
+VECTOR_URL=http://vector:47779 docker compose --profile vector up -d
+```
+
+With `VECTOR_URL=http://vector:47779`, the core service proxies vector work to the vector container, which runs `src/vector-server.ts` with `ORACLE_VECTOR_SERVER=1` and `ORACLE_VECTOR_READONLY=1`. FTS5 stays available in the core process if the vector sidecar is down.
+
 ## Troubleshooting
 
 ### Search returns 0 results after indexing

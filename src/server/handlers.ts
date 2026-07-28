@@ -7,20 +7,79 @@
 
 import fs from 'fs';
 import path from 'path';
-import { eq, sql, or, inArray } from 'drizzle-orm';
-import { db, sqlite, oracleDocuments, indexingStatus } from '../db/index.ts';
-import { REPO_ROOT } from '../config.ts';
+import { eq, sql, or } from 'drizzle-orm';
+import { db, sqlite, oracleDocuments, indexingStatus, isDbLockError } from '../db/index.ts';
+import { REPO_ROOT, VECTOR_URL } from '../config.ts';
 import { logSearch, logDocumentAccess, logLearning } from './logging.ts';
 import type { SearchResult, SearchResponse } from './types.ts';
-import { getVectorStoreByModel, ensureVectorStoreConnected, getEmbeddingModels, EMBEDDING_MODELS } from '../vector/factory.ts';
-import type { VectorStoreAdapter } from '../vector/types.ts';
+import { ensureVectorStoreConnected, EMBEDDING_MODELS, getVectorStoreConfigByModel } from '../vector/factory.ts';
+import { localVectorOperations } from './vector-operations.ts';
 import { detectProject } from './project-detect.ts';
 import { coerceConcepts } from '../tools/learn.ts';
+import { createVectorProxy } from './vector-proxy.ts';
+import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
+import { localNativeVectorDisabledReason, localVectorIndexMissingReason, logLocalVectorDisabled } from '../vector/cpu-capabilities.ts';
+import { isVectorSectionEnabled } from '../vector/config.ts';
 import { slugifyPattern } from '../slug.ts';
 
-// Use shared model-based vector store registry
-async function getVectorStore(model?: string): Promise<VectorStoreAdapter> {
-  return ensureVectorStoreConnected(model);
+// Module-level proxy instance — bound to VECTOR_URL at boot. If VECTOR_URL is
+// unset, this is null and the local vector adapter runs in-process (legacy
+// behavior). When set, the vector leg of hybrid/vector search proxies to the
+// remote service; on remote failure we fall back to FTS5-only.
+const vectorProxy = createVectorProxy(VECTOR_URL);
+
+
+const FTS_TOKEN_LIMIT = 8;
+
+/**
+ * Convert natural-language input into a punctuation-safe FTS5 MATCH query.
+ *
+ * SQLite FTS5 treats punctuation such as '.', ',', ':' or parentheses as query
+ * syntax. Instead of maintaining a brittle blocklist, strip anything that is
+ * not a unicode letter/number/underscore into token boundaries, quote every
+ * token, and OR the terms. OR avoids the default implicit-AND behavior that
+ * made multi-word recall queries overly strict.
+ */
+export function buildFtsQuery(query: string): string {
+  const tokens = query
+    .replace(/<[^>]*>/g, ' ')
+    .normalize('NFKC')
+    .match(/[\p{L}\p{N}_]+/gu)
+    ?.map((token) => token.trim())
+    .filter((token) => token.length > 0)
+    .slice(0, FTS_TOKEN_LIMIT) ?? [];
+
+  const uniqueTokens = Array.from(new Set(tokens));
+  return uniqueTokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(' OR ');
+}
+
+function runFtsGet<T>(stmt: { get: (...args: any[]) => T }, args: unknown[]): T | null {
+  try {
+    return stmt.get(...args);
+  } catch (error) {
+    console.warn('[FTS5] MATCH query failed; degrading to empty keyword leg:', error instanceof Error ? error.message : String(error));
+    return null;
+  }
+}
+
+function runFtsAll<T>(stmt: { all: (...args: any[]) => T[] }, args: unknown[]): T[] {
+  try {
+    return stmt.all(...args);
+  } catch (error) {
+    console.warn('[FTS5] MATCH query failed; degrading to empty keyword leg:', error instanceof Error ? error.message : String(error));
+    return [];
+  }
+}
+
+/**
+ * LanceDB is configured for cosine distance, where nearest-neighbor distances
+ * are in the 0..2 range: 0 means identical, 2 means opposite. Convert that
+ * directly to a bounded relevance score instead of using the old L2 scaling
+ * formula, which saturated normal cosine distances around 0.99.
+ */
+export function cosineDistanceToSimilarity(distance: number): number {
+  if (!Number.isFinite(distance)) return 0;
+  return Math.max(0, Math.min(1, 1 - distance / 2));
 }
 
 /**
@@ -36,23 +95,43 @@ export async function handleSearch(
   project?: string,  // If set: project + universal. If null/undefined: universal only
   cwd?: string,      // Auto-detect project from cwd if project not specified
   model?: string     // Embedding model: 'bge-m3' (default, multilingual) or 'nomic' (fast)
-): Promise<SearchResponse & { mode?: string; warning?: string; model?: string }> {
+): Promise<SearchResponse & { mode?: string; warning?: string; model?: string; vectorAvailable?: boolean }> {
   // Auto-detect project from cwd if not explicitly specified
   const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
   const startTime = Date.now();
-  // Remove FTS5 special characters and HTML: ? * + - ( ) ^ ~ " ' : < > { } [ ] ; / \
-  const safeQuery = query
-    .replace(/<[^>]*>/g, ' ')           // Strip HTML tags
-    .replace(/[?*+\-()^~"':;<>{}[\]\\\/]/g, ' ')  // Strip FTS5 + SQL special chars
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (!safeQuery) {
+  const ftsQuery = buildFtsQuery(query);
+  if (!ftsQuery) {
     return { results: [], total: 0, limit, offset, query };
   }
 
   let warning: string | undefined;
+  const requestedMode = mode;
+  let effectiveMode = mode;
+  let vectorDisabledReason: string | undefined;
+  let vectorIndexMissingReason: string | undefined;
+  let vectorSectionDisabled = false;
+  if (mode !== 'fts' && !vectorProxy) {
+    const modelsToCheck = model === 'multi' ? ['bge-m3', 'nomic'] : [model];
+    for (const modelKey of modelsToCheck) {
+      const cfg = getVectorStoreConfigByModel(modelKey);
+      vectorDisabledReason = localNativeVectorDisabledReason(cfg.type);
+      if (vectorDisabledReason) break;
+      vectorIndexMissingReason = localVectorIndexMissingReason(cfg);
+      if (vectorIndexMissingReason) break;
+    }
+    if (vectorDisabledReason) {
+      effectiveMode = 'fts';
+      warning = `${vectorDisabledReason}; falling back to FTS5-only results`;
+      logLocalVectorDisabled(vectorDisabledReason);
+    } else if (!isVectorSectionEnabled()) {
+      vectorSectionDisabled = true;
+      effectiveMode = 'fts';
+    } else if (vectorIndexMissingReason) {
+      effectiveMode = 'fts';
+    }
+  }
 
-  // FTS5 search (skip if vector-only mode)
+  // FTS5 search (skip only when the effective mode is vector-only)
   let ftsResults: SearchResult[] = [];
   let ftsTotal = 0;
 
@@ -64,7 +143,7 @@ export async function handleSearch(
   const projectParams = resolvedProject ? [resolvedProject] : [];
 
   // FTS5 search must use raw SQL (Drizzle doesn't support virtual tables)
-  if (mode !== 'vector') {
+  if (effectiveMode !== 'vector') {
     if (type === 'all') {
       const countStmt = sqlite.prepare(`
         SELECT COUNT(*) as total
@@ -72,7 +151,7 @@ export async function handleSearch(
         JOIN oracle_documents d ON f.id = d.id
         WHERE oracle_fts MATCH ? AND ${projectFilter}
       `);
-      ftsTotal = (countStmt.get(safeQuery, ...projectParams) as { total: number }).total;
+      ftsTotal = (runFtsGet(countStmt, [ftsQuery, ...projectParams]) as { total: number } | null)?.total ?? 0;
 
       const stmt = sqlite.prepare(`
         SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
@@ -82,7 +161,7 @@ export async function handleSearch(
         ORDER BY rank
         LIMIT ?
       `);
-      ftsResults = stmt.all(safeQuery, ...projectParams, limit * 2).map((row: any) => ({
+      ftsResults = runFtsAll<any>(stmt, [ftsQuery, ...projectParams, limit * 3]).map((row: any) => ({
         id: row.id,
         type: row.type,
         content: row.content,
@@ -99,7 +178,7 @@ export async function handleSearch(
         JOIN oracle_documents d ON f.id = d.id
         WHERE oracle_fts MATCH ? AND d.type = ? AND ${projectFilter}
       `);
-      ftsTotal = (countStmt.get(safeQuery, type, ...projectParams) as { total: number }).total;
+      ftsTotal = (runFtsGet(countStmt, [ftsQuery, type, ...projectParams]) as { total: number } | null)?.total ?? 0;
 
       const stmt = sqlite.prepare(`
         SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
@@ -109,7 +188,7 @@ export async function handleSearch(
         ORDER BY rank
         LIMIT ?
       `);
-      ftsResults = stmt.all(safeQuery, type, ...projectParams, limit * 2).map((row: any) => ({
+      ftsResults = runFtsAll<any>(stmt, [ftsQuery, type, ...projectParams, limit * 3]).map((row: any) => ({
         id: row.id,
         type: row.type,
         content: row.content,
@@ -124,90 +203,51 @@ export async function handleSearch(
 
   // Vector search (skip if fts-only mode)
   let vectorResults: SearchResult[] = [];
+  let remoteVectorTotal: number | undefined;
+  // Tracks whether the vector leg succeeded. Stays `true` when mode === 'fts'
+  // (vector wasn't asked for), flips to `false` if the proxy is enabled and
+  // the remote call failed — clients use this to render a "vector down" hint
+  // while still getting FTS5 results.
+  let vectorAvailable = !vectorSectionDisabled && !vectorDisabledReason && !vectorIndexMissingReason;
 
-  if (mode !== 'fts') {
-    // Determine which models to query
-    const isMulti = model === 'multi';
-    const modelsToQuery = isMulti
-      ? ['bge-m3', 'nomic']
-      : [model && EMBEDDING_MODELS[model] ? model : undefined];
-
-    // Query all models in parallel
-    const modelResults = await Promise.allSettled(
-      modelsToQuery.map(async (m) => {
-        const modelName = m || 'bge-m3';
-        console.log(`[Vector] Searching model=${modelName} for: "${query.substring(0, 30)}..."`);
-        const client = await getVectorStore(m);
-        const whereFilter = type !== 'all' ? { type } : undefined;
-        const chromaResults = await client.query(query, isMulti ? limit : limit * 2, whereFilter);
-
-        if (!chromaResults.ids || chromaResults.ids.length === 0) return [];
-
-        // Get project metadata
-        const rows = db.select({ id: oracleDocuments.id, project: oracleDocuments.project })
-          .from(oracleDocuments)
-          .where(inArray(oracleDocuments.id, chromaResults.ids))
-          .all();
-        const projectMap = new Map<string, string | null>();
-        rows.forEach(r => projectMap.set(r.id, r.project));
-
-        return chromaResults.ids
-          .map((id: string, i: number) => {
-            const distance = chromaResults.distances?.[i] || 0;
-            const similarity = 1 / (1 + distance / 100);
-            const docProject = projectMap.get(id);
-            return {
-              id,
-              type: chromaResults.metadatas?.[i]?.type || 'unknown',
-              content: chromaResults.documents?.[i] || '',
-              source_file: chromaResults.metadatas?.[i]?.source_file || '',
-              concepts: [],
-              project: docProject,
-              source: 'vector' as const,
-              score: similarity,
-              distance,
-              model: modelName
-            };
-          })
-          .filter(r => {
-            if (!resolvedProject) return true;
-            return r.project === resolvedProject || r.project === null;
-          });
-      })
-    );
-
-    // Merge results from all models
-    for (const result of modelResults) {
-      if (result.status === 'fulfilled') {
-        vectorResults.push(...result.value);
-      } else {
-        const msg = result.reason instanceof Error ? result.reason.message : String(result.reason);
-        console.error('[Vector Search Error]', msg);
-        if (!warning) warning = `Vector search error: ${msg}`;
-      }
+  // VECTOR_URL set → route the vector leg through the remote service.
+  // FTS5 always runs locally above. If the proxy fails we return whatever FTS5
+  // produced and set vectorAvailable: false (per VECTOR_FALLBACK = 'fts5').
+  if (effectiveMode !== 'fts' && vectorProxy) {
+    const remote = await vectorProxy.search({
+      q: query,
+      type,
+      limit,
+      offset,
+      mode: 'vector',
+      project: resolvedProject ?? undefined,
+      cwd,
+      model,
+    });
+    if (remote) {
+      vectorResults = remote.results || [];
+      if (typeof remote.total === 'number') remoteVectorTotal = remote.total;
+    } else {
+      vectorAvailable = false;
+      warning = 'Vector proxy unavailable — FTS5-only results';
     }
-
-    // For multi-model: deduplicate by id, keep result with best score
-    if (isMulti && vectorResults.length > 0) {
-      const bestByDoc = new Map<string, SearchResult>();
-      for (const r of vectorResults) {
-        const existing = bestByDoc.get(r.id);
-        if (!existing || (r.score || 0) > (existing.score || 0)) {
-          // If found in multiple models, boost score
-          const multiBoost = existing ? 0.05 : 0;
-          bestByDoc.set(r.id, {
-            ...r,
-            score: Math.min(1, (r.score || 0) + multiBoost),
-            source: existing ? 'hybrid' as const : r.source,
-          });
-        }
+  } else if (effectiveMode !== 'fts') {
+    try {
+      const vector = await localVectorOperations.search({
+        query,
+        type,
+        limit,
+        project: resolvedProject,
+        model,
+      });
+      vectorResults = vector.results;
+      if (vectorResults.length > 0) {
+        console.log(`[Vector] ${vectorResults.length} results, top scores: ${vectorResults.slice(0, 3).map(r => r.score?.toFixed(3))}`);
       }
-      vectorResults = Array.from(bestByDoc.values());
-      console.log(`[Multi] Merged ${vectorResults.length} unique results from ${modelsToQuery.length} models`);
-    }
-
-    if (vectorResults.length > 0) {
-      console.log(`[Vector] ${vectorResults.length} results, top scores: ${vectorResults.slice(0, 3).map(r => r.score?.toFixed(3))}`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error('[Vector Search Error]', msg);
+      if (!warning) warning = `Vector search error: ${msg}`;
     }
   }
 
@@ -216,9 +256,11 @@ export async function handleSearch(
   // For vector-only mode, ftsTotal is 0 and combined.length is just top-N,
   // so use the vector collection count as the total for accurate display
   let total = Math.max(ftsTotal, combined.length);
-  if (mode === 'vector' && vectorResults.length > 0) {
+  if (requestedMode === 'vector' && vectorProxy && remoteVectorTotal !== undefined) {
+    total = remoteVectorTotal;
+  } else if (requestedMode === 'vector' && vectorResults.length > 0) {
     try {
-      const client = await getVectorStore(model && EMBEDDING_MODELS[model] ? model : undefined);
+      const client = await ensureVectorStoreConnected(model && EMBEDDING_MODELS[model] ? model : undefined);
       const stats = await client.getStats();
       if (stats.count > 0) total = stats.count;
     } catch (error) {
@@ -231,7 +273,7 @@ export async function handleSearch(
 
   // Log search
   const searchTime = Date.now() - startTime;
-  logSearch(query, type, mode, total, searchTime, results);
+  logSearch(query, type, requestedMode, total, searchTime, results);
   results.forEach(r => logDocumentAccess(r.id, 'search'));
 
   return {
@@ -239,8 +281,9 @@ export async function handleSearch(
     total,
     offset,
     limit,
-    mode,
+    mode: requestedMode,
     ...(model === 'multi' ? { model: 'multi' } : model && EMBEDDING_MODELS[model] ? { model } : {}),
+    ...(requestedMode !== 'fts' ? { vectorAvailable } : {}),
     ...(warning && { warning })
   };
 }
@@ -255,36 +298,47 @@ function normalizeRank(rank: number): number {
 }
 
 /**
- * Combine FTS and vector results with hybrid scoring
+ * Combine FTS and vector results with rank-fusion hybrid scoring.
+ *
+ * Raw FTS rank and vector similarity are not calibrated to the same scale. Use
+ * each leg's normalized score plus reciprocal rank, then boost overlap. This
+ * keeps strong keyword-only hits visible while still letting semantic-only
+ * vector hits fill gaps in natural-language recall.
  */
 function combineSearchResults(fts: SearchResult[], vector: SearchResult[]): SearchResult[] {
   const seen = new Map<string, SearchResult>();
 
-  // Add FTS results first
-  for (const r of fts) {
-    seen.set(r.id, r);
-  }
+  const addScore = (base: number | undefined, rank: number, scoreWeight: number, rankWeight: number) => {
+    const score = Math.max(0, Math.min(1, base ?? 0));
+    return score * scoreWeight + (1 / (rank + 1)) * rankWeight;
+  };
 
-  // Merge vector results (boost score if found in both)
-  for (const r of vector) {
-    if (seen.has(r.id)) {
-      const existing = seen.get(r.id)!;
-      // Use max score + bonus for appearing in both (hybrid boost)
-      const maxScore = Math.max(existing.score || 0, r.score || 0);
-      const bonus = 0.1; // Bonus for appearing in both FTS and vector
+  fts.forEach((r, index) => {
+    seen.set(r.id, {
+      ...r,
+      score: addScore(r.score, index, 0.7, 0.3),
+    });
+  });
+
+  vector.forEach((r, index) => {
+    const vectorScore = addScore(r.score, index, 0.65, 0.35);
+    const existing = seen.get(r.id);
+    if (existing) {
       seen.set(r.id, {
         ...existing,
-        score: Math.min(1, maxScore + bonus), // Cap at 1.0
+        score: Math.min(1, (existing.score || 0) + vectorScore + 0.12),
         source: 'hybrid' as const,
         distance: r.distance,
-        model: r.model
+        model: r.model,
       });
     } else {
-      seen.set(r.id, r);
+      seen.set(r.id, {
+        ...r,
+        score: vectorScore,
+      });
     }
-  }
+  });
 
-  // Sort by score descending
   return Array.from(seen.values()).sort((a, b) => (b.score || 0) - (a.score || 0));
 }
 
@@ -292,42 +346,56 @@ function combineSearchResults(fts: SearchResult[], vector: SearchResult[]): Sear
  * Get random wisdom
  */
 export function handleReflect() {
-  // Get random document using Drizzle
-  const randomDoc = db.select({
-    id: oracleDocuments.id,
-    type: oracleDocuments.type,
-    sourceFile: oracleDocuments.sourceFile,
-    concepts: oracleDocuments.concepts
-  })
-    .from(oracleDocuments)
-    .where(or(
-      eq(oracleDocuments.type, 'principle'),
-      eq(oracleDocuments.type, 'learning')
-    ))
-    .orderBy(sql`RANDOM()`)
-    .limit(1)
-    .get();
+  try {
+    // Get random document using Drizzle
+    const randomDoc = db.select({
+      id: oracleDocuments.id,
+      type: oracleDocuments.type,
+      sourceFile: oracleDocuments.sourceFile,
+      concepts: oracleDocuments.concepts
+    })
+      .from(oracleDocuments)
+      .where(or(
+        eq(oracleDocuments.type, 'principle'),
+        eq(oracleDocuments.type, 'learning')
+      ))
+      .orderBy(sql`RANDOM()`)
+      .limit(1)
+      .get();
 
-  if (!randomDoc) {
-    return { error: 'No documents found' };
+    if (!randomDoc) {
+      return { error: 'No documents found' };
+    }
+
+    // Get content from FTS (must use raw SQL)
+    const content = sqlite.prepare(`
+      SELECT content FROM oracle_fts WHERE id = ?
+    `).get(randomDoc.id) as { content: string } | undefined;
+
+    if (!content) {
+      return { error: 'Document content not found in FTS index' };
+    }
+
+    return {
+      id: randomDoc.id,
+      type: randomDoc.type,
+      content: content.content,
+      source_file: randomDoc.sourceFile,
+      concepts: JSON.parse(randomDoc.concepts || '[]')
+    };
+  } catch (err) {
+    if (isDbLockError(err)) {
+      return {
+        id: null,
+        type: 'principle',
+        content: 'Oracle is indexing — please wait...',
+        source_file: null,
+        concepts: [],
+        indexing: true,
+      };
+    }
+    throw err;
   }
-
-  // Get content from FTS (must use raw SQL)
-  const content = sqlite.prepare(`
-    SELECT content FROM oracle_fts WHERE id = ?
-  `).get(randomDoc.id) as { content: string } | undefined;
-
-  if (!content) {
-    return { error: 'Document content not found in FTS index' };
-  }
-
-  return {
-    id: randomDoc.id,
-    type: randomDoc.type,
-    content: content.content,
-    source_file: randomDoc.sourceFile,
-    concepts: JSON.parse(randomDoc.concepts || '[]')
-  };
 }
 
 /**
@@ -621,610 +689,6 @@ export function handleGraph(limitPerType = 310) {
   return { nodes, links };
 }
 
-/**
- * Find similar documents by document ID (vector nearest neighbors)
- */
-export async function handleSimilar(
-  docId: string,
-  limit: number = 5,
-  model?: string
-): Promise<{ results: SearchResult[]; docId: string }> {
-  try {
-    const client = await getVectorStore(model && EMBEDDING_MODELS[model] ? model : undefined);
-    const chromaResults = await client.queryById(docId, limit);
-
-    if (!chromaResults.ids || chromaResults.ids.length === 0) {
-      return { results: [], docId };
-    }
-
-    // Enrich with SQLite data (concepts, project)
-    const rows = db.select({
-      id: oracleDocuments.id,
-      type: oracleDocuments.type,
-      sourceFile: oracleDocuments.sourceFile,
-      concepts: oracleDocuments.concepts,
-      project: oracleDocuments.project
-    })
-      .from(oracleDocuments)
-      .where(inArray(oracleDocuments.id, chromaResults.ids))
-      .all();
-
-    const docMap = new Map(rows.map(r => [r.id, r]));
-
-    const results: SearchResult[] = chromaResults.ids.map((id: string, i: number) => {
-      const distance = chromaResults.distances?.[i] || 1;
-      const similarity = Math.max(0, 1 - distance / 2);
-      const doc = docMap.get(id);
-
-      return {
-        id,
-        type: doc?.type || chromaResults.metadatas?.[i]?.type || 'unknown',
-        content: chromaResults.documents?.[i] || '',
-        source_file: doc?.sourceFile || chromaResults.metadatas?.[i]?.source_file || '',
-        concepts: doc?.concepts ? JSON.parse(doc.concepts) : [],
-        project: doc?.project,
-        source: 'vector' as const,
-        score: similarity
-      };
-    });
-
-    return { results, docId };
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error('[Similar Search Error]', msg);
-    throw new Error(`Similar search failed: ${msg}`);
-  }
-}
-
-/**
- * Compute 2D map coordinates for the knowledge map visualization.
- *
- * NOTE: Despite the function name mentioning PCA, this does NOT use real
- * vector embeddings from ChromaDB. Instead it uses a deterministic hash-based
- * layout: projects are placed via Fibonacci sunflower spiral, then docs are
- * scattered within each project cluster using FNV-1a hash of sourceFile.
- *
- * Why not real embeddings?
- * - getAllEmbeddings() over MCP stdio for 20k+ docs × 384-dim is very slow
- * - numpy array() wrappers in chroma-mcp responses break JSON parsing
- * - PCA projection would need a math library not currently in deps
- *
- * To upgrade: batch-fetch embeddings, run PCA server-side, cache the projection.
- *
- * Caches result in memory to avoid recomputing.
- */
-let mapCache: { data: any; timestamp: number } | null = null;
-const MAP_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-export async function handleMap(): Promise<{
-  documents: Array<{
-    id: string;
-    type: string;
-    source_file: string;
-    concepts: string[];
-    chunk_ids: string[];
-    project: string | null;
-    x: number;
-    y: number;
-    created_at: string | null;
-  }>;
-  total: number;
-}> {
-  // Return cached result if fresh
-  if (mapCache && (Date.now() - mapCache.timestamp) < MAP_CACHE_TTL) {
-    return mapCache.data;
-  }
-
-  try {
-    // Get all docs from SQLite (no ChromaDB dependency)
-    const allDocs = db.select({
-      id: oracleDocuments.id,
-      type: oracleDocuments.type,
-      sourceFile: oracleDocuments.sourceFile,
-      concepts: oracleDocuments.concepts,
-      project: oracleDocuments.project,
-      createdAt: oracleDocuments.createdAt
-    })
-      .from(oracleDocuments)
-      .all();
-
-    if (allDocs.length === 0) {
-      return { documents: [], total: 0 };
-    }
-
-    // Deduplicate by source_file — merge concepts and collect chunk IDs
-    const fileMap = new Map<string, {
-      id: string;
-      type: string;
-      sourceFile: string;
-      allConcepts: string[];
-      chunkIds: string[];
-      project: string | null;
-      createdAt: number | null;
-    }>();
-    for (const doc of allDocs) {
-      const key = doc.sourceFile;
-      const existing = fileMap.get(key);
-      if (!existing) {
-        const concepts = doc.concepts ? JSON.parse(doc.concepts) : [];
-        fileMap.set(key, {
-          id: doc.id,
-          type: doc.type,
-          sourceFile: doc.sourceFile,
-          allConcepts: concepts,
-          chunkIds: [doc.id],
-          project: doc.project || null,
-          createdAt: doc.createdAt
-        });
-      } else {
-        existing.chunkIds.push(doc.id);
-        const newConcepts: string[] = doc.concepts ? JSON.parse(doc.concepts) : [];
-        for (const c of newConcepts) {
-          if (!existing.allConcepts.includes(c)) existing.allConcepts.push(c);
-        }
-      }
-    }
-    const dedupedDocs = Array.from(fileMap.values());
-
-    // Group by project for spatial clustering
-    const projectMap = new Map<string, number>();
-    let projectIdx = 0;
-    for (const doc of dedupedDocs) {
-      const proj = doc.project || '_default';
-      if (!projectMap.has(proj)) projectMap.set(proj, projectIdx++);
-    }
-
-    // Place cluster centers using Fibonacci sunflower (fills disk, no donut)
-    const golden = (1 + Math.sqrt(5)) / 2;
-    const totalClusters = projectMap.size;
-    const clusterCenters = new Map<number, { cx: number; cy: number }>();
-    for (let i = 0; i < totalClusters; i++) {
-      const angle = i * golden * Math.PI * 2;
-      const r = Math.sqrt((i + 0.5) / totalClusters) * 0.75;
-      clusterCenters.set(i, { cx: Math.cos(angle) * r, cy: Math.sin(angle) * r });
-    }
-
-    // Apply limit after dedup
-    const limitedDocs = dedupedDocs.slice(0, 10000);
-
-    const documents = limitedDocs.map((doc) => {
-      const proj = doc.project || '_default';
-      const clusterIdx = projectMap.get(proj) || 0;
-      const center = clusterCenters.get(clusterIdx) || { cx: 0, cy: 0 };
-
-      // Hash-based scatter within cluster — use sourceFile for stable position per file
-      const h1 = simpleHash(doc.sourceFile);
-      const h2 = simpleHash(doc.sourceFile + '_y');
-      // Map uniform [0,1) to roughly gaussian spread
-      const localX = (h1 - 0.5) * 0.2;
-      const localY = (h2 - 0.5) * 0.2;
-
-      const x = center.cx + localX;
-      const y = center.cy + localY;
-
-      return {
-        id: doc.id,
-        type: doc.type,
-        source_file: doc.sourceFile,
-        concepts: doc.allConcepts,
-        chunk_ids: doc.chunkIds,
-        project: doc.project,
-        x,
-        y,
-        created_at: doc.createdAt ? new Date(doc.createdAt).toISOString() : null
-      };
-    });
-
-    const result = { documents, total: documents.length };
-    mapCache = { data: result, timestamp: Date.now() };
-    return result;
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error('[Map Error]', msg);
-    throw new Error(`Map generation failed: ${msg}`);
-  }
-}
-
-/** Simple deterministic hash → [0,1) float */
-function simpleHash(str: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    hash ^= str.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return ((hash >>> 0) % 10000) / 10000;
-}
-
-
-// ============================================================================
-// 3D Knowledge Map — Real PCA from LanceDB embeddings
-// ============================================================================
-
-const map3dCaches = new Map<string, { data: any; timestamp: number }>();
-const MAP3D_CACHE_TTL = 30 * 60 * 1000; // 30 minutes (PCA is expensive)
-
-/**
- * PCA projection of real embeddings from LanceDB (bge-m3, 1024d → 3d).
- *
- * Algorithm:
- *   1. Load all vectors from LanceDB bge-m3 table
- *   2. Center the data (subtract mean)
- *   3. Compute top 3 principal components via power iteration on covariance matrix
- *   4. Project all vectors onto 3 PCs
- *   5. Merge with SQLite metadata (type, concepts, project)
- *   6. Cache result (recompute on cache expiry)
- */
-export async function handleMap3d(model?: string): Promise<{
-  documents: Array<{
-    id: string;
-    type: string;
-    title: string;
-    source_file: string;
-    concepts: string[];
-    project: string | null;
-    x: number;
-    y: number;
-    z: number;
-    created_at: string | null;
-  }>;
-  total: number;
-  pca_info: {
-    variance_explained: number[];
-    n_vectors: number;
-    n_dimensions: number;
-    computed_at: string;
-  };
-}> {
-  const modelKey = model || 'bge-m3';
-  const cached = map3dCaches.get(modelKey);
-  if (cached && (Date.now() - cached.timestamp) < MAP3D_CACHE_TTL) {
-    return cached.data;
-  }
-
-  try {
-    console.time(`[Map3D:${modelKey}] Total`);
-
-    // Step 1: Get vector store for requested model
-    console.time(`[Map3D:${modelKey}] Load embeddings`);
-    const store = getVectorStoreByModel(modelKey);
-    await ensureVectorStoreConnected(modelKey);
-
-    if (!store.getAllEmbeddings) {
-      throw new Error('LanceDB adapter does not support getAllEmbeddings');
-    }
-
-    const allData = await store.getAllEmbeddings(25000);
-    const { ids, embeddings, metadatas } = allData;
-    console.timeEnd('[Map3D] Load embeddings');
-
-    if (embeddings.length === 0) {
-      return { documents: [], total: 0, pca_info: { variance_explained: [], n_vectors: 0, n_dimensions: 0, computed_at: new Date().toISOString() } };
-    }
-
-    const n = embeddings.length;
-    const d = embeddings[0].length;
-    console.error(`[Map3D] Loaded ${n} vectors × ${d} dimensions`);
-
-    // Step 2: Build metadata lookup from SQLite
-    console.time('[Map3D] Metadata lookup');
-    const docLookup = new Map<string, {
-      type: string;
-      sourceFile: string;
-      concepts: string[];
-      project: string | null;
-      createdAt: number | null;
-    }>();
-
-    // Batch query SQLite for all doc IDs
-    const batchSize = 500;
-    for (let i = 0; i < ids.length; i += batchSize) {
-      const batch = ids.slice(i, i + batchSize);
-      const rows = db.select({
-        id: oracleDocuments.id,
-        type: oracleDocuments.type,
-        sourceFile: oracleDocuments.sourceFile,
-        concepts: oracleDocuments.concepts,
-        project: oracleDocuments.project,
-        createdAt: oracleDocuments.createdAt,
-      })
-        .from(oracleDocuments)
-        .where(inArray(oracleDocuments.id, batch))
-        .all();
-
-      for (const row of rows) {
-        docLookup.set(row.id, {
-          type: row.type,
-          sourceFile: row.sourceFile,
-          concepts: row.concepts ? JSON.parse(row.concepts) : [],
-          project: row.project || null,
-          createdAt: row.createdAt,
-        });
-      }
-    }
-    console.timeEnd('[Map3D] Metadata lookup');
-
-    // Step 3: Deduplicate by source_file (average embeddings for multi-chunk files)
-    console.time('[Map3D] Dedup by file');
-    const fileGroups = new Map<string, {
-      ids: string[];
-      vectors: number[][];
-      type: string;
-      sourceFile: string;
-      concepts: string[];
-      project: string | null;
-      createdAt: number | null;
-    }>();
-
-    for (let i = 0; i < n; i++) {
-      const id = ids[i];
-      const meta = docLookup.get(id);
-      const vecMeta = metadatas[i];
-      const sourceFile = meta?.sourceFile || vecMeta?.source_file || id;
-      const existing = fileGroups.get(sourceFile);
-
-      if (!existing) {
-        fileGroups.set(sourceFile, {
-          ids: [id],
-          vectors: [embeddings[i]],
-          type: meta?.type || vecMeta?.type || 'unknown',
-          sourceFile,
-          concepts: meta?.concepts || [],
-          project: meta?.project || null,
-          createdAt: meta?.createdAt || null,
-        });
-      } else {
-        existing.ids.push(id);
-        existing.vectors.push(embeddings[i]);
-        // Merge concepts
-        if (meta?.concepts) {
-          for (const c of meta.concepts) {
-            if (!existing.concepts.includes(c)) existing.concepts.push(c);
-          }
-        }
-      }
-    }
-
-    // Average the vectors for each file
-    const files = Array.from(fileGroups.values());
-    const avgVectors: number[][] = files.map(f => {
-      if (f.vectors.length === 1) return f.vectors[0];
-      const avg = new Array(d).fill(0);
-      for (const v of f.vectors) {
-        for (let j = 0; j < d; j++) avg[j] += v[j];
-      }
-      const count = f.vectors.length;
-      for (let j = 0; j < d; j++) avg[j] /= count;
-      return avg;
-    });
-    console.timeEnd('[Map3D] Dedup by file');
-
-    const nFiles = avgVectors.length;
-    console.error(`[Map3D] ${nFiles} unique files after dedup`);
-
-    // Step 4: PCA via power iteration
-    console.time('[Map3D] PCA');
-
-    // 4a. Compute mean
-    const mean = new Float64Array(d);
-    for (let i = 0; i < nFiles; i++) {
-      const v = avgVectors[i];
-      for (let j = 0; j < d; j++) mean[j] += v[j];
-    }
-    for (let j = 0; j < d; j++) mean[j] /= nFiles;
-
-    // 4b. Center the data (in-place for memory efficiency)
-    const centered = avgVectors.map(v => {
-      const c = new Float64Array(d);
-      for (let j = 0; j < d; j++) c[j] = v[j] - mean[j];
-      return c;
-    });
-
-    // 4c. Sample for covariance estimation if too many vectors
-    const pcaSampleSize = Math.min(nFiles, 5000);
-    let pcaSample: Float64Array[];
-    if (nFiles <= pcaSampleSize) {
-      pcaSample = centered;
-    } else {
-      // Deterministic sampling: every k-th element
-      const step = nFiles / pcaSampleSize;
-      pcaSample = [];
-      for (let i = 0; i < pcaSampleSize; i++) {
-        pcaSample.push(centered[Math.floor(i * step)]);
-      }
-    }
-
-    // 4d. Power iteration for top 3 eigenvectors
-    const numComponents = 3;
-    const components: Float64Array[] = [];
-    const eigenvalues: number[] = [];
-
-    // Helper: matrix-vector product C*v where C = X^T X / n (covariance)
-    // Instead of forming the d×d covariance matrix, compute via X * (X^T * v)
-    function covTimesVec(vec: Float64Array): Float64Array {
-      const ns = pcaSample.length;
-      // First: X^T * v → scalar per sample
-      const projections = new Float64Array(ns);
-      for (let i = 0; i < ns; i++) {
-        let dot = 0;
-        const row = pcaSample[i];
-        for (let j = 0; j < d; j++) dot += row[j] * vec[j];
-        projections[i] = dot;
-      }
-      // Then: X * projections → d-dimensional result
-      const result = new Float64Array(d);
-      for (let i = 0; i < ns; i++) {
-        const p = projections[i];
-        const row = pcaSample[i];
-        for (let j = 0; j < d; j++) result[j] += row[j] * p;
-      }
-      // Divide by n
-      for (let j = 0; j < d; j++) result[j] /= ns;
-      return result;
-    }
-
-    for (let comp = 0; comp < numComponents; comp++) {
-      // Random-ish initial vector (deterministic seed)
-      let v = new Float64Array(d);
-      for (let j = 0; j < d; j++) v[j] = Math.sin((comp + 1) * (j + 1) * 0.1);
-
-      // Deflate: remove projection onto already-found components
-      function deflate(vec: Float64Array): Float64Array {
-        const result = covTimesVec(vec);
-        for (let prev = 0; prev < comp; prev++) {
-          const pc = components[prev];
-          let dot = 0;
-          for (let j = 0; j < d; j++) dot += result[j] * pc[j];
-          for (let j = 0; j < d; j++) result[j] -= dot * pc[j];
-        }
-        return result;
-      }
-
-      // Power iteration (50 iterations is plenty for convergence)
-      for (let iter = 0; iter < 50; iter++) {
-        const Cv = deflate(v);
-        // Normalize
-        let norm = 0;
-        for (let j = 0; j < d; j++) norm += Cv[j] * Cv[j];
-        norm = Math.sqrt(norm);
-        if (norm < 1e-12) break;
-        for (let j = 0; j < d; j++) v[j] = Cv[j] / norm;
-      }
-
-      // Compute eigenvalue (Rayleigh quotient)
-      const Cv = covTimesVec(v);
-      let eigenvalue = 0;
-      for (let j = 0; j < d; j++) eigenvalue += v[j] * Cv[j];
-      eigenvalues.push(eigenvalue);
-
-      components.push(v);
-    }
-
-    // Compute variance explained
-    const totalVariance = eigenvalues.reduce((a, b) => a + b, 0);
-    const varianceExplained = eigenvalues.map(e => +(e / (totalVariance || 1)).toFixed(4));
-
-    console.timeEnd('[Map3D] PCA');
-    console.error(`[Map3D] Variance explained: ${varianceExplained.map(v => (v * 100).toFixed(1) + '%').join(', ')}`);
-
-    // Step 5: Project all vectors onto 3 PCs
-    console.time('[Map3D] Project');
-    const projected: { x: number; y: number; z: number }[] = [];
-
-    for (let i = 0; i < nFiles; i++) {
-      const v = centered[i];
-      let x = 0, y = 0, z = 0;
-      for (let j = 0; j < d; j++) {
-        x += v[j] * components[0][j];
-        y += v[j] * components[1][j];
-        z += v[j] * components[2][j];
-      }
-      projected.push({ x, y, z });
-    }
-
-    // Normalize to [-1, 1] range for the frontend
-    let minX = Infinity, maxX = -Infinity;
-    let minY = Infinity, maxY = -Infinity;
-    let minZ = Infinity, maxZ = -Infinity;
-    for (const p of projected) {
-      if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
-      if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
-      if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
-    }
-    const rangeX = maxX - minX || 1;
-    const rangeY = maxY - minY || 1;
-    const rangeZ = maxZ - minZ || 1;
-
-    for (const p of projected) {
-      p.x = ((p.x - minX) / rangeX) * 2 - 1;
-      p.y = ((p.y - minY) / rangeY) * 2 - 1;
-      p.z = ((p.z - minZ) / rangeZ) * 2 - 1;
-    }
-    console.timeEnd('[Map3D] Project');
-
-    // Step 6: Build response
-    const documents = files.map((f, i) => {
-      // Title: last part of source_file path, without extension
-      const basename = f.sourceFile.split('/').pop() || f.sourceFile;
-      const title = basename.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
-
-      return {
-        id: f.ids[0],
-        type: f.type,
-        title,
-        source_file: f.sourceFile,
-        concepts: f.concepts.slice(0, 10), // cap concepts per doc
-        project: f.project,
-        x: +projected[i].x.toFixed(6),
-        y: +projected[i].y.toFixed(6),
-        z: +projected[i].z.toFixed(6),
-        created_at: f.createdAt ? new Date(f.createdAt).toISOString() : null,
-      };
-    });
-
-    const result = {
-      documents,
-      total: documents.length,
-      pca_info: {
-        variance_explained: varianceExplained,
-        n_vectors: n,
-        n_dimensions: d,
-        computed_at: new Date().toISOString(),
-      },
-    };
-
-    map3dCaches.set(modelKey, { data: result, timestamp: Date.now() });
-    console.timeEnd('[Map3D] Total');
-    console.error(`[Map3D] Result: ${documents.length} documents, ${n} raw vectors`);
-
-    return result;
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error('[Map3D Error]', msg);
-    throw new Error(`Map3D generation failed: ${msg}`);
-  }
-}
-
-/**
- * Get vector DB stats for the stats endpoint
- * Uses getStats() which returns the count from the collection
- */
-export async function handleVectorStats(): Promise<{
-  vector: { enabled: boolean; count: number; collection: string };
-  vectors?: Array<{ key: string; model: string; collection: string; count: number; enabled: boolean }>;
-}> {
-  const timeout = parseInt(process.env.ORACLE_CHROMA_TIMEOUT || '5000', 10);
-  const models = getEmbeddingModels();
-  const engines: Array<{ key: string; model: string; collection: string; count: number; enabled: boolean }> = [];
-
-  // Query all registered engines in parallel
-  await Promise.all(
-    Object.entries(models).map(async ([key, preset]) => {
-      try {
-        const store = await ensureVectorStoreConnected(key);
-        const stats = await Promise.race([
-          store.getStats(),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), timeout)
-          ),
-        ]);
-        engines.push({ key, model: preset.model, collection: preset.collection, count: stats.count, enabled: true });
-      } catch {
-        engines.push({ key, model: preset.model, collection: preset.collection, count: 0, enabled: false });
-      }
-    })
-  );
-
-  // Primary = bge-m3 (backward compat)
-  const primary = engines.find(e => e.key === 'bge-m3') || engines[0];
-  return {
-    vector: {
-      enabled: primary?.enabled ?? false,
-      count: primary?.count ?? 0,
-      collection: primary?.collection ?? 'oracle_knowledge_bge_m3'
-    },
-    vectors: engines,
-  };
-}
 
 /**
  * Add new pattern/learning to knowledge base
@@ -1250,7 +714,6 @@ export function persistLearningDoc(opts: {
 }): { file: string; id: string } {
   const { pattern, subdir, filename, id } = opts;
   const now = new Date();
-  const dateStr = now.toISOString().split('T')[0];
 
   const dir = path.join(REPO_ROOT, subdir);
   fs.mkdirSync(dir, { recursive: true });
@@ -1262,24 +725,16 @@ export function persistLearningDoc(opts: {
 
   const title = pattern.split('\n')[0].substring(0, 80);
   const conceptsList = coerceConcepts(opts.concepts);
-  const footer = opts.footer ?? '*Added via Oracle Learn*';
-
-  const frontmatter = [
-    '---',
-    `title: ${title}`,
-    conceptsList.length > 0 ? `tags: [${conceptsList.join(', ')}]` : 'tags: []',
-    `created: ${dateStr}`,
-    `source: ${opts.source || 'Oracle Learn'}`,
-    '---',
-    '',
-    `# ${title}`,
-    '',
+  const frontmatter = buildLearningMarkdown({
+    id,
     pattern,
-    '',
-    '---',
-    footer,
-    ''
-  ].join('\n');
+    title,
+    concepts: conceptsList,
+    createdAt: now,
+    source: opts.source,
+    project: opts.project,
+    footer: opts.footer,
+  });
 
   fs.writeFileSync(filePath, frontmatter, 'utf-8');
 
@@ -1295,7 +750,7 @@ export function persistLearningDoc(opts: {
     indexedAt: now.getTime(),
     origin: opts.origin || null,
     project: opts.project || null,
-    createdBy: opts.createdBy || 'arra_learn',
+    createdBy: opts.createdBy || 'oracle_learn',
   }).run();
 
   // FTS5 has no unique constraint on id — delete-then-insert to be idempotent.
@@ -1319,20 +774,33 @@ export function handleLearn(
   cwd?: string
 ) {
   const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
-  const dateStr = new Date().toISOString().split('T')[0];
+  const d = new Date();
+  const dateStr = dateSlug(d);
 
   const slug = slugifyPattern(pattern);
 
+  // On slug collision (same date + same first-50-char prefix), append -2, -3, …
+  // until unique. Prevents 500s when two writes share a slug within one day
+  // (e.g. repeated hot-write snapshots from the same agent).
+  const subdir = 'ψ/memory/learnings';
+  const learningsDir = path.join(REPO_ROOT, subdir);
+  let uniqueSlug = slug;
+  let suffix = 2;
+  while (fs.existsSync(path.join(learningsDir, `${dateStr}_${uniqueSlug}.md`))) {
+    uniqueSlug = `${slug}-${suffix}`;
+    suffix++;
+  }
+
   const { file, id } = persistLearningDoc({
     pattern,
-    subdir: 'ψ/memory/learnings',
-    filename: `${dateStr}_${slug}.md`,
-    id: `learning_${dateStr}_${slug}`,
+    subdir,
+    filename: `${dateStr}_${uniqueSlug}.md`,
+    id: `learning_${dateStr}_${uniqueSlug}`,
     concepts,
     source,
     origin,
     project: resolvedProject,
-    createdBy: 'arra_learn',
+    createdBy: 'oracle_learn',
   });
 
   return { success: true, file, id };
@@ -1341,7 +809,7 @@ export function handleLearn(
 /**
  * Persist a session summary as a learning with concepts
  * ["session-summary", "session-<id>", "oracle-<name>"].
- * Written to ψ/memory/session-summaries/<session-id>.md so `arra_search` surfaces it.
+ * Written to ψ/memory/session-summaries/<session-id>.md so `oracle_search` surfaces it.
  */
 export function handleSessionSummary(
   sessionId: string,

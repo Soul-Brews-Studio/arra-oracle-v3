@@ -5,9 +5,9 @@
 Updated 2026-04-19. These override anything below that conflicts.
 
 ### Versioning
-- **Always alpha.** `v{YY}.{M}.{D}-alpha.{HOUR}` per `scripts/calver.ts`. README says "Always Nightly."
-- Stable release (`--stable` flag) only for rare intentional milestones — not the default.
-- Bumps go through a dedicated `bump/alpha.N` PR so auto-tag + release workflows can fire cleanly.
+- **RELEASE POLICY: Always alpha.** Every merge to main MUST produce a CalVer alpha release via the standing `calver-release.yml` workflow. Format: `v{yy}.{m}.{d}-alpha.{HMM}`. Never cut a non-prerelease/stable version without explicit user direction in the active session. The `calver-release.yml` workflow enforces this structurally; do not bypass it.
+- OMX directives are also persisted in `.omx/project-memory.json`; if session-start memory does not auto-load, this tracked CLAUDE.md policy is the durable source of truth.
+- Bumps go through the CalVer alpha flow so auto-tag + prerelease workflows can fire cleanly.
 
 ### File size
 - **≤ 250 lines per file.** If a file would exceed, split by concern — don't pad with helpers.

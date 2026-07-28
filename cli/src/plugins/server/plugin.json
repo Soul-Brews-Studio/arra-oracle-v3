@@ -1,0 +1,15 @@
+{
+  "name": "arra-server",
+  "version": "1.0.0",
+  "entry": "./index.ts",
+  "sdk": "^0.0.1",
+  "weight": 3,
+  "description": "Manage Oracle HTTP server (start/stop/status)",
+  "cli": {
+    "command": "server",
+    "help": "arra-cli server [start|stop|status] [--json]",
+    "flags": {
+      "--json": "Output raw JSON"
+    }
+  }
+}

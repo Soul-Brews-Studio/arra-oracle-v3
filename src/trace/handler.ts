@@ -39,7 +39,7 @@ function createLearningFile(
   traceQuery: string
 ): string {
   const now = new Date();
-  const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   // Generate slug from text (first 50 chars, slugified)
   const slug = text
@@ -342,6 +342,15 @@ export function linkTraces(
   prevTraceId: string,
   nextTraceId: string
 ): { success: boolean; message: string; prevTrace?: TraceRecord; nextTrace?: TraceRecord } {
+  if (!prevTraceId || typeof prevTraceId !== 'string') {
+    return { success: false, message: 'prevTraceId is required (got: ' + (prevTraceId === undefined ? 'undefined' : typeof prevTraceId) + ')' };
+  }
+  if (!nextTraceId || typeof nextTraceId !== 'string') {
+    return { success: false, message: 'nextTraceId is required (got: ' + (nextTraceId === undefined ? 'undefined' : typeof nextTraceId) + ')' };
+  }
+  if (prevTraceId === nextTraceId) {
+    return { success: false, message: `Cannot link a trace to itself: ${prevTraceId}` };
+  }
   const prevTrace = getTrace(prevTraceId);
   const nextTrace = getTrace(nextTraceId);
 
@@ -431,25 +440,33 @@ export function unlinkTraces(
 export function getTraceLinkedChain(
   traceId: string
 ): { chain: TraceRecord[]; position: number } {
+  if (!traceId || typeof traceId !== 'string') {
+    return { chain: [], position: 0 };
+  }
   const chain: TraceRecord[] = [];
   let position = 0;
 
-  // Walk backwards to find the start
+  // Walk backwards to find the start. Use a separate set for cycle
+  // detection on the BACKWARD walk only — do not pollute the forward
+  // walk's visited set, otherwise forward traversal stops at the
+  // chain head and never reaches the original input node.
   let current = getTrace(traceId);
-  const visited = new Set<string>();
+  const backwardVisited = new Set<string>();
 
-  while (current?.prevTraceId && !visited.has(current.prevTraceId)) {
-    visited.add(current.traceId);
+  while (current?.prevTraceId && !backwardVisited.has(current.prevTraceId)) {
+    backwardVisited.add(current.traceId);
     current = getTrace(current.prevTraceId);
   }
 
-  // Now walk forward from start
-  while (current && !visited.has(current.traceId)) {
+  // Now walk forward from start with its OWN visited set so all chain
+  // nodes are visited, including those the backward walk passed through.
+  const forwardVisited = new Set<string>();
+  while (current && !forwardVisited.has(current.traceId)) {
     if (current.traceId === traceId) {
       position = chain.length;
     }
     chain.push(current);
-    visited.add(current.traceId);
+    forwardVisited.add(current.traceId);
     if (current.nextTraceId) {
       current = getTrace(current.nextTraceId);
     } else {
@@ -478,7 +495,7 @@ export function distillTrace(
     .where(eq(traceLog.traceId, input.traceId))
     .run();
 
-  // TODO: If promoteToLearning, call arra_learn
+  // TODO: If promoteToLearning, call oracle_learn
   // This would require access to the learn function
 
   return {

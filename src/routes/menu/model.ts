@@ -7,9 +7,19 @@ import type { Static } from 'elysia';
 
 export interface MenuMeta {
   group: 'main' | 'tools' | 'admin' | 'hidden';
+  /**
+   * Studio/frontend path to expose in /api/menu. Route-declared menu items are
+   * opt-in: omit `path` for API endpoints that should not create nav rows.
+   */
+  path?: string;
   order?: number;
   label?: string;
   icon?: string;
+  /**
+   * Optional studio host for cross-studio menu entries, e.g.
+   * `canvas.buildwithoracle.com`. Null/undefined means the current studio.
+   */
+  studio?: string | null;
   access?: 'public' | 'auth';
 }
 
@@ -18,6 +28,14 @@ declare module 'elysia' {
     menu?: MenuMeta;
   }
 }
+
+export const ScopeSchema = t.Union([
+  t.Literal('main'),
+  t.Literal('sub'),
+  t.Literal('both'),
+]);
+
+export type Scope = Static<typeof ScopeSchema>;
 
 export const MenuItemSchema = t.Object({
   id: t.Optional(t.String()),
@@ -39,8 +57,10 @@ export const MenuItemSchema = t.Object({
     t.Literal('page'),
     t.Literal('plugin'),
   ]),
+  sourceName: t.Optional(t.String()),
   added: t.Optional(t.Boolean()),
   hidden: t.Optional(t.Boolean()),
+  scope: t.Optional(ScopeSchema),
   query: t.Optional(t.Record(t.String(), t.String())),
 });
 

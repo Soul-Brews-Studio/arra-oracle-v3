@@ -9,7 +9,7 @@ import fs from 'fs';
 import type { ToolContext, ToolResponse, OracleInboxInput } from './types.ts';
 
 export const inboxToolDef = {
-  name: 'arra_inbox',
+  name: 'oracle_inbox',
   description: 'List and preview pending handoff files from the Oracle inbox. Returns files sorted newest-first with previews.',
   inputSchema: {
     type: 'object',

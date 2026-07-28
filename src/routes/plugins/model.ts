@@ -9,8 +9,14 @@ import { t, type Static } from 'elysia';
 import { readdirSync, statSync, readFileSync, existsSync } from 'fs';
 import { join, basename } from 'path';
 import { homedir } from 'os';
+import type { MenuItem as NavMenuItem } from '../menu/model.ts';
 
 export const PLUGIN_DIR = join(homedir(), '.oracle', 'plugins');
+
+export function getPluginDir(): string {
+  const override = process.env.ORACLE_PLUGIN_DIR?.trim();
+  return override || PLUGIN_DIR;
+}
 
 export const PluginMenuSchema = t.Object({
   label: t.String(),
@@ -32,15 +38,11 @@ export type PluginEntry = {
   menu?: PluginMenu;
 };
 
-export type MenuItem = {
-  label: string;
-  path: string;
-  group: 'main' | 'tools' | 'hidden';
-  order: number;
-  icon?: string;
-  source: 'plugin';
+export type PluginMenuItem = NavMenuItem & {
   sourceName: string;
 };
+
+export type MenuItem = PluginMenuItem;
 
 export const pluginNameParams = t.Object({ name: t.String() });
 
@@ -100,8 +102,8 @@ export function readNestedPlugin(
   };
 }
 
-export function readFlatPlugin(file: string): PluginEntry {
-  const st = statSync(join(PLUGIN_DIR, file));
+export function readFlatPlugin(file: string, dir = getPluginDir()): PluginEntry {
+  const st = statSync(join(dir, file));
   return {
     name: file.replace(/\.wasm$/, ''),
     file,
@@ -110,31 +112,31 @@ export function readFlatPlugin(file: string): PluginEntry {
   };
 }
 
-export function resolveWasmPath(name: string): string | null {
-  const nestedManifest = join(PLUGIN_DIR, name, 'plugin.json');
+export function resolveWasmPath(name: string, dir = getPluginDir()): string | null {
+  const nestedManifest = join(dir, name, 'plugin.json');
   if (existsSync(nestedManifest)) {
     try {
       const manifest = JSON.parse(readFileSync(nestedManifest, 'utf8'));
       if (manifest.wasm && typeof manifest.wasm === 'string') {
-        const full = join(PLUGIN_DIR, name, manifest.wasm);
+        const full = join(dir, name, manifest.wasm);
         if (existsSync(full)) return full;
-        const base = join(PLUGIN_DIR, name, basename(manifest.wasm));
+        const base = join(dir, name, basename(manifest.wasm));
         if (existsSync(base)) return base;
       }
     } catch {
       // fall through to flat
     }
   }
-  const flat = join(PLUGIN_DIR, `${name}.wasm`);
+  const flat = join(dir, `${name}.wasm`);
   if (existsSync(flat)) return flat;
   return null;
 }
 
-export function scanPlugins(): { plugins: PluginEntry[]; dir: string } {
-  if (!existsSync(PLUGIN_DIR)) return { plugins: [], dir: PLUGIN_DIR };
+export function scanPlugins(dir = getPluginDir()): { plugins: PluginEntry[]; dir: string } {
+  if (!existsSync(dir)) return { plugins: [], dir };
   const plugins: PluginEntry[] = [];
-  for (const entry of readdirSync(PLUGIN_DIR)) {
-    const fullPath = join(PLUGIN_DIR, entry);
+  for (const entry of readdirSync(dir)) {
+    const fullPath = join(dir, entry);
     let st;
     try {
       st = statSync(fullPath);
@@ -145,15 +147,15 @@ export function scanPlugins(): { plugins: PluginEntry[]; dir: string } {
       const nested = readNestedPlugin(fullPath, entry);
       if (nested) plugins.push(nested);
     } else if (st.isFile() && entry.endsWith('.wasm')) {
-      plugins.push(readFlatPlugin(entry));
+      plugins.push(readFlatPlugin(entry, dir));
     }
   }
-  return { plugins, dir: PLUGIN_DIR };
+  return { plugins, dir };
 }
 
-export function getPluginMenuItems(): MenuItem[] {
-  const { plugins } = scanPlugins();
-  const items: MenuItem[] = [];
+export function getPluginMenuItems(dir = getPluginDir()): PluginMenuItem[] {
+  const { plugins } = scanPlugins(dir);
+  const items: PluginMenuItem[] = [];
   for (const p of plugins) {
     if (!p.menu) continue;
     items.push({

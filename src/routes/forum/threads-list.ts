@@ -23,7 +23,7 @@ export const threadsListRoute = new Elysia().get('/api/threads', ({ query }) => 
   query: threadsQuery,
   detail: {
     tags: ['forum'],
-    menu: { group: 'main', order: 40 },
+    menu: { group: 'main', path: '/', order: 40 },
     summary: 'List forum threads',
   },
 });

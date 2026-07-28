@@ -3,11 +3,11 @@ import { emit } from "./_output.ts";
 
 async function confirm(prompt: string): Promise<boolean> {
   process.stdout.write(`${prompt} `);
-  for await (const chunk of Bun.stdin.stream()) {
-    const answer = new TextDecoder().decode(chunk).trim().toLowerCase();
-    return answer === "y" || answer === "yes";
-  }
-  return false;
+  const reader = Bun.stdin.stream().getReader();
+  const { value } = await reader.read();
+  reader.releaseLock();
+  const answer = new TextDecoder().decode(value).trim().toLowerCase();
+  return answer === "y" || answer === "yes";
 }
 
 export async function menuResetAll(args: string[]): Promise<number> {

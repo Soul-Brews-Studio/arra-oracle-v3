@@ -8,20 +8,17 @@ import Base from "../layouts/Base.astro";
       <a href="/" class="text-gray-500 hover:text-gray-300 text-sm transition-colors">← home</a>
       <h1 class="text-4xl font-bold tracking-tight mt-4 mb-2">Canvas</h1>
       <p class="text-gray-400 text-lg">
-        A Three.js host for Neo ARRA V3 visual plugins. Swap the plugin with
-        <code class="text-teal-400">?plugin=&lt;name&gt;</code> — each plugin is
-        an ESM module that exports <code class="text-teal-400">mount()</code>.
+        CanvasPlugin PoC host for frontend renderer plugins. It proves one host can
+        render a Three.js scene (<code class="text-teal-400">wave</code>) and
+        React-shaped renderer plugins (<code class="text-teal-400">map</code>,
+        <code class="text-teal-400">planets</code>) through the same contract.
       </p>
     </div>
 
     <div class="flex gap-2 mb-4 text-sm">
-      <a href="/canvas/?plugin=cube" class="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-colors">cube</a>
-      <a href="/canvas/?plugin=galaxy" class="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-colors">galaxy</a>
-      <a href="/canvas/?plugin=torus" class="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-colors">torus</a>
-      <a href="/canvas/?plugin=graph3d" class="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-colors">graph3d</a>
-      <a href="/canvas/?plugin=solar" class="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-colors">solar</a>
       <a href="/canvas/?plugin=wave" class="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-colors">wave</a>
-      <a href="/canvas/?plugin=map3d" class="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-colors">map3d</a>
+      <a href="/canvas/?plugin=map" class="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-colors">map</a>
+      <a href="/canvas/?plugin=planets" class="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-colors">planets</a>
       <span id="plugin-label" class="ml-auto text-gray-500"></span>
     </div>
 
@@ -31,10 +28,13 @@ import Base from "../layouts/Base.astro";
   </main>
 
   <script>
+    import React from "react";
+    import { createRoot } from "react-dom/client";
     import * as THREE from "three";
+    import { renderCanvasPlugin, type CanvasPlugin } from "../../../src/canvas/index.ts";
 
-    type PluginInstance = { tick?: () => void; dispose?: () => void };
-    type PluginModule = {
+    type LegacyThreeInstance = { tick?: () => void; dispose?: () => void };
+    type LegacyThreeModule = {
       default: {
         name: string;
         mount: (ctx: {
@@ -42,78 +42,154 @@ import Base from "../layouts/Base.astro";
           camera: THREE.PerspectiveCamera;
           renderer: THREE.WebGLRenderer;
           THREE: typeof THREE;
-        }) => PluginInstance;
+        }) => LegacyThreeInstance;
       };
     };
 
-    const canvas = document.getElementById("neo-canvas") as HTMLCanvasElement | null;
+    const ReactCard = ({ title, body, items }: { title: string; body: string; items: string[] }) =>
+      React.createElement(
+        "section",
+        { className: "h-full grid place-items-center bg-slate-950 text-slate-100 p-8" },
+        React.createElement(
+          "div",
+          { className: "max-w-2xl rounded-2xl border border-teal-400/30 bg-slate-900/80 p-8 shadow-2xl shadow-teal-950/40" },
+          React.createElement("p", { className: "text-xs uppercase tracking-[0.3em] text-teal-300 mb-3" }, "React CanvasPlugin PoC"),
+          React.createElement("h2", { className: "text-4xl font-bold mb-4" }, title),
+          React.createElement("p", { className: "text-slate-300 text-lg mb-6" }, body),
+          React.createElement(
+            "ul",
+            { className: "grid gap-3 text-sm text-slate-200" },
+            items.map((item) =>
+              React.createElement("li", { key: item, className: "rounded-lg bg-slate-800/80 px-4 py-3" }, item),
+            ),
+          ),
+        ),
+      );
+
     const wrap = document.getElementById("neo-canvas-wrap");
+    const canvas = document.getElementById("neo-canvas") as HTMLCanvasElement | null;
     const label = document.getElementById("plugin-label");
 
     if (canvas && wrap) {
-      const params = new URLSearchParams(location.search);
-      const pluginName = params.get("plugin") ?? "cube";
-
-      const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x000000);
-
-      const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
-      camera.position.z = 3;
-
-      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-      const light = new THREE.PointLight(0xffffff, 50, 100);
-      light.position.set(3, 3, 5);
-      scene.add(light);
-      scene.add(new THREE.AmbientLight(0x404060, 1));
-
-      const setSize = () => {
-        const w = wrap.clientWidth;
-        const h = wrap.clientHeight;
-        if (w > 0 && h > 0) {
-          renderer.setSize(w, h, false);
-          camera.aspect = w / h;
-          camera.updateProjectionMatrix();
-        }
+      const setLabel = (text: string) => {
+        if (label) label.textContent = text;
       };
-      setSize();
-      const ro = new ResizeObserver(setSize);
-      ro.observe(wrap);
 
-      let instance: PluginInstance = {};
-      let raf = 0;
-      let disposed = false;
+      const cleanupCanvas = () => {
+        canvas.classList.add("hidden");
+        wrap.querySelectorAll("[data-react-canvas-plugin]").forEach((node) => node.remove());
+      };
 
-      (async () => {
-        try {
-          const mod: PluginModule = await import(
-            /* @vite-ignore */ `/plugins/${pluginName}.mjs`
-          );
-          instance = mod.default.mount({ scene, camera, renderer, THREE });
-          if (label) label.textContent = `plugin: ${mod.default.name}`;
-        } catch (err) {
-          console.error("plugin load failed:", err);
-          if (label) label.textContent = `error loading '${pluginName}'`;
-        }
+      const wavePlugin: CanvasPlugin = {
+        id: "wave",
+        label: "Wave",
+        kind: "three",
+        mount: async () => {
+          cleanupCanvas();
+          canvas.classList.remove("hidden");
 
-        const tick = () => {
-          if (disposed) return;
-          instance.tick?.();
-          renderer.render(scene, camera);
+          const scene = new THREE.Scene();
+          scene.background = new THREE.Color(0x000000);
+
+          const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100);
+          camera.position.z = 3;
+
+          const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+          const light = new THREE.PointLight(0xffffff, 50, 100);
+          light.position.set(3, 3, 5);
+          scene.add(light);
+          scene.add(new THREE.AmbientLight(0x404060, 1));
+
+          const setSize = () => {
+            const w = wrap.clientWidth;
+            const h = wrap.clientHeight;
+            if (w > 0 && h > 0) {
+              renderer.setSize(w, h, false);
+              camera.aspect = w / h;
+              camera.updateProjectionMatrix();
+            }
+          };
+          setSize();
+          const ro = new ResizeObserver(setSize);
+          ro.observe(wrap);
+
+          const mod: LegacyThreeModule = await import(/* @vite-ignore */ `/plugins/${"wave"}.mjs`);
+          const instance = mod.default.mount({ scene, camera, renderer, THREE });
+          setLabel(`plugin: ${mod.default.name} (three)`);
+
+          let raf = 0;
+          let disposed = false;
+          const tick = () => {
+            if (disposed) return;
+            instance.tick?.();
+            renderer.render(scene, camera);
+            raf = requestAnimationFrame(tick);
+          };
           raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-      })();
 
-      const cleanup = () => {
-        disposed = true;
-        cancelAnimationFrame(raf);
-        ro.disconnect();
-        instance.dispose?.();
-        renderer.dispose();
+          return () => {
+            disposed = true;
+            cancelAnimationFrame(raf);
+            ro.disconnect();
+            instance.dispose?.();
+            renderer.dispose();
+          };
+        },
       };
-      window.addEventListener("beforeunload", cleanup, { once: true });
+
+      const canvasPlugins: Record<string, CanvasPlugin> = {
+        wave: wavePlugin,
+        map: {
+          id: "map",
+          label: "Knowledge Map",
+          kind: "react",
+          renderer: () => React.createElement(ReactCard, {
+            title: "Knowledge Map",
+            body: "A React plugin placeholder for the future /map renderer inside Canvas.",
+            items: ["kind: react", "plugin id: map", "host: /canvas local Studio PoC"],
+          }),
+        },
+        planets: {
+          id: "planets",
+          label: "Planets",
+          kind: "react",
+          renderer: () => React.createElement(ReactCard, {
+            title: "Planets",
+            body: "A React plugin placeholder for the future /planets orbit renderer inside Canvas.",
+            items: ["kind: react", "plugin id: planets", "ready for slice3 subdomain extraction"],
+          }),
+        },
+      };
+
+      const params = new URLSearchParams(location.search);
+      const requestedPlugin = params.get("plugin") ?? "wave";
+      const plugin = canvasPlugins[requestedPlugin] ?? canvasPlugins.wave;
+
+      renderCanvasPlugin(plugin, {
+        mountThree: (threePlugin) => threePlugin.mount({ element: canvas }),
+        renderReact: (reactPlugin) => {
+          cleanupCanvas();
+          const outlet = document.createElement("div");
+          outlet.dataset.reactCanvasPlugin = reactPlugin.id;
+          outlet.className = "w-full h-full";
+          const rendered = reactPlugin.renderer({ pluginId: reactPlugin.id });
+          const root = createRoot(outlet);
+          root.render(rendered as React.ReactNode);
+          wrap.append(outlet);
+          setLabel(`plugin: ${reactPlugin.label} (${reactPlugin.kind})`);
+          return () => {
+            root.unmount();
+            outlet.remove();
+          };
+        },
+      }).then((cleanup) => {
+        if (cleanup) window.addEventListener("beforeunload", cleanup, { once: true });
+      }).catch((err) => {
+        console.error("canvas plugin render failed:", err);
+        setLabel(`error loading '${requestedPlugin}'`);
+      });
     }
   </script>
 </Base>

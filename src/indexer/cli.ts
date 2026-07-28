@@ -1,68 +1,14 @@
 /**
- * CLI entrypoint for running the Oracle indexer
+ * CLI entrypoint for running the Oracle indexer.
  */
 
-import { DB_PATH, REPO_ROOT } from '../config.ts';
-import { getVaultPsiRoot } from '../vault/handler.ts';
-import type { IndexerConfig } from '../types.ts';
-import { OracleIndexer } from './index.ts';
-import { scanRoots } from './scan.ts';
-import fs from 'fs';
-import path from 'path';
+import { runOracleReindex } from './runner.ts';
 
-// Prefer vault repo for centralized indexing, fall back to REPO_ROOT from config
-const vaultResult = getVaultPsiRoot();
-const vaultRoot = 'path' in vaultResult ? vaultResult.path : null;
-
-// Vault may have project-first layout (github.com/org/repo/psi/) without a root psi/
-const vaultHasContent = vaultRoot && (
-  fs.existsSync(path.join(vaultRoot, '\u03c8')) ||
-  fs.existsSync(path.join(vaultRoot, 'github.com'))
-);
-const repoRoot = process.env.ORACLE_REPO_ROOT ||
-  (vaultHasContent ? vaultRoot : REPO_ROOT);
-
-const config: IndexerConfig = {
-  repoRoot,
-  dbPath: DB_PATH,
-  // chromaPath is kept in the type for backward compatibility but no longer
-  // used: vector indexing is handled by src/scripts/index-model.ts.
-  chromaPath: '',
-  sourcePaths: {
-    resonance: '\u03c8/memory/resonance',
-    learnings: '\u03c8/memory/learnings',
-    retrospectives: '\u03c8/memory/retrospectives'
-  }
-};
-
-if (process.argv.includes('--scan')) {
-  const roots = [
-    path.join(repoRoot, config.sourcePaths.resonance),
-    path.join(repoRoot, config.sourcePaths.learnings),
-    path.join(repoRoot, config.sourcePaths.retrospectives),
-  ];
-  const findings = scanRoots(roots);
-  if (findings.length === 0) {
-    console.log('\u2713 Secret scan clean — no matches found.');
-    process.exit(0);
-  }
-  console.error(`\u26a0 Found ${findings.length} potential secret(s):`);
-  for (const f of findings) {
-    const rel = path.relative(repoRoot, f.file) || f.file;
-    console.error(`  ${rel}:${f.line} [${f.kind}] ${f.preview}`);
-  }
-  process.exit(2);
-}
-
-const indexer = new OracleIndexer(config);
-
-indexer.index()
-  .then(async () => {
+runOracleReindex()
+  .then(() => {
     console.log('Indexing complete!');
-    await indexer.close();
   })
-  .catch(async err => {
+  .catch(err => {
     console.error('Indexing failed:', err);
-    await indexer.close();
     process.exit(1);
   });

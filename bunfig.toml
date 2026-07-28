@@ -4,3 +4,6 @@
 # tests/e2e/*.e2e.ts so bun's auto-discovery (*.test.ts, *.spec.ts) skips
 # them and does not try to import @playwright/test.
 roots = ["src", "tests"]
+# Isolate test files to prevent cross-file DB lock contamination.
+# Without this, parallel test files sharing oracle.db cause "disk I/O error".
+isolate = true

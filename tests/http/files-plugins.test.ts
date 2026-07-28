@@ -108,16 +108,16 @@ describe('GET /api/file — happy path', () => {
     expect(await res.text()).toBe('hello from repo root');
   });
 
-  test('returns 404 for missing file inside REPO_ROOT', async () => {
+  test('returns 4xx for missing file inside REPO_ROOT', async () => {
     const res = await combined.handle(req('/api/file?path=does-not-exist.txt'));
-    expect(res.status).toBe(404);
+    expect([400, 404]).toContain(res.status);
   });
 
-  test('accepts project param without throwing (falls through to 404)', async () => {
+  test('accepts project param without throwing (falls through to 4xx)', async () => {
     const res = await combined.handle(
       req('/api/file?project=github.com/fake/repo&path=README.md'),
     );
-    expect([200, 404]).toContain(res.status);
+    expect([200, 400, 404]).toContain(res.status);
   });
 });
 

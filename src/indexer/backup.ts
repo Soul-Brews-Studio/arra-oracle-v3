@@ -11,6 +11,52 @@ import type { IndexerConfig } from '../types.ts';
 const DEFAULT_BACKUP_KEEP = 10;
 
 /**
+ * Stale lock threshold: if a lock file is older than this, assume the
+ * owning process crashed and reclaim it.
+ */
+const LOCK_STALE_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Acquire an exclusive file lock using O_CREAT|O_EXCL (atomic on all OS).
+ * Returns `true` if the lock was acquired, `false` if another process holds it.
+ * Automatically removes stale locks from crashed processes.
+ */
+export function acquireLock(lockPath: string): boolean {
+  // Check for stale lock first
+  try {
+    const stat = fs.statSync(lockPath);
+    if (Date.now() - stat.mtimeMs > LOCK_STALE_MS) {
+      console.warn(`⚠️ Removing stale backup lock (age: ${Math.round((Date.now() - stat.mtimeMs) / 1000)}s)`);
+      fs.unlinkSync(lockPath);
+    }
+  } catch {
+    // Lock file doesn't exist — good, proceed to create it
+  }
+
+  try {
+    const fd = fs.openSync(lockPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY);
+    // Write our PID so stale-lock diagnostics can identify the owner
+    fs.writeSync(fd, `${process.pid}\n`);
+    fs.closeSync(fd);
+    return true;
+  } catch (e: any) {
+    if (e.code === 'EEXIST') return false;
+    throw e;
+  }
+}
+
+/**
+ * Release the file lock.
+ */
+export function releaseLock(lockPath: string): void {
+  try {
+    fs.unlinkSync(lockPath);
+  } catch {
+    // Already removed — harmless
+  }
+}
+
+/**
  * Delete old backup/export files, keeping the most recent `keep`.
  * Each family (.backup-, .export-*.json, .export-*.csv) is rotated
  * independently so a missing member doesn't skew retention.
@@ -33,7 +79,17 @@ function rotateBackups(dbPath: string, keep: number): void {
   }
 
   for (const { prefix, suffix } of families) {
-    const matches = entries
+    // Re-read directory for each family so we see files created by any
+    // concurrent process that finished between families (belt-and-suspenders
+    // with the file lock above).
+    let freshEntries: string[];
+    try {
+      freshEntries = fs.readdirSync(dir);
+    } catch {
+      freshEntries = entries; // fall back to initial snapshot
+    }
+
+    const matches = freshEntries
       .filter(f => f.startsWith(prefix) && f.endsWith(suffix))
       .sort()
       .reverse();
@@ -57,6 +113,25 @@ function rotateBackups(dbPath: string, keep: number): void {
  * 3. CSV export (.export-TIMESTAMP.csv) for DuckDB/analytics
  */
 export function backupDatabase(sqlite: Database, config: IndexerConfig): void {
+  const lockPath = `${config.dbPath}.backup.lock`;
+
+  if (!acquireLock(lockPath)) {
+    console.log('⏳ Backup already in progress (locked by another process) — skipping');
+    return;
+  }
+
+  try {
+    backupDatabaseUnsafe(sqlite, config);
+  } finally {
+    releaseLock(lockPath);
+  }
+}
+
+/**
+ * Internal: performs backup + rotation without locking.
+ * Always call via `backupDatabase()` which serialises concurrent callers.
+ */
+function backupDatabaseUnsafe(sqlite: Database, config: IndexerConfig): void {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupPath = `${config.dbPath}.backup-${timestamp}`;
   const jsonPath = `${config.dbPath}.export-${timestamp}.json`;

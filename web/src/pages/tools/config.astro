@@ -1,0 +1,116 @@
+---
+import Base from "../../layouts/Base.astro";
+---
+
+<Base title="MCP Tool Toggles | Neo ARRA V3">
+  <main class="max-w-5xl mx-auto px-6 py-16">
+    <a href="/tools" class="text-gray-500 hover:text-teal-300 text-sm transition-colors">← tools</a>
+    <div class="mt-4 mb-10 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <div>
+        <h1 class="text-5xl font-bold tracking-tight mb-2">MCP Tool Toggles</h1>
+        <p class="text-gray-400 text-lg">Enable or hide individual MCP methods for the next tool list refresh.</p>
+      </div>
+      <div id="status-chip" class="text-xs font-mono text-gray-500 md:text-right">loading…</div>
+    </div>
+
+    <div id="notice" class="hidden mb-6 rounded-xl border p-4 text-sm"></div>
+    <form id="tools-form" class="space-y-6"></form>
+
+    <div class="mt-8 flex gap-3">
+      <button id="save-btn" type="button" class="bg-teal-500 hover:bg-teal-400 disabled:opacity-50 disabled:cursor-not-allowed text-gray-950 font-semibold px-6 py-2.5 rounded-lg transition-colors text-sm">
+        Save toggles
+      </button>
+      <button id="enable-all-btn" type="button" class="bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold px-6 py-2.5 rounded-lg transition-colors text-sm">
+        Enable all
+      </button>
+    </div>
+  </main>
+</Base>
+
+<script>
+  import { getBackendClient, type ToolConfigResponse } from "../../lib/backend";
+
+  const form = document.getElementById("tools-form") as HTMLFormElement;
+  const saveBtn = document.getElementById("save-btn") as HTMLButtonElement;
+  const enableAllBtn = document.getElementById("enable-all-btn") as HTMLButtonElement;
+  const statusChip = document.getElementById("status-chip")!;
+  const notice = document.getElementById("notice")!;
+
+  function escapeHtml(value: string): string {
+    return value.replace(/[&<>'"]/g, (char) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      "'": "&#39;",
+      '"': "&quot;",
+    }[char] ?? char));
+  }
+
+  function setNotice(kind: "ok" | "warn" | "error", message: string) {
+    const classes = {
+      ok: "mb-6 rounded-xl border border-green-700 bg-green-950/40 p-4 text-sm text-green-200",
+      warn: "mb-6 rounded-xl border border-amber-700 bg-amber-950/40 p-4 text-sm text-amber-200",
+      error: "mb-6 rounded-xl border border-red-700 bg-red-950/40 p-4 text-sm text-red-200",
+    };
+    notice.className = classes[kind];
+    notice.textContent = message;
+  }
+
+  function render(config: ToolConfigResponse) {
+    const total = config.groups.flatMap((g) => g.tools).length;
+    statusChip.textContent = `${config.enabled_tools.length}/${total} enabled`;
+    statusChip.className = "text-xs font-mono text-teal-300 md:text-right";
+    if (config.env_override) {
+      setNotice("warn", "Environment tool filters are active; saved .arra config may not take effect until ORACLE_ENABLED_TOOLS / ORACLE_DISABLED_TOOLS are unset.");
+    } else if (config.config_path) {
+      setNotice("ok", `Persist target: ${config.config_path}`);
+    }
+
+    form.innerHTML = config.groups.map((group) => `
+      <fieldset class="bg-gray-900/80 border border-gray-800 rounded-xl p-5">
+        <legend class="px-1 font-mono text-teal-300 text-sm">${escapeHtml(group.group)}</legend>
+        <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          ${group.tools.map((tool) => `
+            <label class="flex items-center justify-between gap-3 rounded-lg border border-gray-800 bg-gray-950/60 px-3 py-2.5 hover:border-teal-900 transition-colors">
+              <span class="font-mono text-sm text-gray-300 break-all">${escapeHtml(tool.name)}</span>
+              <input class="tool-toggle h-5 w-5 accent-teal-400" type="checkbox" value="${escapeHtml(tool.name)}" ${tool.enabled ? "checked" : ""} />
+            </label>
+          `).join("")}
+        </div>
+      </fieldset>
+    `).join("");
+  }
+
+  function selectedTools(): string[] {
+    return Array.from(document.querySelectorAll<HTMLInputElement>(".tool-toggle:checked")).map((input) => input.value);
+  }
+
+  async function load() {
+    try {
+      render(await getBackendClient().toolConfig());
+    } catch (err) {
+      statusChip.textContent = "backend unavailable";
+      setNotice("error", err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  saveBtn.addEventListener("click", async () => {
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving…";
+    try {
+      render(await getBackendClient().saveToolConfig(selectedTools()));
+      setNotice("ok", "Saved MCP tool toggles. The MCP server reload watcher will apply the config shortly.");
+    } catch (err) {
+      setNotice("error", err instanceof Error ? err.message : String(err));
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save toggles";
+    }
+  });
+
+  enableAllBtn.addEventListener("click", () => {
+    document.querySelectorAll<HTMLInputElement>(".tool-toggle").forEach((input) => { input.checked = true; });
+  });
+
+  load();
+</script>

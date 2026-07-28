@@ -9,7 +9,7 @@ import { oracleDocuments } from '../db/schema.ts';
 import type { ToolContext, ToolResponse, OracleListInput } from './types.ts';
 
 export const listToolDef = {
-  name: 'arra_list',
+  name: 'oracle_list',
   description: 'List all documents in Oracle knowledge base. Browse without searching - useful for exploring what knowledge exists. Supports pagination and type filtering.',
   inputSchema: {
     type: 'object',

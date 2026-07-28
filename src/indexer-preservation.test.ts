@@ -1,10 +1,10 @@
 /**
  * Indexer Preservation Tests
  *
- * Tests that arra_learn documents are preserved during re-indexing.
+ * Tests that oracle_learn documents are preserved during re-indexing.
  * This is critical for cross-repo knowledge sharing.
  *
- * Philosophy: "Nothing is Deleted" - arra_learn docs have no local files
+ * Philosophy: "Nothing is Deleted" - oracle_learn docs have no local files
  * and must not be wiped during indexer runs.
  */
 
@@ -146,14 +146,14 @@ function insertTestDoc(doc: {
 // Preservation Tests
 // ============================================================================
 
-describe('Indexer Preservation - arra_learn documents', () => {
-  it('should preserve arra_learn documents during re-index', () => {
-    // Insert arra_learn doc from another repo
+describe('Indexer Preservation - oracle_learn documents', () => {
+  it('should preserve oracle_learn documents during re-index', () => {
+    // Insert oracle_learn doc from another repo
     insertTestDoc({
       id: 'test-oracle-learn-1',
       type: 'learning',
       sourceFile: 'ψ/memory/learnings/test.md',
-      createdBy: 'arra_learn',
+      createdBy: 'oracle_learn',
       project: 'github.com/other/repo',
     });
 
@@ -169,11 +169,11 @@ describe('Indexer Preservation - arra_learn documents', () => {
     // Simulate indexer run for current repo
     const deleted = simulateSmartDeletion('github.com/current/repo');
 
-    // Verify arra_learn doc is preserved
+    // Verify oracle_learn doc is preserved
     const preserved = db.select().from(oracleDocuments)
       .where(eq(oracleDocuments.id, 'test-oracle-learn-1')).get();
     expect(preserved).toBeDefined();
-    expect(preserved?.createdBy).toBe('arra_learn');
+    expect(preserved?.createdBy).toBe('oracle_learn');
 
     // Verify indexer doc was deleted
     const notPreserved = db.select().from(oracleDocuments)
@@ -184,13 +184,13 @@ describe('Indexer Preservation - arra_learn documents', () => {
     expect(deleted).not.toContain('test-oracle-learn-1');
   });
 
-  it('should preserve arra_learn docs from different projects', () => {
-    // Insert arra_learn docs from various projects
+  it('should preserve oracle_learn docs from different projects', () => {
+    // Insert oracle_learn docs from various projects
     insertTestDoc({
       id: 'learn-repo-a',
       type: 'learning',
       sourceFile: 'ψ/memory/learnings/a.md',
-      createdBy: 'arra_learn',
+      createdBy: 'oracle_learn',
       project: 'github.com/team/repo-a',
     });
 
@@ -198,14 +198,14 @@ describe('Indexer Preservation - arra_learn documents', () => {
       id: 'learn-repo-b',
       type: 'learning',
       sourceFile: 'ψ/memory/learnings/b.md',
-      createdBy: 'arra_learn',
+      createdBy: 'oracle_learn',
       project: 'github.com/team/repo-b',
     });
 
     // Simulate indexer run for repo-a
     simulateSmartDeletion('github.com/team/repo-a');
 
-    // Both arra_learn docs should be preserved
+    // Both oracle_learn docs should be preserved
     const docA = db.select().from(oracleDocuments)
       .where(eq(oracleDocuments.id, 'learn-repo-a')).get();
     const docB = db.select().from(oracleDocuments)
@@ -280,20 +280,20 @@ describe('Indexer Preservation - project isolation', () => {
     expect(deleted).toContain('project-specific-doc');
   });
 
-  it('should preserve universal arra_learn docs', () => {
-    // Insert universal arra_learn doc (created from a context without project detection)
+  it('should preserve universal oracle_learn docs', () => {
+    // Insert universal oracle_learn doc (created from a context without project detection)
     insertTestDoc({
       id: 'universal-learn-doc',
       type: 'learning',
       sourceFile: 'ψ/memory/learnings/universal.md',
-      createdBy: 'arra_learn',
+      createdBy: 'oracle_learn',
       project: null,
     });
 
     // Simulate indexer run
     const deleted = simulateSmartDeletion('github.com/any/repo');
 
-    // Universal arra_learn should be preserved
+    // Universal oracle_learn should be preserved
     const doc = db.select().from(oracleDocuments)
       .where(eq(oracleDocuments.id, 'universal-learn-doc')).get();
     expect(doc).toBeDefined();
@@ -352,12 +352,12 @@ describe('Indexer Preservation - FTS sync', () => {
   });
 
   it('should preserve FTS entries for preserved documents', () => {
-    // Insert arra_learn doc
+    // Insert oracle_learn doc
     insertTestDoc({
       id: 'fts-preserved-doc',
       type: 'learning',
       sourceFile: 'ψ/memory/learnings/preserved.md',
-      createdBy: 'arra_learn',
+      createdBy: 'oracle_learn',
       project: 'github.com/other/repo',
       content: 'This content should remain searchable',
     });
@@ -381,13 +381,13 @@ describe('Indexer Preservation - edge cases', () => {
     expect(deleted).toEqual([]);
   });
 
-  it('should handle database with only arra_learn docs', () => {
-    // Insert only arra_learn docs
+  it('should handle database with only oracle_learn docs', () => {
+    // Insert only oracle_learn docs
     insertTestDoc({
       id: 'only-learn-1',
       type: 'learning',
       sourceFile: 'ψ/memory/learnings/1.md',
-      createdBy: 'arra_learn',
+      createdBy: 'oracle_learn',
       project: 'github.com/repo/1',
     });
 
@@ -395,7 +395,7 @@ describe('Indexer Preservation - edge cases', () => {
       id: 'only-learn-2',
       type: 'learning',
       sourceFile: 'ψ/memory/learnings/2.md',
-      createdBy: 'arra_learn',
+      createdBy: 'oracle_learn',
       project: 'github.com/repo/2',
     });
 
@@ -422,7 +422,7 @@ describe('Indexer Preservation - edge cases', () => {
       id: 'oracle-learn-doc',
       type: 'learning',
       sourceFile: 'ψ/memory/learnings/learn.md',
-      createdBy: 'arra_learn',
+      createdBy: 'oracle_learn',
       project: 'github.com/current/repo',
     });
 

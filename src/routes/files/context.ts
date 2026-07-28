@@ -9,7 +9,7 @@ export const contextRoute = new Elysia().get(
     query: contextQuery,
     detail: {
       tags: ['files'],
-      menu: { group: 'tools', order: 40 },
+      menu: { group: 'tools', path: '/evolution', order: 40 },
       summary: 'Context for a working directory',
     },
   },

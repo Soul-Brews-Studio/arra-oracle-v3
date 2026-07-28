@@ -1,0 +1,17 @@
+{
+  "name": "arra-inbox",
+  "version": "1.0.0",
+  "entry": "./index.ts",
+  "sdk": "^0.0.1",
+  "weight": 30,
+  "description": "View handoff inbox",
+  "cli": {
+    "command": "inbox",
+    "help": "arra-cli inbox [--limit N] [--type handoff|all] [--json]",
+    "flags": {
+      "--limit": "Max results (default 10)",
+      "--type": "Filter: handoff | all (default all)",
+      "--json": "Output raw JSON"
+    }
+  }
+}

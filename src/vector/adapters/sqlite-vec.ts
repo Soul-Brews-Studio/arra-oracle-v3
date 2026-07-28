@@ -126,7 +126,7 @@ export class SqliteVecAdapter implements VectorStoreAdapter {
 
     // Generate embeddings for all documents
     const texts = docs.map(d => d.document);
-    const embeddings = await this.embedder.embed(texts);
+    const embeddings = await this.embedder.embed(texts, 'passage');
 
     const insertMeta = this.db.prepare(`
       INSERT OR REPLACE INTO ${this.collectionName}_meta (id, document, metadata)
@@ -158,7 +158,7 @@ export class SqliteVecAdapter implements VectorStoreAdapter {
     if (!this.db) throw new Error('sqlite-vec not connected');
 
     // Generate query embedding
-    const [queryEmbedding] = await this.embedder.embed([text]);
+    const [queryEmbedding] = await this.embedder.embed([text], 'query');
 
     // When filtering, fetch more results since we filter in JS
     const fetchLimit = where ? limit * 3 : limit;

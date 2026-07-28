@@ -7,13 +7,20 @@
 
 import path from 'path';
 import fs from 'fs';
-import { getVaultPsiRoot } from '../vault/handler.ts';
 import { detectProject } from '../server/project-detect.ts';
 import type { ToolContext, ToolResponse, OracleHandoffInput } from './types.ts';
 import { slugifyPattern } from '../slug.ts';
 
+let getVaultPsiRootFn: typeof import('../vault/handler.ts').getVaultPsiRoot | null = null;
+async function loadGetVaultPsiRoot(): Promise<typeof import('../vault/handler.ts').getVaultPsiRoot> {
+  if (!getVaultPsiRootFn) {
+    getVaultPsiRootFn = (await import('../vault/handler.ts')).getVaultPsiRoot;
+  }
+  return getVaultPsiRootFn;
+}
+
 export const handoffToolDef = {
-  name: 'arra_handoff',
+  name: 'oracle_handoff',
   description: 'Write session context to the Oracle inbox for future sessions to pick up. Creates a timestamped markdown file in ψ/inbox/handoff/. Use at end of sessions to preserve context.',
   inputSchema: {
     type: 'object',
@@ -32,10 +39,59 @@ export const handoffToolDef = {
 };
 
 export async function handleHandoff(ctx: ToolContext, input: OracleHandoffInput): Promise<ToolResponse> {
-  const { content, slug: slugInput } = input;
+  // Null-guard: MCP clients sometimes call with no args. Show usage instead of crashing.
+  if (input == null || typeof input !== 'object') {
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          success: false,
+          error: "arra_handoff requires field 'content' (string). Optional: 'slug' (string).",
+          usage: "arra_handoff({ content: 'session summary markdown...', slug: 'optional-slug' })",
+          tip: "To list existing handoffs, use arra_inbox() instead."
+        }, null, 2)
+      }],
+      isError: true
+    };
+  }
+
+  const { content, slug: slugInput } = input as { content?: unknown; slug?: unknown };
+
+  // Validate content: must be a non-empty string before any string ops.
+  if (typeof content !== 'string' || content.length === 0) {
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          success: false,
+          error: "arra_handoff requires field 'content' (non-empty string).",
+          received: content === undefined ? 'undefined' : typeof content,
+          usage: "arra_handoff({ content: 'session summary markdown...', slug: 'optional-slug' })",
+          tip: "To list existing handoffs, use arra_inbox() instead."
+        }, null, 2)
+      }],
+      isError: true
+    };
+  }
+
+  // Validate optional slug type if supplied.
+  if (slugInput !== undefined && typeof slugInput !== 'string') {
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          success: false,
+          error: "arra_handoff field 'slug' must be a string when provided.",
+          received: typeof slugInput
+        }, null, 2)
+      }],
+      isError: true
+    };
+  }
+
   const now = new Date();
 
-  const dateStr = now.toISOString().split('T')[0];
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const timeStr = `${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
 
   const slug = slugInput || slugifyPattern(content) || 'handoff';
@@ -43,6 +99,7 @@ export async function handleHandoff(ctx: ToolContext, input: OracleHandoffInput)
   const filename = `${dateStr}_${timeStr}_${slug}.md`;
 
   // Resolve vault root for central writes
+  const getVaultPsiRoot = await loadGetVaultPsiRoot();
   const vault = getVaultPsiRoot();
   if ('needsInit' in vault) console.error(`[Vault] ${vault.hint}`);
   const vaultRoot = 'path' in vault ? vault.path : null;
@@ -70,7 +127,7 @@ export async function handleHandoff(ctx: ToolContext, input: OracleHandoffInput)
       text: JSON.stringify({
         success: true,
         file: sourceFileRel,
-        message: `Handoff written${vaultRoot ? ' (vault)' : ''}. Next session can read it with arra_inbox().`
+        message: `Handoff written${vaultRoot ? ' (vault)' : ''}. Next session can read it with oracle_inbox().`
       }, null, 2)
     }]
   };

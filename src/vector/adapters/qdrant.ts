@@ -76,7 +76,7 @@ export class QdrantAdapter implements VectorStoreAdapter {
     if (!this.client) throw new Error('Qdrant not connected');
 
     const texts = docs.map(d => d.document);
-    const embeddings = await this.embedder.embed(texts);
+    const embeddings = await this.embedder.embed(texts, 'passage');
 
     const points = docs.map((doc, i) => ({
       id: this.hashId(doc.id),
@@ -95,7 +95,7 @@ export class QdrantAdapter implements VectorStoreAdapter {
   async query(text: string, limit: number = 10, where?: Record<string, any>): Promise<VectorQueryResult> {
     if (!this.client) throw new Error('Qdrant not connected');
 
-    const [queryEmbedding] = await this.embedder.embed([text]);
+    const [queryEmbedding] = await this.embedder.embed([text], 'query');
 
     const filter = where ? {
       must: Object.entries(where).map(([key, value]) => ({

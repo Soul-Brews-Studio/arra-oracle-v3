@@ -1,0 +1,15 @@
+{
+  "name": "arra-health",
+  "version": "1.0.0",
+  "entry": "./index.ts",
+  "sdk": "^0.0.1",
+  "weight": 5,
+  "description": "Check Oracle server health",
+  "cli": {
+    "command": "health",
+    "help": "arra-cli health [--json]",
+    "flags": {
+      "--json": "Output raw JSON"
+    }
+  }
+}

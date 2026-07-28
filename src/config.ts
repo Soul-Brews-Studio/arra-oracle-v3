@@ -35,7 +35,7 @@ export const DB_PATH = process.env.ORACLE_DB_PATH || path.join(ORACLE_DATA_DIR, 
 //   4. ORACLE_DATA_DIR — default (will be empty initially)
 //
 // Data dir wins over project root so that accidental ψ/ folders in a source
-// checkout (e.g. from arra_learn writing with no vault configured) don't
+// checkout (e.g. from oracle_learn writing with no vault configured) don't
 // override the real indexed data at ~/.arra-oracle-v2/ψ/.
 export const REPO_ROOT = process.env.ORACLE_REPO_ROOT ||
   (fs.existsSync(path.join(ORACLE_DATA_DIR, '\u03c8')) ? ORACLE_DATA_DIR :
@@ -53,3 +53,45 @@ export const CHROMADB_DIR = path.join(HOME_DIR, C.CHROMADB_DIR_NAME);
 if (!fs.existsSync(ORACLE_DATA_DIR)) {
   fs.mkdirSync(ORACLE_DATA_DIR, { recursive: true });
 }
+
+// Vector layer routing (#1071 phase 1.2)
+//   VECTOR_URL       — if set, the core HTTP server proxies vector calls to this
+//                      base URL (e.g. http://vector.local:8080). The vector
+//                      server itself must ignore inherited VECTOR_URL so it
+//                      cannot proxy back to itself or another sidecar.
+//   VECTOR_FALLBACK  — what to do when proxy is unreachable. 'fts5' = serve FTS5-only
+//                      results with vectorAvailable: false. (Future: 'cache', 'fail'.)
+export function isVectorServerEntrypoint(argv1: string | undefined): boolean {
+  return /(^|[/\\])vector-server\.(ts|js|mjs)$/.test(argv1 || '');
+}
+
+export function resolveVectorUrl(
+  env: Record<string, string | undefined> = process.env,
+  argv: string[] = process.argv,
+): string {
+  if (env.ORACLE_VECTOR_SERVER === '1' || isVectorServerEntrypoint(argv[1])) {
+    return '';
+  }
+  if (env.VECTOR_URL?.trim()) return env.VECTOR_URL.trim();
+
+  // Durable cloud/sidecar routing: if vector-server.json declares a remote
+  // proxy URL, the core server uses it for vector legs while FTS remains local.
+  // Keep this small and local to avoid importing vector/config.ts here (that
+  // module imports config.ts for ORACLE_DATA_DIR and would create a cycle).
+  try {
+    const dataDir = env.ORACLE_DATA_DIR || process.env.ORACLE_DATA_DIR || ORACLE_DATA_DIR;
+    const raw = fs.readFileSync(path.join(dataDir, 'vector-server.json'), 'utf-8');
+    const config = JSON.parse(raw) as { vectorProxyUrl?: unknown; vectorUrl?: unknown };
+    const fromConfig = typeof config.vectorProxyUrl === 'string'
+      ? config.vectorProxyUrl
+      : typeof config.vectorUrl === 'string'
+        ? config.vectorUrl
+        : '';
+    return fromConfig.trim();
+  } catch {
+    return '';
+  }
+}
+
+export const VECTOR_URL = resolveVectorUrl();
+export const VECTOR_FALLBACK = process.env.VECTOR_FALLBACK || 'fts5';

@@ -1,6 +1,6 @@
 # Arra Oracle - MCP Memory Layer
 
-[![CI](https://github.com/Soul-Brews-Studio/arra-oracle-v3/actions/workflows/ci.yml/badge.svg)](https://github.com/Soul-Brews-Studio/arra-oracle-v3/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](./LICENSE) [![CalVer](https://img.shields.io/badge/calver-v26.4.20--alpha.7-blue)](https://calver.org) [![Bun](https://img.shields.io/badge/runtime-Bun%201.2%2B-f9f1e1)](https://bun.sh)
+[![CI](https://github.com/Soul-Brews-Studio/arra-oracle-v3/actions/workflows/ci.yml/badge.svg)](https://github.com/Soul-Brews-Studio/arra-oracle-v3/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](./LICENSE) [![CalVer](https://img.shields.io/badge/calver-v26.6.1--alpha.1428-blue)](https://calver.org) [![Bun](https://img.shields.io/badge/runtime-Bun%201.2%2B-f9f1e1)](https://bun.sh)
 
 > "The Oracle Keeps the Human Human" - now queryable via MCP
 
@@ -9,22 +9,25 @@ Phukhao Oracle is landing here: https://phukhao.buildwithoracle.com/presentation
 | | |
 |---|---|
 | **Status** | Always Nightly |
-| **Version** | 26.4.19-alpha.7 |
+| **Version** | 26.6.1-alpha.1428 |
 | **Created** | 2025-12-29 |
-| **Updated** | 2026-04-19 |
+| **Updated** | 2026-06-01 |
 
-TypeScript MCP server for semantic search over Oracle philosophy — SQLite FTS5 + ChromaDB hybrid search, HTTP API, and vault CLI.
+TypeScript MCP server for semantic search over Oracle philosophy — SQLite FTS5 + LanceDB hybrid search, HTTP API, and vault CLI.
 
 See [docs/LOCAL-DEV.md](docs/LOCAL-DEV.md) for local development.
+For Docker MCP Toolkit / Gateway / n8n installs, see [docs/DOCKER-MCP-TOOLKIT.md](docs/DOCKER-MCP-TOOLKIT.md).
+For the progressive first-run path from zero-config FTS to MCP, indexing, vectors, and audit logs, see [docs/ONBOARDING.md](docs/ONBOARDING.md).
 
 ## Architecture
 
 ```
-arra-oracle-v3 (one package, two bins)
-├── bunx arra-oracle-v2                          → MCP server (src/index.ts)
-├── bunx --package arra-oracle-v2 oracle-vault   → Vault CLI (src/vault/cli.ts)
-├── bun run server                          → HTTP API (src/server.ts)
-└── bun run index                           → Indexer (src/indexer.ts)
+arra-oracle-v3 (one package, two primary bins + legacy aliases)
+├── bunx --package github:Soul-Brews-Studio/arra-oracle-v3 arra-oracle  → HTTP API (bin/arra.ts)
+├── bunx --package github:Soul-Brews-Studio/arra-oracle-v3 arra-cli     → operator CLI (cli/src/cli.ts)
+├── bunx --package github:Soul-Brews-Studio/arra-oracle-v3 arra-oracle-v2 → legacy MCP alias (src/index.ts)
+├── bun run server                                                       → HTTP API (src/server.ts)
+└── bun run index                                                        → Indexer (src/indexer.ts)
 
 oracle-studio (separate repo)
 └── bunx oracle-studio                      → React dashboard
@@ -33,10 +36,23 @@ oracle-studio (separate repo)
 **Stack:**
 - **Bun** runtime (>=1.2.0)
 - **SQLite** + FTS5 for full-text search
-- **ChromaDB** for vector/semantic search
+- **LanceDB** for vector/semantic search
 - **Drizzle ORM** for type-safe queries
 - **Hono** for HTTP API
 - **MCP** protocol for Claude integration
+
+## Progressive onboarding
+
+Arra now starts with a low-friction floor and lets you opt into heavier pieces only when ready:
+
+1. **Install and search immediately** — start the HTTP server and use SQLite FTS5 via `GET /api/search?mode=fts&q=...`. A fresh install works without vector indexes; hybrid/vector requests degrade to FTS until vectors are ready (#1370).
+2. **Connect MCP with a small tool surface** — add the stdio MCP server, then trim exposed tools through config (`.arra/config.json`, `ORACLE_ENABLED_TOOLS`, `ORACLE_DISABLED_TOOLS`) or the `/tools/config` page backed by `GET/PUT /api/settings/tools` (#1372/#1373).
+3. **Save deploy credentials in the browser** — `/connect` stores `ORACLE_API` plus optional `ARRA_API_TOKEN`, can generate a token for your server env, and renders `claude mcp add` / JSON snippets (#1374).
+4. **Index your ψ vault** — when a repo has `ψ/`, scan with `POST /api/indexer/scan` and populate SQLite/FTS with `POST /api/indexer/reindex` (#1375).
+5. **Enable vectors when ready** — choose local engine/model with `GET/PATCH /api/vector/config`, index vectors with `POST /api/vector/index/start`, or move vector work behind `VECTOR_URL`; `GET /api/health` reports `vectorMode` (`embedded`, `proxied`, `disabled`) once #1390 lands (#1377/#1390).
+6. **Review what the AI searched** — `/traces` reads `GET /api/logs` plus `GET /api/traces` / `GET /api/traces/:id`, including AI-search audit details so searches are inspectable (#1384).
+
+Detailed walkthrough: [docs/ONBOARDING.md](docs/ONBOARDING.md).
 
 ## Install
 
@@ -45,11 +61,11 @@ oracle-studio (separate repo)
 Distributed via GitHub — no npm publish needed:
 
 ```bash
-# Backend (MCP server)
-bunx --bun arra-oracle@github:Soul-Brews-Studio/arra-oracle-v3
+# HTTP server
+bunx --bun --package github:Soul-Brews-Studio/arra-oracle-v3 arra-oracle
 
-# CLI (plugin runner)
-bunx --bun arra-cli@github:Soul-Brews-Studio/arra-oracle-v3 --help
+# CLI (operator client)
+bunx --bun --package github:Soul-Brews-Studio/arra-oracle-v3 arra-cli --help
 
 # UI (dashboard — separate repo)
 bunx --bun oracle-studio@github:Soul-Brews-Studio/oracle-studio
@@ -58,10 +74,14 @@ bunx --bun oracle-studio@github:Soul-Brews-Studio/oracle-studio
 bunx --bun --package arra-oracle-v2@github:Soul-Brews-Studio/arra-oracle-v3#main oracle-vault --help
 ```
 
+Canonical bins are `arra-oracle` (server) and `arra-cli` (client).
+Legacy aliases `arra-oracle-v3` and `arra-oracle-v2` stay available for
+existing installs, Docker commands, and MCP configs. See [docs/BINS.md](docs/BINS.md).
+
 ### Add to Claude Code
 
 ```bash
-claude mcp add arra-oracle-v2 -- bunx --bun arra-oracle-v2@github:Soul-Brews-Studio/arra-oracle-v3#main
+claude mcp add arra-oracle-v2 -- bunx --bun --package github:Soul-Brews-Studio/arra-oracle-v3 arra-oracle-v2
 ```
 
 Or in `~/.claude.json`:
@@ -70,11 +90,17 @@ Or in `~/.claude.json`:
   "mcpServers": {
     "arra-oracle-v2": {
       "command": "bunx",
-      "args": ["--bun", "arra-oracle-v2@github:Soul-Brews-Studio/arra-oracle-v3#main"]
+      "args": ["--bun", "--package", "github:Soul-Brews-Studio/arra-oracle-v3", "arra-oracle-v2"]
     }
   }
 }
 ```
+
+> For a canonical install that shares `ORACLE_DATA_DIR` with Codex / the HTTP API
+> (and gives pinned-commit control + offline starts), see
+> [Oracle 101 — ch03 "ติดตั้งจาก 0"](https://oracle101.vercel.app/ch03.html).
+> §3.11 note: if both Claude Code and Codex are installed, they MUST point at
+> the same `ORACLE_DATA_DIR`.
 
 ### From source
 
@@ -99,18 +125,18 @@ curl -sSL https://raw.githubusercontent.com/Soul-Brews-Studio/arra-oracle-v3/mai
 | Problem | Fix |
 |---------|-----|
 | `bun: command not found` | `export PATH="$HOME/.bun/bin:$PATH"` |
-| ChromaDB hangs/timeout | Skip it — SQLite FTS5 works fine without vectors |
-| Server crashes on empty DB | Run `bun run index` first to index knowledge base |
+| LanceDB missing/hangs/timeout | Skip it — SQLite FTS5 works fine without vectors |
+| Fresh install has no index yet | Start the server anyway; FTS search returns empty results and vector/hybrid modes degrade to FTS until vectors are indexed |
 
 </details>
 
 ## MCP Tools
 
-22 tools available via Claude Code:
+23 tools available via Claude Code:
 
 | Tool | Description |
 |------|-------------|
-| `oracle_search` | Hybrid search (FTS5 + ChromaDB) |
+| `oracle_search` | Hybrid search (FTS5 + LanceDB) |
 | `oracle_reflect` | Random wisdom |
 | `oracle_learn` | Add new patterns |
 | `oracle_list` | Browse documents |

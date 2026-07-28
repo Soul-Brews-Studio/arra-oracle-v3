@@ -1,0 +1,16 @@
+{
+  "name": "arra-vault",
+  "version": "1.0.0",
+  "entry": "./index.ts",
+  "sdk": "^0.0.1",
+  "weight": 25,
+  "description": "Manage Oracle knowledge vault (sync/status)",
+  "cli": {
+    "command": "vault",
+    "help": "arra-cli vault [sync|status|pull] [--dry-run] [--json]",
+    "flags": {
+      "--dry-run": "Preview without writing",
+      "--json": "Output raw JSON"
+    }
+  }
+}

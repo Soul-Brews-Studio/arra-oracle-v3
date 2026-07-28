@@ -51,7 +51,7 @@ export function cleanEmptyDirs(dir: string, stopAt: string): void {
 }
 
 /**
- * Resolve the vault ψ/ root for shared use by arra_learn, arra_handoff, indexer, etc.
+ * Resolve the vault ψ/ root for shared use by oracle_learn, oracle_handoff, indexer, etc.
  * Returns the vault repo local path, or a setup hint if not configured.
  */
 export function getVaultPsiRoot(): { path: string } | { needsInit: true; hint: string } {

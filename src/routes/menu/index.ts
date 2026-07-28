@@ -25,6 +25,6 @@ export {
   buildMenuItems,
   menuItemsFromRoutes,
   readApiMenuItemsFromDb,
-  API_TO_STUDIO,
+  scopeMatches,
 } from './menu.ts';
-export type { MenuItem, MenuResponse } from './model.ts';
+export type { MenuItem, MenuResponse, Scope } from './model.ts';

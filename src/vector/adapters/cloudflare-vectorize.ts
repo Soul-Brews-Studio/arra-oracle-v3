@@ -11,7 +11,7 @@
  * Model: @cf/baai/bge-m3 (multilingual, 1024 dimensions)
  */
 
-import type { VectorStoreAdapter, VectorDocument, VectorQueryResult, EmbeddingProvider } from '../types.ts';
+import type { VectorStoreAdapter, VectorDocument, VectorQueryResult, EmbeddingProvider, EmbedType } from '../types.ts';
 
 const CF_MODEL = '@cf/baai/bge-m3';
 const CF_DIMENSIONS = 1024;
@@ -38,7 +38,7 @@ export class CloudflareAIEmbeddings implements EmbeddingProvider {
     }
   }
 
-  async embed(texts: string[]): Promise<number[][]> {
+  async embed(texts: string[], _type?: EmbedType): Promise<number[][]> {
     if (!texts.length) return [];
 
     const allEmbeddings: number[][] = [];
@@ -194,7 +194,7 @@ export class CloudflareVectorizeAdapter implements VectorStoreAdapter {
     if (docs.length === 0) return;
 
     const texts = docs.map(d => d.document);
-    const embeddings = await this.embedder.embed(texts);
+    const embeddings = await this.embedder.embed(texts, 'passage');
 
     // Vectorize upsert in batches (max 1000 per call)
     const UPSERT_BATCH = 1000;
@@ -229,7 +229,7 @@ export class CloudflareVectorizeAdapter implements VectorStoreAdapter {
   }
 
   async query(text: string, limit: number = 10, where?: Record<string, any>): Promise<VectorQueryResult> {
-    const [queryEmbedding] = await this.embedder.embed([text]);
+    const [queryEmbedding] = await this.embedder.embed([text], 'query');
 
     const body: any = {
       vector: queryEmbedding,

@@ -8,7 +8,7 @@ import { handleReflect } from '../../server/handlers.ts';
 export const reflectEndpoint = new Elysia().get('/reflect', () => handleReflect(), {
   detail: {
     tags: ['search'],
-    menu: { group: 'main', order: 30 },
+    menu: { group: 'main', path: '/playground', order: 30 },
     summary: 'Oracle self-reflection snapshot',
   },
 });

@@ -171,7 +171,7 @@ export function verifyKnowledgeBase(opts: {
             .set({
               supersededBy: '_verified_orphan',
               supersededAt: now,
-              supersededReason: 'File missing from disk (arra_verify)',
+              supersededReason: 'File missing from disk (oracle_verify)',
             })
             .where(eq(oracleDocuments.id, id))
             .run();

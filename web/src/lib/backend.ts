@@ -86,6 +86,23 @@ export interface TraceListResponse {
   total: number;
 }
 
+export interface SearchLogEntry {
+  id?: number;
+  query: string;
+  type?: string;
+  mode?: string;
+  results_count?: number;
+  search_time_ms?: number;
+  created_at: number;
+  project?: string;
+  results?: string | Array<Record<string, unknown>> | null;
+}
+
+export interface SearchLogListResponse {
+  logs: SearchLogEntry[];
+  total?: number;
+}
+
 export interface TraceDetail extends TraceSummary {
   dig_points?: Array<Record<string, unknown>>;
   notes?: string;
@@ -131,6 +148,25 @@ export interface ScheduleResponse {
   total?: number;
 }
 
+export interface ToolToggleItem {
+  name: string;
+  enabled: boolean;
+}
+
+export interface ToolToggleGroup {
+  group: string;
+  tools: ToolToggleItem[];
+}
+
+export interface ToolConfigResponse {
+  groups: ToolToggleGroup[];
+  enabled_tools: string[];
+  disabled_tools: string[];
+  config_path?: string;
+  env_override?: boolean;
+  success?: boolean;
+}
+
 export interface BackendClient {
   search(query: string): Promise<SearchResult[]>;
   learn(pattern: string, concepts?: string[], source?: string): Promise<Learning>;
@@ -147,11 +183,14 @@ export interface BackendClient {
   thread(id: number): Promise<ThreadDetail>;
   sendMessage(threadId: number, message: string): Promise<ConsultResponse>;
   traces(): Promise<TraceListResponse>;
+  logs(): Promise<SearchLogListResponse>;
   traceGet(id: string): Promise<TraceDetail>;
   traceChain(id: string): Promise<TraceChainResponse>;
   superseded(): Promise<SupersedeListResponse>;
   supersedeChain(path: string): Promise<SupersedeChainResponse>;
   schedule(): Promise<ScheduleResponse>;
+  toolConfig(): Promise<ToolConfigResponse>;
+  saveToolConfig(enabledTools: string[]): Promise<ToolConfigResponse>;
 }
 
 export class MockBackend implements BackendClient {
@@ -224,6 +263,10 @@ export class MockBackend implements BackendClient {
     return { traces: [], total: 0 };
   }
 
+  async logs(): Promise<SearchLogListResponse> {
+    return { logs: [], total: 0 };
+  }
+
   async traceGet(id: string): Promise<TraceDetail> {
     return { id, query: "mock", status: "raw", created_at: new Date().toISOString(), dig_points: [] };
   }
@@ -243,15 +286,51 @@ export class MockBackend implements BackendClient {
   async schedule(): Promise<ScheduleResponse> {
     return { items: [], total: 0 };
   }
+
+  async toolConfig(): Promise<ToolConfigResponse> {
+    const groups: ToolToggleGroup[] = [
+      { group: "search", tools: ["oracle_search", "oracle_read", "oracle_list", "oracle_concepts"].map((name) => ({ name, enabled: true })) },
+      { group: "knowledge", tools: ["oracle_learn", "oracle_stats", "oracle_supersede"].map((name) => ({ name, enabled: true })) },
+      { group: "session", tools: ["oracle_handoff", "oracle_inbox"].map((name) => ({ name, enabled: true })) },
+      { group: "forum", tools: ["oracle_thread", "oracle_threads", "oracle_thread_read", "oracle_thread_update"].map((name) => ({ name, enabled: true })) },
+      { group: "trace", tools: ["oracle_trace", "oracle_trace_list", "oracle_trace_get", "oracle_trace_link", "oracle_trace_unlink", "oracle_trace_chain"].map((name) => ({ name, enabled: true })) },
+      { group: "standalone", tools: ["oracle_reflect", "oracle_verify"].map((name) => ({ name, enabled: true })) },
+    ];
+    const enabled_tools = groups.flatMap((g) => g.tools.map((t) => t.name));
+    return { groups, enabled_tools, disabled_tools: [] };
+  }
+
+  async saveToolConfig(enabledTools: string[]): Promise<ToolConfigResponse> {
+    const current = await this.toolConfig();
+    const enabled = new Set(enabledTools);
+    return {
+      ...current,
+      groups: current.groups.map((g) => ({ ...g, tools: g.tools.map((t) => ({ ...t, enabled: enabled.has(t.name) })) })),
+      enabled_tools: enabledTools,
+      disabled_tools: current.enabled_tools.filter((name) => !enabled.has(name)),
+      success: true,
+    };
+  }
+}
+
+function storedApiToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem("ARRA_API_TOKEN");
 }
 
 export class RealBackend implements BackendClient {
-  constructor(private baseUrl: string) {}
+  constructor(private baseUrl: string, private token: string | null = storedApiToken()) {}
+
+  private headers(init?: HeadersInit): HeadersInit {
+    return this.token
+      ? { ...(init as Record<string, string> | undefined), Authorization: `Bearer ${this.token}` }
+      : (init ?? {});
+  }
 
   private async post<T>(tool: string, args: Record<string, unknown>): Promise<T> {
     const res = await fetch(`${this.baseUrl}/api/${tool}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: this.headers({ "Content-Type": "application/json" }),
       body: JSON.stringify(args),
     });
     if (!res.ok) throw new Error(`Backend error ${res.status}: ${await res.text()}`);
@@ -265,13 +344,18 @@ export class RealBackend implements BackendClient {
           .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
           .join("&")
       : "";
-    const res = await fetch(`${this.baseUrl}${path}${qs}`);
+    const res = await fetch(`${this.baseUrl}${path}${qs}`, { headers: this.headers() });
     if (!res.ok) throw new Error(`Backend error ${res.status}: ${await res.text()}`);
     return res.json() as Promise<T>;
   }
 
   async search(query: string): Promise<SearchResult[]> {
-    return this.post("arra_search", { query });
+    const response = await this.get<{ results: SearchResult[] }>("/api/search", {
+      q: query,
+      mode: "fts",
+      limit: 20,
+    });
+    return response.results;
   }
 
   async learn(pattern: string, concepts?: string[], source?: string): Promise<Learning> {
@@ -279,7 +363,12 @@ export class RealBackend implements BackendClient {
   }
 
   async list(type?: string, limit?: number): Promise<SearchResult[]> {
-    return this.post("arra_list", { type, limit });
+    const response = await this.get<{ results: SearchResult[] }>("/api/list", {
+      type: type ?? "all",
+      limit: limit ?? 20,
+      group: "false",
+    });
+    return response.results;
   }
 
   async trace(query: string): Promise<TraceResult> {
@@ -309,7 +398,7 @@ export class RealBackend implements BackendClient {
   async consult(q: string, threadId?: number): Promise<ConsultResponse> {
     const res = await fetch(`${this.baseUrl}/api/thread`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: this.headers({ "Content-Type": "application/json" }),
       body: JSON.stringify({ message: q, thread_id: threadId, role: "human" }),
     });
     if (!res.ok) throw new Error(`Backend error ${res.status}: ${await res.text()}`);
@@ -336,6 +425,10 @@ export class RealBackend implements BackendClient {
     return this.get("/api/traces");
   }
 
+  async logs(): Promise<SearchLogListResponse> {
+    return this.get("/api/logs", { limit: 100 });
+  }
+
   async traceGet(id: string): Promise<TraceDetail> {
     return this.get(`/api/traces/${encodeURIComponent(id)}`);
   }
@@ -355,6 +448,20 @@ export class RealBackend implements BackendClient {
   async schedule(): Promise<ScheduleResponse> {
     return this.get("/api/schedule");
   }
+
+  async toolConfig(): Promise<ToolConfigResponse> {
+    return this.get("/api/settings/tools");
+  }
+
+  async saveToolConfig(enabledTools: string[]): Promise<ToolConfigResponse> {
+    const res = await fetch(`${this.baseUrl}/api/settings/tools`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled_tools: enabledTools }),
+    });
+    if (!res.ok) throw new Error(`Backend error ${res.status}: ${await res.text()}`);
+    return res.json() as Promise<ToolConfigResponse>;
+  }
 }
 
 let _client: BackendClient | null = null;
@@ -364,11 +471,11 @@ export function createBackendClient(): BackendClient {
   const envUrl = import.meta.env.PUBLIC_BACKEND_URL;
   if (envUrl) return new RealBackend(envUrl);
 
-  // Check ?api= query param in browser context
+  // Check ?api= query param or persisted home-page connection in browser context
   if (typeof window !== "undefined") {
     const params = new URLSearchParams(window.location.search);
-    const apiUrl = params.get("api");
-    if (apiUrl) return new RealBackend(apiUrl);
+    const apiUrl = params.get("api") || window.localStorage.getItem("ORACLE_API");
+    if (apiUrl) return new RealBackend(apiUrl.replace(/\/+$/, ""));
   }
 
   return new MockBackend();

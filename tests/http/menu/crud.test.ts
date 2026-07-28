@@ -19,13 +19,13 @@ function clearMenu() {
 function sampleSource() {
   return new Elysia({ prefix: '/api' })
     .get('/search', () => ({}), {
-      detail: { menu: { group: 'main', order: 10 }, summary: 'Search' },
+      detail: { menu: { group: 'main', path: '/search', order: 10 }, summary: 'Search' },
     })
     .get('/traces', () => ({}), {
-      detail: { menu: { group: 'main', order: 40 }, summary: 'Traces' },
+      detail: { menu: { group: 'main', path: '/traces', order: 40 }, summary: 'Traces' },
     })
     .get('/map', () => ({}), {
-      detail: { menu: { group: 'tools', order: 20 }, summary: 'Map' },
+      detail: { menu: { group: 'tools', path: '/map', order: 20 }, summary: 'Map' },
     });
 }
 

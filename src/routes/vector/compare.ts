@@ -1,0 +1,136 @@
+/**
+ * GET /api/compare — fan out search across multiple embedding models
+ * server-side, return merged payload + pre-computed agreement metrics.
+ *
+ * Single round-trip from frontend instead of N parallel /api/search calls.
+ * Phase 2 of ui-vector#5.
+ *
+ * Vector-only: every per-model query runs in vector mode against the requested
+ * embedding engine. Lives in src/routes/vector/ alongside the rest of the
+ * vector surface so the future VECTOR_URL proxy can forward all of it as a unit.
+ *
+ * When VECTOR_URL is set the request is proxied to the remote vector server;
+ * on proxy failure we return 503 rather than falling back to local (compare
+ * is a pure-vector operation — no FTS fallback makes sense).
+ */
+
+import { Elysia } from 'elysia';
+import { handleSearch } from '../../server/handlers.ts';
+import { getEmbeddingModels } from '../../vector/factory.ts';
+import { computeAgreement, type ByModel } from './agreement.ts';
+import { CompareQuery } from './model.ts';
+import { createVectorProxy } from '../../server/vector-proxy.ts';
+import { VECTOR_URL } from '../../config.ts';
+import type { SearchResult } from '../../server/types.ts';
+
+const proxy = createVectorProxy(VECTOR_URL);
+
+type ByModelResponse = Record<
+  string,
+  { results: SearchResult[]; latency_ms: number } | { error: string }
+>;
+
+function sanitize(q: string): string {
+  return q
+    .replace(/<[^>]*>/g, '')
+    .replace(/[\x00-\x1f]/g, '')
+    .trim();
+}
+
+export const compareEndpoint = new Elysia().get(
+  '/compare',
+  async ({ query, set }) => {
+    const q = query.q;
+    if (!q) {
+      set.status = 400;
+      return { error: 'Missing query parameter: q' };
+    }
+    const sanitizedQ = sanitize(q);
+    if (!sanitizedQ) {
+      set.status = 400;
+      return { error: 'Invalid query: empty after sanitization' };
+    }
+
+    // VECTOR_URL set -> proxy. On failure, 503 (no FTS fallback for compare).
+    if (proxy) {
+      const remote = await proxy.compare({
+        q: sanitizedQ,
+        models: query.models,
+        limit: query.limit ? parseInt(query.limit) : undefined,
+        type: query.type,
+        project: query.project,
+        cwd: query.cwd,
+      });
+      if (remote) return remote;
+      set.status = 503;
+      return { error: 'Vector proxy unavailable', query: sanitizedQ, models: [], byModel: {}, agreement: { top1: 0, top5_jaccard: 0, avg_rank_shift: 0, shared_ids: [] } };
+    }
+
+    const enabledModels = Object.keys(getEmbeddingModels());
+    const requested = query.models
+      ? query.models
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : enabledModels;
+    // Preserve requested order but only keep known models
+    const models = requested.filter((m) => enabledModels.includes(m));
+
+    const limit = Math.min(100, Math.max(1, parseInt(query.limit ?? '20')));
+    const type = query.type ?? 'all';
+    const project = query.project;
+    const cwd = query.cwd;
+
+    const byModel: ByModelResponse = {};
+
+    if (models.length === 0) {
+      return {
+        query: sanitizedQ,
+        models: [],
+        byModel,
+        agreement: { top1: 0, top5_jaccard: 0, avg_rank_shift: 0, shared_ids: [] },
+      };
+    }
+
+    const settled = await Promise.allSettled(
+      models.map(async (model) => {
+        const start = Date.now();
+        const result = await handleSearch(
+          sanitizedQ,
+          type,
+          limit,
+          0,
+          'vector',
+          project,
+          cwd,
+          model,
+        );
+        return { model, result, latency_ms: Date.now() - start };
+      }),
+    );
+
+    const successByModel: ByModel<SearchResult> = {};
+    settled.forEach((r, i) => {
+      const model = models[i];
+      if (r.status === 'fulfilled') {
+        byModel[model] = { results: r.value.result.results, latency_ms: r.value.latency_ms };
+        successByModel[model] = r.value.result.results;
+      } else {
+        const msg = r.reason instanceof Error ? r.reason.message : String(r.reason);
+        byModel[model] = { error: msg };
+      }
+    });
+
+    const agreement = computeAgreement(successByModel);
+
+    return { query: sanitizedQ, models, byModel, agreement };
+  },
+  {
+    query: CompareQuery,
+    detail: {
+      tags: ['vector'],
+      menu: { group: 'main', order: 15 },
+      summary: 'Fan out search across models + pre-computed agreement metrics',
+    },
+  },
+);
