@@ -24,6 +24,7 @@ const relBackslash = `ψ/memory/learnings/verify-backslash-${stamp}.md`;
 const relOrphan = `ψ/memory/learnings/verify-orphan-${stamp}.md`;
 const relProjectFirst = `github.com/acme/demo/ψ/memory/learnings/verify-project-first-${stamp}.md`;
 const relProjectFirstOrphan = `github.com/acme/demo/ψ/memory/learnings/verify-project-first-orphan-${stamp}.md`;
+const relCrew = `ψ/crew/reviewer/memory/learnings/verify-crew-${stamp}.md`;
 const ids = {
   absolute: `verify-absolute-${stamp}`,
   backslash: `verify-backslash-${stamp}`,
@@ -32,6 +33,7 @@ const ids = {
   orphanB: `verify-orphan-b-${stamp}`,
   projectFirst: `verify-project-first-${stamp}`,
   projectFirstOrphan: `verify-project-first-orphan-${stamp}`,
+  crew: `verify-crew-${stamp}`,
 };
 
 function writeRepoFile(relPath: string) {
@@ -55,6 +57,7 @@ function seedDoc(id: string, sourceFile: string) {
 writeRepoFile(relAbsolute);
 writeRepoFile(relBackslash);
 writeRepoFile(relProjectFirst);
+writeRepoFile(relCrew);
 seedDoc(ids.absolute, path.join(repoRoot, relAbsolute));
 seedDoc(ids.backslash, relBackslash.replaceAll('/', '\\'));
 seedDoc(ids.blank, '   ');
@@ -62,6 +65,7 @@ seedDoc(ids.orphanA, relOrphan.replaceAll('/', '\\'));
 seedDoc(ids.orphanB, relOrphan);
 seedDoc(ids.projectFirst, relProjectFirst);
 seedDoc(ids.projectFirstOrphan, relProjectFirstOrphan);
+seedDoc(ids.crew, relCrew);
 
 function restore(name: string, value: string | undefined) {
   if (value === undefined) delete process.env[name];
@@ -80,7 +84,7 @@ describe('verifyKnowledgeBase edge cases', () => {
   test('normalizes absolute and backslash DB source paths before classification', () => {
     const result = verifyKnowledgeBase({ repoRoot, type: ' learning ' });
 
-    expect(result.counts.healthy).toBe(3);
+    expect(result.counts.healthy).toBe(4);
     expect(result.missing).toEqual([]);
     expect(result.orphaned).toEqual([relOrphan, relProjectFirstOrphan]);
     expect(result.orphaned).not.toContain('');
@@ -105,5 +109,12 @@ describe('verifyKnowledgeBase edge cases', () => {
 
     expect(result.orphaned).not.toContain(relProjectFirst);
     expect(result.counts.healthy).toBeGreaterThanOrEqual(3);
+  });
+
+  test('classifies crew vault files as healthy when file exists on disk', () => {
+    const result = verifyKnowledgeBase({ repoRoot, type: 'learning' });
+
+    expect(result.orphaned).not.toContain(relCrew);
+    expect(result.counts.healthy).toBeGreaterThanOrEqual(4);
   });
 });

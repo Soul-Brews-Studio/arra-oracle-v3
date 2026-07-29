@@ -11,7 +11,7 @@ import path from 'path';
 import { and, eq } from 'drizzle-orm';
 import { db, oracleDocuments } from '../db/index.ts';
 import { currentTenantId } from '../middleware/tenant.ts';
-import { discoverProjectPsiDirs } from '../indexer/discovery.ts';
+import { discoverCrewPsiDirs, discoverProjectPsiDirs } from '../indexer/discovery.ts';
 import { walkMarkdownFiles } from './files.ts';
 import { normalizeSourceFile } from './paths.ts';
 
@@ -48,12 +48,6 @@ export function verifyKnowledgeBase(opts: {
   const { check = true, type, repoRoot } = opts;
   const tenantId = currentTenantId();
 
-  // 1. Walk indexed directories on disk.
-  // Mirrors src/indexer/collectors.ts: walk project-first vault dirs
-  // (github.com/<org>/<repo>/ψ/memory/<sub>) AND legacy top-level ψ/memory/<sub>.
-  // Project-first is canonical since "central ψ/ via vault repo — Phase 1"
-  // (commit 43078d27). Without it, every project-first DB row is falsely
-  // reported as orphaned.
   const memorySubdirs = ['resonance', 'learnings', 'retrospectives'];
   const diskFiles = new Map<string, number>(); // relativePath -> mtimeMs
 
@@ -63,7 +57,8 @@ export function verifyKnowledgeBase(opts: {
     }
   };
 
-  for (const psiDir of discoverProjectPsiDirs(repoRoot)) {
+  const psiDirs = [...discoverProjectPsiDirs(repoRoot), ...discoverCrewPsiDirs(repoRoot)];
+  for (const psiDir of psiDirs) {
     for (const sub of memorySubdirs) {
       walkInto(path.join(psiDir, 'memory', sub));
     }
