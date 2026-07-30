@@ -3,6 +3,7 @@ import { and, count, eq, sql } from 'drizzle-orm';
 import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../../db/schema.ts';
 import { assertSqliteIdentifier, sqliteVecEmbeddingsTable, sqliteVecMetadataTable } from '../../db/schema.ts';
+import { ensureExtensionCapableSqlite } from '../sqlite-runtime.ts';
 import type { EmbeddingProvider, VectorDocument, VectorQueryResult, VectorStoreAdapter } from '../types.ts';
 
 type SqliteVecDb = BunSQLiteDatabase<typeof schema>;
@@ -46,6 +47,7 @@ export class SqliteVecAdapter implements VectorStoreAdapter {
   async connect(): Promise<void> {
     if (this.db) return;
 
+    ensureExtensionCapableSqlite();
     const sqlite = new Database(this.dbPath);
     this.sqlite = sqlite;
     this.db = drizzle(sqlite, { schema });
