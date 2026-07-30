@@ -60,7 +60,6 @@ COPY package.json bun.lock ./
 RUN mkdir -p /data \
  && chown -R bun:bun /data
 USER bun
-VOLUME ["/data"]
 
 FROM production AS mcp-stdio
 ENV ORACLE_LOG_TARGET=stderr
