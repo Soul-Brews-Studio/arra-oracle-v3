@@ -17,7 +17,6 @@ export const askToolDef = {
       asOf: { type: 'string', description: 'Valid-time timestamp for historical answers, e.g. 2026-06-17T00:00:00Z.' },
       llm: { type: 'boolean', description: 'Set false for deterministic extractive answers without an LLM call.', default: true },
     },
-    anyOf: [{ required: ['q'] }, { required: ['question'] }],
   },
 };
 
