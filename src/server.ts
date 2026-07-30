@@ -1,3 +1,6 @@
+import { ensureExtensionCapableSqlite } from './vector/sqlite-runtime.ts';
+ensureExtensionCapableSqlite();
+
 import { Elysia } from 'elysia';
 import { join } from 'node:path';
 import { swagger } from '@elysiajs/swagger';

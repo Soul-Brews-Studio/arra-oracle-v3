@@ -11,6 +11,9 @@
  * Opens oracle.db in READ-ONLY mode (no WAL contention).
  */
 
+import { ensureExtensionCapableSqlite } from './vector/sqlite-runtime.ts';
+ensureExtensionCapableSqlite();
+
 import { Elysia } from 'elysia';
 import { swagger } from '@elysiajs/swagger';
 

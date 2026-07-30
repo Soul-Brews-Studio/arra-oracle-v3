@@ -1,6 +1,9 @@
 #!/usr/bin/env bun
 /** Arra Oracle MCP Server entry point. */
 
+import { ensureExtensionCapableSqlite } from './vector/sqlite-runtime.ts';
+ensureExtensionCapableSqlite();
+
 import { OracleMCPServer } from './mcp/server.ts';
 import { resolveToolName } from './mcp/aliases.ts';
 export { OracleMCPServer } from './mcp/server.ts';
