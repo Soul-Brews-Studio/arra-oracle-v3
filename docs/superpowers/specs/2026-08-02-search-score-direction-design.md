@@ -23,8 +23,10 @@ fusion, so the weakest candidates in each retrieved pool rise to the top.
 All scores entering `combineResults` use one contract: finite values in `[0, 1]`, with larger
 values meaning more relevant.
 
-- FTS: `1 - exp(-0.3 * max(0, -rank))`. A more-negative BM25 rank produces a larger score;
-  zero or an unexpected positive rank maps to zero.
+- FTS: `0.9 + 0.05 * (1 - exp(-0.3 * max(0, -rank)))`. A more-negative BM25 rank produces a
+  larger score. The `0.9` floor preserves the existing confidence contract for valid FTS hits
+  even in tiny corpora, where SQLite BM25 magnitudes can be around `1e-6`; the `0.95` ceiling
+  leaves headroom for the existing hybrid boost instead of saturating ordinary fused results.
 - Vector: `cosineDistanceToSimilarity(distance)` is the sole distance conversion. The handler
   consumes that similarity unchanged.
 - Pointer and entity signals: positive relevance boosts remain additive and bounded at their

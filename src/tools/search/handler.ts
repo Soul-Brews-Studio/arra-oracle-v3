@@ -87,8 +87,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
   }
 
   const ftsResults = mapFtsResults(ftsRawResults);
-  const normalizedVectorResults = vecResults.map((result) => ({ ...result, score: 1 - (result.score || 0) }));
-  const combinedResults = combineResults(ftsResults, normalizedVectorResults, 0.5, 0.5, pointerResults);
+  const combinedResults = combineResults(ftsResults, vecResults, 0.5, 0.5, pointerResults);
   const entityRankedResults = rerankByEntityLinks(ctx.sqlite, combinedResults, augmentedQuery, currentTenantId());
   const reranked = await rerankCandidates({
     query,

@@ -47,8 +47,8 @@ copied real corpus and audit every downstream score conversion.
 - Consumes: raw SQLite FTS5 rank and vector-leg similarity.
 - Produces: bounded higher-is-better values for `combineResults`.
 
-- [ ] Change `normalizeFtsScore` to `1 - exp(-0.3 * max(0, -rank))`, returning zero for
-  non-finite input.
+- [ ] Change `normalizeFtsScore` to an exponential rise from `0.9` toward `0.95` as BM25 rank
+  gets more negative, returning zero for non-finite input.
 - [ ] Pass `vecResults` directly into `combineResults` without `1 - score`.
 - [ ] Run the fast regressions and existing search helper suite until GREEN.
 

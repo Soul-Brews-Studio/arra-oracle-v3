@@ -75,19 +75,19 @@ describe('normalizeFtsScore', () => {
     }
   });
 
-  it('should give better scores for better ranks (closer to 0)', () => {
-    expect(normalizeFtsScore(-1)).toBeGreaterThan(normalizeFtsScore(-5));
-    expect(normalizeFtsScore(-5)).toBeGreaterThan(normalizeFtsScore(-10));
+  it('should give better scores to more-negative SQLite BM25 ranks', () => {
+    expect(normalizeFtsScore(-10)).toBeGreaterThan(normalizeFtsScore(-5));
+    expect(normalizeFtsScore(-5)).toBeGreaterThan(normalizeFtsScore(-1));
   });
 
-  it('should provide exponential decay', () => {
+  it('should increase toward a bounded ceiling as BM25 relevance increases', () => {
     const score1 = normalizeFtsScore(-1);
     const score2 = normalizeFtsScore(-2);
     const score3 = normalizeFtsScore(-3);
 
-    const ratio1 = score1 / score2;
-    const ratio2 = score2 / score3;
-    expect(ratio1).toBeCloseTo(ratio2, 1);
+    expect(score1).toBeLessThan(score2);
+    expect(score2).toBeLessThan(score3);
+    expect(score3).toBeLessThan(1);
   });
 });
 

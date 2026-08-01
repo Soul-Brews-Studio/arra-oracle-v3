@@ -2,6 +2,8 @@ import { augmentQueryWithAcronyms } from '../../search/acronyms.ts';
 import type { CombinedSearchResult, FtsResult, PointerResult, SearchConfidence, SearchProvenance, VectorResult } from './types.ts';
 
 const FTS_TOKEN_LIMIT = 32;
+const FTS_SCORE_FLOOR = 0.9;
+const FTS_SCORE_CEILING = 0.95;
 
 /** Sanitize FTS5 query to prevent parse errors. */
 export function sanitizeFtsQuery(query: string): string {
@@ -18,9 +20,11 @@ export function sanitizeFtsQuery(query: string): string {
     .join(' OR ');
 }
 
-/** Normalize FTS5 rank score using exponential decay. */
+/** Normalize FTS5 BM25 rank to bounded relevance (more-negative rank is better). */
 export function normalizeFtsScore(rank: number): number {
-  return Math.exp(-0.3 * Math.abs(rank));
+  if (!Number.isFinite(rank)) return 0;
+  const relevance = 1 - Math.exp(-0.3 * Math.max(0, -rank));
+  return FTS_SCORE_FLOOR + ((FTS_SCORE_CEILING - FTS_SCORE_FLOOR) * relevance);
 }
 
 export function parseConceptsFromMetadata(concepts: unknown): string[] {
