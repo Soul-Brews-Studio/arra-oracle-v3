@@ -33,8 +33,10 @@ import { ToolsConfigPage } from './pages/ToolsConfigPage';
 import { VectorSettingsPage } from './pages/VectorSettingsPage';
 import { VectorFirstRunWizardPage } from './pages/FirstRunWizard';
 import { IndexManagerPanel } from './pages/IndexManagerPanel';
+import { X402Page } from './pages/X402Page';
 import type { LoadState, MenuItem, PluginEntry } from './types';
 import type { MetricsSnapshot } from '../../src/server/types';
+import type { X402StatsResponse } from '../../src/routes/x402/stats-types';
 
 export const frontendRoutes = [
   '/',
@@ -69,16 +71,18 @@ export const frontendRoutes = [
   '/settings',
   '/tools/config',
   '/simple',
+  '/x402',
 ] as const;
 export type FrontendRoute = typeof frontendRoutes[number];
 
-export type DashboardRouteStates = Record<'menu' | 'plugins' | 'metrics', LoadState>;
+export type DashboardRouteStates = Record<'menu' | 'plugins' | 'metrics' | 'x402', LoadState>;
 
 export interface DashboardRoutesProps {
   menu: MenuItem[];
   plugins: PluginEntry[];
   states: DashboardRouteStates;
   metrics: MetricsSnapshot | null;
+  x402: X402StatsResponse | null;
   surfaceCount: number;
   updatedAt: string;
   onRefresh: () => void;
@@ -110,6 +114,7 @@ export function DashboardRoutes({
   plugins,
   states,
   metrics,
+  x402,
   surfaceCount,
   updatedAt,
   onRefresh,
@@ -169,6 +174,7 @@ export function DashboardRoutes({
         element={<SettingsPage menuCount={menu.length} pluginCount={plugins.length} surfaceCount={surfaceCount} updatedAt={updatedAt} onRefresh={onRefresh} />}
       />
       <Route path="/tools/config" element={<ToolsConfigPage />} />
+      <Route path="/x402" element={<X402Page stats={x402} loading={isRouteLoading(states.x402)} />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

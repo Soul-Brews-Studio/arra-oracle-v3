@@ -21,3 +21,4 @@ export { exportJobs } from './export-schema.ts';
 export { activityLog, menuItems, schedule, settings, supersedeLog } from './logistics-schema.ts';
 export { pluginMetadata } from './plugin-schema.ts';
 export { auditLog } from '../storage/audit-log.ts';
+export { x402RequestLog } from './x402-schema.ts';

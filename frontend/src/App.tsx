@@ -5,9 +5,10 @@ import { countPluginSurfaces } from './plugin-surfaces';
 import { AppRouter, DashboardRoutes, SimpleRoutes, isRouteLoading } from './router';
 import type { LoadState, MenuItem, PluginEntry } from './types';
 import type { MetricsSnapshot } from '../../src/server/types';
+import type { X402StatsResponse } from '../../src/routes/x402/stats-types';
 
-type DashboardClient = Pick<ApiClient, 'menu' | 'plugins' | 'metrics'>;
-type DashboardKey = 'menu' | 'plugins' | 'metrics';
+type DashboardClient = Pick<ApiClient, 'menu' | 'plugins' | 'metrics' | 'x402Stats'>;
+type DashboardKey = 'menu' | 'plugins' | 'metrics' | 'x402';
 export type DashboardErrors = Partial<Record<DashboardKey, string>>;
 
 type LoadStates = Record<DashboardKey, LoadState>;
@@ -16,11 +17,12 @@ export interface DashboardLoadResult {
   menu: MenuItem[] | null;
   plugins: PluginEntry[] | null;
   metrics: MetricsSnapshot | null;
+  x402: X402StatsResponse | null;
   errors: DashboardErrors;
 }
 
-const loadingStates: LoadStates = { menu: 'loading', plugins: 'loading', metrics: 'loading' };
-const idleStates: LoadStates = { menu: 'idle', plugins: 'idle', metrics: 'idle' };
+const loadingStates: LoadStates = { menu: 'loading', plugins: 'loading', metrics: 'loading', x402: 'loading' };
+const idleStates: LoadStates = { menu: 'idle', plugins: 'idle', metrics: 'idle', x402: 'idle' };
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -31,20 +33,23 @@ function stateFor(key: DashboardKey, errors: DashboardErrors): LoadState {
 }
 
 export async function loadDashboardData(client: DashboardClient = apiClient): Promise<DashboardLoadResult> {
-  const [menu, plugins, metrics] = await Promise.allSettled([
+  const [menu, plugins, metrics, x402] = await Promise.allSettled([
     client.menu(),
     client.plugins(),
     client.metrics(),
+    client.x402Stats({ limit: 50 }),
   ]);
   const errors: DashboardErrors = {};
   if (menu.status === 'rejected') errors.menu = `Menu: ${errorText(menu.reason)}`;
   if (plugins.status === 'rejected') errors.plugins = `Plugins: ${errorText(plugins.reason)}`;
   if (metrics.status === 'rejected') errors.metrics = `Metrics: ${errorText(metrics.reason)}`;
+  if (x402.status === 'rejected') errors.x402 = `x402: ${errorText(x402.reason)}`;
 
   return {
     menu: menu.status === 'fulfilled' ? menu.value.items : null,
     plugins: plugins.status === 'fulfilled' ? plugins.value.plugins : null,
     metrics: metrics.status === 'fulfilled' ? metrics.value : null,
+    x402: x402.status === 'fulfilled' ? x402.value : null,
     errors,
   };
 }
@@ -54,6 +59,7 @@ function DashboardApp() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [plugins, setPlugins] = useState<PluginEntry[]>([]);
   const [metrics, setMetrics] = useState<MetricsSnapshot | null>(null);
+  const [x402, setX402] = useState<X402StatsResponse | null>(null);
   const [errors, setErrors] = useState<DashboardErrors>({});
   const [updatedAt, setUpdatedAt] = useState('never');
 
@@ -63,11 +69,13 @@ function DashboardApp() {
     if (result.menu) setMenu(result.menu);
     if (result.plugins) setPlugins(result.plugins);
     if (result.metrics) setMetrics(result.metrics);
+    if (result.x402) setX402(result.x402);
     setErrors(result.errors);
     setStates({
       menu: stateFor('menu', result.errors),
       plugins: stateFor('plugins', result.errors),
       metrics: stateFor('metrics', result.errors),
+      x402: stateFor('x402', result.errors),
     });
     setUpdatedAt(new Date().toLocaleTimeString());
   }
@@ -114,6 +122,7 @@ function DashboardApp() {
         plugins={plugins}
         states={states}
         metrics={metrics}
+        x402={x402}
         surfaceCount={surfaceCount}
         updatedAt={updatedAt}
         onRefresh={refresh}

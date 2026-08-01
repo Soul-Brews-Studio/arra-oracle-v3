@@ -214,4 +214,5 @@ export { forumMessages, forumThreads } from './forum-schema.ts';
 export { fleetIngestCursor, fleetMessages } from './fleet-log-schema.ts';
 export { oracleFindingEvidence, oracleFindings } from './oracle-dig-schema.ts';
 export { activityLog, menuItems, schedule, settings, supersedeLog } from './logistics-schema.ts';
+export { x402RequestLog } from './x402-schema.ts';
 export { assertSqliteIdentifier, oracleVectorDocuments, sqliteVecEmbeddingsTable, sqliteVecMetadataTable, vectorDocumentsTable } from './vector-schema.ts';

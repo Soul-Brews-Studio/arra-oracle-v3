@@ -41,5 +41,6 @@ export default defineConfig({
     'plugin_metadata', // Server-side plugin registrations
     'fleet_messages',   // Unified fleet communication log
     'fleet_ingest_cursor', // Fleet ingestion progress cursors
+    'x402_request_log', // x402 paid-route request/settlement log
   ],
 });

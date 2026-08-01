@@ -48,7 +48,8 @@ const MENU_GROUP_PRIORITY: Record<string, number> = {
   admin: 2,
 };
 
-const MAX_ROUTE_MENU_ITEMS = 10;
+// Bumped 10 -> 11 to fit /x402 (see docs/x402.md) without evicting an existing entry.
+const MAX_ROUTE_MENU_ITEMS = 11;
 
 function menuGroupPriority(group: string): number {
   return MENU_GROUP_PRIORITY[group] ?? 99;

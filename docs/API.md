@@ -1,7 +1,7 @@
 # Arra Oracle API Reference
 
 Verified against `src/server.ts`, `src/routes/*`, `src/tools/mcp-manifest.ts`,
-and `src/tools/mcp-rest-map.ts` on 2026-06-17. The internal Elysia routes are
+and `src/tools/mcp-rest-map.ts` on 2026-08-01. The internal Elysia routes are
 mounted under `/api/*`; the runnable server redirects most unversioned `/api/*`
 requests to `/api/v1/*` and rewrites them internally. `/api/health` stays
 unversioned for probes. Hosted legacy Studio/Feed origins have a narrow
@@ -43,6 +43,7 @@ Base `createApp()` with no dynamic plugins/gateway config exposes the route inve
 | Files/vault | `GET /api/context`, `/api/file`, `/api/graph`, `/api/logs`, `/api/doc/:id`; `POST /api/doc`, `/api/vault/sync`; `PATCH /api/doc/:id` |
 | Collaboration | `GET/POST /api/feed/`; `GET /api/threads`, `/api/thread/:id`; `POST /api/thread`; `PATCH /api/thread/:id/status`; `GET/POST/DELETE /api/traces*`; `GET/POST/PATCH /api/schedule*`; `GET/POST /api/supersede*` |
 | Admin/ops | `GET/POST /api/tenants*`; `GET/POST /api/watcher/*`; `GET /api/mcp/tools` |
+| Payments (x402) | `POST /api/x402/ask`; `GET /api/x402/stats` |
 
 ## Request/response examples
 

@@ -1,69 +1,35 @@
 import type { MenuItem, MenuResponse } from '../../../src/routes/menu/model';
+import type { X402StatsResponse } from '../../../src/routes/x402/stats-types';
 import type {
   HealthResponse,
   MetricsSnapshot,
   PluginsResponse,
-  RuntimeStatus,
   VectorSearchResponse,
 } from '../../../src/server/types';
 import type { LearnCreateResponse, LearnDeleteResponse, LearnListResponse, LearnMutationPayload, LearnUpdateResponse } from '../types';
 import { API_BASE, apiFetch } from './oracle';
+import type {
+  VectorHealthResponse,
+  VectorIndexModelsResponse,
+  VectorIndexStartResponse,
+  VectorIndexStatusResponse,
+} from './vector-types';
+
+export type {
+  VectorHealthEngine,
+  VectorHealthResponse,
+  VectorIndexCollection,
+  VectorIndexJobStatus,
+  VectorIndexModelEntry,
+  VectorIndexModelsResponse,
+  VectorIndexStartResponse,
+  VectorIndexStatusResponse,
+} from './vector-types';
 
 export interface MenuSearchResponse {
   data: MenuItem[];
   q: string;
   total: number;
-}
-
-export interface VectorIndexModelEntry {
-  collection: string;
-  model: string;
-  adapter: string;
-  count?: number;
-}
-
-export type VectorIndexCollection = VectorIndexModelEntry;
-
-export interface VectorIndexModelsResponse {
-  models: Record<string, VectorIndexModelEntry>;
-}
-
-export interface VectorHealthEngine {
-  key?: string;
-  model?: string;
-  collection?: string;
-  ok?: boolean;
-  error?: string;
-}
-
-export interface VectorHealthResponse {
-  status: RuntimeStatus;
-  engines: VectorHealthEngine[];
-  checked_at: string;
-  proxy?: string;
-  error?: string;
-}
-
-export type VectorIndexJobStatus = 'idle' | 'indexing' | 'stopping' | 'stopped' | 'completed' | 'error';
-
-export interface VectorIndexStatusResponse {
-  jobId: string;
-  model: string;
-  status: VectorIndexJobStatus;
-  current: number;
-  total: number;
-  startedAt: number;
-  completedAt?: number;
-  error?: string;
-  docsPerSec: number;
-  eta: number;
-}
-
-export interface VectorIndexStartResponse {
-  jobId: string;
-  status: 'started';
-  model: string;
-  batchSize: number;
 }
 
 export interface ApiRouteResponses {
@@ -87,6 +53,11 @@ export interface ApiClientOptions {
   baseUrl?: string;
   fetch?: ApiFetch;
   headers?: HeadersInit;
+}
+
+export interface X402StatsParams {
+  limit?: number;
+  offset?: number;
 }
 
 export interface VectorSearchParams {
@@ -208,6 +179,14 @@ export class ApiClient {
     addParam(query, 'cwd', params.cwd);
     addParam(query, 'model', params.model);
     return this.fetchJson(`/api/v1/vector/search?${query.toString()}`);
+  }
+
+  x402Stats(params: X402StatsParams = {}): Promise<X402StatsResponse> {
+    const query = new URLSearchParams();
+    addParam(query, 'limit', params.limit);
+    addParam(query, 'offset', params.offset);
+    const qs = query.toString();
+    return this.fetchJson(`/api/x402/stats${qs ? `?${qs}` : ''}`);
   }
 
   vectorIndexStatus(): Promise<VectorIndexStatusResponse> {
