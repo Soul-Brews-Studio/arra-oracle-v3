@@ -72,9 +72,12 @@ function readFtsHealth(total: number): { status: FtsStatus; indexed: number; mis
 
 function vectorStatus(stats: VectorStats): VectorStatus {
   const engines = stats.vectors ?? [];
-  if (!engines.length) return stats.vector.enabled ? 'ok' : 'down';
+  // Empty or disabled vector state means the backend answered but search
+  // isn't fully ready (FTS-only) — that's "degraded", not "down". "down" is
+  // reserved for a harder failure (e.g. the vector layer throwing outright).
+  if (!engines.length) return stats.vector.enabled ? 'ok' : 'degraded';
   const enabled = engines.filter((engine) => engine.enabled).length;
-  return enabled === engines.length ? 'ok' : enabled === 0 ? 'down' : 'degraded';
+  return enabled === engines.length ? 'ok' : 'degraded';
 }
 
 export function createStatsEndpoint(options: StatsEndpointOptions = {}) {
@@ -95,8 +98,9 @@ export function createStatsEndpoint(options: StatsEndpointOptions = {}) {
         const status = embedder.status === 'degraded' ? 'degraded' : vectorStatus(vectorStats);
         return { ...stats, ...vectorStats, vector_status: status, ...embedderFields, fts, fts_status: fts.status, fts_indexed: fts.indexed, vault_repo: vaultRepo };
       } catch (error) {
-        const status = embedder.status === 'degraded' ? 'degraded' : 'down';
-        return { ...stats, ...fallbackVector, vector_status: status, vector_error: errorMessage(error), ...embedderFields, fts, fts_status: fts.status, fts_indexed: fts.indexed, vault_repo: vaultRepo };
+        // The vector layer threw, but the backend still answered — that's a
+        // degraded (FTS-only) response, not a hard "down".
+        return { ...stats, ...fallbackVector, vector_status: 'degraded', vector_error: errorMessage(error), ...embedderFields, fts, fts_status: fts.status, fts_indexed: fts.indexed, vault_repo: vaultRepo };
       }
     } catch (err) {
       if (isDbLockError(err)) return { total_docs: 0, by_type: {}, indexing: true, error: 'db temporarily unavailable' };

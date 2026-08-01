@@ -4,6 +4,11 @@ node_modules/
 # Build output (root-level TypeScript compilation only, not frontend/dist)
 /dist/
 
+# Tauri/Rust build output (regenerable via cargo/tauri build; was accidentally
+# committed — 2969 files here made every git tree-wide op crawl or "short read"
+# error against iCloud-evicted placeholders)
+frontend/src-tauri/target/
+
 # Database files
 *.db
 *.db-shm
@@ -77,3 +82,6 @@ agents/
 
 # Cloudflare local dev state
 .wrangler/
+
+# Qwen CLI project-local config (contains API key)
+.qwen/
