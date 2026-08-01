@@ -63,8 +63,8 @@ export function expansionPhrasesForText(text: string): string[] {
  * `"API"` produced the entity `"API Application Programming Interface"`.
  *
  * **This does not change retrieval.** `buildTenantFtsQuery` (src/search/query.ts:49) and
- * `src/tools/search/helpers.ts` both build the FTS query with `.match(/[\p{L}\p{N}_]+/gu)`,
- * which takes only letters, digits and underscores — punctuation is invisible to them, so the
+ * `src/tools/search/helpers.ts` both build the FTS query with `.match(/[\p{L}\p{N}]+/gu)`,
+ * which takes only letters and digits — punctuation is invisible to them, so the
  * token set is byte-identical either way. That is what made this safe to change: the issue
  * deferred the fix because the augmented string also feeds FTS, and it turns out the FTS path
  * never sees the separator at all. `tests/search/acronym-boundary.test.ts` pins that.

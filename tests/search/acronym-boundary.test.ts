@@ -16,7 +16,7 @@
  * #2876 deferred the fix because the augmented string also feeds FTS, and changing its shape
  * would change retrieval for every query. **It turns out the FTS path never sees the
  * separator**: both `buildTenantFtsQuery` and `src/tools/search/helpers.ts` tokenise with
- * `/[\p{L}\p{N}_]+/gu`, which takes only letters, digits and underscores. The third describe
+ * `/[\p{L}\p{N}]+/gu`, which takes only letters and digits. The third describe
  * block below is the one that made this shippable — it pins that invariance rather than
  * assuming it.
  */
@@ -67,7 +67,7 @@ describe('a query with no acronyms is untouched', () => {
 
 describe('retrieval is unchanged — the reason #2876 deferred this', () => {
   /**
-   * The FTS query is built from `/[\p{L}\p{N}_]+/gu` matches, so punctuation cannot appear in
+   * The FTS query is built from `/[\p{L}\p{N}]+/gu` matches, so punctuation cannot appear in
    * it. These tests compare against a locally reconstructed "old format" (bare space-joined)
    * to show the token sets are identical, rather than asserting a hard-coded string that would
    * pass for the wrong reason if the tokeniser changed.
@@ -79,7 +79,7 @@ describe('retrieval is unchanged — the reason #2876 deferred this', () => {
   /** What the tokeniser would produce from the pre-fix, bare-joined augmented string. */
   function tokensOfOldFormat(augmented: string): string[] {
     const bare = augmented.replaceAll('; ', ' ');
-    const matched = bare.normalize('NFKC').match(/[\p{L}\p{N}_]+/gu) ?? [];
+    const matched = bare.normalize('NFKC').match(/[\p{L}\p{N}]+/gu) ?? [];
     return [...new Set(matched)];
   }
 
