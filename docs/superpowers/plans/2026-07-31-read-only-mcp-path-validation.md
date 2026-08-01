@@ -4,7 +4,7 @@
 
 **Goal:** Make Arra's read-only stdio MCP server start against a readable, non-writable Oracle data store and expose it to Codex.
 
-**Architecture:** Derive a single path access mode from `ORACLE_READ_ONLY` during environment validation. Reuse the existing path-shape checks, but require existing readable paths in read-only mode and preserve current writable/creatable-path behavior in write mode.
+**Architecture:** Derive a single path access mode from `ORACLE_READ_ONLY` during environment validation, then forward the MCP server's read-only state to the existing storage backend option. Reuse current path-shape checks and storage behavior while preserving writable/creatable-path behavior in write mode.
 
 **Tech Stack:** Bun, TypeScript, `node:fs`, MCP stdio, Codex `config.toml`.
 
@@ -12,7 +12,7 @@
 
 - Write-capable startup must remain fail-closed when data, database, repo-root, or local-vector paths are not writable.
 - Read-only startup must not create data paths or advertise write tools.
-- No database, vector index, dependency, or sandbox-policy changes.
+- No database-byte, vector-index, dependency, or sandbox-policy changes.
 
 ---
 
@@ -51,7 +51,35 @@ bun run build
 
 Expected: all config tests pass and TypeScript reports no errors.
 
-### Task 2: Prove the real stdio MCP seam
+### Task 2: Open embedded storage read-only
+
+**Files:**
+- Modify: `tests/mcp/server-initializes-embedded-deps.test.ts`
+- Modify: `src/db/create.ts`
+- Modify: `src/mcp/server-options.ts`
+- Modify: `src/mcp/server.ts`
+
+**Interfaces:**
+- Consumes: `OracleMCPServer({ readOnly: true })`
+- Produces: `createDatabase(DB_PATH, { readonly: true })`
+
+- [ ] **Step 1: Write the failing forwarding regression**
+
+Inject an embedded database factory, start a read-only MCP server, and assert the factory receives `readonly: true`.
+
+- [ ] **Step 2: Run the focused test to verify RED**
+
+Expected: FAIL because the database factory receives no options.
+
+- [ ] **Step 3: Forward read-only state minimally**
+
+Extend `createDatabase()` with the existing storage backend's `readonly` option and pass `this.readOnly` from `OracleMCPServer.initEmbedded()`.
+
+- [ ] **Step 4: Verify GREEN and write-mode compatibility**
+
+Run the full embedded-dependency test file and TypeScript typecheck.
+
+### Task 3: Prove the real stdio MCP seam
 
 **Files:**
 - No production-file changes expected.
@@ -70,7 +98,7 @@ Expected: discovery includes `oracle_search`, `oracle_list`, and `oracle_stats`;
 
 Inspect the tool list from a stdio client and verify non-read-only tools such as `oracle_learn` are not advertised.
 
-### Task 3: Register and smoke-test Codex
+### Task 4: Register and smoke-test Codex
 
 **Files:**
 - Modify via supported CLI: `~/.codex/config.toml`

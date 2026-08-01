@@ -114,7 +114,7 @@ export class OracleMCPServer {
       if (embedderStatus.status !== 'degraded') throw error;
       this.vectorStore = createFtsOnlyVectorStore(embedderStatus.reason ?? 'embedder unavailable');
     }
-    const { sqlite, db } = createDatabase(DB_PATH);
+    const { sqlite, db } = createDatabase(DB_PATH, { readonly: this.readOnly });
     this.sqlite = sqlite;
     this.db = db;
     await this.verifyVectorHealth();

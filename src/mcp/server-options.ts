@@ -9,7 +9,7 @@ import type { McpPluginRuntimeOptions } from './plugin-runtime.ts';
 export type EmbeddedDeps = {
   createVectorStoreForModel: (preset: any) => VectorStoreAdapter;
   getEmbeddingModels: () => Record<string, any>;
-  createDatabase: (dbPath?: string) => {
+  createDatabase: (dbPath?: string, options?: { readonly?: boolean }) => {
     sqlite: Database;
     db: BunSQLiteDatabase<typeof schema>;
   };

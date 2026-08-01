@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ConfigValidationError, validateEnv } from '../../src/config/validate.ts';
@@ -67,6 +67,39 @@ describe('config env validation', () => {
     writeFileSync(file, 'x');
     expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', ORACLE_VECTOR_DB: 'lancedb', ORACLE_VECTOR_DB_PATH: file }, emitOptionalWarnings: false }))
       .toThrow(/ORACLE_VECTOR_DB_PATH must be a directory/);
+  });
+
+  test('read-only startup accepts readable non-writable paths', () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'arra-config-read-only-'));
+    const dbPath = join(dataDir, 'oracle.db');
+    const vectorPath = join(dataDir, 'vectors.db');
+    writeFileSync(dbPath, 'db');
+    writeFileSync(vectorPath, 'vector');
+    chmodSync(dbPath, 0o400);
+    chmodSync(vectorPath, 0o400);
+    chmodSync(dataDir, 0o500);
+
+    const env = {
+      HOME: '/tmp/arra-home',
+      ORACLE_DATA_DIR: dataDir,
+      ORACLE_DB_PATH: dbPath,
+      ORACLE_VECTOR_DB_PATH: vectorPath,
+    };
+
+    try {
+      expect(validateEnv({
+        env: { ...env, ORACLE_READ_ONLY: 'true' },
+        emitOptionalWarnings: false,
+      }).env.ORACLE_DATA_DIR).toBe(dataDir);
+
+      expect(() => validateEnv({ env, emitOptionalWarnings: false }))
+        .toThrow(/must be writable and resolvable/);
+    } finally {
+      chmodSync(dataDir, 0o700);
+      chmodSync(dbPath, 0o600);
+      chmodSync(vectorPath, 0o600);
+      rmSync(dataDir, { recursive: true, force: true });
+    }
   });
 
   test('requires connection settings for remote vector backends', () => {

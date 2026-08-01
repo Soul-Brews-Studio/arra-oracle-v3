@@ -50,8 +50,9 @@ export function validateEnv(options: ValidateEnvOptions = {}): ConfigValidationR
   validateUrls(env, issues);
   validateEnums(env, issues);
   validateDatabaseUrl(env, issues);
-  validateRuntimePaths(env, issues);
-  validateVectorConnectionConfig(env, issues);
+  const readOnly = env.ORACLE_READ_ONLY?.trim().toLowerCase() === 'true';
+  validateRuntimePaths(env, issues, readOnly);
+  validateVectorConnectionConfig(env, issues, readOnly);
   validateProviderRequirements(env, issues);
 
   if (issues.length) throw new ConfigValidationError(issues);
@@ -161,36 +162,38 @@ function validateProviderRequirements(env: RuntimeEnv, issues: string[]): void {
     issues.push('Cloudflare vector/AI config requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.');
   }
 }
-function validateRuntimePaths(env: RuntimeEnv, issues: string[]): void {
+function validateRuntimePaths(env: RuntimeEnv, issues: string[], readOnly: boolean): void {
   const dataDir = firstFilled(env.ORACLE_DATA_DIR, resolve(homeDir(env) || '.', '.arra-oracle-v2'));
   const dbPath = firstFilled(env.ORACLE_DB_PATH, pathFromDatabaseUrl(env.DATABASE_URL), resolve(dataDir, 'oracle.db'));
-  validateWritablePath('ORACLE_DATA_DIR', dataDir, issues, true);
-  validateWritablePath('ORACLE_DB_PATH/DATABASE_URL', dbPath, issues, false);
-  if (filled(env.ORACLE_REPO_ROOT)) validateWritablePath('ORACLE_REPO_ROOT', env.ORACLE_REPO_ROOT.trim(), issues, true);
+  validatePathAccess('ORACLE_DATA_DIR', dataDir, issues, true, readOnly);
+  validatePathAccess('ORACLE_DB_PATH/DATABASE_URL', dbPath, issues, false, readOnly);
+  if (filled(env.ORACLE_REPO_ROOT)) validatePathAccess('ORACLE_REPO_ROOT', env.ORACLE_REPO_ROOT.trim(), issues, true, readOnly);
 }
-function validateVectorConnectionConfig(env: RuntimeEnv, issues: string[]): void {
+function validateVectorConnectionConfig(env: RuntimeEnv, issues: string[], readOnly: boolean): void {
   const type = (env.ORACLE_VECTOR_DB?.trim() || DEFAULT_SAFE_VECTOR_ENGINE).toLowerCase();
   if (type === 'qdrant' && !filled(env.QDRANT_URL)) issues.push('Qdrant vector DB requires QDRANT_URL.');
   if (type === 'proxy' && !filled(env.ORACLE_PROXY_VECTOR_URL)) issues.push('Proxy vector DB requires ORACLE_PROXY_VECTOR_URL.');
   if (type === 'lancedb' || type === 'sqlite-vec') {
     const dataDir = firstFilled(env.ORACLE_DATA_DIR, resolve(homeDir(env) || '.', '.arra-oracle-v2'));
     const base = firstFilled(env.ORACLE_VECTOR_DB_PATH, resolve(dataDir, type === 'lancedb' ? 'lancedb' : 'vectors.db'));
-    validateWritablePath('ORACLE_VECTOR_DB_PATH', base, issues, type === 'lancedb');
+    validatePathAccess('ORACLE_VECTOR_DB_PATH', base, issues, type === 'lancedb', readOnly);
   }
 }
-function validateWritablePath(label: string, target: string, issues: string[], directory: boolean): void {
+function validatePathAccess(label: string, target: string, issues: string[], directory: boolean, readOnly: boolean): void {
   if (!filled(target)) return;
   try {
     if (existsSync(target)) {
       const stat = statSync(target);
       if (directory && !stat.isDirectory()) issues.push(`${label} must be a directory; received file path "${target}".`);
       if (!directory && stat.isDirectory()) issues.push(`${label} must be a file path; received directory "${target}".`);
-      accessSync(directory ? target : dirname(target), constants.W_OK);
+      accessSync(readOnly ? target : directory ? target : dirname(target), readOnly ? constants.R_OK : constants.W_OK);
       return;
     }
+    if (readOnly) throw new Error('path does not exist');
     accessSync(nearestExistingDir(directory ? target : dirname(target)), constants.W_OK);
   } catch (error) {
-    issues.push(`${label} must be writable and resolvable; received "${target}" (${error instanceof Error ? error.message : String(error)}).`);
+    const access = readOnly ? 'readable' : 'writable';
+    issues.push(`${label} must be ${access} and resolvable; received "${target}" (${error instanceof Error ? error.message : String(error)}).`);
   }
 }
 
