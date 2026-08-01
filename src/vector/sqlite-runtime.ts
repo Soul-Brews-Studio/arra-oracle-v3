@@ -18,5 +18,21 @@ export function ensureExtensionCapableSqlite(): void {
     '/usr/local/opt/sqlite/lib/libsqlite3.dylib',
   ].filter((path): path is string => !!path);
   const path = candidates.find((candidate) => existsSync(candidate));
-  if (path) Database.setCustomSQLite(path);
+  if (!path) return;
+  try {
+    Database.setCustomSQLite(path);
+  } catch (err) {
+    // `bun test --isolate` gives every test file a fresh global object, which
+    // resets the `customSqliteApplied` guard above — but Database.setCustomSQLite
+    // is a process-wide, call-it-exactly-once native operation, not a per-file
+    // one. So the *first* test file in an isolated run to reach here sets it
+    // successfully; every later file in the same `bun test` process re-enters
+    // this function with a fresh (false) guard and throws "SQLite already
+    // loaded" even though the custom build is already active for the whole
+    // process. Swallow exactly that: by the time this throws, some sqlite
+    // (this file's own attempt or an earlier file's) has already loaded, so
+    // there is nothing left to fix here — re-throwing would fail every test
+    // file after the first one in any multi-file `bun test --isolate` run.
+    if (!(err instanceof Error) || !err.message.includes('SQLite already loaded')) throw err;
+  }
 }

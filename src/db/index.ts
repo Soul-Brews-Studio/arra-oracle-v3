@@ -16,6 +16,22 @@ import { assertNotProductionDb } from './production-db-guard.ts';
 import { createStorageBackend } from '../storage/registry.ts';
 import type { StorageBackend } from '../storage/types.ts';
 import { resolveDatabasePath } from './create.ts';
+import { ensureExtensionCapableSqlite } from '../vector/sqlite-runtime.ts';
+
+// This module is the single source of truth for DB access (see file header) — every
+// path that opens the default bun:sqlite Database (openDefaultStorage below, and the
+// test-only resetDefaultDatabaseForTests) routes through here. Entry points like
+// src/server.ts call ensureExtensionCapableSqlite() as their first line, but that
+// convention only holds if this module is *reached through* one of those entry
+// points first. Callers that import db/index.ts directly — most notably tests that
+// do `await import('./db/index.ts')` and call resetDefaultDatabaseForTests() before
+// ever importing src/server.ts — bypass that ordering and open a Database before
+// setCustomSQLite() has run, which then throws "SQLite already loaded" the moment
+// src/server.ts is imported afterwards. Calling it here too makes the guarantee
+// self-enforcing: it runs during this module's own evaluation, strictly before any
+// exported function below (which only run once a caller invokes them) can open one.
+ensureExtensionCapableSqlite();
+
 export { createDatabase, type DatabaseConnection } from './create.ts';
 export {
   atomicOp,
