@@ -7,6 +7,8 @@ import {
 } from '../document-identity.ts';
 
 const MIGRATION_MARKER = 'migration_document_identity_v1';
+const PROVENANCE_MARKER = 'migration_provenance_identity_v1';
+const PROVENANCE_TABLES = ['learn_log', 'document_access'] as const;
 
 interface DocumentRow {
   id: string;
@@ -141,6 +143,56 @@ export function migrateDocumentIdentity(sqlite: Database): number {
     markComplete.run(MIGRATION_MARKER, Date.now());
     sqlite.exec('COMMIT');
     return changed.length;
+  } catch (error) {
+    sqlite.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+/**
+ * Backfill provenance references (`learn_log`, `document_access`) that still point
+ * at pre-migration document ids. New writes already use storage ids; only rows
+ * captured before {@link migrateDocumentIdentity} are stale. A stale id equals the
+ * document's `display_id`, which is globally unique, so it resolves unambiguously
+ * to one storage id. Rows whose display id no longer resolves to exactly one
+ * document are left untouched and reported.
+ */
+export function migrateProvenanceIdentity(sqlite: Database): number {
+  const hasDocuments = sqlite.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'oracle_documents'",
+  ).get();
+  if (!hasDocuments) return 0;
+  const completed = sqlite.prepare('SELECT value FROM settings WHERE key = ?')
+    .get(PROVENANCE_MARKER) as { value: string | null } | null;
+  if (completed?.value === '1') return 0;
+
+  sqlite.exec('BEGIN IMMEDIATE');
+  try {
+    let remapped = 0;
+    for (const table of PROVENANCE_TABLES) {
+      const exists = sqlite.prepare(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+      ).get(table);
+      if (!exists) continue;
+      const result = sqlite.prepare(`
+        UPDATE ${table}
+        SET document_id = (
+          SELECT d.id FROM oracle_documents d WHERE d.display_id = ${table}.document_id
+        )
+        WHERE document_id NOT LIKE 'doc:%'
+          AND (
+            SELECT COUNT(*) FROM oracle_documents d WHERE d.display_id = ${table}.document_id
+          ) = 1
+      `).run();
+      remapped += result.changes;
+    }
+    sqlite.prepare(`
+      INSERT INTO settings (key, value, updated_at)
+      VALUES (?, '1', ?)
+      ON CONFLICT(key) DO UPDATE SET value = '1', updated_at = excluded.updated_at
+    `).run(PROVENANCE_MARKER, Date.now());
+    sqlite.exec('COMMIT');
+    return remapped;
   } catch (error) {
     sqlite.exec('ROLLBACK');
     throw error;

@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { contentDigest, documentStorageId } from '../document-identity.ts';
-import { migrateDocumentIdentity } from './document-identity-migration.ts';
+import { migrateDocumentIdentity, migrateProvenanceIdentity } from './document-identity-migration.ts';
 
 const tempDirs: string[] = [];
 afterEach(() => {
@@ -112,6 +112,65 @@ describe('document identity migration', () => {
       { id: 'old-a' },
       { id: 'old-b' },
     ]);
+    db.close();
+  });
+});
+
+describe('provenance identity migration', () => {
+  const createProvenanceDatabase = (): Database => {
+    const db = createIdentityDatabase();
+    db.exec(`
+      CREATE TABLE learn_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        document_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        project TEXT
+      );
+      CREATE TABLE document_access (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        document_id TEXT NOT NULL,
+        access_type TEXT,
+        created_at INTEGER NOT NULL,
+        project TEXT
+      );
+    `);
+    return db;
+  };
+
+  test('remaps stale references to storage ids and is idempotent', () => {
+    const db = createProvenanceDatabase();
+    insertDocument(db, 'legacy-a', 'github.com/mengazaa/my-second-brain-v2');
+    insertDocument(db, 'legacy-b', null);
+    // Provenance logs captured the pre-migration id (== display_id), project unreliable.
+    db.prepare('INSERT INTO learn_log (document_id, created_at, project) VALUES (?, 1, NULL)').run('legacy-a');
+    db.prepare('INSERT INTO document_access (document_id, access_type, created_at, project) VALUES (?, ?, 1, NULL)')
+      .run('legacy-b', 'search');
+
+    expect(migrateDocumentIdentity(db)).toBe(2);
+    expect(migrateProvenanceIdentity(db)).toBe(2);
+
+    const idA = documentStorageId('github.com/mengazaa/my-second-brain-v2', 'legacy-a');
+    const idB = documentStorageId(null, 'legacy-b');
+    expect(db.prepare('SELECT document_id FROM learn_log').get()).toEqual({ document_id: idA });
+    expect(db.prepare('SELECT document_id FROM document_access').get()).toEqual({ document_id: idB });
+    // No dangling references remain.
+    expect(db.prepare(`
+      SELECT COUNT(*) AS dangling FROM learn_log l
+      LEFT JOIN oracle_documents d ON d.id = l.document_id WHERE d.id IS NULL
+    `).get()).toEqual({ dangling: 0 });
+
+    expect(migrateProvenanceIdentity(db)).toBe(0);
+    db.close();
+  });
+
+  test('leaves references untouched when the display id no longer resolves', () => {
+    const db = createProvenanceDatabase();
+    insertDocument(db, 'legacy-a', null);
+    db.prepare('INSERT INTO learn_log (document_id, created_at, project) VALUES (?, 1, NULL)').run('deleted-doc');
+    migrateDocumentIdentity(db);
+
+    expect(migrateProvenanceIdentity(db)).toBe(0);
+    expect(db.prepare('SELECT document_id FROM learn_log').get()).toEqual({ document_id: 'deleted-doc' });
     db.close();
   });
 });
