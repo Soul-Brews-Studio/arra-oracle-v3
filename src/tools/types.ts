@@ -105,3 +105,20 @@ export interface OracleReadInput {
   file?: string;
   id?: string;
 }
+
+export interface GraphSearchInput {
+  concept: string;
+  max_hops?: number;
+  relationship_types?: string[];
+  limit?: number;
+}
+
+export interface GraphPathInput {
+  from_concept: string;
+  to_concept: string;
+  max_depth?: number;
+}
+
+export interface GraphInfoInput {
+  concept: string;
+}
