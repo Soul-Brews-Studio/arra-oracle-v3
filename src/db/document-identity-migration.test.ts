@@ -174,3 +174,11 @@ describe('provenance identity migration', () => {
     db.close();
   });
 });
+
+describe('migration journal', () => {
+  test('keeps migration timestamps strictly increasing', async () => {
+    const journal = await Bun.file(join(import.meta.dir, 'migrations/meta/_journal.json')).json();
+    const timestamps = journal.entries.map((entry: { when: number }) => entry.when);
+    expect(timestamps.every((timestamp: number, index: number) => index === 0 || timestamp > timestamps[index - 1])).toBe(true);
+  });
+});
