@@ -12,6 +12,9 @@ const TARGET_COLLECTION = getEmbeddingModels().qwen3.collection;
 const PAGE_SIZE = 250;
 const EMBED_BATCH_SIZE = 50;
 const MIN_COMPATIBILITY_COSINE = 0.999;
+const MAX_NORMALIZED_L2 = 0.05;
+const MAX_NORMALIZED_COMPONENT_DIFF = 0.01;
+const MAX_NORM_DEVIATION = 0.01;
 const embeddingModel = getEmbeddingModels().qwen3.model;
 const embedder = new OllamaEmbeddings({ model: embeddingModel });
 
@@ -33,6 +36,14 @@ interface VectorRow {
   vector: Iterable<number>;
 }
 
+interface VectorComparison {
+  cosine: number;
+  normalized_l2: number;
+  max_diff: number;
+  left_norm: number;
+  right_norm: number;
+}
+
 const projectKey = (project: string | null | undefined) => canonicalProject(project);
 const documentKey = (project: string | null | undefined, displayId: string) => `${projectKey(project)}\0${displayId}`;
 const vectorMetadata = (document: DocumentRow) => ({
@@ -43,7 +54,44 @@ const vectorMetadata = (document: DocumentRow) => ({
   display_id: document.display_id,
   content_digest: document.content_digest,
 });
-const lanceRow = (document: DocumentRow, vector: number[] | Float32Array) => ({
+const normalizeVector = (vector: Iterable<number>) => {
+  const values = Array.from(vector);
+  const norm = Math.sqrt(values.reduce((sum, value) => sum + value * value, 0));
+  if (!Number.isFinite(norm) || norm === 0) throw new Error('Cannot normalize an invalid embedding');
+  return values.map(value => value / norm);
+};
+const compareVectors = (left: number[], right: number[]) => {
+  if (left.length !== right.length) {
+    return { cosine: 0, normalized_l2: Infinity, max_diff: Infinity, left_norm: 0, right_norm: 0 };
+  }
+  const leftNorm = Math.sqrt(left.reduce((sum, value) => sum + value * value, 0));
+  const rightNorm = Math.sqrt(right.reduce((sum, value) => sum + value * value, 0));
+  const leftNormalized = normalizeVector(left);
+  const rightNormalized = normalizeVector(right);
+  let dot = 0;
+  let squaredDifference = 0;
+  let maxDifference = 0;
+  for (let index = 0; index < left.length; index++) {
+    dot += leftNormalized[index] * rightNormalized[index];
+    const difference = leftNormalized[index] - rightNormalized[index];
+    squaredDifference += difference * difference;
+    maxDifference = Math.max(maxDifference, Math.abs(difference));
+  }
+  return {
+    cosine: dot,
+    normalized_l2: Math.sqrt(squaredDifference),
+    max_diff: maxDifference,
+    left_norm: leftNorm,
+    right_norm: rightNorm,
+  };
+};
+const compatible = (comparison: VectorComparison) =>
+  comparison.cosine >= MIN_COMPATIBILITY_COSINE
+  && comparison.normalized_l2 <= MAX_NORMALIZED_L2
+  && comparison.max_diff <= MAX_NORMALIZED_COMPONENT_DIFF
+  && Math.abs(comparison.left_norm - 1) <= MAX_NORM_DEVIATION
+  && Math.abs(comparison.right_norm - 1) <= MAX_NORM_DEVIATION;
+const lanceRow = (document: DocumentRow, vector: Iterable<number>) => ({
   id: document.id,
   text: document.content,
   type: document.type,
@@ -51,21 +99,8 @@ const lanceRow = (document: DocumentRow, vector: number[] | Float32Array) => ({
   display_id: document.display_id,
   content_digest: document.content_digest,
   metadata: JSON.stringify(vectorMetadata(document)),
-  vector,
+  vector: normalizeVector(vector),
 });
-
-const cosine = (left: number[], right: number[]) => {
-  if (left.length !== right.length) return 0;
-  let dot = 0;
-  let leftNorm = 0;
-  let rightNorm = 0;
-  for (let index = 0; index < left.length; index++) {
-    dot += left[index] * right[index];
-    leftNorm += left[index] * left[index];
-    rightNorm += right[index] * right[index];
-  }
-  return dot / Math.sqrt(leftNorm * rightNorm);
-};
 const isNumberArray = (value: unknown): value is number[] =>
   Array.isArray(value) && value.every(item => typeof item === 'number');
 
@@ -110,14 +145,14 @@ const compatibilityTexts = [
 ];
 const currentVectors = await embedder.embed(compatibilityTexts);
 const legacyVectors = await Promise.all(compatibilityTexts.map(legacyEmbed));
-const endpointCosines = legacyVectors.map((vector, index) => cosine(vector, currentVectors[index]));
+const endpointComparisons = legacyVectors.map((vector, index) => compareVectors(vector, currentVectors[index]));
 const storedVector = Array.from(storedSample.vector);
-const storedCosines = [
-  cosine(storedVector, legacyVectors[3]),
-  cosine(storedVector, currentVectors[3]),
+const storedComparisons = [
+  compareVectors(storedVector, legacyVectors[3]),
+  compareVectors(storedVector, currentVectors[3]),
 ];
-const compatibility = { endpoint_cosines: endpointCosines, stored_cosines: storedCosines };
-if ([...endpointCosines, ...storedCosines].some(value => value < MIN_COMPATIBILITY_COSINE)) {
+const compatibility = { endpoint_comparisons: endpointComparisons, stored_comparisons: storedComparisons };
+if ([...endpointComparisons, ...storedComparisons].some(comparison => !compatible(comparison))) {
   throw new Error(`Embedding pipelines are incompatible: ${JSON.stringify(compatibility)}`);
 }
 console.error(`Embedding compatibility verified: ${JSON.stringify(compatibility)}`);
