@@ -47,7 +47,8 @@ export async function handleGraphSearch(
   const limit = input.limit ?? 20;
   const relTypes = input.relationship_types;
 
-  const edgeCount = ctx.sqlite.prepare('SELECT COUNT(*) as c FROM graph_edges').get() as { c: number } | undefined;
+  const graphTable = ctx.sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'graph_edges'").get();
+  const edgeCount = graphTable ? ctx.sqlite.prepare('SELECT COUNT(*) as c FROM graph_edges').get() as { c: number } | undefined : undefined;
   if (!edgeCount || edgeCount.c === 0) {
     return {
       content: [{ type: 'text', text: JSON.stringify({ error: 'Graph not populated. Copy graph_edges from Oracle v2 or run a vault graph builder.' }) }],

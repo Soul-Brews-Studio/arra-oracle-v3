@@ -87,7 +87,8 @@ export async function handleGraphPath(
   const to = input.to_concept;
   const maxDepth = Math.min(input.max_depth ?? 4, 6);
 
-  const edgeCount = ctx.sqlite.prepare('SELECT COUNT(*) as c FROM graph_edges').get() as { c: number } | undefined;
+  const graphTable = ctx.sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'graph_edges'").get();
+  const edgeCount = graphTable ? ctx.sqlite.prepare('SELECT COUNT(*) as c FROM graph_edges').get() as { c: number } | undefined : undefined;
   if (!edgeCount || edgeCount.c === 0) {
     return {
       content: [{ type: 'text', text: JSON.stringify({ error: 'Graph not populated.' }) }],
