@@ -32,6 +32,11 @@ function createIdentityDatabase(path = ':memory:'): Database {
       created_by TEXT
     );
     CREATE VIRTUAL TABLE oracle_fts USING fts5(id UNINDEXED, content, concepts);
+    CREATE TABLE settings (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at INTEGER NOT NULL
+    );
   `);
   return db;
 }
@@ -82,6 +87,18 @@ describe('document identity migration', () => {
     expect(second.prepare('SELECT count(*) AS count FROM oracle_fts').get()).toEqual({ count: 1 });
     second.close();
     first.close();
+  });
+
+  test('returns from the durable marker without reading FTS again', () => {
+    const db = createIdentityDatabase();
+    insertDocument(db, 'legacy', null);
+    db.prepare('INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)')
+      .run('legacy', 'content', 'concept');
+
+    expect(migrateDocumentIdentity(db)).toBe(1);
+    db.exec('DROP TABLE oracle_fts');
+    expect(migrateDocumentIdentity(db)).toBe(0);
+    db.close();
   });
 
   test('rolls back rather than merging duplicate canonical identities', () => {

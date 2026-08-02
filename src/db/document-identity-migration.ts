@@ -6,6 +6,8 @@ import {
   documentStorageId,
 } from '../document-identity.ts';
 
+const MIGRATION_MARKER = 'migration_document_identity_v1';
+
 interface DocumentRow {
   id: string;
   display_id: string | null;
@@ -45,6 +47,15 @@ export function ensureDocumentIdentityColumns(sqlite: Database): void {
 
 export function migrateDocumentIdentity(sqlite: Database): number {
   ensureDocumentIdentityColumns(sqlite);
+  const completed = sqlite.prepare('SELECT value FROM settings WHERE key = ?')
+    .get(MIGRATION_MARKER) as { value: string | null } | null;
+  if (completed?.value === '1') return 0;
+
+  const markComplete = sqlite.prepare(`
+    INSERT INTO settings (key, value, updated_at)
+    VALUES (?, '1', ?)
+    ON CONFLICT(key) DO UPDATE SET value = '1', updated_at = excluded.updated_at
+  `);
 
   sqlite.exec('BEGIN IMMEDIATE');
   try {
@@ -87,6 +98,7 @@ export function migrateDocumentIdentity(sqlite: Database): number {
 
     const needsFtsRebuild = ftsRows.length !== plans.filter(({ fts }) => fts).length;
     if (changed.length === 0 && !needsFtsRebuild) {
+      markComplete.run(MIGRATION_MARKER, Date.now());
       sqlite.exec('COMMIT');
       return 0;
     }
@@ -126,6 +138,7 @@ export function migrateDocumentIdentity(sqlite: Database): number {
       if (plan.fts) insertFts.run(plan.storageId, plan.fts.content, plan.fts.concepts);
     }
 
+    markComplete.run(MIGRATION_MARKER, Date.now());
     sqlite.exec('COMMIT');
     return changed.length;
   } catch (error) {
