@@ -25,6 +25,8 @@ const relOrphan = `ψ/memory/learnings/verify-orphan-${stamp}.md`;
 const relProjectFirst = `github.com/acme/demo/ψ/memory/learnings/verify-project-first-${stamp}.md`;
 const relProjectFirstOrphan = `github.com/acme/demo/ψ/memory/learnings/verify-project-first-orphan-${stamp}.md`;
 const relCrew = `ψ/crew/reviewer/memory/learnings/verify-crew-${stamp}.md`;
+const relProjectInbox = `github.com/acme/demo/ψ/inbox/handoff/verify-project-inbox-${stamp}.md`;
+const relCrewInbox = `ψ/crew/reviewer/inbox/handoff/verify-crew-inbox-${stamp}.md`;
 const ids = {
   absolute: `verify-absolute-${stamp}`,
   backslash: `verify-backslash-${stamp}`,
@@ -58,6 +60,8 @@ writeRepoFile(relAbsolute);
 writeRepoFile(relBackslash);
 writeRepoFile(relProjectFirst);
 writeRepoFile(relCrew);
+writeRepoFile(relProjectInbox);
+writeRepoFile(relCrewInbox);
 seedDoc(ids.absolute, path.join(repoRoot, relAbsolute));
 seedDoc(ids.backslash, relBackslash.replaceAll('/', '\\'));
 seedDoc(ids.blank, '   ');
@@ -116,5 +120,12 @@ describe('verifyKnowledgeBase edge cases', () => {
 
     expect(result.orphaned).not.toContain(relCrew);
     expect(result.counts.healthy).toBeGreaterThanOrEqual(4);
+  });
+
+  test('reports project-first and crew inbox files as untracked', () => {
+    const result = verifyKnowledgeBase({ repoRoot, type: 'learning' });
+
+    expect(result.untracked).toContain(relProjectInbox);
+    expect(result.untracked).toContain(relCrewInbox);
   });
 });
