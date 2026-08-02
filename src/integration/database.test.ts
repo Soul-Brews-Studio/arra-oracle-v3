@@ -13,6 +13,7 @@ import { homedir } from "os";
 
 // Import schema
 import * as schema from "../db/schema";
+import { migrateDocumentIdentity, migrateProvenanceIdentity } from "../db/document-identity-migration";
 
 // Test database (separate from production)
 const TEST_DB_PATH = join(homedir(), ".oracle", "test-integration.db");
@@ -76,6 +77,12 @@ describe("Database Integration (Drizzle ORM)", () => {
         tokenize='porter unicode61'
       );
     `);
+
+    // Apply runtime identity migrations (display_id/content_digest columns +
+    // provenance remap) the same way production initializeDatabase does — these
+    // live outside the numbered SQL files.
+    migrateDocumentIdentity(sqlite);
+    migrateProvenanceIdentity(sqlite);
   });
 
   afterAll(() => {
