@@ -12,6 +12,7 @@ import { ensureVectorStoreConnected } from '../vector/factory.ts';
 import { isVectorSectionEnabled } from '../vector/config.ts';
 import type { SearchResult } from '../server/types.ts';
 import type { ToolContext, ToolResponse, OracleSearchInput } from './types.ts';
+import { UNIVERSAL_PROJECT, contentDigest, storedProject } from '../document-identity.ts';
 
 let logSearchFn: typeof import('../server/logging.ts').logSearch | null = null;
 async function loadLogSearch(): Promise<typeof import('../server/logging.ts').logSearch> {
@@ -119,6 +120,21 @@ export function parseConceptsFromMetadata(concepts: unknown): string[] {
   return [];
 }
 
+export interface VectorSearchResult {
+  id: string;
+  display_id: string;
+  project: string;
+  content_digest: string;
+  type: string;
+  content: string;
+  source_file: string;
+  concepts: string[];
+  score: number;
+  distance: number;
+  model: string;
+  source: 'vector';
+}
+
 /**
  * Vector search using ChromaMcpClient.
  * Performs semantic similarity search on the oracle_knowledge collection.
@@ -128,66 +144,112 @@ export async function vectorSearch(
   query: string,
   type: string,
   limit: number,
-  model?: string
-): Promise<Array<{
-  id: string;
-  type: string;
-  content: string;
-  source_file: string;
-  concepts: string[];
-  score: number;
-  distance: number;
-  model: string;
-  source: 'vector';
-}>> {
+  model?: string,
+  project?: string | null,
+): Promise<VectorSearchResult[]> {
   try {
-    const whereFilter = type !== 'all' ? { type } : undefined;
     const store = model ? await ensureVectorStoreConnected(model) : ctx.vectorStore;
+    const baseFilter = type !== 'all' ? { type } : {};
+    const projectFilters = project
+      ? [project, UNIVERSAL_PROJECT]
+      : [null];
     console.error(`[VectorSearch] Query: "${query.substring(0, 50)}..." limit=${limit} model=${model || 'default'}`);
 
-    const results = await store.query(query, limit, whereFilter);
-    console.error(`[VectorSearch] Results: ${results.ids?.length || 0} documents`);
+    const channels = await Promise.all(projectFilters.map((projectFilter) => {
+      const where = projectFilter
+        ? { ...baseFilter, project: projectFilter }
+        : (Object.keys(baseFilter).length > 0 ? baseFilter : undefined);
+      return store.query(query, limit, where);
+    }));
+    const candidates: VectorSearchResult[] = [];
 
-    if (!results.ids || results.ids.length === 0) {
-      return [];
+    for (const results of channels) {
+      for (let index = 0; index < results.ids.length; index++) {
+        const metadata = results.metadatas[index] as Record<string, unknown> | null;
+        const rawDistance = results.distances[index] || 0;
+        candidates.push({
+          id: results.ids[index],
+          display_id: String(metadata?.display_id || ''),
+          project: String(metadata?.project || ''),
+          content_digest: String(metadata?.content_digest || ''),
+          type: String(metadata?.type || 'unknown'),
+          content: results.documents[index] || '',
+          source_file: String(metadata?.source_file || ''),
+          concepts: parseConceptsFromMetadata(metadata?.concepts),
+          score: rawDistance,
+          distance: rawDistance,
+          model: 'qwen3',
+          source: 'vector',
+        });
+      }
     }
 
-    const resolvedModelName = model || 'bge-m3';
-    const mappedResults: Array<{
-      id: string;
-      type: string;
-      content: string;
-      source_file: string;
-      concepts: string[];
-      score: number;
-      distance: number;
-      model: string;
-      source: 'vector';
-    }> = [];
-
-    for (let i = 0; i < results.ids.length; i++) {
-      const metadata = results.metadatas[i] as Record<string, unknown> | null;
-
-      const rawDistance = results.distances[i] || 0;
-      mappedResults.push({
-        id: results.ids[i],
-        type: (metadata?.type as string) || 'unknown',
-        content: (results.documents[i] || '').substring(0, 500),
-        source_file: (metadata?.source_file as string) || '',
-        concepts: parseConceptsFromMetadata(metadata?.concepts),
-        score: rawDistance,
-        distance: rawDistance,
-        model: resolvedModelName,
-        source: 'vector',
-      });
-    }
-
-    return mappedResults;
+    candidates.sort((a, b) => (a.distance - b.distance) || a.id.localeCompare(b.id));
+    const seen = new Set<string>();
+    const results = candidates.filter((candidate) => {
+      if (seen.has(candidate.id)) return false;
+      seen.add(candidate.id);
+      return true;
+    }).slice(0, limit);
+    console.error(`[VectorSearch] Results: ${results.length} documents`);
+    return results;
   } catch (error) {
     const errorMsg = error instanceof Error ? error.stack || error.message : String(error);
-    console.error('[ChromaDB ERROR]', errorMsg);
+    console.error('[VectorSearch ERROR]', errorMsg);
     return [];
   }
+}
+
+export function validateVectorResults(
+  sqlite: ToolContext['sqlite'],
+  candidates: VectorSearchResult[],
+  project?: string | null,
+): { results: VectorSearchResult[]; error?: string } {
+  if (candidates.length === 0) return { results: [] };
+
+  const placeholders = candidates.map(() => '?').join(',');
+  const rows = sqlite.prepare(`
+    SELECT id, display_id, content_digest, project, type, source_file, concepts
+    FROM oracle_documents
+    WHERE id IN (${placeholders})
+  `).all(...candidates.map(({ id }) => id)) as Array<{
+    id: string;
+    display_id: string | null;
+    content_digest: string | null;
+    project: string | null;
+    type: string;
+    source_file: string;
+    concepts: string;
+  }>;
+  const rowsById = new Map(rows.map((row) => [row.id, row]));
+  const allowedProjects = project ? new Set([project, UNIVERSAL_PROJECT]) : null;
+
+  for (const candidate of candidates) {
+    const row = rowsById.get(candidate.id);
+    const rowProject = row?.project || UNIVERSAL_PROJECT;
+    if (!row
+      || candidate.project !== rowProject
+      || candidate.display_id !== row.display_id
+      || candidate.content_digest !== row.content_digest
+      || contentDigest(candidate.content) !== row.content_digest
+      || (allowedProjects !== null && !allowedProjects.has(rowProject))) {
+      return { results: [], error: `Vector identity validation failed for ${candidate.id}` };
+    }
+  }
+
+  return {
+    results: candidates.map((candidate) => {
+      const row = rowsById.get(candidate.id)!;
+      return {
+        ...candidate,
+        display_id: row.display_id!,
+        project: row.project || UNIVERSAL_PROJECT,
+        type: row.type,
+        source_file: row.source_file,
+        concepts: JSON.parse(row.concepts || '[]') as string[],
+      };
+    }),
+  };
 }
 
 /**
@@ -197,6 +259,7 @@ export async function vectorSearch(
 export function combineResults(
   ftsResults: Array<{
     id: string;
+    display_id?: string;
     type: string;
     content: string;
     source_file: string;
@@ -206,6 +269,7 @@ export function combineResults(
   }>,
   vectorResults: Array<{
     id: string;
+    display_id?: string;
     type: string;
     content: string;
     source_file: string;
@@ -219,6 +283,7 @@ export function combineResults(
   vectorWeight: number = 0.5
 ): Array<{
   id: string;
+  display_id?: string;
   type: string;
   content: string;
   source_file: string;
@@ -232,6 +297,7 @@ export function combineResults(
 }> {
   const resultMap = new Map<string, {
     id: string;
+    display_id?: string;
     type: string;
     content: string;
     source_file: string;
@@ -247,6 +313,7 @@ export function combineResults(
   for (const result of ftsResults) {
     resultMap.set(result.id, {
       id: result.id,
+      display_id: result.display_id,
       type: result.type,
       content: result.content,
       source_file: result.source_file,
@@ -267,6 +334,7 @@ export function combineResults(
     } else {
       resultMap.set(result.id, {
         id: result.id,
+        display_id: result.display_id,
         type: result.type,
         content: result.content,
         source_file: result.source_file,
@@ -295,6 +363,7 @@ export function combineResults(
 
     return {
       id: result.id,
+      display_id: result.display_id,
       type: result.type,
       content: result.content,
       source_file: result.source_file,
@@ -327,7 +396,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
   const safeQuery = sanitizeFtsQuery(query);
 
   // Auto-detect project from cwd if not explicitly specified
-  const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
+  const resolvedProject = storedProject(project ?? detectProject(cwd));
 
   // Project filter: if project specified, include project + universal (NULL)
   // If no project, return ALL documents (no filter)
@@ -353,7 +422,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
     try {
       if (type === 'all') {
         const stmt = ctx.sqlite.prepare(`
-          SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
+          SELECT f.id, d.display_id, f.content, d.type, d.source_file, d.concepts, d.project, rank
           FROM oracle_fts f
           JOIN oracle_documents d ON f.id = d.id
           WHERE oracle_fts MATCH ? ${projectFilter}
@@ -363,7 +432,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
         ftsRawResults = stmt.all(safeQuery, ...projectParams, limit * 3);
       } else {
         const stmt = ctx.sqlite.prepare(`
-          SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
+          SELECT f.id, d.display_id, f.content, d.type, d.source_file, d.concepts, d.project, rank
           FROM oracle_fts f
           JOIN oracle_documents d ON f.id = d.id
           WHERE oracle_fts MATCH ? AND d.type = ? ${projectFilter}
@@ -384,7 +453,12 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
   let vecResults: Awaited<ReturnType<typeof vectorSearch>> = [];
   if (effectiveMode !== 'fts') {
     try {
-      vecResults = await vectorSearch(ctx, query, type, limit * 2, model);
+      vecResults = await vectorSearch(ctx, query, type, limit * 2, model, resolvedProject);
+      const validation = validateVectorResults(ctx.sqlite, vecResults, resolvedProject);
+      vecResults = validation.results;
+      if (validation.error) {
+        warning = `${validation.error}. Using FTS5 only.`;
+      }
     } catch (error) {
       vectorSearchError = true;
       vectorAvailable = false;
@@ -401,10 +475,12 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
   // Transform FTS results to normalized format
   const ftsResults = ftsRawResults.map((row: any) => ({
     id: row.id,
+    display_id: row.display_id,
     type: row.type,
     content: row.content.substring(0, 500),
     source_file: row.source_file,
     concepts: JSON.parse(row.concepts || '[]') as string[],
+    project: row.project,
     score: normalizeFtsScore(row.rank),
     source: 'fts' as const,
   }));
@@ -412,6 +488,7 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
   // Normalize vector scores (ChromaDB distances: lower = better → invert)
   const normalizedVectorResults = vecResults.map((result) => ({
     ...result,
+    content: result.content.substring(0, 500),
     score: 1 - (result.score || 0),
   }));
 

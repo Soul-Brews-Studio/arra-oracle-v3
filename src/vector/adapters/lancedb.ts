@@ -7,6 +7,26 @@
 
 import type { VectorStoreAdapter, VectorDocument, VectorQueryResult, EmbeddingProvider } from '../types.ts';
 
+const FILTER_COLUMNS: Record<string, true> = {
+  type: true,
+  project: true,
+  display_id: true,
+  content_digest: true,
+};
+
+function filterPredicate(where: Record<string, unknown>): string {
+  return Object.entries(where).map(([column, value]) => {
+    if (!FILTER_COLUMNS[column]) throw new Error(`Unsupported LanceDB filter: ${column}`);
+    if (Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === 'string')) {
+      return `${column} IN (${value.map((item) => `'${item.replaceAll("'", "''")}'`).join(', ')})`;
+    }
+    if (typeof value === 'string') return `${column} = '${value.replaceAll("'", "''")}'`;
+    if (typeof value === 'number' && Number.isFinite(value)) return `${column} = ${value}`;
+    if (typeof value === 'boolean') return `${column} = ${value}`;
+    throw new Error(`Unsupported LanceDB filter value for ${column}`);
+  }).join(' AND ');
+}
+
 export class LanceDBAdapter implements VectorStoreAdapter {
   readonly name = 'lancedb';
   private db: any = null;
@@ -58,6 +78,10 @@ export class LanceDBAdapter implements VectorStoreAdapter {
       this.table = await this.db.createTable(this.collectionName, [{
         id: '__init__',
         text: '',
+        type: '',
+        project: '',
+        display_id: '',
+        content_digest: '',
         metadata: '{}',
         vector: new Array(dims).fill(0),
       }]);
@@ -167,6 +191,10 @@ export class LanceDBAdapter implements VectorStoreAdapter {
       id: doc.id,
       text: doc.document,
       metadata: JSON.stringify(doc.metadata),
+      type: String(doc.metadata.type || ''),
+      project: String(doc.metadata.project || ''),
+      display_id: String(doc.metadata.display_id || ''),
+      content_digest: String(doc.metadata.content_digest || ''),
       vector: doc.vector ?? fresh[freshIdx++],
     }));
     return rows;
@@ -178,18 +206,13 @@ export class LanceDBAdapter implements VectorStoreAdapter {
 
     const [queryEmbedding] = await this.embedder.embed([text], 'query');
 
-    // Fetch extra results if filtering in JS (metadata is stored as string, not binary)
-    const fetchLimit = where ? limit * 3 : limit;
-    const results = await this.table.search(queryEmbedding).distanceType('cosine').limit(fetchLimit).toArray();
-
-    // Filter metadata in JavaScript (LanceDB json_extract requires LargeBinary, not Utf8)
-    let filtered = results;
-    if (where) {
-      filtered = results.filter((r: any) => {
-        const meta = JSON.parse(r.metadata || '{}');
-        return Object.entries(where).every(([k, v]) => meta[k] === v);
-      }).slice(0, limit);
+    let search = this.table.search(queryEmbedding).distanceType('cosine');
+    if (where && Object.keys(where).length > 0) {
+      search = search.where(filterPredicate(where));
     }
+    const results = await search.limit(limit).toArray();
+
+    const filtered = results;
 
     return {
       ids: filtered.map((r: any) => r.id),
@@ -204,7 +227,7 @@ export class LanceDBAdapter implements VectorStoreAdapter {
     await this.checkoutLatest();
 
     // Get the document's vector using filter query (not vector search)
-    const rows = await this.table.query().where(`id = '${id}'`).limit(1).toArray();
+    const rows = await this.table.query().where(`id = '${id.replaceAll("'", "''")}'`).limit(1).toArray();
     if (rows.length === 0) {
       throw new Error(`No embedding found for document: ${id}`);
     }

@@ -10,6 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import { DB_PATH, CHROMADB_DIR } from '../config.ts';
 import { getVaultPsiRoot } from '../vault/handler.ts';
+import { sqlite } from '../db/index.ts';
 import type { IndexerConfig } from '../types.ts';
 import { OracleIndexer } from './index.ts';
 
@@ -28,7 +29,7 @@ export function resolveIndexerRepoRoot(explicitRoot?: string | null): string {
   if (explicitRoot?.trim()) return normalizeIndexerRepoRoot(explicitRoot);
   if (process.env.ORACLE_REPO_ROOT?.trim()) return normalizeIndexerRepoRoot(process.env.ORACLE_REPO_ROOT);
 
-  const vaultResult = getVaultPsiRoot();
+  const vaultResult = getVaultPsiRoot(sqlite);
   const vaultRoot = 'path' in vaultResult ? vaultResult.path : null;
   const vaultHasContent = vaultRoot && (
     fs.existsSync(path.join(vaultRoot, 'ψ')) ||

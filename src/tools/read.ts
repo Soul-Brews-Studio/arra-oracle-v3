@@ -7,6 +7,7 @@
 
 import fs from 'fs';
 import path from 'path';
+
 import type { ToolContext, ToolResponse, OracleReadInput } from './types.ts';
 
 let getVaultPsiRootFn: typeof import('../vault/handler.ts').getVaultPsiRoot | null = null;
@@ -65,6 +66,7 @@ async function resolveFilePath(
   sourceFile: string,
   repoRoot: string,
   ghqRoot: string,
+  sqlite: ToolContext['sqlite'],
 ): Promise<string | null> {
   // 1. Try direct from repoRoot (handles "ψ/memory/..." paths)
   const directPath = path.join(repoRoot, sourceFile);
@@ -79,7 +81,7 @@ async function resolveFilePath(
 
   // 3. Try vault fallback
   const getVaultPsiRoot = await loadGetVaultPsiRoot();
-  const vault = getVaultPsiRoot();
+  const vault = getVaultPsiRoot(sqlite);
   if ('path' in vault) {
     const vaultPath = path.join(vault.path, sourceFile);
     if (fs.existsSync(vaultPath)) return fs.realpathSync(vaultPath);
@@ -115,12 +117,14 @@ export async function handleRead(ctx: ToolContext, input: OracleReadInput): Prom
 
   let sourceFile = file;
   let project: string | null = null;
+  let storageId: string | null = null;
+  let displayId: string | null = null;
 
   // ID lookup: resolve source_file from DB
   if (id) {
     const row = ctx.sqlite.prepare(
-      'SELECT source_file, project FROM oracle_documents WHERE id = ?'
-    ).get(id) as { source_file: string; project: string | null } | null;
+      'SELECT id, display_id, source_file, project FROM oracle_documents WHERE id = ?'
+    ).get(id) as { id: string; display_id: string; source_file: string; project: string | null } | null;
 
     if (!row) {
       return {
@@ -130,11 +134,12 @@ export async function handleRead(ctx: ToolContext, input: OracleReadInput): Prom
     }
     sourceFile = sourceFile || row.source_file;
     project = row.project;
+    storageId = row.id;
+    displayId = row.display_id;
   }
 
   const ghqRoot = detectGhqRoot(ctx.repoRoot);
-  const resolvedPath = await resolveFilePath(sourceFile!, ctx.repoRoot, ghqRoot);
-
+  const resolvedPath = await resolveFilePath(sourceFile!, ctx.repoRoot, ghqRoot, ctx.sqlite);
   // File found on disk
   if (resolvedPath && isPathAllowed(resolvedPath, ctx.repoRoot, ghqRoot)) {
     const content = fs.readFileSync(resolvedPath, 'utf-8');
@@ -146,6 +151,7 @@ export async function handleRead(ctx: ToolContext, input: OracleReadInput): Prom
           source_file: sourceFile,
           resolved_path: resolvedPath,
           source: 'file',
+          ...(storageId ? { id: storageId, display_id: displayId } : {}),
           ...(project ? { project } : {}),
         }),
       }],
@@ -153,10 +159,10 @@ export async function handleRead(ctx: ToolContext, input: OracleReadInput): Prom
   }
 
   // Fallback: try FTS indexed content (if we have an id)
-  if (id) {
+  if (storageId) {
     const ftsRow = ctx.sqlite.prepare(
       'SELECT content FROM oracle_fts WHERE id = ?'
-    ).get(id) as { content: string } | null;
+    ).get(storageId) as { content: string } | null;
 
     if (ftsRow) {
       return {
@@ -167,6 +173,8 @@ export async function handleRead(ctx: ToolContext, input: OracleReadInput): Prom
             source_file: sourceFile,
             resolved_path: null,
             source: 'fts_cache',
+            id: storageId,
+            display_id: displayId,
             ...(project ? { project } : {}),
           }),
         }],

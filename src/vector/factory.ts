@@ -154,8 +154,8 @@ export function getEmbeddingModels(): Record<string, VectorModelRegistryEntry> {
     },
     qwen3: {
       adapter: 'lancedb',
-      collection: 'oracle_knowledge_qwen3',
-      model: 'qwen3-embedding',
+      collection: 'oracle_knowledge_qwen3_v2',
+      model: process.env.ORACLE_EMBEDDING_MODEL || 'qwen3-embedding:8b',
       dataPath: LANCEDB_DIR,
       provider: 'ollama',
     },

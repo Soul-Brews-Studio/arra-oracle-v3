@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
-import { getSetting } from '../db/index.ts';
+import type { Database } from 'bun:sqlite';
 
 /**
  * Walk all files under dir, skipping symlinks.
@@ -54,8 +54,9 @@ export function cleanEmptyDirs(dir: string, stopAt: string): void {
  * Resolve the vault ψ/ root for shared use by oracle_learn, oracle_handoff, indexer, etc.
  * Returns the vault repo local path, or a setup hint if not configured.
  */
-export function getVaultPsiRoot(): { path: string } | { needsInit: true; hint: string } {
-  const repo = getSetting('vault_repo');
+export function getVaultPsiRoot(sqlite: Database): { path: string } | { needsInit: true; hint: string } {
+  const setting = sqlite.prepare("SELECT value FROM settings WHERE key = 'vault_repo'").get() as { value: string | null } | null;
+  const repo = setting?.value;
   if (!repo) {
     return {
       needsInit: true,

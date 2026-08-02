@@ -5,22 +5,23 @@
  *
  * Usage: bun src/scripts/index-qwen3.ts
  *
- * Creates: ~/.chromadb/oracle_knowledge_qwen3.lance/
+ * Creates the `oracle_knowledge_qwen3_v2` LanceDB table.
  * (same LanceDB dir as default, different table name)
  */
 
-import { createVectorStore } from '../vector/factory.ts';
+import { createVectorStore, getEmbeddingModels } from '../vector/factory.ts';
 import { Database } from 'bun:sqlite';
 import { DB_PATH } from '../config.ts';
+import { UNIVERSAL_PROJECT } from '../document-identity.ts';
 
 const BATCH_SIZE = 50; // Smaller batches — qwen3 is slower per embedding
-const COLLECTION = 'oracle_knowledge_qwen3';
+const PRESET = getEmbeddingModels().qwen3;
 
 async function main() {
   console.log('=== Qwen3-Embedding Indexer ===');
   console.log(`DB: ${DB_PATH}`);
-  console.log(`Collection: ${COLLECTION}`);
-  console.log(`Model: qwen3-embedding (4096 dims)`);
+  console.log(`Collection: ${PRESET.collection}`);
+  console.log(`Model: ${PRESET.model}`);
 
   // Open oracle.db to read documents
   const db = new Database(DB_PATH, { readonly: true });
@@ -30,9 +31,9 @@ async function main() {
   // Create LanceDB store with qwen3
   const store = createVectorStore({
     type: 'lancedb',
-    collectionName: COLLECTION,
+    collectionName: PRESET.collection,
     embeddingProvider: 'ollama',
-    embeddingModel: 'qwen3-embedding',
+    embeddingModel: PRESET.model,
   });
 
   await store.connect();
@@ -43,13 +44,15 @@ async function main() {
 
   // Read all docs (join oracle_documents + oracle_fts for content, GROUP BY to dedupe FTS chunks)
   const rows = db.query(`
-    SELECT d.id, d.type, GROUP_CONCAT(f.content, '\n') as content, d.source_file, d.concepts, d.project, d.created_at
+    SELECT d.id, d.display_id, d.content_digest, d.type, GROUP_CONCAT(f.content, '\n') as content, d.source_file, d.concepts, d.project, d.created_at
     FROM oracle_documents d
     JOIN oracle_fts f ON d.id = f.id
     GROUP BY d.id
     ORDER BY d.created_at DESC
   `).all() as Array<{
     id: string;
+    display_id: string;
+    content_digest: string;
     type: string;
     content: string;
     source_file: string;
@@ -71,10 +74,12 @@ async function main() {
       id: row.id,
       document: row.content,
       metadata: {
+        display_id: row.display_id,
+        content_digest: row.content_digest,
         type: row.type,
         source_file: row.source_file,
         concepts: row.concepts,
-        ...(row.project && { project: row.project }),
+        project: row.project || UNIVERSAL_PROJECT,
       },
     }));
 

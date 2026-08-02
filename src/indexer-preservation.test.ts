@@ -14,6 +14,10 @@ import { drizzle, BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import { eq, and, or, isNull, inArray } from 'drizzle-orm';
 import * as schema from './db/schema.ts';
 import { oracleDocuments } from './db/schema.ts';
+import { storeDocuments } from './indexer/storage.ts';
+import { parseRetroFile } from './indexer/parser.ts';
+import type { VectorDocument, VectorStoreAdapter } from './vector/types.ts';
+import { documentStorageId } from './document-identity.ts';
 import fs from 'fs';
 
 // ============================================================================
@@ -38,6 +42,8 @@ beforeAll(() => {
     -- Main document index
     CREATE TABLE oracle_documents (
       id TEXT PRIMARY KEY,
+      display_id TEXT,
+      content_digest TEXT,
       type TEXT NOT NULL,
       source_file TEXT NOT NULL,
       concepts TEXT NOT NULL DEFAULT '[]',
@@ -456,5 +462,105 @@ describe('Indexer Preservation - edge cases', () => {
     const remainingIds = remaining.map(d => d.id);
     expect(remainingIds).toContain('oracle-learn-doc');
     expect(remainingIds).toContain('manual-doc');
+  });
+});
+
+class RecordingVectorStore implements VectorStoreAdapter {
+  readonly name = 'recording';
+  readonly batches: string[][] = [];
+
+  async connect() {}
+  async close() {}
+  async ensureCollection() {}
+  async deleteCollection() {}
+  async addDocuments(documents: VectorDocument[]) {
+    this.batches.push(documents.map(document => document.id));
+  }
+  async query() {
+    return { ids: [], documents: [], distances: [], metadatas: [] };
+  }
+  async queryById() {
+    return { ids: [], documents: [], distances: [], metadatas: [] };
+  }
+  async getStats() {
+    return { count: 0 };
+  }
+  async getCollectionInfo() {
+    return { count: 0, name: this.name };
+  }
+}
+
+describe('Document storage - FTS replacement', () => {
+  it('keeps one current FTS row when a document is re-indexed', async () => {
+    const now = Date.now();
+    const base = {
+      id: 'fts-replacement-doc',
+      type: 'learning' as const,
+      source_file: 'learnings/fts-replacement.md',
+      content: 'old content',
+      concepts: ['fts'],
+      created_at: now,
+      updated_at: now,
+    };
+    const storageId = documentStorageId(null, base.id);
+
+    await storeDocuments(sqlite, db, null, null, [base]);
+    await storeDocuments(sqlite, db, null, null, [{ ...base, content: 'new content' }]);
+
+    const rows = sqlite.prepare(
+      'SELECT content FROM oracle_fts WHERE id = ?'
+    ).all(storageId) as Array<{ content: string }>;
+    expect(rows).toEqual([{ content: 'new content' }]);
+  });
+
+  it('re-indexes changed or missing vectors but skips complete unchanged rows', async () => {
+    const now = Date.now();
+    const vectorStore = new RecordingVectorStore();
+    const document = {
+      id: 'incremental-vector-doc',
+      type: 'learning' as const,
+      source_file: 'ψ/memory/learnings/incremental.md',
+      content: 'stable content',
+      concepts: ['indexing'],
+      created_at: now,
+      updated_at: now,
+    };
+    const storageId = documentStorageId(null, document.id);
+
+    await storeDocuments(sqlite, db, vectorStore, null, [document]);
+    await storeDocuments(sqlite, db, vectorStore, null, [document], false, new Set([storageId]));
+    await storeDocuments(sqlite, db, vectorStore, null, [document], false, new Set());
+    await storeDocuments(sqlite, db, vectorStore, null, [{
+      ...document,
+      content: 'changed content',
+    }], false, new Set([storageId]));
+
+    expect(vectorStore.batches).toEqual([
+      [storageId],
+      [storageId],
+      [storageId],
+    ]);
+  });
+});
+
+describe('Retrospective parser - stable document identity', () => {
+  it('distinguishes the same basename in different directories', () => {
+    const content = '# Session Retrospective\n\n## Summary\n\nA sufficiently long retrospective section that must produce one indexed document.';
+    const marchEight = parseRetroFile(
+      'ψ/memory/retrospectives/2026-03/08/17.09_same-name.md',
+      content
+    );
+    const marchNine = parseRetroFile(
+      'ψ/memory/retrospectives/2026-03/09/17.09_same-name.md',
+      content
+    );
+
+    expect(marchEight).toHaveLength(1);
+    expect(marchNine).toHaveLength(1);
+    expect(marchEight[0].id).not.toBe(marchNine[0].id);
+    expect(parseRetroFile(
+      'ψ/memory/retrospectives/2026-03/08/17.09_same-name.md',
+      content
+    )[0].id).toBe(marchEight[0].id);
   });
 });

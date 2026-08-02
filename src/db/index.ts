@@ -15,6 +15,7 @@ import path from 'path';
 import fs from 'fs';
 import * as schema from './schema.ts';
 import { DB_PATH, ORACLE_DATA_DIR } from '../config.ts';
+import { ensureDocumentIdentityColumns, migrateDocumentIdentity } from './document-identity-migration.ts';
 
 // Migrations folder (relative to this file)
 const MIGRATIONS_FOLDER = path.join(import.meta.dirname || __dirname, 'migrations');
@@ -77,9 +78,11 @@ function initializeDatabase(sqliteDb: Database, drizzleDb: BunSQLiteDatabase<typ
 
   // Run Drizzle migrations (creates/updates all schema tables)
   migrate(drizzleDb, { migrationsFolder: MIGRATIONS_FOLDER });
+  ensureDocumentIdentityColumns(sqliteDb);
 
   // FTS5 (raw SQL, idempotent)
   initFts5(sqliteDb);
+  migrateDocumentIdentity(sqliteDb);
 
   // Supersede log table (migration 0003 - idempotent for existing DBs)
   initSupersedeLog(sqliteDb);

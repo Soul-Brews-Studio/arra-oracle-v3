@@ -13,11 +13,12 @@ import { SqliteVecAdapter } from '../adapters/sqlite-vec.ts';
 import { ChromaMcpAdapter } from '../adapters/chroma-mcp.ts';
 import { LanceDBAdapter } from '../adapters/lancedb.ts';
 import { QdrantAdapter } from '../adapters/qdrant.ts';
-import type { VectorStoreAdapter, VectorDocument } from '../types.ts';
+import type { EmbeddingProvider, VectorStoreAdapter, VectorDocument } from '../types.ts';
 import { Database } from 'bun:sqlite';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { UNIVERSAL_PROJECT, contentDigest, documentStorageId } from '../../document-identity.ts';
 
 /**
  * Probe whether the sqlite-vec (vec0) extension can be loaded.
@@ -362,6 +363,15 @@ describe('ChromaMcpAdapter', () => {
 // Adapter Interface Compliance: LanceDB + Ollama
 // ============================================================================
 
+class FixedEmbeddingProvider implements EmbeddingProvider {
+  readonly name = 'fixed';
+  readonly dimensions = 2;
+
+  async embed(texts: string[]): Promise<number[][]> {
+    return texts.map(() => [1, 0]);
+  }
+}
+
 describe('LanceDBAdapter + Ollama', () => {
   let store: VectorStoreAdapter;
   let tmpDir: string;
@@ -429,6 +439,46 @@ describe('LanceDBAdapter + Ollama', () => {
 
     for (const meta of result.metadatas) {
       expect(meta.type).toBe('learning');
+    }
+  });
+
+  test('applies project filtering before limit and preserves equal display IDs', async () => {
+    const filterDir = path.join(os.tmpdir(), `oracle-lance-filter-${Date.now()}`);
+    const filteredStore = new LanceDBAdapter(
+      'oracle_test_lance_filter',
+      filterDir,
+      new FixedEmbeddingProvider(),
+    );
+    const digest = contentDigest('same content');
+    const document = (project: string, displayId: string): VectorDocument => ({
+      id: documentStorageId(project === UNIVERSAL_PROJECT ? null : project, displayId),
+      document: 'same content',
+      metadata: {
+        type: 'learning',
+        source_file: `${project}/${displayId}.md`,
+        concepts: '[]',
+        project,
+        display_id: displayId,
+        content_digest: digest,
+      },
+    });
+
+    try {
+      await filteredStore.connect();
+      await filteredStore.ensureCollection();
+      await filteredStore.addDocuments([
+        ...Array.from({ length: 10 }, (_, index) => document('project-b', `blocker-${index}`)),
+        document('project-b', 'shared'),
+        document('project-a', 'shared'),
+        document(UNIVERSAL_PROJECT, 'shared'),
+      ]);
+
+      const result = await filteredStore.query('same content', 1, { project: 'project-a' });
+      expect(result.ids).toEqual([documentStorageId('project-a', 'shared')]);
+      expect(result.metadatas[0]?.display_id).toBe('shared');
+    } finally {
+      await filteredStore.close();
+      fs.rmSync(filterDir, { recursive: true, force: true });
     }
   });
 

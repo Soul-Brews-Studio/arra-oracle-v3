@@ -762,6 +762,7 @@
           "notNull": true,
           "autoincrement": false
         },
+
         "type": {
           "name": "type",
           "type": "text",
@@ -882,6 +883,7 @@
             "project"
           ],
           "isUnique": false
+
         }
       },
       "foreignKeys": {},

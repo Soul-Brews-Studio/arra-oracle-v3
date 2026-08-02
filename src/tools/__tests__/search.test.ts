@@ -3,13 +3,17 @@
  * These were previously duplicated in oracle-core.test.ts.
  */
 
-import { describe, it, expect } from 'bun:test';
+import { afterAll, beforeAll, describe, it, expect } from 'bun:test';
+import { Database } from 'bun:sqlite';
 import {
   sanitizeFtsQuery,
   normalizeFtsScore,
   parseConceptsFromMetadata,
   combineResults,
+  validateVectorResults,
 } from '../search.ts';
+import type { VectorSearchResult } from '../search.ts';
+import { contentDigest, documentStorageId } from '../../document-identity.ts';
 
 // ============================================================================
 // sanitizeFtsQuery
@@ -103,6 +107,84 @@ describe('parseConceptsFromMetadata', () => {
 
   it('should return empty for invalid JSON', () => {
     expect(parseConceptsFromMetadata('not json')).toEqual([]);
+  });
+});
+
+describe('validateVectorResults', () => {
+  let db: Database;
+  const digest = contentDigest('current content');
+  const idA = documentStorageId('project-a', 'shared');
+  const idB = documentStorageId('project-b', 'shared');
+  const candidateA: VectorSearchResult = {
+    id: idA,
+    display_id: 'shared',
+    project: 'project-a',
+    content_digest: digest,
+    type: 'learning',
+    content: 'current content',
+    source_file: 'a.md',
+    concepts: [],
+    score: 0.1,
+    distance: 0.1,
+    model: 'qwen3',
+    source: 'vector',
+  };
+
+  beforeAll(() => {
+    db = new Database(':memory:');
+    db.exec(`
+      CREATE TABLE oracle_documents (
+        id TEXT PRIMARY KEY,
+        display_id TEXT,
+        content_digest TEXT,
+        project TEXT,
+        type TEXT,
+        source_file TEXT,
+        concepts TEXT
+      )
+    `);
+    const insert = db.prepare(`
+      INSERT INTO oracle_documents
+      (id, display_id, content_digest, project, type, source_file, concepts)
+      VALUES (?, 'shared', ?, ?, 'learning', ?, '[]')
+    `);
+    insert.run(idA, digest, 'project-a', 'a.md');
+    insert.run(idB, digest, 'project-b', 'b.md');
+  });
+
+  afterAll(() => db.close());
+
+  it('admits exact metadata and content matches', () => {
+    expect(validateVectorResults(db, [candidateA], 'project-a')).toEqual({
+      results: [candidateA],
+    });
+  });
+
+  it('rejects the whole channel for cross-project or stale vectors', () => {
+    const crossProject = {
+      ...candidateA,
+      id: idB,
+      project: 'project-b',
+      source_file: 'b.md',
+    };
+    expect(validateVectorResults(db, [candidateA, crossProject], 'project-a').results).toEqual([]);
+    expect(validateVectorResults(db, [{ ...candidateA, content_digest: 'stale' }], 'project-a').results).toEqual([]);
+  });
+
+  it('prevents a stale matching ID from gaining hybrid rank', () => {
+    const validation = validateVectorResults(db, [{ ...candidateA, content: 'stale content' }], 'project-a');
+    const combined = combineResults([{
+      id: idA,
+      display_id: 'shared',
+      type: 'learning',
+      content: 'current content',
+      source_file: 'a.md',
+      concepts: [],
+      score: 1,
+      source: 'fts',
+    }], validation.results);
+    expect(combined[0]?.source).toBe('fts');
+    expect(combined[0]?.vectorScore).toBeUndefined();
   });
 });
 

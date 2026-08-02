@@ -2,6 +2,7 @@
  * Markdown file parsers for resonance, learning, and retrospective files
  */
 
+import { createHash } from 'node:crypto';
 import path from 'path';
 import type { OracleDocument } from '../types.ts';
 import { extractConcepts, mergeConceptsWithTags } from './concepts.ts';
@@ -173,8 +174,11 @@ export function parseRetroFile(relativePath: string, content: string): OracleDoc
     const body = lines.slice(1).join('\n').trim();
     if (!body || body.length < 50) return;
 
-    const filename = path.basename(relativePath, '.md');
-    const id = `retro_${filename}_${index}`;
+    const pathKey = createHash('sha256')
+      .update(relativePath.replaceAll('\\', '/'))
+      .digest('hex')
+      .slice(0, 16);
+    const id = `retro_${pathKey}_${index}`;
     const extracted = extractConcepts(sectionTitle, body);
 
     documents.push({

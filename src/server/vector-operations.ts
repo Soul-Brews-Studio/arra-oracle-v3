@@ -1,5 +1,4 @@
-import { inArray } from 'drizzle-orm';
-import { db, oracleDocuments } from '../db/index.ts';
+import { db, sqlite, oracleDocuments } from '../db/index.ts';
 import {
   createVectorStore,
   ensureVectorStoreConnected,
@@ -7,6 +6,8 @@ import {
   getVectorStoreConfigByModel,
 } from '../vector/factory.ts';
 import { localNativeVectorDisabledReason, localVectorIndexMissingReason } from '../vector/cpu-capabilities.ts';
+import { UNIVERSAL_PROJECT } from '../document-identity.ts';
+import { validateVectorResults, type VectorSearchResult } from '../tools/search.ts';
 import type { EmbeddingProviderType, VectorDBType, VectorDocument, VectorStoreAdapter } from '../vector/types.ts';
 import type { SearchResult } from './types.ts';
 
@@ -75,37 +76,39 @@ async function searchOneModel(input: VectorSearchInput, model: string | undefine
   const client = await ensureVectorStoreConnected(model);
   const limit = input.limit ?? 10;
   const isMulti = input.model === 'multi';
-  const whereFilter = input.type && input.type !== 'all' ? { type: input.type } : undefined;
-  const vectorRows = await client.query(input.query, isMulti ? limit : limit * 2, whereFilter);
+  const resolvedProject = input.project?.toLowerCase() ?? null;
+  const where: Record<string, string | string[]> = {};
+  if (input.type && input.type !== 'all') where.type = input.type;
+  if (resolvedProject) where.project = [resolvedProject, UNIVERSAL_PROJECT];
+  const vectorRows = await client.query(
+    input.query,
+    isMulti ? limit : limit * 2,
+    Object.keys(where).length > 0 ? where : undefined,
+  );
 
   if (!vectorRows.ids || vectorRows.ids.length === 0) return [];
 
-  const rows = db.select({ id: oracleDocuments.id, project: oracleDocuments.project })
-    .from(oracleDocuments)
-    .where(inArray(oracleDocuments.id, vectorRows.ids))
-    .all();
-  const projectMap = new Map<string, string | null>();
-  rows.forEach(r => projectMap.set(r.id, r.project));
-
-  const resolvedProject = input.project?.toLowerCase() ?? null;
-  return vectorRows.ids
-    .map((id: string, i: number) => {
-      const distance = vectorRows.distances?.[i] || 0;
-      const docProject = projectMap.get(id);
-      return {
-        id,
-        type: vectorRows.metadatas?.[i]?.type || 'unknown',
-        content: vectorRows.documents?.[i] || '',
-        source_file: vectorRows.metadatas?.[i]?.source_file || '',
-        concepts: [],
-        project: docProject,
-        source: 'vector' as const,
-        score: cosineDistanceToSimilarity(distance),
-        distance,
-        model: modelName,
-      };
-    })
-    .filter(r => !resolvedProject || r.project === resolvedProject || r.project === null);
+  const candidates: VectorSearchResult[] = vectorRows.ids.map((id: string, index: number) => {
+    const metadata = vectorRows.metadatas?.[index] as Record<string, unknown> | undefined;
+    const distance = vectorRows.distances?.[index] || 0;
+    return {
+      id,
+      display_id: String(metadata?.display_id || ''),
+      project: String(metadata?.project || ''),
+      content_digest: String(metadata?.content_digest || ''),
+      type: String(metadata?.type || 'unknown'),
+      content: vectorRows.documents?.[index] || '',
+      source_file: String(metadata?.source_file || ''),
+      concepts: [],
+      score: cosineDistanceToSimilarity(distance),
+      distance,
+      model: modelName,
+      source: 'vector',
+    };
+  });
+  const validation = validateVectorResults(sqlite, candidates, resolvedProject);
+  if (validation.error) throw new Error(validation.error);
+  return validation.results;
 }
 
 function dedupeMultiModel(results: SearchResult[]): SearchResult[] {

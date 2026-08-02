@@ -4,10 +4,12 @@
 
 export interface SearchResult {
   id: string;
+  display_id?: string;
   type: string;
   content: string;
   source_file: string;
   concepts: string[];
+  project?: string | null;
   source?: 'fts' | 'vector' | 'hybrid';
   score?: number;
   distance?: number;

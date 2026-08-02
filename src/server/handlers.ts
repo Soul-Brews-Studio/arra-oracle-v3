@@ -20,6 +20,7 @@ import { createVectorProxy } from './vector-proxy.ts';
 import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
 import { localNativeVectorDisabledReason, localVectorIndexMissingReason, logLocalVectorDisabled } from '../vector/cpu-capabilities.ts';
 import { isVectorSectionEnabled } from '../vector/config.ts';
+import { contentDigest, documentStorageId, storedProject } from '../document-identity.ts';
 
 // Module-level proxy instance — bound to VECTOR_URL at boot. If VECTOR_URL is
 // unset, this is null and the local vector adapter runs in-process (legacy
@@ -93,10 +94,9 @@ export async function handleSearch(
   mode: 'hybrid' | 'fts' | 'vector' = 'hybrid',
   project?: string,  // If set: project + universal. If null/undefined: universal only
   cwd?: string,      // Auto-detect project from cwd if project not specified
-  model?: string     // Embedding model: 'bge-m3' (default, multilingual) or 'nomic' (fast)
+  model?: string     // Embedding model selected by the vector registry
 ): Promise<SearchResponse & { mode?: string; warning?: string; model?: string; vectorAvailable?: boolean }> {
-  // Auto-detect project from cwd if not explicitly specified
-  const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
+  const resolvedProject = storedProject(project ?? detectProject(cwd));
   const startTime = Date.now();
   const ftsQuery = buildFtsQuery(query);
   if (!ftsQuery) {
@@ -153,7 +153,7 @@ export async function handleSearch(
       ftsTotal = (runFtsGet(countStmt, [ftsQuery, ...projectParams]) as { total: number } | null)?.total ?? 0;
 
       const stmt = sqlite.prepare(`
-        SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
+        SELECT f.id, d.display_id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
         FROM oracle_fts f
         JOIN oracle_documents d ON f.id = d.id
         WHERE oracle_fts MATCH ? AND ${projectFilter}
@@ -161,6 +161,7 @@ export async function handleSearch(
         LIMIT ?
       `);
       ftsResults = runFtsAll<any>(stmt, [ftsQuery, ...projectParams, limit * 3]).map((row: any) => ({
+        display_id: row.display_id,
         id: row.id,
         type: row.type,
         content: row.content,
@@ -180,7 +181,7 @@ export async function handleSearch(
       ftsTotal = (runFtsGet(countStmt, [ftsQuery, type, ...projectParams]) as { total: number } | null)?.total ?? 0;
 
       const stmt = sqlite.prepare(`
-        SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
+        SELECT f.id, d.display_id, f.content, d.type, d.source_file, d.concepts, d.project, rank as score
         FROM oracle_fts f
         JOIN oracle_documents d ON f.id = d.id
         WHERE oracle_fts MATCH ? AND d.type = ? AND ${projectFilter}
@@ -188,6 +189,7 @@ export async function handleSearch(
         LIMIT ?
       `);
       ftsResults = runFtsAll<any>(stmt, [ftsQuery, type, ...projectParams, limit * 3]).map((row: any) => ({
+        display_id: row.display_id,
         id: row.id,
         type: row.type,
         content: row.content,
@@ -243,6 +245,7 @@ export async function handleSearch(
       if (vectorResults.length > 0) {
         console.log(`[Vector] ${vectorResults.length} results, top scores: ${vectorResults.slice(0, 3).map(r => r.score?.toFixed(3))}`);
       }
+
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error('[Vector Search Error]', msg);
@@ -689,6 +692,7 @@ export function handleGraph(limitPerType = 310) {
 }
 
 
+
 /**
  * Add new pattern/learning to knowledge base
  * @param origin - 'mother' | 'arthur' | 'volt' | 'human' (null = universal)
@@ -710,7 +714,7 @@ export function persistLearningDoc(opts: {
   project?: string | null;
   createdBy?: string;      // oracle_documents.created_by
   footer?: string;         // footer line under the content, e.g. '*Added via Oracle Learn*'
-}): { file: string; id: string } {
+}): { file: string; id: string; display_id: string } {
   const { pattern, subdir, filename, id } = opts;
   const now = new Date();
 
@@ -738,9 +742,13 @@ export function persistLearningDoc(opts: {
   fs.writeFileSync(filePath, frontmatter, 'utf-8');
 
   const sourceFile = `${subdir}/${filename}`;
+  const project = storedProject(opts.project);
+  const storageId = documentStorageId(project, id);
 
   db.insert(oracleDocuments).values({
-    id,
+    id: storageId,
+    displayId: id,
+    contentDigest: contentDigest(frontmatter),
     type: 'learning',
     sourceFile,
     concepts: JSON.stringify(conceptsList),
@@ -748,20 +756,20 @@ export function persistLearningDoc(opts: {
     updatedAt: now.getTime(),
     indexedAt: now.getTime(),
     origin: opts.origin || null,
-    project: opts.project || null,
+    project,
     createdBy: opts.createdBy || 'oracle_learn',
   }).run();
 
   // FTS5 has no unique constraint on id — delete-then-insert to be idempotent.
-  sqlite.prepare(`DELETE FROM oracle_fts WHERE id = ?`).run(id);
+  sqlite.prepare(`DELETE FROM oracle_fts WHERE id = ?`).run(storageId);
   sqlite.prepare(`
     INSERT INTO oracle_fts (id, content, concepts)
     VALUES (?, ?, ?)
-  `).run(id, frontmatter, conceptsList.join(' '));
+  `).run(storageId, frontmatter, conceptsList.join(' '));
 
-  logLearning(id, pattern, opts.source || 'Oracle Learn', conceptsList);
+  logLearning(storageId, pattern, opts.source || 'Oracle Learn', conceptsList);
 
-  return { file: sourceFile, id };
+  return { file: sourceFile, id: storageId, display_id: id };
 }
 
 export function handleLearn(
@@ -772,7 +780,7 @@ export function handleLearn(
   project?: string,
   cwd?: string
 ) {
-  const resolvedProject = (project ?? detectProject(cwd))?.toLowerCase() ?? null;
+  const resolvedProject = storedProject(project ?? detectProject(cwd));
   const d = new Date();
   const dateStr = dateSlug(d);
 

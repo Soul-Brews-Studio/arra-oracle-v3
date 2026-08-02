@@ -8,6 +8,7 @@ import * as schema from '../db/schema.ts';
 import { oracleDocuments } from '../db/schema.ts';
 import type { VectorStoreAdapter } from '../vector/types.ts';
 import type { OracleDocument } from '../types.ts';
+import { UNIVERSAL_PROJECT, contentDigest, documentStorageId, storedProject } from '../document-identity.ts';
 
 /**
  * Store documents in SQLite + vector store
@@ -19,8 +20,11 @@ export async function storeDocuments(
   vectorClient: VectorStoreAdapter | null,
   project: string | null,
   documents: OracleDocument[],
-  opts: { createdBy?: string } = {}
+  opts: { createdBy?: string } | boolean = {},
+  existingVectorIds?: ReadonlySet<string>
 ): Promise<void> {
+  const forceVectorIndex = typeof opts === 'boolean' ? opts : false;
+  const createdBy = typeof opts === 'boolean' ? 'indexer' : opts.createdBy || 'indexer';
   const now = Date.now();
 
   // Prepare FTS statements. FTS5 virtual tables have no UNIQUE constraint on
@@ -33,6 +37,14 @@ export async function storeDocuments(
     INSERT INTO oracle_fts (id, content, concepts)
     VALUES (?, ?, ?)
   `);
+  const selectExisting = sqlite.prepare(`
+    SELECT d.type, d.source_file, d.concepts, d.project, f.content
+    FROM oracle_documents d
+    LEFT JOIN oracle_fts f ON f.id = d.id
+    WHERE d.id = ?
+    ORDER BY f.rowid DESC
+    LIMIT 1
+  `);
 
   // Prepare for vector store
   const ids: string[] = [];
@@ -43,13 +55,33 @@ export async function storeDocuments(
   sqlite.exec('BEGIN');
   try {
     for (const doc of documents) {
-      // SQLite metadata - use doc.project if available, fall back to repo project
-      const docProject = (doc.project || project)?.toLowerCase();
+      const docProject = storedProject(doc.project === undefined ? project : doc.project);
+      const displayId = doc.id;
+      const storageId = documentStorageId(docProject, displayId);
+      const digest = contentDigest(doc.content);
+      const serializedConcepts = JSON.stringify(doc.concepts);
+      const existing = selectExisting.get(storageId) as {
+        type: string;
+        source_file: string;
+        concepts: string;
+        project: string | null;
+        content: string | null;
+      } | null;
+      const needsVectorUpdate = forceVectorIndex
+        || !existing
+        || (existingVectorIds !== undefined && !existingVectorIds.has(storageId))
+        || existing.type !== doc.type
+        || existing.source_file !== doc.source_file
+        || existing.concepts !== serializedConcepts
+        || existing.project !== (docProject ?? null)
+        || existing.content !== doc.content;
 
       // Drizzle upsert with createdBy: 'indexer'
       db.insert(oracleDocuments)
         .values({
-          id: doc.id,
+          id: storageId,
+          displayId,
+          contentDigest: digest,
           type: doc.type,
           sourceFile: doc.source_file,
           concepts: JSON.stringify(doc.concepts),
@@ -57,7 +89,7 @@ export async function storeDocuments(
           updatedAt: doc.updated_at,
           indexedAt: now,
           project: docProject,
-          createdBy: opts.createdBy || 'indexer',
+          createdBy,
         })
         .onConflictDoUpdate({
           target: oracleDocuments.id,
@@ -68,27 +100,27 @@ export async function storeDocuments(
             updatedAt: doc.updated_at,
             indexedAt: now,
             project: docProject,
+            displayId,
+            contentDigest: digest,
           }
         })
         .run();
 
-      // SQLite FTS (raw SQL required for FTS5): delete then insert to avoid
-      // duplicates across re-index runs.
-      deleteFts.run(doc.id);
-      insertFts.run(
-        doc.id,
-        doc.content,
-        doc.concepts.join(' ')
-      );
+      deleteFts.run(storageId);
+      insertFts.run(storageId, doc.content, doc.concepts.join(' '));
 
-      // Vector store metadata (must be primitives, not arrays)
-      ids.push(doc.id);
-      contents.push(doc.content);
-      metadatas.push({
-        type: doc.type,
-        source_file: doc.source_file,
-        concepts: doc.concepts.join(',')
-      });
+      if (needsVectorUpdate) {
+        ids.push(storageId);
+        contents.push(doc.content);
+        metadatas.push({
+          type: doc.type,
+          source_file: doc.source_file,
+          concepts: doc.concepts.join(','),
+          display_id: displayId,
+          content_digest: digest,
+          project: docProject || UNIVERSAL_PROJECT,
+        });
+      }
     }
     sqlite.exec('COMMIT');
   } catch (e) {

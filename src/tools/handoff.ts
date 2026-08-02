@@ -7,6 +7,7 @@
 
 import path from 'path';
 import fs from 'fs';
+
 import { detectProject } from '../server/project-detect.ts';
 import type { ToolContext, ToolResponse, OracleHandoffInput } from './types.ts';
 
@@ -105,7 +106,7 @@ export async function handleHandoff(ctx: ToolContext, input: OracleHandoffInput)
 
   // Resolve vault root for central writes
   const getVaultPsiRoot = await loadGetVaultPsiRoot();
-  const vault = getVaultPsiRoot();
+  const vault = getVaultPsiRoot(ctx.sqlite);
   if ('needsInit' in vault) console.error(`[Vault] ${vault.hint}`);
   const vaultRoot = 'path' in vault ? vault.path : null;
 

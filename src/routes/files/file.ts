@@ -11,6 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { REPO_ROOT } from '../../config.ts';
 import { getVaultPsiRoot } from '../../vault/handler.ts';
+import { sqlite } from '../../db/index.ts';
 import { fileQuery } from './model.ts';
 
 export const fileRoute = new Elysia().get(
@@ -90,7 +91,7 @@ export const fileRoute = new Elysia().get(
         }
       }
 
-      const vault = getVaultPsiRoot();
+      const vault = getVaultPsiRoot(sqlite);
       if ('path' in vault) {
         const vaultFullPath = path.join(vault.path, filePath);
         const realVaultPath = path.resolve(vaultFullPath);

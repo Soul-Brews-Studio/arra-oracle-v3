@@ -11,6 +11,8 @@ import { sqliteTable, text, integer, index, type AnySQLiteColumn } from 'drizzle
 // Main document index table
 export const oracleDocuments = sqliteTable('oracle_documents', {
   id: text('id').primaryKey(),
+  displayId: text('display_id'),
+  contentDigest: text('content_digest'),
   type: text('type').notNull(),
   sourceFile: text('source_file').notNull(),
   concepts: text('concepts').notNull(), // JSON array
@@ -31,7 +33,9 @@ export const oracleDocuments = sqliteTable('oracle_documents', {
   index('idx_superseded').on(table.supersededBy),
   index('idx_origin').on(table.origin),
   index('idx_project').on(table.project),
+  index('idx_project_display').on(table.project, table.displayId),
 ]);
+
 
 // Indexing status tracking
 export const indexingStatus = sqliteTable('indexing_status', {

@@ -37,6 +37,7 @@ async function loadGetVaultPsiRoot(): Promise<typeof import('../vault/handler.ts
   return getVaultPsiRootFn;
 }
 import type { ToolContext, ToolResponse, OracleLearnInput } from './types.ts';
+import { UNIVERSAL_PROJECT, contentDigest, documentStorageId, storedProject } from '../document-identity.ts';
 
 /** Coerce concepts to string[] — handles string, array, or undefined from MCP input */
 export function coerceConcepts(concepts: unknown): string[] {
@@ -199,13 +200,16 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
 
   // Resolve vault root for central writes
   const getVaultPsiRoot = await loadGetVaultPsiRoot();
-  const vault = getVaultPsiRoot();
+  const vault = getVaultPsiRoot(ctx.sqlite);
   if ('needsInit' in vault) console.error(`[Vault] ${vault.hint}`);
   const vaultRoot = 'path' in vault ? vault.path : null;
 
-  const project = normalizeProject(projectInput)
-    || extractProjectFromSource(source)
-    || detectProject(ctx.repoRoot);
+  const project = storedProject(
+    normalizeProject(projectInput)
+      || projectInput
+      || extractProjectFromSource(source)
+      || detectProject(ctx.repoRoot),
+  );
   const projectDir = (project || '_universal').toLowerCase();
 
   let filePath: string;
@@ -244,8 +248,11 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
 
   fs.writeFileSync(filePath, frontmatter, 'utf-8');
 
+  const storageId = documentStorageId(project, id);
   ctx.db.insert(oracleDocuments).values({
-    id,
+    id: storageId,
+    displayId: id,
+    contentDigest: contentDigest(frontmatter),
     type: 'learning',
     sourceFile: sourceFileRel,
     concepts: JSON.stringify(conceptsList),
@@ -258,11 +265,11 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
   }).run();
 
   // FTS5 has no unique constraint on id — delete-then-insert to be idempotent.
-  ctx.sqlite.prepare(`DELETE FROM oracle_fts WHERE id = ?`).run(id);
+  ctx.sqlite.prepare(`DELETE FROM oracle_fts WHERE id = ?`).run(storageId);
   ctx.sqlite.prepare(`
     INSERT INTO oracle_fts (id, content, concepts)
     VALUES (?, ?, ?)
-  `).run(id, frontmatter, conceptsList.join(' '));
+  `).run(storageId, frontmatter, conceptsList.join(' '));
 
   // Vector indexing — two paths:
   //   - Default (env unset): inline embed via Ollama. Keeps DB + lancedb in
@@ -277,7 +284,7 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
   const enqueue = process.env.ORACLE_INDEXER_ENQUEUE === '1' ? await loadEnqueue() : null;
   if (enqueue) {
     try {
-      enqueue(ctx.sqlite, { docId: id, models: getEmbeddingModels() });
+      enqueue(ctx.sqlite, { docId: storageId, models: getEmbeddingModels() });
       embeddingStatus = 'enqueued';
     } catch (err) {
       // Never block ingest on the queue — same posture as the inline path.
@@ -290,13 +297,15 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
       const model = process.env.ORACLE_EMBEDDING_MODEL || 'bge-m3';
       const vectorStore = getVectorStoreByModel(model);
       await vectorStore.addDocuments([{
-        id,
+        id: storageId,
         document: frontmatter,
         metadata: {
           type: 'learning',
           source_file: sourceFileRel,
-          project: project || '',
+          project: project || UNIVERSAL_PROJECT,
           concepts: conceptsList.join(','),
+          display_id: id,
+          content_digest: contentDigest(frontmatter),
         },
       }]);
       embeddingStatus = 'ok';
@@ -314,7 +323,8 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
       text: JSON.stringify({
         success: true,
         file: sourceFileRel,
-        id,
+        id: storageId,
+        display_id: id,
         embedding: embeddingStatus,
         ...(embeddingError && { embeddingError }),
         message: `Pattern added to Oracle knowledge base${vaultRoot ? ' (vault)' : ''}${embeddingStatus === 'failed' ? ' — vector embedding failed, see server log' : ''}`

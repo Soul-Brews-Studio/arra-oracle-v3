@@ -20,6 +20,7 @@ import { oracleDocuments } from '../db/schema.ts';
 import { createDatabase } from '../db/index.ts';
 import { detectProject } from '../server/project-detect.ts';
 import type { OracleDocument, IndexerConfig } from '../types.ts';
+import { documentStorageId, storedProject } from '../document-identity.ts';
 
 import { setIndexingStatus } from './status.ts';
 import { backupDatabase } from './backup.ts';
@@ -43,7 +44,7 @@ export class OracleIndexer {
     const { sqlite, db } = createDatabase(config.dbPath);
     this.sqlite = sqlite;
     this.db = db;
-    this.project = detectProject(config.repoRoot);
+    this.project = storedProject(detectProject(config.repoRoot));
     console.log(`[Indexer] Detected project: ${this.project || '(universal)'}`);
   }
 
@@ -84,8 +85,7 @@ export class OracleIndexer {
       ...collectSecurityCorpus(shared),
     ];
 
-    // Safety: if we found zero source documents but the DB has existing
-    // indexer-created content, abort rather than smart-deleting everything.
+    // Safety: never wipe an existing index when source discovery is empty.
     if (!append && documents.length === 0 && existingIndexerDocCount > 0) {
       throw new Error(
         `Refusing to index: found 0 source documents but DB has ${existingIndexerDocCount} indexer docs. ` +
@@ -96,15 +96,35 @@ export class OracleIndexer {
     if (append) {
       console.log('Append mode: skipping smart delete (preserving existing docs from other repo roots)');
     } else {
-      // Smart deletion: remove indexer-created docs whose source file no longer exists
-      const allIndexerDocs = this.db.select({ id: oracleDocuments.id, sourceFile: oracleDocuments.sourceFile })
+      const incomingBySource = new Map<string, Set<string>>();
+      const indexedProjects = new Set<string | null>([this.project]);
+      for (const document of documents) {
+        const documentProject = storedProject(document.project === undefined ? this.project : document.project);
+        indexedProjects.add(documentProject);
+        const ids = incomingBySource.get(document.source_file) || new Set<string>();
+        ids.add(documentStorageId(documentProject, document.id));
+        incomingBySource.set(document.source_file, ids);
+      }
+
+      const allIndexerDocs = this.db.select({
+        id: oracleDocuments.id,
+        sourceFile: oracleDocuments.sourceFile,
+        project: oracleDocuments.project,
+      })
         .from(oracleDocuments)
         .where(or(eq(oracleDocuments.createdBy, 'indexer'), isNull(oracleDocuments.createdBy)))
         .all();
-
       const idsToDelete = allIndexerDocs
-        .filter(d => !fs.existsSync(path.join(this.config.repoRoot, d.sourceFile)))
-        .map(d => d.id);
+        .filter(document => {
+          if (!indexedProjects.has(document.project)) return false;
+          const sourcePath = path.isAbsolute(document.sourceFile)
+            ? document.sourceFile
+            : path.join(this.config.repoRoot, document.sourceFile);
+          const incomingIds = incomingBySource.get(document.sourceFile);
+          return !fs.existsSync(sourcePath) || (incomingIds !== undefined && !incomingIds.has(document.id));
+        })
+        .map(document => document.id);
+
 
       // Safety: if smart-delete would drop more than half of existing indexer
       // docs, we're almost certainly running from the wrong repoRoot — the docs
