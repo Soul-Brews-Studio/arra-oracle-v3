@@ -15,6 +15,7 @@ interface DocumentRow {
 }
 
 interface FtsRow {
+  id: string;
   content: string;
   concepts: string;
 }
@@ -52,18 +53,18 @@ export function migrateDocumentIdentity(sqlite: Database): number {
       FROM oracle_documents
       ORDER BY id
     `).all() as DocumentRow[];
-    const latestFts = sqlite.prepare(`
-      SELECT content, concepts
+    const ftsRows = sqlite.prepare(`
+      SELECT id, content, concepts
       FROM oracle_fts
-      WHERE id = ?
-      ORDER BY rowid DESC
-      LIMIT 1
-    `);
+      ORDER BY rowid
+    `).all() as FtsRow[];
+    const latestFts = new Map<string, FtsRow>();
+    for (const row of ftsRows) latestFts.set(row.id, row);
 
     const plans: MigrationPlan[] = rows.map((row) => {
       const displayId = row.display_id || row.id;
       const canonical = canonicalProject(row.project);
-      const fts = latestFts.get(row.id) as FtsRow | null;
+      const fts = latestFts.get(row.id) || null;
       return {
         oldId: row.id,
         currentId: row.id,
@@ -84,7 +85,8 @@ export function migrateDocumentIdentity(sqlite: Database): number {
         || row?.project !== plan.project;
     });
 
-    if (changed.length === 0) {
+    const needsFtsRebuild = ftsRows.length !== plans.filter(({ fts }) => fts).length;
+    if (changed.length === 0 && !needsFtsRebuild) {
       sqlite.exec('COMMIT');
       return 0;
     }
@@ -96,20 +98,18 @@ export function migrateDocumentIdentity(sqlite: Database): number {
 
     const idMap = new Map(plans.map(({ oldId, storageId }) => [oldId, storageId]));
     const updateId = sqlite.prepare('UPDATE oracle_documents SET id = ? WHERE id = ?');
-    const updateFtsId = sqlite.prepare('UPDATE oracle_fts SET id = ? WHERE id = ?');
     const finalize = sqlite.prepare(`
       UPDATE oracle_documents
       SET id = ?, display_id = ?, content_digest = ?, project = ?, superseded_by = ?
       WHERE id = ?
     `);
-    const deleteFts = sqlite.prepare('DELETE FROM oracle_fts WHERE id = ?');
     const insertFts = sqlite.prepare('INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)');
 
+    sqlite.exec('DELETE FROM oracle_fts');
     for (const plan of plans) {
       if (plan.oldId === plan.storageId) continue;
       const tempId = `__document_identity_migration__${contentDigest(plan.oldId)}`;
       updateId.run(tempId, plan.oldId);
-      updateFtsId.run(tempId, plan.oldId);
       plan.currentId = tempId;
     }
 
@@ -123,7 +123,6 @@ export function migrateDocumentIdentity(sqlite: Database): number {
         supersededBy,
         plan.currentId,
       );
-      deleteFts.run(plan.currentId);
       if (plan.fts) insertFts.run(plan.storageId, plan.fts.content, plan.fts.concepts);
     }
 
