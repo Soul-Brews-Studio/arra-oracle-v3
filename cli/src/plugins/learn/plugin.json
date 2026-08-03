@@ -7,10 +7,11 @@
   "description": "Add a new pattern or learning to ARRA Oracle",
   "cli": {
     "command": "learn",
-    "help": "arra-cli learn \"<pattern>\" [--concepts a,b] [--source s]",
+    "help": "arra-cli learn \"<pattern>\" [--concepts a,b] [--source s] [--project p]",
     "flags": {
       "--concepts": "Comma-separated concept tags",
-      "--source": "Source file or context label"
+      "--source": "Source file or context label",
+      "--project": "Project identity (for example github.com/owner/repo)"
     }
   }
 }
