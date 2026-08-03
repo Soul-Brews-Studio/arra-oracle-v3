@@ -1,5 +1,6 @@
 import type { InvokeContext, InvokeResult } from "../../plugin/types.ts";
 import { apiFetch } from "../../lib/api.ts";
+import { ensureServerRunning, getServerStatus } from "../../../../src/ensure-server.ts";
 
 const PORT = process.env.ORACLE_PORT || process.env.PORT || "47778";
 
@@ -32,14 +33,21 @@ export default async function handler(ctx: InvokeContext): Promise<InvokeResult>
   }
 
   if (sub === "start") {
-    const { spawn } = await import("child_process");
-    const child = spawn("bun", ["src/server.ts"], {
-      cwd: process.env.ORACLE_REPO_ROOT || process.cwd(),
-      detached: true, stdio: "ignore",
-    });
-    child.unref();
-    if (json) return { ok: true, output: JSON.stringify({ started: true, pid: child.pid, port: PORT }) };
-    return { ok: true, output: `Oracle server starting (PID ${child.pid}, port ${PORT}).` };
+    // Delegate to ensureServerRunning: it cleans stale PID files, resolves an
+    // absolute server path, refuses to claim success when the port is held by
+    // an unhealthy process, and waits for real health before returning — so a
+    // spawned child that dies on a bad cwd/env/port can never be reported as
+    // started.
+    const before = await getServerStatus();
+    const ready = await ensureServerRunning({ timeout: 15000 });
+    if (!ready) {
+      const reason = `server did not become healthy on port ${PORT} (check the port, ${process.env.ORACLE_DATA_DIR ?? "~/.oracle"}/oracle-http.lock, and server logs)`;
+      if (json) return { ok: false, error: JSON.stringify({ started: false, port: PORT, reason }) };
+      return { ok: false, error: `Oracle server failed to start: ${reason}.` };
+    }
+    const alreadyRunning = before.healthy;
+    if (json) return { ok: true, output: JSON.stringify({ started: true, alreadyRunning, port: PORT }) };
+    return { ok: true, output: alreadyRunning ? `Oracle server already running on :${PORT}.` : `Oracle server started on :${PORT}.` };
   }
 
   return { ok: false, error: `Unknown subcommand: ${sub}. Use: start | stop | status` };

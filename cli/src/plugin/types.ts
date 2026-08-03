@@ -9,6 +9,8 @@ export interface PluginManifest {
   tier?: "core" | "standard" | "extra";
   enabled?: boolean;
   seedMenu?: boolean;
+  /** Max ms invokePlugin waits for this plugin before aborting. Overrides the global ARRA_PLUGIN_TIMEOUT_MS default. */
+  timeoutMs?: number;
   cli?: {
     command: string;
     aliases?: string[];

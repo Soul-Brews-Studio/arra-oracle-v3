@@ -32,6 +32,9 @@ export function validateManifest(m: PluginManifest): void {
   if (m.seedMenu !== undefined && typeof m.seedMenu !== "boolean") {
     throw new Error(`manifest.seedMenu must be a boolean`);
   }
+  if (m.timeoutMs !== undefined && (typeof m.timeoutMs !== "number" || !Number.isFinite(m.timeoutMs) || m.timeoutMs <= 0)) {
+    throw new Error(`manifest.timeoutMs must be a positive number`);
+  }
   if (m.api) {
     if (!m.api.path || typeof m.api.path !== "string" || !m.api.path.startsWith("/")) {
       throw new Error(`manifest.api.path must be an absolute path`);

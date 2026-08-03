@@ -5,6 +5,7 @@
   "sdk": "^0.0.1",
   "weight": 3,
   "description": "Manage Oracle HTTP server (start/stop/status)",
+  "timeoutMs": 20000,
   "cli": {
     "command": "server",
     "help": "arra-cli server [start|stop|status] [--json]",
