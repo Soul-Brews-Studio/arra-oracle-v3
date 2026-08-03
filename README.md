@@ -276,7 +276,7 @@ arra-oracle-v3/
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ORACLE_PORT` | `47778` | HTTP server port |
-| `ORACLE_REPO_ROOT` | `process.cwd()` | Knowledge base root |
+| `ORACLE_REPO_ROOT` | Auto-resolved | Knowledge base root. Uses `ORACLE_DATA_DIR` when it contains `ψ/`, then the source project root when it contains `ψ/`, and otherwise `ORACLE_DATA_DIR`. |
 
 ## Testing
 

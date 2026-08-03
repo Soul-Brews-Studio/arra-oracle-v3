@@ -174,7 +174,7 @@ CREATE TABLE indexing_status (
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `ORACLE_REPO_ROOT` | `process.cwd()` | Knowledge base location (your ψ/ repo) |
+| `ORACLE_REPO_ROOT` | Auto-resolved | Knowledge base location. Uses `ORACLE_DATA_DIR` when it contains `ψ/`, then the source project root when it contains `ψ/`, and otherwise `ORACLE_DATA_DIR`. |
 | `PORT` | `47778` | HTTP server port |
 
 ### MCP Configuration
