@@ -85,6 +85,35 @@ http://localhost:4321/?api=http://localhost:47778
 This is wired in `web/src/lib/backend.ts` and wins over `PUBLIC_BACKEND_URL`
 only when no env var is set.
 
+## GitHub Codespaces
+
+This repo includes a Dev Container (`.devcontainer/`) that also works in
+GitHub Codespaces. Click **Code → Codespaces → Create codespace on main**
+to get a pre-configured environment with Bun, `gh`, ChromaDB, and port
+forwarding already wired.
+
+```bash
+# Inside the codespace — dependencies are installed automatically.
+# Just start the server:
+bun run server
+
+# In another terminal:
+curl http://localhost:47778/api/health
+```
+
+Forwarded ports:
+
+| Port | Service |
+|------|---------|
+| `47778` | Oracle HTTP / MCP API |
+| `8000` | ChromaDB |
+| `3000` / `4321` | Astro web dev server |
+
+**Note:** Ollama embeddings assume a local Ollama instance
+(`http://host.docker.internal:11434`). In Codespaces, use OpenAI embeddings
+by setting `OPENAI_API_KEY` in `.env`, or run Ollama on your local machine
+and forward it via `gh cs ssh` port forwarding.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
