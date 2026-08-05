@@ -131,8 +131,18 @@ beforeAll(() => {
 
 afterAll(() => {
   db.close();
-  if (fs.existsSync(TEST_DB_PATH)) {
-    fs.unlinkSync(TEST_DB_PATH);
+  try {
+    if (fs.existsSync(TEST_DB_PATH)) {
+      fs.unlinkSync(TEST_DB_PATH);
+    }
+  } catch (err: any) {
+    // Windows sometimes keeps the SQLite handle locked briefly after close.
+    // Log but do not fail the suite; CI (Linux) cleans up normally.
+    if (err?.code === 'EBUSY') {
+      console.warn(`[test cleanup] skipping locked test DB: ${TEST_DB_PATH}`);
+    } else {
+      throw err;
+    }
   }
 });
 
