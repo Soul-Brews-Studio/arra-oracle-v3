@@ -5,7 +5,8 @@
   "workspaceFolder": "/workspaces/arra-oracle-v3",
   "shutdownAction": "stopCompose",
   "remoteUser": "vscode",
-  "postCreateCommand": ".devcontainer/post-create.sh",
+  "onCreateCommand": ".devcontainer/post-create.sh",
+  "updateContentCommand": "bun install",
   "postStartCommand": "git config --global --add safe.directory /workspaces/arra-oracle-v3 || true",
   "forwardPorts": [47778, 8000, 3000, 4321],
   "portsAttributes": {
