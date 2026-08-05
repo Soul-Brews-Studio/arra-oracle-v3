@@ -337,8 +337,8 @@ function combineSearchResults(fts: SearchResult[], vector: SearchResult[], k: nu
     });
   }
 
-  // Sort by RRF score descending
-  return results.sort((a, b) => b.score - a.score);
+  // Sort by RRF score descending (defensive: score may be undefined in the union type)
+  return results.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 }
 
 /**
