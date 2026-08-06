@@ -1,0 +1,200 @@
+{"id":"quickstart/install-bun-global","query":"install Arra Oracle globally with Bun and verify the arra command is on PATH","expectedIds":["pub-quickstart-install"]}
+{"id":"quickstart/bunx-mine","query":"one line bunx command to mine sample notes without a prior global install","expectedIds":["pub-quickstart-bunx-mine"]}
+{"id":"quickstart/start-server","query":"start the local Oracle HTTP server on port 47778","expectedIds":["pub-quickstart-server"]}
+{"id":"quickstart/health-check","query":"check local backend health endpoint before using Studio","expectedIds":["pub-quickstart-health"]}
+{"id":"quickstart/sample-notes","query":"mine the docs sample notes corpus for the first searchable memories","expectedIds":["pub-quickstart-sample-notes"]}
+{"id":"quickstart/watch-folder","query":"keep re-ingesting a notes folder when files change","expectedIds":["pub-mine-watch"]}
+{"id":"quickstart/search-memory","query":"search memories for memory onboarding after mining notes","expectedIds":["pub-quickstart-search"]}
+{"id":"quickstart/mcp-config","query":"connect Claude Desktop MCP to local Arra Oracle server command and HTTP URL","expectedIds":["pub-quickstart-mcp"]}
+{"id":"mine/deterministic-ids","query":"folder ingest should use deterministic document ids for safe repeated runs","expectedIds":["pub-mine-idempotent"]}
+{"id":"mine/version-skip","query":"skip unchanged files on a second mine run using content version gates","expectedIds":["pub-mine-idempotent"]}
+{"id":"mine/default-extensions","query":"which file extensions are indexed by the mine folder command by default","expectedIds":["pub-mine-defaults"]}
+{"id":"mine/ignore-build-folders","query":"folder ingest should skip node_modules git dist and build directories","expectedIds":["pub-mine-defaults"]}
+{"id":"mine/project-concepts","query":"derive project name and folder concepts automatically during folder ingest","expectedIds":["pub-mine-concepts"]}
+{"id":"simple/health-hero-purpose","query":"Simple Mode should always show backend health instead of failing silently","expectedIds":["pub-simple-health-hero"]}
+{"id":"simple/healthy-copy","query":"health state copy for an awake Oracle that is ready to remember","expectedIds":["pub-simple-health-copy"]}
+{"id":"simple/starting-timing","query":"starting state waits briefly then escapes after thirty seconds","expectedIds":["pub-simple-health-timing"]}
+{"id":"simple/down-retry","query":"three failed health polls should flip Simple Mode to down","expectedIds":["pub-simple-health-timing"]}
+{"id":"simple/degraded-fts","query":"server reachable but search is limited because vector or FTS is unavailable","expectedIds":["pub-simple-health-degraded"]}
+{"id":"simple/degraded-db","query":"database unhealthy should show memory storage needs help","expectedIds":["pub-simple-health-degraded"]}
+{"id":"simple/degraded-plugin","query":"plugin degraded but core memory still available","expectedIds":["pub-simple-health-degraded"]}
+{"id":"cors/studio-workers","query":"hosted workers dev Studio origin must be allowed by local backend CORS","expectedIds":["pub-cors-hosted-studio"]}
+{"id":"cors/studio-domain","query":"studio.buildwithoracle.com should get Access-Control-Allow-Origin echoed","expectedIds":["pub-cors-hosted-studio"]}
+{"id":"cors/private-network","query":"preflight private network request should allow localhost browser access","expectedIds":["pub-cors-private-network"]}
+{"id":"cors/tenant-headers","query":"CORS preflight allows tenant token API key and organization headers","expectedIds":["pub-cors-tenant-headers"]}
+{"id":"memory/stats-endpoint","query":"memory stats endpoint exposes heat distribution confidence histogram and supersede depth","expectedIds":["pub-memory-stats"]}
+{"id":"memory/valid-time","query":"valid time coverage appears in memory metrics for temporal memories","expectedIds":["pub-memory-stats"]}
+{"id":"memory/ttl-decay","query":"stale memories can expire with valid until and auto supersede off the write path","expectedIds":["pub-memory-ttl"]}
+{"id":"memory/consolidation","query":"deduplicate near duplicate memories by superseding lower confidence lower heat entries","expectedIds":["pub-memory-consolidation"]}
+{"id":"memory/entity-sidecar","query":"entity linking writes extracted entities into a sidecar vector collection","expectedIds":["pub-memory-entities"]}
+{"id":"memory/ask-dialectic","query":"ask endpoint synthesizes cited answers and flags no evidence","expectedIds":["pub-memory-ask"]}
+{"id":"vector/sidecar-contract","query":"backend proxies vector operations to a separate LanceDB or Qdrant sidecar process","expectedIds":["pub-vector-sidecar"]}
+{"id":"vector/preflight","query":"serve time vector URL preflight reports vectorMode and vectorAvailable in health","expectedIds":["pub-vector-preflight"]}
+{"id":"vector/proxy-script","query":"bun run vector proxy starts a standalone vector server for the backend adapter","expectedIds":["pub-vector-proxy-script"]}
+{"id":"storage/tenant-isolation","query":"two tenants using the same endpoint should not see each other's memory data","expectedIds":["pub-storage-tenant-isolation"]}
+{"id":"storage/read-only","query":"read only SQLite storage should reject writes and fail fast for missing databases","expectedIds":["pub-storage-readonly"]}
+{"id":"storage/migration-repair","query":"partial migration repair should keep schema integrity without destructive inline SQL","expectedIds":["pub-storage-migration-repair"]}
+{"id":"plugins/install","query":"install a CLI plugin from a GitHub repository or local path with manifest validation","expectedIds":["pub-plugin-install"]}
+{"id":"plugins/toggle","query":"enable and disable MCP tool plugins through the CLI manifest commands","expectedIds":["pub-plugin-toggle"]}
+{"id":"benchmarks/guard-topk","query":"honest recall benchmark refuses to report when top k covers the whole corpus","expectedIds":["pub-benchmark-guard-topk"]}
+{"id":"benchmarks/answer-accuracy","query":"recall harness reports Answer Accuracy as not measured separate from Recall at k","expectedIds":["pub-benchmark-metric-separation"]}
+{"id":"edge/multi-word-install-path","query":"global bun install path verification after alpha prerelease install","expectedIds":["pub-quickstart-install"]}
+{"id":"edge/multi-word-cross-origin","query":"hosted Studio browser fetch to localhost backend CORS allow origin credentials","expectedIds":["pub-cors-hosted-studio"]}
+{"id":"edge/multi-word-health-timeout","query":"never silent health hero startup grace escape timing retry counter","expectedIds":["pub-simple-health-timing"]}
+{"id":"edge/multi-word-memory-metrics","query":"heat distribution confidence histogram supersede chain valid time coverage metrics","expectedIds":["pub-memory-stats"]}
+{"id":"edge/no-match-weather","query":"tomorrow rainfall forecast for a city not present in Oracle memory","expectedIds":[],"label":"negative-control"}
+{"id":"edge/no-match-recipes","query":"sourdough starter hydration schedule and baking temperature","expectedIds":[],"label":"negative-control"}
+{"id":"edge/no-match-sports","query":"latest baseball playoff score and inning summary","expectedIds":[],"label":"negative-control"}
+{"id":"edge/no-match-personal","query":"private diary entry location from a user home directory","expectedIds":[],"label":"negative-control"}
+{"id":"expanded/benchmark-guard-topk/v1","query":"documentation for honest recall guard that refuses top k covering the whole corpus","expectedIds":["pub-benchmark-guard-topk"]}
+{"id":"expanded/benchmark-guard-topk/v2","query":"operator needs to verify honest recall guard that refuses top k covering the whole corpus","expectedIds":["pub-benchmark-guard-topk"]}
+{"id":"expanded/benchmark-guard-topk/v3","query":"troubleshoot the workflow for honest recall guard that refuses top k covering the whole corpus","expectedIds":["pub-benchmark-guard-topk"]}
+{"id":"expanded/benchmark-guard-topk/v4","query":"public support question about honest recall guard that refuses top k covering the whole corpus","expectedIds":["pub-benchmark-guard-topk"]}
+{"id":"expanded/benchmark-metric-separation/v1","query":"documentation for separate retrieval Recall at k from Answer Accuracy judging","expectedIds":["pub-benchmark-metric-separation"]}
+{"id":"expanded/benchmark-metric-separation/v2","query":"operator needs to verify separate retrieval Recall at k from Answer Accuracy judging","expectedIds":["pub-benchmark-metric-separation"]}
+{"id":"expanded/benchmark-metric-separation/v3","query":"troubleshoot the workflow for separate retrieval Recall at k from Answer Accuracy judging","expectedIds":["pub-benchmark-metric-separation"]}
+{"id":"expanded/benchmark-metric-separation/v4","query":"public support question about separate retrieval Recall at k from Answer Accuracy judging","expectedIds":["pub-benchmark-metric-separation"]}
+{"id":"expanded/cors-hosted-studio/v1","query":"documentation for hosted Studio browser origin allowed by local backend CORS","expectedIds":["pub-cors-hosted-studio"]}
+{"id":"expanded/cors-hosted-studio/v2","query":"operator needs to verify hosted Studio browser origin allowed by local backend CORS","expectedIds":["pub-cors-hosted-studio"]}
+{"id":"expanded/cors-hosted-studio/v3","query":"troubleshoot the workflow for hosted Studio browser origin allowed by local backend CORS","expectedIds":["pub-cors-hosted-studio"]}
+{"id":"expanded/cors-hosted-studio/v4","query":"public support question about hosted Studio browser origin allowed by local backend CORS","expectedIds":["pub-cors-hosted-studio"]}
+{"id":"expanded/cors-private-network/v1","query":"documentation for private network access preflight for localhost browser requests","expectedIds":["pub-cors-private-network"]}
+{"id":"expanded/cors-private-network/v2","query":"operator needs to verify private network access preflight for localhost browser requests","expectedIds":["pub-cors-private-network"]}
+{"id":"expanded/cors-private-network/v3","query":"troubleshoot the workflow for private network access preflight for localhost browser requests","expectedIds":["pub-cors-private-network"]}
+{"id":"expanded/cors-private-network/v4","query":"public support question about private network access preflight for localhost browser requests","expectedIds":["pub-cors-private-network"]}
+{"id":"expanded/cors-tenant-headers/v1","query":"documentation for CORS preflight tenant token API key and organization headers","expectedIds":["pub-cors-tenant-headers"]}
+{"id":"expanded/cors-tenant-headers/v2","query":"operator needs to verify CORS preflight tenant token API key and organization headers","expectedIds":["pub-cors-tenant-headers"]}
+{"id":"expanded/cors-tenant-headers/v3","query":"troubleshoot the workflow for CORS preflight tenant token API key and organization headers","expectedIds":["pub-cors-tenant-headers"]}
+{"id":"expanded/cors-tenant-headers/v4","query":"public support question about CORS preflight tenant token API key and organization headers","expectedIds":["pub-cors-tenant-headers"]}
+{"id":"expanded/memory-ask/v1","query":"documentation for ask endpoint cited synthesis when no evidence is available","expectedIds":["pub-memory-ask"]}
+{"id":"expanded/memory-ask/v2","query":"operator needs to verify ask endpoint cited synthesis when no evidence is available","expectedIds":["pub-memory-ask"]}
+{"id":"expanded/memory-ask/v3","query":"troubleshoot the workflow for ask endpoint cited synthesis when no evidence is available","expectedIds":["pub-memory-ask"]}
+{"id":"expanded/memory-ask/v4","query":"public support question about ask endpoint cited synthesis when no evidence is available","expectedIds":["pub-memory-ask"]}
+{"id":"expanded/memory-consolidation/v1","query":"documentation for memory deduplication supersedes lower confidence lower heat duplicates","expectedIds":["pub-memory-consolidation"]}
+{"id":"expanded/memory-consolidation/v2","query":"operator needs to verify memory deduplication supersedes lower confidence lower heat duplicates","expectedIds":["pub-memory-consolidation"]}
+{"id":"expanded/memory-consolidation/v3","query":"troubleshoot the workflow for memory deduplication supersedes lower confidence lower heat duplicates","expectedIds":["pub-memory-consolidation"]}
+{"id":"expanded/memory-consolidation/v4","query":"public support question about memory deduplication supersedes lower confidence lower heat duplicates","expectedIds":["pub-memory-consolidation"]}
+{"id":"expanded/memory-entities/v1","query":"documentation for entity extraction sidecar vector collection for linked memories","expectedIds":["pub-memory-entities"]}
+{"id":"expanded/memory-entities/v2","query":"operator needs to verify entity extraction sidecar vector collection for linked memories","expectedIds":["pub-memory-entities"]}
+{"id":"expanded/memory-entities/v3","query":"troubleshoot the workflow for entity extraction sidecar vector collection for linked memories","expectedIds":["pub-memory-entities"]}
+{"id":"expanded/memory-entities/v4","query":"public support question about entity extraction sidecar vector collection for linked memories","expectedIds":["pub-memory-entities"]}
+{"id":"expanded/memory-stats/v1","query":"documentation for memory stats heat distribution confidence histogram valid time and supersede depth","expectedIds":["pub-memory-stats"]}
+{"id":"expanded/memory-stats/v2","query":"operator needs to verify memory stats heat distribution confidence histogram valid time and supersede depth","expectedIds":["pub-memory-stats"]}
+{"id":"expanded/memory-stats/v3","query":"troubleshoot the workflow for memory stats heat distribution confidence histogram valid time and supersede depth","expectedIds":["pub-memory-stats"]}
+{"id":"expanded/memory-stats/v4","query":"public support question about memory stats heat distribution confidence histogram valid time and supersede depth","expectedIds":["pub-memory-stats"]}
+{"id":"expanded/memory-ttl/v1","query":"documentation for valid until expiry and TTL decay for stale memories","expectedIds":["pub-memory-ttl"]}
+{"id":"expanded/memory-ttl/v2","query":"operator needs to verify valid until expiry and TTL decay for stale memories","expectedIds":["pub-memory-ttl"]}
+{"id":"expanded/memory-ttl/v3","query":"troubleshoot the workflow for valid until expiry and TTL decay for stale memories","expectedIds":["pub-memory-ttl"]}
+{"id":"expanded/memory-ttl/v4","query":"public support question about valid until expiry and TTL decay for stale memories","expectedIds":["pub-memory-ttl"]}
+{"id":"expanded/mine-concepts/v1","query":"documentation for folder ingest derives project concepts from paths and keywords","expectedIds":["pub-mine-concepts"]}
+{"id":"expanded/mine-concepts/v2","query":"operator needs to verify folder ingest derives project concepts from paths and keywords","expectedIds":["pub-mine-concepts"]}
+{"id":"expanded/mine-concepts/v3","query":"troubleshoot the workflow for folder ingest derives project concepts from paths and keywords","expectedIds":["pub-mine-concepts"]}
+{"id":"expanded/mine-concepts/v4","query":"public support question about folder ingest derives project concepts from paths and keywords","expectedIds":["pub-mine-concepts"]}
+{"id":"expanded/mine-defaults/v1","query":"documentation for folder mining default file extensions and ignored build directories","expectedIds":["pub-mine-defaults"]}
+{"id":"expanded/mine-defaults/v2","query":"operator needs to verify folder mining default file extensions and ignored build directories","expectedIds":["pub-mine-defaults"]}
+{"id":"expanded/mine-defaults/v3","query":"troubleshoot the workflow for folder mining default file extensions and ignored build directories","expectedIds":["pub-mine-defaults"]}
+{"id":"expanded/mine-defaults/v4","query":"public support question about folder mining default file extensions and ignored build directories","expectedIds":["pub-mine-defaults"]}
+{"id":"expanded/mine-idempotent/v1","query":"documentation for deterministic folder mining ids and unchanged file version skips","expectedIds":["pub-mine-idempotent"]}
+{"id":"expanded/mine-idempotent/v2","query":"operator needs to verify deterministic folder mining ids and unchanged file version skips","expectedIds":["pub-mine-idempotent"]}
+{"id":"expanded/mine-idempotent/v3","query":"troubleshoot the workflow for deterministic folder mining ids and unchanged file version skips","expectedIds":["pub-mine-idempotent"]}
+{"id":"expanded/mine-idempotent/v4","query":"public support question about deterministic folder mining ids and unchanged file version skips","expectedIds":["pub-mine-idempotent"]}
+{"id":"expanded/mine-watch/v1","query":"documentation for watch mode keeps reingesting a notes folder on file changes","expectedIds":["pub-mine-watch"]}
+{"id":"expanded/mine-watch/v2","query":"operator needs to verify watch mode keeps reingesting a notes folder on file changes","expectedIds":["pub-mine-watch"]}
+{"id":"expanded/mine-watch/v3","query":"troubleshoot the workflow for watch mode keeps reingesting a notes folder on file changes","expectedIds":["pub-mine-watch"]}
+{"id":"expanded/mine-watch/v4","query":"public support question about watch mode keeps reingesting a notes folder on file changes","expectedIds":["pub-mine-watch"]}
+{"id":"expanded/plugin-install/v1","query":"documentation for CLI plugin installation from GitHub or local path with manifest validation","expectedIds":["pub-plugin-install"]}
+{"id":"expanded/plugin-install/v2","query":"operator needs to verify CLI plugin installation from GitHub or local path with manifest validation","expectedIds":["pub-plugin-install"]}
+{"id":"expanded/plugin-install/v3","query":"troubleshoot the workflow for CLI plugin installation from GitHub or local path with manifest validation","expectedIds":["pub-plugin-install"]}
+{"id":"expanded/plugin-install/v4","query":"public support question about CLI plugin installation from GitHub or local path with manifest validation","expectedIds":["pub-plugin-install"]}
+{"id":"expanded/plugin-toggle/v1","query":"documentation for enable and disable MCP tool plugins through CLI manifest commands","expectedIds":["pub-plugin-toggle"]}
+{"id":"expanded/plugin-toggle/v2","query":"operator needs to verify enable and disable MCP tool plugins through CLI manifest commands","expectedIds":["pub-plugin-toggle"]}
+{"id":"expanded/plugin-toggle/v3","query":"troubleshoot the workflow for enable and disable MCP tool plugins through CLI manifest commands","expectedIds":["pub-plugin-toggle"]}
+{"id":"expanded/plugin-toggle/v4","query":"public support question about enable and disable MCP tool plugins through CLI manifest commands","expectedIds":["pub-plugin-toggle"]}
+{"id":"expanded/quickstart-bunx-mine/v1","query":"documentation for bunx one line mine command without a global install","expectedIds":["pub-quickstart-bunx-mine"]}
+{"id":"expanded/quickstart-bunx-mine/v2","query":"operator needs to verify bunx one line mine command without a global install","expectedIds":["pub-quickstart-bunx-mine"]}
+{"id":"expanded/quickstart-bunx-mine/v3","query":"troubleshoot the workflow for bunx one line mine command without a global install","expectedIds":["pub-quickstart-bunx-mine"]}
+{"id":"expanded/quickstart-bunx-mine/v4","query":"public support question about bunx one line mine command without a global install","expectedIds":["pub-quickstart-bunx-mine"]}
+{"id":"expanded/quickstart-health/v1","query":"documentation for local backend health check before using Studio","expectedIds":["pub-quickstart-health"]}
+{"id":"expanded/quickstart-health/v2","query":"operator needs to verify local backend health check before using Studio","expectedIds":["pub-quickstart-health"]}
+{"id":"expanded/quickstart-health/v3","query":"troubleshoot the workflow for local backend health check before using Studio","expectedIds":["pub-quickstart-health"]}
+{"id":"expanded/quickstart-health/v4","query":"public support question about local backend health check before using Studio","expectedIds":["pub-quickstart-health"]}
+{"id":"expanded/quickstart-install/v1","query":"documentation for global Bun install and command path verification for Arra Oracle","expectedIds":["pub-quickstart-install"]}
+{"id":"expanded/quickstart-install/v2","query":"operator needs to verify global Bun install and command path verification for Arra Oracle","expectedIds":["pub-quickstart-install"]}
+{"id":"expanded/quickstart-install/v3","query":"troubleshoot the workflow for global Bun install and command path verification for Arra Oracle","expectedIds":["pub-quickstart-install"]}
+{"id":"expanded/quickstart-install/v4","query":"public support question about global Bun install and command path verification for Arra Oracle","expectedIds":["pub-quickstart-install"]}
+{"id":"expanded/quickstart-mcp/v1","query":"documentation for Claude Desktop MCP connection to local Arra Oracle server","expectedIds":["pub-quickstart-mcp"]}
+{"id":"expanded/quickstart-mcp/v2","query":"operator needs to verify Claude Desktop MCP connection to local Arra Oracle server","expectedIds":["pub-quickstart-mcp"]}
+{"id":"expanded/quickstart-mcp/v3","query":"troubleshoot the workflow for Claude Desktop MCP connection to local Arra Oracle server","expectedIds":["pub-quickstart-mcp"]}
+{"id":"expanded/quickstart-mcp/v4","query":"public support question about Claude Desktop MCP connection to local Arra Oracle server","expectedIds":["pub-quickstart-mcp"]}
+{"id":"expanded/quickstart-sample-notes/v1","query":"documentation for sample notes corpus mining for first searchable memories","expectedIds":["pub-quickstart-sample-notes"]}
+{"id":"expanded/quickstart-sample-notes/v2","query":"operator needs to verify sample notes corpus mining for first searchable memories","expectedIds":["pub-quickstart-sample-notes"]}
+{"id":"expanded/quickstart-sample-notes/v3","query":"troubleshoot the workflow for sample notes corpus mining for first searchable memories","expectedIds":["pub-quickstart-sample-notes"]}
+{"id":"expanded/quickstart-sample-notes/v4","query":"public support question about sample notes corpus mining for first searchable memories","expectedIds":["pub-quickstart-sample-notes"]}
+{"id":"expanded/quickstart-search/v1","query":"documentation for search memories after mining onboarding notes","expectedIds":["pub-quickstart-search"]}
+{"id":"expanded/quickstart-search/v2","query":"operator needs to verify search memories after mining onboarding notes","expectedIds":["pub-quickstart-search"]}
+{"id":"expanded/quickstart-search/v3","query":"troubleshoot the workflow for search memories after mining onboarding notes","expectedIds":["pub-quickstart-search"]}
+{"id":"expanded/quickstart-search/v4","query":"public support question about search memories after mining onboarding notes","expectedIds":["pub-quickstart-search"]}
+{"id":"expanded/quickstart-server/v1","query":"documentation for start local Oracle HTTP server on port 47778","expectedIds":["pub-quickstart-server"]}
+{"id":"expanded/quickstart-server/v2","query":"operator needs to verify start local Oracle HTTP server on port 47778","expectedIds":["pub-quickstart-server"]}
+{"id":"expanded/quickstart-server/v3","query":"troubleshoot the workflow for start local Oracle HTTP server on port 47778","expectedIds":["pub-quickstart-server"]}
+{"id":"expanded/quickstart-server/v4","query":"public support question about start local Oracle HTTP server on port 47778","expectedIds":["pub-quickstart-server"]}
+{"id":"expanded/simple-health-copy/v1","query":"documentation for Simple Mode healthy state copy for an awake Oracle","expectedIds":["pub-simple-health-copy"]}
+{"id":"expanded/simple-health-copy/v2","query":"operator needs to verify Simple Mode healthy state copy for an awake Oracle","expectedIds":["pub-simple-health-copy"]}
+{"id":"expanded/simple-health-copy/v3","query":"troubleshoot the workflow for Simple Mode healthy state copy for an awake Oracle","expectedIds":["pub-simple-health-copy"]}
+{"id":"expanded/simple-health-copy/v4","query":"public support question about Simple Mode healthy state copy for an awake Oracle","expectedIds":["pub-simple-health-copy"]}
+{"id":"expanded/simple-health-degraded/v1","query":"documentation for Simple Mode degraded health when database vector or plugins need help","expectedIds":["pub-simple-health-degraded"]}
+{"id":"expanded/simple-health-degraded/v2","query":"operator needs to verify Simple Mode degraded health when database vector or plugins need help","expectedIds":["pub-simple-health-degraded"]}
+{"id":"expanded/simple-health-degraded/v3","query":"troubleshoot the workflow for Simple Mode degraded health when database vector or plugins need help","expectedIds":["pub-simple-health-degraded"]}
+{"id":"expanded/simple-health-degraded/v4","query":"public support question about Simple Mode degraded health when database vector or plugins need help","expectedIds":["pub-simple-health-degraded"]}
+{"id":"expanded/simple-health-hero/v1","query":"documentation for Simple Mode health hero shows backend readiness instead of silent failure","expectedIds":["pub-simple-health-hero"]}
+{"id":"expanded/simple-health-hero/v2","query":"operator needs to verify Simple Mode health hero shows backend readiness instead of silent failure","expectedIds":["pub-simple-health-hero"]}
+{"id":"expanded/simple-health-hero/v3","query":"troubleshoot the workflow for Simple Mode health hero shows backend readiness instead of silent failure","expectedIds":["pub-simple-health-hero"]}
+{"id":"expanded/simple-health-hero/v4","query":"public support question about Simple Mode health hero shows backend readiness instead of silent failure","expectedIds":["pub-simple-health-hero"]}
+{"id":"expanded/simple-health-timing/v1","query":"documentation for Simple Mode startup grace timing retry counter and down state transition","expectedIds":["pub-simple-health-timing"]}
+{"id":"expanded/simple-health-timing/v2","query":"operator needs to verify Simple Mode startup grace timing retry counter and down state transition","expectedIds":["pub-simple-health-timing"]}
+{"id":"expanded/simple-health-timing/v3","query":"troubleshoot the workflow for Simple Mode startup grace timing retry counter and down state transition","expectedIds":["pub-simple-health-timing"]}
+{"id":"expanded/simple-health-timing/v4","query":"public support question about Simple Mode startup grace timing retry counter and down state transition","expectedIds":["pub-simple-health-timing"]}
+{"id":"expanded/storage-migration-repair/v1","query":"documentation for partial migration repair preserves schema integrity without raw destructive SQL","expectedIds":["pub-storage-migration-repair"]}
+{"id":"expanded/storage-migration-repair/v2","query":"operator needs to verify partial migration repair preserves schema integrity without raw destructive SQL","expectedIds":["pub-storage-migration-repair"]}
+{"id":"expanded/storage-migration-repair/v3","query":"troubleshoot the workflow for partial migration repair preserves schema integrity without raw destructive SQL","expectedIds":["pub-storage-migration-repair"]}
+{"id":"expanded/storage-migration-repair/v4","query":"public support question about partial migration repair preserves schema integrity without raw destructive SQL","expectedIds":["pub-storage-migration-repair"]}
+{"id":"expanded/storage-readonly/v1","query":"documentation for read only SQLite storage rejects writes and fails fast for missing databases","expectedIds":["pub-storage-readonly"]}
+{"id":"expanded/storage-readonly/v2","query":"operator needs to verify read only SQLite storage rejects writes and fails fast for missing databases","expectedIds":["pub-storage-readonly"]}
+{"id":"expanded/storage-readonly/v3","query":"troubleshoot the workflow for read only SQLite storage rejects writes and fails fast for missing databases","expectedIds":["pub-storage-readonly"]}
+{"id":"expanded/storage-readonly/v4","query":"public support question about read only SQLite storage rejects writes and fails fast for missing databases","expectedIds":["pub-storage-readonly"]}
+{"id":"expanded/storage-tenant-isolation/v1","query":"documentation for tenant isolation prevents different tenants seeing each other memory data","expectedIds":["pub-storage-tenant-isolation"]}
+{"id":"expanded/storage-tenant-isolation/v2","query":"operator needs to verify tenant isolation prevents different tenants seeing each other memory data","expectedIds":["pub-storage-tenant-isolation"]}
+{"id":"expanded/storage-tenant-isolation/v3","query":"troubleshoot the workflow for tenant isolation prevents different tenants seeing each other memory data","expectedIds":["pub-storage-tenant-isolation"]}
+{"id":"expanded/storage-tenant-isolation/v4","query":"public support question about tenant isolation prevents different tenants seeing each other memory data","expectedIds":["pub-storage-tenant-isolation"]}
+{"id":"expanded/vector-preflight/v1","query":"documentation for serve time vector preflight reports vectorMode and vectorAvailable in health","expectedIds":["pub-vector-preflight"]}
+{"id":"expanded/vector-preflight/v2","query":"operator needs to verify serve time vector preflight reports vectorMode and vectorAvailable in health","expectedIds":["pub-vector-preflight"]}
+{"id":"expanded/vector-preflight/v3","query":"troubleshoot the workflow for serve time vector preflight reports vectorMode and vectorAvailable in health","expectedIds":["pub-vector-preflight"]}
+{"id":"expanded/vector-preflight/v4","query":"public support question about serve time vector preflight reports vectorMode and vectorAvailable in health","expectedIds":["pub-vector-preflight"]}
+{"id":"expanded/vector-proxy-script/v1","query":"documentation for bun run vector proxy starts the standalone vector server adapter","expectedIds":["pub-vector-proxy-script"]}
+{"id":"expanded/vector-proxy-script/v2","query":"operator needs to verify bun run vector proxy starts the standalone vector server adapter","expectedIds":["pub-vector-proxy-script"]}
+{"id":"expanded/vector-proxy-script/v3","query":"troubleshoot the workflow for bun run vector proxy starts the standalone vector server adapter","expectedIds":["pub-vector-proxy-script"]}
+{"id":"expanded/vector-proxy-script/v4","query":"public support question about bun run vector proxy starts the standalone vector server adapter","expectedIds":["pub-vector-proxy-script"]}
+{"id":"expanded/vector-sidecar/v1","query":"documentation for backend proxies vector operations to LanceDB or Qdrant sidecar process","expectedIds":["pub-vector-sidecar"]}
+{"id":"expanded/vector-sidecar/v2","query":"operator needs to verify backend proxies vector operations to LanceDB or Qdrant sidecar process","expectedIds":["pub-vector-sidecar"]}
+{"id":"expanded/vector-sidecar/v3","query":"troubleshoot the workflow for backend proxies vector operations to LanceDB or Qdrant sidecar process","expectedIds":["pub-vector-sidecar"]}
+{"id":"expanded/vector-sidecar/v4","query":"public support question about backend proxies vector operations to LanceDB or Qdrant sidecar process","expectedIds":["pub-vector-sidecar"]}
+{"id":"negative/no-match-weather-forecast","query":"seven day rainfall forecast for a coastal city not stored in memory","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-recipe-cake","query":"gluten free chocolate cake oven temperature and frosting recipe","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-sports-score","query":"current professional basketball playoff score and fourth quarter summary","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-movie-showtime","query":"nearest cinema showtimes for a new science fiction movie tonight","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-stock-price","query":"intraday share price prediction for a public company ticker","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-travel-visa","query":"tourist visa wait time for a country not covered by Oracle docs","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-restaurant-menu","query":"vegan tasting menu at a neighborhood restaurant this weekend","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-shipping-tracking","query":"parcel tracking update for a package number not in the corpus","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-medical-diagnosis","query":"diagnose a rash from symptoms without any indexed clinical note","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-legal-case","query":"court filing deadline for an unrelated civil case docket","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-school-calendar","query":"local school holiday calendar for next semester","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-music-lyrics","query":"full song lyrics request for a chart single","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-game-cheats","query":"unlock code for a console game not documented here","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-home-repair","query":"dishwasher error code and replacement pump part number","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-tax-refund","query":"personal refund status for an individual tax account","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-flight-status","query":"live flight delay at an airport not stored in memory","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-library-hours","query":"public library branch hours for a city outside the docs","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-conference-agenda","query":"speaker lineup for an unrelated developer conference","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-phone-plan","query":"mobile carrier family plan pricing comparison today","expectedIds":[],"label":"negative-control"}
+{"id":"negative/no-match-garden-pests","query":"identify tomato leaf pests from a backyard photo","expectedIds":[],"label":"negative-control"}

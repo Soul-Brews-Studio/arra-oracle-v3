@@ -27,7 +27,17 @@ export function extractConcepts(...texts: string[]): string[] {
     }
   }
 
+  for (const keyword of scoredKeywords(combined)) concepts.add(keyword);
+
   return Array.from(concepts);
+}
+
+export function deriveConceptsFromPath(sourceFile: string): string[] {
+  const local = localStructurePath(sourceFile);
+  const tokens = local.split(/[\/._-]+/g)
+    .map(normalizeToken)
+    .filter((token) => token.length >= 3 && !STRUCTURE_STOPWORDS.has(token));
+  return [...new Set(tokens)].slice(0, 12);
 }
 
 /**
@@ -35,4 +45,36 @@ export function extractConcepts(...texts: string[]): string[] {
  */
 export function mergeConceptsWithTags(extracted: string[], fileTags: string[]): string[] {
   return [...new Set([...extracted, ...fileTags])];
+}
+
+const STRUCTURE_STOPWORDS = new Set([
+  'github', 'gitlab', 'bitbucket', 'com', 'org', 'repo', 'learn', 'memory',
+  'learnings', 'retrospectives', 'distillations', 'inbox', 'handoff', 'the',
+  'and', 'for', 'with', 'from', 'into', 'this', 'that', 'should', 'would',
+]);
+
+function scoredKeywords(text: string): string[] {
+  const counts = new Map<string, number>();
+  for (const raw of text.split(/[^a-z0-9]+/g)) {
+    const token = normalizeToken(raw);
+    if (token.length < 4 || STRUCTURE_STOPWORDS.has(token)) continue;
+    counts.set(token, (counts.get(token) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 8)
+    .map(([token]) => token);
+}
+
+function localStructurePath(sourceFile: string): string {
+  const normalized = sourceFile.replace(/\\/g, '/');
+  const projectFirst = normalized.match(/^(?:github\.com|gitlab\.com|bitbucket\.org)\/[^/]+\/[^/]+\/(ψ\/.*)$/);
+  if (projectFirst) return projectFirst[1];
+  const localProject = normalized.match(/^ψ\/learn\/[^/]+\/[^/]+\/(.*)$/);
+  if (localProject) return localProject[1];
+  return normalized;
+}
+
+function normalizeToken(token: string): string {
+  return token.toLowerCase().replace(/^[0-9]+|[0-9]+$/g, '').trim();
 }

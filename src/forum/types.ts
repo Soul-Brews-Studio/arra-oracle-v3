@@ -54,19 +54,39 @@ export interface ParsedIssueUrl {
   url: string;
 }
 
+function cleanUrlPart(value: string, label: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) throw new Error(`${label} must not be blank`);
+  return encodeURIComponent(trimmed);
+}
+
 export function parseIssueUrl(url: string): ParsedIssueUrl | null {
-  const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)/);
-  if (!match) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+  if (parsed.hostname.toLowerCase() !== 'github.com') return null;
+  const parts = parsed.pathname.split('/').filter(Boolean);
+  if (parts.length !== 4 || parts[2] !== 'issues') return null;
+  if (!/^[1-9]\d*$/.test(parts[3])) return null;
+  const issueNumber = Number(parts[3]);
+  if (!Number.isSafeInteger(issueNumber)) return null;
   return {
-    owner: match[1],
-    repo: match[2],
-    issueNumber: parseInt(match[3], 10),
+    owner: decodeURIComponent(parts[0]),
+    repo: decodeURIComponent(parts[1]),
+    issueNumber,
     url
   };
 }
 
 export function buildIssueUrl(owner: string, repo: string, issueNumber: number): string {
-  return `https://github.com/${owner}/${repo}/issues/${issueNumber}`;
+  if (!Number.isSafeInteger(issueNumber) || issueNumber < 1) {
+    throw new Error('issueNumber must be a positive safe integer');
+  }
+  return `https://github.com/${cleanUrlPart(owner, 'owner')}/${cleanUrlPart(repo, 'repo')}/issues/${issueNumber}`;
 }
 
 // ============================================================================

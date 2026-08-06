@@ -114,7 +114,7 @@ function fmtLocal(d: Date): string {
 // ============================================================================
 
 export const scheduleAddToolDef = {
-  name: 'arra_schedule_add',
+  name: 'oracle_schedule_add',
   description: 'Add an appointment or event to the shared schedule. The schedule is per-human (not per-project) and shared across all Oracles.',
   inputSchema: {
     type: 'object',
@@ -146,7 +146,7 @@ export const scheduleAddToolDef = {
 };
 
 export const scheduleListToolDef = {
-  name: 'arra_schedule_list',
+  name: 'oracle_schedule_list',
   description: 'List appointments from the shared schedule. Filter by date, range, or keyword. Defaults to today + 14 days.',
   inputSchema: {
     type: 'object',
@@ -337,7 +337,7 @@ function exportScheduleToMarkdown(ctx: ToolContext): void {
     }
   }
 
-  md += `\n---\n\nManaged by Oracle. Add events via \`arra_schedule_add\` or the web UI.\n`;
+  md += `\n---\n\nManaged by Oracle. Add events via \`oracle_schedule_add\` or the web UI.\n`;
 
   const schedulePath = getSchedulePath();
   fs.mkdirSync(path.dirname(schedulePath), { recursive: true });

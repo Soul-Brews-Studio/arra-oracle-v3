@@ -1,6 +1,7 @@
 import type { MenuItem } from '../routes/menu/model.ts';
 import { getSetting } from '../db/index.ts';
 import { fetchGistMenu, invalidateGistCache } from './gist.ts';
+import { menuSettingKey, menuSourceStateKey } from './tenant.ts';
 
 export type MenuConfig = {
   items: MenuItem[];
@@ -14,19 +15,34 @@ export type MenuSource = {
   status: 'ok' | 'stale' | 'error' | 'none';
 };
 
-let sourceState: MenuSource = {
-  url: null,
-  hash: null,
-  loaded_at: null,
-  status: 'none',
-};
+function emptySource(): MenuSource {
+  return {
+    url: null,
+    hash: null,
+    loaded_at: null,
+    status: 'none',
+  };
+}
+
+const sourceStates = new Map<string, MenuSource>();
+
+function setMenuSource(source: MenuSource): void {
+  sourceStates.set(menuSourceStateKey(), source);
+}
+
+function currentSource(): MenuSource {
+  return sourceStates.get(menuSourceStateKey()) ?? emptySource();
+}
 
 export function getMenuSource(): MenuSource {
-  return { ...sourceState };
+  const source = currentSource();
+  if (source.url || source.status !== 'none') return { ...source };
+  const url = resolveGistUrl();
+  return url ? { url, hash: null, loaded_at: null, status: 'none' } : emptySource();
 }
 
 function resolveGistUrl(): string | null {
-  const fromDb = getSetting('menu_gist_url');
+  const fromDb = getSetting(menuSettingKey('menu_gist_url'));
   if (fromDb && fromDb.trim()) return fromDb.trim();
   const fromEnvNew = process.env.ORACLE_MENU_GIST_URL;
   if (fromEnvNew && fromEnvNew.trim()) return fromEnvNew.trim();
@@ -62,18 +78,19 @@ export async function getMenuConfig(): Promise<MenuConfig> {
 
   const gistUrl = resolveGistUrl();
   if (!gistUrl) {
-    sourceState = { url: null, hash: null, loaded_at: null, status: 'none' };
+    setMenuSource(emptySource());
     return { items, disable };
   }
 
   const result = await fetchGistMenu(gistUrl);
   if (!result) {
-    sourceState = {
+    const previous = getMenuSource();
+    setMenuSource({
       url: gistUrl,
       hash: null,
-      loaded_at: sourceState.url === gistUrl ? sourceState.loaded_at : null,
+      loaded_at: previous.url === gistUrl ? previous.loaded_at : null,
       status: 'error',
-    };
+    });
     return { items, disable };
   }
 
@@ -82,12 +99,12 @@ export async function getMenuConfig(): Promise<MenuConfig> {
     for (const p of result.data.disable) if (typeof p === 'string') disable.add(p);
   }
 
-  sourceState = {
+  setMenuSource({
     url: gistUrl,
     hash: result.hash,
     loaded_at: result.loadedAt,
     status: result.stale ? 'stale' : 'ok',
-  };
+  });
 
   return { items, disable };
 }
@@ -100,5 +117,5 @@ export async function reloadMenuConfig(): Promise<MenuConfig> {
 }
 
 export function _resetMenuSource(): void {
-  sourceState = { url: null, hash: null, loaded_at: null, status: 'none' };
+  sourceStates.clear();
 }

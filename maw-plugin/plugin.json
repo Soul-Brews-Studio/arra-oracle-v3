@@ -1,0 +1,155 @@
+{
+  "name": "arra",
+  "version": "1.0.0",
+  "target": "js",
+  "entry": "./index.ts",
+  "sdk": "^1.0.0",
+  "description": "Unified maw-js plugin for ARRA Oracle CLI, API, and menu surfaces.",
+  "cli": {
+    "command": "arra",
+    "aliases": [
+      "or"
+    ],
+    "help": "maw arra <commands|backup|canvas-plugins|canvas-serve|changelog|completions|config|doctor|export|export-obsidian|huginn|import|import-obsidian|migrate|peers|plugin|release|seed|session|use|vault|frontend|ui|open|serve|server|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|vector-config|vector_index|vector_status|vector_stop|vector_models|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|supersede_list|supersede_chain|thread|thread_read|thread_update|threads|schedule|schedule_add|vault_sync|mcp_tools|mcp-call|verify>"
+  },
+  "capabilities": [
+    "net:http",
+    "proc",
+    "shell"
+  ],
+  "weight": 50,
+  "schemaVersion": 1,
+  "help": "maw arra <commands|backup|canvas-plugins|canvas-serve|changelog|completions|config|doctor|export|export-obsidian|huginn|import|import-obsidian|migrate|peers|plugin|release|seed|session|use|vault|frontend|ui|open|serve|server|studio|search|learn|stats|health|index|scan|plugins|settings|feed|menu|vector|vector-config|vector_index|vector_status|vector_stop|vector_models|trace|trace_list|trace_get|trace_link|trace_unlink|trace_chain|concepts|handoff|inbox|list|read|reflect|supersede|supersede_list|supersede_chain|thread|thread_read|thread_update|threads|schedule|schedule_add|vault_sync|mcp_tools|mcp-call|verify>",
+  "api": {
+    "path": "/api/arra",
+    "methods": [
+      "GET",
+      "POST"
+    ]
+  },
+  "server": {
+    "command": "bun",
+    "args": [
+      "server.ts"
+    ],
+    "healthPath": "/api/health",
+    "autostart": false,
+    "env": {
+      "ARRA_BACKEND_SOURCE": "maw-plugin"
+    }
+  },
+  "config": {
+    "dbBackend": "http",
+    "embedderBackend": "none",
+    "apiBase": "http://localhost:47778",
+    "mcpServerUrl": ""
+  },
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "dbBackend": {
+        "type": "string",
+        "enum": [
+          "http",
+          "sqlite",
+          "memory",
+          "custom"
+        ]
+      },
+      "embedderBackend": {
+        "type": "string"
+      },
+      "apiBase": {
+        "type": "string"
+      },
+      "remoteEmbedderUrl": {
+        "type": "string"
+      },
+      "mcpServerUrl": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": true
+  },
+  "menu": [
+    {
+      "label": "ARRA Oracle",
+      "path": "/plugins/arra",
+      "group": "tools",
+      "order": 15,
+      "icon": "sparkles"
+    },
+    {
+      "label": "ARRA Search",
+      "path": "/search",
+      "group": "main",
+      "order": 10,
+      "icon": "search"
+    }
+  ],
+  "artifact": {
+    "path": "./index.ts",
+    "sha256": "9212daff821f75260763a4952b4877a72f3e18562fed69ae102d9c758137b241"
+  },
+  "mcpTools": [
+    {
+      "name": "oracle_arra_read",
+      "description": "Run read-only ARRA Oracle commands through the shared maw plugin command core.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "enum": [
+              "commands",
+              "search",
+              "stats",
+              "plugins",
+              "settings",
+              "feed",
+              "menu",
+              "vector",
+              "vector_status",
+              "vector_models",
+              "health",
+              "trace_list",
+              "trace_get",
+              "trace_chain",
+              "concepts",
+              "inbox",
+              "list",
+              "read",
+              "reflect",
+              "supersede_list",
+              "supersede_chain",
+              "threads",
+              "thread_read",
+              "schedule",
+              "mcp_tools"
+            ]
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "query": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "additionalProperties": true
+      },
+      "handler": "default",
+      "group": "oracle",
+      "readOnly": true,
+      "enabledByDefault": true
+    }
+  ]
+}

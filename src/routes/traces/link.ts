@@ -1,15 +1,15 @@
 import { Elysia } from 'elysia';
-import { linkTraces } from '../../trace/handler.ts';
-import { prevIdParam, linkBody } from './model.ts';
+import { linkTenantTraces } from './tenant-scope.ts';
+import { traceIdParam, linkBody, trimmedString } from './model.ts';
 
-export const traceLinkRoute = new Elysia().post('/api/traces/:prevId/link', async ({ params, body, set }) => {
+export const traceLinkRoute = new Elysia().post('/api/traces/:id/link', async ({ params, body, set }) => {
   try {
-    const { nextId } = (body as any) ?? {};
+    const nextId = trimmedString((body as any)?.nextId);
     if (!nextId) {
       set.status = 400;
       return { error: 'Missing nextId in request body' };
     }
-    const result = linkTraces(params.prevId, nextId);
+    const result = linkTenantTraces(params.id, nextId);
     if (!result.success) {
       set.status = 400;
       return { error: result.message };
@@ -21,7 +21,7 @@ export const traceLinkRoute = new Elysia().post('/api/traces/:prevId/link', asyn
     return { error: 'Failed to link traces' };
   }
 }, {
-  params: prevIdParam,
+  params: traceIdParam,
   body: linkBody,
   detail: {
     tags: ['traces'],

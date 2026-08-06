@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { Database } from 'bun:sqlite';
 import type { IndexerConfig } from '../types.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 
 const DEFAULT_BACKUP_KEEP = 10;
 
@@ -156,11 +157,14 @@ function backupDatabaseUnsafe(sqlite: Database, config: IndexerConfig): void {
   // Query all documents for export
   let docs: any[] = [];
   try {
+    const tenantId = currentTenantId();
+    const tenantWhere = tenantId ? 'WHERE d.tenant_id = ?' : '';
     docs = sqlite.prepare(`
       SELECT d.id, d.type, d.source_file, d.concepts, d.project, f.content
       FROM oracle_documents d
       JOIN oracle_fts f ON d.id = f.id
-    `).all() as any[];
+      ${tenantWhere}
+    `).all(...(tenantId ? [tenantId] : [])) as any[];
   } catch (e) {
     console.warn(`\u26a0\ufe0f Query failed: ${e instanceof Error ? e.message : e}`);
     return;

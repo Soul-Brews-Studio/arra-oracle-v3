@@ -28,6 +28,7 @@ import {
   makeEventBus,
   type DaemonApiDeps,
 } from '../../routes/indexer-daemon/index.ts';
+import { createDaemonApp, MODELS, makeDeps, URL_BASE } from './api-harness.ts';
 
 type ApiDeps = DaemonApiDeps;
 
@@ -35,50 +36,6 @@ type EventBus<E> = {
   publish: (ev: E) => void;
   subscribe: (cb: (ev: E) => void) => () => void;
 };
-
-function createDaemonApp(deps: ApiDeps) {
-  return new Elysia().use(daemonApiPlugin(deps));
-}
-
-const MIGRATION_SQL = `
-CREATE TABLE indexing_jobs (
-  id TEXT PRIMARY KEY,
-  doc_id TEXT NOT NULL,
-  model_key TEXT NOT NULL,
-  collection TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending',
-  attempts INTEGER NOT NULL DEFAULT 0,
-  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')*1000),
-  claimed_at INTEGER,
-  finished_at INTEGER,
-  error TEXT
-);
-`;
-
-const MODELS = {
-  'bge-m3': { collection: 'oracle_knowledge_bge_m3' },
-  qwen3: { collection: 'oracle_knowledge_qwen3' },
-};
-
-function makeDeps(): ApiDeps & { _shutdownFlag: { v: boolean }; _bus: EventBus<WorkerEvent> } {
-  const db = new Database(':memory:');
-  db.exec(MIGRATION_SQL);
-  const flag = { v: false };
-  const bus = makeEventBus<WorkerEvent>();
-  return {
-    db,
-    models: MODELS,
-    isShuttingDown: () => flag.v,
-    requestShutdown: () => { flag.v = true; },
-    subscribe: bus.subscribe,
-    _shutdownFlag: flag,
-    _bus: bus,
-  };
-}
-
-// The plugin mounts routes at the root (no prefix); the daemon entrypoint
-// uses `.use(daemonApiPlugin(deps))` directly on the root Elysia instance.
-const URL_BASE = 'http://localhost';
 
 describe('GET /health', () => {
   it('returns ok with queue depth + models', async () => {

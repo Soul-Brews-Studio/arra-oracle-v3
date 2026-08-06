@@ -23,7 +23,7 @@ function yamlArray(items: string[]): string {
 export function renderFrontmatter(meta: DocMeta): string {
   const tagSet = new Set<string>();
   if (meta.arra_type) tagSet.add(meta.arra_type);
-  for (const c of meta.arra_concepts) tagSet.add(c);
+  for (const c of meta.muninn_concepts) tagSet.add(c);
   const tags = Array.from(tagSet);
 
   const lines: string[] = ["---"];
@@ -35,7 +35,7 @@ export function renderFrontmatter(meta: DocMeta): string {
   if (meta.arra_created !== undefined) {
     lines.push(`arra_created: ${scalar(meta.arra_created)}`);
   }
-  lines.push(`arra_concepts: ${yamlArray(meta.arra_concepts)}`);
+  lines.push(`muninn_concepts: ${yamlArray(meta.muninn_concepts)}`);
   lines.push(`arra_model: ${scalar(meta.arra_model)}`);
   lines.push(`arra_similarity_threshold: ${meta.arra_similarity_threshold}`);
   lines.push(`tags: ${yamlArray(tags)}`);

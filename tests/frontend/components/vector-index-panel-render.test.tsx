@@ -1,0 +1,101 @@
+import { describe, expect, test } from 'bun:test';
+import { VectorIndexPanel, formatIndexEta } from '../../../frontend/src/components/VectorIndexPanel';
+import { htmlFor } from '../_render';
+
+const status = {
+  jobId: 'vidx-1',
+  model: 'bge-m3',
+  status: 'indexing' as const,
+  current: 25,
+  total: 100,
+  startedAt: 1781560000000,
+  docsPerSec: 12.5,
+  eta: 95,
+};
+
+describe('VectorIndexPanel', () => {
+  test('renders per-collection reindex controls with progress details', () => {
+    const html = htmlFor(
+      <VectorIndexPanel
+        initialStatus={status}
+        initialCostEstimate={{
+          formula: '100 docs × ~500 tokens/doc ≈ 50K tokens',
+          provider: 'openai',
+          estimatedUsd: 0.001,
+          fallbackSummary: 'Fallback chain ollama → openai worst-case remote spend: $0.0010.',
+          recommendation: 'Any configured embedding model should work.',
+        }}
+        initialCostTracking={{
+          breakdown: {
+            daily: {
+              inputTokens: 250000,
+              apiCalls: 4,
+              estimatedUsd: 0.025,
+              providers: {
+                openai: { provider: 'openai', inputTokens: 250000, apiCalls: 4, estimatedUsd: 0.025 },
+              },
+            },
+          },
+        }}
+        initialModels={{
+          'bge-m3': { collection: 'oracle_bge_m3', model: 'BAAI/bge-m3', adapter: 'lancedb', count: 100 },
+          qwen3: { collection: 'oracle_qwen3', model: 'Qwen3', adapter: 'lancedb', count: 80 },
+        }}
+      />,
+    );
+
+    expect(html).toContain('Index Manager');
+    expect(html).toContain('Index jobs and collections');
+    expect(html).toContain('Vault list');
+    expect(html).toContain('Vector Models');
+    expect(html).toContain('75 docs need backfill');
+    expect(html).toContain('Preflight cost before Index Now');
+    expect(html).toContain('100 docs × ~500 tokens/doc ≈ 50K tokens');
+    expect(html).toContain('$0.0010');
+    expect(html).toContain('Fallback chain ollama');
+    expect(html).toContain('Live cost tracking');
+    expect(html).toContain('250,000 tokens');
+    expect(html).toContain('4 API calls');
+    expect(html).toContain('$0.0250');
+    expect(html).toContain('openai: 250,000 tokens');
+    expect(html).toContain('Index Now');
+    expect(html).toContain('Backfill Vectors');
+    expect(html).toContain('Add Vault');
+    expect(html).toContain('bge-m3');
+    expect(html).toContain('oracle_bge_m3');
+    expect(html).toContain('indexed');
+    expect(html).toContain('synced');
+    expect(html).toContain('qwen3');
+    expect(html).toContain('Reindexing');
+    expect(html).toContain('25/100 docs');
+    expect(html).toContain('12.5 docs/sec');
+    expect(html).toContain('ETA 1m 35s');
+    expect(html).toContain('[grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr))]');
+    expect(html).toContain('[grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr))]');
+    expect(html).toContain('[overflow-wrap:anywhere]');
+    expect(html).not.toContain('xl:grid-cols-3');
+  });
+
+
+  test('renders a completion notification after indexing finishes', () => {
+    const html = htmlFor(
+      <VectorIndexPanel
+        initialStatus={{ ...status, status: 'completed', current: 100, total: 100, completedAt: 1781560100000 }}
+        initialModels={{ 'bge-m3': { collection: 'oracle_bge_m3', model: 'BAAI/bge-m3', adapter: 'lancedb', count: 100 } }}
+        initialCostEstimate={null}
+        initialCostTracking={null}
+      />,
+    );
+
+    expect(html).toContain('Completed bge-m3 reindex.');
+    expect(html).toContain('Index job complete');
+    expect(html).toContain('bge-m3 indexed 100/100 docs. Dashboard vectors are ready.');
+    expect(html).toContain('role="status"');
+  });
+
+  test('formats ETA values for compact status labels', () => {
+    expect(formatIndexEta(0)).toBe('calculating');
+    expect(formatIndexEta(18)).toBe('18s');
+    expect(formatIndexEta(120)).toBe('2m');
+  });
+});

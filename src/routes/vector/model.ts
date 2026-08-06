@@ -22,3 +22,12 @@ export const CompareQuery = t.Object({
   project: t.Optional(t.String()),
   cwd: t.Optional(t.String()),
 });
+
+export const FanoutQuery = t.Object({
+  q: t.Optional(t.String()),
+  fanout: t.Optional(t.String()),
+  strategy: t.Optional(t.String()),
+  limit: t.Optional(t.String()),
+  type: t.Optional(t.String()),
+  cache: t.Optional(t.String()),
+});

@@ -2,46 +2,41 @@
  * Indexing status updates for tray app
  */
 
-import { Database } from 'bun:sqlite';
+import { eq, sql } from 'drizzle-orm';
+import { asOracleDb, type OracleDbInput } from '../db/drizzle-input.ts';
+import { indexingStatus } from '../db/schema.ts';
 import type { IndexerConfig } from '../types.ts';
 
 /**
  * Update indexing status for tray app
  */
 export function setIndexingStatus(
-  sqlite: Database,
+  input: OracleDbInput,
   config: IndexerConfig,
   isIndexing: boolean,
   current: number = 0,
   total: number = 0,
   error?: string
 ): void {
+  const db = asOracleDb(input);
   // Ensure repo_root column exists (migration)
   try {
-    sqlite.exec('ALTER TABLE indexing_status ADD COLUMN repo_root TEXT');
+    db.run(sql`ALTER TABLE indexing_status ADD COLUMN repo_root TEXT`);
   } catch {
     // Column already exists
   }
 
-  sqlite.prepare(`
-    UPDATE indexing_status SET
-      is_indexing = ?,
-      progress_current = ?,
-      progress_total = ?,
-      started_at = CASE WHEN ? = 1 AND started_at IS NULL THEN ? ELSE started_at END,
-      completed_at = CASE WHEN ? = 0 THEN ? ELSE NULL END,
-      error = ?,
-      repo_root = ?
-    WHERE id = 1
-  `).run(
-    isIndexing ? 1 : 0,
-    current,
-    total,
-    isIndexing ? 1 : 0,
-    Date.now(),
-    isIndexing ? 1 : 0,
-    Date.now(),
-    error || null,
-    config.repoRoot
-  );
+  const now = Date.now();
+  db.update(indexingStatus)
+    .set({
+      isIndexing: isIndexing ? 1 : 0,
+      progressCurrent: current,
+      progressTotal: total,
+      startedAt: isIndexing ? sql`coalesce(${indexingStatus.startedAt}, ${now})` : sql`${indexingStatus.startedAt}`,
+      completedAt: isIndexing ? null : now,
+      error: error || null,
+      repoRoot: config.repoRoot,
+    })
+    .where(eq(indexingStatus.id, 1))
+    .run();
 }

@@ -1,4 +1,4 @@
-CREATE TABLE `indexing_jobs` (
+CREATE TABLE IF NOT EXISTS `indexing_jobs` (
 	`id` text PRIMARY KEY NOT NULL,
 	`doc_id` text NOT NULL,
 	`model_key` text NOT NULL,
@@ -11,6 +11,6 @@ CREATE TABLE `indexing_jobs` (
 	`error` text
 );
 --> statement-breakpoint
-CREATE INDEX `idx_indexing_jobs_pending` ON `indexing_jobs` (`status`,`model_key`,`created_at`) WHERE `status` IN ('pending','claimed');
+CREATE INDEX IF NOT EXISTS `idx_indexing_jobs_pending` ON `indexing_jobs` (`status`,`model_key`,`created_at`) WHERE `status` IN ('pending','claimed');
 --> statement-breakpoint
-CREATE INDEX `idx_indexing_jobs_doc` ON `indexing_jobs` (`doc_id`);
+CREATE INDEX IF NOT EXISTS `idx_indexing_jobs_doc` ON `indexing_jobs` (`doc_id`);

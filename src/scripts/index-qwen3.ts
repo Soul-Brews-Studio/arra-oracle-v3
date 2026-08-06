@@ -1,39 +1,34 @@
 #!/usr/bin/env bun
 /**
- * Index oracle knowledge with qwen3-embedding into a separate LanceDB collection.
+ * Index oracle knowledge with qwen3-embedding into its configured vector collection.
  * Runs alongside the default nomic-embed-text collection.
  *
  * Usage: bun src/scripts/index-qwen3.ts
  *
- * Creates: ~/.chromadb/oracle_knowledge_qwen3.lance/
- * (same LanceDB dir as default, different table name)
+ * Adapter defaults to LanceDB, but follows vector-server.json when configured.
  */
 
-import { createVectorStore } from '../vector/factory.ts';
+import { createVectorStoreForModel, getEmbeddingModels } from '../vector/factory.ts';
 import { Database } from 'bun:sqlite';
 import { DB_PATH } from '../config.ts';
+import { formatIndexProgress, normalizeBatchSize } from './indexer-progress.ts';
 
-const BATCH_SIZE = 50; // Smaller batches — qwen3 is slower per embedding
-const COLLECTION = 'oracle_knowledge_qwen3';
+const BATCH_SIZE = normalizeBatchSize(process.env.ORACLE_QWEN3_BATCH_SIZE ?? process.env.ORACLE_EMBED_BATCH_SIZE, 50);
 
 async function main() {
+  const preset = getEmbeddingModels().qwen3;
   console.log('=== Qwen3-Embedding Indexer ===');
   console.log(`DB: ${DB_PATH}`);
-  console.log(`Collection: ${COLLECTION}`);
-  console.log(`Model: qwen3-embedding (4096 dims)`);
+  console.log(`Collection: ${preset.collection}`);
+  console.log(`Model: ${preset.model} (4096 dims)`);
+  console.log(`Adapter: ${preset.adapter || 'lancedb'}`);
 
   // Open oracle.db to read documents
   const db = new Database(DB_PATH, { readonly: true });
   const total = db.query('SELECT COUNT(*) as count FROM oracle_documents').get() as { count: number };
   console.log(`Documents: ${total.count}`);
 
-  // Create LanceDB store with qwen3
-  const store = createVectorStore({
-    type: 'lancedb',
-    collectionName: COLLECTION,
-    embeddingProvider: 'ollama',
-    embeddingModel: 'qwen3-embedding',
-  });
+  const store = createVectorStoreForModel(preset);
 
   await store.connect();
 
@@ -82,10 +77,8 @@ async function main() {
       await store.addDocuments(docs);
       indexed += docs.length;
 
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
-      const rate = (indexed / Number(elapsed)).toFixed(1);
-      const eta = ((rows.length - indexed) / Number(rate)).toFixed(0);
-      console.log(`  Batch ${batchNum}/${totalBatches} — ${indexed}/${rows.length} docs — ${rate}/s — ETA ${eta}s`);
+      const progress = formatIndexProgress({ indexed, total: rows.length, startTimeMs: startTime });
+      console.log(`  Batch ${batchNum}/${totalBatches} — ${indexed}/${rows.length} docs — ${progress.rate}/s — ETA ${progress.eta}s`);
     } catch (e) {
       errors++;
       console.error(`  Batch ${batchNum} FAILED:`, e instanceof Error ? e.message : String(e));

@@ -4,8 +4,10 @@
  * Refactored to use Drizzle ORM for type-safe queries.
  */
 
-import { db, searchLog, documentAccess, learnLog } from '../db/index.ts';
+import { eq, sql } from 'drizzle-orm';
+import { db, searchLog, documentAccess, learnLog, oracleDocuments } from '../db/index.ts';
 import type { SearchResult } from './types.ts';
+import { tenantIdForWrite } from '../middleware/tenant.ts';
 
 /**
  * Log search query with full details
@@ -37,36 +39,42 @@ export function logSearch(
       resultsCount,
       searchTimeMs,
       createdAt: Date.now(),
+      tenantId: tenantIdForWrite(),
       project: project || null,
       results: resultsJson,
     }).run();
 
     // Comprehensive console logging
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`[SEARCH] ${new Date().toISOString()}`);
-    if (project) console.log(`  Project: ${project}`);
-    console.log(`  Query: "${query}"`);
-    console.log(`  Type: ${type} | Mode: ${mode}`);
-    console.log(`  Results: ${resultsCount} in ${searchTimeMs}ms`);
+    console.error(`\n${'='.repeat(60)}`);
+    console.error(`[SEARCH] ${new Date().toISOString()}`);
+    if (project) console.error(`  Project: ${project}`);
+    console.error(`  Query: "${query}"`);
+    console.error(`  Type: ${type} | Mode: ${mode}`);
+    console.error(`  Results: ${resultsCount} in ${searchTimeMs}ms`);
 
     if (results.length > 0) {
-      console.log(`  Top Results:`);
+      console.error(`  Top Results:`);
       results.slice(0, 5).forEach((r, i) => {
-        console.log(`    ${i + 1}. [${r.type}] score=${r.score || 'N/A'} id=${r.id}`);
-        console.log(`       ${r.content?.substring(0, 80)}...`);
+        console.error(`    ${i + 1}. [${r.type}] score=${r.score || 'N/A'} id=${r.id}`);
+        console.error(`       ${r.content?.substring(0, 80)}...`);
       });
     }
 
     // Log any unexpected fields
     if (results.length > 0) {
-      const expectedFields = ['id', 'type', 'content', 'source_file', 'concepts', 'source', 'score'];
+      const expectedFields = [
+        'id', 'type', 'content', 'source_file', 'concepts', 'source', 'score',
+        'distance', 'model', 'ftsScore', 'vectorScore', 'pointerScore', 'pointerMatches', 'entity_score',
+        'entity_matches', 'entityLinkScore', 'entityLinkMatches', 'confidence', 'provenance',
+        'superseded_by', 'superseded_at', 'superseded_reason',
+      ];
       const firstResult = results[0] as unknown as Record<string, unknown>;
       const unknownFields = Object.keys(firstResult).filter(k => !expectedFields.includes(k));
       if (unknownFields.length > 0) {
-        console.log(`  [UNKNOWN FIELDS]: ${unknownFields.join(', ')}`);
+        console.error(`  [UNKNOWN FIELDS]: ${unknownFields.join(', ')}`);
       }
     }
-    console.log(`${'='.repeat(60)}\n`);
+    console.error(`${'='.repeat(60)}\n`);
   } catch (e) {
     console.error('Failed to log search:', e);
   }
@@ -75,16 +83,29 @@ export function logSearch(
 /**
  * Log document access
  */
+export function bumpDocumentUsage(documentId: string, now = Date.now()) {
+  db.update(oracleDocuments).set({
+    usageCount: sql`${oracleDocuments.usageCount} + 1`,
+    lastAccessedAt: now,
+  }).where(eq(oracleDocuments.id, documentId)).run();
+}
+
 export function logDocumentAccess(documentId: string, accessType: string, project?: string) {
   try {
     db.insert(documentAccess).values({
       documentId,
       accessType,
       createdAt: Date.now(),
+      tenantId: tenantIdForWrite(),
       project: project || null,
     }).run();
   } catch (e) {
     console.error('Failed to log access:', e);
+  }
+  try {
+    bumpDocumentUsage(documentId);
+  } catch (e) {
+    console.error('Failed to bump document usage:', e);
   }
 }
 
@@ -99,10 +120,10 @@ export function logLearning(documentId: string, patternPreview: string, source: 
       source: source || 'Oracle Learn',
       concepts: JSON.stringify(concepts),
       createdAt: Date.now(),
+      tenantId: tenantIdForWrite(),
       project: project || null,
     }).run();
   } catch (e) {
     console.error('Failed to log learning:', e);
   }
 }
-

@@ -8,7 +8,7 @@ const DB_PATH = process.env.ORACLE_DB_PATH || path.join(ORACLE_DATA_DIR, 'oracle
 
 export default defineConfig({
   dialect: 'sqlite',
-  schema: './src/db/schema.ts',
+  schema: './src/db/drizzle-schema.ts',
   out: './src/db/migrations',
   dbCredentials: {
     url: DB_PATH,
@@ -16,7 +16,13 @@ export default defineConfig({
   // Tables managed by Drizzle (excludes FTS5 internal tables)
   tablesFilter: [
     'oracle_documents',
+    'tenants',
+    'oracle_entity_links',
+    'oracle_pointer_index',
+    'oracle_memories',
     'indexing_status',
+    'indexing_jobs',
+    'vector_index_manifest',
     'search_log',
     'consult_log',
     'learn_log',
@@ -30,5 +36,10 @@ export default defineConfig({
     'settings',       // Auth & app settings
     'schedule',       // Appointments & events
     'menu_items',     // Studio navigation (seeded from route detail.menu)
+    'audit_log',      // Query write audit trail
+    'export_jobs',    // Export run history
+    'plugin_metadata', // Server-side plugin registrations
+    'fleet_messages',   // Unified fleet communication log
+    'fleet_ingest_cursor', // Fleet ingestion progress cursors
   ],
 });

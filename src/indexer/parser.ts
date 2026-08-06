@@ -6,7 +6,7 @@ import path from 'path';
 import type { OracleDocument } from '../types.ts';
 import { extractConcepts, mergeConceptsWithTags } from './concepts.ts';
 import { inferProjectFromPath } from './discovery.ts';
-import { parseFrontmatterTags, parseFrontmatterProject } from './frontmatter.ts';
+import { parseFrontmatterTags, parseFrontmatterProject, parseFrontmatterString, parseFrontmatterList, parseFrontmatterTime, parseFrontmatterDocType, stripFrontmatter } from './frontmatter.ts';
 
 /**
  * Parse resonance markdown into granular documents
@@ -64,6 +64,60 @@ export function parseLearningFile(filename: string, content: string, sourceFileO
   const sourceFile = sourceFileOverride || `\u03c8/memory/learnings/${filename}`;
   const now = Date.now();
 
+  const frontmatterId = parseFrontmatterString(content, ['arra_id', 'id']);
+  const baseId = frontmatterId || `learning_${filename.replace('.md', '')}`;
+  const docType = parseFrontmatterDocType(content, ['arra_type', 'type'], 'learning');
+  const fileTags = mergeConceptsWithTags(
+    parseFrontmatterTags(content),
+    parseFrontmatterList(content, ['arra_concepts', 'concepts']),
+  );
+  const fileProject = parseFrontmatterProject(content) || inferProjectFromPath(sourceFile);
+  const createdAt = parseFrontmatterTime(content, ['arra_created', 'indexed_at', 'created']) || now;
+  const updatedAt = parseFrontmatterTime(content, ['updated_at', 'arra_created', 'indexed_at', 'created']) || createdAt;
+  const bodyContent = stripFrontmatter(content).trim() || content;
+
+  const title = parseFrontmatterString(content, ['title']) || filename.replace('.md', '');
+
+  const sections = /^##\s+/m.test(bodyContent) ? bodyContent.split(/^##\s+/m).filter(s => s.trim()) : [];
+
+  sections.forEach((section, index) => {
+    const lines = section.split('\n');
+    const sectionTitle = lines[0].trim();
+    const body = lines.slice(1).join('\n').trim();
+    if (!body) return;
+
+    const id = `learning_${filename.replace('.md', '')}_${index}`;
+    const extracted = extractConcepts(sectionTitle, body);
+    documents.push({
+      id: frontmatterId ? `${frontmatterId}_${index}` : id, type: docType, source_file: sourceFile,
+      content: `${title} - ${sectionTitle}: ${body}`,
+      concepts: mergeConceptsWithTags(extracted, fileTags),
+      created_at: createdAt, updated_at: updatedAt, project: fileProject || undefined
+    });
+  });
+
+  if (documents.length === 0) {
+    const extracted = extractConcepts(title, bodyContent);
+    documents.push({
+      id: baseId, type: docType, source_file: sourceFile,
+      content: bodyContent, concepts: mergeConceptsWithTags(extracted, fileTags),
+      created_at: createdAt, updated_at: updatedAt, project: fileProject || undefined
+    });
+  }
+
+  return documents;
+}
+
+/**
+ * Parse distillation markdown into documents
+ * L1–L4 brain-compression artifacts produced by /distill skill.
+ * Splits by ## headers, falls back to whole-file document.
+ */
+export function parseDistillationFile(filename: string, content: string, sourceFileOverride?: string): OracleDocument[] {
+  const documents: OracleDocument[] = [];
+  const sourceFile = sourceFileOverride || `ψ/memory/distillations/${filename}`;
+  const now = Date.now();
+
   const fileTags = parseFrontmatterTags(content);
   const fileProject = parseFrontmatterProject(content) || inferProjectFromPath(sourceFile);
 
@@ -78,10 +132,10 @@ export function parseLearningFile(filename: string, content: string, sourceFileO
     const body = lines.slice(1).join('\n').trim();
     if (!body) return;
 
-    const id = `learning_${filename.replace('.md', '')}_${index}`;
+    const id = `distillation_${filename.replace('.md', '')}_${index}`;
     const extracted = extractConcepts(sectionTitle, body);
     documents.push({
-      id, type: 'learning', source_file: sourceFile,
+      id, type: 'distillation', source_file: sourceFile,
       content: `${title} - ${sectionTitle}: ${body}`,
       concepts: mergeConceptsWithTags(extracted, fileTags),
       created_at: now, updated_at: now, project: fileProject || undefined
@@ -91,7 +145,7 @@ export function parseLearningFile(filename: string, content: string, sourceFileO
   if (documents.length === 0) {
     const extracted = extractConcepts(title, content);
     documents.push({
-      id: `learning_${filename.replace('.md', '')}`, type: 'learning', source_file: sourceFile,
+      id: `distillation_${filename.replace('.md', '')}`, type: 'distillation', source_file: sourceFile,
       content, concepts: mergeConceptsWithTags(extracted, fileTags),
       created_at: now, updated_at: now, project: fileProject || undefined
     });
@@ -130,6 +184,67 @@ export function parseRetroFile(relativePath: string, content: string): OracleDoc
       created_at: now, updated_at: now, project: fileProject || undefined
     });
   });
+
+  return documents;
+}
+
+/**
+ * Parse security-corpus file (ψ/learn/security-corpus/<topic>/<source>/...).
+ * Per-file = one document by default; if file has ## headers, splits into sections
+ * (mirrors parseLearningFile). Topic + source extracted from path:
+ *   ψ/learn/security-corpus/web/hacktricks/foo.md → topic=web, source=hacktricks
+ * Concepts seeded with topic + source + extracted keywords.
+ */
+export function parseSecurityCorpusFile(relativePath: string, content: string): OracleDocument[] {
+  const documents: OracleDocument[] = [];
+  const now = Date.now();
+
+  // Path layout: ψ/learn/security-corpus/<topic>/<source>/<...>/<file>
+  const parts = relativePath.split(path.sep);
+  const corpusIdx = parts.findIndex(p => p === 'security-corpus');
+  const topic = corpusIdx >= 0 && parts.length > corpusIdx + 1 ? parts[corpusIdx + 1] : 'unknown';
+  const source = corpusIdx >= 0 && parts.length > corpusIdx + 2 ? parts[corpusIdx + 2] : 'unknown';
+
+  const filename = path.basename(relativePath, path.extname(relativePath));
+  const safeFilename = filename.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
+  const pathHash = Bun.hash(relativePath).toString(36);
+
+  const baseConcepts = [topic, source].filter(c => c && c !== 'unknown');
+
+  // Section split if .md with ## headers; otherwise single doc
+  const isMarkdown = relativePath.endsWith('.md');
+  const sections = isMarkdown
+    ? content.split(/^##\s+/m).filter(s => s.trim() && s.trim().length > 50)
+    : [];
+
+  if (sections.length > 1) {
+    sections.forEach((section, index) => {
+      const lines = section.split('\n');
+      const sectionTitle = lines[0].trim();
+      const body = lines.slice(1).join('\n').trim();
+      if (!body || body.length < 50) return;
+
+      const id = `security_corpus_${topic}_${safeFilename}_${pathHash}_${index}`;
+      const extracted = extractConcepts(sectionTitle, body);
+      documents.push({
+        id, type: 'security-corpus', source_file: relativePath,
+        content: `[${topic}/${source}] ${sectionTitle}: ${body}`.slice(0, 8000),
+        concepts: mergeConceptsWithTags(extracted, baseConcepts),
+        created_at: now, updated_at: now, project: undefined,
+      });
+    });
+  }
+
+  if (documents.length === 0) {
+    const id = `security_corpus_${topic}_${safeFilename}_${pathHash}`;
+    const extracted = extractConcepts(filename, content.slice(0, 4000));
+    documents.push({
+      id, type: 'security-corpus', source_file: relativePath,
+      content: `[${topic}/${source}] ${filename}: ${content}`.slice(0, 8000),
+      concepts: mergeConceptsWithTags(extracted, baseConcepts),
+      created_at: now, updated_at: now, project: undefined,
+    });
+  }
 
   return documents;
 }
