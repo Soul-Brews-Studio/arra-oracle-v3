@@ -17,9 +17,9 @@ export function parseGitStatus(porcelainOutput: string): GitStatusCounts {
 
   for (const line of porcelainOutput.trim().split('\n')) {
     const code = line.substring(0, 2);
-    if (code.includes('A') || code === '??') added++;
+    if (code.includes('A') || code.includes('C') || code === '??') added++;
     else if (code.includes('D')) deleted++;
-    else if (code.includes('M') || code.includes('R')) modified++;
+    else if (code.includes('M') || code.includes('R') || code.includes('T')) modified++;
   }
 
   return { added, modified, deleted };

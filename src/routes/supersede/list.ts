@@ -7,18 +7,32 @@ import { eq, isNotNull, desc, sql, and } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/sqlite-core';
 import { db, oracleDocuments } from '../../db/index.ts';
 import { SupersedeQuery } from './model.ts';
+import { activeTenantId } from '../../middleware/tenant.ts';
+
+function boundedInteger(raw: string | undefined, fallback: number, min: number, max: number): number {
+  const text = raw?.trim();
+  if (!text || !/^-?\d+$/.test(text)) return fallback;
+  const value = Number(text);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(Math.max(value, min), max);
+}
+
+function cleanProject(raw: string | undefined): string | null {
+  const value = raw?.trim();
+  return value || null;
+}
 
 export const supersedeListEndpoint = new Elysia().get(
   '/supersede',
   ({ query }) => {
-    const project = query.project;
-    const limit = parseInt(query.limit ?? '50');
-    const offset = parseInt(query.offset ?? '0');
+    const project = cleanProject(query.project);
+    const limit = boundedInteger(query.limit, 50, 1, 200);
+    const offset = boundedInteger(query.offset, 0, 0, 100_000);
 
-    const projectFilter = project ? eq(oracleDocuments.project, project) : undefined;
-    const whereClause = projectFilter
-      ? and(isNotNull(oracleDocuments.supersededBy), projectFilter)
-      : isNotNull(oracleDocuments.supersededBy);
+    const tenantId = activeTenantId();
+    const filters = [isNotNull(oracleDocuments.supersededBy), eq(oracleDocuments.tenantId, tenantId)];
+    if (project) filters.push(eq(oracleDocuments.project, project));
+    const whereClause = and(...filters);
 
     const countResult = db.select({ total: sql<number>`count(*)` })
       .from(oracleDocuments)
@@ -27,6 +41,7 @@ export const supersedeListEndpoint = new Elysia().get(
     const total = countResult?.total || 0;
 
     const newDoc = alias(oracleDocuments, 'new_doc');
+    const newDocJoin = and(eq(oracleDocuments.supersededBy, newDoc.id), eq(newDoc.tenantId, tenantId));
     const rows = db.select({
       oldId: oracleDocuments.id,
       oldPath: oracleDocuments.sourceFile,
@@ -39,7 +54,7 @@ export const supersedeListEndpoint = new Elysia().get(
       project: oracleDocuments.project,
     })
       .from(oracleDocuments)
-      .leftJoin(newDoc, eq(oracleDocuments.supersededBy, newDoc.id))
+      .leftJoin(newDoc, newDocJoin)
       .where(whereClause)
       .orderBy(desc(oracleDocuments.supersededAt))
       .limit(limit)
@@ -67,7 +82,7 @@ export const supersedeListEndpoint = new Elysia().get(
     query: SupersedeQuery,
     detail: {
       tags: ['supersede'],
-      menu: { group: 'tools', order: 60 },
+      menu: { group: 'tools', path: '/superseded', order: 60 },
       summary: 'List superseded documents',
     },
   },

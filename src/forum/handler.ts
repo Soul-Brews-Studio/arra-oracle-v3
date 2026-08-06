@@ -1,16 +1,17 @@
-/**
- * Oracle Forum Handler
- *
- * DB-first threaded discussions with Oracle.
- * - Create threads, add messages
- * - Oracle auto-responds from knowledge base
- * - Logs unanswered questions for later
- *
- * Refactored to use Drizzle ORM for type-safe queries.
- */
-
 import { eq, desc, and, sql } from 'drizzle-orm';
 import { db, forumThreads, forumMessages } from '../db/index.ts';
+import { currentTenantId, tenantIdForWrite } from '../middleware/tenant.ts';
+import {
+  boundedInteger,
+  normalizeStoredRole,
+  normalizeStoredStatus,
+  optionalCount,
+  optionalText,
+  requiredText,
+  validThreadId,
+  validateRole,
+  validateStatus,
+} from './validation.ts';
 import { getProjectContext } from '../server/context.ts';
 import type {
   ForumThread,
@@ -21,113 +22,101 @@ import type {
   OracleThreadOutput,
 } from './types.ts';
 
-/**
- * Get project context from environment (ghq path detection)
- */
 function getProjectContext_(): string | undefined {
   const projectCtx = getProjectContext(process.cwd());
   return projectCtx && 'repo' in projectCtx ? projectCtx.repo : undefined;
 }
 
-// ============================================================================
-// Thread Operations
-// ============================================================================
-
-/**
- * Create a new thread
- */
-export function createThread(
-  title: string,
-  createdBy: string = 'user',
-  project?: string
-): ForumThread {
-  const now = Date.now();
-
-  const result = db.insert(forumThreads).values({
-    title,
-    createdBy,
-    status: 'active',
-    project: project || null,
-    createdAt: now,
-    updatedAt: now,
-  }).returning({ id: forumThreads.id }).get();
-
-  return {
-    id: result.id,
-    title,
-    createdBy,
-    status: 'active',
-    project,
-    createdAt: now,
-    updatedAt: now,
-  };
+function threadWhere(threadId: number) {
+  const tenantId = currentTenantId();
+  return tenantId ? and(eq(forumThreads.id, threadId), eq(forumThreads.tenantId, tenantId)) : eq(forumThreads.id, threadId);
 }
 
-/**
- * Get thread by ID
- */
-export function getThread(threadId: number): ForumThread | null {
-  const row = db.select()
-    .from(forumThreads)
-    .where(eq(forumThreads.id, threadId))
-    .get();
-
-  if (!row) return null;
-
+function toForumThread(row: typeof forumThreads.$inferSelect): ForumThread {
   return {
     id: row.id,
     title: row.title,
     createdBy: row.createdBy || 'unknown',
-    status: (row.status || 'active') as ThreadStatus,
+    status: normalizeStoredStatus(row.status),
     issueUrl: row.issueUrl || undefined,
-    issueNumber: row.issueNumber || undefined,
+    issueNumber: row.issueNumber ?? undefined,
     project: row.project || undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    syncedAt: row.syncedAt || undefined,
+    syncedAt: row.syncedAt ?? undefined,
   };
 }
 
-/**
- * Update thread status
- */
-export function updateThreadStatus(threadId: number, status: ThreadStatus): void {
-  db.update(forumThreads)
-    .set({ status, updatedAt: Date.now() })
-    .where(eq(forumThreads.id, threadId))
-    .run();
+function toForumMessage(row: typeof forumMessages.$inferSelect): ForumMessage {
+  return {
+    id: row.id,
+    threadId: row.threadId,
+    role: normalizeStoredRole(row.role),
+    content: row.content,
+    author: row.author || undefined,
+    principlesFound: row.principlesFound ?? undefined,
+    patternsFound: row.patternsFound ?? undefined,
+    searchQuery: row.searchQuery || undefined,
+    commentId: row.commentId ?? undefined,
+    createdAt: row.createdAt,
+  };
 }
 
-/**
- * List threads with optional filters
- */
+export function createThread(title: string, createdBy = 'user', project?: string): ForumThread {
+  const now = Date.now();
+  const cleanTitle = requiredText(title, 'Thread title');
+  const cleanCreator = optionalText(createdBy) ?? 'user';
+  const cleanProject = optionalText(project);
+  const result = db.insert(forumThreads).values({
+    title: cleanTitle,
+    tenantId: tenantIdForWrite(),
+    createdBy: cleanCreator,
+    status: 'active',
+    project: cleanProject || null,
+    createdAt: now,
+    updatedAt: now,
+  }).returning({ id: forumThreads.id }).get();
+  return {
+    id: result.id,
+    title: cleanTitle,
+    createdBy: cleanCreator,
+    status: 'active',
+    project: cleanProject,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export function getThread(threadId: number): ForumThread | null {
+  if (!validThreadId(threadId)) return null;
+  const row = db.select().from(forumThreads).where(threadWhere(threadId)).get();
+  return row ? toForumThread(row) : null;
+}
+
+export function updateThreadStatus(threadId: number, status: ThreadStatus): boolean {
+  validateStatus(status);
+  if (!getThread(threadId)) return false;
+  db.update(forumThreads).set({ status, updatedAt: Date.now() }).where(threadWhere(threadId)).run();
+  return true;
+}
+
 export function listThreads(options: {
   status?: ThreadStatus;
   project?: string;
   limit?: number;
   offset?: number;
 } = {}): { threads: ForumThread[]; total: number } {
-  const { status, project, limit = 20, offset = 0 } = options;
-
-  // Build conditions array
+  const { status, project } = options;
+  const limit = boundedInteger(options.limit, 20, 1, 100, 'limit');
+  const offset = boundedInteger(options.offset, 0, 0, 10_000, 'offset');
   const conditions = [];
-  if (status) {
-    conditions.push(eq(forumThreads.status, status));
-  }
-  if (project) {
-    conditions.push(eq(forumThreads.project, project));
-  }
-
+  if (status) conditions.push(eq(forumThreads.status, validateStatus(status)));
+  const cleanProject = optionalText(project);
+  if (cleanProject) conditions.push(eq(forumThreads.project, cleanProject));
+  const tenantId = currentTenantId();
+  if (tenantId) conditions.push(eq(forumThreads.tenantId, tenantId));
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-  // Get count
-  const countResult = db.select({ count: sql<number>`count(*)` })
-    .from(forumThreads)
-    .where(whereClause)
-    .get();
-  const total = countResult?.count || 0;
-
-  // Get threads
+  const countResult = db.select({ count: sql<number>`count(*)` }).from(forumThreads).where(whereClause).get();
   const rows = db.select()
     .from(forumThreads)
     .where(whereClause)
@@ -135,175 +124,84 @@ export function listThreads(options: {
     .limit(limit)
     .offset(offset)
     .all();
-
-  return {
-    threads: rows.map(row => ({
-      id: row.id,
-      title: row.title,
-      createdBy: row.createdBy || 'unknown',
-      status: (row.status || 'active') as ThreadStatus,
-      issueUrl: row.issueUrl || undefined,
-      issueNumber: row.issueNumber || undefined,
-      project: row.project || undefined,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-      syncedAt: row.syncedAt || undefined,
-    })),
-    total,
-  };
+  return { threads: rows.map(toForumThread), total: countResult?.count || 0 };
 }
 
-// ============================================================================
-// Message Operations
-// ============================================================================
-
-/**
- * Add a message to a thread
- */
 export function addMessage(
   threadId: number,
   role: MessageRole,
   content: string,
-  options: {
-    author?: string;
-    principlesFound?: number;
-    patternsFound?: number;
-    searchQuery?: string;
-  } = {}
+  options: { author?: string; principlesFound?: number; patternsFound?: number; searchQuery?: string } = {},
 ): ForumMessage {
+  if (!getThread(threadId)) throw new Error(`Thread ${threadId} not found`);
   const now = Date.now();
-
+  const cleanRole = validateRole(role);
+  const cleanContent = requiredText(content, 'Message content');
+  const cleanAuthor = optionalText(options.author);
+  const cleanSearch = optionalText(options.searchQuery);
+  const cleanPrinciples = optionalCount(options.principlesFound, 'principlesFound');
+  const cleanPatterns = optionalCount(options.patternsFound, 'patternsFound');
   const result = db.insert(forumMessages).values({
     threadId,
-    role,
-    content,
-    author: options.author || null,
-    principlesFound: options.principlesFound || null,
-    patternsFound: options.patternsFound || null,
-    searchQuery: options.searchQuery || null,
+    role: cleanRole,
+    content: cleanContent,
+    author: cleanAuthor || null,
+    principlesFound: cleanPrinciples ?? null,
+    patternsFound: cleanPatterns ?? null,
+    searchQuery: cleanSearch || null,
     createdAt: now,
   }).returning({ id: forumMessages.id }).get();
-
-  // Update thread timestamp
-  db.update(forumThreads)
-    .set({ updatedAt: now })
-    .where(eq(forumThreads.id, threadId))
-    .run();
-
+  db.update(forumThreads).set({ updatedAt: now }).where(threadWhere(threadId)).run();
   return {
     id: result.id,
     threadId,
-    role,
-    content,
-    author: options.author,
-    principlesFound: options.principlesFound,
-    patternsFound: options.patternsFound,
-    searchQuery: options.searchQuery,
+    role: cleanRole,
+    content: cleanContent,
+    author: cleanAuthor,
+    principlesFound: cleanPrinciples,
+    patternsFound: cleanPatterns,
+    searchQuery: cleanSearch,
     createdAt: now,
   };
 }
 
-/**
- * Get messages for a thread
- */
 export function getMessages(threadId: number): ForumMessage[] {
-  const rows = db.select()
+  if (!getThread(threadId)) return [];
+  return db.select()
     .from(forumMessages)
     .where(eq(forumMessages.threadId, threadId))
     .orderBy(forumMessages.createdAt)
-    .all();
-
-  return rows.map(row => ({
-    id: row.id,
-    threadId: row.threadId,
-    role: row.role as MessageRole,
-    content: row.content,
-    author: row.author || undefined,
-    principlesFound: row.principlesFound || undefined,
-    patternsFound: row.patternsFound || undefined,
-    searchQuery: row.searchQuery || undefined,
-    commentId: row.commentId || undefined,
-    createdAt: row.createdAt,
-  }));
+    .all()
+    .map(toForumMessage);
 }
 
-// ============================================================================
-// Main Thread API (MCP Tool Interface)
-// ============================================================================
-
-/**
- * Main entry point: Send message to thread, Oracle auto-responds
- */
-export async function handleThreadMessage(
-  input: OracleThreadInput
-): Promise<OracleThreadOutput> {
+export async function handleThreadMessage(input: OracleThreadInput): Promise<OracleThreadOutput> {
   const { message, threadId, title, role = 'human', model } = input;
-
-  // Get project context
+  const cleanMessage = requiredText(message, 'Message content');
+  const cleanRole = validateRole(role);
   const project = getProjectContext_();
-
-  // Determine author based on role and model
-  // - role='human' (HTTP) -> author='user'
-  // - role='claude' (MCP) -> author='opus'/'sonnet'/'claude' + project
-  let author: string;
-  if (role === 'human') {
-    author = 'user';
-  } else {
-    // Use model name if provided (opus, sonnet), else 'claude'
-    author = model || 'claude';
-  }
-
-  // Add project context if available
-  if (project) {
-    author = `${author}@${project}`;
-  }
-
+  const baseAuthor = cleanRole === 'human' ? 'user' : optionalText(model) || 'claude';
+  const author = project ? `${baseAuthor}@${project}` : baseAuthor;
   let thread: ForumThread;
 
-  // Create or get thread
-  if (threadId) {
+  if (threadId !== undefined) {
+    if (!validThreadId(threadId)) throw new Error('Invalid thread ID');
     const existing = getThread(threadId);
-    if (!existing) {
-      throw new Error(`Thread ${threadId} not found`);
-    }
+    if (!existing) throw new Error(`Thread ${threadId} not found`);
     thread = existing;
   } else {
-    // New thread - use title or first 50 chars of message
-    const threadTitle = title || message.slice(0, 50) + (message.length > 50 ? '...' : '');
+    const threadTitle = optionalText(title)
+      ?? cleanMessage.slice(0, 50) + (cleanMessage.length > 50 ? '...' : '');
     thread = createThread(threadTitle, author, project);
   }
 
-  // Add the user's message
-  const userMessage = addMessage(thread.id, role, message, {
-    author,
-  });
-
-  // Mark as pending (no auto-response engine currently)
-  if (role === 'human' || role === 'claude') {
-    updateThreadStatus(thread.id, 'pending');
-  }
-
-  // Get updated thread status
+  const userMessage = addMessage(thread.id, cleanRole, cleanMessage, { author });
+  if (cleanRole === 'human' || cleanRole === 'claude') updateThreadStatus(thread.id, 'pending');
   const updatedThread = getThread(thread.id)!;
-
-  return {
-    threadId: thread.id,
-    messageId: userMessage.id,
-    status: updatedThread.status as ThreadStatus,
-    issueUrl: updatedThread.issueUrl,
-  };
+  return { threadId: thread.id, messageId: userMessage.id, status: updatedThread.status as ThreadStatus, issueUrl: updatedThread.issueUrl };
 }
 
-/**
- * Get full thread with all messages
- */
-export function getFullThread(threadId: number): {
-  thread: ForumThread;
-  messages: ForumMessage[];
-} | null {
+export function getFullThread(threadId: number): { thread: ForumThread; messages: ForumMessage[] } | null {
   const thread = getThread(threadId);
-  if (!thread) return null;
-
-  const messages = getMessages(threadId);
-  return { thread, messages };
+  return thread ? { thread, messages: getMessages(threadId) } : null;
 }

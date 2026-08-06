@@ -40,10 +40,40 @@ playwright-report/
 test-results/
 *.pid
 
-# Oracle instance data (per-user, symlink to vault)
-ψ
+# Local Cloudflare Wrangler state
+.wrangler/
+
+# Oracle instance data (per-user vault; never commit)
+ψ/
 
 # Generated report files (use oracle-vault-report repo instead)
 vault-report.html
 vault-repos.html
 vault-data.json
+
+services/**/__pycache__/
+services/**/*.pyc
+sidecar/**/__pycache__/
+sidecar/**/*.pyc
+
+# Codex agent worktrees (git worktree, registered in .git/worktrees — not tracked)
+agents/
+
+# Per-machine maw state (engine map differs per oracle — committing clashes)
+.maw/
+.envrc
+
+# omx per-session project memory (not source of truth)
+.omx/
+
+# volt-oracle per-machine tooling artifacts (not source of truth)
+.volt/
+
+# macOS metadata
+.DS_Store
+
+# Playwright MCP session artifacts
+.playwright-mcp/
+
+# Cloudflare local dev state
+.wrangler/

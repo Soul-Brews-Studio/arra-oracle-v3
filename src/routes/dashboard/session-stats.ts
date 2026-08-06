@@ -1,21 +1,27 @@
 import { Elysia } from 'elysia';
-import { gt, sql } from 'drizzle-orm';
+import { and, eq, gt, sql, type SQL } from 'drizzle-orm';
 import { db, searchLog, learnLog, isDbLockError } from '../../db/index.ts';
-import { SessionStatsQuery } from './model.ts';
+import { normalizeSessionSince, SessionStatsQuery } from './model.ts';
+import { activeTenantId } from '../../middleware/tenant.ts';
+
+type TenantLogTable = { tenantId: unknown };
+
+function scoped<T extends TenantLogTable>(table: T, condition: SQL): SQL {
+  return and(condition, eq(table.tenantId as never, activeTenantId()))!;
+}
 
 export const sessionStatsEndpoint = new Elysia().get('/session/stats', ({ query }) => {
-  const since = query.since;
-  const sinceTime = since !== undefined ? parseInt(since) : Date.now() - 24 * 60 * 60 * 1000;
+  const sinceTime = normalizeSessionSince(query.since);
 
   try {
     const searches = db.select({ count: sql<number>`count(*)` })
       .from(searchLog)
-      .where(gt(searchLog.createdAt, sinceTime))
+      .where(scoped(searchLog, gt(searchLog.createdAt, sinceTime)))
       .get();
 
     const learnings = db.select({ count: sql<number>`count(*)` })
       .from(learnLog)
-      .where(gt(learnLog.createdAt, sinceTime))
+      .where(scoped(learnLog, gt(learnLog.createdAt, sinceTime)))
       .get();
 
     return {

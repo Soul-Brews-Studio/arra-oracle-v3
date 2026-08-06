@@ -3,7 +3,7 @@
  * Following claude-mem patterns for granular vector documents
  */
 
-export type OracleDocumentType = 'principle' | 'pattern' | 'learning' | 'retro';
+export type OracleDocumentType = 'principle' | 'pattern' | 'learning' | 'retro' | 'distillation' | 'security-corpus';
 
 /**
  * Granular document stored in vector DB
@@ -15,6 +15,9 @@ export interface OracleDocument {
   source_file: string;  // Relative path from repo root
   content: string;      // The actual text to embed
   concepts: string[];   // Tags for filtering: ['trust', 'patterns', 'mirror']
+  chunk_index?: number; // Indexer chunk ordinal within source document
+  line_start?: number;  // 1-based inclusive source line for this chunk
+  line_end?: number;    // 1-based inclusive source line for this chunk
   created_at: number;   // Unix timestamp
   updated_at: number;   // Unix timestamp
   project?: string | null; // Source project (null = universal, undefined = inherit)
@@ -61,7 +64,7 @@ export interface OracleReflectInput {
 }
 
 /**
- * arra_list input - browse documents without search query
+ * oracle_list input - browse documents without search query
  */
 export interface OracleListInput {
   type?: OracleDocumentType | 'all';
@@ -88,7 +91,7 @@ export interface OracleReflectOutput {
 }
 
 /**
- * arra_list output - paginated document list
+ * oracle_list output - paginated document list
  */
 export interface OracleListOutput {
   documents: Array<{
@@ -125,5 +128,9 @@ export interface IndexerConfig {
     resonance: string;
     learnings: string;
     retrospectives: string;
+    distillations: string;
+    learn: string;              // ψ/learn/ — auto-learned repo exploration docs
+    inbox?: string;             // ψ/inbox/ — fleet correspondence, indexed as knowledge (#2855)
+    security_corpus?: string;  // Optional: ψ/learn/security-corpus/ — opt-in via ORACLE_INDEX_SECURITY_CORPUS=1
   };
 }

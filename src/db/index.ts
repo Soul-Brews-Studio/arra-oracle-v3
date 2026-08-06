@@ -1,157 +1,123 @@
 /**
  * Oracle v2 Drizzle Database Client
  *
- * Single source of truth for DB initialization:
- * 1. Drizzle migrations (schema tables)
- * 2. FTS5 virtual table (raw SQL, can't be managed by Drizzle)
- * 3. Seed indexing_status row
+ * Single source of truth for DB access. The active storage backend is resolved
+ * by src/storage/registry.ts so command handlers keep using the same db/sqlite
+ * context while the backend can be swapped by config.
  */
 
 import { eq } from 'drizzle-orm';
-import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
-import { migrate } from 'drizzle-orm/bun-sqlite/migrator';
-import { Database } from 'bun:sqlite';
+import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
+import type { Database } from 'bun:sqlite';
 import path from 'path';
-import fs from 'fs';
 import * as schema from './schema.ts';
-import { DB_PATH, ORACLE_DATA_DIR } from '../config.ts';
+import { DB_PATH, DEFAULT_ORACLE_DATA_DIR, ORACLE_DATA_DIR } from '../config.ts';
+import { assertNotProductionDb } from './production-db-guard.ts';
+import { createStorageBackend } from '../storage/registry.ts';
+import type { StorageBackend } from '../storage/types.ts';
+import { resolveDatabasePath } from './create.ts';
+export { createDatabase, type DatabaseConnection } from './create.ts';
+export {
+  atomicOp,
+  atomicOps,
+  type AtomicBatchDb,
+  type AtomicOperation,
+  type AtomicTransactionDb,
+  type PairedAtomicOperation,
+  type RunnableAtomicStatement,
+} from './atomic-ops.ts';
+export {
+  createDb,
+  detectDbRuntime,
+  type CreateDbEnv,
+  type CreateDbOptions,
+  type DbConnection,
+  type DbRuntime,
+} from './factory.ts';
 
-// Migrations folder (relative to this file)
-const MIGRATIONS_FOLDER = path.join(import.meta.dirname || __dirname, 'migrations');
-
-/**
- * Initialize FTS5 virtual table (must use raw SQL)
- * Drizzle doesn't manage FTS5 — this is idempotent.
- */
-export function initFts5(sqliteDb: Database): void {
-  sqliteDb.exec(`
-    CREATE VIRTUAL TABLE IF NOT EXISTS oracle_fts USING fts5(
-      id UNINDEXED,
-      content,
-      concepts,
-      tokenize='porter unicode61'
-    )
-  `);
-}
-
-/**
- * Initialize supersede_log table (migration 0003)
- * Added to fix existing installations missing this table.
- * Idempotent - safe to call on every startup.
- */
-export function initSupersedeLog(sqliteDb: Database): void {
-  // Create table
-  sqliteDb.exec(`
-    CREATE TABLE IF NOT EXISTS supersede_log (
-      id integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-      old_path text NOT NULL,
-      old_id text,
-      old_title text,
-      old_type text,
-      new_path text,
-      new_id text,
-      new_title text,
-      reason text,
-      superseded_at integer NOT NULL,
-      superseded_by text,
-      project text
-    )
-  `);
-
-  // Create indexes
-  sqliteDb.exec(`
-    CREATE INDEX IF NOT EXISTS idx_supersede_old_path ON supersede_log (old_path);
-    CREATE INDEX IF NOT EXISTS idx_supersede_new_path ON supersede_log (new_path);
-    CREATE INDEX IF NOT EXISTS idx_supersede_created ON supersede_log (superseded_at);
-    CREATE INDEX IF NOT EXISTS idx_supersede_project ON supersede_log (project);
-  `);
-}
-
-/**
- * Initialize a database: run migrations, create FTS5, seed indexing_status.
- */
-function initializeDatabase(sqliteDb: Database, drizzleDb: BunSQLiteDatabase<typeof schema>): void {
-  // WAL mode for concurrent reads
-  sqliteDb.exec('PRAGMA journal_mode = WAL');
-  sqliteDb.exec('PRAGMA busy_timeout = 5000');
-
-  // Run Drizzle migrations (creates/updates all schema tables)
-  migrate(drizzleDb, { migrationsFolder: MIGRATIONS_FOLDER });
-
-  // FTS5 (raw SQL, idempotent)
-  initFts5(sqliteDb);
-
-  // Supersede log table (migration 0003 - idempotent for existing DBs)
-  initSupersedeLog(sqliteDb);
-
-  // Ensure indexing_status has its single row
-  sqliteDb.exec('INSERT OR IGNORE INTO indexing_status (id, is_indexing) VALUES (1, 0)');
-
-  // One-time migration: normalize project casing to lowercase
-  const migrated = sqliteDb.prepare("SELECT value FROM settings WHERE key = 'migration_lowercase_projects'").get() as { value: string } | undefined;
-  if (!migrated) {
-    sqliteDb.exec("UPDATE oracle_documents SET project = LOWER(project) WHERE project <> LOWER(project)");
-    sqliteDb.exec("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('migration_lowercase_projects', '1', unixepoch() * 1000)");
-  }
-}
-
-/**
- * Create a fully-initialized database connection.
- * Used by MCP entry (src/index.ts) and indexer (src/indexer.ts).
- */
-export function createDatabase(dbPath?: string): {
-  sqlite: Database;
-  db: BunSQLiteDatabase<typeof schema>;
-} {
-  const resolvedPath = dbPath || DB_PATH;
-
-  // Ensure parent directory exists
-  const dir = path.dirname(resolvedPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-
-  const sqliteDb = new Database(resolvedPath);
-  const drizzleDb = drizzle(sqliteDb, { schema });
-
-  initializeDatabase(sqliteDb, drizzleDb);
-
-  return { sqlite: sqliteDb, db: drizzleDb };
-}
+export { initializeDrizzleSqlite } from '../storage/drizzle-sqlite.ts';
 
 // ============================================================================
 // Default module-level connection (used by server.ts, handlers, etc.)
 // ============================================================================
 
-// Ensure data dir exists before opening DB
-if (!fs.existsSync(ORACLE_DATA_DIR)) {
-  fs.mkdirSync(ORACLE_DATA_DIR, { recursive: true });
+let defaultStorage: StorageBackend | null = null;
+
+function openDefaultStorage(): StorageBackend {
+  if (!defaultStorage) {
+    const readonly = process.env.ORACLE_VECTOR_READONLY === '1';
+    defaultStorage = createStorageBackend({ dbPath: defaultDbPath(), readonly });
+    if (readonly) console.log('[DB] Opened in READONLY mode (vector sidecar)');
+  }
+  return defaultStorage;
 }
 
-const isReadonly = process.env.ORACLE_VECTOR_READONLY === '1';
-const defaultSqlite = isReadonly
-  ? new Database(DB_PATH, { readonly: true })
-  : new Database(DB_PATH);
-const defaultDb = drizzle(defaultSqlite, { schema });
-
-if (isReadonly) {
-  console.log('[DB] Opened in READONLY mode (vector sidecar)');
-} else {
-  // Run initialization on the default connection (skipped in readonly mode)
-  initializeDatabase(defaultSqlite, defaultDb);
+function defaultDbPath(): string {
+  const envPath = process.env.ORACLE_DB_PATH?.trim();
+  if (envPath) return assertNotProductionDb(envPath, productionDataDir());
+  if (process.env.NODE_ENV === 'test') return ':memory:';
+  return DB_PATH;
 }
 
-export const sqlite = defaultSqlite;
-export const db = defaultDb;
+function lazyProxy<T extends object>(resolve: () => T): T {
+  return new Proxy({} as T, {
+    get(_target, prop) {
+      const target = resolve() as Record<PropertyKey, unknown>;
+      const value = target[prop];
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+    set(_target, prop, value) {
+      (resolve() as Record<PropertyKey, unknown>)[prop] = value;
+      return true;
+    },
+    has(_target, prop) {
+      return prop in resolve();
+    },
+  });
+}
+
+export const storage = lazyProxy<StorageBackend>(() => openDefaultStorage());
+export const sqlite = lazyProxy<Database>(() => openDefaultStorage().sqlite);
+export const db = lazyProxy<BunSQLiteDatabase<typeof schema>>(() => openDefaultStorage().db);
+
+/**
+ * Test-only escape hatch for raw `bun test` non-isolate runs. Some tests set
+ * ORACLE_DATA_DIR after another file has already imported the module-level DB;
+ * live bindings let them re-point the default connection without process-level
+ * isolation. Production callers should prefer createDatabase().
+ */
+export function resetDefaultDatabaseForTests(dbPath?: string): void {
+  try { defaultStorage?.close(); } catch {}
+  defaultStorage = null;
+  defaultStorage = createStorageBackend({ dbPath: resolveDatabasePath(dbPath, defaultDbPathForReset()) });
+}
+
+/**
+ * The guard compares against `DEFAULT_ORACLE_DATA_DIR` — the home-directory path, computed
+ * without the env override.
+ *
+ * `ORACLE_DATA_DIR` is `envText('ORACLE_DATA_DIR') || join(HOME_DIR, …)`, so a test that
+ * redirects it to a temp dir makes that constant equal the temp dir, and a guard reading it
+ * refuses the very tests doing the right thing. CI caught exactly that: the README-claims suite
+ * failed with `production data dir = /tmp/arra-readme-claims-…/data`.
+ */
+function productionDataDir(): string {
+  return DEFAULT_ORACLE_DATA_DIR;
+}
+
+function defaultDbPathForReset(): string {
+  const envPath = process.env.ORACLE_DB_PATH?.trim();
+  if (envPath) return assertNotProductionDb(envPath, productionDataDir());
+  if (process.env.NODE_ENV === 'test') return ':memory:';
+  return path.join(process.env.ORACLE_DATA_DIR?.trim() || ORACLE_DATA_DIR, 'oracle.db');
+}
 
 // Export schema for use in queries
 export * from './schema.ts';
 
-/**
- * Close database connection
- */
+/** Close database connection. */
 export function closeDb() {
-  defaultSqlite.close();
+  try { defaultStorage?.close(); } finally { defaultStorage = null; }
 }
 
 // ============================================================================
@@ -167,8 +133,9 @@ export function closeDb() {
  * fallbacks instead of relying on the 503 catch-all.
  */
 export function isDbLockError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return msg.includes('disk I/O') || msg.includes('SQLITE_BUSY') || msg.includes('database is locked');
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return msg.includes('disk i/o') || msg.includes('sqlite_busy')
+    || msg.includes('sqlite_locked') || msg.includes('database is locked');
 }
 
 // ============================================================================

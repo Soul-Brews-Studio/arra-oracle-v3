@@ -1,11 +1,14 @@
+import type { UnifiedCliSubcommandManifest } from "../../../src/plugins/unified-manifest.ts";
+
 export interface PluginManifest {
   name: string;
   version: string;
   entry: string;
-  sdk: string;
+  sdk?: string;
   weight?: number;
   description?: string;
   author?: string;
+  cliSubcommands?: UnifiedCliSubcommandManifest[];
   cli?: {
     command: string;
     aliases?: string[];
@@ -18,6 +21,15 @@ export interface LoadedPlugin {
   manifest: PluginManifest;
   dir: string;
   entryPath: string;
+}
+
+export interface ResolvedCliCommand {
+  plugin: LoadedPlugin;
+  command: string;
+  help?: string;
+  aliases?: string[];
+  flags?: Record<string, string>;
+  handler?: string;
 }
 
 export interface InvokeContext {

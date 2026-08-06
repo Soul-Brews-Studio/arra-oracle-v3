@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Arra Oracle</title>
+  <desc id="desc">Teal oracle eye inside a dark rounded square.</desc>
+  <rect width="512" height="512" rx="112" fill="#030712"/>
+  <circle cx="256" cy="256" r="176" fill="#0f766e" opacity="0.2"/>
+  <path d="M88 256c43-70 99-105 168-105s125 35 168 105c-43 70-99 105-168 105S131 326 88 256Z" fill="none" stroke="#5eead4" stroke-width="30" stroke-linejoin="round"/>
+  <circle cx="256" cy="256" r="70" fill="#14b8a6"/>
+  <circle cx="282" cy="228" r="24" fill="#ccfbf1"/>
+</svg>

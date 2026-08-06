@@ -6,10 +6,15 @@
 
 import { eq, and, ne, isNotNull } from 'drizzle-orm';
 import { oracleDocuments } from '../db/schema.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 import type { ToolContext, ToolResponse, OracleConceptsInput } from './types.ts';
 
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 200;
+const VALID_TYPES = ['principle', 'pattern', 'learning', 'retro', 'all'];
+
 export const conceptsToolDef = {
-  name: 'arra_concepts',
+  name: 'oracle_concepts',
   description: 'List all concept tags in the Oracle knowledge base with document counts. Useful for discovering what topics are covered and filtering searches.',
   inputSchema: {
     type: 'object',
@@ -30,48 +35,73 @@ export const conceptsToolDef = {
   }
 };
 
-export async function handleConcepts(ctx: ToolContext, input: OracleConceptsInput): Promise<ToolResponse> {
-  const { limit = 50, type = 'all' } = input;
+function normalizeLimit(limit: number | undefined): number {
+  if (!Number.isSafeInteger(limit) || limit === undefined || limit <= 0) return DEFAULT_LIMIT;
+  return Math.min(limit, MAX_LIMIT);
+}
 
-  const baseCondition = and(isNotNull(oracleDocuments.concepts), ne(oracleDocuments.concepts, '[]'));
+function conceptNames(raw: string): string[] {
+  let values: unknown[] = [];
+  try {
+    const parsed = JSON.parse(raw);
+    values = Array.isArray(parsed) ? parsed : typeof parsed === 'string' ? parsed.split(',') : [];
+  } catch {
+    values = raw.split(',');
+  }
+
+  const unique = new Set<string>();
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const concept = value.trim();
+    if (concept) unique.add(concept);
+  }
+  return [...unique];
+}
+
+function inputObject(input: OracleConceptsInput): Record<string, unknown> {
+  return input && typeof input === 'object' ? input as Record<string, unknown> : {};
+}
+
+export function listConcepts(db: ToolContext['db'], input: OracleConceptsInput) {
+  const raw = inputObject(input);
+  if (raw.limit !== undefined && typeof raw.limit !== 'number') throw new Error('limit must be a number');
+  const limit = normalizeLimit(raw.limit);
+  const type = raw.type ?? 'all';
+  if (typeof type !== 'string') throw new Error('type must be a string');
+  if (!VALID_TYPES.includes(type)) throw new Error(`Invalid type: ${type}. Must be one of: ${VALID_TYPES.join(', ')}`);
+
+  const filters = [isNotNull(oracleDocuments.concepts), ne(oracleDocuments.concepts, '[]')];
+  const tenantId = currentTenantId();
+  if (tenantId) filters.push(eq(oracleDocuments.tenantId, tenantId));
+  const baseCondition = and(...filters);
   const rows = type === 'all'
-    ? ctx.db.select({ concepts: oracleDocuments.concepts }).from(oracleDocuments).where(baseCondition).all()
-    : ctx.db.select({ concepts: oracleDocuments.concepts }).from(oracleDocuments).where(and(baseCondition, eq(oracleDocuments.type, type))).all();
+    ? db.select({ concepts: oracleDocuments.concepts }).from(oracleDocuments).where(baseCondition).all()
+    : db.select({ concepts: oracleDocuments.concepts }).from(oracleDocuments).where(and(baseCondition, eq(oracleDocuments.type, type))).all();
 
   const conceptCounts = new Map<string, number>();
   for (const row of rows as Array<{ concepts: string }>) {
-    try {
-      const concepts = JSON.parse(row.concepts);
-      if (Array.isArray(concepts)) {
-        for (const concept of concepts) {
-          if (typeof concept === 'string') {
-            conceptCounts.set(concept, (conceptCounts.get(concept) || 0) + 1);
-          }
-        }
-      }
-    } catch {
-      if (typeof row.concepts === 'string') {
-        const concepts = row.concepts.split(',').map(c => c.trim()).filter(Boolean);
-        for (const concept of concepts) {
-          conceptCounts.set(concept, (conceptCounts.get(concept) || 0) + 1);
-        }
-      }
+    for (const concept of conceptNames(row.concepts)) {
+      conceptCounts.set(concept, (conceptCounts.get(concept) || 0) + 1);
     }
   }
 
   const sortedConcepts = Array.from(conceptCounts.entries())
     .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => b.count - a.count)
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
     .slice(0, limit);
 
   return {
+    concepts: sortedConcepts,
+    total_unique: conceptCounts.size,
+    filter_type: type,
+  };
+}
+
+export async function handleConcepts(ctx: ToolContext, input: OracleConceptsInput): Promise<ToolResponse> {
+  return {
     content: [{
       type: 'text',
-      text: JSON.stringify({
-        concepts: sortedConcepts,
-        total_unique: conceptCounts.size,
-        filter_type: type,
-      }, null, 2)
-    }]
+      text: JSON.stringify(listConcepts(ctx.db, input), null, 2),
+    }],
   };
 }

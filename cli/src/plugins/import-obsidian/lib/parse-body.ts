@@ -66,7 +66,7 @@ export function extractTagsFromBody(body: string): string[] {
 }
 
 export function mergeConcepts(meta: DocMeta, body: string): string[] {
-  const fromMeta = Array.isArray(meta.arra_concepts) ? meta.arra_concepts : [];
+  const fromMeta = Array.isArray(meta.muninn_concepts) ? meta.muninn_concepts : [];
   const fromBody = extractTagsFromBody(body);
   const merged = [...fromMeta, ...fromBody]
     .filter((c): c is string => typeof c === 'string' && c.length > 0)

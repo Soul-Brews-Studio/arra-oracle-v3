@@ -1,11 +1,9 @@
 import { Elysia } from 'elysia';
 import { handleDashboardActivity } from '../../server/dashboard.ts';
-import { ActivityQuery } from './model.ts';
+import { ActivityQuery, normalizeActivityDays } from './model.ts';
 
 export const activityEndpoint = new Elysia().get('/dashboard/activity', ({ query }) => {
-  const parsed = parseInt(query.days ?? '7');
-  const days = Number.isFinite(parsed) ? parsed : 7;
-  return handleDashboardActivity(days);
+  return handleDashboardActivity(normalizeActivityDays(query.days));
 }, {
   query: ActivityQuery,
   detail: {

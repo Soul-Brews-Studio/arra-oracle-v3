@@ -19,7 +19,7 @@ function clearMenu() {
 
 function routeSource(label = 'Search', order = 10) {
   return new Elysia({ prefix: '/api' }).get('/search', () => ({}), {
-    detail: { menu: { group: 'main', order, label }, summary: 'Search' },
+    detail: { menu: { group: 'main', path: '/search', order, label }, summary: 'Search' },
   });
 }
 

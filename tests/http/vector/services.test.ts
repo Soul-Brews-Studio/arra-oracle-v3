@@ -1,0 +1,227 @@
+import { expect, test } from 'bun:test';
+import { Elysia } from 'elysia';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createApiVersionedFetch } from '../../../src/middleware/api-version.ts';
+import { createVectorServicesApiEndpoint } from '../../../src/routes/vector/services.ts';
+import { configPath, loadVectorConfig } from '../../../src/vector/config.ts';
+import {
+  VectorServiceRegistry,
+  type HealthStatus,
+  type RegisteredVectorService,
+  type VectorServiceRegistryClient,
+} from '../../../src/vector/registry.ts';
+
+class FakeRegistry implements VectorServiceRegistryClient {
+  services = new Map<string, RegisteredVectorService>([
+    ['lancedb', { name: 'lancedb', type: 'builtin' }],
+  ]);
+
+  async register(service: RegisteredVectorService) {
+    if (service.type === 'proxy' && !service.endpoint) throw new Error('proxy service requires endpoint');
+    this.services.set(service.name, service);
+    return service;
+  }
+
+  async discover() {
+    return [...this.services.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async unregister(name: string) {
+    return this.services.delete(name);
+  }
+
+  async healthCheck() {
+    const health = new Map<string, HealthStatus>();
+    for (const service of this.services.values()) {
+      health.set(service.name, { status: service.type === 'proxy' ? 'up' : 'up', checkedAt: '2026-06-16T00:00:00.000Z' });
+    }
+    return health;
+  }
+}
+
+function createFetch(registry = new FakeRegistry(), afterChange = async () => undefined) {
+  const app = new Elysia({ prefix: '/api' }).use(createVectorServicesApiEndpoint(registry, { afterChange }));
+  return createApiVersionedFetch((request) => app.handle(request));
+}
+
+async function json(res: Response) {
+  return JSON.parse(await res.text());
+}
+
+test('vector service registry API registers, tests, lists, and removes proxy services', async () => {
+  const fetcher = createFetch();
+  const register = await fetcher(new Request('http://local/api/v1/vector/services/register', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'turbovec', type: 'proxy', endpoint: 'http://127.0.0.1:8082', capabilities: { protocol: 'vector-proxy-v1' } }),
+  }));
+  expect(register.status).toBe(200);
+  expect(await json(register)).toMatchObject({ success: true, service: { name: 'turbovec', type: 'proxy' } });
+
+  const testRes = await fetcher(new Request('http://local/api/v1/vector/services/turbovec/test', { method: 'POST' }));
+  expect(await json(testRes)).toMatchObject({ name: 'turbovec', status: 'up', success: true });
+
+  const list = await fetcher(new Request('http://local/api/v1/vector/services'));
+  const body = await json(list);
+  expect(body.count).toBe(2);
+  expect(body.services.map((item: { name: string }) => item.name)).toEqual(['lancedb', 'turbovec']);
+
+  const directList = await fetcher(new Request('http://local/api/vector/services'));
+  expect(directList.status).toBe(308);
+  expect(directList.headers.get('location')).toBe('http://local/api/v1/vector/services');
+
+  const removed = await fetcher(new Request('http://local/api/v1/vector/services/turbovec', { method: 'DELETE' }));
+  expect(await json(removed)).toEqual({ success: true, removed: 'turbovec' });
+
+  const missingTest = await fetcher(new Request('http://local/api/v1/vector/services/turbovec/test', { method: 'POST' }));
+  expect(missingTest.status).toBe(404);
+  expect(await json(missingTest)).toEqual({ success: false, error: 'Service not found: turbovec' });
+});
+
+test('vector service registry API reloads cached vector stores after service changes', async () => {
+  const reloads: string[] = [];
+  const fetcher = createFetch(new FakeRegistry(), async () => {
+    reloads.push('reload');
+    return { reloaded: reloads.length };
+  });
+
+  const register = await fetcher(new Request('http://local/api/v1/vector/services/register', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'proxy-a', type: 'proxy', endpoint: 'http://127.0.0.1:8082' }),
+  }));
+  expect(await json(register)).toMatchObject({ success: true, reloaded: 1 });
+
+  const removed = await fetcher(new Request('http://local/api/v1/vector/services/proxy-a', { method: 'DELETE' }));
+  expect(await json(removed)).toMatchObject({ success: true, removed: 'proxy-a', reloaded: 2 });
+  expect(reloads).toEqual(['reload', 'reload']);
+});
+
+test('vector service registry API rejects proxy registration without endpoint', async () => {
+  const res = await createFetch()(new Request('http://local/api/v1/vector/services/register', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'bad', type: 'proxy' }),
+  }));
+
+  expect(res.status).toBe(400);
+  expect(await json(res)).toMatchObject({ success: false, error: 'proxy service requires endpoint' });
+});
+
+test('vector service registry API returns 503 when service test is down', async () => {
+  const registry = new FakeRegistry();
+  registry.services.set('down-proxy', {
+    name: 'down-proxy',
+    type: 'proxy',
+    endpoint: 'http://127.0.0.1:9',
+  });
+  registry.healthCheck = async () => new Map<string, HealthStatus>([
+    ['lancedb', { status: 'up', checkedAt: '2026-06-16T00:00:00.000Z' }],
+    ['down-proxy', {
+      status: 'down',
+      checkedAt: '2026-06-16T00:00:00.000Z',
+      error: 'connection refused',
+    }],
+  ]);
+
+  const res = await createFetch(registry)(
+    new Request('http://local/api/v1/vector/services/down-proxy/test', { method: 'POST' }),
+  );
+
+  expect(res.status).toBe(503);
+  expect(await json(res)).toMatchObject({
+    name: 'down-proxy',
+    status: 'down',
+    success: false,
+    error: 'connection refused',
+  });
+});
+
+test('VectorServiceRegistry persists services and probes proxy health', async () => {
+  const savedDataDir = process.env.ORACLE_DATA_DIR;
+  const root = mkdtempSync(join(tmpdir(), 'vector-services-registry-'));
+  const proxy = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch(request) {
+      if (new URL(request.url).pathname === '/health') {
+        return Response.json({ status: 'ok', name: 'live-proxy', version: 'test' });
+      }
+      return new Response('missing', { status: 404 });
+    },
+  });
+
+  try {
+    process.env.ORACLE_DATA_DIR = root;
+    const registry = new VectorServiceRegistry();
+    const endpoint = String(proxy.url).replace(/\/$/, '');
+
+    await registry.register({ name: 'live-proxy', type: 'proxy', endpoint: `${endpoint}/` });
+    expect(await registry.discover()).toContainEqual(expect.objectContaining({
+      name: 'live-proxy',
+      type: 'proxy',
+      endpoint,
+    }));
+
+    const health = await registry.healthCheck();
+    expect(health.get('live-proxy')).toMatchObject({ status: 'up' });
+    const config = loadVectorConfig(configPath(root));
+    expect(config?.version).toBe('2.0');
+    expect(config?.storage?.services['live-proxy']).toMatchObject({
+      type: 'proxy',
+      endpoint,
+    });
+
+    expect(await registry.unregister('live-proxy')).toBe(true);
+    expect(loadVectorConfig(configPath(root))?.storage?.services['live-proxy']).toBeUndefined();
+  } finally {
+    proxy.stop(true);
+    if (savedDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
+    else process.env.ORACLE_DATA_DIR = savedDataDir;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('VectorServiceRegistry rejects invalid proxy service names and endpoints', async () => {
+  const registry = new VectorServiceRegistry();
+
+  await expect(registry.register({ name: '../bad', type: 'proxy', endpoint: 'http://127.0.0.1:8082' }))
+    .rejects.toThrow('invalid service name');
+  await expect(registry.register({ name: 'bad-url', type: 'proxy', endpoint: 'ftp://127.0.0.1' }))
+    .rejects.toThrow('requires http(s) endpoint');
+});
+
+test('VectorServiceRegistry reports incompatible proxy protocol as down', async () => {
+  const savedDataDir = process.env.ORACLE_DATA_DIR;
+  const root = mkdtempSync(join(tmpdir(), 'vector-services-protocol-'));
+  const proxy = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch(request) {
+      if (new URL(request.url).pathname === '/health') {
+        return Response.json({ status: 'ok', name: 'old-proxy', version: '0.1', protocol: 'legacy-proxy' });
+      }
+      return new Response('missing', { status: 404 });
+    },
+  });
+
+  try {
+    process.env.ORACLE_DATA_DIR = root;
+    const registry = new VectorServiceRegistry();
+    await registry.register({ name: 'old-proxy', type: 'proxy', endpoint: String(proxy.url) });
+    const health = await registry.healthCheck();
+    expect(health.get('old-proxy')).toMatchObject({
+      status: 'down',
+      compatible: false,
+      protocol: 'legacy-proxy',
+      error: 'unsupported proxy protocol legacy-proxy',
+    });
+  } finally {
+    proxy.stop(true);
+    if (savedDataDir === undefined) delete process.env.ORACLE_DATA_DIR;
+    else process.env.ORACLE_DATA_DIR = savedDataDir;
+    rmSync(root, { recursive: true, force: true });
+  }
+});

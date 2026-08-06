@@ -1,0 +1,31 @@
+import { describe, expect, test } from 'bun:test';
+import { MemoryRouter } from 'react-router-dom';
+import { CommandPalette } from '../../../frontend/src/components/CommandPalette';
+import { htmlFor } from '../_render';
+
+describe('CommandPalette', () => {
+  test('renders a button that opens the command modal', () => {
+    const html = htmlFor(
+      <MemoryRouter>
+        <CommandPalette onRefresh={() => {}} />
+      </MemoryRouter>,
+    );
+    expect(html).toContain('Open command palette');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('aria-haspopup="dialog"');
+    expect(html).toContain('Search actions (⌘K)');
+  });
+
+  test('renders semantic empty command state inside the dialog', () => {
+    const html = htmlFor(
+      <MemoryRouter>
+        <CommandPalette onRefresh={() => {}} defaultOpen initialQuery="no-match-command" />
+      </MemoryRouter>,
+    );
+
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-controls="command-palette-options"');
+    expect(html).toContain('No matching command actions.');
+    expect(html).toContain('border-warn-border bg-warn-bg text-warn-text');
+  });
+});

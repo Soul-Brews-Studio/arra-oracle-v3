@@ -25,8 +25,8 @@ const VERSION = '0.4.0-nightly';
 const HELP = `
 oracle-vault v${VERSION} — Central knowledge brain for Oracle
 
-The vault repo IS your central ψ/. Once initialized, arra_learn and
-arra_handoff write directly to the vault repo with project-nested paths.
+The vault repo IS your central ψ/. Once initialized, oracle_learn and
+oracle_handoff write directly to the vault repo with project-nested paths.
 The indexer scans the vault repo for cross-project search. Sync commits
 and pushes to GitHub for backup.
 
@@ -52,9 +52,9 @@ Environment:
 
 How it works:
   1. oracle-vault init <repo>   Clone vault repo via ghq, save to settings
-  2. arra_learn / handoff     Write directly to vault repo (project-nested)
+  2. oracle_learn / handoff     Write directly to vault repo (project-nested)
   3. bun src/indexer.ts          Scan vault repo, index all projects
-  4. arra_search               Cross-project search results
+  4. oracle_search               Cross-project search results
   5. oracle-vault sync           git add + commit + push (backup)
 
 Examples:

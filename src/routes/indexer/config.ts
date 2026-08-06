@@ -8,12 +8,12 @@ export const configEndpoint = new Elysia().get('/indexer/config', async () => {
     key,
     model: m.model,
     collection: m.collection,
+    adapter: m.adapter || 'lancedb',
     dims: key === 'nomic' ? 768 : key === 'bge-m3' ? 1024 : 4096,
     speed: key === 'nomic' ? '~100 doc/s' : key === 'bge-m3' ? '~50 doc/s' : '~30 doc/s',
   }));
 
   const adapters = ['lancedb', 'sqlite-vec', 'chroma', 'qdrant', 'cloudflare-vectorize'];
-  const currentAdapter = process.env.ORACLE_VECTOR_DB || 'lancedb';
 
   let ollamaModels: string[] = [];
   try {
@@ -24,7 +24,7 @@ export const configEndpoint = new Elysia().get('/indexer/config', async () => {
     }
   } catch {}
 
-  return { adapters, models: modelList, ollamaModels, currentAdapter };
+  return { adapters, models: modelList, ollamaModels };
 }, {
   detail: {
     tags: ['indexer'],

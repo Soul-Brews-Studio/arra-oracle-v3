@@ -11,9 +11,9 @@ describe('parseFrontmatter', () => {
   });
 
   test('parses inline arrays', () => {
-    const raw = `---\narra_concepts: [foo, bar, "baz qux"]\n---\nhi\n`;
+    const raw = `---\nmuninn_concepts: [foo, bar, "baz qux"]\n---\nhi\n`;
     const { meta } = parseFrontmatter(raw);
-    expect(meta.arra_concepts).toEqual(['foo', 'bar', 'baz qux']);
+    expect(meta.muninn_concepts).toEqual(['foo', 'bar', 'baz qux']);
   });
 
   test('handles quoted strings with special chars', () => {
@@ -37,8 +37,8 @@ describe('parseFrontmatter', () => {
   });
 
   test('empty array', () => {
-    const raw = `---\narra_concepts: []\n---\nhi\n`;
+    const raw = `---\nmuninn_concepts: []\n---\nhi\n`;
     const { meta } = parseFrontmatter(raw);
-    expect(meta.arra_concepts).toEqual([]);
+    expect(meta.muninn_concepts).toEqual([]);
   });
 });

@@ -59,4 +59,20 @@ describe('gateway matcher', () => {
     expect(matchRoute('/api/v1.0/data', r)?.service).toBe('v1');
     expect(matchRoute('/api/v1X0/data', r)).toBeNull(); // dot must not match any char
   });
+
+  test('malformed raw route config entries are skipped safely', () => {
+    const r = compileRoutes([
+      { match: '', service: 'missing-path' },
+      { match: '/api/missing-service', service: '   ' },
+      null,
+      { match: ' /api/trimmed ', service: ' vector ', fallback: 'bad' },
+    ] as unknown as Parameters<typeof compileRoutes>[0]);
+
+    expect(r).toHaveLength(1);
+    expect(matchRoute('/api/trimmed', r)).toEqual({
+      service: 'vector',
+      fallback: undefined,
+      pattern: '/api/trimmed',
+    });
+  });
 });

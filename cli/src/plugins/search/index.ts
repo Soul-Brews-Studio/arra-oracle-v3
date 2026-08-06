@@ -1,6 +1,6 @@
 // arra-cli search "<q>" [--limit N] [--type X]
 // Calls: GET /api/search?q=<q>&limit=N&type=X
-// Note: issue #770 listed this as POST /api/arra_search — using actual GET /api/search route
+// Note: issue #770 listed this as POST /api/muninn_search — using actual GET /api/search route
 
 import type { InvokeContext, InvokeResult } from "../../plugin/types.ts";
 import { apiFetch } from "../../lib/api.ts";
