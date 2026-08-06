@@ -1,0 +1,44 @@
+# Arra Oracle v3 — local + GitHub Codespaces dev stack
+version: "3.8"
+
+services:
+  chroma:
+    image: chromadb/chroma:0.6.3
+    environment:
+      - IS_PERSISTENT=true
+      - PERSIST_DIRECTORY=/chroma/data
+    volumes:
+      - chroma-data:/chroma/data
+    ports:
+      - "8000:8000"
+    networks:
+      - oracle-net
+
+  app:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+      args:
+        USERNAME: vscode
+        USER_UID: 1000
+        USER_GID: 1000
+    container_name: arra-oracle-v3-dev
+    environment:
+      - CHROMA_URL=http://chroma:8000
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    volumes:
+      - ..:/workspaces/arra-oracle-v3:cached
+      - bun-cache:/home/vscode/.bun/install/cache
+    command: sleep infinity
+    networks:
+      - oracle-net
+    depends_on:
+      - chroma
+
+volumes:
+  chroma-data:
+  bun-cache:
+
+networks:
+  oracle-net:
+    driver: bridge
