@@ -1,28 +1,13 @@
-/**
- * HTTP Contract Tests — search, knowledge (learn/handoff/inbox), supersede.
- * Covers src/routes/{search,knowledge,supersede}.ts. Seeds via POST /api/learn,
- * reuses an already-running server on BASE_URL or spawns src/server.ts.
- */
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import type { Subprocess } from "bun";
-import path from "path";
+import { startOwnedServer, type LiveServer } from "./_live-server.ts";
 
-const BASE_URL = "http://localhost:47778";
-const JSON_HEADERS = { "Content-Type": "application/json" };
+const PORT = 47791;
+let server: LiveServer;
+const BASE_URL = `http://localhost:${PORT}`;
 const SEED_TAG = `yellow-http-test-${Date.now()}`;
-let serverProcess: Subprocess | null = null;
 
-const isUp = async () => {
-  try { return (await fetch(`${BASE_URL}/api/health`)).ok; } catch { return false; }
-};
-
-const waitUp = async (n = 30) => {
-  for (let i = 0; i < n; i++) { if (await isUp()) return true; await Bun.sleep(500); }
-  return false;
-};
-
-const post = (url: string, body: unknown) =>
-  fetch(`${BASE_URL}${url}`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body) });
+const JSON_HEADERS = { "Content-Type": "application/json" };
+const post = (url: string, body: unknown) => server.post(url, body);
 
 async function seedLearn(pattern: string, concepts: string[] = []) {
   const res = await post("/api/learn", { pattern, source: SEED_TAG, concepts: [SEED_TAG, ...concepts] });
@@ -32,15 +17,15 @@ async function seedLearn(pattern: string, concepts: string[] = []) {
 
 describe("HTTP Contract — search / knowledge / supersede", () => {
   beforeAll(async () => {
-    if (await isUp()) return;
-    serverProcess = Bun.spawn(["bun", "run", "src/server.ts"], {
-      cwd: path.resolve(import.meta.dir, "../.."),
-      stdout: "pipe", stderr: "pipe",
-      env: { ...process.env, ORACLE_CHROMA_TIMEOUT: "3000" },
-    });
-    if (!(await waitUp())) throw new Error("Server failed to start within 15s");
+    // This suite OWNS its server — see _live-server.ts for why that matters. It used to begin
+    // with `if (await isUp()) return;`, adopting whatever was listening and seeding it, which
+    // put 432 `yellow-http-test-*` documents into the live corpus.
+    server = await startOwnedServer(PORT, "knowledge-http");
   }, 30_000);
-  afterAll(() => { if (serverProcess) serverProcess.kill(); });
+
+  afterAll(() => {
+    server?.stop();
+  });
 
   describe("POST /api/learn", () => {
     test("creates a learning doc", async () => {
@@ -60,9 +45,13 @@ describe("HTTP Contract — search / knowledge / supersede", () => {
       expect((await res.json()).error).toMatch(/pattern/i);
     });
 
-    test("rejects malformed JSON body", async () => {
+    test("rejects malformed JSON body as 500", async () => {
       const res = await fetch(`${BASE_URL}/api/learn`, { method: "POST", headers: JSON_HEADERS, body: "{not json" });
+      const body = await res.json();
       expect(res.status).toBe(500);
+      expect(res.status).not.toBe(400);
+      expect(res.headers.get("content-type")).toContain("application/json");
+      expect(body).toMatchObject({ success: false, error: "Internal Server Error", code: 500 });
     });
   });
 

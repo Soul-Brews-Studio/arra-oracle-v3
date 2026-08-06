@@ -1,49 +1,132 @@
 name: Test
 
 on:
-  push:
-    branches: [main]
   pull_request:
-    branches: [main]
+    branches: [alpha]
 
 jobs:
-  unit:
-    name: Unit Tests
+  test:
+    name: Typecheck and scoped tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - run: bun install
-      - run: bun test:unit --coverage
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        if: always()
-        with:
-          files: ./coverage/lcov.info
-          fail_ci_if_error: false
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  integration:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: unit
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
-      - run: bun install
-      - run: mkdir -p ~/.oracle
-      - run: bun test:integration:db
-      - run: bun test:integration:mcp
-      - name: Start server for HTTP tests
+          # Pinned to the version this repo is developed and verified against. It was 1.2.15
+          # — the only workflow here not on a current bun — while `--isolate`, which this
+          # gate now depends on, is a newer flag. The suite passed locally on 1.3.14 and
+          # failed in CI on 1.2.15 with the exact two `syncVault lock` tests that --isolate
+          # exists to keep apart. A gate must run the runtime it is validated on.
+          bun-version: 1.3.14
+
+      - name: Cache bun deps
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: README/docs claim integrity
+        run: bun test --isolate tests/docs/readme-claims.test.ts
+
+      - name: Typecheck
         run: |
-          ORACLE_CHROMA_TIMEOUT=2000 bun run src/server.ts &
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:47778/api/health && break || sleep 0.5
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          tsc --noEmit
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            frontend/src-tauri/target
+          key: rust-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
+          restore-keys: rust-
+
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Cargo check (Tauri)
+        run: cd frontend/src-tauri && cargo check
+
+      # CI used to run a hand-maintained find(1) list of 183 files — 15% of the 1,221
+      # test files in this repo. Whole directories were never executed, including
+      # tests/frontend/ (228 files) and tests/build/, which holds the 250-line ratchet and
+      # the test-scope guard. Four tests went red on alpha for hours after #2848 and CI
+      # stayed green; two more in src/routes/menu have been red since #1857. See #2853.
+      #
+      # Groups rather than one `bun test --isolate tests/`: that form crashes bun 1.3.14
+      # (exit 133). Groups rather than per-file: 1,221 process spawns is ~25 min, groups
+      # are ~4. Every group below was measured green on alpha before being added.
+      #
+      # --isolate is REQUIRED, not decorative: without it a process-wide mock.module in
+      # src/vault/__tests__/handler.test.ts leaks into sibling files and fails 2 unrelated
+      # tests. CI has always used it; the docs told contributors to run the form that does
+      # not, which is half of what #2853 is about.
+      # Trailing slashes are load-bearing. `bun test <path>` is a SUBSTRING FILTER: bare
+      # `tests/server` matched `integration-tests/serverless.test.mjs` in a *different
+      # repository* two levels up the ghq tree and tried to run it. `tests/server/` does not.
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for group in \
+            src/ \
+            tests/build/ tests/frontend/ tests/http/ tests/mcp/ tests/vector/ \
+            tests/cli/ tests/plugins/ tests/storage/ tests/workers/ tests/tools/ \
+            tests/docs/ tests/config/ tests/process-manager/ tests/lifecycle/ \
+            tests/smoke/ tests/export/ tests/services/ tests/knowledge/ tests/forum/ tests/eval/ \
+            tests/bin/ tests/canvas/ tests/db/ tests/indexer/ tests/lib/ tests/oracles/ \
+            tests/runtime/ tests/search/ tests/server/ tests/util/ tests/vault/
+          do
+            echo "::group::${group}"
+            # Exit 133 is bun CRASHING (SIGTRAP), not a test failing — the two are
+            # indistinguishable by exit status alone, and conflating them is how a sweep ends
+            # up reporting "tests/http/ FAILED" when nothing failed. `bun test --isolate
+            # tests/http/` (290 files) crashes intermittently on bun 1.3.14: measured ~1 run
+            # in 4 on macOS, with no single file or subdirectory responsible — all 65 subdirs
+            # pass together, all 8 loose files pass together, and it still happens with the
+            # server-spawning suites removed. It is the size of one invocation. See #2867.
+            #
+            # So: retry ONCE on 133 only. A real test failure (any other non-zero) fails
+            # immediately and is never retried — retrying those would hide flaky tests, which
+            # is the opposite of what this gate is for.
+            set +e
+            bun test --isolate "${group}"
+            status=$?
+            if [ "$status" -eq 133 ]; then
+              echo "::warning::bun crashed (exit 133) on ${group} — retrying once, see #2867"
+              bun test --isolate "${group}"
+              status=$?
+            fi
+            set -e
+            if [ "$status" -ne 0 ]; then
+              echo "::error::${group} failed with exit ${status}"
+              exit "$status"
+            fi
+            echo "::endgroup::"
           done
-      - run: bun test:integration:http
-      - name: Stop server
-        if: always()
-        run: kill $(lsof -ti :47778) 2>/dev/null || true
+
+      # Deliberately NOT in the loop above:
+      #   tests/integration/  — one test needs a live docker compose stack (tracked separately)
+      #   tests/benchmarks/   — timing-sensitive, belongs in a scheduled job not a PR gate
+      #   tests/e2e/          — *.e2e.ts, needs a browser; not picked up by bun test anyway
+      - name: Run scoped integration tests
+        run: bun test --isolate src/integration/

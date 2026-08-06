@@ -1,6 +1,6 @@
 // arra-cli learn "<pattern>" [--concepts a,b] [--source s]
 // Calls: POST /api/learn { pattern, concepts?, source? }
-// Note: issue #770 listed this as POST /api/arra_learn — using actual POST /api/learn route
+// Note: issue #770 listed this as POST /api/muninn_learn — using actual POST /api/learn route
 
 import type { InvokeContext, InvokeResult } from "../../plugin/types.ts";
 import { apiFetch } from "../../lib/api.ts";

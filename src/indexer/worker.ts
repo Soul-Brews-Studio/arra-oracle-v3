@@ -35,8 +35,16 @@ export interface WorkerDeps {
   getDocText: (docId: string) => string | null;
   /** Embed text for `modelKey`. Throws on Ollama errors → marks job error. */
   embed: (modelKey: string, text: string) => Promise<number[]>;
-  /** Upsert into the model's LanceDB collection. Throws → marks job error. */
-  upsertVector: (collection: string, docId: string, vector: number[]) => Promise<void>;
+  /**
+   * Upsert into the model's LanceDB collection. Throws → marks job error.
+   *
+   * `text` is the document body the vector was computed from. It is passed even though
+   * the vector is already computed, because the row must store the text it was embedded
+   * from: the daemon previously wrote `document: ''` and discarded the vector, so the
+   * store re-embedded the empty string and every daemon-indexed document ended up with
+   * the same meaningless embedding (#2806, reported by Berlin).
+   */
+  upsertVector: (collection: string, docId: string, vector: number[], text: string) => Promise<void>;
   /** Returns true when the worker should exit cleanly. Caller wires SIGTERM/SIGINT. */
   isShuttingDown: () => boolean;
   /** Sleep between empty-queue polls (default 1000ms). */
@@ -65,6 +73,14 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function emit(deps: WorkerDeps, ev: WorkerEvent): void {
+  try {
+    deps.onEvent?.(ev);
+  } catch {
+    // Observability hooks must not poison queue processing.
+  }
+}
+
 /**
  * Run a worker loop for a single model. Returns when `isShuttingDown()` is true.
  *
@@ -87,12 +103,12 @@ export async function runWorker(
     const job = claimNextJob(deps.db, modelKey);
     if (!job) {
       stats.emptyPolls++;
-      deps.onEvent?.({ type: 'idle', modelKey });
+      emit(deps, { type: 'idle', modelKey });
       await sleep(pollMs);
       continue;
     }
 
-    deps.onEvent?.({ type: 'claimed', job });
+    emit(deps, { type: 'claimed', job });
 
     try {
       const text = deps.getDocText(job.docId);
@@ -101,17 +117,17 @@ export async function runWorker(
         // Plug-play: removing a doc from oracle_documents leaves queue rows
         // safely consumable. The worker absorbs the no-op gracefully.
         markJobDone(deps.db, job.id);
-        deps.onEvent?.({ type: 'doc_missing', job });
+        emit(deps, { type: 'doc_missing', job });
         stats.processed++;
         continue;
       }
 
       const t0 = performance.now();
       const vector = await deps.embed(job.modelKey, text);
-      await deps.upsertVector(job.collection, job.docId, vector);
+      await deps.upsertVector(job.collection, job.docId, vector, text);
       markJobDone(deps.db, job.id);
       stats.processed++;
-      deps.onEvent?.({
+      emit(deps, {
         type: 'done',
         job,
         durationMs: Math.round(performance.now() - t0),
@@ -120,7 +136,7 @@ export async function runWorker(
       const msg = err instanceof Error ? err.message : String(err);
       markJobError(deps.db, job.id, msg);
       stats.errors++;
-      deps.onEvent?.({ type: 'error', job, error: msg });
+      emit(deps, { type: 'error', job, error: msg });
     }
   }
 

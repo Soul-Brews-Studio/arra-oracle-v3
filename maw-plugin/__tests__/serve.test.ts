@@ -1,0 +1,231 @@
+import { mkdtempSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, test } from 'bun:test';
+import { resolveServerCommand, runServe, type Runner } from '../serve.ts';
+
+function env() {
+  return { HOME: mkdtempSync('/tmp/arra-serve-test-'), ORACLE_ROOT: '/repo/arra-oracle-v3' };
+}
+
+const runner: Runner = async () => ({ code: 1, stdout: '', stderr: '' });
+
+describe('maw arra serve command', () => {
+  test('resolves the backend from the plugin server manifest', () => {
+    const server = resolveServerCommand('/repo/arra-oracle-v3', { ORACLE_PORT: '47779' }, join(import.meta.dir, '..'));
+
+    expect(server).toMatchObject({
+      command: 'bun',
+      args: ['server.ts'],
+      healthPath: '/api/health',
+      env: {
+        ORACLE_ROOT: '/repo/arra-oracle-v3',
+        ORACLE_PORT: '47779',
+        PORT: '47779',
+        ARRA_BACKEND_SOURCE: 'maw-plugin',
+      },
+    });
+    expect(server.cwd).toEndWith('maw-plugin');
+  });
+
+  test('starts with ORACLE_ROOT and port override', async () => {
+    const started: unknown[] = [];
+    const result = await runServe({ pos: [], flags: { backend: true, port: '47779' } }, runner, env(), {
+      start: (cwd, startEnv, command) => {
+        started.push({ cwd, port: startEnv.ORACLE_PORT, root: startEnv.ORACLE_ROOT, command });
+        return 43210;
+      },
+      isAlive: () => false,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain('started pid=43210 port=47779');
+    expect(result.output).toContain('backend: full Oracle');
+    expect(started).toEqual([expect.objectContaining({
+      cwd: expect.stringContaining('maw-plugin'),
+      port: '47779',
+      root: '/repo/arra-oracle-v3',
+      command: expect.objectContaining({ command: 'bun', args: ['server.ts'] }),
+    })]);
+  });
+
+  test('probes configured vector server before starting', async () => {
+    const seen: string[] = [];
+    const result = await runServe({ pos: [], flags: { port: '47779' } }, runner, {
+      ...env(),
+      VECTOR_URL: 'http://vector.local:8081/root/',
+    }, {
+      start: () => 43211,
+      isAlive: () => false,
+      fetch: async (input) => {
+        seen.push(String(input));
+        return Response.json({ status: 'ok', protocol: 'vector-proxy-v1' });
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain('vector preflight: ok http://vector.local:8081/root');
+    expect(seen).toEqual(['http://vector.local:8081/health']);
+  });
+
+  test('blocks start when configured vector server preflight fails', async () => {
+    let started = false;
+    const result = await runServe({ pos: [], flags: {} }, runner, {
+      ...env(),
+      VECTOR_URL: 'http://vector.local:8081',
+    }, {
+      start: () => { started = true; return 1; },
+      isAlive: () => false,
+      fetch: async () => Response.json({ status: 'down' }, { status: 503 }),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('vector preflight failed for http://vector.local:8081');
+    expect(started).toBe(false);
+  });
+
+  test('starts optional in-process backend without spawning manifest command', async () => {
+    const started: unknown[] = [];
+    const result = await runServe({ pos: [], flags: { in_process: true, port: '47780' } }, runner, env(), {
+      isAlive: () => false,
+      start: () => { throw new Error('spawn should not be used for --in-process'); },
+      inProcessStart: async (root, startEnv) => {
+        started.push({ root, port: startEnv.ORACLE_PORT, source: startEnv.ARRA_BACKEND_SOURCE });
+        return { pid: 24601, port: '47780', healthPath: '/api/health' };
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain('started pid=24601 port=47780');
+    expect(result.output).toContain('mode: in-process');
+    expect(result.output).not.toContain('command:');
+    expect(started).toEqual([{ root: '/repo/arra-oracle-v3', port: '47780', source: 'maw-plugin' }]);
+  });
+
+  test('supports positional start stop status actions', async () => {
+    const home = env();
+    let alive = true;
+    await runServe({ pos: ['start'], flags: {} }, runner, home, { start: () => 54321, isAlive: () => false });
+
+    const status = await runServe({ pos: ['status'], flags: {} }, runner, home, {
+      isAlive: () => alive,
+      fetch: async () => new Response('{"status":"ok"}', { status: 200 }),
+    });
+    expect(status.output).toContain('alive pid=54321');
+    expect(status.output).toContain('health: ok 200');
+
+    const stop = await runServe({ pos: ['stop'], flags: {} }, runner, home, {
+      isAlive: () => alive,
+      kill: () => { alive = false; },
+      sleep: async () => {},
+    });
+    expect(stop.output).toContain('stopped pid=54321');
+  });
+
+  test('supports --status and --stop flag actions directly', async () => {
+    const home = env();
+    let alive = true;
+    await runServe({ pos: [], flags: {} }, runner, home, {
+      start: () => 65432,
+      isAlive: () => false,
+    });
+
+    const status = await runServe({ pos: [], flags: { status: true, port: '47779' } }, runner, home, {
+      isAlive: () => alive,
+      fetch: async (input) => new Response(String(input), { status: 200 }),
+    });
+    expect(status.ok).toBe(true);
+    expect(status.output).toContain('alive pid=65432');
+    expect(status.output).toContain('health: ok 200');
+    expect(status.output).toContain('47779');
+
+    const stopped = await runServe({ pos: [], flags: { stop: true } }, runner, home, {
+      isAlive: () => alive,
+      kill: () => { alive = false; },
+      sleep: async () => {},
+    });
+    expect(stopped.ok).toBe(true);
+    expect(stopped.output).toContain('stopped pid=65432');
+
+    const after = await runServe({ pos: [], flags: { status: true } }, runner, home, {
+      isAlive: () => alive,
+      fetch: async () => new Response('', { status: 503 }),
+    });
+    expect(after.output).toContain('missing pid');
+  });
+
+  test('status reuses the tracked start port when --port is omitted', async () => {
+    const home = env();
+    const seen: string[] = [];
+    await runServe({ pos: [], flags: { port: '47779' } }, runner, home, {
+      start: () => 24680,
+      isAlive: () => false,
+    });
+
+    const status = await runServe({ pos: ['status'], flags: {} }, runner, home, {
+      isAlive: () => true,
+      fetch: async (input) => {
+        seen.push(String(input));
+        return new Response('{"status":"ok"}', { status: 200 });
+      },
+    });
+
+    expect(status.output).toContain('port: 47779');
+    expect(status.output).toContain('root: /repo/arra-oracle-v3');
+    expect(seen).toEqual(['http://127.0.0.1:47779/api/health']);
+  });
+
+  test('status remains compatible with legacy pid-only files', async () => {
+    const legacy = env();
+    await runServe({ pos: [], flags: {} }, runner, legacy, {
+      start: () => 13579,
+      isAlive: () => false,
+    });
+    const { writeFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    writeFileSync(join(legacy.HOME, '.arra-oracle-v2', 'server.pid'), '13579\n');
+
+    const status = await runServe({ pos: ['status'], flags: {} }, runner, legacy, {
+      isAlive: () => true,
+      fetch: async (input) => new Response(String(input), { status: 200 }),
+    });
+
+    expect(status.output).toContain('alive pid=13579');
+    expect(status.output).toContain('port: 47778');
+  });
+
+
+  test('starts from ghq locate when ORACLE_ROOT is unset', async () => {
+    const calls: unknown[] = [];
+    const rootless = { HOME: mkdtempSync('/tmp/arra-serve-test-') };
+    const ghqRunner: Runner = async (cmd, args) => {
+      calls.push([cmd, args]);
+      return { code: 0, stdout: '/ghq/github.com/Soul-Brews-Studio/arra-oracle-v3\n', stderr: '' };
+    };
+
+    const result = await runServe({ pos: ['start'], flags: {} }, ghqRunner, rootless, {
+      start: (cwd) => {
+        calls.push(['start', cwd]);
+        return 77777;
+      },
+      isAlive: () => false,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain('started pid=77777');
+    expect(calls).toEqual([
+      ['ghq', ['locate', 'Soul-Brews-Studio/arra-oracle-v3']],
+      ['start', expect.stringContaining('maw-plugin')],
+    ]);
+  });
+
+
+  test('rejects invalid serve actions and ports', async () => {
+    const badAction = await runServe({ pos: ['restart'], flags: {} }, runner, env());
+    expect(badAction.ok).toBe(false);
+    expect(badAction.error).toContain('serve action must be start, stop, or status');
+
+    const badPort = await runServe({ pos: [], flags: { port: '99999' } }, runner, env());
+    expect(badPort.ok).toBe(false);
+    expect(badPort.error).toContain('--port must be a number from 1 to 65535');
+  });
+});

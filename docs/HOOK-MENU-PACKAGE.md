@@ -1,6 +1,6 @@
 # hook-menu package
 
-> **Status**: Extracted, not yet consumed. This repo still uses the in-tree copy under `src/routes/menu/` and `src/menu/`.
+> **Status**: Partially consumed in-tree. Arra now imports compatible backend helpers from `hook-menu`; the richer in-tree menu model/build endpoint remains local until the package catches up with route-owned `detail.menu.path/studio`, DB-backed ordering, custom/gist items, and submenu fields.
 
 The reusable parts of the Oracle navigation system — TypeBox schemas, `buildMenuItems`, studio-tag helpers, and the Elysia plugin — have been lifted into a standalone repo:
 
@@ -11,7 +11,7 @@ The reusable parts of the Oracle navigation system — TypeBox schemas, `buildMe
 | In-tree source | hook-menu module |
 |---|---|
 | `src/routes/menu/model.ts` | `hook-menu/model` — `MenuItem`, `MenuItemSchema`, `MenuResponseSchema` |
-| `src/routes/menu/menu.ts` (`buildMenuItems` + `API_TO_STUDIO`) | `hook-menu/build` — `buildMenuItems`, `defineMenu`, `API_TO_STUDIO` |
+| `src/routes/menu/menu.ts` (`buildMenuItems` + route-declared `detail.menu.path`) | `hook-menu/build` — `buildMenuItems`, `defineMenu` |
 | `src/routes/menu/studio-tag.ts`, `studio-href.ts` | `hook-menu/studio` — `parseStudioTag`, `studioHref` |
 | `src/menu/frontend.ts` (hardcoded items) | `hook-menu/frontend` — `defineFrontendMenu` (parametrized — takes items as input) |
 | `src/routes/menu/menu.ts` (`createMenuEndpoint`) | `hook-menu/elysia` — `mountMenu` |
@@ -37,7 +37,7 @@ Or as a dep:
 
 ## Follow-up
 
-Swapping arra-oracle-v3's in-tree `src/routes/menu/*` + `src/menu/*` for `hook-menu` imports is deliberately **not** part of #906. Track that as a separate task — it's a pure migration once the package stabilizes.
+Part 1 of #1398 consumes the compatible `hook-menu/studio` helpers in-tree and removes those duplicated local implementations. Full replacement of `src/routes/menu/model.ts`, `src/routes/menu/menu.ts`, and `src/menu/*` is intentionally deferred until the package exposes the newer Arra-specific capabilities: route-owned `detail.menu.path/studio`, DB-backed menu rows, `id`/`parentId`, `scope`, `query`, `sourceName`, gist/custom sources, and plugin merging. React `useMenu` / `MenuRenderer` remains part 2.
 
 ## Origin
 

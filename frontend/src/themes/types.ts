@@ -1,0 +1,42 @@
+export type ThemeTokens = {
+  '--color-bg': string;
+  '--color-surface': string;
+  '--color-surface-muted': string;
+  '--color-field': string;
+  '--color-border': string;
+  '--color-text': string;
+  '--color-text-muted': string;
+  '--color-accent': string;
+  '--color-accent2': string;
+  '--color-accent2-soft': string;
+  '--color-accent2-border': string;
+  '--color-accent2-solid': string;
+  '--color-accent2-hover': string;
+  '--color-accent-soft': string;
+  '--color-accent-border': string;
+  '--color-accent-solid': string;
+  '--color-accent-hover': string;
+  '--color-on-accent': string;
+  '--color-ok-bg': string;
+  '--color-ok-text': string;
+  '--color-ok-border': string;
+  '--color-warn-bg': string;
+  '--color-warn-text': string;
+  '--color-warn-border': string;
+  '--color-err-bg': string;
+  '--color-err-text': string;
+  '--color-err-border': string;
+  '--glass-bg': string;
+  '--glass-border': string;
+  '--glass-shadow': string;
+  '--glass-blur': string;
+};
+
+export type ThemeDefinition = {
+  id: string;
+  name: string;
+  description: string;
+  author?: string;
+  light: Partial<ThemeTokens>;
+  dark: Partial<ThemeTokens>;
+};

@@ -1,7 +1,10 @@
 import { Elysia, t } from 'elysia';
 import { sqlite, db, oracleDocuments } from '../../db/index.ts';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { docParams } from './model.ts';
+import { currentTenantId, tenantIdForWrite } from '../../middleware/tenant.ts';
+import { replaceEntityLinks } from '../../search/entity-ranking.ts';
+import { replaceDocumentPointers } from '../../search/pointer-index.ts';
 
 // Body schemas for PATCH/POST.
 const PatchDocBody = t.Object({
@@ -19,21 +22,34 @@ const PostDocBody = t.Object({
   project: t.Optional(t.String()),
 });
 
+function tenantFilter(alias = 'd'): { clause: string; params: string[] } {
+  const tenantId = currentTenantId();
+  return tenantId ? { clause: `AND ${alias}.tenant_id = ?`, params: [tenantId] } : { clause: '', params: [] };
+}
+
+function docWhere(id: string) {
+  const tenantId = currentTenantId();
+  return tenantId
+    ? and(eq(oracleDocuments.id, id), eq(oracleDocuments.tenantId, tenantId))
+    : eq(oracleDocuments.id, id);
+}
+
 export const docRoute = new Elysia()
   .get(
     '/api/doc/:id',
     ({ params, set }) => {
       try {
+        const filter = tenantFilter('d');
         const row = sqlite
           .prepare(
             `
         SELECT d.id, d.type, d.source_file, d.concepts, d.project, f.content
         FROM oracle_documents d
         JOIN oracle_fts f ON d.id = f.id
-        WHERE d.id = ?
+        WHERE d.id = ? ${filter.clause}
       `,
           )
-          .get(params.id) as any;
+          .get(params.id, ...filter.params) as any;
 
         if (!row) {
           set.status = 404;
@@ -66,9 +82,10 @@ export const docRoute = new Elysia()
     '/api/doc/:id',
     ({ params, body, set }) => {
       try {
+        const filter = tenantFilter('d');
         const existing = sqlite
-          .prepare(`SELECT id FROM oracle_documents WHERE id = ?`)
-          .get(params.id) as { id: string } | undefined;
+          .prepare(`SELECT id FROM oracle_documents d WHERE d.id = ? ${filter.clause}`)
+          .get(params.id, ...filter.params) as { id: string } | undefined;
         if (!existing) {
           set.status = 404;
           return { error: 'Document not found' };
@@ -85,15 +102,38 @@ export const docRoute = new Elysia()
           patch.concepts = JSON.stringify(dedup);
         }
 
-        db.update(oracleDocuments).set(patch).where(eq(oracleDocuments.id, params.id)).run();
+        db.update(oracleDocuments).set(patch).where(docWhere(params.id)).run();
 
         if (typeof data.content === 'string') {
-          const conceptsRow = sqlite.prepare(`SELECT concepts FROM oracle_documents WHERE id = ?`).get(params.id) as { concepts: string };
+          const conceptsRow = sqlite
+            .prepare(`SELECT concepts FROM oracle_documents d WHERE d.id = ? ${filter.clause}`)
+            .get(params.id, ...filter.params) as { concepts: string };
           const conceptsArr: string[] = conceptsRow ? JSON.parse(conceptsRow.concepts || '[]') : [];
           sqlite.prepare(`DELETE FROM oracle_fts WHERE id = ?`).run(params.id);
           sqlite
             .prepare(`INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)`)
             .run(params.id, data.content, conceptsArr.join(' '));
+        }
+        if (typeof data.content === 'string' || Array.isArray(data.concepts)) {
+          const linkRow = sqlite.prepare(`
+            SELECT d.tenant_id, d.concepts, f.content
+            FROM oracle_documents d LEFT JOIN oracle_fts f ON d.id = f.id
+            WHERE d.id = ? ${filter.clause}
+          `).get(params.id, ...filter.params) as { tenant_id: string; concepts: string; content: string | null } | undefined;
+          replaceEntityLinks(sqlite, {
+            documentId: params.id,
+            tenantId: linkRow?.tenant_id,
+            content: linkRow?.content ?? '',
+            concepts: linkRow?.concepts,
+            now,
+          });
+          replaceDocumentPointers(sqlite, {
+            documentId: params.id,
+            tenantId: linkRow?.tenant_id,
+            content: linkRow?.content ?? '',
+            concepts: linkRow?.concepts,
+            timestamp: now,
+          });
         }
 
         return { ok: true, id: params.id };
@@ -122,7 +162,10 @@ export const docRoute = new Elysia()
           ? data.id
           : `${data.type}_${now}_${Math.random().toString(36).slice(2, 8)}`;
 
-        const existing = sqlite.prepare(`SELECT id FROM oracle_documents WHERE id = ?`).get(id);
+        const filter = tenantFilter('d');
+        const existing = sqlite
+          .prepare(`SELECT id FROM oracle_documents d WHERE d.id = ? ${filter.clause}`)
+          .get(id, ...filter.params);
         if (existing) {
           set.status = 409;
           return { error: `Document already exists: ${id}` };
@@ -132,8 +175,10 @@ export const docRoute = new Elysia()
           ? Array.from(new Set(data.concepts.filter((c: any) => typeof c === 'string' && c).map((c: string) => c.toLowerCase())))
           : [];
 
+        const tenantId = tenantIdForWrite();
         db.insert(oracleDocuments).values({
           id,
+          tenantId,
           type: data.type,
           sourceFile: data.source_file ?? `imported/${id}.md`,
           concepts: JSON.stringify(conceptsArr),
@@ -148,9 +193,27 @@ export const docRoute = new Elysia()
         sqlite
           .prepare(`INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)`)
           .run(id, data.content, conceptsArr.join(' '));
+        replaceEntityLinks(sqlite, {
+          documentId: id,
+          tenantId,
+          content: data.content,
+          concepts: conceptsArr,
+          now,
+        });
+        replaceDocumentPointers(sqlite, {
+          documentId: id,
+          tenantId,
+          content: data.content,
+          concepts: conceptsArr,
+          timestamp: now,
+        });
 
         return { ok: true, id };
       } catch (e: any) {
+        if (String(e?.message ?? '').includes('UNIQUE constraint failed: oracle_documents.id')) {
+          set.status = 409;
+          return { error: 'Document id unavailable' };
+        }
         set.status = 500;
         return { error: e.message };
       }

@@ -57,7 +57,7 @@ describe('parse-body helpers', () => {
   });
 
   test('mergeConcepts combines frontmatter + body tags, dedupes', () => {
-    const merged = mergeConcepts({ arra_concepts: ['foo', 'Bar'] }, 'hi #bar #baz');
+    const merged = mergeConcepts({ muninn_concepts: ['foo', 'Bar'] }, 'hi #bar #baz');
     expect(merged.sort()).toEqual(['bar', 'baz', 'foo']);
   });
 });
@@ -71,7 +71,7 @@ describe('parseVaultFile', () => {
         '---',
         'arra_id: doc_abc',
         'arra_type: learning',
-        'arra_concepts: [foo, bar]',
+        'muninn_concepts: [foo, bar]',
         '---',
         '',
         '# My Title',

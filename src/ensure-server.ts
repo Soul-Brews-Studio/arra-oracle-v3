@@ -12,14 +12,9 @@ import {
   isProcessAlive,
   spawnDaemon,
   configure,
-  removePidFile,
-  getDataDir,
 } from './process-manager/index.ts';
 import { waitForHealth, isPortInUse } from './process-manager/HealthMonitor.ts';
-
-// Simple file-based lock to prevent race conditions
-const LOCK_FILE = () => path.join(getDataDir(), 'oracle-http.lock');
-const LOCK_TIMEOUT = 30000; // 30 seconds max lock age
+import { acquireStartLock, releaseStartLock, cleanupStalePidFile } from './server/start-lock.ts';
 
 import { PORT, ORACLE_DATA_DIR } from './config.ts';
 
@@ -39,59 +34,6 @@ export interface EnsureServerOptions {
 /**
  * Acquire lock (prevents race conditions in parallel calls)
  */
-function acquireLock(): boolean {
-  const lockFile = LOCK_FILE();
-  try {
-    // Check for stale lock
-    if (fs.existsSync(lockFile)) {
-      const content = fs.readFileSync(lockFile, 'utf-8').trim();
-      const lockPid = parseInt(content, 10);
-      const stat = fs.statSync(lockFile);
-      const age = Date.now() - stat.mtimeMs;
-
-      // Release if: lock is old OR lock holder process is dead
-      const isStale = age > LOCK_TIMEOUT;
-      const isOrphan = !isNaN(lockPid) && !isProcessAlive(lockPid);
-
-      if (isStale || isOrphan) {
-        fs.unlinkSync(lockFile); // Stale/orphan lock, remove it
-      } else {
-        return false; // Lock held by live process
-      }
-    }
-    // Create lock with exclusive flag
-    fs.writeFileSync(lockFile, String(process.pid), { flag: 'wx' });
-    return true;
-  } catch {
-    return false; // Lock exists or write failed
-  }
-}
-
-/**
- * Release lock
- */
-function releaseLock(): void {
-  try {
-    const lockFile = LOCK_FILE();
-    if (fs.existsSync(lockFile)) {
-      fs.unlinkSync(lockFile);
-    }
-  } catch {
-    // Ignore errors
-  }
-}
-
-/**
- * Clean up stale PID file if process is dead
- */
-function cleanupStalePidFile(verbose = false): void {
-  const pidInfo = readPidFile();
-  if (pidInfo && !isProcessAlive(pidInfo.pid)) {
-    if (verbose) console.log(`🧹 Cleaning stale PID file (PID ${pidInfo.pid} is dead)`);
-    removePidFile();
-  }
-}
-
 /**
  * Check if server is healthy via HTTP
  */
@@ -143,7 +85,7 @@ export async function ensureServerRunning(options: EnsureServerOptions = {}): Pr
   }
 
   // 3. Acquire lock to prevent race conditions
-  if (!acquireLock()) {
+  if (!acquireStartLock()) {
     if (verbose) console.log('🔒 Another process is starting the server, waiting...');
     // Wait and re-check health
     const healthy = await waitForHealthWithTimeout(timeout);
@@ -196,7 +138,7 @@ export async function ensureServerRunning(options: EnsureServerOptions = {}): Pr
       return false;
     }
   } finally {
-    releaseLock();
+    releaseStartLock();
   }
 }
 

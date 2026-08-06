@@ -22,6 +22,7 @@ import { Elysia, t } from 'elysia';
 import type Database from 'bun:sqlite';
 import { enqueueIndexJob, jobsByStatus } from '../../indexer/jobs.ts';
 import type { WorkerEvent } from '../../indexer/worker.ts';
+import { parseJobsQuery, parseOptionalModelKey, parseRequiredString } from './model.ts';
 
 export interface DaemonApiDeps {
   db: Database;
@@ -75,13 +76,19 @@ export function daemonApiPlugin(deps: DaemonApiDeps) {
           set.status = 503;
           return { error: 'shutting down' };
         }
-        if (!body.doc_id || typeof body.doc_id !== 'string') {
+        const docId = parseRequiredString(body.doc_id, 'doc_id');
+        if (!docId.ok) {
           set.status = 400;
-          return { error: 'doc_id required' };
+          return { error: docId.error };
+        }
+        const modelKey = parseOptionalModelKey(body.model_key, deps.models);
+        if (!modelKey.ok) {
+          set.status = 400;
+          return { error: modelKey.error };
         }
         const jobs = enqueueIndexJob(deps.db, {
-          docId: body.doc_id,
-          modelKey: body.model_key,
+          docId: docId.value,
+          modelKey: modelKey.value,
           models: deps.models,
         });
         return { jobs };
@@ -95,11 +102,13 @@ export function daemonApiPlugin(deps: DaemonApiDeps) {
     )
     .get(
       '/jobs',
-      ({ query }) => {
-        const status = query.status;
-        const modelKey = query.model;
-        const limit = Math.min(parseInt(query.limit || '100', 10) || 100, 1000);
-
+      ({ query, set }) => {
+        const parsed = parseJobsQuery(query, deps.models);
+        if (!parsed.ok) {
+          set.status = 400;
+          return { error: parsed.error };
+        }
+        const { status, modelKey, limit } = parsed.value;
         const where: string[] = [];
         const params: Array<string | number> = [];
         if (status) {
@@ -136,11 +145,13 @@ export function daemonApiPlugin(deps: DaemonApiDeps) {
       set.headers['Connection'] = 'keep-alive';
 
       const encoder = new TextEncoder();
+      let cleanup = () => {};
 
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
           let aborted = false;
           let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+          let unsubscribe = () => {};
 
           const writeSSE = (event: string, data: string) => {
             if (aborted) return;
@@ -151,11 +162,11 @@ export function daemonApiPlugin(deps: DaemonApiDeps) {
             }
           };
 
-          const unsubscribe = deps.subscribe((ev) => {
+          unsubscribe = deps.subscribe((ev) => {
             writeSSE(ev.type, JSON.stringify(ev));
           });
 
-          const cleanup = () => {
+          cleanup = () => {
             if (aborted) return;
             aborted = true;
             if (heartbeatTimer) clearInterval(heartbeatTimer);
@@ -173,7 +184,7 @@ export function daemonApiPlugin(deps: DaemonApiDeps) {
           }, 15_000);
         },
         cancel() {
-          // Client disconnected — controller already closing.
+          cleanup();
         },
       });
 

@@ -1,0 +1,16 @@
+.git
+.github
+.maw
+.omx
+agents
+node_modules
+web/node_modules
+frontend/node_modules
+coverage
+dist
+.DS_Store
+*.log
+oracle.db*
+*.sqlite
+*.sqlite3
+/data

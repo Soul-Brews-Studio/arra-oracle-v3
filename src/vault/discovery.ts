@@ -4,8 +4,21 @@
 
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
 import { getSetting } from '../db/index.ts';
+import { ghqListPaths } from './ghq.ts';
+
+/**
+ * Directory names that are never knowledge, and are never descended into.
+ *
+ * A repo with a nested checkout or a vendored dependency inside ψ/ otherwise drags its
+ * whole object database into the walk — thousands of binary pack files, and an EACCES on
+ * the read-only ones. `.git` is matched as a bare name so the gitfile *pointer* a
+ * submodule or worktree leaves behind is skipped too; that file is not knowledge either.
+ *
+ * Reported against `vault:migrate` by @tenzaitech (#2802), but the guard belongs here:
+ * every caller of this walker wants it, and `vault:sync` walked the same trees.
+ */
+const NEVER_WALK = new Set(['.git', 'node_modules']);
 
 /**
  * Walk all files under dir, skipping symlinks.
@@ -18,14 +31,27 @@ export function walkFiles(
   const results: Array<{ relativePath: string; fullPath: string }> = [];
   if (!fs.existsSync(dir)) return results;
 
-  for (const item of fs.readdirSync(dir)) {
+  let items: string[];
+  try {
+    items = fs.readdirSync(dir);
+  } catch {
+    return results;
+  }
+
+  for (const item of items) {
+    if (NEVER_WALK.has(item)) continue;
     const fullPath = path.join(dir, item);
-    const stat = fs.lstatSync(fullPath); // lstat: don't follow symlinks
+    let stat: fs.Stats;
+    try {
+      stat = fs.lstatSync(fullPath); // lstat: don't follow symlinks
+    } catch {
+      continue;
+    }
     if (stat.isSymbolicLink()) continue;
     if (stat.isDirectory()) {
       results.push(...walkFiles(fullPath, baseDir));
     } else {
-      results.push({ relativePath: path.relative(baseDir, fullPath), fullPath });
+      results.push({ relativePath: path.relative(baseDir, fullPath).replaceAll(path.sep, '/'), fullPath });
     }
   }
   return results;
@@ -33,9 +59,9 @@ export function walkFiles(
 
 export function resolveVaultPath(repo: string): string {
   try {
-    const output = execSync(`ghq list -p ${repo}`, { encoding: 'utf-8' }).trim();
-    if (!output) throw new Error('empty output');
-    return output.split('\n')[0].trim();
+    const [first] = ghqListPaths(repo);
+    if (!first) throw new Error('empty output');
+    return first;
   } catch {
     throw new Error(`Vault repo "${repo}" not found via ghq. Run vault:init first.`);
   }
@@ -51,7 +77,7 @@ export function cleanEmptyDirs(dir: string, stopAt: string): void {
 }
 
 /**
- * Resolve the vault ψ/ root for shared use by arra_learn, arra_handoff, indexer, etc.
+ * Resolve the vault ψ/ root for shared use by oracle_learn, oracle_handoff, indexer, etc.
  * Returns the vault repo local path, or a setup hint if not configured.
  */
 export function getVaultPsiRoot(): { path: string } | { needsInit: true; hint: string } {
