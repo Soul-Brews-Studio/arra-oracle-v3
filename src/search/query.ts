@@ -46,7 +46,7 @@ export function buildTenantFtsQuery(query: string): string {
   const tokens = augmentQueryWithAcronyms(query)
     .replace(/<[^>]*>/g, ' ')
     .normalize('NFKC')
-    .match(/[\p{L}\p{N}]+/gu)
+    .match(/[\p{L}\p{N}_]+/gu)
     ?.map((token) => token.trim())
     .filter(Boolean) ?? [];
   return [...new Set(tokens)]

@@ -36,33 +36,11 @@ insertDoc('alpha-only', 'Issue one three one four alphaonly recall lives here.',
 insertDoc('beta-only', 'Issue one three one four betaonly memory lives here.', ['betaonly1314']);
 insertDoc('alpha-beta', 'Issue one three one four alphaonly and betaonly both appear here.', ['alphaonly1314', 'betaonly1314']);
 insertDoc('access-project-2761', 'Document access project accessproject2761 recall.', ['accessproject2761']);
-insertDoc('pane-only', 'Tmux pane routing without a process identifier.');
-insertDoc('pid-only', 'Process pid ownership without a pane reference.');
-insertDoc('pane-pid-phrase', 'Tmux pane pid mapping with adjacent terms.');
-insertDoc('pane-pid-literal', 'Tmux pane_pid mapping with an identifier.');
 
 describe('FTS query sanitation and recall behavior', () => {
   test('builds quoted OR terms instead of raw punctuation syntax', () => {
     expect(buildFtsQuery('foo.bar, baz (now)!')).toBe('"foo" OR "bar" OR "baz" OR "now"');
     expect(sanitizeFtsQuery('foo.bar, baz (now)!')).toBe('"foo" OR "bar" OR "baz" OR "now"');
-  });
-
-  test('treats underscore as a server and MCP FTS token boundary', () => {
-    expect(buildFtsQuery('pane_pid')).toBe('"pane" OR "pid"');
-    expect(sanitizeFtsQuery('pane_pid')).toBe('"pane" OR "pid"');
-  });
-
-  test('underscore query OR recall exceeds phrase recall in temporary FTS5', () => {
-    const countMatches = (query: string): number => {
-      const row = sqlite.prepare(
-        'SELECT COUNT(*) AS count FROM oracle_fts WHERE oracle_fts MATCH ?',
-      ).get(query) as { count: number };
-      return row.count;
-    };
-
-    const recallQuery = buildFtsQuery('pane_pid');
-    expect(recallQuery).toBe('"pane" OR "pid"');
-    expect(countMatches(recallQuery)).toBeGreaterThan(countMatches('"pane pid"'));
   });
 
   test('punctuation-heavy FTS queries degrade gracefully instead of throwing', async () => {

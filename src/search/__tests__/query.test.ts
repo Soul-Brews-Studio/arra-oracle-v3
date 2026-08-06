@@ -22,8 +22,4 @@ describe('search query helpers', () => {
     expect(buildTenantFtsQuery('CORS PNA'))
       .toContain('"Cross" OR "Origin" OR "Resource" OR "Sharing" OR "Access"');
   });
-
-  test('treats underscore as a tenant FTS token boundary', () => {
-    expect(buildTenantFtsQuery('pane_pid')).toBe('"pane" OR "pid"');
-  });
 });

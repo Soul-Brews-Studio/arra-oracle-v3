@@ -10,7 +10,7 @@ export function sanitizeFtsQuery(query: string): string {
   const tokens = augmentQueryWithAcronyms(query)
     .replace(/<[^>]*>/g, ' ')
     .normalize('NFKC')
-    .match(/[\p{L}\p{N}]+/gu)
+    .match(/[\p{L}\p{N}_]+/gu)
     ?.map((token) => token.trim())
     .filter((token) => token.length > 0) ?? [];
 

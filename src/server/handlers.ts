@@ -39,7 +39,7 @@ const FTS_TOKEN_LIMIT = 8;
  *
  * SQLite FTS5 treats punctuation such as '.', ',', ':' or parentheses as query
  * syntax. Instead of maintaining a brittle blocklist, strip anything that is
- * not a unicode letter/number into token boundaries, quote every
+ * not a unicode letter/number/underscore into token boundaries, quote every
  * token, and OR the terms. OR avoids the default implicit-AND behavior that
  * made multi-word recall queries overly strict.
  */
@@ -47,7 +47,7 @@ export function buildFtsQuery(query: string): string {
   const tokens = query
     .replace(/<[^>]*>/g, ' ')
     .normalize('NFKC')
-    .match(/[\p{L}\p{N}]+/gu)
+    .match(/[\p{L}\p{N}_]+/gu)
     ?.map((token) => token.trim())
     .filter((token) => token.length > 0)
     .slice(0, FTS_TOKEN_LIMIT) ?? [];

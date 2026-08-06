@@ -60,21 +60,6 @@ describe('sanitizeFtsQuery', () => {
     expect(sanitizeFtsQuery('Shopee/Lazada/TikTok')).toBe('\"Shopee\" OR \"Lazada\" OR \"TikTok\"');
     expect(sanitizeFtsQuery('path/to/file')).toBe('\"path\" OR \"to\" OR \"file\"');
   });
-
-  it('should align identifier separators with unicode61 token boundaries', () => {
-    const cases = [
-      ['pane_pid', '\"pane\" OR \"pid\"'],
-      ['pane-pid', '\"pane\" OR \"pid\"'],
-      ['pane.pid', '\"pane\" OR \"pid\"'],
-      ['\"pane_pid\"', '\"pane\" OR \"pid\"'],
-      ['pane___--..pid pane', '\"pane\" OR \"pid\"'],
-      ['ไทย_ระบบ', '\"ไทย\" OR \"ระบบ\"'],
-    ];
-
-    for (const [input, expected] of cases) {
-      expect(sanitizeFtsQuery(input)).toBe(expected);
-    }
-  });
 });
 
 // ============================================================================
