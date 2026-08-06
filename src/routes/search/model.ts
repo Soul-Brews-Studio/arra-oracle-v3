@@ -13,9 +13,11 @@ export const SearchQuery = t.Object({
   limit: t.Optional(t.String()),
   offset: t.Optional(t.String()),
   mode: t.Optional(t.String()),
+  retrieval: t.Optional(t.String()),
   project: t.Optional(t.String()),
   cwd: t.Optional(t.String()),
   model: t.Optional(t.String()),
+  asOf: t.Optional(t.String()),
 });
 
 export const ListQuery = t.Object({
@@ -23,4 +25,5 @@ export const ListQuery = t.Object({
   limit: t.Optional(t.String()),
   offset: t.Optional(t.String()),
   group: t.Optional(t.String()),
+  asOf: t.Optional(t.String()),
 });

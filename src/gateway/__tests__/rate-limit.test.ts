@@ -1,0 +1,196 @@
+import { describe, it, expect, beforeEach } from 'bun:test';
+import { loadHooks, runHooks, type GatewayContext } from '../hooks.ts';
+import { _resetRateLimitState } from '../hooks/rate-limit.ts';
+import { TENANT_HEADER } from '../../middleware/tenant.ts';
+
+const pipeline = loadHooks({ onRequest: ['rate-limit'] });
+const run = (ctx: GatewayContext) => runHooks(pipeline.onRequest, ctx);
+
+function ctxFor(ip: string, opts: Record<string, unknown> = {}, tenantId?: string): GatewayContext {
+  const headers: Record<string, string> = { 'x-forwarded-for': ip };
+  if (tenantId) headers[TENANT_HEADER] = tenantId;
+
+  return {
+    request: new Request('http://localhost/api/search', {
+      headers,
+    }),
+    meta: { hook_options: { 'rate-limit': opts } },
+  };
+}
+
+describe('rate-limit hook', () => {
+  beforeEach(() => {
+    _resetRateLimitState();
+  });
+
+  it('allows requests within the burst', async () => {
+    const opts = { tokens_per_window: 60, window_ms: 60_000, burst: 3 };
+    expect(await run(ctxFor('1.1.1.1', opts))).toBeUndefined();
+    expect(await run(ctxFor('1.1.1.1', opts))).toBeUndefined();
+    expect(await run(ctxFor('1.1.1.1', opts))).toBeUndefined();
+  });
+
+  it('blocks the 4th request with 429 once burst is drained', async () => {
+    const opts = { tokens_per_window: 60, window_ms: 60_000, burst: 3 };
+    await run(ctxFor('2.2.2.2', opts));
+    await run(ctxFor('2.2.2.2', opts));
+    await run(ctxFor('2.2.2.2', opts));
+    const blocked = await run(ctxFor('2.2.2.2', opts));
+    expect(blocked).toBeInstanceOf(Response);
+    expect((blocked as Response).status).toBe(429);
+    const body = await (blocked as Response).json();
+    expect(body.error).toBe('rate_limited');
+    expect(body.retry_after_seconds).toBeGreaterThan(0);
+    expect((blocked as Response).headers.get('Retry-After')).toBeDefined();
+  });
+
+  it('isolates buckets per client key', async () => {
+    const opts = { tokens_per_window: 60, window_ms: 60_000, burst: 1 };
+    expect(await run(ctxFor('3.3.3.3', opts))).toBeUndefined();
+    // 3.3.3.3 is now drained, but 4.4.4.4 should still have its own bucket
+    expect(await run(ctxFor('4.4.4.4', opts))).toBeUndefined();
+    // 3.3.3.3 again — blocked
+    const blocked = await run(ctxFor('3.3.3.3', opts));
+    expect((blocked as Response).status).toBe(429);
+  });
+
+  it('isolates buckets per tenant when clients share a gateway key', async () => {
+    const opts = { tokens_per_window: 60, window_ms: 60_000, burst: 1 };
+    expect(await run(ctxFor('10.0.0.1', opts, 'tenant-a'))).toBeUndefined();
+    expect(await run(ctxFor('10.0.0.1', opts, 'tenant-b'))).toBeUndefined();
+
+    const blocked = await run(ctxFor('10.0.0.1', opts, 'tenant-a'));
+    expect((blocked as Response).status).toBe(429);
+  });
+
+  /**
+   * Time is advanced, not awaited.
+   *
+   * This used to `await setTimeout(50)` and assume 50ms of wall clock had produced 50 tokens.
+   * That is a race with the machine: it passed 5/5 locally and failed on CI once the runner
+   * started executing all 29 test groups in one job (#2853). A refill test should assert the
+   * refill *arithmetic*, which is deterministic — the scheduler's punctuality is not the
+   * behaviour under test.
+   *
+   * `Date.now` is stubbed rather than injected because the hook reads it directly
+   * (`hooks/rate-limit.ts:95`) and a flaky test does not justify reshaping production code.
+   */
+  it('refills tokens over time', async () => {
+    // 100 tokens per 100ms = 1 per ms, burst 1.
+    const opts = { tokens_per_window: 100, window_ms: 100, burst: 1 };
+    const realNow = Date.now;
+    try {
+      let clock = realNow();
+      Date.now = () => clock;
+
+      expect(await run(ctxFor('5.5.5.5', opts))).toBeUndefined();
+
+      // Same instant: the single burst token is spent.
+      const blocked = await run(ctxFor('5.5.5.5', opts));
+      expect((blocked as Response).status).toBe(429);
+
+      // Still blocked just before a whole token has accrued.
+      clock += 0.5;
+      expect(((await run(ctxFor('5.5.5.5', opts))) as Response).status).toBe(429);
+
+      // One full token later, allowed — no sleeping, no tolerance window.
+      clock += 50;
+      expect(await run(ctxFor('5.5.5.5', opts))).toBeUndefined();
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  it('uses leftmost IP from a comma-separated X-Forwarded-For chain', async () => {
+    const opts = { tokens_per_window: 60, window_ms: 60_000, burst: 1 };
+    const a: GatewayContext = {
+      request: new Request('http://localhost/api/search', {
+        headers: { 'x-forwarded-for': '6.6.6.6, 10.0.0.1' },
+      }),
+      meta: { hook_options: { 'rate-limit': opts } },
+    };
+    const b: GatewayContext = {
+      request: new Request('http://localhost/api/search', {
+        headers: { 'x-forwarded-for': '6.6.6.6, 10.0.0.2' },
+      }),
+      meta: { hook_options: { 'rate-limit': opts } },
+    };
+    expect(await run(a)).toBeUndefined();
+    // Same leftmost IP — should hit the same bucket and be blocked
+    expect((await run(b) as Response).status).toBe(429);
+  });
+
+  it('falls back to "anonymous" when the configured header is absent', async () => {
+    const opts = { tokens_per_window: 60, window_ms: 60_000, burst: 1 };
+    const c: GatewayContext = {
+      request: new Request('http://localhost/api/search'),
+      meta: { hook_options: { 'rate-limit': opts } },
+    };
+    expect(await run(c)).toBeUndefined();
+    // Second anon request shares the same bucket — blocked
+    const d: GatewayContext = {
+      request: new Request('http://localhost/api/search'),
+      meta: { hook_options: { 'rate-limit': opts } },
+    };
+    expect((await run(d) as Response).status).toBe(429);
+  });
+
+  it('disables itself when tokens_per_window <= 0', async () => {
+    const opts = { tokens_per_window: 0, window_ms: 60_000, burst: 1 };
+    // No matter how many requests, no 429.
+    for (let i = 0; i < 5; i++) {
+      expect(await run(ctxFor('7.7.7.7', opts))).toBeUndefined();
+    }
+  });
+
+  it('uses default settings when no options are provided', async () => {
+    // Defaults: 60 tokens / 60s, burst = 60. First request passes.
+    const ctx: GatewayContext = {
+      request: new Request('http://localhost/api/search', {
+        headers: { 'x-forwarded-for': '8.8.8.8' },
+      }),
+      meta: { hook_options: {} },
+    };
+    expect(await run(ctx)).toBeUndefined();
+  });
+
+  it('respects a custom header name', async () => {
+    const opts = {
+      header: 'x-real-ip',
+      tokens_per_window: 60,
+      window_ms: 60_000,
+      burst: 1,
+    };
+    const a: GatewayContext = {
+      request: new Request('http://localhost/api/search', {
+        headers: { 'x-real-ip': '9.9.9.9' },
+      }),
+      meta: { hook_options: { 'rate-limit': opts } },
+    };
+    const b: GatewayContext = {
+      request: new Request('http://localhost/api/search', {
+        headers: { 'x-real-ip': '9.9.9.9' },
+      }),
+      meta: { hook_options: { 'rate-limit': opts } },
+    };
+    expect(await run(a)).toBeUndefined();
+    expect((await run(b) as Response).status).toBe(429);
+  });
+
+  it('falls back to x-forwarded-for when configured header is blank or malformed', async () => {
+    const opts = { header: 'bad header', tokens_per_window: 60, window_ms: 60_000, burst: 1 };
+    expect(await run(ctxFor('11.11.11.11', opts))).toBeUndefined();
+    expect((await run(ctxFor('11.11.11.11', opts)) as Response).status).toBe(429);
+
+    _resetRateLimitState();
+    const blank = { ...opts, header: ' ' };
+    expect(await run(ctxFor('12.12.12.12', blank))).toBeUndefined();
+    expect((await run(ctxFor('12.12.12.12', blank)) as Response).status).toBe(429);
+  });
+
+  it('falls back from non-finite numeric options instead of disabling itself', async () => {
+    const opts = { tokens_per_window: Number.POSITIVE_INFINITY, window_ms: Number.NaN, burst: 1 };
+    expect(await run(ctxFor('13.13.13.13', opts))).toBeUndefined();
+    expect((await run(ctxFor('13.13.13.13', opts)) as Response).status).toBe(429);
+  });
+});

@@ -1,5 +1,5 @@
 /**
- * Fix missing project field for arra_learn documents
+ * Fix missing project field for oracle_learn documents
  * Uses Drizzle ORM - not direct SQL!
  */
 
@@ -10,7 +10,7 @@ import path from 'path';
 import fs from 'fs';
 import { REPO_ROOT } from '../config.ts';
 
-// Find all arra_learn docs without project using Drizzle
+// Find all oracle_learn docs without project using Drizzle
 const docs = db.select({
   id: oracleDocuments.id,
   sourceFile: oracleDocuments.sourceFile
@@ -18,13 +18,13 @@ const docs = db.select({
   .from(oracleDocuments)
   .where(
     and(
-      eq(oracleDocuments.createdBy, 'arra_learn'),
+      eq(oracleDocuments.createdBy, 'oracle_learn'),
       or(isNull(oracleDocuments.project), eq(oracleDocuments.project, ''))
     )
   )
   .all();
 
-console.log(`Found ${docs.length} arra_learn docs without project`);
+console.log(`Found ${docs.length} oracle_learn docs without project`);
 
 let fixed = 0;
 let fixedFromFts = 0;
@@ -79,12 +79,12 @@ console.log(`\nDone: ${fixed} fixed (${fixedFromFts} from FTS), ${failed} could 
 /**
  * Extract project from source field in frontmatter
  * Handles formats:
- * - "arra_learn from github.com/owner/repo"
+ * - "oracle_learn from github.com/owner/repo"
  * - "rrr: org/repo" or "rrr: Owner/Repo"
  * - "source: github.com/owner/repo"
  */
 function extractProjectFromSource(content: string): string | null {
-  // Try "arra_learn from github.com/owner/repo"
+  // Try "oracle_learn from github.com/owner/repo"
   const oracleLearnMatch = content.match(/from\s+(github\.com\/[^\/\s]+\/[^\/\s]+)/);
   if (oracleLearnMatch) return oracleLearnMatch[1];
 

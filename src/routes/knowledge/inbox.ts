@@ -3,47 +3,25 @@
  */
 
 import { Elysia } from 'elysia';
-import fs from 'fs';
 import path from 'path';
 import { REPO_ROOT } from '../../config.ts';
+import { tenantDataPath } from '../../middleware/tenant.ts';
 import { InboxQuery } from './model.ts';
+import { listHandoffFiles, parsePageInt } from '../../knowledge/inbox.ts';
+
+const repoRoot = () => process.env.ORACLE_REPO_ROOT || REPO_ROOT;
+const inboxDir = () => tenantDataPath(path.join(repoRoot(), 'ψ/inbox'));
 
 export const inboxEndpoint = new Elysia().get(
   '/inbox',
   ({ query }) => {
-    const limit = parseInt(query.limit ?? '10');
-    const offset = parseInt(query.offset ?? '0');
+    const limit = parsePageInt(query.limit, 10, 1, 100);
+    const offset = parsePageInt(query.offset, 0, 0, Number.MAX_SAFE_INTEGER);
     const type = query.type ?? 'all';
 
-    const inboxDir = path.join(REPO_ROOT, 'ψ/inbox');
-    const results: Array<{ filename: string; path: string; created: string; preview: string; type: string }> = [];
-
-    if (type === 'all' || type === 'handoff') {
-      const handoffDir = path.join(inboxDir, 'handoff');
-      if (fs.existsSync(handoffDir)) {
-        const files = fs.readdirSync(handoffDir)
-          .filter(f => f.endsWith('.md'))
-          .sort()
-          .reverse();
-
-        for (const file of files) {
-          const filePath = path.join(handoffDir, file);
-          const content = fs.readFileSync(filePath, 'utf-8');
-          const dateMatch = file.match(/^(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2})/);
-          const created = dateMatch
-            ? `${dateMatch[1]}T${dateMatch[2].replace('-', ':')}:00`
-            : 'unknown';
-
-          results.push({
-            filename: file,
-            path: `ψ/inbox/handoff/${file}`,
-            created,
-            preview: content.substring(0, 500),
-            type: 'handoff',
-          });
-        }
-      }
-    }
+    const results = type === 'all' || type === 'handoff'
+      ? listHandoffFiles(path.join(inboxDir(), 'handoff'), repoRoot())
+      : [];
 
     const total = results.length;
     const paginated = results.slice(offset, offset + limit);

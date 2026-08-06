@@ -5,16 +5,6 @@
  * since trace handlers use their own module-scoped DB.
  */
 
-import {
-  createTrace,
-  getTrace,
-  listTraces,
-  getTraceChain,
-  linkTraces,
-  unlinkTraces,
-  getTraceLinkedChain,
-} from '../trace/handler.ts';
-
 import type {
   CreateTraceInput,
   ListTracesInput,
@@ -23,12 +13,21 @@ import type {
 
 import type { ToolResponse } from './types.ts';
 
+type TraceHandlerModule = typeof import('../trace/handler.ts');
+let traceHandlerModule: TraceHandlerModule | null = null;
+async function loadTraceHandler(): Promise<TraceHandlerModule> {
+  if (!traceHandlerModule) {
+    traceHandlerModule = await import('../trace/handler.ts');
+  }
+  return traceHandlerModule;
+}
+
 // ============================================================================
 // Tool definitions
 // ============================================================================
 
 export const traceToolDef = {
-  name: 'arra_trace',
+  name: 'oracle_trace',
   description: 'Log a trace session with dig points (files, commits, issues found). Use to capture /trace command results for future exploration.',
   inputSchema: {
     type: 'object',
@@ -51,7 +50,7 @@ export const traceToolDef = {
 };
 
 export const traceListToolDef = {
-  name: 'arra_trace_list',
+  name: 'oracle_trace_list',
   description: 'List recent traces with optional filters. Returns trace summaries for browsing.',
   inputSchema: {
     type: 'object',
@@ -67,7 +66,7 @@ export const traceListToolDef = {
 };
 
 export const traceGetToolDef = {
-  name: 'arra_trace_get',
+  name: 'oracle_trace_get',
   description: 'Get full details of a specific trace including all dig points (files, commits, issues).',
   inputSchema: {
     type: 'object',
@@ -80,7 +79,7 @@ export const traceGetToolDef = {
 };
 
 export const traceLinkToolDef = {
-  name: 'arra_trace_link',
+  name: 'oracle_trace_link',
   description: 'Link two traces as a chain (prev \u2192 next). Creates bidirectional navigation without deleting anything. Use when agents create related traces that should be connected.',
   inputSchema: {
     type: 'object',
@@ -93,7 +92,7 @@ export const traceLinkToolDef = {
 };
 
 export const traceUnlinkToolDef = {
-  name: 'arra_trace_unlink',
+  name: 'oracle_trace_unlink',
   description: 'Remove a link between traces. Breaks the chain connection in the specified direction.',
   inputSchema: {
     type: 'object',
@@ -106,7 +105,7 @@ export const traceUnlinkToolDef = {
 };
 
 export const traceChainToolDef = {
-  name: 'arra_trace_chain',
+  name: 'oracle_trace_chain',
   description: 'Get the full linked chain for a trace. Returns all traces in the chain and the position of the requested trace.',
   inputSchema: {
     type: 'object',
@@ -132,6 +131,36 @@ export const traceToolDefs = [
 // ============================================================================
 
 export async function handleTrace(input: CreateTraceInput): Promise<ToolResponse> {
+  if (input == null || typeof input !== 'object') {
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          success: false,
+          error: "arra_trace requires field 'query' (non-empty string).",
+          usage: "arra_trace({ query: 'what was traced', scope?: 'project'|'cross-project'|'human', queryType?: 'general'|'project'|'pattern'|'evolution' })",
+          tip: "List recent traces with arra_trace_list()."
+        }, null, 2)
+      }],
+      isError: true
+    };
+  }
+  const q = (input as { query?: unknown }).query;
+  if (typeof q !== 'string' || q.trim().length === 0) {
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          success: false,
+          error: "arra_trace requires field 'query' (non-empty string).",
+          received: q === undefined ? 'undefined' : typeof q,
+          usage: "arra_trace({ query: 'what was traced', ... })"
+        }, null, 2)
+      }],
+      isError: true
+    };
+  }
+  const { createTrace } = await loadTraceHandler();
   const result = createTrace(input);
   console.error(`[MCP:TRACE] query="${input.query}" depth=${result.depth} digPoints=${result.summary.totalDigPoints}`);
 
@@ -148,13 +177,14 @@ export async function handleTrace(input: CreateTraceInput): Promise<ToolResponse
           issue_count: result.summary.issueCount,
           total_dig_points: result.summary.totalDigPoints,
         },
-        message: `Trace logged. Use arra_trace_get with trace_id="${result.traceId}" to explore dig points.`
+        message: `Trace logged. Use oracle_trace_get with trace_id="${result.traceId}" to explore dig points.`
       }, null, 2)
     }]
   };
 }
 
 export async function handleTraceList(input: ListTracesInput): Promise<ToolResponse> {
+  const { listTraces } = await loadTraceHandler();
   const result = listTraces(input);
   console.error(`[MCP:TRACE_LIST] found=${result.total} returned=${result.traces.length}`);
 
@@ -182,6 +212,21 @@ export async function handleTraceList(input: ListTracesInput): Promise<ToolRespo
 }
 
 export async function handleTraceGet(input: GetTraceInput): Promise<ToolResponse> {
+  if (input == null || typeof input !== 'object' || typeof input.traceId !== 'string' || input.traceId.length === 0) {
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          success: false,
+          error: "arra_trace_get requires field 'traceId' (UUID string).",
+          received: input == null ? 'undefined' : typeof (input as any).traceId,
+          usage: "arra_trace_get({ traceId: '6b381742-...', includeChain?: false })"
+        }, null, 2)
+      }],
+      isError: true
+    };
+  }
+  const { getTrace, getTraceChain } = await loadTraceHandler();
   const trace = getTrace(input.traceId);
   if (!trace) throw new Error(`Trace ${input.traceId} not found`);
 
@@ -234,6 +279,7 @@ export async function handleTraceGet(input: GetTraceInput): Promise<ToolResponse
 }
 
 export async function handleTraceLink(input: { prevTraceId: string; nextTraceId: string }): Promise<ToolResponse> {
+  const { linkTraces } = await loadTraceHandler();
   const result = linkTraces(input.prevTraceId, input.nextTraceId);
   if (!result.success) throw new Error(result.message);
 
@@ -261,6 +307,7 @@ export async function handleTraceLink(input: { prevTraceId: string; nextTraceId:
 }
 
 export async function handleTraceUnlink(input: { traceId: string; direction: 'prev' | 'next' }): Promise<ToolResponse> {
+  const { unlinkTraces } = await loadTraceHandler();
   const result = unlinkTraces(input.traceId, input.direction);
   if (!result.success) throw new Error(result.message);
 
@@ -275,6 +322,22 @@ export async function handleTraceUnlink(input: { traceId: string; direction: 'pr
 }
 
 export async function handleTraceChain(input: { traceId: string }): Promise<ToolResponse> {
+  if (input == null || typeof input !== 'object' || typeof input.traceId !== 'string' || input.traceId.length === 0) {
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          success: false,
+          error: "arra_trace_chain requires field 'traceId' (UUID string).",
+          received: input == null ? 'undefined' : typeof (input as any).traceId,
+          usage: "arra_trace_chain({ traceId: '6b381742-...' })",
+          tip: "Pass any trace UUID in the chain to retrieve the full sequence."
+        }, null, 2)
+      }],
+      isError: true
+    };
+  }
+  const { getTraceLinkedChain } = await loadTraceHandler();
   const result = getTraceLinkedChain(input.traceId);
   console.error(`[MCP:TRACE_CHAIN] id=${input.traceId} chain_length=${result.chain.length} position=${result.position}`);
 

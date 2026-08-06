@@ -45,7 +45,7 @@ export interface DocMeta {
   arra_type: string;
   arra_project?: string;
   arra_created?: string;
-  arra_concepts: string[];
+  muninn_concepts: string[];
   arra_model: string;
   arra_similarity_threshold: number;
 }

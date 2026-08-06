@@ -1,0 +1,146 @@
+{
+  "schema": "arra.honest-recall.v1",
+  "generated_at": "2026-06-17T12:19:13.681Z",
+  "provenance": {
+    "mode": "fts",
+    "model": "multi",
+    "top_k": 3,
+    "corpus": {
+      "label": "public-style-12-docs-inline-v1",
+      "size": 12
+    },
+    "metric": "Recall@k",
+    "git-sha": "ede1301ec800d3726e848a0faf1ab51b6d4cb22a",
+    "stack": [
+      "multi",
+      "fts"
+    ]
+  },
+  "metrics": [
+    {
+      "metric": "Recall@k",
+      "label": "Recall@3",
+      "value": 0.75,
+      "hits": 6,
+      "total_queries": 8,
+      "top_k": 3
+    },
+    {
+      "metric": "Answer-Accuracy",
+      "status": "not-measured",
+      "reason": "Retrieval-only harness: no answer generator or judge was run."
+    }
+  ],
+  "cases": [
+    {
+      "id": "exact/backup-restore",
+      "query": "backup restore logs db push",
+      "metric": "Recall@k",
+      "expected_ids": [
+        "pub-doc-002"
+      ],
+      "retrieved_ids": [
+        "pub-doc-002",
+        "pub-doc-006"
+      ],
+      "hit": true,
+      "matched_rank": 1
+    },
+    {
+      "id": "exact/tenant-isolation",
+      "query": "tenant id prevents cross tenant leakage",
+      "metric": "Recall@k",
+      "expected_ids": [
+        "pub-doc-005"
+      ],
+      "retrieved_ids": [
+        "pub-doc-005"
+      ],
+      "hit": true,
+      "matched_rank": 1
+    },
+    {
+      "id": "exact/supersede-chain",
+      "query": "supersede chain cycles replacement document",
+      "metric": "Recall@k",
+      "expected_ids": [
+        "pub-doc-007"
+      ],
+      "retrieved_ids": [
+        "pub-doc-004",
+        "pub-doc-007"
+      ],
+      "hit": true,
+      "matched_rank": 2
+    },
+    {
+      "id": "exact/fts5-token",
+      "query": "SQLite FTS5 BM25 virtual tables",
+      "metric": "Recall@k",
+      "expected_ids": [
+        "pub-doc-003"
+      ],
+      "retrieved_ids": [
+        "pub-doc-003"
+      ],
+      "hit": true,
+      "matched_rank": 1
+    },
+    {
+      "id": "exact/canvas-plugin",
+      "query": "Canvas plugins manifests commands entrypoints",
+      "metric": "Recall@k",
+      "expected_ids": [
+        "pub-doc-012"
+      ],
+      "retrieved_ids": [
+        "pub-doc-010",
+        "pub-doc-012"
+      ],
+      "hit": true,
+      "matched_rank": 2
+    },
+    {
+      "id": "weak/semantic-vector",
+      "query": "nearest neighbor meaning search",
+      "metric": "Recall@k",
+      "expected_ids": [
+        "pub-doc-004"
+      ],
+      "retrieved_ids": [
+        "pub-doc-010",
+        "pub-doc-003"
+      ],
+      "hit": false,
+      "matched_rank": null
+    },
+    {
+      "id": "weak/acronym-only",
+      "query": "WCAG operability landmarks",
+      "metric": "Recall@k",
+      "expected_ids": [
+        "pub-doc-009"
+      ],
+      "retrieved_ids": [
+        "pub-doc-002"
+      ],
+      "hit": false,
+      "matched_rank": null
+    },
+    {
+      "id": "weak/paraphrase-taxonomy",
+      "query": "automatically classify documents using folders",
+      "metric": "Recall@k",
+      "expected_ids": [
+        "pub-doc-008"
+      ],
+      "retrieved_ids": [
+        "pub-doc-008",
+        "pub-doc-007",
+        "pub-doc-011"
+      ],
+      "hit": true,
+      "matched_rank": 1
+    }
+  ]
+}

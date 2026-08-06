@@ -1,6 +1,6 @@
 // arra-cli list [--type X] [--limit N]
 // Calls: GET /api/list?type=X&limit=N
-// Note: issue #770 listed this as /api/arra_list — using actual GET /api/list route
+// Note: issue #770 listed this as /api/muninn_list — using actual GET /api/list route
 
 import type { InvokeContext, InvokeResult } from "../../plugin/types.ts";
 import { apiFetch } from "../../lib/api.ts";

@@ -1,7 +1,7 @@
 // arra-cli read <id-or-path>
 // Calls: GET /api/read?id=<id>  — when arg has no path separators
 //        GET /api/read?file=<path> — when arg looks like a file path
-// Note: issue #770 listed this as /api/arra_read — using actual GET /api/read route
+// Note: issue #770 listed this as /api/muninn_read — using actual GET /api/read route
 
 import type { InvokeContext, InvokeResult } from "../../plugin/types.ts";
 import { apiFetch } from "../../lib/api.ts";

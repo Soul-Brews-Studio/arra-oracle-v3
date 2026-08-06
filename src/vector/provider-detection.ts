@@ -1,0 +1,125 @@
+import type { EmbeddingProviderType } from './types.ts';
+
+export const DETECTED_PROVIDER_MODELS = {
+  openai: ['text-embedding-3-small', 'text-embedding-3-large'],
+  gemini: ['text-embedding-004'],
+  'cloudflare-ai': ['@cf/baai/bge-m3'],
+} as const;
+
+export interface DetectedEmbeddingProvider {
+  type: EmbeddingProviderType;
+  available: boolean;
+  configured: boolean;
+  source: 'env' | 'probe';
+  models: string[];
+  capabilities: string[];
+  error?: string;
+}
+
+export interface ProviderDetectionOptions {
+  env?: NodeJS.ProcessEnv;
+  fetcher?: typeof fetch;
+  ollamaUrl?: string;
+  timeoutMs?: number;
+}
+
+let cached: { checkedAt: string; providers: DetectedEmbeddingProvider[] } | null = null;
+
+function has(env: NodeJS.ProcessEnv, ...keys: string[]): boolean {
+  return keys.some((key) => Boolean(env[key]?.trim()));
+}
+
+function provider(
+  type: EmbeddingProviderType,
+  configured: boolean,
+  extras: Partial<DetectedEmbeddingProvider> = {},
+): DetectedEmbeddingProvider {
+  return {
+    type,
+    configured,
+    available: configured,
+    source: 'env',
+    models: [],
+    capabilities: ['embed'],
+    ...extras,
+  };
+}
+
+async function detectOllama(options: ProviderDetectionOptions): Promise<DetectedEmbeddingProvider> {
+  const fetcher = options.fetcher ?? fetch;
+  const base = resolveOllamaUrl(options);
+  const configured = Boolean(
+    options.ollamaUrl?.trim() || options.env?.OLLAMA_BASE_URL?.trim() || options.env?.OLLAMA_HOST?.trim(),
+  );
+  try {
+    const res = await fetcher(`${base}/api/tags`, { signal: AbortSignal.timeout(options.timeoutMs ?? 1500) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json() as { models?: Array<{ name?: string }> };
+    const models = (data.models ?? []).map((item) => item.name).filter(Boolean) as string[];
+    return provider('ollama', true, {
+      source: 'probe',
+      available: true,
+      models,
+      capabilities: ['embed', 'local', 'models:list'],
+    });
+  } catch (error) {
+    return provider('ollama', configured, {
+      source: 'probe',
+      available: false,
+      capabilities: ['embed', 'local', 'models:list'],
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+function resolveOllamaUrl(options: ProviderDetectionOptions): string {
+  const raw = options.ollamaUrl?.trim()
+    || options.env?.OLLAMA_BASE_URL?.trim()
+    || options.env?.OLLAMA_HOST?.trim()
+    || 'http://localhost:11434';
+  const trimmed = raw.replace(/\/+$/, '');
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+}
+
+export async function detectEmbeddingProviders(
+  options: ProviderDetectionOptions = {},
+): Promise<{ checkedAt: string; providers: DetectedEmbeddingProvider[] }> {
+  const env = options.env ?? process.env;
+  const cfConfigured = has(env, 'CF_ACCOUNT_ID', 'CLOUDFLARE_ACCOUNT_ID')
+    && has(env, 'CF_API_TOKEN', 'CLOUDFLARE_API_TOKEN');
+  const geminiConfigured = has(env, 'GEMINI_API_KEY', 'GOOGLE_API_KEY');
+  const providers = [
+    await detectOllama({ ...options, env }),
+    provider('openai', has(env, 'OPENAI_API_KEY'), {
+      models: has(env, 'OPENAI_API_KEY') ? [...DETECTED_PROVIDER_MODELS.openai] : [],
+      capabilities: ['embed', 'remote'],
+    }),
+    provider('gemini', geminiConfigured, {
+      models: geminiConfigured ? [...DETECTED_PROVIDER_MODELS.gemini] : [],
+      capabilities: ['embed', 'remote', 'free-tier'],
+    }),
+    provider('cloudflare-ai', cfConfigured, {
+      models: cfConfigured ? [...DETECTED_PROVIDER_MODELS['cloudflare-ai']] : [],
+      capabilities: ['embed', 'remote', 'edge'],
+    }),
+  ];
+  return { checkedAt: new Date().toISOString(), providers };
+}
+
+export async function getDetectedEmbeddingProviders(
+  force = false,
+  options: ProviderDetectionOptions = {},
+): Promise<{ checkedAt: string; providers: DetectedEmbeddingProvider[] }> {
+  if (!cached || force) cached = await detectEmbeddingProviders(options);
+  return cached;
+}
+
+export async function warmEmbeddingProviderDetection(
+  options: ProviderDetectionOptions = {},
+): Promise<{ checkedAt: string; providers: DetectedEmbeddingProvider[] }> {
+  return getDetectedEmbeddingProviders(false, options);
+}
+
+export function clearProviderDetectionCache(): void {
+  cached = null;
+}

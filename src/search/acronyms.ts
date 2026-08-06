@@ -1,0 +1,148 @@
+export type AcronymExpansion = Readonly<{ short: string; fullForms: readonly string[]; triggers?: readonly string[] }>;
+
+const EXPANSIONS: readonly AcronymExpansion[] = [
+  { short: 'CORS', fullForms: ['Cross-Origin Resource Sharing', 'Access-Control-Allow-Origin'], triggers: ['cross origin', 'cross-origin'] },
+  { short: 'PNA', fullForms: ['Private Network Access', 'Access-Control-Request-Private-Network'], triggers: ['private network'] },
+  { short: 'API', fullForms: ['Application Programming Interface'] },
+  { short: 'MCP', fullForms: ['Model Context Protocol'] },
+  { short: 'FTS', fullForms: ['Full Text Search'] },
+  { short: 'FTS5', fullForms: ['SQLite FTS5', 'Full Text Search'] },
+  { short: 'DB', fullForms: ['Database'] },
+  { short: 'URL', fullForms: ['Uniform Resource Locator'], triggers: ['vector url', 'vector_url'] },
+  { short: 'VECTOR_URL', fullForms: ['Vector URL', 'vector preflight', 'vectorAvailable', 'vectorMode'], triggers: ['vector url', 'vector preflight', 'vector available', 'vector mode'] },
+  { short: 'QTA', fullForms: ['Query-Time Augmentation', 'query time augmentation'], triggers: ['query time augmentation', 'query-time augmentation'] },
+  { short: 'ITE', fullForms: ['Ingestion-Time Enrichment', 'ingestion time enrichment'], triggers: ['ingestion time enrichment', 'ingestion-time enrichment'] },
+] as const;
+
+export const ACRONYM_EXPANSIONS = EXPANSIONS;
+
+export function expansionsForText(text: string): string[] {
+  const normalized = normalize(text);
+  const additions: string[] = [];
+  for (const item of EXPANSIONS) {
+    if (!matchesExpansion(normalized, item)) continue;
+    additions.push(item.short, ...item.fullForms);
+  }
+  return uniqueMissing(text, additions);
+}
+
+/**
+ * Every full form applicable to `text`, whether or not it already appears in it.
+ *
+ * `expansionsForText` returns only what is **missing**, which is right for augmenting a query
+ * — you do not append what is already there. It is wrong for anything that consumes an
+ * already-augmented string: ranking receives the augmented query, so `expansionsForText`
+ * returns `[]` and a caller relying on it silently gets nothing.
+ *
+ * That is not hypothetical. #2877 added `expansionsForText` to entity-key derivation and was a
+ * no-op in production for exactly this reason — its test passed the raw query while
+ * `rerankByEntityLinks` is called with the augmented one.
+ */
+export function expansionPhrasesForText(text: string): string[] {
+  const normalized = normalize(text);
+  const phrases: string[] = [];
+  for (const item of EXPANSIONS) {
+    if (!matchesExpansion(normalized, item)) continue;
+    for (const form of item.fullForms) if (!phrases.includes(form)) phrases.push(form);
+  }
+  return phrases;
+}
+
+/**
+ * Separator between the query and each appended expansion (#2876).
+ *
+ * Expansions used to be appended as bare space-joined text, so two adjacent ones merged under
+ * entity extraction into a phrase that matches nothing:
+ *
+ *   "what does the API and db do"
+ *     → "… Application Programming Interface Database"
+ *     → entities: ["API", "Application Programming Interface Database"]
+ *
+ * Neither `application-programming-interface` nor `database` survived as a key, so entity-link
+ * boosting was **silently skipped**. Even a single acronym merged with its own expansion:
+ * `"API"` produced the entity `"API Application Programming Interface"`.
+ *
+ * **This does not change retrieval.** `buildTenantFtsQuery` (src/search/query.ts:49) and
+ * `src/tools/search/helpers.ts` both build the FTS query with `.match(/[\p{L}\p{N}_]+/gu)`,
+ * which takes only letters, digits and underscores — punctuation is invisible to them, so the
+ * token set is byte-identical either way. That is what made this safe to change: the issue
+ * deferred the fix because the augmented string also feeds FTS, and it turns out the FTS path
+ * never sees the separator at all. `tests/search/acronym-boundary.test.ts` pins that.
+ *
+ * A semicolon rather than a comma or period: `extractEntities` treats a period as part of the
+ * run (`"…Interface. Database"` stays merged), and commas occur in ordinary queries.
+ */
+export const ACRONYM_EXPANSION_SEPARATOR = ';';
+
+export function augmentQueryWithAcronyms(query: string): string {
+  const additions = expansionsForText(query);
+  if (!additions.length) return query;
+  const sep = `${ACRONYM_EXPANSION_SEPARATOR} `;
+  return `${query}${sep}${additions.join(sep)}`;
+}
+
+export function enrichTextWithAcronyms(text: string): string {
+  const additions = expansionsForText(text);
+  return additions.length ? `${text}\n\nSearch expansions: ${additions.join('; ')}` : text;
+}
+
+function matchesExpansion(normalizedText: string, item: AcronymExpansion): boolean {
+  if (containsTerm(normalizedText, item.short)) return true;
+  return [item.short, ...item.fullForms, ...(item.triggers ?? [])]
+    .some((term) => containsPhrase(normalizedText, term));
+}
+
+function uniqueMissing(original: string, values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const normalizedOriginal = normalize(original);
+  const joinedOriginal = normalizeJoinedTokens(original);
+  const out: string[] = [];
+  for (const value of values) {
+    const key = normalize(value);
+    const present = isJoinedAlias(value)
+      ? containsJoinedTerm(joinedOriginal, value)
+      : containsPhrase(normalizedOriginal, value);
+    if (!key || seen.has(key) || present) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+
+function containsTerm(normalizedText: string, term: string): boolean {
+  const escaped = normalize(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|\\s)${escaped}(?:\\s|$)`, 'i').test(normalizedText);
+}
+
+function containsJoinedTerm(normalizedText: string, term: string): boolean {
+  const escaped = normalizeJoinedTokens(term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|\\s)${escaped}(?:\\s|$)`, 'i').test(normalizedText);
+}
+
+function containsPhrase(normalizedText: string, phrase: string): boolean {
+  return normalizedText.includes(normalize(phrase));
+}
+
+function normalize(value: string): string {
+  return value
+    .normalize('NFKC')
+    .replace(/[_-]+/g, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function isJoinedAlias(value: string): boolean {
+  return /^[A-Z0-9_]+$/.test(value) && value.includes('_');
+}
+
+function normalizeJoinedTokens(value: string): string {
+  return value
+    .normalize('NFKC')
+    .replace(/-+/g, '_')
+    .replace(/[^\p{L}\p{N}_]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}

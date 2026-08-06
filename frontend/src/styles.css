@@ -1,0 +1,188 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Fira Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "Fira Code", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --color-bg: oklch(0.985 0.004 257);
+  --color-surface: oklch(1 0 0 / 0.86);
+  --color-surface-muted: oklch(1 0 0 / 0.72);
+  --color-field: oklch(1 0 0 / 0.96);
+  --color-border: oklch(0.86 0.01 257);
+  --color-text: oklch(0.21 0.04 257);
+  --color-text-muted: oklch(0.45 0.04 257);
+  --color-accent: oklch(0.50 0.11 178);
+  --color-accent2: oklch(0.50 0.20 300);
+  --color-accent2-soft: oklch(0.94 0.05 300 / 0.72);
+  --color-accent2-border: oklch(0.50 0.20 300 / 0.36);
+  --color-accent2-solid: oklch(0.82 0.12 300);
+  --color-accent2-hover: oklch(0.88 0.09 300);
+  --color-accent-soft: oklch(0.94 0.05 178 / 0.72);
+  --color-accent-border: oklch(0.50 0.11 178 / 0.36);
+  --color-accent-solid: oklch(0.79 0.14 178);
+  --color-accent-hover: oklch(0.86 0.10 178);
+  --color-on-accent: oklch(0.13 0.02 265);
+  --color-ok-bg: oklch(0.94 0.05 156);
+  --color-ok-text: oklch(0.43 0.13 156);
+  --color-ok-border: oklch(0.68 0.12 156 / 0.45);
+  --color-warn-bg: oklch(0.94 0.08 85);
+  --color-warn-text: oklch(0.45 0.12 70);
+  --color-warn-border: oklch(0.68 0.13 70 / 0.45);
+  --color-err-bg: oklch(0.94 0.06 25);
+  --color-err-text: oklch(0.50 0.20 25);
+  --color-err-border: oklch(0.62 0.20 25 / 0.45);
+  --glass-bg: oklch(1 0 0 / 0.58);
+  --glass-border: oklch(0.50 0.11 178 / 0.18);
+  --glass-shadow: 0 8px 28px oklch(0.13 0.02 265 / 0.12);
+  --glass-blur: 18px;
+  --glass-popover-bg: oklch(1 0 0 / 0.94);
+}
+
+.dark {
+  --color-bg: oklch(0.13 0.02 265);
+  --color-surface: oklch(0.21 0.02 265 / 0.7);
+  --color-surface-muted: oklch(0.25 0.02 265 / 0.58);
+  --color-field: oklch(0.18 0.02 265);
+  --color-border: oklch(0.34 0.02 265);
+  --color-text: oklch(0.96 0.01 257);
+  --color-text-muted: oklch(0.71 0.04 257);
+  --color-accent: oklch(0.82 0.13 178);
+  --color-accent2: oklch(0.78 0.16 300);
+  --color-accent2-soft: oklch(0.50 0.12 300 / 0.18);
+  --color-accent2-border: oklch(0.78 0.16 300 / 0.36);
+  --color-accent2-solid: oklch(0.82 0.12 300);
+  --color-accent2-hover: oklch(0.88 0.09 300);
+  --color-accent-soft: oklch(0.50 0.10 178 / 0.18);
+  --color-accent-border: oklch(0.82 0.13 178 / 0.36);
+  --color-accent-solid: oklch(0.82 0.13 178);
+  --color-accent-hover: oklch(0.88 0.10 178);
+  --color-ok-bg: oklch(0.50 0.10 156 / 0.18);
+  --color-ok-text: oklch(0.85 0.13 156);
+  --color-ok-border: oklch(0.85 0.13 156 / 0.36);
+  --color-warn-bg: oklch(0.54 0.12 70 / 0.20);
+  --color-warn-text: oklch(0.84 0.14 85);
+  --color-warn-border: oklch(0.84 0.14 85 / 0.36);
+  --color-err-bg: oklch(0.54 0.17 25 / 0.20);
+  --color-err-text: oklch(0.82 0.15 25);
+  --color-err-border: oklch(0.82 0.15 25 / 0.36);
+  --glass-bg: oklch(0.16 0.02 265 / 0.35);
+  --glass-border: oklch(1 0 0 / 0.08);
+  --glass-shadow: 0 8px 32px oklch(0 0 0 / 0.4);
+  --glass-blur: 24px;
+  --glass-popover-bg: oklch(0.16 0.02 265 / 0.94);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+#root { min-height: 100vh; }
+.font-mono, code, pre { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.oracle-shell {
+  background:
+    radial-gradient(circle at 14% 16%, color-mix(in oklch, var(--color-accent) 20%, transparent), transparent 30rem),
+    radial-gradient(circle at 82% 10%, color-mix(in oklch, var(--color-accent2) 18%, transparent), transparent 28rem),
+    radial-gradient(circle at 8% 78%, color-mix(in oklch, var(--color-accent2) 10%, transparent), transparent 26rem),
+    radial-gradient(circle at 92% 72%, color-mix(in oklch, var(--color-accent) 12%, transparent), transparent 28rem),
+    radial-gradient(circle at 50% 45%, color-mix(in oklch, var(--color-accent2) 8%, transparent), transparent 34rem),
+    var(--color-bg);
+}
+
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+/* Floating overlays (dropdowns/popovers) need a near-opaque backing —
+   .glass's ambient alpha is tuned for background panels and lets
+   whatever's underneath bleed through when it floats over live content. */
+.glass-popover {
+  background: var(--glass-popover-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-hover:hover {
+  border-color: oklch(1 0 0 / 0.15);
+  box-shadow: var(--glass-shadow), 0 0 20px oklch(0.82 0.13 178 / 0.15);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-hover { transition: none; }
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+.hide-scrollbar { scrollbar-width: none; }
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+
+.connect-shell {
+  background:
+    radial-gradient(ellipse at 30% 20%, oklch(0.55 0.14 178 / 0.25), transparent 50%),
+    radial-gradient(ellipse at 70% 80%, oklch(0.50 0.12 260 / 0.20), transparent 50%),
+    radial-gradient(ellipse at 50% 50%, oklch(0.40 0.06 220 / 0.15), transparent 60%),
+    oklch(0.14 0.02 250);
+}
+
+.connect-glass {
+  background: oklch(0.92 0.01 220 / 0.12);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid oklch(1 0 0 / 0.18);
+  box-shadow:
+    0 0 0 1px oklch(1 0 0 / 0.06),
+    0 12px 48px oklch(0.50 0.10 178 / 0.10),
+    inset 0 1px 0 oklch(1 0 0 / 0.12);
+}
+
+@keyframes dash {
+  to { stroke-dashoffset: -20; }
+}
+
+.pna-beacon {
+  animation: fadeSlideIn 0.6s ease-out both;
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
+.status-success,
+.status-ok {
+  border-color: var(--color-ok-border);
+  background-color: var(--color-ok-bg);
+  color: var(--color-ok-text);
+}
+
+.status-warn {
+  border-color: var(--color-warn-border);
+  background-color: var(--color-warn-bg);
+  color: var(--color-warn-text);
+}
+
+.status-error {
+  border-color: var(--color-err-border);
+  background-color: var(--color-err-bg);
+  color: var(--color-err-text);
+}
+
+.status-success-dot,
+.status-ok-dot { background-color: var(--color-ok-text); }
+.status-warn-dot { background-color: var(--color-warn-text); }
+.status-error-dot { background-color: var(--color-err-text); }

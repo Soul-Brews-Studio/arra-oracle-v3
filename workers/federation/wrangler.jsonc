@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "arra-oracle-federation-proxy",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-16",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "vars": {
+    "TUNNEL_URL": "https://your-tunnel.trycloudflare.com"
+  }
+}

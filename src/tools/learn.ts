@@ -9,10 +9,33 @@ import path from 'path';
 import fs from 'fs';
 import { oracleDocuments } from '../db/schema.ts';
 import { detectProject } from '../server/project-detect.ts';
-import { getVaultPsiRoot } from '../vault/handler.ts';
 import { getVectorStoreByModel, getEmbeddingModels } from '../vector/factory.ts';
-import { enqueueIndexJob } from '../indexer/jobs.ts';
 import { REPO_ROOT } from '../config.ts';
+import { buildLearningMarkdown, dateSlug, learningSlug, uniqueTail } from '../learn/markdown.ts';
+
+// Lazy-loaded on first use — avoids top-level await which causes a TDZ
+// error in consumers that import learnToolDef synchronously (the tools
+// barrel) and breaks the M5 enqueue test that imports handleLearn before
+// the dynamic import resolves.
+let enqueueIndexJob: ((sqlite: any, opts: any) => void) | null = null;
+let enqueueLoaded = false;
+async function loadEnqueue(): Promise<typeof enqueueIndexJob> {
+  if (enqueueLoaded) return enqueueIndexJob;
+  enqueueLoaded = true;
+  try {
+    enqueueIndexJob = (await import('../indexer/jobs.ts')).enqueueIndexJob;
+  } catch {
+    // Indexer not available — learn still works, just no async job queuing
+  }
+  return enqueueIndexJob;
+}
+let getVaultPsiRootFn: typeof import('../vault/handler.ts').getVaultPsiRoot | null = null;
+async function loadGetVaultPsiRoot(): Promise<typeof import('../vault/handler.ts').getVaultPsiRoot> {
+  if (!getVaultPsiRootFn) {
+    getVaultPsiRootFn = (await import('../vault/handler.ts')).getVaultPsiRoot;
+  }
+  return getVaultPsiRootFn;
+}
 import type { ToolContext, ToolResponse, OracleLearnInput } from './types.ts';
 
 /** Coerce concepts to string[] — handles string, array, or undefined from MCP input */
@@ -23,7 +46,7 @@ export function coerceConcepts(concepts: unknown): string[] {
 }
 
 export const learnToolDef = {
-  name: 'arra_learn',
+  name: 'oracle_learn',
   description: 'Add a new pattern or learning to the Oracle knowledge base. Creates a markdown file in ψ/memory/learnings/ and indexes it.',
   inputSchema: {
     type: 'object',
@@ -83,7 +106,7 @@ export function normalizeProject(input?: string): string | null {
 
 /**
  * Extract project from source field (fallback).
- * Handles "arra_learn from github.com/owner/repo" and "rrr: org/repo" formats.
+ * Handles "oracle_learn from github.com/owner/repo" and "rrr: org/repo" formats.
  */
 export function extractProjectFromSource(source?: string): string | null {
   if (!source) return null;
@@ -100,26 +123,80 @@ export function extractProjectFromSource(source?: string): string | null {
   return null;
 }
 
+export function errorDetails(error: unknown): {
+  name: string;
+  message: string;
+  stack?: string;
+  cause?: unknown;
+} {
+  if (error instanceof Error) {
+    return {
+      name: error.name || 'Error',
+      message: error.message,
+      ...(error.stack && { stack: error.stack }),
+      ...('cause' in error && error.cause !== undefined && { cause: String(error.cause) }),
+    };
+  }
+  return {
+    name: 'NonError',
+    message: String(error),
+  };
+}
+
 // ============================================================================
 // Handler
 // ============================================================================
 
 export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Promise<ToolResponse> {
+  // Null-guard: MCP clients sometimes call with no args. Show usage instead of crashing.
+  if (input == null || typeof input !== 'object') {
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          success: false,
+          error: "arra_learn requires field 'pattern' (non-empty string).",
+          usage: "arra_learn({ pattern: 'your learning or pattern...', concepts?: ['tag1','tag2'], project?: 'github.com/owner/repo', source?: 'optional source' })",
+          tip: "Search for similar topics first with arra_search, and use arra_supersede if updating older info."
+        }, null, 2)
+      }],
+      isError: true
+    };
+  }
+
   const { pattern, source, concepts, project: projectInput } = input;
+
+  // Validate pattern: must be a non-empty string before any string ops or filename derivation.
+  // (Cast through `unknown` so the runtime check survives even when callers pass undefined despite TS typing.)
+  if (typeof (pattern as unknown) !== 'string' || (pattern as string).trim().length === 0) {
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          success: false,
+          error: "arra_learn requires field 'pattern' (non-empty string).",
+          received: pattern === undefined ? 'undefined' : typeof pattern,
+          usage: "arra_learn({ pattern: 'your learning or pattern...', concepts?: ['tag1','tag2'] })",
+          tip: "Empty pattern would produce a corrupt filename; reject upfront."
+        }, null, 2)
+      }],
+      isError: true
+    };
+  }
+
   const now = new Date();
-  const dateStr = now.toISOString().split('T')[0];
+  const dateStr = dateSlug(now);
 
-  const slug = pattern
-    .substring(0, 50)
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-
-  const filename = `${dateStr}_${slug}.md`;
+  // Was an inline copy of the slug logic WITHOUT learningSlug's `|| 'learning'`
+  // fallback. The regex strips everything outside [a-z0-9\s-], so a wholly
+  // non-ASCII pattern — Thai, Japanese, Cyrillic — slugged to the empty string,
+  // the file became `<date>_.md`, and the SECOND such learning on the same day
+  // hit the "File already exists" throw below. The caller is an AI that does not
+  // retry, so the learning was silently lost. See #2819.
+  const slug = learningSlug(pattern);
 
   // Resolve vault root for central writes
+  const getVaultPsiRoot = await loadGetVaultPsiRoot();
   const vault = getVaultPsiRoot();
   if ('needsInit' in vault) console.error(`[Vault] ${vault.hint}`);
   const vaultRoot = 'path' in vault ? vault.path : null;
@@ -129,50 +206,39 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
     || detectProject(ctx.repoRoot);
   const projectDir = (project || '_universal').toLowerCase();
 
-  let filePath: string;
-  let sourceFileRel: string;
-  if (vaultRoot) {
-    const dir = path.join(vaultRoot, projectDir, 'ψ', 'memory', 'learnings');
-    fs.mkdirSync(dir, { recursive: true });
-    filePath = path.join(dir, filename);
-    sourceFileRel = `${projectDir}/ψ/memory/learnings/${filename}`;
-  } else {
+  const dir = vaultRoot
+    ? path.join(vaultRoot, projectDir, 'ψ', 'memory', 'learnings')
     // Write to canonical REPO_ROOT, not ctx.repoRoot (the MCP server's cwd):
     // the dashboard's /api/file resolves source_file against REPO_ROOT, so
     // writing relative to cwd produces "local file not found" (#557).
-    const dir = path.join(REPO_ROOT, 'ψ/memory/learnings');
-    fs.mkdirSync(dir, { recursive: true });
-    filePath = path.join(dir, filename);
-    sourceFileRel = `ψ/memory/learnings/${filename}`;
-  }
+    : path.join(REPO_ROOT, 'ψ/memory/learnings');
+  fs.mkdirSync(dir, { recursive: true });
 
-  if (fs.existsSync(filePath)) {
-    throw new Error(`File already exists: ${filename}`);
-  }
+  // Suffix instead of throwing. Two learnings a day sharing a slug is ordinary —
+  // and now guaranteed for non-ASCII patterns, which all fall back to the same
+  // 'learning' slug. Throwing loses the second one because the caller is an AI
+  // that does not retry. Mirrors routes/learn/crud.ts:78-107. (#2819)
+  const tail = uniqueTail(dir, dateStr, slug);
+  const filename = `${dateStr}_${tail}.md`;
+  const filePath = path.join(dir, filename);
+  const sourceFileRel = vaultRoot
+    ? `${projectDir}/ψ/memory/learnings/${filename}`
+    : `ψ/memory/learnings/${filename}`;
 
+  const id = `learning_${dateStr}_${tail}`;
   const title = pattern.split('\n')[0].substring(0, 80);
   const conceptsList = coerceConcepts(concepts);
-  const frontmatter = [
-    '---',
-    `title: ${title}`,
-    conceptsList.length > 0 ? `tags: [${conceptsList.join(', ')}]` : 'tags: []',
-    `created: ${dateStr}`,
-    `source: ${source || 'Oracle Learn'}`,
-    ...(project ? [`project: ${project}`] : []),
-    '---',
-    '',
-    `# ${title}`,
-    '',
+  const frontmatter = buildLearningMarkdown({
+    id,
     pattern,
-    '',
-    '---',
-    '*Added via Oracle Learn*',
-    ''
-  ].join('\n');
+    title,
+    concepts: conceptsList,
+    createdAt: now,
+    source,
+    project,
+  });
 
   fs.writeFileSync(filePath, frontmatter, 'utf-8');
-
-  const id = `learning_${dateStr}_${slug}`;
 
   ctx.db.insert(oracleDocuments).values({
     id,
@@ -184,7 +250,7 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
     indexedAt: now.getTime(),
     origin: null,
     project,
-    createdBy: 'arra_learn',
+    createdBy: 'oracle_learn',
   }).run();
 
   // FTS5 has no unique constraint on id — delete-then-insert to be idempotent.
@@ -196,21 +262,24 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
 
   // Vector indexing — two paths:
   //   - Default (env unset): inline embed via Ollama. Keeps DB + lancedb in
-  //     step so arra_search hybrid mode works immediately. Graceful fallback
+  //     step so oracle_search hybrid mode works immediately. Graceful fallback
   //     on embedder failure — FTS row above is still searchable.
   //   - ORACLE_INDEXER_ENQUEUE=1 (M5 of indexer-CLI): queue a row in
   //     indexing_jobs for the daemon to embed asynchronously. FTS-first /
   //     vector-later. Never blocks ingest. Architecture:
   //     ψ/lab/indexer-cli/DESIGN.md.
   let embeddingStatus: 'ok' | 'skipped' | 'failed' | 'enqueued' = 'skipped';
-  if (process.env.ORACLE_INDEXER_ENQUEUE === '1') {
+  let embeddingError: ReturnType<typeof errorDetails> | undefined;
+  const enqueue = process.env.ORACLE_INDEXER_ENQUEUE === '1' ? await loadEnqueue() : null;
+  if (enqueue) {
     try {
-      enqueueIndexJob(ctx.sqlite, { docId: id, models: getEmbeddingModels() });
+      enqueue(ctx.sqlite, { docId: id, models: getEmbeddingModels() });
       embeddingStatus = 'enqueued';
     } catch (err) {
       // Never block ingest on the queue — same posture as the inline path.
       embeddingStatus = 'failed';
-      console.warn(`[arra_learn] enqueue failed: ${err instanceof Error ? err.message : String(err)}`);
+      embeddingError = errorDetails(err);
+      console.warn(`[oracle_learn] enqueue failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   } else {
     try {
@@ -229,8 +298,9 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
       embeddingStatus = 'ok';
     } catch (err) {
       embeddingStatus = 'failed';
-      console.warn(`[arra_learn] vector embedding failed for ${id}: ${err instanceof Error ? err.message : String(err)}`);
-      console.warn(`[arra_learn] document still searchable via FTS5; run 'bun src/scripts/index-model.ts <model>' later to backfill vectors`);
+      embeddingError = errorDetails(err);
+      console.warn(`[oracle_learn] vector embedding failed for ${id}: ${err instanceof Error ? err.message : String(err)}`);
+      console.warn(`[oracle_learn] document still searchable via FTS5; run 'bun src/scripts/index-model.ts <model>' later to backfill vectors`);
     }
   }
 
@@ -242,6 +312,7 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
         file: sourceFileRel,
         id,
         embedding: embeddingStatus,
+        ...(embeddingError && { embeddingError }),
         message: `Pattern added to Oracle knowledge base${vaultRoot ? ' (vault)' : ''}${embeddingStatus === 'failed' ? ' — vector embedding failed, see server log' : ''}`
       }, null, 2)
     }]

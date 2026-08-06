@@ -30,6 +30,39 @@ const defaultOptions: Required<HealthCheckOptions> = {
   shutdownPath: '/shutdown'
 };
 
+function normalizePath(value: unknown, fallback = '/'): string {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  if (!trimmed) return '/';
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+}
+
+function optionString(
+  options: unknown,
+  key: keyof Required<HealthCheckOptions>,
+  fallback: string,
+): string {
+  if (!options || typeof options !== 'object') return fallback;
+  try {
+    const value = (options as Record<string, unknown>)[key];
+    return typeof value === 'string' ? value : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeOptions(options: HealthCheckOptions = {}): Required<HealthCheckOptions> {
+  const baseUrl = optionString(options, 'baseUrl', defaultOptions.baseUrl)
+    .trim()
+    .replace(/\/+$/, '');
+  return {
+    baseUrl: baseUrl || defaultOptions.baseUrl,
+    healthPath: normalizePath(optionString(options, 'healthPath', defaultOptions.healthPath)),
+    readinessPath: normalizePath(optionString(options, 'readinessPath', defaultOptions.readinessPath)),
+    shutdownPath: normalizePath(optionString(options, 'shutdownPath', defaultOptions.shutdownPath)),
+  };
+}
+
 /**
  * Check if a port is in use by querying the health endpoint
  */
@@ -37,7 +70,7 @@ export async function isPortInUse(
   port: number,
   options: HealthCheckOptions = {}
 ): Promise<boolean> {
-  const opts = { ...defaultOptions, ...options };
+  const opts = normalizeOptions(options);
   try {
     const response = await fetch(`${opts.baseUrl}:${port}${opts.healthPath}`);
     return response.ok;
@@ -57,7 +90,7 @@ export async function waitForHealth(
   timeoutMs: number = 30000,
   options: HealthCheckOptions = {}
 ): Promise<boolean> {
-  const opts = { ...defaultOptions, ...options };
+  const opts = normalizeOptions(options);
   const start = Date.now();
 
   while (Date.now() - start < timeoutMs) {
@@ -99,7 +132,7 @@ export async function httpShutdown(
   port: number,
   options: HealthCheckOptions = {}
 ): Promise<boolean> {
-  const opts = { ...defaultOptions, ...options };
+  const opts = normalizeOptions(options);
 
   try {
     const response = await fetch(`${opts.baseUrl}:${port}${opts.shutdownPath}`, {
@@ -127,7 +160,7 @@ export async function getWorkerStatus(
   port: number,
   options: HealthCheckOptions = {}
 ): Promise<{ running: boolean; healthy: boolean }> {
-  const opts = { ...defaultOptions, ...options };
+  const opts = normalizeOptions(options);
 
   try {
     const healthResponse = await fetch(`${opts.baseUrl}:${port}${opts.healthPath}`);
@@ -135,8 +168,12 @@ export async function getWorkerStatus(
       return { running: true, healthy: false };
     }
 
-    const readinessResponse = await fetch(`${opts.baseUrl}:${port}${opts.readinessPath}`);
-    return { running: true, healthy: readinessResponse.ok };
+    try {
+      const readinessResponse = await fetch(`${opts.baseUrl}:${port}${opts.readinessPath}`);
+      return { running: true, healthy: readinessResponse.ok };
+    } catch {
+      return { running: true, healthy: false };
+    }
   } catch {
     return { running: false, healthy: false };
   }
@@ -150,13 +187,13 @@ export async function getWorkerVersion(
   versionPath: string = '/version',
   options: HealthCheckOptions = {}
 ): Promise<string | null> {
-  const opts = { ...defaultOptions, ...options };
+  const opts = normalizeOptions(options);
 
   try {
-    const response = await fetch(`${opts.baseUrl}:${port}${versionPath}`);
+    const response = await fetch(`${opts.baseUrl}:${port}${normalizePath(versionPath, '/version')}`);
     if (!response.ok) return null;
-    const data = await response.json() as { version: string };
-    return data.version;
+    const data = await response.json() as { version?: unknown };
+    return typeof data.version === 'string' && data.version.trim() ? data.version.trim() : null;
   } catch {
     return null;
   }
