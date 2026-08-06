@@ -7,12 +7,20 @@
 
 import fs from 'fs';
 import path from 'path';
-import { getVaultPsiRoot } from '../vault/handler.ts';
 import type { ToolContext, ToolResponse, OracleReadInput } from './types.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
+
+let getVaultPsiRootFn: typeof import('../vault/handler.ts').getVaultPsiRoot | null = null;
+async function loadGetVaultPsiRoot(): Promise<typeof import('../vault/handler.ts').getVaultPsiRoot> {
+  if (!getVaultPsiRootFn) {
+    getVaultPsiRootFn = (await import('../vault/handler.ts')).getVaultPsiRoot;
+  }
+  return getVaultPsiRootFn;
+}
 
 export const readToolDef = {
-  name: 'arra_read',
-  description: 'Read full content of an Oracle document by file path or document ID. Use after arra_search to retrieve complete file contents. Resolves vault paths, ghq paths, and symlinks server-side.',
+  name: 'oracle_read',
+  description: 'Read full content of an Oracle document by file path or document ID. Use after oracle_search to retrieve complete file contents. Resolves vault paths, ghq paths, and symlinks server-side.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -22,7 +30,7 @@ export const readToolDef = {
       },
       id: {
         type: 'string',
-        description: 'Document ID from arra_search results. Looks up source_file from DB.',
+        description: 'Document ID from oracle_search results. Looks up source_file from DB.',
       },
     },
   },
@@ -44,37 +52,87 @@ function detectGhqRoot(repoRoot: string): string {
 }
 
 /** Extract ghq-style project prefix from a source_file path */
+
+function projectMatchesTenant(project: string, tenantId: string): boolean {
+  const normalizedProject = project.trim().toLowerCase();
+  const tenant = tenantId.trim().toLowerCase();
+  if (!tenant || normalizedProject === tenant) return true;
+  return normalizedProject.split(/[\/]+/).filter(Boolean).includes(tenant);
+}
+
+function notFound(idOrFile: string): ToolResponse {
+  return {
+    content: [{ type: 'text', text: JSON.stringify({ error: `Document not found: ${idOrFile}` }) }],
+    isError: true,
+  };
+}
+
+function usageError(): ToolResponse {
+  return {
+    content: [{ type: 'text', text: JSON.stringify({ error: 'Provide file or id parameter' }) }],
+    isError: true,
+  };
+}
+
+function inputString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value.trim() || undefined : undefined;
+}
+
 function extractProject(filePath: string): { project: string; remainder: string } | null {
   const match = filePath.match(/^(github\.com\/[^/]+\/[^/]+)\/(.*)/);
   if (match) return { project: match[1], remainder: match[2] };
   return null;
 }
 
+function tenantPathOwner(filePath: string): string | null {
+  const parts = filePath.split(/[\\/]+/);
+  const index = parts.findIndex((part, i) => part === 'tenants' && parts[i - 1] === 'ψ');
+  return index >= 0 ? parts[index + 1] ?? null : null;
+}
+
+function isWithinPath(child: string, parent: string): boolean {
+  const relative = path.relative(parent, child);
+  return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function existingPathInside(root: string, relativePath: string): string | null {
+  try {
+    const realRoot = fs.realpathSync(root);
+    const candidate = path.resolve(realRoot, relativePath);
+    if (!isWithinPath(candidate, realRoot) || !fs.existsSync(candidate)) return null;
+    const realCandidate = fs.realpathSync(candidate);
+    return isWithinPath(realCandidate, realRoot) ? realCandidate : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Try to resolve a source_file path to a readable absolute path.
  * Returns the absolute path if found, null otherwise.
  */
-function resolveFilePath(
+async function resolveFilePath(
   sourceFile: string,
   repoRoot: string,
   ghqRoot: string,
-): string | null {
+): Promise<string | null> {
   // 1. Try direct from repoRoot (handles "ψ/memory/..." paths)
-  const directPath = path.join(repoRoot, sourceFile);
-  if (fs.existsSync(directPath)) return fs.realpathSync(directPath);
+  const directPath = existingPathInside(repoRoot, sourceFile);
+  if (directPath) return directPath;
 
   // 2. Try ghq project path (handles "github.com/org/repo/ψ/..." paths)
   const extracted = extractProject(sourceFile);
   if (extracted) {
-    const projectPath = path.join(ghqRoot, extracted.project, extracted.remainder);
-    if (fs.existsSync(projectPath)) return fs.realpathSync(projectPath);
+    const projectPath = existingPathInside(ghqRoot, path.join(extracted.project, extracted.remainder));
+    if (projectPath) return projectPath;
   }
 
   // 3. Try vault fallback
+  const getVaultPsiRoot = await loadGetVaultPsiRoot();
   const vault = getVaultPsiRoot();
   if ('path' in vault) {
-    const vaultPath = path.join(vault.path, sourceFile);
-    if (fs.existsSync(vaultPath)) return fs.realpathSync(vaultPath);
+    const vaultPath = existingPathInside(vault.path, sourceFile);
+    if (vaultPath) return vaultPath;
   }
 
   return null;
@@ -84,48 +142,53 @@ function resolveFilePath(
 function isPathAllowed(resolvedPath: string, repoRoot: string, ghqRoot: string): boolean {
   try {
     const realGhq = fs.realpathSync(ghqRoot);
-    if (resolvedPath.startsWith(realGhq)) return true;
+    if (isWithinPath(resolvedPath, realGhq)) return true;
   } catch { /* ghq root may not exist */ }
 
   try {
     const realRepo = fs.realpathSync(repoRoot);
-    if (resolvedPath.startsWith(realRepo)) return true;
+    if (isWithinPath(resolvedPath, realRepo)) return true;
   } catch { /* unlikely */ }
 
   return false;
 }
 
 export async function handleRead(ctx: ToolContext, input: OracleReadInput): Promise<ToolResponse> {
-  const { file, id } = input;
+  if (input == null || typeof input !== 'object') return usageError();
+  const { file: rawFile, id: rawId } = input as { file?: unknown; id?: unknown };
+  const file = inputString(rawFile);
+  const id = inputString(rawId);
 
   if (!file && !id) {
-    return {
-      content: [{ type: 'text', text: JSON.stringify({ error: 'Provide file or id parameter' }) }],
-      isError: true,
-    };
+    return usageError();
   }
 
   let sourceFile = file;
   let project: string | null = null;
+  const tenantId = currentTenantId();
 
   // ID lookup: resolve source_file from DB
   if (id) {
-    const row = ctx.sqlite.prepare(
-      'SELECT source_file, project FROM oracle_documents WHERE id = ?'
-    ).get(id) as { source_file: string; project: string | null } | null;
+    const row = tenantId
+      ? ctx.sqlite.prepare('SELECT source_file, project FROM oracle_documents WHERE id = ? AND tenant_id = ?')
+        .get(id, tenantId) as { source_file: string; project: string | null } | null
+      : ctx.sqlite.prepare('SELECT source_file, project FROM oracle_documents WHERE id = ?')
+        .get(id) as { source_file: string; project: string | null } | null;
 
-    if (!row) {
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ error: `Document not found: ${id}` }) }],
-        isError: true,
-      };
-    }
+    if (!row) return notFound(id);
     sourceFile = sourceFile || row.source_file;
     project = row.project;
   }
 
+  const sourceProject = project ?? (sourceFile ? extractProject(sourceFile)?.project ?? null : null);
+  if (tenantId && sourceProject && !projectMatchesTenant(sourceProject, tenantId)) {
+    return notFound(id || sourceFile || 'file');
+  }
+  const pathTenant = tenantId && sourceFile ? tenantPathOwner(sourceFile) : null;
+  if (tenantId && pathTenant && pathTenant !== tenantId) return notFound(id || sourceFile || 'file');
+
   const ghqRoot = detectGhqRoot(ctx.repoRoot);
-  const resolvedPath = resolveFilePath(sourceFile!, ctx.repoRoot, ghqRoot);
+  const resolvedPath = await resolveFilePath(sourceFile!, ctx.repoRoot, ghqRoot);
 
   // File found on disk
   if (resolvedPath && isPathAllowed(resolvedPath, ctx.repoRoot, ghqRoot)) {

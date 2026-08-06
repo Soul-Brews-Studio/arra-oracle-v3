@@ -14,7 +14,7 @@ note: This is the original planning document with implementation annotations.
 >
 > | Planned | Delivered |
 > |---------|-----------|
-> | 3 tools | **19 tools** |
+> | 3 tools | **27 MCP tools** |
 > | Skills approach | **MCP-first** |
 > | 3 phases | **6 phases** |
 
@@ -37,21 +37,21 @@ Arra Oracle v3 transforms the existing Oracle philosophy files into a **searchab
 
 ### Original Plan
 ```
-Claude Code → Skills Layer → MCP Server → SQLite + Chroma
+Claude Code → Skills Layer → MCP Server → SQLite + vector store
 ```
 
 ### What Was Built ⚡
 ```
-Claude Code → MCP Server (stdio) → SQLite + ChromaDB + Drizzle ORM
+Claude Code → MCP Server (stdio) → SQLite + LanceDB/default vector adapters + Drizzle ORM
                     ↓
-              HTTP Server (Hono.js :47778)
+              HTTP Server (Elysia :47778)
                     ↓
               React Dashboard (:3000)
 ```
 
 **Changes:**
 - ❌ Skills layer removed - MCP tools work better in practice
-- ⚡ Added HTTP API (Hono.js) - REST endpoints for external access
+- ⚡ Added HTTP API (Elysia) - REST endpoints for external access
 - ⚡ Added React Dashboard - Visual knowledge graph
 - ⚡ Added Drizzle ORM - Type-safe database queries
 
@@ -93,16 +93,16 @@ interface OracleDocument {
 | `oracle_consult` | ✅ | Decision guidance with synthesis |
 | `oracle_learn` | ✅ | Creates markdown files in ψ/memory/learnings/ |
 
-### Actually Delivered: 19 Tools ⚡
+### Actually Delivered: 27 MCP Tools ⚡
 
 | Category | Tools | Notes |
 |----------|-------|-------|
-| **Core (4)** | `search`, `consult`, `reflect`, `learn` | Original + reflect |
-| **Discovery (3)** | `list`, `stats`, `concepts` | Browse & explore |
-| **Threads (4)** | `thread`, `threads`, `thread_read`, `thread_update` | Forum discussions |
-| **Decisions (4)** | `decisions_list`, `decisions_create`, `decisions_get`, `decisions_update` | Decision tracking |
-| **Traces (3)** | `trace`, `trace_list`, `trace_get` | Discovery logging |
-| **Evolution (1)** | `supersede` | "Nothing is Deleted" |
+| **Guide (1)** | `____IMPORTANT` | MCP usage guide |
+| **Search/read (4)** | `oracle_search`, `oracle_read`, `oracle_list`, `oracle_concepts` | Browse & explore |
+| **Knowledge (4)** | `oracle_learn`, `oracle_stats`, `oracle_supersede`, `oracle_research_note` | Learn, inspect, supersede |
+| **Threads/session (6)** | `oracle_thread*`, `oracle_handoff`, `oracle_inbox` | Forum discussions and handoffs |
+| **Oracle/trace (8)** | `oracle_profile`, `oracle_trace*`, `oracle_trace_distill` | Profiles, trace chains, distillation |
+| **Ops (4)** | `oracle_reflect`, `oracle_verify`, `oracle_mcp_list_tools`, `oracle_mcp_call` | Review and MCP-in calls |
 
 ---
 
@@ -122,7 +122,7 @@ interface OracleDocument {
 |-------|-------|---------------|
 | 0. Genesis | Sept-Dec 2025 | Philosophy foundations |
 | 1. Conception | Dec 24-27 | MCP server idea |
-| 2. MVP | Dec 29 - Jan 2 | FTS5 + ChromaDB hybrid |
+| 2. MVP | Dec 29 - Jan 2 | FTS5 + LanceDB/vector hybrid |
 | 3. Maturation | Jan 3-6 | Drizzle ORM, AI-to-AI |
 | 4. Features | Jan 7-11 | Threads, decisions, traces, dashboard |
 | 5. Release | Jan 15 | Open source |
@@ -141,13 +141,13 @@ See [TIMELINE.md](../TIMELINE.md) for full history.
 
 ### 2. Local Embeddings ✅
 
-**Original**: ChromaDB + sentence-transformers
+**Original**: external vector DB + sentence-transformers
 
-**Reality**: Implemented as planned. Zero API cost, works offline.
+**Reality**: Current default local vector path is LanceDB with adapter options. Zero API cost still works offline.
 
 ### 3. Source-of-Truth = Files ✅
 
-**Original**: Markdown files in git, SQLite/Chroma are indexes
+**Original**: Markdown files in git, SQLite/vector stores are indexes
 
 **Reality**: Exactly as planned. Human-editable, auditable.
 
@@ -189,8 +189,8 @@ See [TIMELINE.md](../TIMELINE.md) for full history.
 ## Original Next Steps ✅ ALL DONE
 
 - [x] Create ψ/lab/arra-oracle-v2/prototype.ts → Became `src/index.ts`
-- [x] Test Chroma indexing → Works with 5,500+ documents
-- [x] Create oracle skill → Evolved to 19 MCP tools
+- [x] Test vector indexing → Works with the local LanceDB/default vector path
+- [x] Create oracle skill → Evolved to 27 MCP tools
 - [x] Test in real session → Production since Jan 15
 
 ---

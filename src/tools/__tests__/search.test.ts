@@ -9,6 +9,7 @@ import {
   normalizeFtsScore,
   parseConceptsFromMetadata,
   combineResults,
+  applyEntityLinkBoost,
 } from '../search.ts';
 
 // ============================================================================
@@ -17,40 +18,47 @@ import {
 
 describe('sanitizeFtsQuery', () => {
   it('should remove FTS5 special characters', () => {
-    expect(sanitizeFtsQuery('hello?')).toBe('hello');
-    expect(sanitizeFtsQuery('test*')).toBe('test');
-    expect(sanitizeFtsQuery('a + b')).toBe('a b');
-    expect(sanitizeFtsQuery('NOT this')).toBe('NOT this');
+    expect(sanitizeFtsQuery('hello?')).toBe('\"hello\"');
+    expect(sanitizeFtsQuery('test*')).toBe('\"test\"');
+    expect(sanitizeFtsQuery('a + b')).toBe('\"a\" OR \"b\"');
+    expect(sanitizeFtsQuery('NOT this')).toBe('\"NOT\" OR \"this\"');
   });
 
   it('should handle quotes', () => {
-    expect(sanitizeFtsQuery('"exact phrase"')).toBe('exact phrase');
-    expect(sanitizeFtsQuery("it's a test")).toBe('it s a test');
+    expect(sanitizeFtsQuery('\"exact phrase\"')).toBe('\"exact\" OR \"phrase\"');
+    expect(sanitizeFtsQuery("it's a test")).toBe('\"it\" OR \"s\" OR \"a\" OR \"test\"');
   });
 
   it('should normalize whitespace', () => {
-    expect(sanitizeFtsQuery('  hello   world  ')).toBe('hello world');
-    expect(sanitizeFtsQuery('a  b  c')).toBe('a b c');
+    expect(sanitizeFtsQuery('  hello   world  ')).toBe('\"hello\" OR \"world\"');
+    expect(sanitizeFtsQuery('a  b  c')).toBe('\"a\" OR \"b\" OR \"c\"');
   });
 
-  it('should handle empty result by returning original', () => {
-    expect(sanitizeFtsQuery('???')).toBe('???');
-    expect(sanitizeFtsQuery('***')).toBe('***');
+  it('should return empty when no searchable tokens remain', () => {
+    expect(sanitizeFtsQuery('???')).toBe('');
+    expect(sanitizeFtsQuery('***')).toBe('');
   });
 
   it('should preserve valid queries', () => {
-    expect(sanitizeFtsQuery('oracle philosophy')).toBe('oracle philosophy');
-    expect(sanitizeFtsQuery('git safety')).toBe('git safety');
+    expect(sanitizeFtsQuery('oracle philosophy')).toBe('\"oracle\" OR \"philosophy\"');
+    expect(sanitizeFtsQuery('git safety')).toBe('\"git\" OR \"safety\"');
+  });
+
+  it('should append acronym expansions to MCP search tokens', () => {
+    const query = sanitizeFtsQuery('CORS PNA vector URL preflight');
+    expect(query).toContain('\"Cross\" OR \"Origin\" OR \"Resource\" OR \"Sharing\"');
+    expect(query).toContain('\"Access\" OR \"Control\" OR \"Allow\"');
+    expect(query).toContain('\"vectorAvailable\"');
   });
 
   it('should handle colons which break FTS5', () => {
-    expect(sanitizeFtsQuery('error: no such column')).toBe('error no such column');
-    expect(sanitizeFtsQuery('time: 15:30')).toBe('time 15 30');
+    expect(sanitizeFtsQuery('error: no such column')).toBe('\"error\" OR \"no\" OR \"such\" OR \"column\"');
+    expect(sanitizeFtsQuery('time: 15:30')).toBe('\"time\" OR \"15\" OR \"30\"');
   });
 
   it('should handle forward slashes which break FTS5', () => {
-    expect(sanitizeFtsQuery('Shopee/Lazada/TikTok')).toBe('Shopee Lazada TikTok');
-    expect(sanitizeFtsQuery('path/to/file')).toBe('path to file');
+    expect(sanitizeFtsQuery('Shopee/Lazada/TikTok')).toBe('\"Shopee\" OR \"Lazada\" OR \"TikTok\"');
+    expect(sanitizeFtsQuery('path/to/file')).toBe('\"path\" OR \"to\" OR \"file\"');
   });
 });
 
@@ -157,5 +165,38 @@ describe('combineResults', () => {
     expect(combineResults([], [])).toEqual([]);
     expect(combineResults(ftsResults, [])).toHaveLength(2);
     expect(combineResults([], vectorResults)).toHaveLength(2);
+  });
+});
+
+
+// ============================================================================
+// applyEntityLinkBoost
+// ============================================================================
+
+describe('applyEntityLinkBoost', () => {
+  const results = [
+    { id: 'plain', type: 'learning', content: 'Plain', source_file: 'plain.md', concepts: [], score: 0.6, source: 'fts' as const },
+    { id: 'linked', type: 'learning', content: 'Linked', source_file: 'linked.md', concepts: [], score: 0.45, source: 'fts' as const },
+  ];
+
+  it('should boost linked documents enough to affect rank', () => {
+    const boosted = applyEntityLinkBoost(results, [
+      { sourceDocId: 'linked', entity: 'Cloudflare Workers', score: 0.9 },
+    ]);
+
+    expect(boosted.boosted).toBe(1);
+    expect(boosted.results[0].id).toBe('linked');
+    expect(boosted.results[0].entityLinkScore).toBe(0.9);
+    expect(boosted.results[0].entityLinkMatches).toEqual(['Cloudflare Workers']);
+  });
+
+  it('should leave scores and order unchanged when no entity hits match', () => {
+    const boosted = applyEntityLinkBoost(results, [
+      { sourceDocId: 'other', entity: 'Other', score: 1 },
+    ]);
+
+    expect(boosted.boosted).toBe(0);
+    expect(boosted.results.map((result) => result.id)).toEqual(['plain', 'linked']);
+    expect(boosted.results.map((result) => result.score)).toEqual([0.6, 0.45]);
   });
 });

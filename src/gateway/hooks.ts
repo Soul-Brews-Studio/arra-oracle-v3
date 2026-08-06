@@ -32,9 +32,9 @@ export interface GatewayHook {
 }
 
 export interface HooksConfig {
-  onRequest?: string[];
-  onResponse?: string[];
-  onError?: string[];
+  onRequest?: string[] | string;
+  onResponse?: string[] | string;
+  onError?: string[] | string;
 }
 
 // ── Registry ───────────────────────────────────────────────────────
@@ -60,8 +60,7 @@ export function loadHooks(
   if (!cfg) return pipeline;
 
   for (const phase of ['onRequest', 'onResponse', 'onError'] as HookPhase[]) {
-    const names = cfg[phase] ?? [];
-    for (const name of names) {
+    for (const name of hookNames(cfg[phase])) {
       const hook = builtins.get(name);
       if (!hook) {
         console.warn(`[Gateway] unknown hook "${name}" in ${phase} — skipped`);
@@ -75,6 +74,12 @@ export function loadHooks(
     }
   }
   return pipeline;
+}
+
+function hookNames(value: unknown): string[] {
+  if (typeof value === 'string') return [value];
+  if (!Array.isArray(value)) return [];
+  return value.filter((name): name is string => typeof name === 'string');
 }
 
 // ── Runner ─────────────────────────────────────────────────────────

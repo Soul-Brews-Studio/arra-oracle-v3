@@ -1,177 +1,222 @@
-# Arra Oracle Installation Guide
+# Arra Oracle easy install
 
-Complete guide for fresh installation with seed data.
+Goal: install Arra Oracle like a plugin, start the HTTP/MCP surfaces, then add
+Oracle plugins without cloning the repo unless you are developing core code.
 
-## Quick Install (Recommended)
+Use this guide for tagged alpha releases. Use `#alpha` only when you explicitly
+want the moving branch head.
+
+## Prerequisites
+
+- Bun `>=1.2` in `PATH`.
+- Optional: Docker Desktop/Engine for container installs.
+- Optional: `ghq` if you use `arra plugin install github.com/owner/repo`.
+
+## Fast path: global Bun install
+
+Pick a released tag from GitHub Releases, then install the package globally:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Soul-Brews-Studio/arra-oracle-v2/main/scripts/fresh-install.sh | bash
+bun add -g github:Soul-Brews-Studio/arra-oracle-v3#vX.Y.Z
+# alpha prerelease example: #vX.Y.Z-alpha.N
 ```
 
-This one-liner will:
-1. Clone to `~/.local/share/arra-oracle-v2`
-2. Install dependencies
-3. Create seed philosophy files
-4. Index seed data (29 documents)
-5. Run tests
+Development/head install:
 
-## What Gets Created
-
-### Installation Directory
-```
-~/.local/share/arra-oracle-v2/    # Code
-~/.oracle/                 # Data
-├── oracle.db                 # SQLite database
-└── seed/                     # Seed philosophy files
-    └── ψ/memory/
-        ├── resonance/        # Core principles
-        │   ├── oracle.md
-        │   ├── patterns.md
-        │   └── style.md
-        └── learnings/        # Example learning
-```
-
-### Seed Philosophy Content
-
-**oracle.md** - Core Oracle Philosophy:
-- Nothing is Deleted (append only)
-- Patterns Over Intentions (observe behavior)
-- External Brain, Not Command (mirror, don't decide)
-
-**patterns.md** - Decision Patterns:
-- Ask first before destructive actions
-- Show don't tell
-- Commit often
-
-**style.md** - Communication Style:
-- Direct, Concise, Technical when needed, Human always
-
-## Post-Install Verification
-
-### 1. Start Server
 ```bash
-cd ~/.local/share/arra-oracle-v2
-bun run server
+bun add -g github:Soul-Brews-Studio/arra-oracle-v3#alpha
 ```
 
-### 2. Check Stats
+Verify the installed bins:
+
 ```bash
-curl http://localhost:47778/api/stats
+arra-oracle-v3 --help     # HTTP/MCP server runner
+arra --version            # operator CLI
+arra --help
 ```
 
-Expected: `{"total": 29, "by_type": {"learning": 3, "principle": 26}}`
+The current package also keeps legacy aliases (`arra-cli`, `arra-oracle-v2`). Use
+`arra-oracle-v3` for new server docs and `arra` for operator commands.
 
-### 3. Test Search
+## First server
+
+Choose a data directory and start the HTTP API:
+
 ```bash
-curl "http://localhost:47778/api/search?q=nothing+deleted"
+export ORACLE_DATA_DIR="$HOME/.oracle"
+export ORACLE_PORT=47778
+arra-oracle-v3 serve --port "$ORACLE_PORT"
 ```
 
-Expected: Top result is "Nothing is Deleted" principle
+From another shell:
 
-## Claude Code Configuration
+```bash
+open "http://localhost:$ORACLE_PORT/simple"   # human-first health screen
+curl -sf "http://localhost:$ORACLE_PORT/api/health"
+arra config add local "http://localhost:$ORACLE_PORT"
+arra config use local
+arra health
+```
 
-Add to `~/.claude.json`:
+Expected Simple Mode result: **Awake and remembering** when core health is
+ready, or an actionable recovery message if startup, DB, search/vector, or
+plugins are degraded. CLI fallback health includes `status: ok` /
+`server: arra-oracle-v3` and should use the same recovery targets.
+
+## First memory
+
+Store and search a small learning:
+
+```bash
+arra learn "Arra Oracle is installed from a pinned GitHub tag." \
+  --source "quickstart"
+
+arra search "pinned GitHub tag" --limit 5
+arra list --limit 5
+```
+
+If vectors are unavailable, FTS5 still works; vector backfill can happen later.
+
+## MCP stdio client setup
+
+Use the same installed package as an MCP server. Keep logs on stderr so stdout
+stays valid JSON-RPC:
+
 ```json
 {
   "mcpServers": {
-    "arra-oracle-v2": {
-      "command": "bun",
-      "args": ["run", "~/.local/share/arra-oracle-v2/src/index.ts"]
+    "arra-oracle": {
+      "command": "arra-oracle-v3",
+      "args": ["mcp"],
+      "env": {
+        "ORACLE_LOG_TARGET": "stderr",
+        "ORACLE_DATA_DIR": "~/.oracle"
+      }
     }
   }
 }
 ```
 
-## Manual Installation
+For HTTP-proxy MCP mode, point stdio clients at an already running HTTP server:
 
-If you prefer step-by-step:
+```json
+{
+  "mcpServers": {
+    "arra-oracle": {
+      "command": "arra-oracle-v3",
+      "args": ["mcp"],
+      "env": {
+        "ORACLE_LOG_TARGET": "stderr",
+        "ORACLE_HTTP_URL": "http://localhost:47778"
+      }
+    }
+  }
+}
+```
+
+## Plugin-style install
+
+Arra plugins live under parent-walk `.maw/plugins`, `$MAW_PLUGINS_DIR`, `~/.maw/plugins`, `~/.arra/plugins`, and `~/.oracle/plugins`. Install from a
+repo, local path, or prebuilt artifact:
 
 ```bash
-# 1. Clone
-git clone https://github.com/Soul-Brews-Studio/arra-oracle-v2.git ~/.local/share/arra-oracle-v2
-cd ~/.local/share/arra-oracle-v2
+arra plugin install github.com/owner/oracle-plugin
+arra plugin install ./local-plugin --dry-run
+arra plugin install --artifact https://example.com/plugin.wasm \
+  --manifest https://example.com/plugin.json
+arra plugin list
+```
 
-# 2. Install dependencies
+A source plugin needs `plugin.json`; a WASM artifact install can either provide a
+manifest URL or let the CLI synthesize one from the artifact name. Re-run with
+`--force` to overwrite an existing plugin install.
+
+## Source development install
+
+Use source only when editing core code:
+
+```bash
+git clone https://github.com/Soul-Brews-Studio/arra-oracle-v3.git
+cd arra-oracle-v3
 bun install
-
-# 3. Setup database
-bun run db:push
-
-# 4. Create seed data
-./scripts/seed.sh
-
-# 5. Index seed data
-ORACLE_REPO_ROOT=~/.oracle/seed bun run index
-
-# 6. Start server
+bunx tsc --noEmit
 bun run server
 ```
 
-## Index Your Own Knowledge
-
-To index your own ψ/memory files:
+Useful checks:
 
 ```bash
-ORACLE_REPO_ROOT=/path/to/your/repo bun run index
+bun test tests/http/health/
+bun test src/tools/__tests__/
 ```
 
-The indexer scans:
-- `ψ/memory/resonance/*.md` → principles
-- `ψ/memory/learnings/*.md` → learnings
-- `ψ/memory/retrospectives/**/*.md` → retrospectives
+## Docker install
 
-## Optional: Vector Search
-
-For semantic/vector search (in addition to keyword FTS5):
+HTTP API image:
 
 ```bash
-# Install uv (provides uvx)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Restart server - will auto-connect to ChromaDB
-bun run server
+docker run --rm -p 47778:47778 -v arra-oracle-data:/data \
+  ghcr.io/soul-brews-studio/arra-oracle-v3:http
+curl -sf http://localhost:47778/api/health
 ```
 
-Without uvx, Oracle falls back to FTS5-only search (still works).
+MCP stdio image:
+
+```bash
+docker run --rm -i -e ORACLE_LOG_TARGET=stderr -v arra-oracle-data:/data \
+  ghcr.io/soul-brews-studio/arra-oracle-v3:stdio
+```
+
+Docker MCP Toolkit catalog:
+
+```bash
+git clone https://github.com/Soul-Brews-Studio/arra-oracle-v3.git
+cd arra-oracle-v3
+docker mcp profile create --name arra-oracle \
+  --server file://$(pwd)/catalog/arra-oracle.yaml
+docker mcp client connect claude-desktop --profile arra_oracle
+```
+
+## Common setup knobs
+
+| Need | Knob |
+| --- | --- |
+| Data directory | `ORACLE_DATA_DIR=$HOME/.oracle` |
+| HTTP port | `ORACLE_PORT=47778` or `--port 47778` |
+| Protected HTTP writes | `ARRA_API_TOKEN=<token>` |
+| Tenant-scoped HTTP | `ORACLE_TENANT_TOKENS='team=<token>'` + `X-Oracle-Tenant` |
+| MCP proxy mode | `ORACLE_HTTP_URL=http://localhost:47778` |
+| Stdio-safe logs | `ORACLE_LOG_TARGET=stderr` |
+| Disable embeddings | `ORACLE_EMBEDDER=none` |
 
 ## Troubleshooting
 
-### Search returns 0 results after indexing
+### `command not found: arra-oracle-v3`
 
-Server caches database state. Restart after indexing:
-```bash
-pkill -f 'bun.*server'
-bun run server
-```
-
-### Indexer fails with ENOENT
-
-Directory structure must be `ψ/memory/` not just `memory/`:
-```bash
-# Wrong
-~/.oracle/seed/memory/resonance/
-
-# Correct
-~/.oracle/seed/ψ/memory/resonance/
-```
-
-### Vector search unavailable warning
-
-uvx not installed. FTS5 keyword search still works. Install uv for vectors:
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-## Uninstall
+Check Bun's global bin directory is on `PATH`:
 
 ```bash
-rm -rf ~/.local/share/arra-oracle-v2
-rm -rf ~/.oracle
+bun pm bin -g
 ```
 
----
+Add that directory to your shell profile, then restart the shell.
 
-See also:
-- [README.md](../README.md) - Overview
-- [API.md](./API.md) - API documentation
-- [architecture.md](./architecture.md) - System architecture
+### Port already in use
+
+```bash
+ORACLE_PORT=47881 arra-oracle-v3 serve --port 47881
+arra config add local-47881 http://localhost:47881
+arra config use local-47881
+```
+
+### MCP client shows JSON parse errors
+
+Set `ORACLE_LOG_TARGET=stderr`. Do not print logs to stdout in stdio mode.
+
+## Next
+
+- [QUICKSTART.md](./QUICKSTART.md) — five-minute first run.
+- [PLUGIN-GUIDE.md](./PLUGIN-GUIDE.md) — author unified plugins.
+- [BINS.md](./BINS.md) — command roles and aliases.
+- [FEDERATION.md](./FEDERATION.md) — peer pairing and security.
+- [vector-runtime.md](./vector-runtime.md) — vector backend configuration.

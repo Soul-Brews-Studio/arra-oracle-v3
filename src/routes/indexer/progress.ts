@@ -12,7 +12,14 @@ export const progressEndpoint = new Elysia().get('/indexer/progress', async ({ s
   return new Response(
     new ReadableStream({
       async start(controller) {
-        const sqlite = new Database(DB_PATH, { readonly: true });
+        let sqlite: Database | undefined;
+        try {
+          sqlite = new Database(DB_PATH, { readonly: true });
+        } catch {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ status: 'idle', current: 0, total: 0 })}\n\n`));
+          controller.close();
+          return;
+        }
         let done = false;
 
         while (!done) {

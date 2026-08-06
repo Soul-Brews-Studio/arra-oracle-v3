@@ -1,0 +1,11 @@
+name = "ui-canvas-oracle-studio"
+main = "../../src/workers/canvas/index.ts"
+compatibility_date = "2026-06-16"
+workers_dev = false
+
+routes = [
+  { pattern = "canvas.buildwithoracle.com", custom_domain = true }
+]
+
+[vars]
+ORACLE_API_BASE = "https://studio.buildwithoracle.com"

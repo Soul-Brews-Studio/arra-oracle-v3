@@ -1,0 +1,17 @@
+{
+  "name": "arra-canvas-serve",
+  "version": "1.0.0",
+  "entry": "./index.ts",
+  "sdk": "^0.0.1",
+  "weight": 35,
+  "description": "Serve canvas.buildwithoracle.com locally as a standalone app",
+  "cli": {
+    "command": "canvas-serve",
+    "help": "arra-cli canvas-serve [--port N] [--api-base URL] [--dry-run]",
+    "flags": {
+      "--port": "Standalone canvas port (default 47779)",
+      "--api-base": "Oracle API base URL",
+      "--dry-run": "Print resolved serve config and exit"
+    }
+  }
+}

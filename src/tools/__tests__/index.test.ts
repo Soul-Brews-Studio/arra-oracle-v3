@@ -7,6 +7,7 @@ import * as tools from '../index.ts';
 
 describe('tools barrel export', () => {
   it('exports core tool definitions', () => {
+    expect(tools.recapToolDef).toBeDefined();
     expect(tools.searchToolDef).toBeDefined();
     expect(tools.learnToolDef).toBeDefined();
     expect(tools.listToolDef).toBeDefined();
@@ -18,6 +19,7 @@ describe('tools barrel export', () => {
   });
 
   it('exports core handlers', () => {
+    expect(typeof tools.handleRecap).toBe('function');
     expect(typeof tools.handleSearch).toBe('function');
     expect(typeof tools.handleLearn).toBe('function');
     expect(typeof tools.handleList).toBe('function');

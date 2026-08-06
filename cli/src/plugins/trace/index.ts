@@ -1,7 +1,7 @@
 // arra-cli trace [query] [--limit N]
 // Calls: GET /api/traces?query=<query>&limit=N
-// Note: issue #770 listed this as /api/arra_trace — using GET /api/traces (list/search).
-// There is no HTTP POST endpoint to create traces; use the MCP tool arra_trace for that.
+// Note: issue #770 listed this as /api/muninn_trace — using GET /api/traces (list/search).
+// There is no HTTP POST endpoint to create traces; use the MCP tool muninn_trace for that.
 
 import type { InvokeContext, InvokeResult } from "../../plugin/types.ts";
 import { apiFetch } from "../../lib/api.ts";

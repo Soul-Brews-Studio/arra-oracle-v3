@@ -1,12 +1,13 @@
 import { Elysia } from 'elysia';
-import { getSetting } from '../../db/index.ts';
+import { getScopedSetting } from '../../db/scoped-settings.ts';
+import { activeTenantId } from '../../middleware/tenant.ts';
 
 export const getSettingsRoute = new Elysia().get('/', () => {
-  const authEnabled = getSetting('auth_enabled') === 'true';
-  const localBypass = getSetting('auth_local_bypass') !== 'false';
-  const hasPassword = !!getSetting('auth_password_hash');
-  const vaultRepo = getSetting('vault_repo');
-  return { authEnabled, localBypass, hasPassword, vaultRepo };
+  const authEnabled = getScopedSetting('auth_enabled') === 'true';
+  const localBypass = getScopedSetting('auth_local_bypass') !== 'false';
+  const hasPassword = !!getScopedSetting('auth_password_hash');
+  const vaultRepo = getScopedSetting('vault_repo');
+  return { authEnabled, localBypass, hasPassword, vaultRepo, tenantId: activeTenantId() };
 }, {
   detail: {
     tags: ['settings'],

@@ -1,0 +1,175 @@
+import type { ReactNode } from 'react';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { McpPage } from './pages/McpPage';
+import { MetricsPage } from './pages/MetricsPage';
+import { McpToolDetailPage } from './pages/McpToolDetailPage';
+import { ExportApp } from './pages/ExportApp';
+import { FeedPage } from './pages/FeedPage';
+import { FleetLogPage } from './pages/FleetLogPage';
+import { ForumPage } from './pages/ForumPage';
+import { LearnPage } from './pages/LearnPage';
+import { MemoryPage } from './pages/MemoryPage';
+import { MemoryConsolidationPage } from './pages/MemoryConsolidationPage';
+import { StudioSummary } from './components/StudioSummary';
+import { MenuPage } from './pages/MenuPage';
+import { OracleDigPage } from './pages/OracleDigPage';
+import { PluginsPage } from './pages/PluginsPage';
+import { CanvasAliasPage } from './pages/CanvasAliasPage';
+import { CanvasPluginsPage } from './pages/CanvasPluginsPage';
+import { ActivityPage } from './pages/ActivityPage';
+import { AskPage } from './pages/AskPage';
+import { SearchPage } from './pages/SearchPage';
+import { SettingsPage } from './pages/SettingsPage';
+import { StatusPage } from './pages/StatusPage';
+import { SimplePage } from './pages/SimplePage';
+import { StoragePage } from './pages/StoragePage';
+import { VectorPage } from './pages/VectorPage';
+import { VectorSearchPage } from './pages/VectorSearchPage';
+import { VectorDocumentsPage } from './pages/VectorDocumentsPage';
+import { VectorSearchResultsPage } from './pages/VectorSearchResultsPage';
+import { VectorExportPage } from './pages/VectorExportPage';
+import { ToolsConfigPage } from './pages/ToolsConfigPage';
+import { VectorSettingsPage } from './pages/VectorSettingsPage';
+import { VectorFirstRunWizardPage } from './pages/FirstRunWizard';
+import { IndexManagerPanel } from './pages/IndexManagerPanel';
+import type { LoadState, MenuItem, PluginEntry } from './types';
+import type { MetricsSnapshot } from '../../src/server/types';
+
+export const frontendRoutes = [
+  '/',
+  '/menu',
+  '/plugins',
+  '/status',
+  '/canvas',
+  '/canvas/plugins',
+  '/metrics',
+  '/search',
+  '/ask',
+  '/export',
+  '/feed',
+  '/fleet-log',
+  '/forum',
+  '/activity',
+  '/traces',
+  '/learn',
+  '/memory',
+  '/memory/consolidation',
+  '/oracle-dig',
+  '/vector',
+  '/vector/search',
+  '/vector/documents',
+  '/vector/first-run',
+  '/vector/index',
+  '/vector/results',
+  '/vector/export',
+  '/vector/settings',
+  '/mcp',
+  '/storage',
+  '/settings',
+  '/tools/config',
+  '/simple',
+] as const;
+export type FrontendRoute = typeof frontendRoutes[number];
+
+export type DashboardRouteStates = Record<'menu' | 'plugins' | 'metrics', LoadState>;
+
+export interface DashboardRoutesProps {
+  menu: MenuItem[];
+  plugins: PluginEntry[];
+  states: DashboardRouteStates;
+  metrics: MetricsSnapshot | null;
+  surfaceCount: number;
+  updatedAt: string;
+  onRefresh: () => void;
+}
+
+export function isRouteLoading(state: LoadState): boolean {
+  return state === 'loading' || state === 'idle';
+}
+
+export function AppRouter({ children }: { children: ReactNode }) {
+  return (
+    <ErrorBoundary>
+      <BrowserRouter>{children}</BrowserRouter>
+    </ErrorBoundary>
+  );
+}
+
+export function SimpleRoutes() {
+  return (
+    <Routes>
+      <Route path="/simple" element={<SimplePage />} />
+      <Route path="*" element={<Navigate to="/simple" replace />} />
+    </Routes>
+  );
+}
+
+export function DashboardRoutes({
+  menu,
+  plugins,
+  states,
+  metrics,
+  surfaceCount,
+  updatedAt,
+  onRefresh,
+}: DashboardRoutesProps) {
+  // The backend counters belong to the dashboard, not the shell. They used to
+  // render in AppShell above {children}, so all 34 routes carried them — on
+  // /metrics that was 13 stat cards, five of them about menu/plugin inventory.
+  const menuPage = (
+    <>
+      <StudioSummary
+        loading={isRouteLoading(states.menu) || isRouteLoading(states.plugins)}
+        menuCount={menu.length}
+        pluginCount={plugins.length}
+        surfaceCount={surfaceCount}
+        metrics={metrics}
+        metricsLoading={isRouteLoading(states.metrics)}
+        updatedAt={updatedAt}
+      />
+      <MenuPage />
+    </>
+  );
+  const pluginPage = <PluginsPage plugins={plugins} loading={isRouteLoading(states.plugins)} />;
+  return (
+    <Routes>
+      <Route index element={menuPage} />
+      <Route path="/plugins" element={pluginPage} />
+      <Route path="/status" element={<StatusPage />} />
+      <Route path="/canvas" element={<CanvasAliasPage />} />
+      <Route path="/canvas/plugins" element={<CanvasPluginsPage />} />
+      <Route path="/metrics" element={<MetricsPage metrics={metrics} loading={isRouteLoading(states.metrics)} />} />
+      <Route path="/search" element={<SearchPage />} />
+      <Route path="/ask" element={<AskPage />} />
+      <Route path="/export" element={<ExportApp />} />
+      <Route path="/feed" element={<FeedPage />} />
+      <Route path="/fleet-log" element={<FleetLogPage />} />
+      <Route path="/forum" element={<ForumPage />} />
+      <Route path="/activity" element={<ActivityPage />} />
+      <Route path="/traces" element={<ActivityPage />} />
+      <Route path="/learn" element={<LearnPage />} />
+      <Route path="/memory" element={<MemoryPage />} />
+      <Route path="/memory/consolidation" element={<MemoryConsolidationPage />} />
+      <Route path="/oracle-dig" element={<OracleDigPage />} />
+      <Route path="/menu" element={menuPage} />
+      <Route path="/vector" element={<VectorPage />} />
+      <Route path="/vector/search" element={<VectorSearchPage />} />
+      <Route path="/vector/documents" element={<VectorDocumentsPage />} />
+      <Route path="/vector/first-run" element={<VectorFirstRunWizardPage />} />
+      <Route path="/vector/index" element={<IndexManagerPanel />} />
+      <Route path="/vector/results" element={<VectorSearchResultsPage />} />
+      <Route path="/vector/export" element={<VectorExportPage />} />
+      <Route path="/vector/settings" element={<VectorSettingsPage />} />
+      <Route path="/mcp" element={<McpPage />} />
+      <Route path="/storage" element={<StoragePage />} />
+      <Route path="/mcp/tools/:name" element={<McpToolDetailPage />} />
+      <Route
+        path="/settings"
+        element={<SettingsPage menuCount={menu.length} pluginCount={plugins.length} surfaceCount={surfaceCount} updatedAt={updatedAt} onRefresh={onRefresh} />}
+      />
+      <Route path="/tools/config" element={<ToolsConfigPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}

@@ -6,7 +6,7 @@ arra_id: A
 arra_type: learning
 arra_project: Soul-Brews-Studio/arra-oracle-v3
 arra_created: "2026-04-19T10:00:00Z"
-arra_concepts: [menu_ui, drizzle]
+muninn_concepts: [menu_ui, drizzle]
 arra_model: bge-m3
 arra_similarity_threshold: 0.75
 tags: [learning, menu_ui, drizzle]

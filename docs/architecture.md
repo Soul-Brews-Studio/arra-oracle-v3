@@ -1,229 +1,148 @@
-# Arra Oracle v3 Architecture
+# Arra Oracle architecture overview
 
-> Knowledge system MCP server with hybrid search, consultation logging, and learning capabilities.
+Verified against `src/server.ts`, `src/routes/*`, and `src/tools/*` on
+2026-06-17. Arra Oracle is the Oracle family's installable memory/search layer:
+SQLite + FTS5 stay local, vector backends are optional, and the same capability
+core is exposed through HTTP, MCP stdio, CLI, Studio, plugins, and packaging.
 
-## Overview
+## Design goals
 
-Arra Oracle v3 indexes philosophy from markdown files and provides:
-- **Semantic + keyword search** (ChromaDB + FTS5)
-- **Decision guidance** via principles and patterns
-- **Learning capture** from sessions
-- **HTTP API** for web interfaces
+- **One capability core:** HTTP routes, MCP tools, CLI commands, and plugins reuse
+  shared handlers instead of duplicating business logic.
+- **Local-first operation:** search, learn, read, and list work from SQLite/FTS5
+  even when vector services or remote proxies are disabled.
+- **Plugin-shaped extension:** additional API routes, MCP tools, menu items,
+  sidecars, export formats, and CLI commands come from `plugin.json` manifests.
+- **Safe multi-tenant deploys:** token auth and tenant headers scope data without
+  changing local-first defaults.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      ORACLE v2 SYSTEM                       │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
-│  │   Claude    │    │  HTTP API   │    │  Dashboard  │     │
-│  │  (via MCP)  │    │  (REST)     │    │  (Web UI)   │     │
-│  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘     │
-│         │                  │                  │             │
-│         └──────────────────┼──────────────────┘             │
-│                            │                                │
-│                    ┌───────▼───────┐                        │
-│                    │  Oracle Core  │                        │
-│                    │   (index.ts)  │                        │
-│                    └───────┬───────┘                        │
-│                            │                                │
-│         ┌──────────────────┼──────────────────┐             │
-│         │                  │                  │             │
-│  ┌──────▼──────┐   ┌───────▼───────┐  ┌───────▼───────┐    │
-│  │   SQLite    │   │   ChromaDB    │  │   Markdown    │    │
-│  │  (FTS5)     │   │   (vectors)   │  │   (source)    │    │
-│  └─────────────┘   └───────────────┘  └───────────────┘    │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
+## Runtime map
 
-## Components
-
-### MCP Server (`src/index.ts`)
-
-Exposes tools to Claude via Model Context Protocol:
-
-| Tool | Purpose | Logs To |
-|------|---------|---------|
-| `oracle_search` | Hybrid keyword + semantic search | (none yet) |
-| `oracle_consult` | Get guidance on decisions | `consult_log` |
-| `oracle_reflect` | Random principle/learning | - |
-| `oracle_learn` | Add new pattern | writes file + indexes |
-| `oracle_list` | Browse documents | - |
-| `oracle_stats` | Database statistics | - |
-| `oracle_concepts` | List concept tags | - |
-
-### HTTP Server (`src/server.ts`)
-
-REST API on port 47778:
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/health` | GET | Health check |
-| `/search` | GET | Keyword search |
-| `/list` | GET | Browse documents |
-| `/consult` | GET | Get guidance |
-| `/reflect` | GET | Random wisdom |
-| `/stats` | GET | Database stats |
-| `/graph` | GET | Knowledge graph |
-| `/learn` | POST | Add pattern |
-| `/file` | GET | Fetch file content |
-
-### Indexer (`src/indexer.ts`)
-
-Populates database from markdown files:
-
-```
-ψ/memory/resonance/*.md    → principles (split by ### + bullets)
-ψ/memory/learnings/*.md    → learnings (split by ## headers)
-ψ/memory/retrospectives/   → retrospectives (split by ## headers)
+```text
+Users, agents, Studio, maw-js, MCP clients
+        │
+        ├─ Server bin: bin/arra.ts (`arra-oracle-v3 serve|mcp`)
+        ├─ Operator CLI: cli/src/cli.ts (`arra ...`)
+        ├─ HTTP API: src/server.ts + src/routes/*
+        ├─ MCP stdio: src/index.ts + src/tools/*
+        └─ Plugin runtime: src/plugins/unified-loader.ts
+                  │
+        Core services and storage
+        ├─ src/tools/       MCP-ready handlers and REST mapping
+        ├─ src/vector/      vector adapters, config, provider detection
+        ├─ src/indexer/     document parsing, scan/reindex, daemon jobs
+        ├─ src/gateway/     vector/gateway status and proxy guardrails
+        ├─ src/middleware/  versioning, auth, tenant, limits, errors
+        └─ SQLite + FTS5 + optional vector stores + vault markdown
 ```
 
-## Database Schema
+## Request lifecycle
 
-### `oracle_documents` - Metadata Index
+1. `createStartedApp()` validates env, resets indexing status, preflights vector
+   runtime, starts file/plugin watchers, seeds menus, then wraps `app.fetch()`.
+2. `createApiVersionedFetch()` redirects public non-health `/api/*` requests to
+   `/api/v1/*` and rewrites `/api/v1/*` back to internal `/api/*` routes.
+3. Global middleware adds request logging, correlation IDs, tenant context, CORS,
+   private-network preflight, version/security/content headers, body limits,
+   optional API-key/token auth, rate limits, metrics, compression, ETags, DB
+   context, request de-duplication, timeouts, structured errors, and not-found
+   handling.
+4. `createServerRouteModules()` mounts the Elysia route modules, then plugin
+   routes, then the not-found boundary. Derive exact route totals from
+   `app.routes` in tests or tooling instead of hard-coding them in docs; dynamic
+   plugin and gateway routes may add more at runtime.
 
-```sql
-CREATE TABLE oracle_documents (
-  id TEXT PRIMARY KEY,
-  type TEXT NOT NULL,           -- principle, learning, pattern, retro
-  source_file TEXT NOT NULL,
-  concepts TEXT DEFAULT '[]',   -- JSON array
-  created_at INTEGER,
-  updated_at INTEGER,
-  indexed_at INTEGER
-);
-```
+## HTTP route families
 
-### `oracle_fts` - Full-Text Search
+| Family | Source modules | Primary paths |
+| --- | --- | --- |
+| Health/status | `routes/health`, `routes/metrics`, `gateway` | `/api/health`, `/api/health/deep`, `/api/stats`, `/api/metrics`, `/api/gateway/*` |
+| Search/knowledge | `routes/search`, `routes/learn`, `routes/knowledge` | `/api/search`, `/api/list`, `/api/read`, `/api/learn*`, `/api/handoff`, `/api/inbox` |
+| Vector/indexer | `routes/vector`, `routes/indexer` | `/api/vector/*`, `/api/vector-db*`, `/api/similar`, `/api/compare`, `/api/map*`, `/api/indexer/*` |
+| Studio/admin | `routes/menu`, `routes/plugins`, `routes/canvas`, `routes/settings` | `/api/menu*`, `/api/plugins*`, `/api/canvas/*`, `/api/settings/*` |
+| Collaboration | `routes/forum`, `routes/traces`, `routes/schedule`, `routes/supersede` | `/api/thread*`, `/api/threads`, `/api/traces*`, `/api/schedule*`, `/api/supersede*` |
+| Import/export | `routes/export`, `routes/vault`, `routes/files` | `/api/export*`, `/api/vault/sync`, `/api/doc*`, `/api/file`, `/api/context`, `/api/graph` |
+| MCP catalogue | `routes/mcp`, `src/tools/mcp-rest-map.ts` | `/api/mcp/tools` plus MCP stdio tools |
 
-```sql
-CREATE VIRTUAL TABLE oracle_fts USING fts5(
-  id UNINDEXED,
-  content,
-  concepts
-);
-```
+## MCP and HTTP coupling
 
-### `consult_log` - Consultation History
+`src/tools/mcp-manifest.ts` defines 28 core MCP tools. `src/tools/mcp-rest-map.ts`
+uses the same ordered names to mark 24 tools as HTTP-remoteable and four as
+local-only (`____IMPORTANT`, `oracle_recap`, `oracle_mcp_list_tools`, `oracle_mcp_call`).
+`GET /api/mcp/tools` merges those core definitions with active plugin tools and
+returns public metadata only; plugin handlers are never exposed.
 
-```sql
-CREATE TABLE consult_log (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  decision TEXT NOT NULL,
-  context TEXT,
-  principles_found INTEGER NOT NULL,
-  patterns_found INTEGER NOT NULL,
-  guidance TEXT NOT NULL,
-  created_at INTEGER NOT NULL
-);
-```
-
-### `indexing_status` - Progress Tracking
-
-```sql
-CREATE TABLE indexing_status (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
-  is_indexing INTEGER NOT NULL DEFAULT 0,
-  progress_current INTEGER DEFAULT 0,
-  progress_total INTEGER DEFAULT 0,
-  started_at INTEGER,
-  completed_at INTEGER,
-  error TEXT
-);
-```
-
-## Hybrid Search Algorithm
-
-1. **Sanitize query** - remove FTS5 special chars (`? * + - ( ) ^ ~ " ' : .`)
-2. **Run FTS5 search** - keyword matching on SQLite
-3. **Run vector search** - semantic similarity via ChromaDB
-4. **Normalize scores:**
-   - FTS5: `e^(-0.3 * |rank|)` (exponential decay)
-   - Vector: `1 - distance` (convert to similarity)
-5. **Merge results** - deduplicate by document ID
-6. **Hybrid scoring** - 50% FTS + 50% vector, 10% boost if in both
-7. **Return** with metadata (search time, source breakdown)
-
-### Graceful Degradation
-
-- If ChromaDB unavailable → FTS5-only with warning
-- If query sanitization empties query → return original (will error)
-
-## Logging
-
-### Current Logging
-
-| Event | Destination | Data |
-|-------|-------------|------|
-| Consultations | `consult_log` table | decision, context, counts, guidance |
-| ChromaDB status | stderr | connection state |
-| Indexing progress | `indexing_status` table | progress, errors |
-| FTS5 errors | stderr | query, error message |
-
-### Logging Gaps
-
-- No search query tracking (`oracle_search` calls)
-- No learning history (when/what was learned)
-- No document access tracking (which docs referenced)
-- No HTTP endpoint access logs
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `ORACLE_REPO_ROOT` | `process.cwd()` | Knowledge base location (your ψ/ repo) |
-| `PORT` | `47778` | HTTP server port |
-
-### MCP Configuration
+Example catalogue item:
 
 ```json
 {
-  "mcpServers": {
-    "arra-oracle-v2": {
-      "command": "node",
-      "args": ["/path/to/arra-oracle-v2/dist/index.js"],
-      "env": {
-        "ORACLE_REPO_ROOT": "/path/to/knowledge-base"
-      }
-    }
-  }
+  "name": "oracle_search",
+  "group": "search",
+  "readOnly": true,
+  "remoteable": true,
+  "rest": { "method": "GET", "path": "/api/search" },
+  "source": "core"
 }
 ```
 
-## Security
+## Data flow
 
-### Path Traversal Protection
+```text
+HTTP/MCP/CLI/plugin write
+        │
+        ▼
+parse + normalize document metadata
+        │
+        ├─ oracle_documents tenant-scoped source of truth
+        ├─ oracle_fts keyword index for always-on recall
+        └─ optional vector collection via configured adapter/provider
+        │
+        ▼
+search/list/read/export via HTTP, MCP, CLI, Studio, or plugin routes
+```
 
-`/file` endpoint uses `fs.realpathSync()` to resolve symlinks and verify paths stay within `REPO_ROOT`.
+`oracle_documents` owns metadata and tenant scope. FTS5 owns the fallback search
+path. Vector config lives in `vector-server.json`; default collections are
+`bge-m3`, `nomic`, and `qwen3`, with a default sidecar proxy manifest at
+`/api/vector-db*` using `VECTOR_DB_URL`.
 
-### Query Sanitization
+## Plugin architecture
 
-FTS5 special characters are stripped to prevent SQL injection via FTS5 syntax errors.
+Unified plugins are folders with `plugin.json` plus code/artifacts. The runtime
+scans parent `.maw/plugins`, `$MAW_PLUGINS_DIR`, `~/.maw/plugins`,
+`~/.arra/plugins`, and `~/.oracle/plugins`, normalizes manifests, and registers:
 
-## Version History
+| Manifest key | Runtime effect |
+| --- | --- |
+| `apiRoutes[]` / `proxy[]` | Mounted HTTP routes or guarded upstream proxies |
+| `mcpTools[]` | Extra MCP definitions and dispatchable plugin calls |
+| `menu[]` | Studio/menu rows seeded into `/api/menu` |
+| `cliSubcommands[]` | `arra <command>` operators |
+| `server` | Child sidecar service health/proxy lifecycle |
+| `exportFormats[]` | Additional export app formats |
 
-| Version | Changes |
-|---------|---------|
-| 0.1.0 | Initial MCP server with FTS5 |
-| 0.2.0 | ChromaDB hybrid search, oracle_stats, oracle_concepts, FTS5 bug fix |
+## Security and isolation
 
-## Graph API Performance
+- `ARRA_API_TOKEN` protects `/api/*` except `/api/health` and `/api/docs*`.
+- `ARRA_API_KEY` is a legacy bearer guard that only bypasses `/api/health`.
+- Tenant scope comes from `X-Oracle-Tenant`; `ORACLE_TENANT_TOKENS` can require
+  `X-Oracle-Tenant-Token` per tenant or wildcard.
+- MCP stdio logs go to stderr when `ORACLE_LOG_TARGET=stderr`.
+- File reads resolve real paths inside allowed repo/ghq/vault roots, and plugin
+  paths/entry modules are containment-checked before import.
 
-The `/api/graph` endpoint intentionally excludes retrospectives to prevent O(n²) explosion:
+## Operational checks
 
-| Scenario | Nodes | Link Comparisons |
-|----------|-------|-----------------|
-| Current (no retros) | 459 | ~210k |
-| With all retros | 4443 | ~20M |
+```bash
+arra-oracle-v3 serve --port 47778
+curl -sf http://localhost:47778/api/health
+curl -H "Authorization: Bearer $ARRA_API_TOKEN" \
+  'http://localhost:47778/api/v1/search?q=oracle&mode=fts&limit=3'
+curl -sf http://localhost:47778/api/v1/mcp/tools
+bunx tsc --noEmit
+bun test tests/http/health/ tests/http/mcp/tools.test.ts
+```
 
-**Current design:**
-- All principles (~359)
-- Random 100 learnings
-- NO retros (3984 would kill performance)
-
-**If retros needed:** Sample top 50 by recency, never include all.
-
-See: `src/server/handlers.ts:handleGraph()`
+For install steps, start with [INSTALL.md](./INSTALL.md) and
+[QUICKSTART.md](./QUICKSTART.md). See [API.md](./API.md) for request/response
+examples and [PLUGIN-GUIDE.md](./PLUGIN-GUIDE.md) for plugin packaging.
