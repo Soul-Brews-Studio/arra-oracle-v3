@@ -59,6 +59,14 @@ describe('gateway hooks', () => {
     expect(pipeline.onRequest[0].name).toBe('test-noop');
   });
 
+  test('loadHooks accepts a single hook name and skips non-string entries', () => {
+    const single = loadHooks({ onRequest: 'test-noop' });
+    expect(single.onRequest.map((hook) => hook.name)).toEqual(['test-noop']);
+
+    const mixed = loadHooks({ onRequest: ['test-noop', 42, null] as unknown as string[] });
+    expect(mixed.onRequest.map((hook) => hook.name)).toEqual(['test-noop']);
+  });
+
   test('loadHooks skips unknown hook names', () => {
     const pipeline = loadHooks({ onRequest: ['does-not-exist'] });
     expect(pipeline.onRequest).toEqual([]);

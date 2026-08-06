@@ -44,12 +44,14 @@ beforeAll(() => {
       superseded_reason TEXT,
       origin TEXT,
       project TEXT,
+      tenant_id TEXT NOT NULL DEFAULT 'default',
       created_by TEXT
     );
 
     CREATE INDEX idx_type ON oracle_documents(type);
     CREATE INDEX idx_source ON oracle_documents(source_file);
     CREATE INDEX idx_project ON oracle_documents(project);
+    CREATE INDEX idx_tenant ON oracle_documents(tenant_id);
 
     -- FTS5 virtual table
     CREATE VIRTUAL TABLE oracle_fts USING fts5(
@@ -219,7 +221,7 @@ describe('handleLearn - INSERT oracle_documents', () => {
       now,
       null,
       'github.com/test/repo',
-      'arra_learn'
+      'oracle_learn'
     );
 
     const result = db.prepare('SELECT * FROM oracle_documents WHERE id = ?').get(id) as any;
@@ -228,7 +230,7 @@ describe('handleLearn - INSERT oracle_documents', () => {
     expect(result.type).toBe('learning');
     expect(result.source_file).toBe('ψ/memory/learnings/test-pattern.md');
     expect(JSON.parse(result.concepts)).toEqual(['test', 'pattern']);
-    expect(result.created_by).toBe('arra_learn');
+    expect(result.created_by).toBe('oracle_learn');
     expect(result.project).toBe('github.com/test/repo');
   });
 
@@ -239,7 +241,7 @@ describe('handleLearn - INSERT oracle_documents', () => {
     db.prepare(`
       INSERT INTO oracle_documents (id, type, source_file, concepts, created_at, updated_at, indexed_at, origin, project, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, 'learning', 'test.md', '[]', now, now, now, null, null, 'arra_learn');
+    `).run(id, 'learning', 'test.md', '[]', now, now, now, null, null, 'oracle_learn');
 
     const result = db.prepare('SELECT * FROM oracle_documents WHERE id = ?').get(id) as any;
 

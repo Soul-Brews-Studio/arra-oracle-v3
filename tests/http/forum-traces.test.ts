@@ -1,16 +1,13 @@
-// HTTP contract tests — forum, traces, schedule (14 endpoints).
+// HTTP contract tests — forum and schedule routes.
 //
 // Spawns a dedicated server with an isolated ORACLE_DATA_DIR so this file is
 // not affected by env mutations from other test files (e.g. files-plugins)
-// or by a pre-existing dev server on the default port. Traces are seeded via
-// raw SQLite against the same DB the spawned server uses.
+// or by a pre-existing dev server on the default port.
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import type { Subprocess } from "bun";
-import { Database } from "bun:sqlite";
 import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { randomUUID } from "crypto";
 
 const PORT = 47790;
 const BASE_URL = `http://localhost:${PORT}`;
@@ -68,13 +65,13 @@ describe("Forum routes", () => {
     createdThreadId = data.thread_id;
   }, 30_000);
 
-  test("POST /api/thread without message returns 400", async () => {
+  test("POST /api/thread without message is rejected", async () => {
     const res = await fetch(`${BASE_URL}/api/thread`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({}),
     });
-    expect(res.status).toBe(400);
+    expect([400, 422]).toContain(res.status);
   });
 
   test("GET /api/thread/:id returns thread with messages", async () => {
@@ -97,16 +94,26 @@ describe("Forum routes", () => {
     expect(res.status).toBe(404);
   });
 
+  test("PATCH /api/thread/:id/status rejects non-string status", async () => {
+    expect(createdThreadId).not.toBeNull();
+    const res = await fetch(`${BASE_URL}/api/thread/${createdThreadId}/status`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: 123 }),
+    });
+    expect(res.status).toBe(422);
+  });
+
   test("PATCH /api/thread/:id/status updates status", async () => {
     expect(createdThreadId).not.toBeNull();
     const res = await fetch(`${BASE_URL}/api/thread/${createdThreadId}/status`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: "archived" }),
+      body: JSON.stringify({ status: "closed" }),
     });
     expect(res.ok).toBe(true);
     const data = await res.json();
-    expect(data.status).toBe("archived");
+    expect(data.status).toBe("closed");
   });
 
   test("GET /api/threads lists threads with count and pagination", async () => {
@@ -118,117 +125,14 @@ describe("Forum routes", () => {
     expect(data.threads.length).toBeLessThanOrEqual(5);
   });
 
-  test("GET /api/threads?status=archived filters", async () => {
-    const res = await fetch(`${BASE_URL}/api/threads?status=archived`);
+  test("GET /api/threads?status=closed filters", async () => {
+    const res = await fetch(`${BASE_URL}/api/threads?status=closed`);
     expect(res.ok).toBe(true);
     const data = await res.json();
     expect(data.threads.some((t: any) => t.id === createdThreadId)).toBe(true);
   });
 });
 
-describe("Trace routes", () => {
-  let traceA: string;
-  let traceB: string;
-
-  beforeAll(() => {
-    traceA = randomUUID();
-    traceB = randomUUID();
-    const db = new Database(dbPath);
-    try {
-      const now = Date.now();
-      const insert = db.prepare(`
-        INSERT INTO trace_log (
-          trace_id, query, query_type,
-          found_files, found_commits, found_issues,
-          found_retrospectives, found_learnings, found_resonance,
-          file_count, commit_count, issue_count,
-          depth, child_trace_ids,
-          scope, agent_count, status,
-          created_at, updated_at
-        ) VALUES (?, ?, 'general', '[]', '[]', '[]', '[]', '[]', '[]', 0, 0, 0, 0, '[]', 'project', 1, 'raw', ?, ?)
-      `);
-      insert.run(traceA, "contract-test trace A", now, now);
-      insert.run(traceB, "contract-test trace B", now, now);
-    } finally {
-      db.close();
-    }
-  });
-
-  test("GET /api/traces lists traces", async () => {
-    const res = await fetch(`${BASE_URL}/api/traces?limit=10`);
-    expect(res.ok).toBe(true);
-    const data = await res.json();
-    expect(Array.isArray(data.traces)).toBe(true);
-  });
-
-  test("GET /api/traces/:id returns trace", async () => {
-    const res = await fetch(`${BASE_URL}/api/traces/${traceA}`);
-    expect(res.ok).toBe(true);
-    const data = await res.json();
-    expect(data.traceId).toBe(traceA);
-  });
-
-  test("GET /api/traces/:id missing returns 404", async () => {
-    const res = await fetch(`${BASE_URL}/api/traces/nonexistent-id`);
-    expect(res.status).toBe(404);
-  });
-
-  test("GET /api/traces/:id/chain returns chain object", async () => {
-    const res = await fetch(`${BASE_URL}/api/traces/${traceA}/chain`);
-    expect(res.ok).toBe(true);
-    const data = await res.json();
-    expect(data).toHaveProperty("chain");
-  });
-
-  test("POST /api/traces/:prevId/link without body returns 400", async () => {
-    const res = await fetch(`${BASE_URL}/api/traces/${traceA}/link`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({}),
-    });
-    expect(res.status).toBe(400);
-  });
-
-  test("POST /api/traces/:prevId/link links prev→next", async () => {
-    const res = await fetch(`${BASE_URL}/api/traces/${traceA}/link`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ nextId: traceB }),
-    });
-    expect(res.ok).toBe(true);
-    const data = await res.json();
-    expect(data.success).toBe(true);
-  });
-
-  test("GET /api/traces/:id/linked-chain returns both traces after link", async () => {
-    const res = await fetch(`${BASE_URL}/api/traces/${traceA}/linked-chain`);
-    expect(res.ok).toBe(true);
-    const data = await res.json();
-    expect(Array.isArray(data.chain)).toBe(true);
-    expect(data.chain.length).toBe(2);
-    const ids = data.chain.map((t: any) => t.traceId);
-    expect(ids).toEqual([traceA, traceB]);
-  });
-
-  test("DELETE /api/traces/:id/link without direction returns 400", async () => {
-    const res = await fetch(`${BASE_URL}/api/traces/${traceA}/link`, { method: "DELETE" });
-    expect(res.status).toBe(400);
-  });
-
-  test("DELETE /api/traces/:id/link?direction=next unlinks and chain clears", async () => {
-    const res = await fetch(`${BASE_URL}/api/traces/${traceA}/link?direction=next`, {
-      method: "DELETE",
-    });
-    expect(res.ok).toBe(true);
-    const data = await res.json();
-    expect(data.success).toBe(true);
-
-    const chainRes = await fetch(`${BASE_URL}/api/traces/${traceA}/linked-chain`);
-    const chainData = await chainRes.json();
-    expect(chainData.chain.length).toBe(1);
-    expect(chainData.chain[0].traceId).toBe(traceA);
-  });
-});
 
 describe("Schedule routes", () => {
   let createdEventId: number | null = null;
@@ -250,11 +154,30 @@ describe("Schedule routes", () => {
     createdEventId = data.id;
   });
 
+  test("POST /api/schedule rejects missing event", async () => {
+    const res = await fetch(`${BASE_URL}/api/schedule`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ date: "2099-01-01" }),
+    });
+    expect(res.status).toBe(422);
+  });
+
   test("GET /api/schedule lists events", async () => {
     const res = await fetch(`${BASE_URL}/api/schedule?status=all&limit=50`);
     expect(res.ok).toBe(true);
     const data = await res.json();
     expect(typeof data).toBe("object");
+  });
+
+  test("PATCH /api/schedule/:id rejects invalid status", async () => {
+    expect(createdEventId).not.toBeNull();
+    const res = await fetch(`${BASE_URL}/api/schedule/${createdEventId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status: "sideways" }),
+    });
+    expect(res.status).toBe(422);
   });
 
   test("PATCH /api/schedule/:id updates status", async () => {

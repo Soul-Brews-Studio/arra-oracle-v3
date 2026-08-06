@@ -16,33 +16,33 @@ import { eq, inArray } from 'drizzle-orm';
 import { db, menuItems, setSetting } from '../db/index.ts';
 import { fetchGistMenu, invalidateGistCache, parseGistUrl } from './gist.ts';
 import { _resetMenuSource } from './config.ts';
-import { CUSTOM_MENU_FILE } from './custom-store.ts';
+import { customMenuFile } from './custom-store.ts';
+import { menuOwnedWhere, menuSettingKey } from './tenant.ts';
+import { normalizeMenuPathList } from './path.ts';
 
 export const MENU_GIST_SETTING_KEY = 'menu_gist_url';
 
 export type ApplyMode = 'merge' | 'override';
 
 export async function applyMenuGistUrl(url: string, mode: ApplyMode = 'merge'): Promise<void> {
-  setSetting(MENU_GIST_SETTING_KEY, url);
+  setSetting(menuSettingKey(MENU_GIST_SETTING_KEY), url);
   invalidateGistCache();
   _resetMenuSource();
   if (mode !== 'override') return;
 
   const result = await fetchGistMenu(url);
-  const paths = (result?.data.items ?? [])
-    .map((i) => (typeof i?.path === 'string' ? i.path : ''))
-    .filter((p) => p.length > 0);
+  const paths = normalizeMenuPathList((result?.data.items ?? []).map((i) => i?.path));
   if (!paths.length) return;
 
   const now = new Date();
   db.update(menuItems)
     .set({ touchedAt: null, enabled: true, updatedAt: now })
-    .where(inArray(menuItems.path, paths))
+    .where(menuOwnedWhere(inArray(menuItems.path, paths)))
     .run();
 }
 
 export function clearMenuGistUrl(): void {
-  setSetting(MENU_GIST_SETTING_KEY, null);
+  setSetting(menuSettingKey(MENU_GIST_SETTING_KEY), null);
   invalidateGistCache();
   _resetMenuSource();
 }
@@ -57,16 +57,17 @@ export function resetAllMenu(): ResetAllResult {
   const touchedRows = db
     .update(menuItems)
     .set({ touchedAt: null, enabled: true, updatedAt: now })
-    .where(eq(menuItems.source, 'route'))
+    .where(menuOwnedWhere(eq(menuItems.source, 'route')))
     .returning()
     .all();
   const customDeleted = db
     .delete(menuItems)
-    .where(eq(menuItems.source, 'custom'))
+    .where(menuOwnedWhere(eq(menuItems.source, 'custom')))
     .returning()
     .all();
   try {
-    if (fs.existsSync(CUSTOM_MENU_FILE)) fs.rmSync(CUSTOM_MENU_FILE);
+    const file = customMenuFile();
+    if (fs.existsSync(file)) fs.rmSync(file);
   } catch {
     // best-effort cleanup — seed file may not exist on fresh installs
   }

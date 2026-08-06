@@ -1,0 +1,13 @@
+/opt/Code/github.com/Soul-Brews-Studio/arra-oracle-v3/frontend/src-tauri/target/debug/deps/jsonptr-e97e23b8c5852517.d: /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/lib.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/assign.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/delete.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/resolve.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/pointer.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/token.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/index.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/component.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/../README.md
+
+/opt/Code/github.com/Soul-Brews-Studio/arra-oracle-v3/frontend/src-tauri/target/debug/deps/libjsonptr-e97e23b8c5852517.rmeta: /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/lib.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/assign.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/delete.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/resolve.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/pointer.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/token.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/index.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/component.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/../README.md
+
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/lib.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/assign.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/delete.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/resolve.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/pointer.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/token.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/index.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/component.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jsonptr-0.6.3/src/../README.md:

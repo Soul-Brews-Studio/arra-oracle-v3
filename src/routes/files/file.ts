@@ -4,7 +4,7 @@
  *   1. TypeBox pattern on `path` (see model.ts) rejects "..", null-byte
  *   2. Handler re-checks explicitly so we return the canonical 400 JSON
  *      shape on traversal attempts instead of Elysia's 422 validator body
- *   3. `realpathSync` + `.startsWith(realRoot)` confines resolution
+ *   3. `realpathSync` + relative-path containment confines resolution
  */
 import { Elysia } from 'elysia';
 import fs from 'fs';
@@ -12,6 +12,10 @@ import path from 'path';
 import { REPO_ROOT } from '../../config.ts';
 import { getVaultPsiRoot } from '../../vault/handler.ts';
 import { fileQuery } from './model.ts';
+import { pathWithinRoot } from './path-security.ts';
+import { projectAllowedForTenant } from './tenant.ts';
+
+const currentRepoRoot = () => process.env.ORACLE_REPO_ROOT || REPO_ROOT;
 
 export const fileRoute = new Elysia().get(
   '/api/file',
@@ -22,6 +26,10 @@ export const fileRoute = new Elysia().get(
     if (!filePath) {
       set.status = 400;
       return { error: 'Missing path parameter' };
+    }
+
+    if (project && !projectAllowedForTenant(project)) {
+      return new Response('File not found', { status: 404 });
     }
 
     // SECURITY: Block path traversal attempts (belt-and-suspenders with TypeBox pattern).
@@ -38,13 +46,15 @@ export const fileRoute = new Elysia().get(
           const proc = Bun.spawnSync(['ghq', 'root']);
           GHQ_ROOT = proc.stdout.toString().trim();
         } catch {
-          const match = REPO_ROOT.match(/^(.+?)\/github\.com\//);
+          const root = currentRepoRoot();
+          const match = root.match(/^(.+?)\/github\.com\//);
           GHQ_ROOT = match
             ? match[1]
-            : path.dirname(path.dirname(path.dirname(REPO_ROOT)));
+            : path.dirname(path.dirname(path.dirname(root)));
         }
       }
-      const basePath = project ? path.join(GHQ_ROOT, project) : REPO_ROOT;
+      const root = currentRepoRoot();
+      const basePath = project ? path.join(GHQ_ROOT, project) : root;
 
       // Strip project prefix if source_file already contains it.
       let resolvedFilePath = filePath;
@@ -63,10 +73,10 @@ export const fileRoute = new Elysia().get(
       }
 
       const realGhqRoot = fs.realpathSync(GHQ_ROOT);
-      const realRepoRoot = fs.realpathSync(REPO_ROOT);
+      const realRepoRoot = fs.realpathSync(root);
       if (
-        !realPath.startsWith(realGhqRoot) &&
-        !realPath.startsWith(realRepoRoot)
+        !pathWithinRoot(realGhqRoot, realPath) &&
+        !pathWithinRoot(realRepoRoot, realPath)
       ) {
         set.status = 400;
         return { error: 'Invalid path: outside allowed bounds' };
@@ -80,10 +90,10 @@ export const fileRoute = new Elysia().get(
       // live in the universal vault (REPO_ROOT / ORACLE_DATA_DIR / ψ/), not
       // in the project's ghq checkout. Try REPO_ROOT before giving up.
       if (project) {
-        const repoFullPath = path.join(REPO_ROOT, filePath);
+        const repoFullPath = path.join(root, filePath);
         const realRepoFullPath = path.resolve(repoFullPath);
         if (
-          realRepoFullPath.startsWith(realRepoRoot) &&
+          pathWithinRoot(realRepoRoot, realRepoFullPath) &&
           fs.existsSync(repoFullPath)
         ) {
           return new Response(fs.readFileSync(repoFullPath, 'utf-8'));
@@ -96,7 +106,7 @@ export const fileRoute = new Elysia().get(
         const realVaultPath = path.resolve(vaultFullPath);
         const realVaultRoot = fs.realpathSync(vault.path);
         if (
-          realVaultPath.startsWith(realVaultRoot) &&
+          pathWithinRoot(realVaultRoot, realVaultPath) &&
           fs.existsSync(vaultFullPath)
         ) {
           return new Response(fs.readFileSync(vaultFullPath, 'utf-8'));

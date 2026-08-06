@@ -1,0 +1,70 @@
+{
+  "name": "oracle-dig",
+  "version": "1.0.0",
+  "entry": "./index.ts",
+  "sdk": "^0.1.0",
+  "tier": "extra",
+  "enabled": true,
+  "description": "Provenance-first oracle_dig findings store with trace and local session evidence.",
+  "mcpTools": [
+    {
+      "name": "oracle_dig",
+      "description": "Store a relationship finding with typed provenance evidence, optionally composing oracle_trace and oracle_sessions results.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "subject": { "type": "string", "description": "Finding subject; relationship triples start here." },
+          "relation": { "type": "string" },
+          "object": { "type": "string" },
+          "dug_by": { "type": "string", "description": "Federation tag for the oracle that produced the finding." },
+          "as_of_ts": { "type": "number", "description": "Timestamp in milliseconds when this finding was known true." },
+          "as_of_commit": { "type": "string" },
+          "confidence": { "description": "Number or high/medium/low confidence value." },
+          "topic": { "type": "string" },
+          "evidence": { "type": "array", "description": "Typed evidence rows: github, session, oracle-msg, or web." },
+          "trace": { "type": "object", "description": "Optional oracle_trace CreateTraceInput to convert into GitHub evidence." },
+          "sessions": { "description": "Optional oracle_sessions options, or false to skip session evidence." }
+        },
+        "required": ["subject", "dug_by"]
+      },
+      "handler": "oracleDig",
+      "group": "dig",
+      "enabled": true,
+      "readOnly": false,
+      "enabledByDefault": true
+    },
+    {
+      "name": "oracle_sessions",
+      "description": "Scan local Claude session JSONL files on this machine only; not a fleet-wide session search.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "homeDir": { "type": "string" },
+          "projectsDir": { "type": "string" },
+          "limit": { "type": "number" }
+        }
+      },
+      "handler": "oracleSessionsTool",
+      "group": "dig",
+      "enabled": true,
+      "readOnly": true,
+      "enabledByDefault": true
+    }
+  ],
+  "apiRoutes": [
+    {
+      "path": "/api/plugins/oracle-dig",
+      "methods": ["GET", "POST"],
+      "handler": "oracleDigApiRoute"
+    }
+  ],
+  "menu": [
+    {
+      "label": "Oracle Dig",
+      "path": "/oracle-dig",
+      "group": "tools",
+      "order": 42,
+      "icon": "⛏️"
+    }
+  ]
+}

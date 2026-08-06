@@ -1,0 +1,7 @@
+Oracle quickstart runbook:
+
+1. Start the server.
+2. Run `arra mine docs/sample-notes`.
+3. Ask a question about memory onboarding.
+
+Re-running mine is safe; unchanged files are skipped.

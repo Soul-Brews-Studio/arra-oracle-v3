@@ -53,7 +53,11 @@ export interface GracefulShutdownConfig {
  */
 async function closeHttpServer(server: http.Server): Promise<void> {
   // Close all active connections
-  server.closeAllConnections();
+  try {
+    server.closeAllConnections();
+  } catch (error) {
+    logger.warn('SYSTEM', 'HTTP server connection cleanup error', {}, error as Error);
+  }
 
   // Give Windows time to close connections before closing server
   if (process.platform === 'win32') {
@@ -105,8 +109,12 @@ export async function performGracefulShutdown(config: GracefulShutdownConfig): P
 
   // STEP 2: Close HTTP server first
   if (server) {
-    await closeHttpServer(server);
-    logger.info('SYSTEM', 'HTTP server closed');
+    try {
+      await closeHttpServer(server);
+      logger.info('SYSTEM', 'HTTP server closed');
+    } catch (error) {
+      logger.warn('SYSTEM', 'HTTP server close error', {}, error as Error);
+    }
   }
 
   // STEP 3: Shutdown services in order

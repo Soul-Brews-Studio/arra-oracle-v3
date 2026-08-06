@@ -7,8 +7,10 @@ import { getSetting, setSetting } from '../db/index.ts';
 import { detectProject } from '../server/project-detect.ts';
 import { ORACLE_DATA_DIR } from '../config.ts';
 import { walkFiles, resolveVaultPath, cleanEmptyDirs } from './discovery.ts';
-import { mapToVaultPath, ensureFrontmatterProject, isProjectCategory, UNIVERSAL_CATEGORIES } from './path-mapping.ts';
+import { UNIVERSAL_CATEGORIES } from './path-mapping.ts';
 import { parseGitStatus } from './git.ts';
+import { planSync } from './sync-plan.ts';
+import { ghqGet, ghqListPaths, normalizeGhqRepo } from './ghq.ts';
 
 // Re-export sub-modules for backward compatibility
 export { mapToVaultPath, mapFromVaultPath, ensureFrontmatterProject } from './path-mapping.ts';
@@ -18,16 +20,17 @@ export { getVaultPsiRoot } from './discovery.ts';
 export interface InitResult { repo: string; vaultPath: string; created: boolean }
 
 export function initVault(repo: string): InitResult {
+  const normalizedRepo = normalizeGhqRepo(repo);
   let created = false;
   try {
-    const existing = execSync(`ghq list -p ${repo}`, { encoding: 'utf-8' }).trim();
-    if (!existing) throw new Error('not found');
+    const existing = ghqListPaths(normalizedRepo);
+    if (existing.length === 0) throw new Error('not found');
   } catch {
-    execSync(`ghq get ${repo}`, { encoding: 'utf-8', stdio: 'pipe' });
+    ghqGet(normalizedRepo);
     created = true;
   }
-  const vaultPath = resolveVaultPath(repo);
-  setSetting('vault_repo', repo);
+  const vaultPath = resolveVaultPath(normalizedRepo);
+  setSetting('vault_repo', normalizedRepo);
   setSetting('vault_enabled', 'true');
 
   const psiSymlink = path.join(ORACLE_DATA_DIR, 'ψ');
@@ -38,13 +41,68 @@ export function initVault(repo: string): InitResult {
     console.error(`[Vault] Symlink: ${psiSymlink} → ${vaultPsiDir}`);
   }
 
-  console.error(`[Vault] Initialized: ${repo} → ${vaultPath}`);
-  return { repo, vaultPath, created };
+  console.error(`[Vault] Initialized: ${normalizedRepo} → ${vaultPath}`);
+  return { repo: normalizedRepo, vaultPath, created };
 }
 
 export interface SyncResult {
   dryRun: boolean; added: number; modified: number; deleted: number;
   commitHash?: string; project?: string | null;
+}
+
+type SyncLock = { path: string; release: () => void };
+
+const SYNC_LOCK_FILE = 'vault-sync.lock';
+
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException)?.code === 'EPERM';
+  }
+}
+
+function parseLock(raw: string): { pid: number | null; timestamp: string | null } {
+  try {
+    const parsed = JSON.parse(raw) as { pid?: unknown; timestamp?: unknown };
+    return {
+      pid: typeof parsed.pid === 'number' ? parsed.pid : null,
+      timestamp: typeof parsed.timestamp === 'string' ? parsed.timestamp : null,
+    };
+  } catch {
+    const pidMatch = raw.match(/pid[:=]\s*(\d+)/i);
+    const tsMatch = raw.match(/timestamp[:=]\s*([^\n]+)/i);
+    return {
+      pid: pidMatch ? Number(pidMatch[1]) : null,
+      timestamp: tsMatch?.[1]?.trim() ?? null,
+    };
+  }
+}
+
+function acquireSyncLock(): SyncLock {
+  fs.mkdirSync(ORACLE_DATA_DIR, { recursive: true });
+  const lockPath = path.join(ORACLE_DATA_DIR, SYNC_LOCK_FILE);
+
+  if (fs.existsSync(lockPath)) {
+    const existing = parseLock(fs.readFileSync(lockPath, 'utf-8'));
+    if (existing.pid && isPidAlive(existing.pid)) {
+      throw new Error(`[Vault] Sync already running by PID ${existing.pid} (lock: ${lockPath})`);
+    }
+    fs.rmSync(lockPath, { force: true });
+  }
+
+  const lock = { pid: process.pid, timestamp: new Date().toISOString() };
+  fs.writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`, { flag: 'wx' });
+
+  return {
+    path: lockPath,
+    release: () => {
+      if (!fs.existsSync(lockPath)) return;
+      const current = parseLock(fs.readFileSync(lockPath, 'utf-8'));
+      if (current.pid === process.pid) fs.rmSync(lockPath, { force: true });
+    },
+  };
 }
 
 export function syncVault(opts: { dryRun?: boolean; repoRoot: string }): SyncResult {
@@ -59,60 +117,45 @@ export function syncVault(opts: { dryRun?: boolean; repoRoot: string }): SyncRes
   const project = detectProject(repoRoot) ?? null;
   console.error(`[Vault] Project: ${project || '(universal)'}`);
 
-  const diskFiles = walkFiles(psiDir, repoRoot);
-  const vaultDestPaths = new Set<string>();
+  const plan = planSync(psiDir, repoRoot, vaultPath, project);
+  const { added, modified, deleted } = plan;
+  if (dryRun) return { dryRun: true, added, modified, deleted, project };
 
-  for (const { relativePath, fullPath } of diskFiles) {
-    const vaultRelPath = mapToVaultPath(relativePath, project);
-    vaultDestPaths.add(vaultRelPath);
-    const dest = path.join(vaultPath, vaultRelPath);
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    if (project && fullPath.endsWith('.md') && isProjectCategory(relativePath)) {
-      const tagged = ensureFrontmatterProject(fs.readFileSync(fullPath, 'utf-8'), project);
-      fs.writeFileSync(dest, tagged);
-    } else {
-      fs.copyFileSync(fullPath, dest);
+  const lock = acquireSyncLock();
+  try {
+    for (const { source, dest, content } of plan.writes) {
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      if (content !== undefined) fs.writeFileSync(dest, content);
+      else fs.copyFileSync(source, dest);
     }
-  }
-
-  // Clean up vault files that no longer exist locally
-  if (project) {
-    const vaultProjectDir = path.join(vaultPath, project, 'ψ');
-    if (fs.existsSync(vaultProjectDir)) {
-      for (const { relativePath: vr, fullPath: vf } of walkFiles(vaultProjectDir, vaultPath)) {
-        if (!vaultDestPaths.has(vr)) { fs.unlinkSync(vf); cleanEmptyDirs(path.dirname(vf), path.join(vaultPath, project)); }
-      }
+    for (const { path: filePath, stopAt } of plan.deletes) {
+      fs.unlinkSync(filePath);
+      cleanEmptyDirs(path.dirname(filePath), stopAt);
     }
+
+    execSync('git add -A', { cwd: vaultPath, stdio: 'pipe' });
+    const status = execSync('git status --porcelain', { cwd: vaultPath, encoding: 'utf-8' }).trim();
+    if (!status) return { dryRun: true, added, modified, deleted, project };
+
+    const now = new Date();
+    const ts = now.toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
+    const parts: string[] = [];
+    if (added) parts.push(`+${added}`);
+    if (modified) parts.push(`~${modified}`);
+    if (deleted) parts.push(`-${deleted}`);
+    const summary = parts.length ? ` (${parts.join(', ')})` : '';
+    const projectTag = project ? ` [${project}]` : '';
+
+    execSync(`git commit -m "vault sync: ${ts}${summary}${projectTag}"`, { cwd: vaultPath, stdio: 'pipe' });
+    const commitHash = execSync('git rev-parse --short HEAD', { cwd: vaultPath, encoding: 'utf-8' }).trim();
+    execSync('git push', { cwd: vaultPath, stdio: 'pipe' });
+    setSetting('vault_last_sync', String(now.getTime()));
+
+    console.error(`[Vault] Synced: +${added} ~${modified} -${deleted} (${commitHash})`);
+    return { dryRun: false, added, modified, deleted, commitHash, project };
+  } finally {
+    lock.release();
   }
-  for (const category of UNIVERSAL_CATEGORIES) {
-    const vaultCategoryDir = path.join(vaultPath, category);
-    if (!fs.existsSync(vaultCategoryDir)) continue;
-    for (const { relativePath: vr, fullPath: vf } of walkFiles(vaultCategoryDir, vaultPath)) {
-      if (!vaultDestPaths.has(vr)) { fs.unlinkSync(vf); cleanEmptyDirs(path.dirname(vf), path.join(vaultPath, 'ψ')); }
-    }
-  }
-
-  execSync('git add -A', { cwd: vaultPath, stdio: 'pipe' });
-  const status = execSync('git status --porcelain', { cwd: vaultPath, encoding: 'utf-8' }).trim();
-  const { added, modified, deleted } = parseGitStatus(status);
-  if (dryRun || !status) return { dryRun: true, added, modified, deleted, project };
-
-  const now = new Date();
-  const ts = now.toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
-  const parts: string[] = [];
-  if (added) parts.push(`+${added}`);
-  if (modified) parts.push(`~${modified}`);
-  if (deleted) parts.push(`-${deleted}`);
-  const summary = parts.length ? ` (${parts.join(', ')})` : '';
-  const projectTag = project ? ` [${project}]` : '';
-
-  execSync(`git commit -m "vault sync: ${ts}${summary}${projectTag}"`, { cwd: vaultPath, stdio: 'pipe' });
-  const commitHash = execSync('git rev-parse --short HEAD', { cwd: vaultPath, encoding: 'utf-8' }).trim();
-  execSync('git push', { cwd: vaultPath, stdio: 'pipe' });
-  setSetting('vault_last_sync', String(now.getTime()));
-
-  console.error(`[Vault] Synced: +${added} ~${modified} -${deleted} (${commitHash})`);
-  return { dryRun: false, added, modified, deleted, commitHash, project };
 }
 
 export interface PullResult { files: number; project: string }

@@ -3,8 +3,9 @@
     "strict": true,
     "module": "esnext",
     "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
     "target": "esnext",
-    "lib": ["esnext"],
+    "lib": ["esnext", "dom"],
     "types": ["bun-types"],
     "skipLibCheck": true
   },

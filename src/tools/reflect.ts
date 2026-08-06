@@ -4,12 +4,14 @@
  * Return random wisdom from the knowledge base.
  */
 
-import { sql, inArray } from 'drizzle-orm';
+import { and, eq, sql, inArray } from 'drizzle-orm';
 import { oracleDocuments } from '../db/schema.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
+import { parseConcepts } from '../search/query.ts';
 import type { ToolContext, ToolResponse, OracleReflectInput } from './types.ts';
 
 export const reflectToolDef = {
-  name: 'arra_reflect',
+  name: 'oracle_reflect',
   description: 'Get a random principle or learning for reflection. Use this for periodic wisdom or to align with Oracle philosophy.',
   inputSchema: {
     type: 'object',
@@ -18,6 +20,8 @@ export const reflectToolDef = {
 };
 
 export async function handleReflect(ctx: ToolContext, _input: OracleReflectInput): Promise<ToolResponse> {
+  const tenantId = currentTenantId();
+  const typeFilter = inArray(oracleDocuments.type, ['principle', 'learning']);
   const randomDoc = ctx.db.select({
     id: oracleDocuments.id,
     type: oracleDocuments.type,
@@ -25,7 +29,7 @@ export async function handleReflect(ctx: ToolContext, _input: OracleReflectInput
     concepts: oracleDocuments.concepts,
   })
     .from(oracleDocuments)
-    .where(inArray(oracleDocuments.type, ['principle', 'learning']))
+    .where(tenantId ? and(typeFilter, eq(oracleDocuments.tenantId, tenantId)) : typeFilter)
     .orderBy(sql`RANDOM()`)
     .limit(1)
     .get();
@@ -51,7 +55,7 @@ export async function handleReflect(ctx: ToolContext, _input: OracleReflectInput
           type: randomDoc.type,
           content: content.content,
           source_file: randomDoc.sourceFile,
-          concepts: JSON.parse(randomDoc.concepts || '[]')
+          concepts: parseConcepts(randomDoc.concepts)
         }
       }, null, 2)
     }]

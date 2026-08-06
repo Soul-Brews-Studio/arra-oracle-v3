@@ -1,10 +1,10 @@
 import { Elysia } from 'elysia';
 import { getFullThread } from '../../forum/handler.ts';
-import { threadIdParam } from './model.ts';
+import { parseThreadId, threadIdParam } from './model.ts';
 
 export const threadGetRoute = new Elysia().get('/api/thread/:id', ({ params, set }) => {
-  const threadId = parseInt(params.id, 10);
-  if (isNaN(threadId)) {
+  const threadId = parseThreadId(params.id);
+  if (!threadId) {
     set.status = 400;
     return { error: 'Invalid thread ID' };
   }

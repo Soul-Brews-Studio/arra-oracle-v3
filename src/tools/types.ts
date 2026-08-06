@@ -16,7 +16,9 @@ export interface ToolContext {
   sqlite: Database;
   repoRoot: string;
   vectorStore: VectorStoreAdapter;
-  vectorStatus: 'unknown' | 'connected' | 'unavailable';
+  vectorStatus: 'unknown' | 'connected' | 'unavailable' | 'degraded';
+  vectorReason?: string;
+  embedderProvider?: string;
   version: string;
 }
 
@@ -29,15 +31,22 @@ export interface ToolResponse {
 // Input interfaces (moved from index.ts)
 // ============================================================================
 
+export interface OracleRecapInput {
+  limit?: number;
+  maxTokens?: number;
+}
+
 export interface OracleSearchInput {
   query: string;
   type?: 'principle' | 'pattern' | 'learning' | 'retro' | 'all';
   limit?: number;
   offset?: number;
   mode?: 'hybrid' | 'fts' | 'vector';
+  retrieval?: 'full' | 'compact-summary';
   project?: string;
   cwd?: string;
   model?: 'nomic' | 'qwen3' | 'bge-m3';
+  asOf?: string;
 }
 
 export interface OracleReflectInput {}
@@ -53,6 +62,7 @@ export interface OracleListInput {
   type?: 'principle' | 'pattern' | 'learning' | 'retro' | 'all';
   limit?: number;
   offset?: number;
+  asOf?: string;
 }
 
 export interface OracleStatsInput {}

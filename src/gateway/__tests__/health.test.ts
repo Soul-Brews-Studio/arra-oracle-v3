@@ -93,4 +93,18 @@ describe('HealthRegistry', () => {
     expect(Object.keys(registry.getAllStatus())).toHaveLength(0);
     registry.stop();
   });
+
+  test('restart clears stale health state and accepts invalid intervals safely', async () => {
+    registry = new HealthRegistry();
+    registry.start(
+      { old: { url: 'http://localhost:1', healthCheck: 'http://localhost:1/h' } },
+      0,
+    );
+    expect(Object.keys(registry.getAllStatus())).toContain('old');
+
+    registry.start({ local: { url: 'http://localhost:3000' } }, -1);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(registry.getAllStatus()).toEqual({});
+    expect(registry.isUp('old')).toBe(true);
+  });
 });

@@ -1,11 +1,5 @@
-/**
- * LanceDB Adapter
- *
- * Serverless columnar vector DB. Stores data as Lance files on disk.
- * Uses EmbeddingProvider since LanceDB doesn't generate embeddings.
- */
-
 import type { VectorStoreAdapter, VectorDocument, VectorQueryResult, EmbeddingProvider } from '../types.ts';
+import { buildLanceRows } from './lancedb-rows.ts';
 
 export class LanceDBAdapter implements VectorStoreAdapter {
   readonly name = 'lancedb';
@@ -26,23 +20,25 @@ export class LanceDBAdapter implements VectorStoreAdapter {
 
     const lancedb = await import('@lancedb/lancedb');
     this.db = await lancedb.connect(this.dbPath);
-    console.log(`[LanceDB] Connected at ${this.dbPath}`);
+    console.log('[LanceDB] Connected to local DB');
   }
 
   async close(): Promise<void> {
+    try {
+      if (this.table && typeof this.table.close === 'function') this.table.close();
+    } catch {}
     this.db = null;
     this.table = null;
-    console.log('[LanceDB] Closed');
+    console.error('[LanceDB] Closed');
   }
 
   async ensureCollection(): Promise<void> {
-    if (!this.db) throw new Error('LanceDB not connected');
+    if (!this.db) await this.connect();
 
     const tableNames = await this.db.tableNames();
     if (tableNames.includes(this.collectionName)) {
       this.table = await this.db.openTable(this.collectionName);
     } else {
-      // Create with a schema-defining dummy row, then delete it
       const dims = this.embedder.dimensions;
       this.table = await this.db.createTable(this.collectionName, [{
         id: '__init__',
@@ -53,7 +49,31 @@ export class LanceDBAdapter implements VectorStoreAdapter {
       await this.table.delete('id = "__init__"');
     }
 
-    console.log(`[LanceDB] Collection '${this.collectionName}' ready`);
+    try {
+      const count = await this.table.countRows();
+      console.error(`[LanceDB] Vector collection ready (${count} items)`);
+    } catch {
+      console.error('[LanceDB] Vector collection ready');
+    }
+  }
+
+  private async checkoutLatest(): Promise<void> {
+    if (!this.db || !this.table) return;
+    try {
+      if (typeof this.table.checkoutLatest === 'function') {
+        await this.table.checkoutLatest();
+      }
+    } catch (e) {
+      console.warn('[LanceDB] checkoutLatest failed, reopening table:', e instanceof Error ? e.message : String(e));
+      this.table = await this.db.openTable(this.collectionName);
+    }
+  }
+
+  private rowsToQueryResult(rows: any[]): VectorQueryResult {
+    return {
+      ids: rows.map((r: any) => r.id), documents: rows.map((r: any) => r.text),
+      distances: rows.map((r: any) => r._distance ?? 0), metadatas: rows.map((r: any) => JSON.parse(r.metadata || '{}')),
+    };
   }
 
   async deleteCollection(): Promise<void> {
@@ -62,49 +82,65 @@ export class LanceDBAdapter implements VectorStoreAdapter {
     try {
       await this.db.dropTable(this.collectionName);
       this.table = null;
-      console.log(`[LanceDB] Collection '${this.collectionName}' deleted`);
+      console.error('[LanceDB] Vector collection deleted');
     } catch (e) {
       console.warn('[LanceDB] deleteCollection failed:', e instanceof Error ? e.message : String(e));
     }
   }
 
+  async deleteDocuments(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    if (!this.table) await this.ensureCollection();
+    await this.checkoutLatest();
+    for (const id of ids) await this.table.delete(`id = '${id.replaceAll("'", "''")}'`);
+    console.error(`[LanceDB] Deleted ${ids.length} documents`);
+  }
+
   async addDocuments(docs: VectorDocument[]): Promise<void> {
     if (docs.length === 0) return;
     if (!this.table) await this.ensureCollection();
+    await this.checkoutLatest();
 
-    // Embed only the docs that lack a precomputed vector. Callers that
-    // already have a vector (e.g. the indexer worker loop, where embed
-    // happens before the storage write) skip the second Ollama round-trip.
-    const needEmbed: number[] = [];
-    for (let i = 0; i < docs.length; i++) {
-      if (!docs[i].vector) needEmbed.push(i);
-    }
-    let fresh: number[][] = [];
-    if (needEmbed.length > 0) {
-      const texts = needEmbed.map(i => docs[i].document);
-      fresh = await this.embedder.embed(texts, 'passage');
-    }
-    let freshIdx = 0;
+    const { rows, reused } = await buildLanceRows(docs, this.embedder);
 
-    const rows = docs.map((doc) => ({
-      id: doc.id,
-      text: doc.document,
-      metadata: JSON.stringify(doc.metadata),
-      vector: doc.vector ?? fresh[freshIdx++],
-    }));
+    // `table.add` APPENDS, so re-indexing one document left a second row with the same id
+    // and both were returned by search — one deployment grew 3,325 → 3,953 rows while trying
+    // to repair corrupted entries (#2806). `mergeInsert` is LanceDB's native atomic upsert:
+    // one round-trip, and no window where the row is absent.
+    //
+    // Safe because ids are unique per row: chunks get `${doc.id}__chunk_${i}`
+    // (`src/indexer/chunker.ts:62`), so two rows never legitimately share an id.
+    //
+    // Fix by @DUMPDUMPY (#2796), adopted here in preference to the delete-then-add this PR
+    // originally used at the daemon level — it is atomic, and it fixes every caller of
+    // addDocuments rather than only the daemon.
+    await this.table
+      .mergeInsert('id')
+      .whenMatchedUpdateAll()
+      .whenNotMatchedInsertAll()
+      .execute(rows);
+    console.error(`[LanceDB] Upserted ${docs.length} documents${reused > 0 ? ` (${reused} with precomputed vectors)` : ''}`);
+  }
 
-    await this.table.add(rows);
-    const reused = docs.length - needEmbed.length;
-    if (reused > 0) {
-      console.log(`[LanceDB] Added ${docs.length} documents (${reused} with precomputed vectors)`);
-    } else {
-      console.log(`[LanceDB] Added ${docs.length} documents`);
+  async replaceDocuments(docs: VectorDocument[]): Promise<void> {
+    if (!this.table) await this.ensureCollection();
+    await this.checkoutLatest();
+
+    if (docs.length === 0) {
+      await this.table.delete('id IS NOT NULL');
+      console.error('[LanceDB] Replaced collection with 0 documents');
+      return;
     }
+
+    const { rows, reused } = await buildLanceRows(docs, this.embedder);
+
+    await this.table.add(rows, { mode: 'overwrite' });
+    console.error(`[LanceDB] Replaced collection with ${docs.length} documents${reused > 0 ? ` (${reused} with precomputed vectors)` : ''}`);
   }
 
   async query(text: string, limit: number = 10, where?: Record<string, any>): Promise<VectorQueryResult> {
     if (!this.table) await this.ensureCollection();
-
+    await this.checkoutLatest();
     const [queryEmbedding] = await this.embedder.embed([text], 'query');
 
     // Fetch extra results if filtering in JS (metadata is stored as string, not binary)
@@ -120,16 +156,12 @@ export class LanceDBAdapter implements VectorStoreAdapter {
       }).slice(0, limit);
     }
 
-    return {
-      ids: filtered.map((r: any) => r.id),
-      documents: filtered.map((r: any) => r.text),
-      distances: filtered.map((r: any) => r._distance ?? 0),
-      metadatas: filtered.map((r: any) => JSON.parse(r.metadata || '{}')),
-    };
+    return this.rowsToQueryResult(filtered);
   }
 
   async queryById(id: string, nResults: number = 5): Promise<VectorQueryResult> {
     if (!this.table) await this.ensureCollection();
+    await this.checkoutLatest();
 
     // Get the document's vector using filter query (not vector search)
     const rows = await this.table.query().where(`id = '${id}'`).limit(1).toArray();
@@ -139,19 +171,22 @@ export class LanceDBAdapter implements VectorStoreAdapter {
 
     const vector = Array.from(rows[0].vector);
     const results = await this.table.search(vector).distanceType('cosine').limit(nResults + 1).toArray();
-
     const filtered = results.filter((r: any) => r.id !== id).slice(0, nResults);
+    return this.rowsToQueryResult(filtered);
+  }
 
-    return {
-      ids: filtered.map((r: any) => r.id),
-      documents: filtered.map((r: any) => r.text),
-      distances: filtered.map((r: any) => r._distance ?? 0),
-      metadatas: filtered.map((r: any) => JSON.parse(r.metadata || '{}')),
-    };
+  async queryByVector(vector: number[], nResults: number = 5): Promise<VectorQueryResult> {
+    if (!this.table) await this.ensureCollection();
+    await this.checkoutLatest();
+    const results = await this.table.search(vector).distanceType('cosine').limit(nResults).toArray();
+    return this.rowsToQueryResult(results);
   }
 
   async getStats(): Promise<{ count: number }> {
     if (!this.table) {
+      if (!this.db) {
+        try { await this.connect(); } catch {}
+      }
       // Try to open existing table
       if (this.db) {
         try {
@@ -163,6 +198,7 @@ export class LanceDBAdapter implements VectorStoreAdapter {
       }
       if (!this.table) return { count: 0 };
     }
+    await this.checkoutLatest();
     try {
       const count = await this.table.countRows();
       return { count };
@@ -176,13 +212,15 @@ export class LanceDBAdapter implements VectorStoreAdapter {
     return { count: stats.count, name: this.collectionName };
   }
 
-  async getAllEmbeddings(limit: number = 5000): Promise<{ ids: string[]; embeddings: number[][]; metadatas: any[] }> {
-    if (!this.table) return { ids: [], embeddings: [], metadatas: [] };
+  async getAllEmbeddings(limit: number = 5000): Promise<{ ids: string[]; embeddings: number[][]; metadatas: any[]; documents: string[] }> {
+    if (!this.table) return { ids: [], documents: [], embeddings: [], metadatas: [] };
+    await this.checkoutLatest();
 
     const rows = await this.table.query().limit(limit).toArray();
 
     return {
       ids: rows.map((r: any) => r.id),
+      documents: rows.map((r: any) => r.text),
       embeddings: rows.map((r: any) => Array.from(r.vector)),
       metadatas: rows.map((r: any) => JSON.parse(r.metadata || '{}')),
     };

@@ -1,40 +1,13 @@
-/**
- * arra-indexer CLI — M4 of the indexer-CLI design.
- *
- * Subcommands:
- *   arra-indexer status [--model X] [--status pending|claimed|done|error] [--limit N]
- *   arra-indexer enqueue <doc_id> [--model X]
- *   arra-indexer cancel <job_id>
- *   arra-indexer daemon
- *   arra-indexer help
- *
- * Scoped to direct-DB operations + daemon launch. The bulk operations
- * (scan a directory, backfill all docs for a model) are left for a
- * follow-up — they need filesystem walking + bulk enqueue logic that
- * doesn't fit a 100-LOC PR.
- *
- * Pure dispatch: parseArgs + commandTable. Subcommand handlers take
- * a deps object so tests can wire mocks.
- *
- * Design: ψ/lab/indexer-cli/DESIGN.md (M4).
- */
-
 import type Database from 'bun:sqlite';
-import {
-  enqueueIndexJob,
-  jobsByStatus,
-  type EnqueuedJob,
-} from './jobs.ts';
+import { and, count, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/bun-sqlite';
+import * as schema from '../db/schema.ts';
+import type { EnqueuedJob } from './jobs.ts';
 
-// ============================================================================
-// Argument parsing — Bun's util.parseArgs (zero deps, supports our shape)
-// ============================================================================
+const { indexingJobs } = schema;
+const RANDOM_SUFFIX_LENGTH = 6;
 
-export interface ParsedArgs {
-  subcommand: string;
-  positional: string[];
-  flags: Record<string, string | boolean>;
-}
+export interface ParsedArgs { subcommand: string; positional: string[]; flags: Record<string, string | boolean> }
 
 export function parseCli(argv: string[]): ParsedArgs {
   // argv = process.argv.slice(2) — already stripped of node + script
@@ -64,17 +37,12 @@ export function parseCli(argv: string[]): ParsedArgs {
   return out;
 }
 
-// ============================================================================
-// Subcommand handlers — pure functions of deps + parsed args
-// ============================================================================
-
 export interface CliDeps {
   db: Database;
   models: Record<string, { collection: string }>;
-  /** Print to stdout. Tests inject a recorder. */
   out: (s: string) => void;
-  /** Print to stderr. */
   err: (s: string) => void;
+  startDaemon?: () => Promise<void>;
 }
 
 const HELP_TEXT = `arra-indexer — vector job queue CLI
@@ -83,7 +51,7 @@ Usage:
   arra-indexer status [--model <key>] [--status <state>] [--limit <n>]
   arra-indexer enqueue <doc_id> [--model <key>]
   arra-indexer cancel <job_id>
-  arra-indexer daemon                    # start the worker daemon (M3)
+  arra-indexer daemon                    # start worker + ψ learn watcher daemon
   arra-indexer help
 
 Examples:
@@ -98,8 +66,8 @@ The status / enqueue / cancel commands operate directly on the SQLite
 queue (oracle.db, indexing_jobs table). They do not require the daemon
 to be running.
 
-The daemon command starts the long-running worker process (one worker per
-registered model, listens on http://127.0.0.1:47780 by default).
+The daemon command starts the long-running worker process and watches
+ψ/memory/learnings + ψ/learn for Markdown changes.
 `;
 
 export function cmdHelp(deps: CliDeps): number {
@@ -107,13 +75,54 @@ export function cmdHelp(deps: CliDeps): number {
   return 0;
 }
 
+function orm(deps: CliDeps) {
+  return drizzle(deps.db, { schema });
+}
+
+function jobId(modelKey: string): string {
+  const safe = modelKey.replace(/[^a-z0-9]/gi, '');
+  const rand = Math.random().toString(36).slice(2, 2 + RANDOM_SUFFIX_LENGTH);
+  return `idx-${Date.now()}-${safe}-${rand}`;
+}
+
+function enqueueJobs(deps: CliDeps, docId: string, modelKey?: string): EnqueuedJob[] {
+  const targets = modelKey
+    ? deps.models[modelKey] ? [{ key: modelKey, collection: deps.models[modelKey].collection }] : []
+    : Object.entries(deps.models).map(([key, { collection }]) => ({ key, collection }));
+  if (targets.length === 0) return [];
+  const jobs = targets.map(({ key, collection }) => ({
+    id: jobId(key),
+    docId,
+    modelKey: key,
+    collection,
+  }));
+  orm(deps).insert(indexingJobs).values(jobs.map((job) => ({
+    id: job.id,
+    docId: job.docId,
+    modelKey: job.modelKey,
+    collection: job.collection,
+    status: 'pending',
+    attempts: 0,
+  }))).run();
+  return jobs;
+}
+
 export function cmdStatus(deps: CliDeps, args: ParsedArgs): number {
   const modelKey = typeof args.flags.model === 'string' ? args.flags.model : undefined;
   const statusFilter = typeof args.flags.status === 'string' ? args.flags.status : undefined;
   const limit = typeof args.flags.limit === 'string' ? parseInt(args.flags.limit, 10) : 50;
+  const db = orm(deps);
 
-  // Aggregate counts (the helper)
-  const counts = jobsByStatus(deps.db, modelKey);
+  const countWhere = modelKey ? eq(indexingJobs.modelKey, modelKey) : undefined;
+  const counts = db.select({
+    status: indexingJobs.status,
+    model_key: indexingJobs.modelKey,
+    count: count(indexingJobs.id),
+  }).from(indexingJobs)
+    .where(countWhere)
+    .groupBy(indexingJobs.status, indexingJobs.modelKey)
+    .orderBy(indexingJobs.modelKey, indexingJobs.status)
+    .all();
   if (counts.length === 0) {
     deps.out('queue empty\n');
   } else {
@@ -123,22 +132,23 @@ export function cmdStatus(deps: CliDeps, args: ParsedArgs): number {
     }
   }
 
-  // Recent jobs (direct SQL — narrow projection)
-  const where: string[] = [];
-  const params: Array<string | number> = [];
-  if (modelKey) { where.push('model_key = ?'); params.push(modelKey); }
-  if (statusFilter) { where.push('status = ?'); params.push(statusFilter); }
-  const sql = `SELECT id, doc_id, model_key, status, attempts, created_at, finished_at, error
-               FROM indexing_jobs
-               ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-               ORDER BY created_at DESC LIMIT ?`;
-  params.push(limit);
-  const rows = deps.db
-    .query<{
-      id: string; doc_id: string; model_key: string; status: string;
-      attempts: number; created_at: number; finished_at: number | null; error: string | null;
-    }, typeof params>(sql)
-    .all(...params);
+  const filters: SQL[] = [];
+  if (modelKey) filters.push(eq(indexingJobs.modelKey, modelKey));
+  if (statusFilter) filters.push(eq(indexingJobs.status, statusFilter));
+  const rows = db.select({
+    id: indexingJobs.id,
+    doc_id: indexingJobs.docId,
+    model_key: indexingJobs.modelKey,
+    status: indexingJobs.status,
+    attempts: indexingJobs.attempts,
+    created_at: indexingJobs.createdAt,
+    finished_at: indexingJobs.finishedAt,
+    error: indexingJobs.error,
+  }).from(indexingJobs)
+    .where(filters.length ? and(...filters) : undefined)
+    .orderBy(desc(indexingJobs.createdAt))
+    .limit(limit)
+    .all();
 
   if (rows.length === 0) {
     deps.out('\nNo jobs match the filter.\n');
@@ -159,11 +169,7 @@ export function cmdEnqueue(deps: CliDeps, args: ParsedArgs): number {
     return 1;
   }
   const modelKey = typeof args.flags.model === 'string' ? args.flags.model : undefined;
-  const jobs = enqueueIndexJob(deps.db, {
-    docId,
-    modelKey,
-    models: deps.models,
-  });
+  const jobs = enqueueJobs(deps, docId, modelKey);
   if (jobs.length === 0) {
     if (modelKey) {
       deps.err(`error: unknown model_key '${modelKey}'\n`);
@@ -185,27 +191,19 @@ export function cmdCancel(deps: CliDeps, args: ParsedArgs): number {
     deps.err('error: job_id required\n');
     return 1;
   }
-  // Only cancel pending jobs — claimed/done/error are not cancelable.
-  const result = deps.db
-    .prepare(`UPDATE indexing_jobs
-              SET status = 'error', finished_at = (strftime('%s','now')*1000), error = 'cancelled by CLI'
-              WHERE id = ? AND status = 'pending'`)
-    .run(jobId);
-  // Drizzle types may report changes differently; access the raw .changes
-  const changes = (result as { changes?: number; rowsAffected?: number }).changes
-                ?? (result as { rowsAffected?: number }).rowsAffected
-                ?? 0;
-  if (changes === 0) {
+  const cancelled = orm(deps)
+    .update(indexingJobs)
+    .set({ status: 'error', finishedAt: sql`(strftime('%s','now')*1000)`, error: 'cancelled by CLI' })
+    .where(and(eq(indexingJobs.id, jobId), eq(indexingJobs.status, 'pending')))
+    .returning({ id: indexingJobs.id })
+    .get();
+  if (!cancelled) {
     deps.err(`error: no pending job with id '${jobId}' (already claimed/done/error?)\n`);
     return 1;
   }
   deps.out(`Cancelled job ${jobId}\n`);
   return 0;
 }
-
-// ============================================================================
-// Dispatcher — wires parseCli + handlers
-// ============================================================================
 
 export type SubcommandFn = (deps: CliDeps, args: ParsedArgs) => number | Promise<number>;
 
@@ -221,21 +219,14 @@ export const COMMANDS: Record<string, SubcommandFn> = {
 
 export async function dispatch(argv: string[], deps: CliDeps): Promise<number> {
   const args = parseCli(argv);
-  // daemon is special — delegates to the M3 entrypoint, dynamic-imported
-  // so the CLI doesn't pull the daemon's heavy deps for status/enqueue/cancel.
   if (args.subcommand === 'daemon') {
-    // daemon.ts has no exports — it runs main() at bottom via import.meta.main.
-    // We just need the side-effect of the import; swallow load errors.
-    await import('./daemon.ts').catch(() => null);
+    const startDaemon = deps.startDaemon ?? (await import('./daemon.ts')).startDaemon;
+    await startDaemon();
     return 0;
   }
   const fn = COMMANDS[args.subcommand] ?? cmdHelp;
   return await fn(deps, args);
 }
-
-// ============================================================================
-// Entrypoint (when run directly, not imported from tests)
-// ============================================================================
 
 if (import.meta.main) {
   const { default: Database } = await import('bun:sqlite');

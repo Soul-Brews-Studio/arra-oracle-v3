@@ -1,0 +1,125 @@
+type SignalName = 'SIGTERM' | 'SIGINT';
+
+type ShutdownStep = { name: string; run: () => void | Promise<void> };
+
+export interface ShutdownOptions {
+  timeoutMs?: number;
+  minDrainMs?: number;
+  close: () => Promise<void>;
+  log?: (message: string) => void;
+  exit?: (code: number) => never;
+}
+
+export interface DrainingResponseOptions {
+  draining?: boolean;
+  healthPaths?: readonly string[];
+  retryAfterSeconds?: number;
+}
+
+let draining = false;
+let shuttingDown = false;
+let activeRequests = 0;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function envMs(name: string, fallback: number): number {
+  const parsed = Number(process.env[name]);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function safeMs(value: number): number {
+  return Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
+function safeRetryAfterSeconds(value: number | undefined): number {
+  if (value === undefined) return 5;
+  return Number.isFinite(value) && value >= 0 ? Math.ceil(value) : 5;
+}
+
+export function isDraining(): boolean {
+  return draining;
+}
+
+export function activeRequestCount(): number {
+  return activeRequests;
+}
+
+export async function trackRequest<T>(handler: () => T | Promise<T>): Promise<T> {
+  activeRequests += 1;
+  try {
+    return await handler();
+  } finally {
+    activeRequests = Math.max(0, activeRequests - 1);
+  }
+}
+
+export async function waitForActiveRequests(timeoutMs = 10_000, minDrainMs = 250): Promise<boolean> {
+  timeoutMs = safeMs(timeoutMs);
+  minDrainMs = safeMs(minDrainMs);
+  const deadline = Date.now() + timeoutMs;
+  if (minDrainMs > 0) await sleep(minDrainMs);
+  while (activeRequests > 0) {
+    if (Date.now() >= deadline) return false;
+    await sleep(25);
+  }
+  return true;
+}
+
+export function drainingResponseFor(
+  request: Request,
+  options: DrainingResponseOptions = {},
+): Response | null {
+  if (!(options.draining ?? draining)) return null;
+  const healthPaths = options.healthPaths ?? ['/api/health', '/api/v1/health'];
+  const pathname = new URL(request.url).pathname;
+  if (healthPaths.includes(pathname)) return null;
+  return Response.json(
+    { error: 'server is draining', status: 'draining', draining: true },
+    { status: 503, headers: { 'Retry-After': String(safeRetryAfterSeconds(options.retryAfterSeconds)) } },
+  );
+}
+
+export async function runShutdownSteps(
+  steps: readonly ShutdownStep[],
+  log: (message: string) => void = console.warn,
+): Promise<void> {
+  const errors: string[] = [];
+  for (const step of steps) {
+    try {
+      await step.run();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`${step.name}: ${message}`);
+      log(`[Shutdown] ${step.name} cleanup failed: ${message}`);
+    }
+  }
+  if (errors.length) throw new Error(`shutdown cleanup failed (${errors.join('; ')})`);
+}
+
+export function registerGracefulShutdown(options: ShutdownOptions): void {
+  const timeoutMs = options.timeoutMs ?? envMs('ARRA_SHUTDOWN_TIMEOUT_MS', 10_000);
+  const minDrainMs = options.minDrainMs ?? envMs('ARRA_SHUTDOWN_MIN_DRAIN_MS', 250);
+  const log = options.log ?? ((message) => console.log(message));
+  const exit = options.exit ?? ((code) => process.exit(code) as never);
+
+  const shutdown = async (signal: SignalName) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    draining = true;
+    log(`[Shutdown] ${signal} received; draining active requests`);
+    const drained = await waitForActiveRequests(timeoutMs, minDrainMs);
+    if (!drained) log(`[Shutdown] drain timed out with ${activeRequests} active request(s)`);
+    await options.close();
+    log('[Shutdown] complete');
+    exit(0);
+  };
+
+  for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+    process.on(signal, () => {
+      shutdown(signal).catch((error) => {
+        console.error('[Shutdown] failed:', error instanceof Error ? error.message : error);
+        exit(1);
+      });
+    });
+  }
+}

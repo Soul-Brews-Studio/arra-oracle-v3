@@ -1,0 +1,44 @@
+version: 2
+name: arra-oracle
+displayName: Arra Oracle MCP Servers
+
+registry:
+  arra-oracle:
+    title: Arra Oracle
+    type: server
+    dateAdded: "2026-06-06T00:00:00Z"
+    image: ghcr.io/soul-brews-studio/arra-oracle-v3:stdio
+    description: |
+      Personal MCP memory server with semantic search over your Oracle vault.
+      SQLite FTS5 + LanceDB hybrid search, packaged for Docker MCP Toolkit.
+    longLived: false
+    volumes:
+      - "arra-oracle-data:/data"
+    env:
+      - name: ORACLE_LOG_TARGET
+        value: stderr
+    tools:
+      - name: oracle_search
+        description: Hybrid FTS5 + vector search over the Oracle vault.
+      - name: oracle_learn
+        description: Add new knowledge to Oracle memory.
+      - name: oracle_list
+        description: Browse indexed documents.
+      - name: oracle_stats
+        description: Database and vector backend statistics.
+      - name: oracle_handoff
+        description: Session handoff notes.
+      - name: oracle_inbox
+        description: Oracle inbox messages.
+      - name: oracle_trace
+        description: Create a trace entry.
+      - name: oracle_reflect
+        description: Reflect on a topic across vault entries.
+      - name: oracle_verify
+        description: Verify a claim against vault evidence.
+    secrets: []
+    metadata:
+      category: knowledge
+      tags: [memory, vault, mcp, semantic-search, oracle, fts5, lancedb]
+      license: BUSL-1.1
+      owner: Soul-Brews-Studio

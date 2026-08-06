@@ -23,7 +23,7 @@ const formatError = (error?: Error): string => {
   return ` [${error.message}]`;
 };
 
-export const logger: Logger = {
+const defaultLogger: Logger = {
   debug(category, message, data, error) {
     if (process.env.DEBUG) {
       console.log(`[DEBUG] [${category}] ${message}${formatData(data)}${formatError(error)}`);
@@ -44,10 +44,28 @@ export const logger: Logger = {
 };
 
 // Allow users to replace the logger
-let currentLogger: Logger = logger;
+let currentLogger: Logger = defaultLogger;
+
+export const logger: Logger = {
+  debug(category, message, data, error) {
+    currentLogger.debug(category, message, data, error);
+  },
+  info(category, message, data) {
+    currentLogger.info(category, message, data);
+  },
+  warn(category, message, data, error) {
+    currentLogger.warn(category, message, data, error);
+  },
+  error(category, message, data, error) {
+    currentLogger.error(category, message, data, error);
+  },
+  success(category, message, data) {
+    currentLogger.success(category, message, data);
+  }
+};
 
 export function setLogger(customLogger: Logger): void {
-  currentLogger = customLogger;
+  currentLogger = customLogger === logger ? defaultLogger : customLogger;
 }
 
 export function getLogger(): Logger {

@@ -19,13 +19,13 @@ function clearMenu() {
 function sampleSource() {
   return new Elysia({ prefix: '/api' })
     .get('/search', () => ({}), {
-      detail: { menu: { group: 'main', order: 10 }, summary: 'Search' },
+      detail: { menu: { group: 'main', path: '/search', order: 10 }, summary: 'Search' },
     })
     .get('/traces', () => ({}), {
-      detail: { menu: { group: 'main', order: 40 }, summary: 'Traces' },
+      detail: { menu: { group: 'main', path: '/traces', order: 40 }, summary: 'Traces' },
     })
     .get('/map', () => ({}), {
-      detail: { menu: { group: 'tools', order: 20 }, summary: 'Map' },
+      detail: { menu: { group: 'tools', path: '/map', order: 20 }, summary: 'Map' },
     });
 }
 
@@ -70,7 +70,7 @@ describe('GET /api/menu/tree', () => {
 describe('GET /api/menu/items', () => {
   beforeEach(() => clearMenu());
 
-  test('lists every DB field incl. touchedAt / source / enabled', async () => {
+  test('lists every DB field incl. touchedAt / deletedAt / source / enabled', async () => {
     seedMenuItems([sampleSource()]);
     const app = createMenuRoutes();
     const { status, json } = await call(app, 'GET', '/api/menu/items');
@@ -84,6 +84,7 @@ describe('GET /api/menu/items', () => {
       enabled: true,
       source: 'route',
       touchedAt: null,
+      deletedAt: null,
     });
   });
 });
@@ -150,7 +151,7 @@ describe('PATCH /api/menu/items/:id', () => {
 describe('DELETE /api/menu/items/:id', () => {
   beforeEach(() => clearMenu());
 
-  test('soft-deletes route-sourced rows (enabled=false)', async () => {
+  test('soft-deletes route-sourced rows with deletedAt', async () => {
     seedMenuItems([sampleSource()]);
     const row = db
       .select()
@@ -165,6 +166,7 @@ describe('DELETE /api/menu/items/:id', () => {
 
     const after = db.select().from(menuItems).where(eq(menuItems.id, row.id)).get();
     expect(after?.enabled).toBe(false);
+    expect(after?.deletedAt).toBeInstanceOf(Date);
   });
 
   test('hard-deletes custom rows', async () => {
@@ -188,5 +190,34 @@ describe('DELETE /api/menu/items/:id', () => {
     const app = createMenuRoutes();
     const { status } = await call(app, 'DELETE', '/api/menu/items/99999');
     expect(status).toBe(404);
+  });
+});
+
+describe('POST/PUT/DELETE /api/menu', () => {
+  beforeEach(() => clearMenu());
+
+  test('creates, updates, then soft-deletes a menu row', async () => {
+    const app = createMenuRoutes();
+    const created = await call(app, 'POST', '/api/menu', {
+      path: '/crud-alias',
+      label: 'CRUD Alias',
+      groupKey: 'tools',
+    });
+    expect(created.status).toBe(201);
+    expect(created.json).toMatchObject({ path: '/crud-alias', source: 'custom' });
+
+    const updated = await call(app, 'PUT', `/api/menu/${created.json.id}`, {
+      label: 'CRUD Updated',
+      position: 7,
+    });
+    expect(updated.status).toBe(200);
+    expect(updated.json).toMatchObject({ label: 'CRUD Updated', position: 7 });
+
+    const deleted = await call(app, 'DELETE', `/api/menu/${created.json.id}`);
+    expect(deleted.status).toBe(200);
+    expect(deleted.json.deleted).toBe('soft');
+    const row = db.select().from(menuItems).where(eq(menuItems.id, created.json.id)).get();
+    expect(row?.enabled).toBe(false);
+    expect(row?.deletedAt).toBeInstanceOf(Date);
   });
 });

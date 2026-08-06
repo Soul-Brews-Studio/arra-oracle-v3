@@ -1,0 +1,14 @@
+/opt/Code/github.com/Soul-Brews-Studio/arra-oracle-v3/frontend/src-tauri/target/debug/deps/block2-15b03166477cd13b.d: /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/lib.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/abi.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/block.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/debug.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/encoding.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/ffi.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/global.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/rc_block.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/stack.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/traits.rs
+
+/opt/Code/github.com/Soul-Brews-Studio/arra-oracle-v3/frontend/src-tauri/target/debug/deps/libblock2-15b03166477cd13b.rmeta: /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/lib.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/abi.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/block.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/debug.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/encoding.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/ffi.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/global.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/rc_block.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/stack.rs /Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/traits.rs
+
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/lib.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/abi.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/block.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/debug.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/encoding.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/ffi.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/global.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/rc_block.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/stack.rs:
+/Users/nat/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/block2-0.6.2/src/traits.rs:

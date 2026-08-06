@@ -141,9 +141,9 @@ describe.skipIf(!MCP_TEST_ENABLED)("MCP Integration", () => {
 
       // Check for core tools
       const toolNames = result.tools.map((t) => t.name);
-      expect(toolNames).toContain("arra_search");
-      expect(toolNames).toContain("arra_list");
-      expect(toolNames).toContain("arra_stats");
+      expect(toolNames).toContain("oracle_search");
+      expect(toolNames).toContain("oracle_list");
+      expect(toolNames).toContain("oracle_stats");
     });
   });
 
@@ -151,8 +151,8 @@ describe.skipIf(!MCP_TEST_ENABLED)("MCP Integration", () => {
   // Read-Only Tools
   // ===================
   describe("Read-Only Tools", () => {
-    test("arra_search returns results", async () => {
-      const result = await callTool("arra_search", {
+    test("oracle_search returns results", async () => {
+      const result = await callTool("oracle_search", {
         query: "oracle",
         limit: 5,
       });
@@ -161,29 +161,29 @@ describe.skipIf(!MCP_TEST_ENABLED)("MCP Integration", () => {
       expect(typeof result).toBe("object");
     });
 
-    test("arra_list returns documents", async () => {
-      const result = await callTool("arra_list", {
+    test("oracle_list returns documents", async () => {
+      const result = await callTool("oracle_list", {
         limit: 10,
       });
 
       expect(result).toBeDefined();
     });
 
-    test("arra_stats returns statistics", async () => {
-      const result = await callTool("arra_stats", {});
+    test("oracle_stats returns statistics", async () => {
+      const result = await callTool("oracle_stats", {});
       expect(result).toBeDefined();
     });
 
-    test("arra_concepts returns concept list", async () => {
-      const result = await callTool("arra_concepts", {
+    test("oracle_concepts returns concept list", async () => {
+      const result = await callTool("oracle_concepts", {
         limit: 20,
       });
 
       expect(result).toBeDefined();
     });
 
-    test("arra_reflect returns random wisdom", async () => {
-      const result = await callTool("arra_reflect", {});
+    test("oracle_reflect returns random wisdom", async () => {
+      const result = await callTool("oracle_reflect", {});
       expect(result).toBeDefined();
     });
   });
@@ -192,16 +192,16 @@ describe.skipIf(!MCP_TEST_ENABLED)("MCP Integration", () => {
   // Thread Tools
   // ===================
   describe("Thread Tools", () => {
-    test("arra_threads lists threads", async () => {
-      const result = await callTool("arra_threads", {
+    test("oracle_threads lists threads", async () => {
+      const result = await callTool("oracle_threads", {
         limit: 10,
       });
 
       expect(result).toBeDefined();
     });
 
-    test("arra_threads with status filter", async () => {
-      const result = await callTool("arra_threads", {
+    test("oracle_threads with status filter", async () => {
+      const result = await callTool("oracle_threads", {
         status: "active",
         limit: 5,
       });
@@ -214,8 +214,8 @@ describe.skipIf(!MCP_TEST_ENABLED)("MCP Integration", () => {
   // Trace Tools
   // ===================
   describe("Trace Tools", () => {
-    test("arra_trace_list returns traces", async () => {
-      const result = await callTool("arra_trace_list", {
+    test("oracle_trace_list returns traces", async () => {
+      const result = await callTool("oracle_trace_list", {
         limit: 10,
       });
 
@@ -238,8 +238,8 @@ describe.skipIf(!MCP_TEST_ENABLED)("MCP Integration", () => {
 
     test("handles missing required params", async () => {
       try {
-        // arra_search requires 'query' param
-        await callTool("arra_search", {});
+        // oracle_search requires 'query' param
+        await callTool("oracle_search", {});
         // May or may not throw depending on implementation
       } catch (error) {
         expect(error).toBeDefined();

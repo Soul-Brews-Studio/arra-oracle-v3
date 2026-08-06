@@ -7,11 +7,11 @@ const ORACLE_PLUGIN_DIR = join(homedir(), ".oracle", "plugins");
 
 async function confirm(prompt: string): Promise<boolean> {
   process.stderr.write(prompt);
-  for await (const chunk of Bun.stdin.stream()) {
-    const input = new TextDecoder().decode(chunk).trim().toLowerCase();
-    return input === "y" || input === "yes";
-  }
-  return false;
+  const reader = Bun.stdin.stream().getReader();
+  const { value } = await reader.read();
+  reader.releaseLock();
+  const input = new TextDecoder().decode(value).trim().toLowerCase();
+  return input === "y" || input === "yes";
 }
 
 export async function pluginsRemove(args: string[]): Promise<number> {

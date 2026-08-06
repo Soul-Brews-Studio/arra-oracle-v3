@@ -1,19 +1,38 @@
 import { Elysia } from 'elysia';
-import { handleThreadMessage } from '../../forum/handler.ts';
-import { threadCreateBody } from './model.ts';
+import { getThread, handleThreadMessage } from '../../forum/handler.ts';
+import { optionalThreadId, parseMessageRole, threadCreateBody, trimmedString } from './model.ts';
 
 export const threadCreateRoute = new Elysia().post('/api/thread', async ({ body, set }) => {
   try {
     const data = body as any;
-    if (!data.message) {
+    const message = trimmedString(data.message);
+    if (!message) {
       set.status = 400;
       return { error: 'Missing required field: message' };
     }
+    const threadId = optionalThreadId(data.thread_id);
+    if (threadId === null) {
+      set.status = 400;
+      return { error: 'Invalid thread_id' };
+    }
+    const role = parseMessageRole(data.role);
+    if (role === null) {
+      set.status = 400;
+      return { error: 'Invalid role (human|oracle|claude)' };
+    }
+    const existing = threadId === undefined ? null : getThread(threadId);
+    if (existing?.status === 'closed' && data.reopen !== true) {
+      set.status = 409;
+      return {
+        error: `Thread ${threadId} is closed. Pass reopen=true to add a new message.`,
+        status: 'closed',
+      };
+    }
     const result = await handleThreadMessage({
-      message: data.message,
-      threadId: data.thread_id,
-      title: data.title,
-      role: data.role || 'human',
+      message,
+      threadId,
+      title: trimmedString(data.title) ?? undefined,
+      role: role || 'human',
     });
     return {
       thread_id: result.threadId,
@@ -23,7 +42,7 @@ export const threadCreateRoute = new Elysia().post('/api/thread', async ({ body,
       issue_url: result.issueUrl,
     };
   } catch (error) {
-    set.status = 500;
+    set.status = error instanceof Error && /Thread \d+ not found/.test(error.message) ? 404 : 500;
     return { error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }, {
