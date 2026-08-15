@@ -6,6 +6,7 @@ aliases kept for existing installs.
 | Bin | Role | Entrypoint | Status |
 | --- | --- | --- | --- |
 | `arra-oracle-v3` | HTTP/MCP server runner | `bin/arra.ts` | Primary server bin |
+| `arra-oracle` | HTTP/MCP server runner | `bin/arra.ts` | Legacy-compatible alias |
 | `arra` | Operator CLI and plugin dispatcher | `cli/src/cli.ts` | Primary operator bin |
 | `arra-cli` | Operator CLI alias | `cli/src/cli.ts` | Legacy-compatible alias |
 | `arra-oracle-v2` | Stdio MCP server alias | `src/index.ts` | Legacy-compatible alias |

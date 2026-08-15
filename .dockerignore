@@ -1,16 +1,44 @@
-.git
-.github
-.maw
-.omx
-agents
+# Never ship host-built native deps — they're arch-specific and rebuilt in-image.
 node_modules
 web/node_modules
 frontend/node_modules
-coverage
-dist
-.DS_Store
-*.log
+
+# VCS + CI
+.git
+.github
+.gitignore
+
+# Vault / indexed data — belongs in the mounted volume, not the image.
+ψ
+
+# Local data dirs (if anyone ran the server in the repo)
+.oracle
+.arra-oracle-v2
 oracle.db*
+*.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 /data
+
+# Editor / OS noise
+.DS_Store
+.vscode
+.idea
+
+# Test + coverage artifacts
+coverage
+.nyc_output
+
+# Docker self
+Dockerfile
+.dockerignore
+
+# Misc local / per-machine state
+.maw
+.omx
+.serena
+agents
+*.log
+dist

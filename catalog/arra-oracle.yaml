@@ -1,3 +1,14 @@
+# Custom Docker MCP Toolkit catalog entry for arra-oracle-v3.
+#
+# To register locally:
+#   1. Copy this file to ~/.docker/mcp/catalogs/arra-oracle.yaml
+#   2. Add `arra-oracle: { ref: "" }` under `registry:` in ~/.docker/mcp/registry.yaml
+#   3. Wire docker/mcp-gateway with --catalog=/mcp/catalogs/arra-oracle.yaml
+#
+# Schema shape was verified against docker/mcp-gateway pkg/catalog/types.go:
+# top-level version/name/displayName/registry, server type, per-server metadata,
+# object-form tool discovery hints, and optional env/allowHosts/volumes.
+
 version: 2
 name: arra-oracle
 displayName: Arra Oracle MCP Servers
@@ -10,33 +21,103 @@ registry:
     image: ghcr.io/soul-brews-studio/arra-oracle-v3:stdio
     description: |
       Personal MCP memory server with semantic search over your Oracle vault.
-      SQLite FTS5 + LanceDB hybrid search, packaged for Docker MCP Toolkit.
+      SQLite FTS5 + LanceDB hybrid (degrades to FTS5-only if no Ollama backend).
+      20+ oracle_* tools across search / knowledge / session / forum / trace groups.
+      Backward-compatible alias: arra_* also resolves to oracle_*.
+
+    # Ephemeral is safe: /data persists SQLite, LanceDB, and the vault between calls.
+    # Flip longLived to true later only if cold LanceDB startup becomes a bottleneck.
     longLived: false
+
     volumes:
       - "arra-oracle-data:/data"
+
     env:
+      # Force any incidental logging to stderr — protect the stdio JSON-RPC channel
+      # from being corrupted by stray stdout writes (the codex-killer bug, #1238).
       - name: ORACLE_LOG_TARGET
         value: stderr
+
+      # Docker MCP Toolkit starts this as a stdio container; embedded mode keeps
+      # it self-contained. To route through a long-running HTTP writer instead,
+      # change this to e.g. http://host.docker.internal:47778.
+      - name: ORACLE_API
+        value: "embedded"
+
+      # Optional Ollama backend — semantic vector search lights up when reachable.
+      # Without it, arra serves via FTS5-only (still fully functional).
+      - name: OLLAMA_BASE_URL
+        value: "{{ollama_base_url}}"
+
+    # Network controls — arra only needs host Ollama access for local embeddings.
+    # The MCP stdio channel itself does not require network access.
+    allowHosts:
+      - "host.docker.internal:11434"
+
+    # Tool entries are discovery hints for Docker Desktop, not enablement lists.
+    # arra always exposes the full MCP tool set from src/index.ts.
     tools:
       - name: oracle_search
-        description: Hybrid FTS5 + vector search over the Oracle vault.
+        description: "Hybrid FTS5 + vector search over the Oracle vault"
+      - name: oracle_ask
+        description: "Ask Oracle for a grounded answer over memory/search, with citations"
+      - name: oracle_search_chain
+        description: "Iterative vector search over linked results, expanding hop by hop"
       - name: oracle_learn
-        description: Add new knowledge to Oracle memory.
+        description: "Index a markdown file into the vault (semantic + FTS5)"
       - name: oracle_list
-        description: Browse indexed documents.
+        description: "List indexed knowledge entries with filters"
+      - name: oracle_read
+        description: "Read a specific vault file by path or id"
       - name: oracle_stats
-        description: Database and vector backend statistics.
+        description: "Vector + FTS5 counts, backend health, vault status"
+      - name: oracle_concepts
+        description: "Concept-tag aggregation across the corpus"
+      - name: oracle_supersede
+        description: "Mark an entry as superseded by a newer one"
+      - name: oracle_research_note
+        description: "Store a research/dev artifact as searchable learning memory"
       - name: oracle_handoff
-        description: Session handoff notes.
+        description: "Read or write session handoff notes"
       - name: oracle_inbox
-        description: Oracle inbox messages.
+        description: "Read or write Oracle inbox messages"
+      - name: oracle_recap
+        description: "Compact session-start wake-up context: identity plus top memories"
+      - name: oracle_profile
+        description: "List or read code-backed Oracle profiles"
+      - name: oracle_thread
+        description: "Start a forum thread"
+      - name: oracle_threads
+        description: "List forum threads"
+      - name: oracle_thread_read
+        description: "Read a forum thread"
+      - name: oracle_thread_update
+        description: "Update a forum thread"
       - name: oracle_trace
-        description: Create a trace entry.
+        description: "Log a trace event (query + findings + friction score)"
+      - name: oracle_trace_list
+        description: "List recent traces"
+      - name: oracle_trace_get
+        description: "Get a specific trace by id"
+      - name: oracle_trace_link
+        description: "Link two traces (causal or topical)"
+      - name: oracle_trace_unlink
+        description: "Remove a trace link"
+      - name: oracle_trace_chain
+        description: "Walk a chain of linked traces"
+      - name: oracle_trace_distill
+        description: "Distill a trace into an awakening summary, optionally promoted to memory"
       - name: oracle_reflect
-        description: Reflect on a topic across vault entries.
+        description: "Reflect on a topic across vault entries"
       - name: oracle_verify
-        description: Verify a claim against vault evidence.
+        description: "Verify a claim against vault evidence"
+      - name: oracle_mcp_list_tools
+        description: "Start an external stdio MCP server and list its advertised tools"
+      - name: oracle_mcp_call
+        description: "Call one tool exposed by an external stdio MCP server"
+
     secrets: []
+
     metadata:
       category: knowledge
       tags: [memory, vault, mcp, semantic-search, oracle, fts5, lancedb]
