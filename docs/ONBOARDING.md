@@ -80,9 +80,9 @@ ORACLE_ENABLED_TOOLS=oracle_search,oracle_read,oracle_list,oracle_stats bun src/
 ORACLE_DISABLED_TOOLS=oracle_trace,oracle_thread bun src/index.ts
 ```
 
-### HTTP API
+### HTTP API and web toggle UI
 
-The same MCP tool enablement surface is reachable over HTTP:
+The same MCP tool enablement surface is reachable over HTTP, and from a browser at `/tools/config`:
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -91,10 +91,9 @@ The same MCP tool enablement surface is reachable over HTTP:
 
 `PUT` writes to the file the loader will read next, so saved toggles apply on the
 next MCP tool-list refresh / process reload. When `env_override` is `true` the
-environment still wins over the saved file.
-
-There is no `/tools/config` web page yet — the menu entry on these routes is
-reserved for one.
+environment still wins over the saved file, and `/tools/config` shows an
+"Environment override active" banner so it is obvious a save will not change
+what is actually served.
 
 ## 3. Connect page, token, and MCP install snippet (#1374)
 

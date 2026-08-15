@@ -1,6 +1,10 @@
 /**
  * Vector Indexer Endpoints — runs indexing inside the vector sidecar.
  *
+ * Moves indexing out of the main server so LanceDB writes don't contend
+ * with oracle.db reads/writes on the same process. oracle.db is opened
+ * READ-ONLY here (inherits ORACLE_VECTOR_READONLY=1 from the sidecar env).
+ *
  * Endpoints (mounted under /api):
  *   POST /vector/index/start   — trigger reindex for one/all models
  *   GET  /vector/index/status  — current job status
