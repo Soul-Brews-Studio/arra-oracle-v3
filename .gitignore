@@ -44,7 +44,10 @@ test-results/
 .wrangler/
 
 # Oracle instance data (per-user vault; never commit)
-ψ/
+ψ
+
+# Incubation breadcrumb (per-oracle, changes whenever a different oracle incubates this repo)
+.claude/INCUBATED_BY
 
 # Generated report files (use oracle-vault-report repo instead)
 vault-report.html
