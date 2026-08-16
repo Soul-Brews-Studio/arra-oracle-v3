@@ -78,6 +78,19 @@ export function parseLearningFile(filename: string, content: string, sourceFileO
 
   const title = parseFrontmatterString(content, ['title']) || filename.replace('.md', '');
 
+  // Recovery envelope (opt-in via `arra_recovery: v1` frontmatter): the body is
+  // one opaque document restored from a lost source, so section splitting and
+  // title prefixing must not rewrite it. Files without the marker are
+  // unaffected.
+  if (parseFrontmatterString(content, ['arra_recovery']) === 'v1') {
+    const extracted = extractConcepts(title, bodyContent);
+    return [{
+      id: baseId, type: docType, source_file: sourceFile,
+      content: bodyContent, concepts: mergeConceptsWithTags(extracted, fileTags),
+      created_at: createdAt, updated_at: updatedAt, project: fileProject || undefined
+    }];
+  }
+
   const sections = /^##\s+/m.test(bodyContent) ? bodyContent.split(/^##\s+/m).filter(s => s.trim()) : [];
 
   sections.forEach((section, index) => {
