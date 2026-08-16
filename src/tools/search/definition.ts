@@ -27,7 +27,7 @@ export const searchToolDef = {
       mode: {
         type: 'string',
         enum: ['hybrid', 'fts', 'vector'],
-        description: 'Search mode: hybrid (default), fts (keywords only), vector (semantic only)',
+        description: 'Search mode: hybrid (FTS5 + vectors + pointer signals), fts (FTS5 + pointer signals, no vectors), vector (vectors + pointer signals, no FTS5)',
         default: 'hybrid',
       },
       retrieval: {

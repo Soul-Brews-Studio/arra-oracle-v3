@@ -37,6 +37,7 @@ export interface TestHarness {
   db: Database;
   embedded: Array<{ model: string; text: string }>;
   upserted: Array<{ collection: string; docId: string; vectorLen: number }>;
+  deleted?: Array<{ collection: string; docId: string }>;
   events: WorkerEvent[];
   shutdownAfter: number;  // signal shutdown after this many job iterations
 }
@@ -57,6 +58,11 @@ export function makeDeps(harness: TestHarness, overrides: Partial<WorkerDeps> = 
     },
     upsertVector: async (collection, docId, vector) => {
       harness.upserted.push({ collection, docId, vectorLen: vector.length });
+    },
+    deleteVector: async (modelKey, docId) => {
+      const model = MODELS[modelKey as keyof typeof MODELS];
+      const collection = model?.collection ?? modelKey;
+      harness.deleted?.push({ collection, docId });
     },
     isShuttingDown: () => {
       iterations++;

@@ -22,6 +22,7 @@ import { runWorker, type WorkerEvent } from './worker.ts';
 import { makeUpsertVector } from './upsert-vector.ts';
 import { daemonApiPlugin, makeEventBus } from '../routes/indexer-daemon/index.ts';
 import { startLearnWatcher, type StopWatch } from './learn-watcher.ts';
+import { startProjectWatcher } from './project-watcher.ts';
 
 const PORT = parseInt(process.env.INDEXER_PORT || '47779', 10);
 const HOST = process.env.INDEXER_HOST || '127.0.0.1';
@@ -35,6 +36,7 @@ export async function startDaemon(): Promise<void> {
   const eventBus = makeEventBus<WorkerEvent>();
   let shuttingDown = false;
   let stopLearnWatcher: StopWatch | undefined;
+  let stopProjectWatcher: StopWatch | undefined;
 
   // Resolve doc text via the FTS5 mirror table — same content oracle_learn writes.
   const getDocText = (docId: string): string | null => {
@@ -76,6 +78,14 @@ export async function startDaemon(): Promise<void> {
   // because it is untestable from here — that is why #2806 survived on both branches.
   const upsertVector = makeUpsertVector({ models, getStore });
 
+  const deleteVector = async (modelKey: string, docId: string): Promise<void> => {
+    const store = await getStore(modelKey);
+    if (!store.deleteDocuments) {
+      throw new Error(`Vector store for ${modelKey} does not support document deletion`);
+    }
+    await store.deleteDocuments([docId]);
+  };
+
   const workerPromises: Promise<unknown>[] = [];
   for (const modelKey of Object.keys(models)) {
     const p = runWorker(modelKey, {
@@ -83,6 +93,7 @@ export async function startDaemon(): Promise<void> {
       getDocText,
       embed,
       upsertVector,
+      deleteVector,
       isShuttingDown: () => shuttingDown,
       onEvent: eventBus.publish,
       pollIntervalMs: 1000,
@@ -116,12 +127,19 @@ export async function startDaemon(): Promise<void> {
     models,
     repoRoot: REPO_ROOT,
   });
+  stopProjectWatcher = startProjectWatcher({
+    db: sqlite,
+    models,
+    repoRoot: REPO_ROOT,
+  });
 
   const shutdown = async (signal: string) => {
     console.log(`[arra-indexer] ${signal} — draining…`);
     shuttingDown = true;
     stopLearnWatcher?.();
     stopLearnWatcher = undefined;
+    stopProjectWatcher?.();
+    stopProjectWatcher = undefined;
     await app.stop();
     // Workers exit on next loop tick. Give them up to 5s of in-flight grace.
     const timeout = new Promise((resolve) => setTimeout(resolve, 5000));

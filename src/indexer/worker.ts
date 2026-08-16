@@ -45,6 +45,8 @@ export interface WorkerDeps {
    * the same meaningless embedding (#2806, reported by Berlin).
    */
   upsertVector: (collection: string, docId: string, vector: number[], text: string) => Promise<void>;
+  /** Delete one stale vector row for a document that no longer exists in the text index. */
+  deleteVector: (modelKey: string, docId: string) => Promise<void>;
   /** Returns true when the worker should exit cleanly. Caller wires SIGTERM/SIGINT. */
   isShuttingDown: () => boolean;
   /** Sleep between empty-queue polls (default 1000ms). */
@@ -113,9 +115,11 @@ export async function runWorker(
     try {
       const text = deps.getDocText(job.docId);
       if (text === null) {
-        // Doc was deleted between enqueue and claim — mark done (no-op).
-        // Plug-play: removing a doc from oracle_documents leaves queue rows
-        // safely consumable. The worker absorbs the no-op gracefully.
+        // The canonical text row disappeared after this job was queued.
+        // Delete any previously stored vector before completing the job.
+        // A later cleanup job is therefore safe even if an older claimed job
+        // races and briefly re-upserts the stale vector first.
+        await deps.deleteVector(job.modelKey, job.docId);
         markJobDone(deps.db, job.id);
         emit(deps, { type: 'doc_missing', job });
         stats.processed++;

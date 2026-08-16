@@ -46,6 +46,7 @@ export function hydratePointerDocs(db: OracleDb, ranked: Map<string, { score: nu
   if (ids.length === 0) return [];
   const filters = [
     eq(schema.oracleDocuments.tenantId, options.tenantId),
+    isNull(schema.oracleDocuments.supersededAt),
     inArray(schema.oracleDocuments.id, ids),
     ...(options.type && options.type !== 'all' ? [eq(schema.oracleDocuments.type, options.type)] : []),
     ...(options.project ? [or(eq(schema.oracleDocuments.project, options.project), isNull(schema.oracleDocuments.project))] : []),

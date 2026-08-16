@@ -105,3 +105,45 @@ test('oracle_search surfaces pointer-only hits when FTS misses', async () => {
     hits: 1,
   });
 });
+
+test('oracle_search pointer hydration excludes superseded documents', async () => {
+  const conn = connection();
+
+  conn.db.insert((await import('../../db/schema.ts')).oracleDocuments).values({
+    id: 'superseded-pointer-doc',
+    type: 'learning',
+    sourceFile: 'ψ/memory/learnings/superseded-pointer.md',
+    concepts: JSON.stringify(['Superseded Pointer']),
+    createdAt: stamp,
+    updatedAt: stamp,
+    indexedAt: stamp,
+    supersededAt: stamp,
+    supersededBy: 'replacement-doc',
+  }).run();
+
+  conn.sqlite.prepare(
+    'INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)'
+  ).run(
+    'superseded-pointer-doc',
+    'opaque stale payload without query terms',
+    'unrelated'
+  );
+
+  replaceDocumentPointers(conn.sqlite, {
+    documentId: 'superseded-pointer-doc',
+    content: 'Superseded Pointer historical note',
+    concepts: ['Superseded Pointer'],
+    timestamp: stamp,
+  });
+
+  const response = await handleSearch(ctx(conn), {
+    query: 'Superseded Pointer',
+    mode: 'fts',
+    limit: 3,
+  });
+
+  const body = JSON.parse(response.content[0].text);
+
+  expect(body.results.map((result: { id: string }) => result.id))
+    .not.toContain('superseded-pointer-doc');
+});

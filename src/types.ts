@@ -131,6 +131,7 @@ export interface IndexerConfig {
     distillations: string;
     learn: string;              // ψ/learn/ — auto-learned repo exploration docs
     inbox?: string;             // ψ/inbox/ — fleet correspondence, indexed as knowledge (#2855)
+    projects?: string;          // ψ/projects/ — canonical Oracle work-project context
     security_corpus?: string;  // Optional: ψ/learn/security-corpus/ — opt-in via ORACLE_INDEX_SECURITY_CORPUS=1
   };
 }

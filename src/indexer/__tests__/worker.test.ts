@@ -131,17 +131,27 @@ describe('runWorker — error paths', () => {
 });
 
 describe('runWorker — doc-missing graceful handling', () => {
-  it('marks job done (no embed/upsert) when doc text is null', async () => {
+  it('deletes the stale vector and marks job done when doc text is null', async () => {
     const db = freshDb();
     enqueueIndexJob(db, { docId: 'doc-deleted', models: MODELS });
 
-    const harness: TestHarness = { db, embedded: [], upserted: [], events: [], shutdownAfter: 2 };
+    const harness: TestHarness = {
+      db,
+      embedded: [],
+      upserted: [],
+      deleted: [],
+      events: [],
+      shutdownAfter: 2,
+    };
     const stats = await runWorker('bge-m3', makeDeps(harness));
 
     expect(stats.processed).toBe(1);
     expect(stats.errors).toBe(0);
-    expect(harness.embedded).toHaveLength(0);  // no embed call
+    expect(harness.embedded).toHaveLength(0);
     expect(harness.upserted).toHaveLength(0);
+    expect(harness.deleted).toEqual([
+      { collection: 'oracle_knowledge_bge_m3', docId: 'doc-deleted' },
+    ]);
 
     const row = db.query('SELECT status FROM indexing_jobs').get() as { status: string };
     expect(row.status).toBe('done');

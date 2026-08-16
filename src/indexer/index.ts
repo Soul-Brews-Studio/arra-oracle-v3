@@ -28,6 +28,7 @@ import { parseResonanceFile, parseLearningFile, parseRetroFile, parseDistillatio
 import { getEmbeddingModels } from '../vector/factory.ts';
 import { collectDocuments, collectPsiLearn, collectSecurityCorpus } from './collectors.ts';
 import { collectPsiInbox } from './collect-inbox.ts';
+import { collectPsiProjects } from './collect-projects.ts';
 import {
   changedDocumentIds,
   enqueueVectorReindexJobs,
@@ -101,6 +102,7 @@ export class OracleIndexer {
       ...collectDocuments({ ...shared, subdir: 'distillations', parseFn: parseDistillationFile, label: 'distillation' }),
       ...collectPsiLearn(shared),
       ...collectPsiInbox(shared),
+      ...collectPsiProjects({ config: this.config }),
       ...collectSecurityCorpus(shared),
     ];
 
