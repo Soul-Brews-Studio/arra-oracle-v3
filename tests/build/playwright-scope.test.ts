@@ -30,16 +30,27 @@ function read(rel: string): string {
   return readFileSync(join(REPO_ROOT, rel), 'utf-8');
 }
 
-/** Walk tests/ for *.spec.ts. Kept subprocess-free so the gate cannot depend on git. */
-function specFiles(dir = 'tests'): string[] {
+/**
+ * Walk for *.spec.ts. Kept subprocess-free so the gate cannot depend on git.
+ *
+ * BOTH bunfig roots, not just tests/. The exclusion glob is repo-wide, so a
+ * src/**-spec file would be silently skipped by bun AND invisible to this guard
+ * if we only walked tests/. Verified by planting src/rogue-probe.spec.ts
+ * importing bun:test: the tests/-only version stayed 6 pass / 0 fail.
+ */
+function walkSpecs(dir: string): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(join(REPO_ROOT, dir), { withFileTypes: true })) {
     if (SKIP_DIRS.has(entry.name)) continue;
     const rel = `${dir}/${entry.name}`;
-    if (entry.isDirectory()) found.push(...specFiles(rel));
+    if (entry.isDirectory()) found.push(...walkSpecs(rel));
     else if (entry.name.endsWith('.spec.ts')) found.push(rel);
   }
   return found;
+}
+
+function specFiles(): string[] {
+  return ['src', 'tests'].flatMap(walkSpecs);
 }
 
 /** playwright configs hold regex source, so `contrast\.spec\.ts` — drop the escapes. */
