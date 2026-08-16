@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createHash } from 'node:crypto';
+import { slugifyTitle } from '../util/slug.ts';
 
 export interface LearningMarkdownOptions {
   id: string;
@@ -25,15 +26,14 @@ export function normalizeLearningPattern(pattern: unknown): string {
   return normalized;
 }
 
+/**
+ * The learning filename's title half. Unicode-preserving since the slug rule moved to
+ * `src/util/slug.ts` — a Thai pattern used to slug to nothing, and a mixed one kept only
+ * its stray Latin token. `'learning'` remains the fallback for input with no letters or
+ * digits at all (`'!!!'`), because `uniqueTail` already stops two of those colliding.
+ */
 export function learningSlug(pattern: string): string {
-  const slug = normalizeLearningPattern(pattern)
-    .substring(0, 50)
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-  return slug || 'learning';
+  return slugifyTitle(normalizeLearningPattern(pattern), 50) || 'learning';
 }
 
 /**

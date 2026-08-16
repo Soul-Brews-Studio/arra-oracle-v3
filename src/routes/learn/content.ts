@@ -1,3 +1,5 @@
+import { slugifyTitle } from '../../util/slug.ts';
+
 export type LearnConceptInput = string[] | string | undefined;
 
 function cleanConcepts(values: unknown[]): string[] {
@@ -16,16 +18,12 @@ export function conceptsFrom(value: LearnConceptInput): string[] {
   return [];
 }
 
+/**
+ * Same rule as `learningSlug`, minus the throw: `crud.ts` has already rejected an empty
+ * pattern with a 400 by the time this runs, so a fallback is the right shape here.
+ */
 export function slugFor(pattern: string): string {
-  const slug = String(pattern)
-    .trim()
-    .slice(0, 50)
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-  return slug || 'learning';
+  return slugifyTitle(String(pattern).trim(), 50) || 'learning';
 }
 
 export function learningContent(pattern: string, concepts: string[], source?: string): string {

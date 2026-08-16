@@ -46,9 +46,11 @@ describe('a non-ASCII pattern never slugs to nothing', () => {
     });
   }
 
-  test('an ASCII word inside a Thai pattern is kept rather than discarded', () => {
-    // Preferring the real token over the generic fallback keeps the filename meaningful.
-    expect(learningSlug('การทดสอบภาษาไทยสำหรับ oracle')).toBe('oracle');
+  test('a mixed pattern keeps both scripts, not only the ASCII word', () => {
+    // This used to assert `'oracle'` — the one Latin token surviving while the Thai was
+    // discarded. That reads as success and is the quiet half of the same bug: a plausible
+    // filename that no longer says what the document is. See PR #2934.
+    expect(learningSlug('การทดสอบภาษาไทยสำหรับ oracle')).toBe('การทดสอบภาษาไทยสำหรับ-oracle');
   });
 
   test('an ordinary ASCII pattern is unaffected', () => {
@@ -67,10 +69,11 @@ describe('a second learning the same day is suffixed, not lost', () => {
     expect(uniqueTail(dir, '2026-07-27', 'learning')).toBe('learning-2');
   });
 
-  test('three Thai learnings in one day all get distinct filenames', () => {
+  test('three identical Thai learnings in one day all get distinct filenames', () => {
     /**
-     * The reported symptom, end to end. Every pure-Thai pattern slugs to the same fallback, so
-     * without `uniqueTail` the second and third would overwrite or be rejected.
+     * The reported symptom, end to end. Distinct Thai patterns now slug distinctly, so this
+     * exercises what is left: three writes of the SAME title still need `uniqueTail`, exactly
+     * as three writes of the same ASCII title do.
      */
     const dir = tempDir();
     const slug = learningSlug('การทดสอบภาษาไทย');

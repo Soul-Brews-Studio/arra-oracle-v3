@@ -16,6 +16,12 @@
  * Both halves are required. The fallback alone makes every non-ASCII learning
  * slug to `learning`, which then collides with itself on the second one — the
  * same data loss with a different filename.
+ *
+ * Third half, added later: the fallback and the collision guard stop the LOSS but
+ * still throw the title away, and `'mixed ไทย text' -> 'mixed-text'` shows the
+ * failure mode that never goes red — a filename that looks right and no longer
+ * describes its document. The slug rule now keeps \p{L}\p{N}\p{M} from any script
+ * (`src/util/slug.ts`), so the assertions below moved with it. See PR #2934.
  */
 import { describe, expect, test } from 'bun:test';
 import { mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
@@ -38,7 +44,13 @@ describe('non-ASCII learning slugs', () => {
 
   test('ASCII patterns are unaffected', () => {
     expect(learningSlug('Deploy checklist')).toBe('deploy-checklist');
-    expect(learningSlug('mixed ไทย text')).toBe('mixed-text');
+  });
+
+  test('a mixed pattern keeps its Thai instead of dropping it', () => {
+    // Was `'mixed-text'` — the Thai silently deleted from the middle of the name. The
+    // exhaustive proof that ASCII-only input is untouched lives in
+    // `tests/util/slug-ascii-identity.test.ts`. See PR #2934.
+    expect(learningSlug('mixed ไทย text')).toBe('mixed-ไทย-text');
   });
 
   test('a punctuation-only pattern falls back rather than slugging to empty', () => {

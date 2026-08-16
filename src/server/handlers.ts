@@ -19,7 +19,7 @@ import { localVectorOperations } from './vector-operations.ts';
 import { detectProject } from './project-detect.ts';
 import { coerceConcepts } from '../tools/learn.ts';
 import { createVectorProxy } from './vector-proxy.ts';
-import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
+import { buildLearningMarkdown, dateSlug, learningSlug } from '../learn/markdown.ts';
 import { localNativeVectorDisabledReason, localVectorIndexMissingReason, logLocalVectorDisabled, noteLocalVectorEnabled } from '../vector/cpu-capabilities.ts';
 import { isVectorSectionEnabled } from '../vector/config.ts';
 import { candidatePoolSize } from '../search/retrieve-depth.ts';
@@ -775,13 +775,11 @@ export function handleLearn(
   const d = new Date();
   const dateStr = dateSlug(d);
 
-  const slug = pattern
-    .substring(0, 50)
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
+  // #2819 replaced the inline slug copy in `src/tools/learn.ts` (the MCP path) with
+  // `learningSlug` — and left this one, the HTTP POST /api/learn path, untouched. So a
+  // Thai learning saved over HTTP still produced `<date>_.md` long after the same bug
+  // was fixed for the tool. One helper, one rule, both paths.
+  const slug = learningSlug(pattern);
 
   // On slug collision (same date + same first-50-char prefix), append -2, -3, …
   // until unique. Prevents 500s when two writes share a slug within one day
