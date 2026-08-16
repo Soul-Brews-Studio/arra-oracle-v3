@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { REPO_ROOT } from '../config.ts';
+import { slugifySnippet } from '../util/slug.ts';
 
 function isLearningFilePath(learning: string): boolean {
   return learning.startsWith('ψ/') || learning.includes('/memory/learnings/');
@@ -14,13 +15,14 @@ function dateStamp(now = new Date()): string {
   ].join('-');
 }
 
-function slugifySnippet(text: string): string {
-  const slug = text
-    .slice(0, 50)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-  return slug || 'learning';
+/**
+ * The same defect as the learn path, under a slightly different rule: here punctuation
+ * SEPARATES rather than disappearing, so `[^a-z0-9]+` -> `-` (not `[^a-z0-9\s-]` -> ``).
+ * `slugifySnippet` keeps that distinction and only widens the alphabet, so ASCII trace
+ * filenames are unchanged while a Thai trace snippet stops slugging to 'learning'.
+ */
+function traceSnippetSlug(text: string): string {
+  return slugifySnippet(text, 50) || 'learning';
 }
 
 function yamlSafe(value: string): string {
@@ -29,7 +31,7 @@ function yamlSafe(value: string): string {
 
 function createLearningFile(text: string, project: string | null, traceQuery: string): string {
   const dateStr = dateStamp();
-  const filename = `${dateStr}_trace-${slugifySnippet(text)}.md`;
+  const filename = `${dateStr}_trace-${traceSnippetSlug(text)}.md`;
   const relativePath = `ψ/memory/learnings/${filename}`;
   const fullPath = join(REPO_ROOT, relativePath);
   const title = text.slice(0, 80).trim() || 'Trace learning';

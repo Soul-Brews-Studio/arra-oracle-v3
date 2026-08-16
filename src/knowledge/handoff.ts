@@ -1,17 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { slugifyTitle } from '../util/slug.ts';
 
+/**
+ * Sanitising a caller-supplied slug is what keeps `../../` out of the filename, so this
+ * must stay a strip-and-rebuild, not a validation. It now strips by character class
+ * rather than by alphabet, so a Thai handoff keeps its title — path separators, dots and
+ * every other traversal character are outside \p{L}\p{N}\p{M} and still cannot survive.
+ */
 export function safeHandoffSlug(raw: unknown, content: string): string {
   const fallback = content.substring(0, 50);
   const source = typeof raw === 'string' && raw.trim() ? raw : fallback;
-  const slug = source
-    .substring(0, 80)
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-  return slug || 'handoff';
+  return slugifyTitle(source, 80) || 'handoff';
 }
 
 export function containedHandoffFile(dirPath: string, filename: string): string {

@@ -8,6 +8,7 @@
 import path from 'path';
 import fs from 'fs';
 import { detectProject } from '../server/project-detect.ts';
+import { slugifyTitle } from '../util/slug.ts';
 import type { ToolContext, ToolResponse, OracleHandoffInput } from './types.ts';
 
 let getVaultPsiRootFn: typeof import('../vault/handler.ts').getVaultPsiRoot | null = null;
@@ -93,13 +94,10 @@ export async function handleHandoff(ctx: ToolContext, input: OracleHandoffInput)
   const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const timeStr = `${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}`;
 
-  const slug = slugInput || content
-    .substring(0, 50)
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '') || 'handoff';
+  // Derived from the content only when the caller gave no slug — the `||` chain is
+  // load-bearing and unchanged. The rule itself now lives in src/util/slug.ts, so a
+  // Thai handoff keeps its title instead of falling through to 'handoff'.
+  const slug = slugInput || slugifyTitle(content, 50) || 'handoff';
 
   const filename = `${dateStr}_${timeStr}_${slug}.md`;
 
