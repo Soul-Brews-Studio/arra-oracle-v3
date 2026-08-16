@@ -775,10 +775,12 @@ export function handleLearn(
   const d = new Date();
   const dateStr = dateSlug(d);
 
-  // #2819 replaced the inline slug copy in `src/tools/learn.ts` (the MCP path) with
-  // `learningSlug` — and left this one, the HTTP POST /api/learn path, untouched. So a
-  // Thai learning saved over HTTP still produced `<date>_.md` long after the same bug
-  // was fixed for the tool. One helper, one rule, both paths.
+  // PR #2838 (issue #2819) replaced the inline slug copy in `src/tools/learn.ts` — the
+  // MCP path — with `learningSlug`, and touched no other file. This one, the HTTP
+  // POST /api/learn path, kept its own copy, so a Thai learning saved over HTTP still
+  // produced `<date>_.md` long after the same bug was fixed for the tool. The route has
+  // already run `normalizeLearningPattern` on the body, so going through `learningSlug`
+  // re-normalises an identical string rather than changing the input.
   const slug = learningSlug(pattern);
 
   // On slug collision (same date + same first-50-char prefix), append -2, -3, …
