@@ -1,8 +1,13 @@
 [test]
 # Scan src/ (unit + integration) and tests/ (HTTP contract tests).
-# E2E tests use Playwright (run with: bun run test:e2e) — they live in
-# tests/e2e/*.e2e.ts so bun's auto-discovery (*.test.ts, *.spec.ts) skips
-# them and does not try to import @playwright/test.
+# E2E tests use Playwright (run with: bun run test:e2e). Most live in
+# tests/e2e/*.e2e.ts, which bun's auto-discovery ignores — but auto-discovery
+# DOES match *.spec.ts, and two Playwright files use that suffix on purpose:
+# tests/e2e/contrast.spec.ts (named in playwright.config.ts testMatch) and
+# tests/ui-audit/audit.spec.ts (its own playwright.config.ts). Both are
+# excluded below; see pathIgnorePatterns. This comment previously claimed
+# bun skipped them, and it did not — `bun test --isolate tests/e2e/` failed
+# with "Playwright Test did not expect test.describe() to be called here".
 roots = ["src", "tests"]
 # Isolate test files to prevent cross-file DB lock contamination.
 # Without this, parallel test files sharing oracle.db cause "disk I/O error".
@@ -14,4 +19,10 @@ isolate = true
 # existed: `bun test tests/http/response-format/` reported 36 tests across 6
 # files where exactly 1 file exists, and `bun test tests/http/` ran 1,692
 # files (282 exist) in 111s. See #2825.
-pathIgnorePatterns = ["**/agents/**"]
+#
+# `**/*.spec.ts` keeps bun's runner away from Playwright specs. Only two exist
+# (tests/e2e/contrast.spec.ts, tests/ui-audit/audit.spec.ts); neither imports
+# bun:test, so nothing real is lost. tests/build/playwright-scope.test.ts fails
+# if a *.spec.ts ever starts using bun:test, which would mean this line is
+# hiding a genuine test.
+pathIgnorePatterns = ["**/agents/**", "**/*.spec.ts"]
