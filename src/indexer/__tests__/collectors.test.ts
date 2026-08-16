@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { collectPsiLearn, getAllMarkdownFiles } from '../collectors.ts';
+import { collectPsiInbox } from '../collect-inbox.ts';
 
 describe('getAllMarkdownFiles', () => {
   test('skips broken symlinks instead of crashing on ENOENT', () => {
@@ -48,6 +49,46 @@ describe('getAllMarkdownFiles', () => {
       expect(docs).toHaveLength(1);
       expect(docs[0].source_file).toBe('github.com/Soul-Brews-Studio/demo/ψ/learn/codex/finding.md');
       expect(docs[0].project).toBe('github.com/soul-brews-studio/demo');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('collectPsiInbox', () => {
+  test('collects local ψ/inbox markdown as learning knowledge with inbox provenance', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-psi-inbox-'));
+    try {
+      const inboxDir = path.join(tmp, 'ψ', 'inbox', 'reports');
+      fs.mkdirSync(inboxDir, { recursive: true });
+
+      fs.writeFileSync(
+        path.join(inboxDir, 'oracle-report.md'),
+        '# Oracle Report\n\n## Lesson\n\ngate6inboxregressiontoken'
+      );
+
+      const docs = collectPsiInbox({
+        config: {
+          repoRoot: tmp,
+          dbPath: ':memory:',
+          chromaPath: '',
+          sourcePaths: {
+            resonance: 'ψ/memory/resonance',
+            learnings: 'ψ/memory/learnings',
+            retrospectives: 'ψ/memory/retrospectives',
+            distillations: 'ψ/memory/distillations',
+            learn: 'ψ/learn',
+            inbox: 'ψ/inbox',
+          },
+        },
+        seenContentHashes: new Set(),
+      });
+
+      expect(docs).toHaveLength(1);
+      expect(docs[0].type).toBe('learning');
+      expect(docs[0].source_file).toBe('ψ/inbox/reports/oracle-report.md');
+      expect(docs[0].id.startsWith('learning_psi_inbox_')).toBe(true);
+      expect(docs[0].content).toContain('gate6inboxregressiontoken');
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
