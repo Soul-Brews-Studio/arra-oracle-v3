@@ -41,6 +41,19 @@ Updated 2026-04-19. These override anything below that conflicts.
   existing. `tests/build/playwright-scope.test.ts` keeps the exclusion honest: every
   `*.spec.ts` must import `@playwright/test` and none may import `bun:test`, so a real bun
   test named `*.spec.ts` fails the gate instead of being silently skipped. See #2997.
+- **CI is two tiers, and their union is the whole suite.** `.github/workflows/test.yml` is the
+  per-PR gate — 71.4s of measured test time (2,780 tests) and no Rust toolchain.
+  `.github/workflows/nightly.yml` runs nightly at 02:00 UTC (09:00 GMT+7) plus manual
+  dispatch, and carries the slow directories (`tests/http/` whole 57.2s, `tests/cli/` 47.5s,
+  `tests/smoke/` 13.6s), the ones that previously ran **nowhere** (`tests/integration/`,
+  `tests/benchmarks/`, `tests/e2e/`, and the Playwright `tests/ui-audit/`), and `cargo check`.
+  `.github/workflows/tauri.yml` runs that cargo check on PRs that touch `frontend/src-tauri/**`.
+  Tier 1 runs seven `tests/http/` subdirectories as a subset — safe only because tier 2 runs
+  the group whole. `tests/build/ci-covers-the-suite.test.ts` reads both workflow files and
+  fails if any directory is in neither tier or if a subset is a group's only coverage — there
+  is no exclusion list to hide a directory in. Its sibling `tests/build/ci-tier-contract.test.ts`
+  fails if a group loses its trailing slash, a tier drops `--isolate`, a retry widens beyond
+  exit 133, Rust returns to the PR gate, or the nightly gains a PR trigger.
 - HTTP contract tests are fetch-based against a spawned Elysia server (see `src/integration/http.test.ts` pattern).
 - ⚠️ **Exit 133 is bun crashing, not a test failing.** `bun test --isolate tests/http/` (290
   files) crashes intermittently on bun 1.3.14 — ~1 run in 4 on macOS, no single file at fault
