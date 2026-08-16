@@ -4,8 +4,14 @@
 
 Arra uses two GitHub repositories with different jobs:
 
-- **`Soul-Brews-Studio/arra-oracle-v3`** is the published source package. Code that ships via npm/bunx/GHCR belongs here.
-- **`Soul-Brews-Studio/arra-oracle-v3-oracle`** is the Oracle identity repo: ψ vault, agent worktrees, and issue tracker live there.
+- **`Soul-Brews-Studio/arra-oracle-v3`** is the published source package. Code that ships via npm/bunx/GHCR belongs here — **and this is where the working ψ vault actually lives** (`arra-oracle-v3/ψ`).
+- **`Soul-Brews-Studio/arra-oracle-v3-oracle`** is the Oracle identity repo: agent worktrees and the issue tracker. It also carries a ψ tree, but it is largely historical.
+
+> **Which ψ is the real one?** `arra-oracle-v3/ψ`. Measured 2026-08-16: 4,463 `.md` files
+> here versus 838 in `-oracle`, and 24 files touched since 2026-08-01 versus 4. This line
+> previously said the vault lived in `-oracle`, which sent federation messages to an inbox
+> nobody was reading — two oracles each followed a different source and were both "right".
+> If you are writing to another oracle's inbox, target `arra-oracle-v3/ψ/inbox/`. See #2856.
 
 When a change touches shipped code, always create the PR against the source repository and the alpha branch:
 
