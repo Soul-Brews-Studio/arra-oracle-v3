@@ -18,7 +18,7 @@ import { probeVectorStore } from './vector-health.ts';
 import { formatEmbedderDegradedWarning, probeConfiguredEmbedder, readEmbedderRuntimeStatus, setEmbedderRuntimeStatus, type EmbedderRuntimeStatus } from '../vector/embedder-config.ts';
 import { resolveInboundToolName, retiredAliasNotice } from './aliases.ts';
 import { proxyToolCall, resolveOracleApiBase } from './http-proxy.ts';
-import { ensureProxyTarget } from './ensure-proxy-target.ts';
+import { ensureHttpDaemon } from './autostart-http.ts';
 import { pluginMcpToolsFrom } from './plugin-tools.ts';
 import { runWithTenant } from '../middleware/tenant.ts';
 import { stripMcpTenantArgs, tenantIdFromMcpArgs } from './tenant.ts';
@@ -212,7 +212,7 @@ export class OracleMCPServer {
           : {};
         const tenantId = tenantIdFromMcpArgs(rawArgs);
         const args = stripMcpTenantArgs(rawArgs);
-        if (this.oracleApiBase) await (this.proxyReady ??= ensureProxyTarget(this.oracleApiBase));
+        if (this.oracleApiBase) await (this.proxyReady ??= ensureHttpDaemon(this.oracleApiBase));
         const proxied = await proxyToolCall(this.oracleApiBase, toolName, args, tenantId);
         if (proxied) return proxied;
         return await runWithTenant(tenantId, () => tool.handler(args, { version: this.version, getToolCtx: () => this.getToolCtx() }));
@@ -235,6 +235,9 @@ export class OracleMCPServer {
     }
   }
 
+  warmHttpDaemon(): void { this.proxyReady ??= ensureHttpDaemon(this.oracleApiBase).catch(() => {}); }
+
+  // Not the warm-up seam: streamable.ts calls connect() inside the daemon, on every /mcp session.
   async connect(transport: Transport): Promise<void> { await this.server.connect(transport); }
 
   async run(): Promise<void> {
@@ -243,8 +246,5 @@ export class OracleMCPServer {
     console.error('Arra Oracle MCP Server running on stdio (FTS5 mode)');
   }
 
-  async cleanup(): Promise<void> {
-    this.stopToolGroupsWatch?.(); this.unifiedRuntime.close(); this.sqlite?.close();
-    await this.vectorStore?.close();
-  }
+  async cleanup(): Promise<void> { this.stopToolGroupsWatch?.(); this.unifiedRuntime.close(); this.sqlite?.close(); await this.vectorStore?.close(); }
 }

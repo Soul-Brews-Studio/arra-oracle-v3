@@ -21,6 +21,16 @@ export function filterAdvertisedTools<T extends AdvertisedTool>(
 export async function main(): Promise<void> {
   const readOnly = process.env.ORACLE_READ_ONLY === 'true' || process.argv.includes('--read-only');
   const server = new OracleMCPServer({ readOnly });
+  // Fire-and-forget, and this seam specifically. `main()` runs before run() → connect() → before
+  // `initialize` is even read off stdin, so it is earlier than any SDK hook and costs the
+  // handshake nothing; it is also the one seam the in-daemon /mcp route does not pass through,
+  // which is what keeps the daemon from ensuring itself.
+  //
+  // Never await it: ensureServerRunning budgets 15s per health wait (worst path ~38s), which
+  // would blow Claude Code's MCP startup timeout and get the server marked failed — and a failed
+  // stdio server is not reconnected, so we would lose every tool to save one. The first tool call
+  // joins the same memoized promise inside the CallTool handler.
+  server.warmHttpDaemon();
   try {
     console.error('[Startup] Pre-connecting to vector store...');
     await server.preConnectVector();
