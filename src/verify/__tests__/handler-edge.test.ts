@@ -22,12 +22,20 @@ const now = Date.now();
 const relAbsolute = `ψ/memory/learnings/verify-absolute-${stamp}.md`;
 const relBackslash = `ψ/memory/learnings/verify-backslash-${stamp}.md`;
 const relOrphan = `ψ/memory/learnings/verify-orphan-${stamp}.md`;
+const relProjectFirst = `github.com/acme/demo/ψ/memory/learnings/verify-project-first-${stamp}.md`;
+const relProjectFirstOrphan = `github.com/acme/demo/ψ/memory/learnings/verify-project-first-orphan-${stamp}.md`;
+const relCrew = `ψ/crew/reviewer/memory/learnings/verify-crew-${stamp}.md`;
+const relProjectInbox = `github.com/acme/demo/ψ/inbox/handoff/verify-project-inbox-${stamp}.md`;
+const relCrewInbox = `ψ/crew/reviewer/inbox/handoff/verify-crew-inbox-${stamp}.md`;
 const ids = {
   absolute: `verify-absolute-${stamp}`,
   backslash: `verify-backslash-${stamp}`,
   blank: `verify-blank-${stamp}`,
   orphanA: `verify-orphan-a-${stamp}`,
   orphanB: `verify-orphan-b-${stamp}`,
+  projectFirst: `verify-project-first-${stamp}`,
+  projectFirstOrphan: `verify-project-first-orphan-${stamp}`,
+  crew: `verify-crew-${stamp}`,
 };
 
 function writeRepoFile(relPath: string) {
@@ -50,11 +58,18 @@ function seedDoc(id: string, sourceFile: string) {
 
 writeRepoFile(relAbsolute);
 writeRepoFile(relBackslash);
+writeRepoFile(relProjectFirst);
+writeRepoFile(relCrew);
+writeRepoFile(relProjectInbox);
+writeRepoFile(relCrewInbox);
 seedDoc(ids.absolute, path.join(repoRoot, relAbsolute));
 seedDoc(ids.backslash, relBackslash.replaceAll('/', '\\'));
 seedDoc(ids.blank, '   ');
 seedDoc(ids.orphanA, relOrphan.replaceAll('/', '\\'));
 seedDoc(ids.orphanB, relOrphan);
+seedDoc(ids.projectFirst, relProjectFirst);
+seedDoc(ids.projectFirstOrphan, relProjectFirstOrphan);
+seedDoc(ids.crew, relCrew);
 
 function restore(name: string, value: string | undefined) {
   if (value === undefined) delete process.env[name];
@@ -73,9 +88,9 @@ describe('verifyKnowledgeBase edge cases', () => {
   test('normalizes absolute and backslash DB source paths before classification', () => {
     const result = verifyKnowledgeBase({ repoRoot, type: ' learning ' });
 
-    expect(result.counts.healthy).toBe(2);
+    expect(result.counts.healthy).toBe(4);
     expect(result.missing).toEqual([]);
-    expect(result.orphaned).toEqual([relOrphan]);
+    expect(result.orphaned).toEqual([relOrphan, relProjectFirstOrphan]);
     expect(result.orphaned).not.toContain('');
   });
 
@@ -86,9 +101,31 @@ describe('verifyKnowledgeBase edge cases', () => {
       .all();
     const superseded = Object.fromEntries(rows.map((row) => [row.id, row.supersededBy]));
 
-    expect(result.fixedOrphans).toBe(2);
+    expect(result.fixedOrphans).toBe(3);
     expect(superseded[ids.orphanA]).toBe('_verified_orphan');
     expect(superseded[ids.orphanB]).toBe('_verified_orphan');
+    expect(superseded[ids.projectFirstOrphan]).toBe('_verified_orphan');
     expect(superseded[ids.blank]).toBeNull();
+  });
+
+  test('classifies project-first vault files as healthy when file exists on disk', () => {
+    const result = verifyKnowledgeBase({ repoRoot, type: 'learning' });
+
+    expect(result.orphaned).not.toContain(relProjectFirst);
+    expect(result.counts.healthy).toBeGreaterThanOrEqual(3);
+  });
+
+  test('classifies crew vault files as healthy when file exists on disk', () => {
+    const result = verifyKnowledgeBase({ repoRoot, type: 'learning' });
+
+    expect(result.orphaned).not.toContain(relCrew);
+    expect(result.counts.healthy).toBeGreaterThanOrEqual(4);
+  });
+
+  test('reports project-first and crew inbox files as untracked', () => {
+    const result = verifyKnowledgeBase({ repoRoot, type: 'learning' });
+
+    expect(result.untracked).toContain(relProjectInbox);
+    expect(result.untracked).toContain(relCrewInbox);
   });
 });

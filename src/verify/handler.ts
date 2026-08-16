@@ -11,6 +11,7 @@ import path from 'path';
 import { and, eq } from 'drizzle-orm';
 import { db, oracleDocuments } from '../db/index.ts';
 import { currentTenantId } from '../middleware/tenant.ts';
+import { discoverCrewPsiDirs, discoverProjectPsiDirs } from '../indexer/discovery.ts';
 import { walkMarkdownFiles } from './files.ts';
 import { normalizeSourceFile } from './paths.ts';
 
@@ -47,22 +48,27 @@ export function verifyKnowledgeBase(opts: {
   const { check = true, type, repoRoot } = opts;
   const tenantId = currentTenantId();
 
-  // 1. Walk indexed directories on disk
-  const indexedDirs = [
-    'ψ/memory/resonance',
-    'ψ/memory/learnings',
-    'ψ/memory/retrospectives',
-    'ψ/learn',
-  ];
+  const memorySubdirs = ['resonance', 'learnings', 'retrospectives'];
   const diskFiles = new Map<string, number>(); // relativePath -> mtimeMs
 
-  for (const dir of indexedDirs) {
-    const fullDir = path.join(repoRoot, dir);
-    const files = walkMarkdownFiles(fullDir, repoRoot);
-    for (const f of files) {
+  const walkInto = (fullDir: string) => {
+    for (const f of walkMarkdownFiles(fullDir, repoRoot)) {
       diskFiles.set(f.relativePath, f.mtimeMs);
     }
+  };
+
+  const psiDirs = [...discoverProjectPsiDirs(repoRoot), ...discoverCrewPsiDirs(repoRoot)];
+  for (const psiDir of psiDirs) {
+    for (const sub of memorySubdirs) {
+      walkInto(path.join(psiDir, 'memory', sub));
+    }
+    walkInto(path.join(psiDir, 'learn'));
   }
+
+  for (const sub of memorySubdirs) {
+    walkInto(path.join(repoRoot, 'ψ', 'memory', sub));
+  }
+  walkInto(path.join(repoRoot, 'ψ', 'learn'));
 
   // 2. Query DB for all indexed documents
   const normalizedType = type?.trim();
@@ -151,11 +157,16 @@ export function verifyKnowledgeBase(opts: {
   }
 
   // 4. Count untracked files outside indexed dirs.
-  const untrackedDirs = ['ψ/inbox'];
+  // Mirror the psiDirs scope above: inbox lives at repoRoot, project-first ({project}/ψ/inbox),
+  // and crew ({member}/inbox). A root-only walk silently misses the project/crew layouts and
+  // lets those files fall through both phases — orphaned by the memory-only walk, invisible here.
+  const untrackedRoots = [path.join(repoRoot, 'ψ', 'inbox')];
+  for (const psiDir of psiDirs) {
+    untrackedRoots.push(path.join(psiDir, 'inbox'));
+  }
   const untracked: string[] = [];
   if (!tenantId) {
-    for (const dir of untrackedDirs) {
-      const fullDir = path.join(repoRoot, dir);
+    for (const fullDir of untrackedRoots) {
       const files = walkMarkdownFiles(fullDir, repoRoot);
       for (const f of files) {
         untracked.push(f.relativePath);
