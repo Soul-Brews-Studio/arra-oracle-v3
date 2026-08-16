@@ -3,7 +3,7 @@
 **Status**: draft v1 · **Date**: 2026-08-16 · **Branch**: `spec/session-memory-and-lessons`
 
 What this is: the Oracle can search documents. It cannot search **the conversations that produced
-them**. 6,024 sessions and 1,031,567 turns already sit on disk, exported nightly, and nothing can
+them**. 6,024 sessions and 1,031,567 recorded beats already sit on disk, exported nightly, and nothing can
 query them. This spec adds that, lets an AI write summaries back with full provenance, and completes
 a promotion path from trace → durable lesson that the codebase already declares but never implemented.
 
@@ -20,9 +20,18 @@ Three gaps, each verified:
 produced by the `jsonl-lens` maw plugin. No MCP tool can read it. The knowledge is on disk and
 unreachable.
 
-**(b) Summaries have nowhere to live.** An AI reading a session can summarise it, but there is no
-table to write to, no flag saying whether a session has been summarised, no record of who did it,
-and no way to replace a summary without destroying the old one.
+**(b) The summary write path exists and is unused.**
+
+> **Correction (2026-08-16).** An earlier draft said summaries "have nowhere to live". Wrong.
+> `POST /api/session/:id/summary` already exists (`src/routes/sessions/summary.ts`), already stores
+> summaries as `oracle_documents` with id `session-summary_<sid>` and `createdBy: 'session_summary'`
+> (`src/routes/sessions/store.ts:29,101`), already wires FTS + entity links + pointers + `logLearning`
+> (`:104-108`), and `sessionsRoutes` is already mounted (`src/server.ts:64,188`). Measured on the live
+> corpus: **0 rows** with `created_by='session_summary'`. Live code, never used.
+
+So (b) is not "build a write path" — it is "nothing calls the one that exists, and it has no MCP
+tool in front of it". That makes this phase far smaller than drafted, and it answers Q2 below:
+**a summary is already an `oracle_document`.**
 
 **(c) Distilling a trace produces nothing by default.**
 
@@ -128,6 +137,8 @@ query at the *start* of a task, not after repeating the mistake.
 | `session_meta` | 318,458 | key/value — **schema-less** |
 | `turn_durations` | 78,808 | `duration_ms, message_count` |
 | `compaction_events` | 1,083 | `pre_tokens, duration_ms` |
+
+**⚠️ A beat is not a turn.** Measured `who` distribution: `tool` 520,829 (**50.5%**) · `assistant` 354,252 · `human` 135,574 · `thinking` 18,746 · `system` 2,166. Half the corpus is tool-call JSON, not conversation. Any summary or search that treats 1,031,567 as "turns" is wrong by 2x, and any embedding pass should follow `jsonl-lens`'s lead and take human/assistant/thinking only (~508K).
 
 Two properties that shape the design:
 
