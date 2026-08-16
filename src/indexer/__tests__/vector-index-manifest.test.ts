@@ -85,6 +85,24 @@ describe('vector index manifest', () => {
     expect(store.docs.map((item) => item.id)).toEqual(['a']);
     expect(store.docs[0].document).toBe('Alpha changed');
   });
+
+  test('force rebuild counts a failed batch as an error instead of hardcoding zero', async () => {
+    const store = fakeStore();
+    let addCalls = 0;
+    store.addDocuments = async (next) => {
+      addCalls += 1;
+      if (addCalls === 1) throw new Error('boom: simulated write failure');
+      store.docs.push(...next);
+    };
+    const docs = [doc('a', 'Alpha'), doc('b', 'Beta'), doc('c', 'Gamma')];
+    const plan = planVectorIndex(docs, new Map(), 'nomic', { now: 100 });
+
+    const applied = await applyVectorIndexPlan(store, plan, { replaceBaseline: true, batchSize: 1 });
+
+    expect(applied.errors).toBe(1);
+    expect(applied.embedded).toBe(2);
+    expect(applied.aborted).toBe(false);
+  });
 });
 
 function freshDb(): DatabaseConnection {
@@ -114,6 +132,7 @@ function fakeStore(): FakeStore {
     ensureCollection: async () => {},
     deleteCollection: async () => { docs.splice(0, docs.length); },
     addDocuments: async (next) => { docs.push(...next); },
+    replaceDocuments: async (next) => { docs.splice(0, docs.length); docs.push(...next); },
     deleteDocuments: async (ids) => {
       for (const id of ids) {
         const index = docs.findIndex((item) => item.id === id);
