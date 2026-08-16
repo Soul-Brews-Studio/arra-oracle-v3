@@ -109,6 +109,7 @@ export type {
 } from './types.ts';
 export { reflectToolDef, handleReflect } from './reflect.ts';
 export { verifyToolDef, handleVerify } from './verify.ts';
+export { sessionListToolDef, sessionGetToolDef, sessionSearchToolDef, handleSessionList, handleSessionGet, handleSessionSearch } from './sessions.ts';
 
 // MCP-IN bridge tools: consume tools from external stdio MCP servers.
 export type { OracleMcpServerInput, OracleMcpCallInput } from './mcp-in.ts';
