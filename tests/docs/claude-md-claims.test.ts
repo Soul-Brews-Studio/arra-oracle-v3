@@ -69,8 +69,12 @@ describe('test-layout claims match bunfig.toml', () => {
   });
 
   test('pathIgnorePatterns excludes agents/, and CLAUDE.md says why', () => {
-    // Removing this line is what let sibling worktrees run in every suite (#2825).
-    expect(bunfig).toContain('pathIgnorePatterns = ["**/agents/**"]');
+    // Removing this ENTRY is what let sibling worktrees run in every suite (#2825).
+    // Asserted by entry, not by the whole array literal: the list legitimately grows
+    // (a spec-suffix glob joined it in #2997), and pinning the literal made an
+    // unrelated addition fail this test while agents/ was still excluded.
+    const patterns = /pathIgnorePatterns\s*=\s*\[(.*?)\]/s.exec(bunfig)?.[1] ?? '';
+    expect(patterns).toContain('**/agents/**');
     expect(CLAUDE_MD).toContain('pathIgnorePatterns');
   });
 
