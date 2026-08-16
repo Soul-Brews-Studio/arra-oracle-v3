@@ -78,7 +78,7 @@ async function main() {
       onProgress: (indexed, total, action) => logProgress(action === 'replaced' ? 'Rebuilt' : 'Embedded', indexed, total, startTime),
     });
     writeVectorIndexManifest(db, plan);
-    printSummary(rows, plan, { embedded: applied.embedded, errors: 0, startTime, dryRun, force });
+    printSummary(rows, plan, { embedded: applied.embedded, errors: applied.errors, startTime, dryRun, force });
   } finally {
     await store.close();
     sqlite.close();

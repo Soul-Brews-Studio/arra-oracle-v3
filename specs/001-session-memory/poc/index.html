@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>lens curator</title>
+<style>
+  :root{--bg:#0d0f13;--panel:#161a21;--line:#242a34;--fg:#dfe4ec;--dim:#8b94a6;--acc:#7dd3fc;--ok:#4ade80;--warn:#fbbf24}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+  header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;gap:18px;align-items:baseline;flex-wrap:wrap}
+  h1{font-size:15px;margin:0;letter-spacing:.02em}
+  .stat{color:var(--dim)} .stat b{color:var(--acc);font-weight:600}
+  main{display:grid;grid-template-columns:minmax(320px,1fr) minmax(360px,1.2fr);gap:0;height:calc(100vh - 52px)}
+  section{overflow:auto;padding:12px 16px}
+  section+section{border-left:1px solid var(--line)}
+  .row{padding:9px 10px;border:1px solid var(--line);border-radius:7px;margin-bottom:7px;cursor:pointer;background:var(--panel)}
+  .row:hover{border-color:var(--acc)}
+  .row.sel{border-color:var(--acc);background:#1b2430}
+  .sid{color:var(--acc)} .meta{color:var(--dim);font-size:12px;margin-top:3px}
+  .pill{display:inline-block;padding:1px 7px;border-radius:99px;font-size:11px;border:1px solid var(--line)}
+  .yes{color:var(--ok);border-color:#204d33} .no{color:var(--warn);border-color:#4d3f20}
+  textarea{width:100%;min-height:90px;background:#0b0e12;color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:9px;font:inherit}
+  button{background:var(--acc);color:#06202b;border:0;border-radius:7px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.5;cursor:default}
+  .beat{border-left:2px solid var(--line);padding:3px 0 3px 9px;margin:5px 0;color:var(--dim);font-size:12px;white-space:pre-wrap}
+  .beat b{color:var(--fg)} .who-human{border-left-color:#3b82f6} .who-assistant{border-left-color:#a855f7}
+  h2{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin:16px 0 7px}
+  .sup{color:var(--dim);font-size:12px;border-left:2px solid #4d3f20;padding-left:9px;margin:5px 0}
+  code{color:var(--acc)}
+</style>
+</head>
+<body>
+<header>
+  <h1>lens curator</h1>
+  <span class="stat">sessions <b id="s-sessions">…</b></span>
+  <span class="stat">beats <b id="s-beats">…</b></span>
+  <span class="stat">summarized <b id="s-sum">…</b></span>
+  <span class="stat" style="margin-left:auto">read-only <code>all.db</code> · read-write <code>curator.db</code></span>
+</header>
+<main>
+  <section id="list"></section>
+  <section id="detail"><p style="color:var(--dim)">Select a session.</p></section>
+</main>
+<script>
+const $ = (s) => document.querySelector(s)
+let current = null
+
+async function stats(){
+  const r = await (await fetch('/api/stats')).json()
+  $('#s-sessions').textContent = r.sessions.toLocaleString()
+  $('#s-beats').textContent = r.beats.toLocaleString()
+  $('#s-sum').textContent = r.summarized.toLocaleString()
+}
+async function load(){
+  const rows = await (await fetch('/api/sessions?limit=40')).json()
+  $('#list').innerHTML = rows.map(r => `
+    <div class="row" data-id="${r.id}">
+      <div class="sid">${r.id.slice(0,8)}… <span class="pill ${r.summarized?'yes':'no'}">${r.summarized?'summarized':'not summarized'}</span></div>
+      <div class="meta">${(r.project||'').slice(0,54)} · ${r.beats} beats · ${String(r.modified).slice(0,10)}</div>
+      ${r.summary?`<div class="meta">by <b>${r.summary.created_by}</b></div>`:''}
+    </div>`).join('')
+  document.querySelectorAll('.row').forEach(el => el.onclick = () => open(el.dataset.id, el))
+}
+async function open(id, el){
+  document.querySelectorAll('.row').forEach(r=>r.classList.remove('sel'))
+  if (el) el.classList.add('sel')
+  current = id
+  const d = await (await fetch('/api/session/'+encodeURIComponent(id))).json()
+  const live = d.history.find(h => !h.superseded_at)
+  $('#detail').innerHTML = `
+    <div class="sid">${id}</div>
+    <div class="meta">${d.session.project||''} · ${d.beats.length} beats shown</div>
+    <h2>summary</h2>
+    <textarea id="sum" placeholder="Write or paste the summary an AI produced…">${live?live.summary:''}</textarea>
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+      <input id="actor" value="claude-opus-5" style="background:#0b0e12;color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:8px;font:inherit">
+      <button id="save">${live?'Supersede with new summary':'Save summary'}</button>
+    </div>
+    <h2>summarization log</h2>
+    ${d.log.length?d.log.map(l=>`<div class="meta">${new Date(l.at).toISOString().slice(0,19)} · <b>${l.action}</b> by ${l.actor}${l.reason?' — '+l.reason:''}</div>`).join(''):'<div class="meta">no entries yet</div>'}
+    ${d.history.filter(h=>h.superseded_at).length?'<h2>superseded</h2>'+d.history.filter(h=>h.superseded_at).map(h=>`<div class="sup">${new Date(h.created_at).toISOString().slice(0,19)} by ${h.created_by} → replaced ${new Date(h.superseded_at).toISOString().slice(0,19)} (${h.superseded_reason||''})<br>${h.summary.slice(0,160)}</div>`).join(''):''}
+    <h2>conversation</h2>
+    ${d.beats.slice(0,25).map(b=>`<div class="beat who-${b.who}"><b>${b.who}</b> ${String(b.ts).slice(11,19)} — ${String(b.what).replace(/</g,'&lt;').slice(0,220)}</div>`).join('')}
+  `
+  $('#save').onclick = async () => {
+    $('#save').disabled = true
+    await fetch('/api/summarize', {method:'POST',headers:{'content-type':'application/json'},
+      body: JSON.stringify({ sessionId: current, summary: $('#sum').value, actor: $('#actor').value })})
+    await stats(); await load(); await open(current)
+  }
+}
+stats(); load()
+</script>
+</body>
+</html>

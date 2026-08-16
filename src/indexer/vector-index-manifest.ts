@@ -30,6 +30,7 @@ export interface VectorIndexApplyResult {
   deleted: number;
   replaced: boolean;
   aborted: boolean;
+  errors: number;
 }
 
 export interface VectorIndexApplyOptions {
@@ -143,7 +144,7 @@ export async function applyVectorIndexPlan(
   opts: VectorIndexApplyOptions = {},
 ): Promise<VectorIndexApplyResult> {
   if (opts.replaceBaseline !== true && plan.changedDocs.length === 0 && plan.staleIds.length === 0) {
-    return { embedded: 0, deleted: 0, replaced: false, aborted: false };
+    return { embedded: 0, deleted: 0, replaced: false, aborted: false, errors: 0 };
   }
   const mustReplace = opts.replaceBaseline === true
     || ((plan.changedDocs.length > 0 || plan.staleIds.length > 0) && !store.deleteDocuments);
@@ -166,23 +167,28 @@ async function replaceBatches(
   plan: VectorIndexPlan,
   opts: VectorIndexApplyOptions,
 ): Promise<VectorIndexApplyResult> {
-  if (opts.shouldAbort?.()) return result(0, plan, true, true);
+  if (opts.shouldAbort?.()) return result(0, plan, true, true, 0);
   if (plan.docs.length === 0) {
     await store.replaceDocuments?.([]);
     opts.onProgress?.(0, plan.total, 'replaced');
-    return result(0, plan, true, false);
+    return result(0, plan, true, false, 0);
   }
   const batchSize = Math.max(1, Math.trunc(opts.batchSize ?? 100));
   let embedded = 0;
+  let errors = 0;
   for (let i = 0; i < plan.docs.length; i += batchSize) {
-    if (opts.shouldAbort?.()) return result(embedded, plan, true, true);
+    if (opts.shouldAbort?.()) return result(embedded, plan, true, true, errors);
     const batch = plan.docs.slice(i, i + batchSize);
-    if (i === 0) await store.replaceDocuments?.(batch);
-    else await store.addDocuments(batch);
-    embedded += batch.length;
+    try {
+      if (i === 0) await store.replaceDocuments?.(batch);
+      else await store.addDocuments(batch);
+      embedded += batch.length;
+    } catch {
+      errors += 1;
+    }
     opts.onProgress?.(embedded, plan.total, 'replaced');
   }
-  return result(embedded, plan, true, false);
+  return result(embedded, plan, true, false, errors);
 }
 
 function normalizeVectorText(text: string): string {
@@ -206,18 +212,23 @@ async function addBatches(
 ): Promise<VectorIndexApplyResult> {
   const batchSize = Math.max(1, Math.trunc(opts.batchSize ?? 100));
   let embedded = 0;
+  let errors = 0;
   for (let i = 0; i < docs.length; i += batchSize) {
-    if (opts.shouldAbort?.()) return result(embedded, plan, opts.replaced, true);
+    if (opts.shouldAbort?.()) return result(embedded, plan, opts.replaced, true, errors);
     const batch = docs.slice(i, i + batchSize);
-    await store.addDocuments(batch);
-    embedded += batch.length;
+    try {
+      await store.addDocuments(batch);
+      embedded += batch.length;
+    } catch {
+      errors += 1;
+    }
     opts.onProgress?.(embedded, plan.total, opts.action);
   }
-  return result(embedded, plan, opts.replaced, false);
+  return result(embedded, plan, opts.replaced, false, errors);
 }
 
-function result(embedded: number, plan: VectorIndexPlan, replaced: boolean, aborted: boolean): VectorIndexApplyResult {
-  return { embedded, deleted: plan.staleIds.length, replaced, aborted };
+function result(embedded: number, plan: VectorIndexPlan, replaced: boolean, aborted: boolean, errors: number): VectorIndexApplyResult {
+  return { embedded, deleted: plan.staleIds.length, replaced, aborted, errors };
 }
 
 function isMissingManifestTable(error: unknown): boolean {

@@ -109,7 +109,11 @@ export function distillTraceAwakening(input: DistillTraceInput): DistillTraceRes
   const origin = oracleOrigin(input);
   const concepts = learningConcepts(input);
   const renderedAwakening = renderDistilledAwakening({ ...input, awakening });
-  const learning = input.promoteToLearning
+  // Distilling a trace means producing the lesson. Before this, promoteToLearning was
+  // t.Optional(t.Boolean()) with no default anywhere, so an ordinary distill marked the trace
+  // 'distilled' and produced NOTHING — the artefact the caller asked for silently did not exist.
+  // Opt out explicitly with promoteToLearning: false.
+  const learning = (input.promoteToLearning ?? true)
     ? handleLearn(renderedAwakening, input.source?.trim() || `Trace awakening ${input.traceId}`, concepts, origin, trace.project ?? undefined)
     : undefined;
   const now = Date.now();
