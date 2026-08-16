@@ -76,7 +76,12 @@ test('oracle_search includes inline supersede successor fields', async () => {
     id: 'old-supersede-doc',
     superseded_by: 'new-supersede-doc',
     superseded_reason: 'newer MCP memory',
-    confidence: { level: 'medium' },
+    // 'low', not 'medium': this fixture holds 2 documents, so bm25 has no
+    // discriminating power and FTS5 returns rank ~0 — i.e. the match carries no
+    // information. normalizeFtsScore used to map rank 0 to a score of 1.0 (a
+    // perfect match) because it read |rank| backwards; it now maps it to ~0.
+    // The supersede fields below are what this test is actually guarding.
+    confidence: { level: 'low' },
     provenance: { source: 'fts', source_file: 'ψ/memory/old.md' },
   });
   expect(body.results[0].confidence.signals).toContain('matched by keyword search');

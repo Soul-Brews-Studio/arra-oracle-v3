@@ -18,9 +18,25 @@ export function sanitizeFtsQuery(query: string): string {
     .join(' OR ');
 }
 
-/** Normalize FTS5 rank score using exponential decay. */
+/**
+ * Normalize FTS5 rank into a 0-1 score where higher = better.
+ *
+ * FTS5's `rank` is bm25(): negative, and MORE negative = better match, which is
+ * why fts.ts orders by it ascending. So `|rank|` is the match strength and the
+ * score has to rise with it. The previous form returned `exp(-0.3 * |rank|)`,
+ * which fell as the match got stronger — combined with the descending sort in
+ * `mergeResults` that reversed every FTS result set: SQL handed back its best
+ * rows and this ranked them last. Because callers over-fetch and then truncate,
+ * they received the weakest of the strong matches, which reads as
+ * plausible-but-wrong rather than empty, so nothing surfaced the fault.
+ *
+ * Saturating, so it stays inside 0-1 for the hybrid blend against cosine
+ * similarity. Note it compresses at the top (|rank| 10 -> 0.950, 30 -> 0.9999):
+ * ordering is correct throughout, but separating two strong FTS hits would want
+ * normalisation across the returned set rather than a fixed curve.
+ */
 export function normalizeFtsScore(rank: number): number {
-  return Math.exp(-0.3 * Math.abs(rank));
+  return 1 - Math.exp(-0.3 * Math.abs(rank));
 }
 
 export function parseConceptsFromMetadata(concepts: unknown): string[] {

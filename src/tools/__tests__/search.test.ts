@@ -75,19 +75,39 @@ describe('normalizeFtsScore', () => {
     }
   });
 
-  it('should give better scores for better ranks (closer to 0)', () => {
-    expect(normalizeFtsScore(-1)).toBeGreaterThan(normalizeFtsScore(-5));
-    expect(normalizeFtsScore(-5)).toBeGreaterThan(normalizeFtsScore(-10));
+  // FTS5 `rank` is bm25(): negative, and MORE negative = better match — which is
+  // why fts.ts uses `ORDER BY rank` ascending to get best-first. Checked against
+  // SQLite directly: on a fresh table a row matching 7 of 7 query terms ranks
+  // -1.985 while rows matching 1-2 of them rank 0.0. The previous expectations
+  // here asserted the opposite ("closer to 0 is better"), which is how the
+  // inverted score shipped and stayed — the suite was green the whole time.
+  it('should give better scores for better ranks (further from 0)', () => {
+    expect(normalizeFtsScore(-10)).toBeGreaterThan(normalizeFtsScore(-5));
+    expect(normalizeFtsScore(-5)).toBeGreaterThan(normalizeFtsScore(-1));
   });
 
-  it('should provide exponential decay', () => {
-    const score1 = normalizeFtsScore(-1);
-    const score2 = normalizeFtsScore(-2);
-    const score3 = normalizeFtsScore(-3);
+  it('should rank a realistic spread the same way ORDER BY rank does', () => {
+    // Real ranks observed for one OR-joined query against a 1250-row index.
+    const bestFirst = [-30.42, -11.27, -9.97, -9.01, -8.65, -8.13];
+    const scores = bestFirst.map(normalizeFtsScore);
+    // mergeResults sorts by score descending, so scores must already be
+    // descending in the order SQL returned the rows.
+    for (let i = 1; i < scores.length; i++) {
+      expect(scores[i - 1]).toBeGreaterThan(scores[i]);
+    }
+  });
 
-    const ratio1 = score1 / score2;
-    const ratio2 = score2 / score3;
-    expect(ratio1).toBeCloseTo(ratio2, 1);
+  it('should saturate below 1 rather than overflow on very strong matches', () => {
+    expect(normalizeFtsScore(-100)).toBeLessThan(1);
+    expect(normalizeFtsScore(-100)).toBeGreaterThan(normalizeFtsScore(-30));
+  });
+
+  // Guards the downstream consumers of this score in helpers.ts: the
+  // 'strong keyword score' signal and the confidence level both threshold at
+  // >= 0.7, so an inverted score awarded them to the weakest matches.
+  it('should only clear the 0.7 signal threshold for genuinely strong matches', () => {
+    expect(normalizeFtsScore(-1)).toBeLessThan(0.7);
+    expect(normalizeFtsScore(-10)).toBeGreaterThanOrEqual(0.7);
   });
 });
 
