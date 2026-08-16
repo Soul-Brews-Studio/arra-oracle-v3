@@ -162,7 +162,11 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
   console.error(`[MCP:SEARCH] "${query}" (${type}, ${mode}, model=${model || 'default'}) → ${results.length} results in ${searchTime}ms`);
   try {
     const logSearch = await loadLogSearch();
-    logSearch(query, type, mode, results.length, searchTime, results as unknown as SearchResult[]);
+    // `resolvedProject`, not `project`: the caller may omit it and let cwd detection
+    // supply it, and telemetry that only recorded the explicit form would report those
+    // searches as unscoped. Omitting it entirely left `search_log.project` NULL for every
+    // row, so scoped and unscoped searches were indistinguishable after the fact (#2955).
+    logSearch(query, type, mode, results.length, searchTime, results as unknown as SearchResult[], resolvedProject ?? undefined);
   } catch (error) {
     console.error('[MCP:SEARCH] Failed to log search to database:', error);
   }
