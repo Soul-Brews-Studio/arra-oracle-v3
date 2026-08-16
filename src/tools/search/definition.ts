@@ -27,7 +27,10 @@ export const searchToolDef = {
       mode: {
         type: 'string',
         enum: ['hybrid', 'fts', 'vector'],
-        description: 'Search mode: hybrid (default), fts (keywords only), vector (semantic only)',
+        // Pointer signals are not a mode. `queryPointerIndex` runs unconditionally in the
+        // handler, so `fts` was never "keywords only" — it can and does return `source:
+        // "pointer"` results the FTS5 MATCH never saw.
+        description: 'Search mode: hybrid (FTS5 + vectors + pointer signals), fts (FTS5 + pointer signals, no vectors), vector (vectors + pointer signals, no FTS5)',
         default: 'hybrid',
       },
       retrieval: {
