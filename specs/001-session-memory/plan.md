@@ -52,11 +52,23 @@ Ships R1, R2, R3. No writes, no summaries, no new tables in `oracle.db`.
   `session_id` + `ts`
 - `oracle_session_list` — `{ project?, since?, limit? }` → sessions with beat counts
 
-**The performance question that must be answered in this PR:** FTS5 over 1M beats is
-**unproven** (proof.md is explicit about this). Before adding an index, measure `LIKE` on the
-existing `beats_session_idx` / `beats_project_idx` paths. If a scoped query is fast enough, ship
-without a new index; a 2.68 GB source does not obviously want a second full-text copy beside it.
-`jsonl-lens` already offers `just search` (FTS5 from an export) — prefer wiring that to rebuilding it.
+**The performance question is now ANSWERED — measured, shipped in #3017.** Against the real
+2.68 GB corpus, with **no FTS index**:
+
+| query | conversation-only | with tools |
+|---|---:|---:|
+| `supersede` | 314ms | 650ms |
+| `bge-m3` | 286ms | 501ms |
+| `smart-delete` | 341ms | 678ms |
+| `listSessions` | **2ms** | — |
+
+`LIKE` at ~300ms is adequate for an MCP call, so **phase 1 ships without building an FTS table over
+2.68 GB**. The ~2x penalty for including tool calls matches the 69%-of-text measurement exactly.
+Every query is session-, project- or limit-scoped so it rides one of the two indexes the export
+already ships (`beats_session_idx`, `beats_project_idx`).
+
+If sub-100ms is later wanted, `jsonl-lens` already offers `just search` (FTS5 built *from* an
+export) — wire that rather than rebuilding it here.
 
 ---
 
@@ -110,7 +122,7 @@ Phases 2 and 3 each depend on a decision, not on each other — either can go fi
 
 | Risk | Mitigation |
 |---|---|
-| FTS5 over 1M rows is slow or huge | measure before indexing; reuse `just search` |
+| ~~FTS5 over 1M rows is slow or huge~~ | **retired** — measured at ~300ms with no index (#3017); no FTS table built |
 | `all.db` missing on a machine | degrade: session tools report unavailable, Oracle unaffected |
 | a live session is still being appended to | phase 1 is read-only, so a partial read is stale, never corrupt |
 | the new category is never queried | decide Q3 on discoverability; be willing to conclude "no new category" |
