@@ -46,7 +46,10 @@ export function buildTenantFtsQuery(query: string): string {
   const tokens = augmentQueryWithAcronyms(query)
     .replace(/<[^>]*>/g, ' ')
     .normalize('NFKC')
-    .match(/[\p{L}\p{N}_]+/gu)
+    // No `_` — see the note in src/tools/search/helpers.ts. The index tokenizer
+    // (`porter unicode61`) splits on underscore, so keeping it here turns an identifier
+    // into an adjacency phrase instead of an OR. #2953.
+    .match(/[\p{L}\p{N}]+/gu)
     ?.map((token) => token.trim())
     .filter(Boolean) ?? [];
   return [...new Set(tokens)]

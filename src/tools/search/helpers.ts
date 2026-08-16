@@ -8,7 +8,14 @@ export function sanitizeFtsQuery(query: string): string {
   const tokens = augmentQueryWithAcronyms(query)
     .replace(/<[^>]*>/g, ' ')
     .normalize('NFKC')
-    .match(/[\p{L}\p{N}_]+/gu)
+    // No `_`: the FTS index is built with `porter unicode61` (migration 0017), which
+    // treats underscore as a separator. Keeping it here produced a single token that was
+    // then quoted — turning `pane_pid` into the adjacency phrase `"pane pid"` rather than
+    // the documented OR-per-term behaviour, so identifier searches collapsed to whatever
+    // happened to have the two words next to each other. Measured: `pane_pid` returned 4
+    // rows where `pane OR pid` returned 141, and one of the 4 contained no literal
+    // `pane_pid` at all. Query-side boundaries must match the index's. See #2953.
+    .match(/[\p{L}\p{N}]+/gu)
     ?.map((token) => token.trim())
     .filter((token) => token.length > 0) ?? [];
 
