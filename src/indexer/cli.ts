@@ -49,7 +49,16 @@ export function createIndexerConfig(repoRootOverride = process.env.ORACLE_REPO_R
   };
 }
 
-export type IndexerCliOptions = { repoRoot?: string; readOnly: boolean; help: boolean };
+export type IndexerCliOptions = { repoRoot?: string; readOnly: boolean; help: boolean; confirmDelete?: number };
+
+function parseConfirmDeleteValue(raw: string | undefined): number {
+  const value = raw?.trim();
+  const n = Number(value);
+  if (!value || !Number.isInteger(n) || n < 0) {
+    throw new Error('--confirm-delete requires an exact non-negative integer count');
+  }
+  return n;
+}
 
 export function parseIndexerCliArgs(args: string[]): IndexerCliOptions {
   const options: IndexerCliOptions = { readOnly: false, help: false };
@@ -65,6 +74,10 @@ export function parseIndexerCliArgs(args: string[]): IndexerCliOptions {
       const value = arg.slice('--repo-root='.length).trim();
       if (!value) throw new Error('--repo-root requires a path');
       options.repoRoot = value;
+    } else if (arg === '--confirm-delete') {
+      options.confirmDelete = parseConfirmDeleteValue(args[++i]);
+    } else if (arg?.startsWith('--confirm-delete=')) {
+      options.confirmDelete = parseConfirmDeleteValue(arg.slice('--confirm-delete='.length));
     } else {
       throw new Error(`unknown index option: ${arg}`);
     }
@@ -73,9 +86,11 @@ export function parseIndexerCliArgs(args: string[]): IndexerCliOptions {
 }
 
 function printUsage(): void {
-  console.log('Usage: bun src/indexer/cli.ts [--repo-root <path>] [--read-only]');
-  console.log('  --repo-root <path>  Index a specific repository root');
-  console.log('  --read-only         Open vector sidecar dependencies in read-only mode');
+  console.log('Usage: bun src/indexer/cli.ts [--repo-root <path>] [--read-only] [--confirm-delete <n>]');
+  console.log('  --repo-root <path>      Index a specific repository root');
+  console.log('  --read-only             Open vector sidecar dependencies in read-only mode');
+  console.log('  --confirm-delete <n>    Execute destructive prune only if planned count === n AND the');
+  console.log('                          configured canonical source root is verified; otherwise plan-only');
 }
 
 if (import.meta.main) {
@@ -94,7 +109,7 @@ if (import.meta.main) {
   if (options.readOnly) process.env.ORACLE_VECTOR_READONLY = '1';
   const indexer = new OracleIndexer(createIndexerConfig(options.repoRoot));
 
-  indexer.index()
+  indexer.index({ confirmDelete: options.confirmDelete })
     .then(async () => {
       console.log('Indexing complete!');
       await indexer.close();

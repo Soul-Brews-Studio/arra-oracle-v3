@@ -60,14 +60,14 @@ export function createIndexerConfig(repoRoot: string): IndexerConfig {
   };
 }
 
-export async function runOracleReindex(opts: { repoRoot?: string | null; append?: boolean } = {}) {
+export async function runOracleReindex(opts: { repoRoot?: string | null; append?: boolean; confirmDelete?: number } = {}) {
   const repoRoot = resolveIndexerRepoRoot(opts.repoRoot);
   const append = opts.append === true;
   const config = createIndexerConfig(repoRoot);
   const indexer = new OracleIndexer(config);
 
   try {
-    await indexer.index({ append });
+    await indexer.index({ append, confirmDelete: opts.confirmDelete });
     return { ok: true as const, repoRoot, append };
   } finally {
     await indexer.close();

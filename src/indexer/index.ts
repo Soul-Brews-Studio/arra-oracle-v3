@@ -36,10 +36,16 @@ import {
 } from './reindex-state.ts';
 import { oracleFts, storeDocuments } from './storage.ts';
 import { chunkDocumentsForIndexing } from './chunker.ts';
+import { buildDeletePlan, printDeletePlan, resolvePruneAuthority } from './prune-authority.ts';
 import { removeDocumentPointers } from '../search/pointer-index.ts';
 
 export interface IndexOptions {
   append?: boolean;
+  /**
+   * Exact planned delete count confirmation for the destructive smart-delete
+   * phase. Undefined (every non-CLI call site) always denies deletion.
+   */
+  confirmDelete?: number;
 }
 
 export class OracleIndexer {
@@ -121,20 +127,40 @@ export class OracleIndexer {
     if (append) {
       console.log('Append mode: skipping smart delete (preserving existing docs from other repo roots)');
     } else {
-      // Smart deletion: remove indexer-created docs whose source file no longer exists
-      const allIndexerDocs = this.db.select({ id: oracleDocuments.id, sourceFile: oracleDocuments.sourceFile })
+      // Smart deletion: remove indexer-created docs whose source file no longer
+      // exists. The DB cannot prove which repoRoot owns a row (2026-08-16
+      // incident: a narrowed --repo-root run deleted 1,211 cross-scope docs),
+      // so execution is fail-closed behind resolvePruneAuthority; unauthorized
+      // runs stay plan-only/append-like.
+      const allIndexerDocs = this.db.select({ id: oracleDocuments.id, sourceFile: oracleDocuments.sourceFile, project: oracleDocuments.project })
         .from(oracleDocuments)
         .where(indexerOwnedWhere)
         .all();
 
-      const idsToDelete = allIndexerDocs
-        .filter(d => !fs.existsSync(path.join(this.config.repoRoot, d.sourceFile)))
-        .map(d => d.id);
+      const plan = buildDeletePlan(
+        allIndexerDocs.filter(d => !fs.existsSync(path.join(this.config.repoRoot, d.sourceFile))),
+      );
+      printDeletePlan(plan);
+
+      const authority = resolvePruneAuthority({
+        sqlite: this.sqlite,
+        repoRoot: this.config.repoRoot,
+        confirmDelete: options.confirmDelete,
+        plan,
+      });
+
+      if (!authority.granted) {
+        if (plan.rows.length > 0) {
+          console.log(`PRUNE DISABLED (append-only): ${authority.reason}`);
+        }
+      } else {
+      const idsToDelete = plan.rows.map(d => d.id);
 
       // Safety: if smart-delete would drop more than half of existing indexer
       // docs, we're almost certainly running from the wrong repoRoot — the docs
       // on disk at this repoRoot just don't match what's in the DB. Abort rather
-      // than wiping historical data. Set ORACLE_FORCE_REINDEX=1 to override.
+      // than wiping historical data. ORACLE_FORCE_REINDEX=1 bypasses only this
+      // ratio guard, never the authority gates above.
       const forceFlag = process.env.ORACLE_FORCE_REINDEX === '1';
       if (
         !forceFlag &&
@@ -158,6 +184,7 @@ export class OracleIndexer {
           this.db.delete(oracleFts).where(inArray(oracleFts.id, batch)).run();
           removeDocumentPointers(this.sqlite, tenantId, batch);
         }
+      }
       }
     }
 
