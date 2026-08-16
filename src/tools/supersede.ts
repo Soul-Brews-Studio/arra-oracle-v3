@@ -7,6 +7,7 @@
 
 import { and, eq } from 'drizzle-orm';
 import { oracleDocuments } from '../db/schema.ts';
+import { supersedeLog } from '../db/logistics-schema.ts';
 import { currentTenantId } from '../middleware/tenant.ts';
 import type { ToolContext, ToolResponse, OracleSupersededInput } from './types.ts';
 
@@ -116,6 +117,8 @@ export function runSupersede(db: ToolContext['db'], input: OracleSupersededInput
   const oldDoc = db.select({
     id: oracleDocuments.id,
     type: oracleDocuments.type,
+    sourceFile: oracleDocuments.sourceFile,
+    project: oracleDocuments.project,
     supersededBy: oracleDocuments.supersededBy,
     supersededAt: oracleDocuments.supersededAt,
     supersededReason: oracleDocuments.supersededReason,
@@ -123,7 +126,7 @@ export function runSupersede(db: ToolContext['db'], input: OracleSupersededInput
     .from(oracleDocuments)
     .where(docWhere(oldId))
     .get();
-  const newDoc = db.select({ id: oracleDocuments.id, type: oracleDocuments.type })
+  const newDoc = db.select({ id: oracleDocuments.id, type: oracleDocuments.type, sourceFile: oracleDocuments.sourceFile })
     .from(oracleDocuments)
     .where(docWhere(newId))
     .get();
@@ -172,6 +175,23 @@ export function runSupersede(db: ToolContext['db'], input: OracleSupersededInput
     })
     .where(docWhere(oldId))
     .run();
+
+  // #7: the audit row. Until now only the HTTP route (routes/supersede/create.ts:46) wrote
+  // supersede_log, so every supersession performed over MCP was silently unlogged.
+  // `supersededBy` here is the ACTOR, not the successor id — the successor lives in
+  // oracleDocuments.supersededBy. There is no principal on ToolContext, so 'mcp' names the
+  // channel we can actually vouch for rather than inventing a user we cannot.
+  db.insert(supersedeLog).values({
+    oldPath: oldDoc.sourceFile,
+    oldId,
+    oldType: oldDoc.type,
+    newPath: newDoc.sourceFile,
+    newId,
+    reason,
+    supersededAt: now,
+    supersededBy: 'mcp',
+    project: oldDoc.project,
+  }).run();
 
   console.error(`[SUPERSEDE] ${oldId} → superseded by → ${newId}`);
 

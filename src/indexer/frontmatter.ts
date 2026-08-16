@@ -50,9 +50,29 @@ export function parseFrontmatterTime(content: string, keys: string[]): number | 
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
+/**
+ * Warn once per unrecognised type, per process. A document declaring an unknown type is a
+ * *different* situation from one declaring none, and the old code could not tell them apart.
+ */
+const warnedTypes = new Set<string>();
+
 export function parseFrontmatterDocType(content: string, keys: string[], fallback: OracleDocumentType): OracleDocumentType {
   const raw = parseFrontmatterString(content, keys);
-  return raw && ORACLE_DOC_TYPES.has(raw) ? raw as OracleDocumentType : fallback;
+  if (!raw) return fallback;                                  // no type declared — fallback is correct
+  if (ORACLE_DOC_TYPES.has(raw)) return raw as OracleDocumentType;
+
+  // A type WAS declared and we do not recognise it. Silently returning the fallback is how a new
+  // document type appears to work and then quietly undoes itself: storage.ts writes this value
+  // over the row on every reindex, so the type reverts with no error and no diff to notice.
+  if (!warnedTypes.has(raw)) {
+    warnedTypes.add(raw);
+    console.warn(
+      `[indexer] unknown document type "${raw}" — using "${fallback}" instead. ` +
+      'Add it to ORACLE_DOC_TYPES in src/indexer/frontmatter.ts, or every document of this type ' +
+      'will be demoted on every reindex.',
+    );
+  }
+  return fallback;
 }
 
 /**
