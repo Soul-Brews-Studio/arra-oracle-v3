@@ -47,7 +47,7 @@ export function buildFtsQuery(query: string): string {
   const tokens = query
     .replace(/<[^>]*>/g, ' ')
     .normalize('NFKC')
-    .match(/[\p{L}\p{N}_]+/gu)
+    .match(/[\p{L}\p{N}]+/gu) // no `_`: matches the index tokenizer, see helpers.ts (#2953)
     ?.map((token) => token.trim())
     .filter((token) => token.length > 0)
     .slice(0, FTS_TOKEN_LIMIT) ?? [];
