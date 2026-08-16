@@ -9,7 +9,7 @@ import path from 'path';
 import fs from 'fs';
 import { oracleDocuments } from '../db/schema.ts';
 import { detectProject } from '../server/project-detect.ts';
-import { getVectorStoreByModel, getEmbeddingModels } from '../vector/factory.ts';
+import { getEmbeddingModels, ensureVectorStoreConnected } from '../vector/factory.ts';
 import { REPO_ROOT } from '../config.ts';
 import { buildLearningMarkdown, dateSlug, learningSlug, uniqueTail } from '../learn/markdown.ts';
 
@@ -284,7 +284,9 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
   } else {
     try {
       const model = process.env.ORACLE_EMBEDDING_MODEL || 'bge-m3';
-      const vectorStore = getVectorStoreByModel(model);
+      // Awaited: getVectorStoreByModel returns before its fire-and-forget connect()
+      // resolves, so addDocuments could throw on a null db and silently degrade (#2931).
+      const vectorStore = await ensureVectorStoreConnected(model);
       await vectorStore.addDocuments([{
         id,
         document: frontmatter,
