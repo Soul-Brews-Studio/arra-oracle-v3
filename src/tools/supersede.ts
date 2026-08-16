@@ -5,7 +5,7 @@
  * "Nothing is Deleted" — old doc preserved but marked outdated.
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { oracleDocuments } from '../db/schema.ts';
 import { currentTenantId } from '../middleware/tenant.ts';
 import type { ToolContext, ToolResponse, OracleSupersededInput } from './types.ts';
@@ -104,6 +104,26 @@ export function runSupersede(db: ToolContext['db'], input: OracleSupersededInput
     };
   }
 
+  const expectActive = (args as { expectActive?: unknown }).expectActive === true;
+
+  // expectActive mode (opt-in, recovery-style callers): the old-row read, the
+  // successor-chain cycle check, the conditional update, and the affected-row
+  // verification below must be one atomic unit — otherwise a racing writer can
+  // supersede the old row or mutate the successor chain between check and
+  // update. Default mode keeps the existing non-transactional behavior.
+  if (expectActive) {
+    return db.transaction((tx) => runSupersedeCore(tx as ToolContext['db'], oldId, newId, reason, true));
+  }
+  return runSupersedeCore(db, oldId, newId, reason, false);
+}
+
+function runSupersedeCore(
+  db: ToolContext['db'],
+  oldId: string,
+  newId: string,
+  reason: string | null,
+  expectActive: boolean,
+): SupersedeRunResult {
   const now = Date.now();
   const tenantId = currentTenantId();
   const docWhere = (id: string) => tenantId
@@ -164,14 +184,36 @@ export function runSupersede(db: ToolContext['db'], input: OracleSupersededInput
     cursor = successorFor(cursor);
   }
 
-  db.update(oracleDocuments)
-    .set({
-      supersededBy: newId,
-      supersededAt: now,
-      supersededReason: reason,
-    })
-    .where(docWhere(oldId))
-    .run();
+  if (expectActive) {
+    // CAS: only an old row that is still active may be superseded; a raced
+    // competing supersede leaves changes !== 1 and aborts the transaction.
+    db.update(oracleDocuments)
+      .set({
+        supersededBy: newId,
+        supersededAt: now,
+        supersededReason: reason,
+      })
+      .where(and(docWhere(oldId), isNull(oracleDocuments.supersededBy), isNull(oracleDocuments.supersededAt)))
+      .run();
+    // Verify inside the same transaction: the conditional update either landed
+    // exactly on the still-active row, or the row was raced and is unchanged.
+    const verify = db.select({ supersededBy: oracleDocuments.supersededBy, supersededAt: oracleDocuments.supersededAt })
+      .from(oracleDocuments)
+      .where(docWhere(oldId))
+      .get();
+    if (verify?.supersededBy !== newId || verify.supersededAt == null) {
+      throw new Error(`expectActive supersede raced: "${oldId}" is no longer active (now superseded by ${verify?.supersededBy ?? 'unknown'})`);
+    }
+  } else {
+    db.update(oracleDocuments)
+      .set({
+        supersededBy: newId,
+        supersededAt: now,
+        supersededReason: reason,
+      })
+      .where(docWhere(oldId))
+      .run();
+  }
 
   console.error(`[SUPERSEDE] ${oldId} → superseded by → ${newId}`);
 

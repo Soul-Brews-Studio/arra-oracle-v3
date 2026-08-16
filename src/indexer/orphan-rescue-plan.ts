@@ -12,7 +12,6 @@
  * byte-equal rows, regardless of row order. Only generatedAt varies.
  */
 
-import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import type { Database } from 'bun:sqlite';
@@ -23,103 +22,14 @@ import { activeIndexerWhere } from './reindex-state.ts';
 import { parseLearningFile } from './parser.ts';
 import { enrichTextWithAcronyms } from '../search/acronyms.ts';
 import { CANONICAL_SOURCE_ROOT_KEY } from './prune-authority.ts';
+import {
+  canonicalJson, isUnsafeRelPath, realpathOrNull, renderRescueFile, sha256,
+  RescuePlanDenied, RESCUE_SCHEMA_VERSION,
+  type RescuePlan, type RescuePlanRow,
+} from './orphan-rescue-shared.ts';
 
-export const RESCUE_SCHEMA_VERSION = 1;
-export const RECOVERY_MARKER = 'arra_recovery: v1';
-
-export interface RescuePlanRow {
-  oldId: string;
-  oldSourceFile: string;
-  type: string;
-  project: string;
-  concepts: string[];
-  createdAt: number;
-  updatedAt: number;
-  /** sha256 of the exact legacy FTS body embedded in the rendered file. */
-  sourceBodySha256: string;
-  /** sha256 of enrichTextWithAcronyms(body): what storage will index. */
-  expectedIndexedContentSha256: string;
-  enrichmentChangesContent: boolean;
-  newId: string;
-  newSourceFile: string;
-  renderedFileSha256: string;
-}
-
-export interface RescuePlan {
-  schemaVersion: number;
-  canonicalRoot: string;
-  dbPath: string;
-  count: number;
-  candidateFingerprint: string;
-  rescueSetId: string;
-  manifestSha256: string;
-  generatedAt: string;
-  rows: RescuePlanRow[];
-}
-
-export class RescuePlanDenied extends Error {
-  readonly failures: string[];
-  constructor(failures: string[]) {
-    super(`orphan-rescue plan denied: ${failures.length} failure(s); first: ${failures[0]}`);
-    this.failures = failures;
-  }
-}
-
-function sha256(text: string): string {
-  return crypto.createHash('sha256').update(text, 'utf8').digest('hex');
-}
-
-/** Stable JSON: objects with sorted keys, so hashing is order-independent. */
-function canonicalJson(value: unknown): string {
-  return JSON.stringify(value, function replacer(_key, v) {
-    if (v && typeof v === 'object' && !Array.isArray(v)) {
-      const sorted: Record<string, unknown> = {};
-      for (const k of Object.keys(v).sort()) sorted[k] = (v as Record<string, unknown>)[k];
-      return sorted;
-    }
-    return v;
-  });
-}
-
-function isUnsafeRelPath(p: string): boolean {
-  if (!p || path.isAbsolute(p)) return true;
-  const parts = p.split('/');
-  return parts.some(seg => seg === '..' || seg === '') || p.includes('\\');
-}
-
-/**
- * The Gate C file contract. Everything the renderer emits is either parser
- * frontmatter the round-trip check proves, or an inert provenance pointer.
- */
-export function renderRescueFile(args: {
-  newId: string;
-  type: string;
-  project: string;
-  concepts: string[];
-  createdAt: number;
-  updatedAt: number;
-  oldId: string;
-  oldSourceFile: string;
-  body: string;
-}): string {
-  const conceptsList = `[${args.concepts.join(', ')}]`;
-  return [
-    '---',
-    `arra_recovery: v1`,
-    `arra_id: ${args.newId}`,
-    `arra_type: ${args.type}`,
-    `arra_concepts: ${conceptsList}`,
-    `project: ${args.project}`,
-    `arra_created: ${new Date(args.createdAt).toISOString()}`,
-    `updated_at: ${new Date(args.updatedAt).toISOString()}`,
-    `original_id: ${args.oldId}`,
-    `original_source_file: ${args.oldSourceFile}`,
-    '---',
-    '',
-    args.body,
-    '',
-  ].join('\n');
-}
+export { renderRescueFile, RescuePlanDenied, RESCUE_SCHEMA_VERSION, RECOVERY_MARKER } from './orphan-rescue-shared.ts';
+export type { RescuePlan, RescuePlanRow } from './orphan-rescue-shared.ts';
 
 interface CandidateRow {
   id: string;
@@ -202,7 +112,8 @@ export function buildOrphanRescuePlan(args: {
   try {
     const dbList = args.sqlite.prepare('PRAGMA database_list').all() as Array<{ name: string; file: string | null }>;
     const mainFile = dbList.find(d => d.name === 'main')?.file ?? '';
-    if (mainFile && path.resolve(mainFile) !== path.resolve(args.dbPath)) {
+    // Compare real paths: /tmp vs /private/tmp style symlinks must not trip this.
+    if (mainFile && (realpathOrNull(mainFile) ?? path.resolve(mainFile)) !== (realpathOrNull(args.dbPath) ?? path.resolve(args.dbPath))) {
       throw new RescuePlanDenied([`--db-path ${args.dbPath} does not match connected database ${mainFile}`]);
     }
   } catch (e) {

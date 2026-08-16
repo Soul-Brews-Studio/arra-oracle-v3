@@ -32,7 +32,7 @@ export async function storeDocuments(
   vectorClient: VectorStoreAdapter | null,
   project: string | null,
   documents: OracleDocument[],
-  opts: { createdBy?: string; tenantId?: string } = {}
+  opts: { createdBy?: string; tenantId?: string; insertOnly?: boolean } = {}
 ): Promise<void> {
   const now = Date.now();
   const tenantId = opts.tenantId ?? tenantIdForWrite();
@@ -48,36 +48,50 @@ export async function storeDocuments(
       // SQLite metadata - use doc.project if available, fall back to repo project
       const docProject = (doc.project || project)?.toLowerCase();
 
-      // Drizzle upsert with createdBy: 'indexer'
-      tx.insert(oracleDocuments)
-        .values({
-          id: doc.id,
-          tenantId,
-          type: doc.type,
-          sourceFile: doc.source_file,
-          concepts: JSON.stringify(doc.concepts),
-          createdAt: doc.created_at,
-          updatedAt: doc.updated_at,
-          indexedAt: now,
-          project: docProject,
-          createdBy: opts.createdBy || 'indexer',
-        })
-        .onConflictDoUpdate({
-          target: oracleDocuments.id,
-          set: {
-            tenantId,
-            type: doc.type,
-            sourceFile: doc.source_file,
-            concepts: JSON.stringify(doc.concepts),
-            updatedAt: doc.updated_at,
-            indexedAt: now,
-            project: docProject,
-            supersededBy: null,
-            supersededAt: null,
-            supersededReason: null,
-          }
-        })
-        .run();
+      const insertValues = {
+        id: doc.id,
+        tenantId,
+        type: doc.type,
+        sourceFile: doc.source_file,
+        concepts: JSON.stringify(doc.concepts),
+        createdAt: doc.created_at,
+        updatedAt: doc.updated_at,
+        indexedAt: now,
+        project: docProject,
+        createdBy: opts.createdBy || 'indexer',
+      };
+
+      if (opts.insertOnly) {
+        // Recovery-style writes must never overwrite an existing document —
+        // and the conflict must be detected HERE, before the FTS/entity-link/
+        // pointer writes below, so the transaction rolls back with the
+        // collided document's secondary indexes untouched.
+        tx.insert(oracleDocuments).values(insertValues).onConflictDoNothing().run();
+        const affected = (sqlite.query('SELECT changes() AS c').get() as { c: number }).c;
+        if (affected !== 1) {
+          throw new Error(`insertOnly: document id "${doc.id}" already exists — refusing to overwrite`);
+        }
+      } else {
+        // Drizzle upsert with createdBy: 'indexer'
+        tx.insert(oracleDocuments)
+          .values(insertValues)
+          .onConflictDoUpdate({
+            target: oracleDocuments.id,
+            set: {
+              tenantId,
+              type: doc.type,
+              sourceFile: doc.source_file,
+              concepts: JSON.stringify(doc.concepts),
+              updatedAt: doc.updated_at,
+              indexedAt: now,
+              project: docProject,
+              supersededBy: null,
+              supersededAt: null,
+              supersededReason: null,
+            }
+          })
+          .run();
+      }
 
       const indexedContent = enrichTextWithAcronyms(doc.content);
 
