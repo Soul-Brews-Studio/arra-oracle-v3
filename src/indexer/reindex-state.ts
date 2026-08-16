@@ -127,7 +127,12 @@ function activeIndexerIdsForSource(
   return rows.map((row) => row.id);
 }
 
-function activeIndexerWhere(tenantId?: string) {
+/**
+ * Active (non-superseded) indexer-owned rows. This is the ONLY predicate the
+ * smart-delete plan may use: superseded rows are intentional history under
+ * "Nothing is Deleted" and must never become prune candidates.
+ */
+export function activeIndexerWhere(tenantId?: string) {
   return and(
     or(eq(oracleDocuments.createdBy, 'indexer'), isNull(oracleDocuments.createdBy))!,
     isNull(oracleDocuments.supersededBy),

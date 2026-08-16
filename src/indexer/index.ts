@@ -29,6 +29,7 @@ import { getEmbeddingModels } from '../vector/factory.ts';
 import { collectDocuments, collectPsiLearn, collectSecurityCorpus } from './collectors.ts';
 import { collectPsiInbox } from './collect-inbox.ts';
 import {
+  activeIndexerWhere,
   changedDocumentIds,
   enqueueVectorReindexJobs,
   snapshotActiveIndexerDocs,
@@ -132,9 +133,11 @@ export class OracleIndexer {
       // incident: a narrowed --repo-root run deleted 1,211 cross-scope docs),
       // so execution is fail-closed behind resolvePruneAuthority; unauthorized
       // runs stay plan-only/append-like.
+      // ACTIVE rows only: superseded rows are intentional history ("Nothing is
+      // Deleted") and must never appear in the plan or the delete set.
       const allIndexerDocs = this.db.select({ id: oracleDocuments.id, sourceFile: oracleDocuments.sourceFile, project: oracleDocuments.project })
         .from(oracleDocuments)
-        .where(indexerOwnedWhere)
+        .where(activeIndexerWhere(tenantId))
         .all();
 
       const plan = buildDeletePlan(

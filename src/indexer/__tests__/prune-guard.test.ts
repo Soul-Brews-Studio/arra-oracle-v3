@@ -118,6 +118,30 @@ describe('smart-delete prune guard (real OracleIndexer, temp DB)', () => {
     }
     expect(sourceFiles()).toEqual([A_SOURCE, B_SOURCE, C_SOURCE]);
   });
+
+  test('superseded rows are never planned or deleted, even with canonical + exact confirm', async () => {
+    const { sqlite } = createDatabase(process.env.ORACLE_DB_PATH!);
+    // Simulate the incident shape: two rows whose sources are gone from disk,
+    // one active and one intentionally superseded (chunk-dedup history).
+    fs.rmSync(path.join(repoC, 'ψ', 'memory', 'learnings', 'c.md'));
+    sqlite.prepare('UPDATE oracle_documents SET project = ? WHERE project IS NULL').run('github.com/other/x');
+    sqlite.prepare(`
+      UPDATE oracle_documents SET superseded_by = 'kept-primary-chunk', superseded_at = 1
+      WHERE source_file = ?
+    `).run(A_SOURCE);
+    setCanonical(repoB);
+    try {
+      // Active missing rows: c.md only => plan count must be its chunk count (1).
+      // If superseded a.md rows were planned too, confirmDelete=1 would mismatch
+      // and nothing would be deleted; active-only semantics grants and deletes c.
+      expect((await runOracleReindex({ repoRoot: repoB, confirmDelete: 1 })).ok).toBe(true);
+    } finally {
+      setCanonical(null);
+      writeLearning(repoC, 'c.md', '---\nproject: github.com/other/x\n---\n\n# repo c\n\ngamma frontmatter project override');
+      sqlite.prepare('UPDATE oracle_documents SET superseded_by = NULL, superseded_at = NULL WHERE source_file = ?').run(A_SOURCE);
+    }
+    expect(sourceFiles()).toEqual([A_SOURCE, B_SOURCE]);
+  });
 });
 
 describe('resolvePruneAuthority unit gates (fail-closed)', () => {
