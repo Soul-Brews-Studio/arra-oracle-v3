@@ -24,17 +24,43 @@ unreachable.
 table to write to, no flag saying whether a session has been summarised, no record of who did it,
 and no way to replace a summary without destroying the old one.
 
-**(c) The promotion path is declared but empty.** `src/trace/status.ts:6-16`:
+**(c) Distilling a trace produces nothing by default.**
+
+> **Correction (2026-08-16).** An earlier draft of this spec blamed `distillTrace`
+> (`src/trace/status.ts:6-16`). That was wrong, and the correction matters because it changes the
+> fix. Verified: `distillTrace` is **dead code** — `rg` finds exactly two references, its own
+> definition and a re-export at `src/trace/handler.ts:6`. Nothing calls it. It is a function whose
+> return type promises a `learningId` it never sets, sitting unused next to the real one.
+
+The **live** path is `distillTraceAwakening` (`src/trace/distill.ts:102-129`), reached from
+`src/tools/oracle.ts:75` (MCP) and `src/routes/traces/distill.ts:48` (HTTP). It *does* create a real
+lesson and return its id:
 
 ```ts
-export function distillTrace(input): { success: boolean; status: string; learningId?: string } {
-  …
-  return { success: true, status: 'distilled' };   // learningId is NEVER populated
-}
+const learning = input.promoteToLearning ? handleLearn(...) : undefined;   // :112
+if (learning?.id) update.distilledToId = learning.id;                      // :119
+return { success: true, status: 'distilled', learningId: learning?.id };   // :126
 ```
 
-Marking a trace `distilled` produces no lesson. The type promises an artefact the function does not
-create. A working pattern for exactly this already exists at `src/huginn/capture.ts:210`.
+The defect is the **default**. `promoteToLearning` is `t.Optional(t.Boolean())`
+(`src/routes/traces/distill.ts:29`) with no default anywhere, so an ordinary distill takes the
+`: undefined` branch: the trace is marked `distilled` and **no artefact is produced**. The symptom
+Nat described is real; the fix is to flip a default and delete the dead twin, not to implement a
+missing function.
+
+**⚠️ Related hazard, found while verifying the above.** `src/indexer/frontmatter.ts:7-9` hardcodes:
+
+```ts
+const ORACLE_DOC_TYPES = new Set([
+  'principle', 'pattern', 'learning', 'retro', 'distillation', 'security-corpus',
+]);
+```
+
+`parseFrontmatterDocType` **silently falls back to `'learning'`** for any type outside this set, and
+`src/indexer/storage.ts:67` then writes that fallback over the row. So a new document type that is
+not added to this set is **silently demoted on the next reindex** — the promotion would appear to
+work and then quietly undo itself. Any new category must land in this file in the same commit as its
+writer, with a round-trip test.
 
 ---
 
