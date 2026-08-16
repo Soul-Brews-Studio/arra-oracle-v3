@@ -1,12 +1,26 @@
 name: Test
 
+# TIER 1 — the per-PR gate. Budget: under two minutes, end to end.
+#
+# Measured on run 31947834659 (6m17s) the old single-tier gate spent 124s (33%) on
+# Rust/Tauri that most PRs never touch, and 27s on a docs step that duplicates a
+# directory already in the loop below. Both are gone from this file:
+#
+#   Rust/Tauri  -> .github/workflows/tauri.yml (runs on PRs that touch it) and nightly
+#   the slow test directories -> .github/workflows/nightly.yml
+#
+# Tier 1 + tier 2 must cover EVERY directory that holds tests. That union is not a
+# convention, it is enforced: tests/build/ci-covers-the-suite.test.ts fails if any
+# group lands in neither file. Splitting a gate is exactly the shape that produced
+# #2853 — a hand-maintained list covering 15% of the suite while reporting green —
+# so the ratchet reads both files and got stricter, not looser, when this split landed.
 on:
   pull_request:
     branches: [alpha]
 
 jobs:
   test:
-    name: Typecheck and scoped tests
+    name: Typecheck and fast tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -32,78 +46,56 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: README/docs claim integrity
-        run: bun test --isolate tests/docs/readme-claims.test.ts
-
       - name: Typecheck
         run: |
           export PATH="$PWD/node_modules/.bin:$PATH"
           tsc --noEmit
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust deps
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            frontend/src-tauri/target
-          key: rust-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
-          restore-keys: rust-
-
-      - name: Install Tauri Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-      - name: Cargo check (Tauri)
-        run: cd frontend/src-tauri && cargo check
-
-      # CI used to run a hand-maintained find(1) list of 183 files — 15% of the 1,221
-      # test files in this repo. Whole directories were never executed, including
-      # tests/frontend/ (228 files) and tests/build/, which holds the 250-line ratchet and
-      # the test-scope guard. Four tests went red on alpha for hours after #2848 and CI
-      # stayed green; two more in src/routes/menu have been red since #1857. See #2853.
+      # Every group below was timed individually on bun 1.3.14 before being placed here:
+      # they sum to 71.4s and 2,780 tests, and the whole list ran end to end — exactly as
+      # this loop runs it — in 69.1s. The runner is ~1.17x slower than that machine (its
+      # 204s unit step vs 174.9s locally for the same set), so tier 1 projects to ~81s of
+      # tests + ~10s tsc + ~12s setup: inside the two-minute budget with margin.
       #
-      # Groups rather than one `bun test --isolate tests/`: that form crashes bun 1.3.14
-      # (exit 133). Groups rather than per-file: 1,221 process spawns is ~25 min, groups
-      # are ~4. Every group below was measured green on alpha before being added.
+      # The three directories that cost the most — tests/http/ 57.2s, tests/cli/ 47.5s,
+      # tests/smoke/ 13.6s — moved to the nightly file. tests/docs/ and tests/build/ are
+      # the ratchets themselves and are 0.6s and 0.4s, so they stay here forever
+      # regardless of what else moves.
+      #
+      # `src/` is the whole of src/, including src/integration/ — `bun test <path>` is a
+      # SUBSTRING FILTER, so `src/` already matches `src/integration/http.test.ts`. The old
+      # "Run scoped integration tests" step re-ran those 6 files for a second time; it is
+      # gone, not lost.
+      #
+      # Trailing slashes are load-bearing, for the same substring-filter reason: bare
+      # `tests/server` matched `integration-tests/serverless.test.mjs` in a *different
+      # repository* two levels up the ghq tree and tried to run it. `tests/server/` does not.
       #
       # --isolate is REQUIRED, not decorative: without it a process-wide mock.module in
       # src/vault/__tests__/handler.test.ts leaks into sibling files and fails 2 unrelated
-      # tests. CI has always used it; the docs told contributors to run the form that does
-      # not, which is half of what #2853 is about.
-      # Trailing slashes are load-bearing. `bun test <path>` is a SUBSTRING FILTER: bare
-      # `tests/server` matched `integration-tests/serverless.test.mjs` in a *different
-      # repository* two levels up the ghq tree and tried to run it. `tests/server/` does not.
-      - name: Run unit tests
+      # tests. CI has always used it; CLAUDE.md now documents the same command.
+      - name: Run fast tests
         shell: bash
         run: |
           set -euo pipefail
           for group in \
             src/ \
-            tests/build/ tests/frontend/ tests/http/ tests/mcp/ tests/vector/ \
-            tests/cli/ tests/plugins/ tests/storage/ tests/workers/ tests/tools/ \
-            tests/docs/ tests/config/ tests/process-manager/ tests/lifecycle/ \
-            tests/smoke/ tests/export/ tests/services/ tests/knowledge/ tests/forum/ tests/eval/ \
+            tests/build/ tests/docs/ tests/frontend/ tests/mcp/ tests/vector/ \
+            tests/plugins/ tests/storage/ tests/workers/ tests/tools/ \
+            tests/config/ tests/process-manager/ tests/lifecycle/ \
+            tests/export/ tests/services/ tests/knowledge/ tests/forum/ tests/eval/ \
             tests/bin/ tests/canvas/ tests/db/ tests/indexer/ tests/lib/ tests/oracles/ \
-            tests/runtime/ tests/search/ tests/server/ tests/util/ tests/vault/
+            tests/runtime/ tests/search/ tests/server/ tests/util/ tests/vault/ \
+            tests/http/menu/ tests/http/plugins/ tests/http/memory/ tests/http/health/ \
+            tests/http/tenant/ tests/http/export/ tests/http/search/
           do
             echo "::group::${group}"
             # Exit 133 is bun CRASHING (SIGTRAP), not a test failing — the two are
             # indistinguishable by exit status alone, and conflating them is how a sweep ends
             # up reporting "tests/http/ FAILED" when nothing failed. `bun test --isolate
-            # tests/http/` (290 files) crashes intermittently on bun 1.3.14: measured ~1 run
-            # in 4 on macOS, with no single file or subdirectory responsible — all 65 subdirs
-            # pass together, all 8 loose files pass together, and it still happens with the
-            # server-spawning suites removed. It is the size of one invocation. See #2867.
+            # tests/http/` (300 files) crashes intermittently on bun 1.3.14: measured ~1 run
+            # in 4 on macOS, with no single file or subdirectory responsible. It is the size
+            # of one invocation. See #2867.
             #
             # So: retry ONCE on 133 only. A real test failure (any other non-zero) fails
             # immediately and is never retried — retrying those would hide flaky tests, which
@@ -124,9 +116,7 @@ jobs:
             echo "::endgroup::"
           done
 
-      # Deliberately NOT in the loop above:
-      #   tests/integration/  — one test needs a live docker compose stack (tracked separately)
-      #   tests/benchmarks/   — timing-sensitive, belongs in a scheduled job not a PR gate
-      #   tests/e2e/          — *.e2e.ts, needs a browser; not picked up by bun test anyway
-      - name: Run scoped integration tests
-        run: bun test --isolate src/integration/
+      # The seven tests/http/ subdirectories above are a SUBSET of that group — 142 of its
+      # 300 files, 14.8s of its 57.2s. A subset is only ever safe because the whole of
+      # tests/http/ runs in nightly.yml; ci-covers-the-suite.test.ts asserts exactly that,
+      # so a partial tier-1 entry can never become a group's only coverage.

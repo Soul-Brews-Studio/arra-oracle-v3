@@ -1,0 +1,52 @@
+name: Tauri
+
+# The Rust half of the old single-tier gate, made conditional instead of dropped.
+#
+# Measured on run 31947834659: installing the Linux Tauri deps took 39s and `cargo check`
+# took 85s — 124s of a 377s gate, 33%, paid by every PR including the ones that change no
+# Rust at all. `paths:` means the PRs that DO touch it still get the check before merge,
+# and nightly.yml runs it unconditionally so a shared-dependency break cannot hide behind
+# the filter for longer than a day.
+#
+# A skipped path-filtered workflow reports neutral, not failed, so this must not be a
+# required status check on its own — the nightly job is the unconditional one.
+on:
+  pull_request:
+    branches: [alpha]
+    paths:
+      - 'frontend/src-tauri/**'
+      - '.github/workflows/tauri.yml'
+
+jobs:
+  cargo-check:
+    name: Cargo check (Tauri)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            frontend/src-tauri/target
+          key: rust-${{ hashFiles('frontend/src-tauri/Cargo.lock') }}
+          restore-keys: rust-
+
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Cargo check (Tauri)
+        run: cd frontend/src-tauri && cargo check
