@@ -140,30 +140,45 @@ query at the *start* of a task, not after repeating the mistake.
 
 **⚠️ A beat is not a turn.** Measured `who` distribution: `tool` 520,829 (**50.5%**) · `assistant` 354,252 · `human` 135,574 · `thinking` 18,746 · `system` 2,166. Half the corpus is tool-call JSON, not conversation. Any summary or search that treats 1,031,567 as "turns" is wrong by 2x, and any embedding pass should follow `jsonl-lens`'s lead and take human/assistant/thinking only (~508K).
 
-### Decision: tool beats are excluded from the conversation index
+### Decision: index tool **parameters**, not tool **payloads**
 
-Nat, 2026-08-16: *"we do not need tool call be coz not nonesense of searching?"* — correct, and the
-volume makes it decisive.
+Nat first asked *"we do not need tool call be coz not nonesense of searching?"* — I agreed and
+proposed excluding tool beats entirely. He then pushed back: *"but tool call have parameter may be
+fts is canssearch some interesting things?"* **He was right and I was wrong.** Measured:
 
-| who | rows | text | avg |
-|---|---:|---:|---:|
-| `tool` | 520,829 | **374.5 MB (69%)** | 754 ch |
-| `assistant` | 354,252 | 98.6 MB | 292 ch |
-| `human` | 135,574 | 58.7 MB | 454 ch |
-| `thinking` | 18,746 | 10.5 MB | 588 ch |
-| `system` | 2,166 | ~0 MB | 18 ch |
+| term | tool beats | conversation beats |
+|---|---:|---:|
+| `supersede` | **2,016** | 1,166 |
+| `bge-m3` | **1,132** | 723 |
+| `db:push` | **74** | 50 |
 
-A `tool` beat is the **call**, not the result — e.g. `Bash: {"command":"pwd","description":"Check
-current working directory"}`. The results live separately in `tool_results` (521,070 rows).
+Tool calls out-match conversation ~2:1 on technical terms, because conversation talks *about*
+things while tool calls contain the **exact identifiers** — commands, paths, patterns. Real queries
+answered from tool beats alone: *"which sessions touched `indexer/storage`"* (returned session ids)
+and *"when did we use `git subtree split`"* (four dated sessions).
 
-**Default conversation index = `human` + `assistant` + `thinking`** → 508,572 beats / **167.8 MB**,
-a **3.2x smaller index** than indexing everything, with better precision (JSON blobs no longer
-dilute keyword matches). This matches what `jsonl-lens` already concluded — its `embed` recipe takes
-human/assistant/thinking only.
+The volume problem is real but it is **payloads, not parameters**:
 
-**Not discarded, just not default.** Tool beats carry a human-written `description` and real file
-paths, so *"which session installed X"* and *"when did we touch storage.ts"* remain answerable —
-behind an explicit `includeTools` filter rather than in the conversation index.
+| tool | calls | MB | avg chars | what the bulk is |
+|---|---:|---:|---:|---|
+| `Write` | 26,224 | **109.6** | 4,381 | file content — already in the repo |
+| `Edit` | 46,588 | **51.9** | 1,168 | old/new string bodies |
+| `Workflow` | 1,177 | 8.2 | **7,289** | whole script bodies |
+| `ExitPlanMode` | 1,293 | 5.0 | 4,066 | plan prose |
+| `Bash` | 309,700 | 146.0 | 494 | **commands — highest-value target** |
+| `Read` | 50,774 | **5.6** | 116 | **file paths only — nearly free** |
+
+**The rule: index the identifying fields, drop the payload fields.** Keep `command`, `file_path`,
+`pattern`, `description`, `url`. Drop `content` (Write), `new_string`/`old_string` (Edit), `prompt`
+(Agent/Workflow), and plan bodies. `Write` and `Edit` still answer *"which session wrote file X"* at
+near-zero cost because the path is kept and the body is not.
+
+Dropping payload fields removes ~175 MB (47% of tool text) while **keeping the searchable
+identifiers intact** — strictly better than the blanket exclusion first proposed, which would have
+discarded the richest source of technical hits in the corpus.
+
+Conversation beats (`human` + `assistant` + `thinking`, 508,572 / 167.8 MB) remain the default
+relevance ranking; tool-derived hits are a distinct result class so JSON never dilutes prose ranking.
 
 Two properties that shape the design:
 
