@@ -126,11 +126,34 @@ export class OracleIndexer {
     if (append) {
       console.log('Append mode: skipping smart delete (preserving existing docs from other repo roots)');
     } else {
-      // Smart deletion: remove indexer-created docs whose source file no longer exists
-      const allIndexerDocs = this.db.select({ id: oracleDocuments.id, sourceFile: oracleDocuments.sourceFile })
+      // Smart deletion: remove indexer-created docs whose source file no longer exists.
+      //
+      // Deletion MUST be scoped to what this run actually produced. Writes are
+      // project-scoped (storage.ts tags every row with doc.project || project), so an
+      // unscoped delete pulls in every OTHER project's rows and marks them stale purely
+      // because their sourceFile does not resolve under *this* repoRoot — silently
+      // destroying a shared oracle.db from an unrelated repo. See arra-oracle-v3#2996.
+      //
+      // Scoping by `project === this.project` alone would be wrong: a run legitimately
+      // emits docs for OTHER projects (e.g. ψ/learn/<org>/<repo>/ is tagged with that
+      // nested repo). So the owned set is "every project this run just produced", which
+      // both covers nested projects and excludes projects this repoRoot never writes.
+      const runProjects = new Set(
+        indexDocuments.map(doc => (doc.project ?? this.project)?.toLowerCase() ?? null),
+      );
+
+      const allIndexerDocs = this.db.select({
+        id: oracleDocuments.id,
+        sourceFile: oracleDocuments.sourceFile,
+        project: oracleDocuments.project,
+      })
         .from(oracleDocuments)
         .where(indexerOwnedWhere)
-        .all();
+        .all()
+        // Trade-off: rows for a project this run no longer emits are never reclaimed
+        // (they leak as staleness). That is deliberate — leaking a stale row is
+        // recoverable, deleting another repo's index is not.
+        .filter(d => runProjects.has(d.project ?? null));
 
       const idsToDelete = allIndexerDocs
         .filter(d => !fs.existsSync(path.join(this.config.repoRoot, d.sourceFile)))
