@@ -46,8 +46,12 @@ export function discoverProjectPsiDirs(repoRoot: string): string[] {
  * honours one spelling of "off" is a known-expensive shortcut here. There are ~14 other
  * `process.env.ORACLE_* === '0'|'1'` sites that would benefit from one shared parser; that
  * is a separate change, deliberately not made here.
+ *
+ * Exported because `collect-vault-extras.ts` gates the *other* half of a crew brain
+ * (`learn/`, `inbox/`, `outbox/`, `CLAUDE.md`) on the same lever. Two call sites reading the
+ * env var with two different notions of "off" is how a documented flag starts lying.
  */
-function crewIndexingDisabled(): boolean {
+export function crewIndexingDisabled(): boolean {
   const raw = process.env.ORACLE_INDEX_CREW;
   if (raw === undefined) return false;
   return ['0', 'false', 'off', 'no'].includes(raw.trim().toLowerCase());

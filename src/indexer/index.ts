@@ -28,6 +28,7 @@ import { parseResonanceFile, parseLearningFile, parseRetroFile, parseDistillatio
 import { getEmbeddingModels } from '../vector/factory.ts';
 import { collectDocuments, collectPsiLearn, collectSecurityCorpus } from './collectors.ts';
 import { collectPsiInbox } from './collect-inbox.ts';
+import { collectVaultExtraDocuments } from './collect-vault-extras.ts';
 import {
   changedDocumentIds,
   enqueueVectorReindexJobs,
@@ -101,6 +102,10 @@ export class OracleIndexer {
       ...collectDocuments({ ...shared, subdir: 'distillations', parseFn: parseDistillationFile, label: 'distillation' }),
       ...collectPsiLearn(shared),
       ...collectPsiInbox(shared),
+      // Last of the markdown collectors on purpose: it is the catch-all for ψ/outbox and the
+      // non-memory crew trees, so every more specific parser gets first claim on a content
+      // hash before this one sees it.
+      ...collectVaultExtraDocuments(shared),
       ...collectSecurityCorpus(shared),
     ];
 
