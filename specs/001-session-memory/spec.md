@@ -140,6 +140,31 @@ query at the *start* of a task, not after repeating the mistake.
 
 **⚠️ A beat is not a turn.** Measured `who` distribution: `tool` 520,829 (**50.5%**) · `assistant` 354,252 · `human` 135,574 · `thinking` 18,746 · `system` 2,166. Half the corpus is tool-call JSON, not conversation. Any summary or search that treats 1,031,567 as "turns" is wrong by 2x, and any embedding pass should follow `jsonl-lens`'s lead and take human/assistant/thinking only (~508K).
 
+### Decision: tool beats are excluded from the conversation index
+
+Nat, 2026-08-16: *"we do not need tool call be coz not nonesense of searching?"* — correct, and the
+volume makes it decisive.
+
+| who | rows | text | avg |
+|---|---:|---:|---:|
+| `tool` | 520,829 | **374.5 MB (69%)** | 754 ch |
+| `assistant` | 354,252 | 98.6 MB | 292 ch |
+| `human` | 135,574 | 58.7 MB | 454 ch |
+| `thinking` | 18,746 | 10.5 MB | 588 ch |
+| `system` | 2,166 | ~0 MB | 18 ch |
+
+A `tool` beat is the **call**, not the result — e.g. `Bash: {"command":"pwd","description":"Check
+current working directory"}`. The results live separately in `tool_results` (521,070 rows).
+
+**Default conversation index = `human` + `assistant` + `thinking`** → 508,572 beats / **167.8 MB**,
+a **3.2x smaller index** than indexing everything, with better precision (JSON blobs no longer
+dilute keyword matches). This matches what `jsonl-lens` already concluded — its `embed` recipe takes
+human/assistant/thinking only.
+
+**Not discarded, just not default.** Tool beats carry a human-written `description` and real file
+paths, so *"which session installed X"* and *"when did we touch storage.ts"* remain answerable —
+behind an explicit `includeTools` filter rather than in the conversation index.
+
 Two properties that shape the design:
 
 - **`parent_uuid` + `is_sidechain` make the turn graph a tree.** Subagent branches are in there. A
