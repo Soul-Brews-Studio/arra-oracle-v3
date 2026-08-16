@@ -11,6 +11,18 @@
  *     exact commands and paths. So `includeTools` is opt-in and returns them as a distinct
  *     result class rather than blending them into prose relevance.
  *
+ * ⚠️ **Timestamps from this corpus are shifted +7h and mislabelled `Z`.**
+ * `jsonl-lens/src/export-turso.ts:62-63` adds `7 * 3600_000` to a UTC instant and re-serialises
+ * with `.toISOString()`, so every `beats.ts` claims UTC while carrying Bangkok local time.
+ * Measured: `max(beats.ts)` postdates `max(sessions.modified)` by exactly 7h, which is
+ * physically impossible; 1,489 sessions show +7.0h against their own file mtime. Reported as
+ * Soul-Brews-Studio/jsonl-lens#1.
+ *
+ * We do **not** silently subtract it. Relative ordering is self-consistent, and hard-coding a
+ * correction here would break the day the exporter is fixed — a wrong answer that used to be
+ * right is worse than a known-shifted one. `from`/`to` filters therefore operate on the same
+ * scale the corpus stores, and the tools say so.
+ *
  * Text matching is LIKE, deliberately. The corpus ships two indexes only
  * (`beats_session_idx`, `beats_project_idx`) and no FTS table; building one over 2.7 GB is a
  * separate decision with its own cost. Every query here is either session-scoped or

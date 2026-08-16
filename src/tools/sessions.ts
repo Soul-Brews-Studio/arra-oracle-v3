@@ -63,8 +63,8 @@ export const sessionSearchToolDef = {
     properties: {
       query: { type: 'string', description: 'Text to find in conversation turns' },
       project: { type: 'string', description: 'Restrict to one project' },
-      from: { type: 'string', description: 'ISO timestamp lower bound' },
-      to: { type: 'string', description: 'ISO timestamp upper bound' },
+      from: { type: 'string', description: 'ISO timestamp lower bound. NOTE: corpus timestamps are currently shifted +7h and labelled Z (jsonl-lens#1), so absolute windows are offset by that much until the exporter is fixed.' },
+      to: { type: 'string', description: 'ISO timestamp upper bound. Same +7h caveat as `from`.' },
       limit: { type: 'number', description: 'Max hits (default 50, max 200)', default: 50 },
       includeTools: { type: 'boolean', description: INCLUDE_TOOLS_DESC, default: false },
     },
