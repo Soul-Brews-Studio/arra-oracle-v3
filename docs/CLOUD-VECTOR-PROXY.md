@@ -1,5 +1,9 @@
 # Cloud vector proxy runbook
 
+> **SPECIALIZED — remote vector backend (Tier 4) only.** Current machine
+> operations (health, restart, backup/restore) are owned by `docs/RUNBOOK.md`
+> (canonical).
+
 Arra can keep SQLite/FTS5 local while sending the vector leg to a separate
 backend such as a Cloudflare-hosted Worker/service, a VM, or another LAN host.
 This is the Tier 4 path for cloud indexing without moving the local ground

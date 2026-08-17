@@ -1,7 +1,13 @@
 # Rebrand Runbook: arra-oracle-v2 → arra-oracle-v2
 
+> **HISTORICAL / NON-EXECUTABLE.** บันทึกของงาน rebrand ที่จบไปแล้ว (2026-03)
+> — ห้ามรันคำสั่งในไฟล์นี้ซ้ำ โดยเฉพาะการแก้ `~/.claude.json` ด้วยมือ ซึ่งขัดกับ
+> ownership ปัจจุบัน (กฎ no-hand-edit MCP:
+> `~/.claude-config-repo/docs/MCP-OWNERSHIP.md`). งาน operations ปัจจุบันใช้
+> `docs/RUNBOOK.md`.
+
 > วันที่สร้าง: 2026-03-16
-> สถานะ: พร้อม execute
+> สถานะ: พร้อม execute (ณ เวลานั้น — ปัจจุบันเป็นประวัติศาสตร์)
 
 ## Pre-flight Checklist
 
