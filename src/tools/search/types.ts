@@ -53,6 +53,7 @@ export type CombinedSearchResult = {
   vectorScore?: number;
   pointerScore?: number;
   pointerMatches?: string[];
+  recencyScore?: number;
   distance?: number;
   model?: string;
   entity_score?: number;

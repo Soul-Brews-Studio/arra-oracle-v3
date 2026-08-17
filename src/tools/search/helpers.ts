@@ -125,6 +125,49 @@ export function combineResults(
   return combined;
 }
 
+/**
+ * Mild recency boost so a current-state record beats an old retro at equal
+ * relevance, without letting freshness outrank a genuinely better match.
+ *
+ * Combined scores cluster tightly at the top (observed ~1.04–1.16 across a
+ * whole result page), so a same-day record gets +RECENCY_WEIGHT (0.08) —
+ * enough to break a near-tie — while a record older than a few half-lives
+ * gets effectively nothing. Fail-soft: missing table/column/date → no boost.
+ *
+ * Origin: 2026-08-17 adoption reviews — same-day decision learnings ranked
+ * below months-old retros and had to be read by direct id.
+ */
+const RECENCY_WEIGHT = 0.08;
+const RECENCY_HALF_LIFE_DAYS = 30;
+
+export function applyRecencyBoost<T extends { id: string; score: number; recencyScore?: number }>(
+  sqlite: { query: (sql: string) => { all: (...params: string[]) => unknown[] } },
+  results: T[],
+  now = Date.now(),
+): T[] {
+  if (results.length === 0) return results;
+  let rows: Array<{ id: string; created_at: number }> = [];
+  try {
+    const placeholders = results.map(() => '?').join(',');
+    rows = sqlite
+      .query(`SELECT id, created_at FROM oracle_documents WHERE id IN (${placeholders})`)
+      .all(...results.map((r) => r.id)) as Array<{ id: string; created_at: number }>;
+  } catch {
+    return results;
+  }
+  const createdById = new Map(rows.map((row) => [row.id, row.created_at]));
+  const boosted = results.map((result) => {
+    const createdAt = createdById.get(result.id);
+    if (!Number.isFinite(createdAt)) return result;
+    const ageDays = Math.max(0, (now - (createdAt as number)) / 86_400_000);
+    const recencyScore = RECENCY_WEIGHT * Math.exp(-(Math.LN2 * ageDays) / RECENCY_HALF_LIFE_DAYS);
+    if (recencyScore <= 0) return result;
+    return { ...result, score: result.score + recencyScore, recencyScore };
+  });
+  boosted.sort((a, b) => b.score - a.score);
+  return boosted;
+}
+
 function boundedScore(value: number | undefined): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(1, Number(value)));
@@ -162,6 +205,7 @@ export function provenanceForResult(result: CombinedSearchResult): SearchProvena
     ...(result.vectorScore !== undefined ? { vector_score: Number(result.vectorScore.toFixed(3)) } : {}),
     ...(result.pointerScore !== undefined ? { pointer_score: Number(result.pointerScore.toFixed(3)) } : {}),
     ...(result.pointerMatches?.length ? { pointer_matches: result.pointerMatches } : {}),
+    ...(result.recencyScore !== undefined ? { recency_score: Number(result.recencyScore.toFixed(3)) } : {}),
     ...(result.distance !== undefined ? { vector_distance: Number(result.distance.toFixed(3)) } : {}),
     ...(result.model ? { vector_model: result.model } : {}),
     ...(result.entity_score !== undefined ? { entity_score: Number(result.entity_score.toFixed(3)) } : {}),

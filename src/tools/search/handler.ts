@@ -14,7 +14,7 @@ import { isVectorSectionEnabled } from '../../vector/config.ts';
 import type { ToolContext, ToolResponse, OracleSearchInput } from '../types.ts';
 import { applyEntityLinkBoost, hasEntityLinkSearchHook, queryEntityLinks } from './entities.ts';
 import { searchFts, mapFtsResults, enrichSupersedeFlags } from './fts.ts';
-import { attachSearchEvidence, combineResults, sanitizeFtsQuery } from './helpers.ts';
+import { applyRecencyBoost, attachSearchEvidence, combineResults, sanitizeFtsQuery } from './helpers.ts';
 import { vectorSearch } from './vector.ts';
 
 let logSearchFn: typeof import('../../server/logging.ts').logSearch | null = null;
@@ -87,7 +87,10 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
   }
 
   const ftsResults = mapFtsResults(ftsRawResults);
-  const combinedResults = combineResults(ftsResults, vecResults, 0.5, 0.5, pointerResults);
+  const combinedResults = applyRecencyBoost(
+    ctx.sqlite,
+    combineResults(ftsResults, vecResults, 0.5, 0.5, pointerResults),
+  );
   const entityRankedResults = rerankByEntityLinks(ctx.sqlite, combinedResults, augmentedQuery, currentTenantId());
   const reranked = await rerankCandidates({
     query,
