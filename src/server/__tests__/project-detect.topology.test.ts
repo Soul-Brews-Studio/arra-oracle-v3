@@ -107,4 +107,20 @@ describe('detectProject — never guess', () => {
   it('returns null for a nonexistent hostless path', () => {
     expect(detectProject(path.join(root, 'does', 'not', 'exist'))).toBeNull();
   });
+
+  it('ignores a poisoned global remote.origin.url when the repo has no local origin', () => {
+    const globalConfig = path.join(root, 'poisoned-gitconfig');
+    fs.writeFileSync(
+      globalConfig,
+      '[remote "origin"]\n\turl = https://github.com/attacker/global-default.git\n',
+    );
+    const prev = process.env.GIT_CONFIG_GLOBAL;
+    process.env.GIT_CONFIG_GLOBAL = globalConfig;
+    try {
+      expect(detectProject(noOriginRepo)).toBeNull();
+    } finally {
+      if (prev === undefined) delete process.env.GIT_CONFIG_GLOBAL;
+      else process.env.GIT_CONFIG_GLOBAL = prev;
+    }
+  });
 });

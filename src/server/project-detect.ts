@@ -49,7 +49,9 @@ function detectFromGitOrigin(dir: string): string | null {
   try {
     const url = execFileSync(
       'git',
-      ['-C', dir, 'config', '--get', 'remote.origin.url'],
+      // --local: project is an isolation boundary — never let a global or
+      // includeIf remote.origin.url masquerade as this repo's identity
+      ['-C', dir, 'config', '--local', '--get', 'remote.origin.url'],
       { timeout: 2000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
     ).trim();
     return url ? parseOriginUrl(url) : null;
