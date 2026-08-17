@@ -85,7 +85,6 @@ off-site evidence, NOT as the operational restore path (open item, section 8).
 the ONLY proven restore path (executed 2026-08-16 incident recovery):
 ```sh
 kill -TERM $(lsof -tiTCP:47778 -sTCP:LISTEN)
-# vector sidecar (if down): nohup bun run vector > ~/.arra-oracle-v2/vector-server.log 2>&1 &
 lsof ~/.arra-oracle-v2/oracle.db*        # GATE: must print NOTHING (any other
                                          # holder, e.g. an indexer, must exit first)
 sqlite3 <backup.db> ".backup '$HOME/.arra-oracle-v2/oracle.db'"
