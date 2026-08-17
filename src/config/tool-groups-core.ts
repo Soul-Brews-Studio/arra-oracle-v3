@@ -5,7 +5,10 @@ import { resolveToolName } from '../mcp/aliases.ts';
 export const TOOL_GROUPS = {
   search: ['oracle_search', 'oracle_search_chain', 'oracle_read', 'oracle_list', 'oracle_concepts', 'oracle_ask'],
   knowledge: ['oracle_learn', 'oracle_stats', 'oracle_supersede', 'oracle_research_note'],
-  session: ['oracle_handoff', 'oracle_inbox'],
+  // The oracle_session_* tools appear here as well as in mcp-manifest.ts: every built-in must be
+  // disableable by config (tests/mcp/tool-registry-invariant.test.ts) — a tool an operator cannot
+  // turn off is one they cannot govern.
+  session: ['oracle_handoff', 'oracle_inbox', 'oracle_session_list', 'oracle_session_get', 'oracle_session_search', 'oracle_session_summarize'],
   forum: ['oracle_thread', 'oracle_threads', 'oracle_thread_read', 'oracle_thread_update'],
   oracle: ['oracle_profile', 'oracle_recap'],
   trace: ['oracle_trace', 'oracle_trace_list', 'oracle_trace_get', 'oracle_trace_link', 'oracle_trace_unlink', 'oracle_trace_chain', 'oracle_trace_distill'],

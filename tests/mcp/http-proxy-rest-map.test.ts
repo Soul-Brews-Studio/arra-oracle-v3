@@ -11,6 +11,8 @@ const sampleArgs: Record<string, unknown> = {
   offset: false,
   message: 'hello',
   threadId: 'thread-1',
+  // the session corpus tools take a sessionId path param (mcp-rest-map.ts)
+  sessionId: 'sess-1',
   status: 'open',
   traceId: 'trace-1',
   prevTraceId: 'trace-0',
@@ -27,6 +29,8 @@ describe('HTTP proxy MCP REST map', () => {
       oracle_search: { method: 'GET', path: '/api/search', query: { q: 'needle' } },
       oracle_thread_update: { method: 'PATCH', path: '/api/thread/thread-1/status', body: { status: 'open' } },
       oracle_trace_distill: { method: 'POST', path: '/api/traces/trace-1/distill' },
+      oracle_session_get: { method: 'GET', path: '/api/lens/sessions/sess-1' },
+      oracle_session_summarize: { method: 'POST', path: '/api/session/sess-1/summary' },
     });
   });
 
