@@ -14,6 +14,8 @@ import { conceptsToolDef, handleConcepts } from './concepts.ts';
 import { supersedeToolDef, handleSupersede } from './supersede.ts';
 import { handoffToolDef, handleHandoff } from './handoff.ts';
 import { inboxToolDef, handleInbox } from './inbox.ts';
+import { sessionListToolDef, sessionGetToolDef, sessionSearchToolDef, handleSessionList, handleSessionGet, handleSessionSearch } from './sessions.ts';
+import { sessionSummarizeToolDef, handleSessionSummarize } from './session-summary.ts';
 import { forumToolDefs, handleThread, handleThreads, handleThreadRead, handleThreadUpdate } from './forum.ts';
 import { traceToolDefs, handleTrace, handleTraceList, handleTraceGet, handleTraceLink, handleTraceUnlink, handleTraceChain } from './trace.ts';
 import {
@@ -65,6 +67,13 @@ export const mcpTools: RuntimeMcpToolManifest[] = [
   ctxTool(oracleResearchNoteToolDef, 'knowledge', false, 'handleOracleResearchNote', handleOracleResearchNote),
   ctxTool(handoffToolDef, 'session', false, 'handleHandoff', handleHandoff),
   ctxTool(inboxToolDef, 'session', true, 'handleInbox', handleInbox),
+  // Reading the session corpus (#3017) and writing a summary back (#3018) shipped as exports
+  // without ever being listed here, so ListTools never advertised them and CallTool could not
+  // dispatch them — the one thing #3018 existed to provide.
+  ctxTool(sessionListToolDef, 'session', true, 'handleSessionList', handleSessionList),
+  ctxTool(sessionGetToolDef, 'session', true, 'handleSessionGet', handleSessionGet),
+  ctxTool(sessionSearchToolDef, 'session', true, 'handleSessionSearch', handleSessionSearch),
+  ctxTool(sessionSummarizeToolDef, 'session', false, 'handleSessionSummarize', handleSessionSummarize),
   ...forumToolDefs.map((def, index) => noCtxTool(def, 'forum', index !== 0 && index !== 3, forumHandlers[index].name, forumHandlers[index])),
   noCtxTool(oracleProfileToolDef, 'oracle', true, 'handleOracleProfile', handleOracleProfile),
   ...traceToolDefs.map((def, index) => noCtxTool(def, index === 0 ? 'trace' : 'dig', traceReadOnly[index], traceHandlers[index].name, traceHandlers[index])),

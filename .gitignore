@@ -49,6 +49,11 @@ test-results/
 # Incubation breadcrumb (per-oracle, changes whenever a different oracle incubates this repo)
 .claude/INCUBATED_BY
 
+# Federation helper skills — delivered per-machine via `maw hey -f`, not via git.
+# Each node keeps its own copy so node-specific targets/ports can diverge.
+.claude/skills/arra-fedpeek/
+.claude/skills/arra-ask-black/
+
 # Generated report files (use oracle-vault-report repo instead)
 vault-report.html
 vault-repos.html
