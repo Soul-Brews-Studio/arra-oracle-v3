@@ -88,8 +88,9 @@ describe('handleLearn vault interchange frontmatter', () => {
       version: 'test',
     };
 
+    const pattern = `frontmatter branch ${Date.now()} ${Math.random()}`;
     const res = await handleLearn(ctx, {
-      pattern: `frontmatter branch ${Date.now()} ${Math.random()}`,
+      pattern,
       source: 'M5 enqueue test',
       concepts: ['m5', 'vault-interchange'],
       project: 'github.com/Soul-Brews-Studio/arra-oracle-v3',
@@ -123,5 +124,23 @@ describe('handleLearn vault interchange frontmatter', () => {
       concepts: JSON.stringify(['m5', 'vault-interchange']),
       project: 'github.com/soul-brews-studio/arra-oracle-v3',
     });
+
+    const duplicate = await handleLearn(ctx, {
+      pattern: `  ${pattern}  `,
+      source: 'duplicate attempt',
+      concepts: ['duplicate'],
+      project: 'github.com/Soul-Brews-Studio/arra-oracle-v3',
+    });
+    const duplicatePayload = JSON.parse(duplicate.content[0].text);
+    expect(duplicatePayload).toMatchObject({
+      success: true,
+      duplicate: true,
+      id: parsed.id,
+      file: parsed.file,
+      embedding: 'skipped',
+    });
+    expect(sqlite.query("SELECT COUNT(*) AS count FROM oracle_documents WHERE type = 'learning'").get())
+      .toEqual({ count: 1 });
+    expect(sqlite.query('SELECT COUNT(*) AS count FROM learn_log').get()).toEqual({ count: 1 });
   }, 15_000);
 });

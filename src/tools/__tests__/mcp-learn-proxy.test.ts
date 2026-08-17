@@ -89,10 +89,11 @@ test('oracle_learn proxies through ORACLE_API without opening the MCP DB', async
 
   try {
     await client.connect(transport);
+    const pattern = `#987 learn proxy smoke ${Date.now()}`;
     const result = await client.callTool({
       name: 'oracle_learn',
       arguments: {
-        pattern: `#987 learn proxy smoke ${Date.now()}`,
+        pattern,
         concepts: ['proxy', 'sqlite-contention'],
         project: 'github.com/soul-brews-studio/arra-oracle-v3',
       },
@@ -102,6 +103,23 @@ test('oracle_learn proxies through ORACLE_API without opening the MCP DB', async
     const payload = JSON.parse(result.content?.[0]?.text ?? '{}');
     expect(payload.success).toBe(true);
     expect(payload.file).toContain('ψ/memory/learnings/');
+
+    const duplicateResult = await client.callTool({
+      name: 'oracle_learn',
+      arguments: {
+        pattern: `  ${pattern}  `,
+        concepts: ['duplicate'],
+        project: 'github.com/soul-brews-studio/arra-oracle-v3',
+      },
+    }) as { content?: Array<{ type: string; text: string }>; isError?: boolean };
+    const duplicate = JSON.parse(duplicateResult.content?.[0]?.text ?? '{}');
+    expect(duplicateResult.isError).not.toBe(true);
+    expect(duplicate).toMatchObject({
+      success: true,
+      duplicate: true,
+      id: payload.id,
+      file: payload.file,
+    });
     expect(stderr.join('')).not.toContain('ORACLE_API unavailable for oracle_learn');
     expect(existsSync(mcpDbPath)).toBe(false);
   } finally {

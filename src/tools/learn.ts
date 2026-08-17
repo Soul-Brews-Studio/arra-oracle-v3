@@ -13,136 +13,17 @@ import { tenantIdForWrite } from '../middleware/tenant.ts';
 import { getVectorStoreByModel, getEmbeddingModels } from '../vector/factory.ts';
 import { REPO_ROOT } from '../config.ts';
 import { buildLearningMarkdown, dateSlug, learningSlug, uniqueTail } from '../learn/markdown.ts';
-
-// Lazy-loaded on first use — avoids top-level await which causes a TDZ
-// error in consumers that import learnToolDef synchronously (the tools
-// barrel) and breaks the M5 enqueue test that imports handleLearn before
-// the dynamic import resolves.
-let enqueueIndexJob: ((sqlite: any, opts: any) => void) | null = null;
-let enqueueLoaded = false;
-async function loadEnqueue(): Promise<typeof enqueueIndexJob> {
-  if (enqueueLoaded) return enqueueIndexJob;
-  enqueueLoaded = true;
-  try {
-    enqueueIndexJob = (await import('../indexer/jobs.ts')).enqueueIndexJob;
-  } catch {
-    // Indexer not available — learn still works, just no async job queuing
-  }
-  return enqueueIndexJob;
-}
-let getVaultPsiRootFn: typeof import('../vault/handler.ts').getVaultPsiRoot | null = null;
-async function loadGetVaultPsiRoot(): Promise<typeof import('../vault/handler.ts').getVaultPsiRoot> {
-  if (!getVaultPsiRootFn) {
-    getVaultPsiRootFn = (await import('../vault/handler.ts')).getVaultPsiRoot;
-  }
-  return getVaultPsiRootFn;
-}
+import { findDuplicateLearning } from '../learn/dedup.ts';
+import {
+  coerceConcepts,
+  errorDetails,
+  extractProjectFromSource,
+  loadEnqueue,
+  loadGetVaultPsiRoot,
+  normalizeProject,
+} from './learn-support.ts';
 import type { ToolContext, ToolResponse, OracleLearnInput } from './types.ts';
-
-/** Coerce concepts to string[] — handles string, array, or undefined from MCP input */
-export function coerceConcepts(concepts: unknown): string[] {
-  if (Array.isArray(concepts)) return concepts.map(String);
-  if (typeof concepts === 'string') return concepts.split(',').map(s => s.trim()).filter(Boolean);
-  return [];
-}
-
-export const learnToolDef = {
-  name: 'oracle_learn',
-  description: 'Add a new pattern or learning to the Oracle knowledge base. Creates a markdown file in ψ/memory/learnings/ and indexes it.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      pattern: {
-        type: 'string',
-        description: 'The pattern or learning to add (can be multi-line)'
-      },
-      source: {
-        type: 'string',
-        description: 'Optional source attribution (defaults to "Oracle Learn")'
-      },
-      concepts: {
-        type: 'array',
-        items: { type: 'string' },
-        description: 'Optional concept tags (e.g., ["git", "safety", "trust"])'
-      },
-      project: {
-        type: 'string',
-        description: 'Source project. Accepts: "github.com/owner/repo", "owner/repo", local path with ghq/Code prefix, or GitHub URL. Auto-normalized to "github.com/owner/repo" format.'
-      }
-    },
-    required: ['pattern']
-  }
-};
-
-// ============================================================================
-// Pure helper functions (exported for testing)
-// ============================================================================
-
-/**
- * Normalize project input to "github.com/owner/repo" format.
- * Accepts: github.com/owner/repo, owner/repo, GitHub URLs, local ghq paths.
- */
-export function normalizeProject(input?: string): string | null {
-  if (!input) return null;
-
-  // Already normalized
-  if (input.match(/^github\.com\/[^\/]+\/[^\/]+$/)) {
-    return input.toLowerCase();
-  }
-
-  // GitHub URL
-  const urlMatch = input.match(/https?:\/\/github\.com\/([^\/]+\/[^\/]+)/);
-  if (urlMatch) return `github.com/${urlMatch[1].replace(/\.git$/, '')}`.toLowerCase();
-
-  // Local path with github.com
-  const pathMatch = input.match(/github\.com\/([^\/]+\/[^\/]+)/);
-  if (pathMatch) return `github.com/${pathMatch[1]}`.toLowerCase();
-
-  // Short format: owner/repo
-  const shortMatch = input.match(/^([^\/\s]+\/[^\/\s]+)$/);
-  if (shortMatch) return `github.com/${shortMatch[1]}`.toLowerCase();
-
-  return null;
-}
-
-/**
- * Extract project from source field (fallback).
- * Handles "oracle_learn from github.com/owner/repo" and "rrr: org/repo" formats.
- */
-export function extractProjectFromSource(source?: string): string | null {
-  if (!source) return null;
-
-  const oracleLearnMatch = source.match(/from\s+(github\.com\/[^\/\s]+\/[^\/\s]+)/);
-  if (oracleLearnMatch) return oracleLearnMatch[1].toLowerCase();
-
-  const rrrMatch = source.match(/^rrr:\s*([^\/\s]+\/[^\/\s]+)/);
-  if (rrrMatch) return `github.com/${rrrMatch[1]}`.toLowerCase();
-
-  const directMatch = source.match(/(github\.com\/[^\/\s]+\/[^\/\s]+)/);
-  if (directMatch) return directMatch[1].toLowerCase();
-
-  return null;
-}
-
-export function errorDetails(error: unknown): {
-  name: string;
-  message: string;
-  stack?: string;
-  cause?: unknown;
-} {
-  if (error instanceof Error) {
-    return {
-      name: error.name || 'Error',
-      message: error.message,
-      ...(error.stack && { stack: error.stack }),
-      ...('cause' in error && error.cause !== undefined && { cause: String(error.cause) }),
-    };
-  }
-  return {
-    name: 'NonError',
-    message: String(error),
-  };
-}
+export { coerceConcepts, errorDetails, extractProjectFromSource, learnToolDef, normalizeProject } from './learn-support.ts';
 
 // ============================================================================
 // Handler
@@ -196,15 +77,34 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
   // retry, so the learning was silently lost. See #2819.
   const slug = learningSlug(pattern);
 
-  // Resolve vault root for central writes
+  const project = normalizeProject(projectInput)
+    || extractProjectFromSource(source)
+    || detectProject(ctx.repoRoot);
+  const tenantId = tenantIdForWrite();
+  // Resolve the optional vault before the gate so no async yield can split the
+  // gate from the synchronous file/SQLite write in this process.
   const getVaultPsiRoot = await loadGetVaultPsiRoot();
   const vault = getVaultPsiRoot();
   if ('needsInit' in vault) console.error(`[Vault] ${vault.hint}`);
   const vaultRoot = 'path' in vault ? vault.path : null;
 
-  const project = normalizeProject(projectInput)
-    || extractProjectFromSource(source)
-    || detectProject(ctx.repoRoot);
+  const duplicate = findDuplicateLearning(ctx.sqlite, { pattern, tenantId, project });
+  if (duplicate) {
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          success: true,
+          duplicate: true,
+          file: duplicate.sourceFile,
+          id: duplicate.id,
+          embedding: 'skipped',
+          message: 'Matching active learning already exists; no duplicate was written',
+        }, null, 2),
+      }],
+    };
+  }
+
   const projectDir = (project || '_universal').toLowerCase();
 
   const dir = vaultRoot
@@ -251,6 +151,7 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
     indexedAt: now.getTime(),
     origin: null,
     project,
+    tenantId,
     createdBy: 'oracle_learn',
   }).run();
 
@@ -270,7 +171,7 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
       source: source || 'Oracle Learn',
       concepts: JSON.stringify(conceptsList),
       createdAt: now.getTime(),
-      tenantId: tenantIdForWrite(),
+      tenantId,
       project,
     }).run();
   } catch (error) {

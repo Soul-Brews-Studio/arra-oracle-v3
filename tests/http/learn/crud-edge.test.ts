@@ -70,10 +70,15 @@ describe('POST/DELETE /api/learn edge cases', () => {
     expect(missingRead.json.error).toBe('Learning not found');
 
     const firstAuto = await call('POST', '/api/learn', { pattern: 'Collision Pattern' });
-    const secondAuto = await call('POST', '/api/learn', { pattern: 'Collision Pattern' });
+    const secondAuto = await call('POST', '/api/learn', { pattern: '  Collision   Pattern  ' });
     expect(firstAuto.status).toBe(200);
     expect(secondAuto.status).toBe(200);
-    expect(secondAuto.json.id).not.toBe(firstAuto.json.id);
+    expect(secondAuto.json).toMatchObject({
+      success: true,
+      duplicate: true,
+      id: firstAuto.json.id,
+      file: firstAuto.json.file,
+    });
 
     const duplicate = await call('POST', '/api/learn', {
       id: 'learning_edge_explicit',

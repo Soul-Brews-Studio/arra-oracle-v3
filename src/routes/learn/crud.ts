@@ -7,6 +7,7 @@ import { db, learnLog, oracleDocuments, sqlite } from '../../db/index.ts';
 import { currentTenantId, tenantIdForWrite } from '../../middleware/tenant.ts';
 import { replaceEntityLinks } from '../../search/entity-ranking.ts';
 import { replaceDocumentPointers } from '../../search/pointer-index.ts';
+import { findDuplicateLearning } from '../../learn/dedup.ts';
 import { conceptsFrom, learningContent, slugFor } from './content.ts';
 import {
   INVALID_LEARNING_ID,
@@ -124,13 +125,21 @@ export function createLearning(body: LearnCreateBody) {
   if (requestedSourceFile === null) return { status: 400, body: { error: INVALID_LEARNING_SOURCE_FILE } };
   const now = Date.now();
   const concepts = conceptsFrom(body.concepts);
+  const tenantId = tenantIdForWrite();
+  const project = body.project?.toLowerCase() ?? null;
+  const duplicate = findDuplicateLearning(sqlite, { pattern, tenantId, project });
+  if (duplicate) {
+    return {
+      status: 200,
+      body: { success: true, duplicate: true, file: duplicate.sourceFile, id: duplicate.id },
+    };
+  }
   const identity = nextIdentity(pattern, body.id, requestedSourceFile);
   if (rowById(identity.id)) return { status: 409, body: { error: 'Learning already exists' } };
   const content = learningContent(pattern, concepts, body.source);
   if (!writeLearningFile(identity.sourceFile, content)) {
     return { status: 409, body: { error: 'Learning sourceFile already exists' } };
   }
-  const tenantId = tenantIdForWrite();
   db.insert(oracleDocuments).values({
     id: identity.id,
     tenantId,
@@ -141,7 +150,7 @@ export function createLearning(body: LearnCreateBody) {
     updatedAt: now,
     indexedAt: now,
     origin: body.origin ?? null,
-    project: body.project?.toLowerCase() ?? null,
+    project,
     createdBy: 'oracle_learn',
   }).run();
   upsertFts(identity.id, content, concepts);
@@ -154,7 +163,7 @@ export function createLearning(body: LearnCreateBody) {
     source: body.source ?? 'Oracle Learn',
     concepts: JSON.stringify(concepts),
     createdAt: now,
-    project: body.project?.toLowerCase() ?? null,
+    project,
   }).run();
   return { status: 200, body: { success: true, file: identity.sourceFile, id: identity.id } };
 }
