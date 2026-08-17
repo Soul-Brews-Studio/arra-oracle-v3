@@ -36,7 +36,7 @@ async function createToolContext(model: string | undefined): Promise<ToolContext
 }
 
 export const chainSearchEndpoint = new Elysia().post(
-  '/v1/search/chain',
+  '/search/chain',
   async ({ body, set }) => {
     const query = body.query.trim();
     if (!query) {

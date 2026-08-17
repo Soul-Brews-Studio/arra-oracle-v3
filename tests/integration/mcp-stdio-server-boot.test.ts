@@ -95,6 +95,13 @@ describe('integration MCP stdio and full server boot', () => {
     const plugins = await fetchJson('/api/v1/plugins');
     expect(plugins.response.status).toBe(200);
     expect(plugins.body.plugins).toContainEqual(expect.objectContaining({ name: 'smoke-orbit' }));
+
+    const chain = await fetchJson('/api/v1/search/chain', {
+      method: 'POST',
+      body: JSON.stringify({ query: '   ' }),
+    });
+    expect(chain.response.status).toBe(400);
+    expect(chain.body).toMatchObject({ error: 'query is required' });
   }, 30_000);
 
   test('completes MCP stdio initialize, tools/list, and tools/call against the booted server', async () => {
@@ -121,6 +128,13 @@ describe('integration MCP stdio and full server boot', () => {
       }) as ToolResult;
       const payload = parseToolJson(result);
       expect(payload).toMatchObject({ id: 'thor-oracle', slug: 'thor' });
+
+      const chainResult = await client.callTool({
+        name: 'oracle_search_chain',
+        arguments: { query: '   ' },
+      }) as ToolResult;
+      expect(chainResult.isError).toBe(true);
+      expect(chainResult.content?.[0]?.text).toContain('query is required');
     } finally {
       await client.close().catch(() => undefined);
     }
