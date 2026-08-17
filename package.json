@@ -66,6 +66,7 @@
     "vector": "ORACLE_VECTOR_READONLY=1 bun src/vector-server.ts",
     "vector:proxy": "ORACLE_VECTOR_DB=lancedb bun src/vector-server.ts",
     "vector:dev": "ORACLE_VECTOR_READONLY=1 bun --watch src/vector-server.ts",
+    "vector:install-launchagent": "./scripts/install-vector-launchagent.sh",
     "server:ensure": "bun src/ensure-server.ts",
     "server:status": "bun src/ensure-server.ts --status",
     "serve": "bun dist/server.js",

@@ -16,8 +16,10 @@ below was executed and verified during the 2026-08-16/17 incident recovery.
   vector-server) on port **8081**, log `~/.arra-oracle-v2/vector-server.log`;
   core proxies to it via `.env` `VECTOR_URL=http://localhost:8081`. This powers
   the hosted vector/compare/map Studio pages (`/api/compare` 308→`/api/v1/compare`).
-  Not auto-started by `server:ensure` — start it alongside the core after reboot;
-  find it with `lsof -iTCP:8081 -sTCP:LISTEN`.
+  Install its per-user boot/login job once with `bun run vector:install-launchagent`.
+  The generated `com.tt3p.arra-vector` LaunchAgent uses `RunAtLoad`, restarts
+  failed exits, and keeps logs under `~/.arra-oracle-v2/`. Find the live listener
+  with `lsof -iTCP:8081 -sTCP:LISTEN`.
 - Config: repo `.env` (gitignored) — `OLLAMA_BASE_URL=http://127.0.0.1:11434`,
   `ORACLE_EMBEDDING_MODEL=bge-m3`, `VECTOR_URL=http://localhost:8081`;
   DB `settings` row `canonical_source_root` =
@@ -42,7 +44,7 @@ MCP-side: `oracle_stats` — fts_status healthy, vector_status connected.
 
 ```sh
 kill -TERM $(lsof -tiTCP:47778 -sTCP:LISTEN)
-# vector sidecar (if down): nohup bun run vector > ~/.arra-oracle-v2/vector-server.log 2>&1 &
+# vector sidecar (one-time install): bun run vector:install-launchagent
 cd ~/tt3p/ghq/github.com/Soul-Brews-Studio/arra-oracle-v3 && bun run server:ensure
 ```
 `server:ensure` is start-only (no stop/restart flag); env comes from repo `.env`.
