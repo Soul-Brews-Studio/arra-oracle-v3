@@ -12,8 +12,15 @@ below was executed and verified during the 2026-08-16/17 incident recovery.
   find it with `lsof -iTCP:47778 -sTCP:LISTEN`
 - Data dir: `~/.arra-oracle-v2/` — `oracle.db` (SQLite, WAL), `lancedb/` (vectors),
   `exports/` (backup bundles + rescue journals), auto pre-run backups `oracle.db.backup-*`
+- Vector sidecar (TINE-approved 2026-08-17): `bun run vector` (read-only
+  vector-server) on port **8081**, log `~/.arra-oracle-v2/vector-server.log`;
+  core proxies to it via `.env` `VECTOR_URL=http://localhost:8081`. This powers
+  the hosted vector/compare/map Studio pages (`/api/compare` 308→`/api/v1/compare`).
+  Not auto-started by `server:ensure` — start it alongside the core after reboot;
+  find it with `lsof -iTCP:8081 -sTCP:LISTEN`.
 - Config: repo `.env` (gitignored) — `OLLAMA_BASE_URL=http://127.0.0.1:11434`,
-  `ORACLE_EMBEDDING_MODEL=bge-m3`; DB `settings` row `canonical_source_root` =
+  `ORACLE_EMBEDDING_MODEL=bge-m3`, `VECTOR_URL=http://localhost:8081`;
+  DB `settings` row `canonical_source_root` =
   `/Users/trirongyinwichapoon/tt3p/agent-hub/orchestrator-vnext`; tenant `default`
 - Embeddings: local Ollama, model `bge-m3` (`ollama list` must show it)
 - PATH requirement: the server process must start with a **functional git**
@@ -35,6 +42,7 @@ MCP-side: `oracle_stats` — fts_status healthy, vector_status connected.
 
 ```sh
 kill -TERM $(lsof -tiTCP:47778 -sTCP:LISTEN)
+# vector sidecar (if down): nohup bun run vector > ~/.arra-oracle-v2/vector-server.log 2>&1 &
 cd ~/tt3p/ghq/github.com/Soul-Brews-Studio/arra-oracle-v3 && bun run server:ensure
 ```
 `server:ensure` is start-only (no stop/restart flag); env comes from repo `.env`.
@@ -77,6 +85,7 @@ off-site evidence, NOT as the operational restore path (open item, section 8).
 the ONLY proven restore path (executed 2026-08-16 incident recovery):
 ```sh
 kill -TERM $(lsof -tiTCP:47778 -sTCP:LISTEN)
+# vector sidecar (if down): nohup bun run vector > ~/.arra-oracle-v2/vector-server.log 2>&1 &
 lsof ~/.arra-oracle-v2/oracle.db*        # GATE: must print NOTHING (any other
                                          # holder, e.g. an indexer, must exit first)
 sqlite3 <backup.db> ".backup '$HOME/.arra-oracle-v2/oracle.db'"
