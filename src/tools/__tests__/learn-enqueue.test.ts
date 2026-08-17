@@ -103,8 +103,19 @@ function markdownPathCandidates(relativePath: string): string[] {
   const tmpRoots = fs.readdirSync(os.tmpdir(), { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && entry.name.startsWith('arra-'))
     .map((entry) => path.join(os.tmpdir(), entry.name));
-  const roots = [SHARED_REPO_ROOT, ORIGINAL_REPO_ROOT, process.cwd(), dataRoot, ...tmpRoots]
-    .filter((root): root is string => Boolean(root));
+  // Ask the modules learn.ts actually writes through, instead of guessing:
+  // config's REPO_ROOT is frozen at first import (an earlier suite file may
+  // have imported it under a different env), and the vault root is resolved
+  // per-call (and may be mock.module'd by another file in non-isolate runs).
+  let vaultRoot: string | null = null;
+  try {
+    const vault = frozenModules.getVaultPsiRoot();
+    vaultRoot = 'path' in vault && vault.path ? vault.path : null;
+  } catch {}
+  const roots = [
+    SHARED_REPO_ROOT, ORIGINAL_REPO_ROOT, frozenModules.REPO_ROOT, vaultRoot,
+    process.cwd(), dataRoot, ...tmpRoots,
+  ].filter((root): root is string => Boolean(root));
   return Array.from(new Set(roots)).map((root) => path.join(root, relativePath));
 }
 
@@ -126,6 +137,11 @@ function readMarkdown(relativePath: string): string {
 
 // Dynamic import after env is set. Top-level await is supported in Bun.
 const { handleLearn } = await import('../learn.ts');
+// Same module instances learn.ts resolves at call time — see markdownPathCandidates.
+const frozenModules = {
+  REPO_ROOT: (await import('../../config.ts')).REPO_ROOT,
+  getVaultPsiRoot: (await import('../../vault/handler.ts')).getVaultPsiRoot,
+};
 
 describe('handleLearn — M5 enqueue branch', () => {
   let h: Harness;

@@ -16,6 +16,11 @@ below was executed and verified during the 2026-08-16/17 incident recovery.
   `ORACLE_EMBEDDING_MODEL=bge-m3`; DB `settings` row `canonical_source_root` =
   `/Users/trirongyinwichapoon/tt3p/agent-hub/orchestrator-vnext`; tenant `default`
 - Embeddings: local Ollama, model `bge-m3` (`ollama list` must show it)
+- PATH requirement: the server process must start with a **functional git**
+  (Homebrew git, e.g. `/opt/homebrew/bin/git`) on PATH — `git --version` must
+  succeed. The `/usr/bin/git` Xcode stub without CLT breaks the project
+  auto-scope git-origin fallback, which then fails closed to project=NULL
+  (detectProject fix `7a0ed079`, 2026-08-17).
 
 ## 2. Health
 
