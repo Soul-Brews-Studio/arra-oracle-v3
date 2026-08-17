@@ -7,8 +7,9 @@
 
 import path from 'path';
 import fs from 'fs';
-import { oracleDocuments } from '../db/schema.ts';
+import { learnLog, oracleDocuments } from '../db/schema.ts';
 import { detectProject } from '../server/project-detect.ts';
+import { tenantIdForWrite } from '../middleware/tenant.ts';
 import { getVectorStoreByModel, getEmbeddingModels } from '../vector/factory.ts';
 import { REPO_ROOT } from '../config.ts';
 import { buildLearningMarkdown, dateSlug, learningSlug, uniqueTail } from '../learn/markdown.ts';
@@ -259,6 +260,22 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
     INSERT INTO oracle_fts (id, content, concepts)
     VALUES (?, ?, ?)
   `).run(id, frontmatter, conceptsList.join(' '));
+
+  // Keep Studio Activity aligned with the MCP write path. This mirrors the
+  // legacy handleLearn/logLearning fields while using the injected DB context.
+  try {
+    ctx.db.insert(learnLog).values({
+      documentId: id,
+      patternPreview: pattern.substring(0, 100),
+      source: source || 'Oracle Learn',
+      concepts: JSON.stringify(conceptsList),
+      createdAt: now.getTime(),
+      tenantId: tenantIdForWrite(),
+      project,
+    }).run();
+  } catch (error) {
+    console.error('Failed to log learning:', error);
+  }
 
   // Vector indexing — two paths:
   //   - Default (env unset): inline embed via Ollama. Keeps DB + lancedb in

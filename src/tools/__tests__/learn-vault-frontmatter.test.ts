@@ -43,6 +43,16 @@ CREATE TABLE indexing_jobs (
   finished_at INTEGER,
   error TEXT
 );
+CREATE TABLE learn_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  document_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'default',
+  pattern_preview TEXT,
+  source TEXT,
+  concepts TEXT,
+  created_at INTEGER NOT NULL,
+  project TEXT
+);
 `;
 
 const ORIGINAL_ENQUEUE = process.env.ORACLE_INDEXER_ENQUEUE;
@@ -89,10 +99,29 @@ describe('handleLearn vault interchange frontmatter', () => {
     const row = sqlite.query('SELECT content FROM oracle_fts WHERE id = ?').get(parsed.id) as {
       content: string;
     };
+    const activity = sqlite.query(`
+      SELECT document_id, tenant_id, pattern_preview, source, concepts, project
+      FROM learn_log WHERE document_id = ?
+    `).get(parsed.id) as {
+      document_id: string;
+      tenant_id: string;
+      pattern_preview: string;
+      source: string;
+      concepts: string;
+      project: string;
+    };
 
     expect(parsed.success).toBe(true);
     expect(row.content).toContain('source: M5 enqueue test');
     expect(row.content).toContain('tags: [m5, vault-interchange]');
     expect(row.content).toContain('project: github.com/soul-brews-studio/arra-oracle-v3');
+    expect(activity).toEqual({
+      document_id: parsed.id,
+      tenant_id: 'default',
+      pattern_preview: expect.stringContaining('frontmatter branch'),
+      source: 'M5 enqueue test',
+      concepts: JSON.stringify(['m5', 'vault-interchange']),
+      project: 'github.com/soul-brews-studio/arra-oracle-v3',
+    });
   }, 15_000);
 });
