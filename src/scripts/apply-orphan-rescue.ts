@@ -129,7 +129,11 @@ if (import.meta.main) {
     }
   }
 
-  const sqlite = new Database(options.dbPath, { readonly: mode === 'check' });
+  // bun:sqlite rejects a bare { readonly: false } (SQLITE_MISUSE) — pass the
+  // intended flag explicitly per mode.
+  const sqlite = mode === 'check'
+    ? new Database(options.dbPath, { readonly: true })
+    : new Database(options.dbPath, { readwrite: true });
   let liveGateBPlanSha: string | undefined;
   if (mode === 'initial') {
     const readonlySqlite = new Database(options.dbPath, { readonly: true });
