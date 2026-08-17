@@ -50,6 +50,7 @@ export type VectorFreshness = {
   totalIndexed: number;
   sourceDocs?: number;
   docsPending?: number;
+  docsExtra?: number;
   lastIndexed?: string;
 };
 
@@ -129,11 +130,13 @@ export function buildVectorFreshness(
   const totalIndexed = counts.reduce((sum, count) => sum + count, 0);
   const maxIndexed = counts.reduce((max, count) => Math.max(max, count), 0);
   const docsPending = source?.docs === undefined ? undefined : Math.max(0, source.docs - maxIndexed);
-  const status = totalIndexed === 0 ? 'empty' : docsPending && docsPending > 0 ? 'stale' : 'fresh';
+  const docsExtra = source?.docs === undefined ? undefined : Math.max(0, maxIndexed - source.docs);
+  const hasDrift = (docsPending ?? 0) > 0 || (docsExtra ?? 0) > 0;
+  const status = totalIndexed === 0 ? 'empty' : hasDrift ? 'stale' : 'fresh';
   return {
     status,
     totalIndexed,
-    ...(source?.docs !== undefined && { sourceDocs: source.docs, docsPending }),
+    ...(source?.docs !== undefined && { sourceDocs: source.docs, docsPending, docsExtra }),
     ...(source?.lastIndexed && { lastIndexed: source.lastIndexed }),
   };
 }
@@ -193,28 +196,31 @@ export async function readVectorBackendHealth(): Promise<VectorBackendHealth> {
     engines,
     collections: engines,
     checked_at: new Date().toISOString(),
-    freshness: buildVectorFreshness(engines, readSourceDocumentStats()),
+    freshness: buildVectorFreshness(engines, readVectorSourceDocumentStats()),
     storage: buildVectorStorageHealth(engines),
   };
 }
 
-function readSourceDocumentStats(): { docs?: number; lastIndexed?: string } {
+export function readVectorSourceDocumentStats(dbPath = DB_PATH): { docs?: number; lastIndexed?: string } {
   let db: Database | undefined;
   try {
-    db = new Database(DB_PATH, { readonly: true });
+    db = new Database(dbPath, { readonly: true });
     const tenantId = currentTenantId();
     const row = tenantId
       ? db.query<{ docs: number; lastIndexed: string | null }, [string]>(`
-          SELECT COUNT(DISTINCT id) AS docs, MAX(indexed_at) AS lastIndexed
-          FROM oracle_documents WHERE tenant_id = ?
+          SELECT COUNT(DISTINCT d.id) AS docs, MAX(d.indexed_at) AS lastIndexed
+          FROM oracle_documents d
+          JOIN oracle_fts f ON f.id = d.id
+          WHERE d.tenant_id = ?
         `).get(tenantId)
       : db.query<{ docs: number; lastIndexed: string | null }, []>(`
-          SELECT COUNT(DISTINCT id) AS docs, MAX(indexed_at) AS lastIndexed
-          FROM oracle_documents
+          SELECT COUNT(DISTINCT d.id) AS docs, MAX(d.indexed_at) AS lastIndexed
+          FROM oracle_documents d
+          JOIN oracle_fts f ON f.id = d.id
         `).get();
     return {
       docs: row?.docs ?? 0,
-      ...(row?.lastIndexed && { lastIndexed: row.lastIndexed }),
+      ...(row?.lastIndexed && { lastIndexed: String(row.lastIndexed) }),
     };
   } catch {
     return {};

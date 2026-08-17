@@ -13,6 +13,7 @@ export type VectorFreshnessCard = {
   totalIndexed: number;
   sourceDocs?: number;
   docsPending?: number;
+  docsExtra?: number;
   lastIndexed?: string;
 };
 
@@ -29,7 +30,8 @@ function freshnessLine(freshness: VectorFreshnessCard): string {
 function pendingLine(freshness?: VectorFreshnessCard): string {
   if (!freshness || typeof freshness.docsPending !== 'number') return 'Pending count unavailable';
   const source = typeof freshness.sourceDocs === 'number' ? ` of ${freshness.sourceDocs.toLocaleString()} source docs` : '';
-  return `${freshness.docsPending.toLocaleString()} pending${source}`;
+  const surplus = freshness.docsExtra ? `${freshness.docsExtra.toLocaleString()} surplus vectors · ` : '';
+  return `${surplus}${freshness.docsPending.toLocaleString()} pending${source}`;
 }
 
 function serviceDetail(service: VectorServiceHealthCard): string {
@@ -67,7 +69,7 @@ export function VectorHealthDashboardCard({
         <div><dt className="text-text-muted">Registered services</dt><dd className="text-lg font-semibold text-text">{serviceSummary}</dd></div>
         <div><dt className="text-text-muted">Storage backends</dt><dd className="text-lg font-semibold text-text">{storageSummary}</dd></div>
         <div><dt className="text-text-muted">Index freshness</dt><dd className="text-lg font-semibold text-text">{freshness ? freshnessLine(freshness) : 'Unknown'}</dd></div>
-        <div><dt className="text-text-muted">Docs pending</dt><dd className="text-lg font-semibold text-text">{pendingLine(freshness)}</dd></div>
+        <div><dt className="text-text-muted">Index drift</dt><dd className="text-lg font-semibold text-text">{pendingLine(freshness)}</dd></div>
         <div><dt className="text-text-muted">Last indexed</dt><dd className="text-lg font-semibold text-text">{freshness?.lastIndexed ?? 'Unknown'}</dd></div>
       </dl>
       {providers.length ? <div className="mt-4 flex flex-wrap gap-2">{providers.map((provider) => <span key={provider.type} className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold ${statusClasses(provider.available)}`}><span aria-hidden="true">●</span>{provider.type}: {provider.status}</span>)}</div> : null}

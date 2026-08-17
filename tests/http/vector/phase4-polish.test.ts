@@ -130,6 +130,7 @@ test('buildVectorFreshness reports pending source documents', async () => {
     totalIndexed: 15,
     sourceDocs: 20,
     docsPending: 8,
+    docsExtra: 0,
     lastIndexed: '2026-06-16T00:00:00Z',
   });
 });

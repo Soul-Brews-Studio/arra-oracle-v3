@@ -44,7 +44,7 @@ describe('frontend component coverage', () => {
         { adapter: 'lancedb', status: 'green', healthy: 2, total: 2 },
         { adapter: 'qdrant', status: 'red', healthy: 0, total: 1, detail: 'down' },
       ]}
-      freshness={{ status: 'stale', totalIndexed: 1532, sourceDocs: 1600, docsPending: 68, lastIndexed: '2026-06-16T00:00:00Z' }}
+      freshness={{ status: 'stale', totalIndexed: 1532, sourceDocs: 1600, docsPending: 68, docsExtra: 3, lastIndexed: '2026-06-16T00:00:00Z' }}
     />);
 
     expect(html).toContain('Vector health dashboard');
@@ -56,7 +56,8 @@ describe('frontend component coverage', () => {
     expect(html).toContain('lancedb: 2/2');
     expect(html).toContain('qdrant: 0/1');
     expect(html).toContain('stale · 1,532 indexed');
-    expect(html).toContain('68 pending of 1,600 source docs');
+    expect(html).toContain('Index drift');
+    expect(html).toContain('3 surplus vectors · 68 pending of 1,600 source docs');
     expect(html).toContain('2026-06-16T00:00:00Z');
     expect(html).toContain('ollama: green');
     expect(html).toContain('openai: red');
