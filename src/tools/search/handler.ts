@@ -161,7 +161,9 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
   console.error(`[MCP:SEARCH] "${query}" (${type}, ${mode}, model=${model || 'default'}) → ${results.length} results in ${searchTime}ms`);
   try {
     const logSearch = await loadLogSearch();
-    logSearch(query, type, mode, results.length, searchTime, results as unknown as SearchResult[]);
+    // Record the effective project scope — a scoped search that logs
+    // project=NULL is unverifiable in the owning access logs.
+    logSearch(query, type, mode, results.length, searchTime, results as unknown as SearchResult[], resolvedProject ?? undefined);
   } catch (error) {
     console.error('[MCP:SEARCH] Failed to log search to database:', error);
   }

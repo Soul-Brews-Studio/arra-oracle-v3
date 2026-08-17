@@ -15,17 +15,20 @@ import path from 'path';
 import { createDatabase } from '../db/index.ts';
 import { DB_PATH } from '../config.ts';
 import { detectProject } from '../server/project-detect.ts';
+import { activeTenantId } from '../middleware/tenant.ts';
 import { collectDocuments } from './collectors.ts';
 import { parseRetroFile } from './parser.ts';
 import { storeDocuments } from './storage.ts';
+import { chunkDocumentsForIndexing } from './chunker.ts';
+import { supersedeReplacedSourceDocs } from './reindex-state.ts';
 
-export async function indexRetrospectives(repoRoot: string) {
+export async function indexRetrospectives(repoRoot: string, dbPath: string = process.env.ORACLE_DB_PATH || DB_PATH) {
   const resolvedRoot = path.resolve(repoRoot);
   const seenContentHashes = new Set<string>();
   const documents = collectDocuments({
     config: {
       repoRoot: resolvedRoot,
-      dbPath: DB_PATH,
+      dbPath,
       chromaPath: '',
       sourcePaths: {
         resonance: 'ψ/memory/resonance',
@@ -41,11 +44,20 @@ export async function indexRetrospectives(repoRoot: string) {
     label: 'retrospective',
   });
 
-  const { sqlite, db } = createDatabase(DB_PATH);
+  const { sqlite, db } = createDatabase(dbPath);
+  // Capture the tenant once and ALWAYS pass it — activeTenantId() falls back
+  // to 'default', so even an ambient-less CLI run stays tenant-scoped instead
+  // of widening the supersede across every tenant sharing the source path.
+  const tenantId = activeTenantId();
   try {
     await storeDocuments(sqlite, db, null, detectProject(resolvedRoot), documents, {
       createdBy: 'retro_indexer',
+      tenantId,
     });
+    // Upserting new deterministic ids leaves legacy active rows for the same
+    // source files behind, which duplicates search results. Supersede them
+    // through the owning replaced-source mechanism (never hard-delete).
+    supersedeReplacedSourceDocs(db, chunkDocumentsForIndexing(documents), tenantId);
   } finally {
     sqlite.close();
   }
@@ -53,7 +65,7 @@ export async function indexRetrospectives(repoRoot: string) {
   return { ok: true as const, repoRoot: resolvedRoot, documents: documents.length };
 }
 
-export async function indexRetroFile(repoRoot: string, filePath: string) {
+export async function indexRetroFile(repoRoot: string, filePath: string, dbPath: string = process.env.ORACLE_DB_PATH || DB_PATH) {
   const resolvedRoot = path.resolve(repoRoot);
   const resolvedFile = path.resolve(filePath);
   const retroRoot = path.join(resolvedRoot, 'ψ', 'memory', 'retrospectives');
@@ -68,11 +80,14 @@ export async function indexRetroFile(repoRoot: string, filePath: string) {
   const relPath = path.relative(resolvedRoot, resolvedFile);
   const content = fs.readFileSync(resolvedFile, 'utf-8');
   const documents = parseRetroFile(relPath, content);
-  const { sqlite, db } = createDatabase(DB_PATH);
+  const { sqlite, db } = createDatabase(dbPath);
+  const tenantId = activeTenantId();
   try {
     await storeDocuments(sqlite, db, null, detectProject(resolvedRoot), documents, {
       createdBy: 'retro_indexer',
+      tenantId,
     });
+    supersedeReplacedSourceDocs(db, chunkDocumentsForIndexing(documents), tenantId);
   } finally {
     sqlite.close();
   }

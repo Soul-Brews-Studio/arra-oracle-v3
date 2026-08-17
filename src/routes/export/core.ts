@@ -119,7 +119,11 @@ export function createExportCoreRoutes(deps: ExportCoreRoutesDeps = {}) {
       params: t.Object({ collection: t.String() }),
       detail: { tags: ['export'], summary: 'Read exportable documents for one collection' },
     })
-    .post('/export/run', async ({ body, set }) => {
+    // '/export/run' is claimed by the export-history job recorder (registered
+    // first in createExportRoutes), which shadowed this full-engine route and
+    // left exportOracleData unreachable over HTTP. The engine therefore owns
+    // its own path.
+    .post('/export/engine/run', async ({ body, set }) => {
       const runBody = (body ?? {}) as ExportRunBody;
       const { outputDir, jobId } = resolveOutputDir(deps, runBody);
       try {
@@ -137,7 +141,7 @@ export function createExportCoreRoutes(deps: ExportCoreRoutesDeps = {}) {
       }
     }, {
       body: t.Object({ outputDir: t.Optional(t.String()) }),
-      detail: { tags: ['export'], summary: 'Run the standalone export engine over the Oracle database' },
+      detail: { tags: ['export'], summary: 'Run the standalone export engine over the Oracle database (full bundle)' },
     });
 }
 

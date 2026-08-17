@@ -6,6 +6,7 @@
  */
 
 import fs from 'fs';
+import { recordReadAccess } from './read-access-log.ts';
 import path from 'path';
 import type { ToolContext, ToolResponse, OracleReadInput } from './types.ts';
 import { currentTenantId } from '../middleware/tenant.ts';
@@ -193,6 +194,7 @@ export async function handleRead(ctx: ToolContext, input: OracleReadInput): Prom
   // File found on disk
   if (resolvedPath && isPathAllowed(resolvedPath, ctx.repoRoot, ghqRoot)) {
     const content = fs.readFileSync(resolvedPath, 'utf-8');
+    await recordReadAccess(ctx, id, sourceFile, sourceProject);
     return {
       content: [{
         type: 'text',
@@ -214,6 +216,7 @@ export async function handleRead(ctx: ToolContext, input: OracleReadInput): Prom
     ).get(id) as { content: string } | null;
 
     if (ftsRow) {
+      await recordReadAccess(ctx, id, sourceFile, sourceProject);
       return {
         content: [{
           type: 'text',

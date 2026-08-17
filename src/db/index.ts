@@ -43,11 +43,21 @@ export { initializeDrizzleSqlite } from '../storage/drizzle-sqlite.ts';
 
 let defaultStorage: StorageBackend | null = null;
 
+/**
+ * The default connection must honor BOTH readonly flags: importing any module
+ * that touches the module-level db (e.g. scoped-settings) under
+ * ORACLE_READ_ONLY previously still ran migrations/seed writes on import.
+ */
+export function defaultStorageReadonly(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.ORACLE_VECTOR_READONLY === '1'
+    || env.ORACLE_READ_ONLY?.trim().toLowerCase() === 'true';
+}
+
 function openDefaultStorage(): StorageBackend {
   if (!defaultStorage) {
-    const readonly = process.env.ORACLE_VECTOR_READONLY === '1';
+    const readonly = defaultStorageReadonly();
     defaultStorage = createStorageBackend({ dbPath: defaultDbPath(), readonly });
-    if (readonly) console.log('[DB] Opened in READONLY mode (vector sidecar)');
+    if (readonly) console.log('[DB] Opened in READONLY mode');
   }
   return defaultStorage;
 }
