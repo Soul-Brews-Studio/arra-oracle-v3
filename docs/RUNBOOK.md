@@ -119,3 +119,7 @@ vectors (section 4). Finish by re-running section 2 health checks.
   `~/.arra-oracle-v2/exports/`.
 - Open item: no proven bundle-import procedure for Type A exports — until one
   is executed and recorded here, disaster restore depends on `.db` backups.
+- Classified limitation (2026-08-17): the FTS health gap is confined to legacy
+  `created_by=zhuge`, `type=principle` rows (23 active and 62 superseded at the
+  time of audit). No owning importer exists in this repository. Do not patch
+  `oracle_fts` directly; re-open only with an owner-backed ingestion path.

@@ -18,7 +18,7 @@ import { and, eq, or, isNull, inArray, type SQL } from 'drizzle-orm';
 import * as schema from '../db/schema.ts';
 import { oracleDocuments } from '../db/schema.ts';
 import { createDatabase } from '../db/index.ts';
-import { currentTenantId } from '../middleware/tenant.ts';
+import { activeTenantId } from '../middleware/tenant.ts';
 import { detectProject } from '../server/project-detect.ts';
 import type { OracleDocument, IndexerConfig } from '../types.ts';
 
@@ -70,7 +70,9 @@ export class OracleIndexer {
    */
   async index(options: IndexOptions = {}): Promise<void> {
     const append = options.append === true;
-    const tenantId = currentTenantId();
+    // Indexing is always tenant-scoped. Without request context, the owner
+    // tenant is the explicit default rather than an unbounded all-tenant read.
+    const tenantId = activeTenantId();
     const indexerOwnedWhere = tenantScopedWhere(
       or(eq(oracleDocuments.createdBy, 'indexer'), isNull(oracleDocuments.createdBy))!,
       tenantId,
