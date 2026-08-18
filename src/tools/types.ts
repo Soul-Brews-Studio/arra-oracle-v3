@@ -58,6 +58,11 @@ export interface OracleLearnInput {
   project?: string;
 }
 
+export interface OracleIndexRetroInput {
+  repoRoot: string;
+  filePath: string;
+}
+
 export interface OracleListInput {
   type?: 'principle' | 'pattern' | 'learning' | 'retro' | 'all';
   limit?: number;

@@ -88,6 +88,12 @@ function bodyFromMap(entry: RemoteableMcpRestEntry, args: Record<string, unknown
   switch (entry.body) {
     case undefined: return undefined;
     case 'args': return args;
+    case 'retro-file': return {
+      repoRoot: args.repoRoot,
+      filePath: args.filePath,
+      scope: 'retro-file',
+      wait: true,
+    };
     case 'thread-message': {
       const body: Record<string, unknown> = { message: args.message, thread_id: args.threadId, title: args.title, role: args.role ?? 'claude', model: args.model };
       if (args.reopen !== undefined) body.reopen = args.reopen;

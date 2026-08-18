@@ -9,6 +9,7 @@ export type { ToolContext, ToolResponse } from './types.ts';
 export type {
   OracleSearchInput,
   OracleLearnInput,
+  OracleIndexRetroInput,
   OracleListInput,
   OracleStatsInput,
   OracleConceptsInput,
@@ -48,6 +49,9 @@ export {
   normalizeProject,
   extractProjectFromSource,
 } from './learn.ts';
+
+// Retrospective ingest
+export { indexRetroToolDef, handleIndexRetro } from './index-retro.ts';
 
 // List
 export { listToolDef, handleList } from './list.ts';

@@ -8,6 +8,7 @@ import { chainSearchToolDef, handleChainSearch } from './chain-search.ts';
 import { searchToolDef, handleSearch } from './search.ts';
 import { readToolDef, handleRead } from './read.ts';
 import { learnToolDef, handleLearn } from './learn.ts';
+import { indexRetroToolDef, handleIndexRetro } from './index-retro.ts';
 import { listToolDef, handleList } from './list.ts';
 import { statsToolDef, handleStats } from './stats.ts';
 import { conceptsToolDef, handleConcepts } from './concepts.ts';
@@ -58,6 +59,7 @@ export const mcpTools: RuntimeMcpToolManifest[] = [
   ctxTool(chainSearchToolDef, 'search', false, 'handleChainSearch', handleChainSearch),
   ctxTool(readToolDef, 'search', true, 'handleRead', handleRead),
   ctxTool(learnToolDef, 'knowledge', false, 'handleLearn', handleLearn),
+  noCtxTool(indexRetroToolDef, 'knowledge', false, 'handleIndexRetro', handleIndexRetro),
   ctxTool(listToolDef, 'search', true, 'handleList', handleList),
   ctxTool(statsToolDef, 'knowledge', true, 'handleStats', handleStats),
   ctxTool(conceptsToolDef, 'search', true, 'handleConcepts', handleConcepts),

@@ -77,6 +77,27 @@ describe('POST /indexer/reindex', () => {
     expect(runFull).not.toHaveBeenCalled();
   });
 
+  it('dispatches one exact retro file without invoking broader reindex paths', async () => {
+    const runFull = mock(async ({ repoRoot, append }: { repoRoot?: string | null; append?: boolean }) => ({ ok: true as const, repoRoot: repoRoot ?? '/repo', append: append === true }));
+    const runRetros = mock(async (repoRoot: string) => ({ ok: true as const, repoRoot, documents: 0 }));
+    const runRetroFile = mock(async (repoRoot: string, filePath: string) => ({ ok: true as const, repoRoot, filePath, documents: 2 }));
+    const app = new Elysia().use(createReindexRoute({
+      resolveRepoRoot: () => '/oracle',
+      runFull,
+      runRetros,
+      runRetroFile,
+    }));
+    const filePath = '/oracle/ψ/memory/retrospectives/2026-08/18/session.md';
+
+    const res = await post(app, { scope: 'retro-file', filePath, wait: true });
+    const body = await res.json() as any;
+
+    expect(body).toMatchObject({ ok: true, status: 'complete', repoRoot: '/oracle', filePath, documents: 2 });
+    expect(runRetroFile).toHaveBeenCalledWith('/oracle', filePath);
+    expect(runRetros).not.toHaveBeenCalled();
+    expect(runFull).not.toHaveBeenCalled();
+  });
+
   it('returns a 409 while a non-waiting job is active', async () => {
     let release!: () => void;
     const blocker = new Promise<void>(resolve => { release = resolve; });

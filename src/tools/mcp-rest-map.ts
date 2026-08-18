@@ -1,5 +1,5 @@
 export type McpRestMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
-export type McpRestBodyMode = 'args' | 'thread-message' | 'thread-status' | 'trace-link' | 'trace-distill';
+export type McpRestBodyMode = 'args' | 'retro-file' | 'thread-message' | 'thread-status' | 'trace-link' | 'trace-distill';
 
 export type McpRestQueryBinding = Readonly<{
   arg: string;
@@ -71,6 +71,7 @@ const mcpRestMapEntries = [
   { name: 'oracle_search_chain', remoteable: true, method: 'POST', path: '/api/v1/search/chain', body: 'args' },
   { name: 'oracle_read', remoteable: true, method: 'GET', path: '/api/read', query: [{ arg: 'file', param: 'file' }, { arg: 'id', param: 'id' }] },
   { name: 'oracle_learn', remoteable: true, method: 'POST', path: '/api/learn', body: 'args' },
+  { name: 'oracle_index_retro', remoteable: true, method: 'POST', path: '/api/v1/indexer/reindex', body: 'retro-file' },
   { name: 'oracle_list', remoteable: true, method: 'GET', path: '/api/list', query: pagingQuery, staticQuery: [{ param: 'group', value: 'false' }] },
   { name: 'oracle_stats', remoteable: true, method: 'GET', path: '/api/stats' },
   { name: 'oracle_concepts', remoteable: true, method: 'GET', path: '/api/concepts', query: [{ arg: 'type', param: 'type' }, { arg: 'limit', param: 'limit' }] },

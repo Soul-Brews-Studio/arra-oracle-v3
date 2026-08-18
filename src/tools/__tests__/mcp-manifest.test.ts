@@ -8,6 +8,7 @@ describe('runtime MCP manifest', () => {
     expect(names).toContain('oracle_recap');
     expect(names).toContain('oracle_search');
     expect(names).toContain('oracle_search_chain');
+    expect(names).toContain('oracle_index_retro');
     expect(names).toContain('oracle_mcp_call');
   });
 
@@ -27,6 +28,8 @@ describe('runtime MCP manifest', () => {
     expect(mcpToolByName.get('oracle_search')?.readOnly).toBe(true);
     expect(mcpToolByName.get('oracle_search_chain')?.readOnly).toBe(false);
     expect(mcpToolByName.get('oracle_learn')?.readOnly).toBe(false);
+    expect(mcpToolByName.get('oracle_index_retro')?.readOnly).toBe(false);
+    expect(mcpToolByName.get('oracle_index_retro')?.group).toBe('knowledge');
     expect(mcpToolByName.get('oracle_mcp_call')?.readOnly).toBe(false);
   });
 

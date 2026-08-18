@@ -4,7 +4,7 @@ import { resolveToolName } from '../mcp/aliases.ts';
 
 export const TOOL_GROUPS = {
   search: ['oracle_search', 'oracle_search_chain', 'oracle_read', 'oracle_list', 'oracle_concepts', 'oracle_ask'],
-  knowledge: ['oracle_learn', 'oracle_stats', 'oracle_supersede', 'oracle_research_note'],
+  knowledge: ['oracle_learn', 'oracle_index_retro', 'oracle_stats', 'oracle_supersede', 'oracle_research_note'],
   session: ['oracle_handoff', 'oracle_inbox'],
   forum: ['oracle_thread', 'oracle_threads', 'oracle_thread_read', 'oracle_thread_update'],
   oracle: ['oracle_profile', 'oracle_recap'],

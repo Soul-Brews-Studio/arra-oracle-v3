@@ -10,6 +10,7 @@ describe('tools barrel export', () => {
     expect(tools.recapToolDef).toBeDefined();
     expect(tools.searchToolDef).toBeDefined();
     expect(tools.learnToolDef).toBeDefined();
+    expect(tools.indexRetroToolDef).toBeDefined();
     expect(tools.listToolDef).toBeDefined();
     expect(tools.statsToolDef).toBeDefined();
     expect(tools.conceptsToolDef).toBeDefined();
@@ -22,6 +23,7 @@ describe('tools barrel export', () => {
     expect(typeof tools.handleRecap).toBe('function');
     expect(typeof tools.handleSearch).toBe('function');
     expect(typeof tools.handleLearn).toBe('function');
+    expect(typeof tools.handleIndexRetro).toBe('function');
     expect(typeof tools.handleList).toBe('function');
     expect(typeof tools.handleStats).toBe('function');
     expect(typeof tools.handleConcepts).toBe('function');

@@ -59,6 +59,13 @@ Legacy manual path (only if the LaunchAgent is booted out):
 
 ## 4. Data operations
 
+- Agent `/rrr` ingest: use the MCP owner tool
+  `oracle_index_retro({repoRoot, filePath})`. It accepts exactly one existing
+  file under `<repoRoot>/ψ/memory/retrospectives/`, forces the bounded
+  `retro-file` scope in HTTP-proxy mode, and never falls back to a full reindex.
+  A session that cannot list this tool is stale and must restart before claiming
+  the retrospective complete. The HTTP calls below are operator surfaces, not
+  substitutes for an agent missing its MCP tool.
 - Retros-only reindex (non-pruning, released; re-executed 2026-08-17):
   ```sh
   curl -s -X POST http://127.0.0.1:47778/api/v1/indexer/reindex \
