@@ -43,6 +43,41 @@ describe('stdio MCP tool surface hardening', () => {
     }
   });
 
+  test('read-only guide omits hidden writes', async () => {
+    const server = withProxyServer({ readOnly: true, unifiedRuntime: runtimeReturning('ok') });
+    try {
+      const response = await callToolHandler(server)({ params: { name: GUIDE_TOOL_NAME, arguments: {} } });
+      expect(response.content[0].text).toContain('oracle_search');
+      expect(response.content[0].text).not.toContain('oracle_learn');
+      expect(response.content[0].text).not.toContain('oracle_supersede');
+      expect(response.content[0].text).not.toContain('oracle_mcp_call');
+    } finally {
+      await server.cleanup();
+    }
+  });
+
+  test('allowlisted guide contains no tool outside the allowlist', async () => {
+    const server = withProxyServer({ toolAllowlist: [GUIDE_TOOL_NAME, 'oracle_search'] });
+    try {
+      const response = await callToolHandler(server)({ params: { name: GUIDE_TOOL_NAME, arguments: {} } });
+      expect(response.content[0].text).toContain('oracle_search');
+      expect(response.content[0].text).not.toContain('oracle_read');
+    } finally {
+      await server.cleanup();
+    }
+  });
+
+  test('owner-write guide includes visible writes', async () => {
+    const server = withProxyServer();
+    try {
+      const response = await callToolHandler(server)({ params: { name: GUIDE_TOOL_NAME, arguments: {} } });
+      expect(response.content[0].text).toContain('oracle_learn');
+      expect(response.content[0].text).toContain('oracle_supersede');
+    } finally {
+      await server.cleanup();
+    }
+  });
+
   test('REST map and tool registry agree on local-only bridge boundaries', () => {
     for (const name of [GUIDE_TOOL_NAME, 'oracle_mcp_list_tools', 'oracle_mcp_call']) {
       expect(mcpToolByName.has(name)).toBe(true);

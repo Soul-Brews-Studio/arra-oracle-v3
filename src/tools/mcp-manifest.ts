@@ -1,6 +1,6 @@
 import type { UnifiedMcpToolManifest } from '../plugins/unified-manifest.ts';
 import { ALWAYS_ON_TOOLS } from '../config/tool-groups.ts';
-import { GUIDE_TOOL_NAME, guideToolDefinition, guideToolResponse } from '../mcp/guide.ts';
+import { GUIDE_TOOL_NAME, guideToolDefinition, guideToolResponse, type GuideToolSummary } from '../mcp/guide.ts';
 import type { ToolContext, ToolResponse } from './types.ts';
 import { recapToolDef, handleRecap } from './recap.ts';
 import { askToolDef, handleAsk } from './ask.ts';
@@ -28,7 +28,11 @@ import {
 import { reflectToolDef, handleReflect } from './reflect.ts';
 import { verifyToolDef, handleVerify } from './verify.ts';
 import { mcpCallToolDef, mcpListToolsToolDef, handleMcpCall, handleMcpListTools } from './mcp-in.ts';
-type Runtime = { version: string; getToolCtx: () => Promise<ToolContext> };
+type Runtime = {
+  version: string;
+  getToolCtx: () => Promise<ToolContext>;
+  getAvailableToolSummaries: () => Promise<readonly GuideToolSummary[]>;
+};
 export type RuntimeMcpHandler = (input: unknown, runtime: Runtime) => Promise<ToolResponse> | ToolResponse;
 export interface RuntimeMcpToolManifest extends Omit<UnifiedMcpToolManifest, 'handler'> {
   handler: RuntimeMcpHandler;
@@ -60,7 +64,7 @@ const traceHandlers: Array<(input: unknown) => Promise<ToolResponse>> = [handleT
 const traceReadOnly = [false, true, true, false, false, true];
 
 export const mcpTools: RuntimeMcpToolManifest[] = [
-  { ...guideToolDefinition(), group: 'guide', readOnly: true, enabledByDefault: true, handlerId: 'guide', handler: (_input, runtime) => guideToolResponse(runtime.version) },
+  { ...guideToolDefinition(), group: 'guide', readOnly: true, enabledByDefault: true, handlerId: 'guide', handler: async (_input, runtime) => guideToolResponse(runtime.version, await runtime.getAvailableToolSummaries()) },
   ctxTool(recapToolDef, 'oracle', true, 'handleRecap', handleRecap),
   noCtxTool(askToolDef, 'search', true, 'handleAsk', handleAsk),
   ctxTool(searchToolDef, 'search', true, 'handleSearch', handleSearch),
