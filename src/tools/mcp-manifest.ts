@@ -59,7 +59,7 @@ export const mcpTools: RuntimeMcpToolManifest[] = [
   ctxTool(chainSearchToolDef, 'search', false, 'handleChainSearch', handleChainSearch),
   ctxTool(readToolDef, 'search', true, 'handleRead', handleRead),
   ctxTool(learnToolDef, 'knowledge', false, 'handleLearn', handleLearn),
-  noCtxTool(indexRetroToolDef, 'knowledge', false, 'handleIndexRetro', handleIndexRetro),
+  { ...noCtxTool(indexRetroToolDef, 'knowledge', false, 'handleIndexRetro', handleIndexRetro), remoteWriteSafe: true },
   ctxTool(listToolDef, 'search', true, 'handleList', handleList),
   ctxTool(statsToolDef, 'knowledge', true, 'handleStats', handleStats),
   ctxTool(conceptsToolDef, 'search', true, 'handleConcepts', handleConcepts),

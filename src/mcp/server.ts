@@ -165,6 +165,15 @@ export class OracleMCPServer {
     return !this.toolAllowlist || this.toolAllowlist.has(tool.name);
   }
 
+  /**
+   * TINE-ratified read-only exception (2026-08-18): a remoteWriteSafe tool is
+   * usable from a read-only seat only when an HTTP owner core is configured —
+   * the write happens in the owner core, never against the local readonly DB.
+   */
+  private remoteWriteAllowed(tool: RuntimeMcpToolManifest): boolean {
+    return tool.remoteWriteSafe === true && !!this.oracleApiBase;
+  }
+
   private async availableTools() {
     const registry = await this.toolRegistry();
     const configured = defaultMcpToolOrder(this.enabledToolNames);
@@ -176,7 +185,7 @@ export class OracleMCPServer {
       .filter((tool): tool is RuntimeMcpToolManifest => !!tool)
       .filter((tool) => this.isAllowed(tool))
       .filter((tool) => !this.isDisabled(tool))
-      .filter((tool) => !this.readOnly || tool.readOnly !== false);
+      .filter((tool) => !this.readOnly || tool.readOnly !== false || this.remoteWriteAllowed(tool));
   }
 
   private setupHandlers(): void {
@@ -201,7 +210,7 @@ export class OracleMCPServer {
       if (this.isDisabled(tool)) {
         return errorResponse(`Error: Tool "${toolName}" is disabled by tool group config. Check ${ORACLE_DATA_DIR}/config.json or arra.config.json.`);
       }
-      if (this.readOnly && tool.readOnly === false) {
+      if (this.readOnly && tool.readOnly === false && !this.remoteWriteAllowed(tool)) {
         return errorResponse(`Error: Tool "${toolName}" is disabled in read-only mode. This Oracle instance is configured for read-only access.`);
       }
       try {
@@ -212,6 +221,11 @@ export class OracleMCPServer {
         const args = stripMcpTenantArgs(rawArgs);
         const proxied = await proxyToolCall(this.oracleApiBase, toolName, args, tenantId);
         if (proxied) return proxied;
+        if (this.readOnly && tool.readOnly === false) {
+          // remoteWriteSafe passed the gate above but the owner-core proxy did
+          // not handle the call — fail closed rather than write locally.
+          return errorResponse(`Error: Tool "${toolName}" requires the HTTP owner core on a read-only seat, and the proxy did not handle the call.`);
+        }
         return await runWithTenant(tenantId, () => tool.handler(args, { version: this.version, getToolCtx: () => this.getToolCtx() }));
       } catch (error) {
         return errorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);

@@ -14,6 +14,13 @@ export interface UnifiedMcpToolManifest {
   /** INERT display metadata — unvalidated, steers no enablement; that lives in src/config/tool-groups*.ts (#2822). */
   group?: string;
   readOnly?: boolean;
+  /**
+   * TINE-ratified 2026-08-18: a write tool a READ-ONLY seat may still see and
+   * call, but ONLY through the HTTP owner-core proxy (mcp-rest-map). The local
+   * DB stays readonly; without a configured owner core the tool is hidden and
+   * calls fail closed. Currently granted to oracle_index_retro alone.
+   */
+  remoteWriteSafe?: boolean;
   enabled?: boolean;
   enabledByDefault?: boolean;
 }
@@ -170,6 +177,7 @@ export function normalizeUnifiedPluginManifest(raw: unknown): NormalizedUnifiedP
     if (!isRecord(tool.inputSchema)) throw new Error(`mcpTools.${tool.name}.inputSchema must be an object`);
     if (!tool.handler || typeof tool.handler !== 'string') throw new Error(`mcpTools.${tool.name}.handler must be a string`);
     assertOptionalBoolean(tool.readOnly, `mcpTools.${tool.name}.readOnly`);
+    assertOptionalBoolean(tool.remoteWriteSafe, `mcpTools.${tool.name}.remoteWriteSafe`);
     assertOptionalBoolean(tool.enabled, `mcpTools.${tool.name}.enabled`);
     assertOptionalBoolean(tool.enabledByDefault, `mcpTools.${tool.name}.enabledByDefault`);
   }
