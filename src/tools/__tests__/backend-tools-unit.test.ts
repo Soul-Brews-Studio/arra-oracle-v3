@@ -188,6 +188,28 @@ describe('backend MCP tools unit coverage', () => {
     expect(parse(usage).error).toContain('Provide file or id');
   });
 
+  test('handleRead resolves ghq project paths through symlinked checkouts', async () => {
+    const savedGhqRoot = process.env.GHQ_ROOT;
+    try {
+      const ctx = makeCtx();
+      const targetRepo = path.join(ctx.repoRoot, 'checkouts', 'repo');
+      fs.mkdirSync(path.join(targetRepo, 'ψ/memory'), { recursive: true });
+      fs.writeFileSync(path.join(targetRepo, 'ψ/memory/note.md'), '# via symlink');
+
+      const ghqRoot = fs.realpathSync(tempRoot('arra-ghq-'));
+      fs.mkdirSync(path.join(ghqRoot, 'github.com/org'), { recursive: true });
+      fs.symlinkSync(targetRepo, path.join(ghqRoot, 'github.com/org/repo'));
+      process.env.GHQ_ROOT = ghqRoot;
+
+      const viaProject = parse(await handleRead(ctx, { file: 'github.com/org/repo/ψ/memory/note.md' }));
+      expect(viaProject.source).toBe('file');
+      expect(viaProject.content).toContain('via symlink');
+    } finally {
+      if (savedGhqRoot === undefined) delete process.env.GHQ_ROOT;
+      else process.env.GHQ_ROOT = savedGhqRoot;
+    }
+  });
+
   test('handleInbox lists handoff files newest first with previews and pagination', async () => {
     const ctx = makeCtx();
     const dir = path.join(ctx.repoRoot, 'ψ/inbox/handoff');

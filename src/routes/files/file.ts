@@ -13,6 +13,7 @@ import { REPO_ROOT } from '../../config.ts';
 import { getVaultPsiRoot } from '../../vault/handler.ts';
 import { fileQuery } from './model.ts';
 import { pathWithinRoot } from './path-security.ts';
+import { detectGhqRoot } from '../../util/ghq-root.ts';
 import { projectAllowedForTenant } from './tenant.ts';
 
 const currentRepoRoot = () => process.env.ORACLE_REPO_ROOT || REPO_ROOT;
@@ -39,21 +40,9 @@ export const fileRoute = new Elysia().get(
     }
 
     try {
-      // Detect GHQ_ROOT dynamically (no hardcoding).
-      let GHQ_ROOT = process.env.GHQ_ROOT;
-      if (!GHQ_ROOT) {
-        try {
-          const proc = Bun.spawnSync(['ghq', 'root']);
-          GHQ_ROOT = proc.stdout.toString().trim();
-        } catch {
-          const root = currentRepoRoot();
-          const match = root.match(/^(.+?)\/github\.com\//);
-          GHQ_ROOT = match
-            ? match[1]
-            : path.dirname(path.dirname(path.dirname(root)));
-        }
-      }
       const root = currentRepoRoot();
+      // Detect GHQ_ROOT dynamically (no hardcoding).
+      const GHQ_ROOT = detectGhqRoot(root);
       const basePath = project ? path.join(GHQ_ROOT, project) : root;
 
       // Strip project prefix if source_file already contains it.

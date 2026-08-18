@@ -10,6 +10,7 @@ import { recordReadAccess } from './read-access-log.ts';
 import path from 'path';
 import type { ToolContext, ToolResponse, OracleReadInput } from './types.ts';
 import { currentTenantId } from '../middleware/tenant.ts';
+import { detectGhqRoot } from '../util/ghq-root.ts';
 
 let getVaultPsiRootFn: typeof import('../vault/handler.ts').getVaultPsiRoot | null = null;
 async function loadGetVaultPsiRoot(): Promise<typeof import('../vault/handler.ts').getVaultPsiRoot> {
@@ -36,21 +37,6 @@ export const readToolDef = {
     },
   },
 };
-
-/** Detect GHQ_ROOT — same logic as /api/file in server.ts */
-function detectGhqRoot(repoRoot: string): string {
-  let ghqRoot = process.env.GHQ_ROOT;
-  if (!ghqRoot) {
-    try {
-      const proc = Bun.spawnSync(['ghq', 'root']);
-      ghqRoot = proc.stdout.toString().trim();
-    } catch {
-      const match = repoRoot.match(/^(.+?)\/github\.com\//);
-      ghqRoot = match ? match[1] : path.dirname(path.dirname(path.dirname(repoRoot)));
-    }
-  }
-  return ghqRoot;
-}
 
 /** Extract ghq-style project prefix from a source_file path */
 
@@ -134,11 +120,17 @@ async function resolveFilePath(
     } catch { /* fall through */ }
   }
 
-  // 2. Try ghq project path (handles "github.com/org/repo/ψ/..." paths)
+  // 2. Try ghq project path (handles "github.com/org/repo/ψ/..." paths). Like
+  // step 1.5, the ghq entry may be a symlink into agent-hub — resolve to its
+  // real target and let the caller's isPathAllowed() judge the boundary.
   const extracted = extractProject(sourceFile);
   if (extracted) {
-    const projectPath = existingPathInside(ghqRoot, path.join(extracted.project, extracted.remainder));
-    if (projectPath) return projectPath;
+    try {
+      const joined = path.resolve(ghqRoot, extracted.project, extracted.remainder);
+      if (isWithinPath(joined, fs.realpathSync(ghqRoot)) && fs.existsSync(joined)) {
+        return fs.realpathSync(joined);
+      }
+    } catch { /* fall through */ }
   }
 
   // 3. Try vault fallback
