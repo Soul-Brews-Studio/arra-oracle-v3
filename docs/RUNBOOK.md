@@ -132,6 +132,13 @@ vectors (section 4). Finish by re-running section 2 health checks.
 - **No hard-delete, permanently** (TINE R0, 2026-08-17): supersede is the only
   retirement path; gated prune is exceptional TINE-approved maintenance only.
   Decision record: `learning_2026-08-17_decision-tine-r0-2026-08-17-oracle-has-no-har`
+- **Bounded retro-index exception for read-only seats** (TINE R1, 2026-08-18):
+  a seat with `ORACLE_READ_ONLY=true` plus `ORACLE_REMOTE_WRITE_URL=<owner core>`
+  is **read-mostly, not strictly read-only** — it additionally advertises
+  `oracle_index_retro`, routed only through the owner-core HTTP proxy
+  (fail-closed; local DB never written; `oracle_learn`/`oracle_supersede` stay
+  hidden; search/read stay local-embedded). Decision record:
+  `learning_2026-08-18_decision-tine-r1-2026-08-18-read-only-oracl`.
 - Current recovery/hold state lives in the Oracle recovery-state learning chain
   (search: "recovery state canonical source root", project orchestrator-vnext).
 

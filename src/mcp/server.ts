@@ -52,9 +52,15 @@ export class OracleMCPServer {
     this.embeddedDeps = options.embeddedDeps;
     this.watchToolGroups = options.watchToolGroups ?? watchToolGroupConfig;
     this.toolAllowlist = options.toolAllowlist ? new Set(options.toolAllowlist) : null;
-    if (this.readOnly) console.error('[Oracle] Running in READ-ONLY mode');
     this.oracleApiBase = resolveOracleApiBase();
     this.remoteWriteApiBase = resolveRemoteWriteApiBase();
+    if (this.readOnly) {
+      // Transparency (Riddler Oracle101 compare 2026-08-18): a seat holding the
+      // bounded exception is read-mostly, not strictly read-only — say so.
+      console.error(this.remoteWriteApiBase
+        ? `[Oracle] Running in READ-ONLY mode with bounded retro-index exception (oracle_index_retro → ${this.remoteWriteApiBase})`
+        : '[Oracle] Running in READ-ONLY mode');
+    }
     console.error(this.oracleApiBase
       ? `[Oracle] Running in HTTP-proxy mode (ORACLE_HTTP_URL → ${this.oracleApiBase})`
       : '[Oracle] Running in embedded mode (ORACLE_HTTP_URL unset)');
