@@ -24,7 +24,15 @@ async function connectReadOnly(extraEnv: Record<string, string>): Promise<Client
     db.exec('PRAGMA user_version = 0;');
     db.close();
   }
-  const env: Record<string, string> = { ...process.env as Record<string, string>, ORACLE_READ_ONLY: 'true', ORACLE_DATA_DIR: dataDir };
+  const env: Record<string, string> = {
+    ...process.env as Record<string, string>,
+    ORACLE_READ_ONLY: 'true',
+    ORACLE_DATA_DIR: dataDir,
+    ORACLE_DB_PATH: join(dataDir, 'oracle.db'),
+    ORACLE_VECTOR_DB: 'sqlite-vec',
+    ORACLE_VECTOR_DB_PATH: join(dataDir, 'vectors.db'),
+  };
+  delete env.DATABASE_URL;
   delete env.ORACLE_REMOTE_WRITE_URL;
   delete env.ORACLE_HTTP_URL; // embedded reads — ORACLE_REMOTE_WRITE_URL must not flip them to proxy
   delete env.ORACLE_API;
