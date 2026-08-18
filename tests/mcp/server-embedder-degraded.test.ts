@@ -1,4 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
+import { realpathSync } from 'node:fs';
+import { ORACLE_DATA_DIR } from '../../src/config.ts';
 import { createDatabase, oracleDocuments } from '../../src/db/index.ts';
 import { clearEmbedderRuntimeStatusForTests } from '../../src/vector/embedder-config.ts';
 import { OracleMCPServer } from '../../src/mcp/server.ts';
@@ -41,6 +43,7 @@ test('MCP embedder degradation is observable and FTS5 search still returns', asy
   try {
     const stats = await toolJson(server, 'oracle_stats', {});
     expect(stats).toMatchObject({
+      store: realpathSync(ORACLE_DATA_DIR),
       vector_status: 'degraded',
       vector_reason: 'ECONNREFUSED 127.0.0.1:11434',
       embedder_provider: 'ollama',
