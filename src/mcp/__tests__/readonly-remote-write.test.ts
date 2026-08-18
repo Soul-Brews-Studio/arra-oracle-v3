@@ -24,10 +24,12 @@ async function connectReadOnly(extraEnv: Record<string, string>): Promise<Client
     db.exec('PRAGMA user_version = 0;');
     db.close();
   }
-  const env: Record<string, string> = { ...process.env as Record<string, string>, ORACLE_READ_ONLY: 'true', ORACLE_DATA_DIR: dataDir, ...extraEnv };
+  const env: Record<string, string> = { ...process.env as Record<string, string>, ORACLE_READ_ONLY: 'true', ORACLE_DATA_DIR: dataDir };
+  delete env.ORACLE_REMOTE_WRITE_URL;
   delete env.ORACLE_HTTP_URL; // embedded reads — ORACLE_REMOTE_WRITE_URL must not flip them to proxy
   delete env.ORACLE_API;
   delete env.NEO_ARRA_API;
+  Object.assign(env, extraEnv);
   const transport = new StdioClientTransport({
     command: 'bun',
     args: [join(repoRoot, 'src/index.ts')],
@@ -47,6 +49,8 @@ test('read-mostly guide matches the bounded-retro catalog', async () => {
   const result = await client.callTool({ name: '____IMPORTANT', arguments: {} }) as { content: Array<{ text: string }> };
   const text = result.content[0].text;
   expect(names).toContain('oracle_index_retro');
+  expect(names).not.toContain('oracle_learn');
+  expect(names).not.toContain('oracle_supersede');
   expect(text).toContain('oracle_index_retro');
   expect(text).not.toContain('oracle_learn');
   expect(text).not.toContain('oracle_supersede');
