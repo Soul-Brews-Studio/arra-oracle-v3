@@ -116,10 +116,23 @@ async function resolveFilePath(
   sourceFile: string,
   repoRoot: string,
   ghqRoot: string,
+  project?: string | null,
 ): Promise<string | null> {
   // 1. Try direct from repoRoot (handles "ψ/memory/..." paths)
   const directPath = existingPathInside(repoRoot, sourceFile);
   if (directPath) return directPath;
+
+  // 1.5 Try the document's DB project column via the ghq mapping. Retro/learning
+  // docs store source_file relative to their own repo; the ghq entry for that
+  // project may be a symlink into agent-hub, so accept the symlink's real target.
+  if (project) {
+    try {
+      const joined = path.resolve(ghqRoot, project, sourceFile);
+      if (isWithinPath(joined, fs.realpathSync(ghqRoot)) && fs.existsSync(joined)) {
+        return fs.realpathSync(joined);
+      }
+    } catch { /* fall through */ }
+  }
 
   // 2. Try ghq project path (handles "github.com/org/repo/ψ/..." paths)
   const extracted = extractProject(sourceFile);
@@ -145,6 +158,13 @@ function isPathAllowed(resolvedPath: string, repoRoot: string, ghqRoot: string):
     const realGhq = fs.realpathSync(ghqRoot);
     if (isWithinPath(resolvedPath, realGhq)) return true;
   } catch { /* ghq root may not exist */ }
+
+  // agent-hub is where the machine's ghq project symlinks legitimately point
+  // (see INFRA-MAP); a path that entered via a ghq mapping resolves here.
+  try {
+    const realHub = fs.realpathSync(path.join(process.env.HOME || '', 'tt3p', 'agent-hub'));
+    if (isWithinPath(resolvedPath, realHub)) return true;
+  } catch { /* hub may not exist on other installs */ }
 
   try {
     const realRepo = fs.realpathSync(repoRoot);
@@ -189,7 +209,7 @@ export async function handleRead(ctx: ToolContext, input: OracleReadInput): Prom
   if (tenantId && pathTenant && pathTenant !== tenantId) return notFound(id || sourceFile || 'file');
 
   const ghqRoot = detectGhqRoot(ctx.repoRoot);
-  const resolvedPath = await resolveFilePath(sourceFile!, ctx.repoRoot, ghqRoot);
+  const resolvedPath = await resolveFilePath(sourceFile!, ctx.repoRoot, ghqRoot, project ?? sourceProject);
 
   // File found on disk
   if (resolvedPath && isPathAllowed(resolvedPath, ctx.repoRoot, ghqRoot)) {
