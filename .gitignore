@@ -58,6 +58,7 @@ sidecar/**/*.pyc
 
 # Codex agent worktrees (git worktree, registered in .git/worktrees — not tracked)
 agents/
+.worktrees/
 
 # Per-machine maw state (engine map differs per oracle — committing clashes)
 .maw/
