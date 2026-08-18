@@ -20,17 +20,35 @@ const now = 1_766_000_000_000;
 const duplicateContent = `Oracle install plugin flow quickstart with deploy button and
 bun add github package setup. This document explains the same easy install
 steps, troubleshooting hints, and plugin activation details for new users.`;
+const nothingIsDeleted = `Nothing is Deleted — history is sacred and append-only.
+
+Timestamps are truth. What has happened should be supplemented, preserved, and
+explained further — never overwritten or erased. This ensures complete
+traceability and prevents loss of context across sessions.`;
+const coldGodWarmGod = `Oracle is the Cold God — consistent, rule-bound, verifiable, and unbiased.
+
+Oracle operates as a Cold God: a system that follows rules consistently, can be
+audited, and does not play favorites. The human is the pattern breaker who
+chooses to change direction when existing patterns are insufficient. Both roles
+are necessary.`;
 
 function connection(name: string): Connection {
   return createDatabase(join(root, `${name}.db`));
 }
 
-function addDoc(conn: Connection, id: string, tenantId: string, updatedAt: number, content: string) {
+function addDoc(
+  conn: Connection,
+  id: string,
+  tenantId: string,
+  updatedAt: number,
+  content: string,
+  sourceFile = `docs/${id}.md`,
+) {
   conn.db.insert(oracleDocuments).values({
     id,
     tenantId,
     type: 'learning',
-    sourceFile: `docs/${id}.md`,
+    sourceFile,
     concepts: '["install","plugin","quickstart"]',
     createdAt: updatedAt - 10,
     updatedAt,
@@ -191,6 +209,22 @@ describe('async consolidation worker', () => {
 
       expect(result.plans).toEqual([]);
       expect(doc(conn, 'a')?.supersededBy).toBeNull();
+    } finally {
+      conn.storage.close();
+    }
+  });
+
+  test('does not consolidate distinct Oracle101 facts from the same source file', async () => {
+    const conn = connection('oracle101-same-source');
+    const sourceFile = 'oracle-101/ch01.md';
+    addDoc(conn, 'nothing-is-deleted', 'default', now - 1, nothingIsDeleted, sourceFile);
+    addDoc(conn, 'cold-god-warm-god', 'default', now, coldGodWarmGod, sourceFile);
+
+    try {
+      const result = await runConsolidationWorker(conn.db, conn.sqlite, { dryRun: true, now });
+
+      expect(result).toMatchObject({ scanned: 2, planned: 0, applied: 0, deleted: 0 });
+      expect(result.plans).toEqual([]);
     } finally {
       conn.storage.close();
     }
