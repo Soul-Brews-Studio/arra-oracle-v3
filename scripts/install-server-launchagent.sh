@@ -64,6 +64,8 @@ cat > "$tmp_plist" <<PLIST
   <string>$(xml_escape "$REPO_ROOT")</string>
   <key>EnvironmentVariables</key>
   <dict>
+    <key>PATH</key>
+    <string>$(xml_escape "$(dirname "$BUN_BIN"):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin")</string>
     <key>ORACLE_DATA_DIR</key>
     <string>$(xml_escape "$DATA_DIR")</string>
     <key>ORACLE_DB_PATH</key>

@@ -8,8 +8,13 @@ below was executed and verified during the 2026-08-16/17 incident recovery.
 - Live checkout: `~/tt3p/ghq/github.com/Soul-Brews-Studio/arra-oracle-v3` (branch `alpha`)
 - Publish surface: `git@github.com:TTT3P/arra-oracle-v3.git` (remote `fork`;
   upstream Soul-Brews-Studio is 403 for the TTT3P account)
-- Runtime: `bun src/server.ts` on port **47778** (spawned by `bun run server:ensure`);
-  find it with `lsof -iTCP:47778 -sTCP:LISTEN`
+- Runtime: `bun src/server.ts` on port **47778**, owned by launchd as
+  `com.tt3p.arra-oracle` (installed 2026-08-18 via `bun run server:install-launchagent`;
+  RunAtLoad + KeepAlive, logs `~/.arra-oracle-v2/oracle-server.log`). The plist
+  sets PATH with `/opt/homebrew/bin` so the git-origin project fallback works
+  (launchd's default PATH lacks it). `bun run server:ensure` remains a no-op
+  starter when the agent is already serving; find the listener with
+  `lsof -iTCP:47778 -sTCP:LISTEN`
 - Data dir: `~/.arra-oracle-v2/` — `oracle.db` (SQLite, WAL), `lancedb/` (vectors),
   `exports/` (backup bundles + rescue journals), auto pre-run backups `oracle.db.backup-*`
 - Vector sidecar (TINE-approved 2026-08-17): `bun run vector` (read-only
@@ -43,11 +48,14 @@ MCP-side: `oracle_stats` — fts_status healthy, vector_status connected.
 ## 3. Restart
 
 ```sh
-kill -TERM $(lsof -tiTCP:47778 -sTCP:LISTEN)
-# vector sidecar (one-time install): bun run vector:install-launchagent
-cd ~/tt3p/ghq/github.com/Soul-Brews-Studio/arra-oracle-v3 && bun run server:ensure
+launchctl kickstart -k gui/$(id -u)/com.tt3p.arra-oracle    # server (launchd-owned)
+launchctl kickstart -k gui/$(id -u)/com.tt3p.arra-vector    # vector sidecar
 ```
-`server:ensure` is start-only (no stop/restart flag); env comes from repo `.env`.
+One-time installs (also used to re-adopt an unmanaged process after manual runs):
+`bun run server:install-launchagent` · `bun run vector:install-launchagent`.
+Legacy manual path (only if the LaunchAgent is booted out):
+`kill -TERM $(lsof -tiTCP:47778 -sTCP:LISTEN)` then `bun run server:ensure`
+(start-only, no stop/restart flag); env comes from repo `.env` via WorkingDirectory.
 
 ## 4. Data operations
 
