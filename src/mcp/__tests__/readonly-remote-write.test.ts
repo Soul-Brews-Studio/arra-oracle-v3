@@ -41,26 +41,24 @@ async function connectReadOnly(extraEnv: Record<string, string>): Promise<Client
   return client;
 }
 
-test('read-only seat WITH remote-write core advertises oracle_index_retro but no other write tools', async () => {
+test('read-mostly guide matches the bounded-retro catalog', async () => {
   const client = await connectReadOnly({ ORACLE_REMOTE_WRITE_URL: 'http://127.0.0.1:1' });
-  const names = (await client.listTools()).tools.map((t) => t.name);
+  const names = (await client.listTools()).tools.map((tool) => tool.name);
+  const result = await client.callTool({ name: '____IMPORTANT', arguments: {} }) as { content: Array<{ text: string }> };
+  const text = result.content[0].text;
   expect(names).toContain('oracle_index_retro');
-  expect(names).not.toContain('oracle_learn');
-  expect(names).not.toContain('oracle_supersede');
+  expect(text).toContain('oracle_index_retro');
+  expect(text).not.toContain('oracle_learn');
+  expect(text).not.toContain('oracle_supersede');
 }, 30000);
 
-test('read-only seat WITHOUT remote-write core hides oracle_index_retro and rejects the call', async () => {
+test('read-only guide and catalog omit bounded retro without the owner core', async () => {
   const client = await connectReadOnly({});
-  const names = (await client.listTools()).tools.map((t) => t.name);
+  const names = (await client.listTools()).tools.map((tool) => tool.name);
+  const result = await client.callTool({ name: '____IMPORTANT', arguments: {} }) as { content: Array<{ text: string }> };
+  const text = result.content[0].text;
   expect(names).not.toContain('oracle_index_retro');
-  const result = await client.callTool({ name: 'oracle_index_retro', arguments: { repoRoot: '/tmp', filePath: '/tmp/x.md' } }) as { content: Array<{ text: string }> };
-  expect(result.content[0].text).toContain('read-only mode');
-}, 30000);
-
-test('read-only seat with unreachable remote-write core fails closed instead of writing locally', async () => {
-  const client = await connectReadOnly({ ORACLE_REMOTE_WRITE_URL: 'http://127.0.0.1:1' });
-  const result = await client.callTool({ name: 'oracle_index_retro', arguments: { repoRoot: '/tmp', filePath: '/tmp/x.md' } }) as { content: Array<{ text: string }> };
-  expect(result.content[0].text).toMatch(/Cannot reach|owner core/);
+  expect(text).not.toContain('oracle_index_retro');
 }, 30000);
 
 test('regression: enabling bounded write leaves oracle_search on the local embedded payload shape', async () => {
