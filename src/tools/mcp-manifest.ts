@@ -33,6 +33,14 @@ export type RuntimeMcpHandler = (input: unknown, runtime: Runtime) => Promise<To
 export interface RuntimeMcpToolManifest extends Omit<UnifiedMcpToolManifest, 'handler'> {
   handler: RuntimeMcpHandler;
   handlerId: string;
+  /**
+   * TINE-ratified 2026-08-18 (runtime-manifest-only — not a user plugin field):
+   * a write tool a READ-ONLY seat may still see and call, but ONLY through the
+   * owner-core proxy (ORACLE_REMOTE_WRITE_URL or full HTTP-proxy mode). The
+   * local DB stays readonly; without an owner core the tool is hidden and
+   * calls fail closed. Currently granted to oracle_index_retro alone.
+   */
+  remoteWriteSafe?: boolean;
 }
 
 type ToolDef = { name: string; description: string; inputSchema: Record<string, unknown> };

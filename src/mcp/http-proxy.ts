@@ -32,6 +32,17 @@ export function resolveOracleApiBase(): string | null {
   return normalizeApiBase(trimmed);
 }
 
+/**
+ * Owner-core URL used ONLY for remoteWriteSafe tools on a read-only seat
+ * (Riddler R1 verification 2026-08-18): unlike ORACLE_HTTP_URL it must NOT
+ * flip every remoteable tool into HTTP-proxy mode — search/read stay local.
+ */
+export function resolveRemoteWriteApiBase(): string | null {
+  const trimmed = process.env.ORACLE_REMOTE_WRITE_URL?.trim();
+  if (!trimmed || EMBEDDED_API_VALUES.has(trimmed.toLowerCase())) return null;
+  return normalizeApiBase(trimmed);
+}
+
 function configuredApiBase(): string | null {
   for (const raw of [process.env.ORACLE_HTTP_URL, process.env.ORACLE_API, process.env.NEO_ARRA_API]) {
     const trimmed = raw?.trim();

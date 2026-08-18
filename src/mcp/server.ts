@@ -17,7 +17,7 @@ import type { EmbeddedDeps, OracleMCPServerOptions } from './server-options.ts';
 import { probeVectorStore } from './vector-health.ts';
 import { formatEmbedderDegradedWarning, probeConfiguredEmbedder, readEmbedderRuntimeStatus, setEmbedderRuntimeStatus, type EmbedderRuntimeStatus } from '../vector/embedder-config.ts';
 import { resolveInboundToolName, retiredAliasNotice } from './aliases.ts';
-import { proxyToolCall, resolveOracleApiBase } from './http-proxy.ts';
+import { proxyToolCall, resolveOracleApiBase, resolveRemoteWriteApiBase } from './http-proxy.ts';
 import { pluginMcpToolsFrom } from './plugin-tools.ts';
 import { runWithTenant } from '../middleware/tenant.ts';
 import { stripMcpTenantArgs, tenantIdFromMcpArgs } from './tenant.ts';
@@ -42,6 +42,7 @@ export class OracleMCPServer {
   private stopToolGroupsWatch: (() => void) | null = null;
   private embeddedReady: Promise<void> | null = null;
   private readonly oracleApiBase: string | null;
+  private readonly remoteWriteApiBase: string | null;
   private readonly unifiedRuntime: McpPluginRuntime;
   private readonly embeddedDeps?: EmbeddedDeps | Promise<EmbeddedDeps>;
   private readonly watchToolGroups: typeof watchToolGroupConfig;
@@ -53,6 +54,7 @@ export class OracleMCPServer {
     this.toolAllowlist = options.toolAllowlist ? new Set(options.toolAllowlist) : null;
     if (this.readOnly) console.error('[Oracle] Running in READ-ONLY mode');
     this.oracleApiBase = resolveOracleApiBase();
+    this.remoteWriteApiBase = resolveRemoteWriteApiBase();
     console.error(this.oracleApiBase
       ? `[Oracle] Running in HTTP-proxy mode (ORACLE_HTTP_URL → ${this.oracleApiBase})`
       : '[Oracle] Running in embedded mode (ORACLE_HTTP_URL unset)');
@@ -171,7 +173,7 @@ export class OracleMCPServer {
    * the write happens in the owner core, never against the local readonly DB.
    */
   private remoteWriteAllowed(tool: RuntimeMcpToolManifest): boolean {
-    return tool.remoteWriteSafe === true && !!this.oracleApiBase;
+    return tool.remoteWriteSafe === true && !!(this.oracleApiBase || this.remoteWriteApiBase);
   }
 
   private async availableTools() {
@@ -219,7 +221,11 @@ export class OracleMCPServer {
           : {};
         const tenantId = tenantIdFromMcpArgs(rawArgs);
         const args = stripMcpTenantArgs(rawArgs);
-        const proxied = await proxyToolCall(this.oracleApiBase, toolName, args, tenantId);
+        // ORACLE_REMOTE_WRITE_URL applies ONLY to remoteWriteSafe tools on a
+        // read-only seat — it must never flip search/read into proxy mode.
+        const proxyBase = this.oracleApiBase
+          ?? (this.readOnly && tool.remoteWriteSafe === true ? this.remoteWriteApiBase : null);
+        const proxied = await proxyToolCall(proxyBase, toolName, args, tenantId);
         if (proxied) return proxied;
         if (this.readOnly && tool.readOnly === false) {
           // remoteWriteSafe passed the gate above but the owner-core proxy did
