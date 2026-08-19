@@ -67,10 +67,12 @@ test('delegate catalog and guide omit every write tool despite write URLs in env
   expect(names).toContain('oracle_read');
 }, 30000);
 
-test('delegate oracle_profile reports the trusted server capability field', async () => {
-  const boundRoot = mkdtempSync(join(tmpdir(), 'arra-delegate-owner-'));
-  tempDirs.push(boundRoot);
-  const client = await connectDelegate({ ORACLE_MEMORY_OWNER_ROOT: boundRoot });
+test('delegate oracle_profile reports no owner root even when the env leaks one', async () => {
+  // Spec v5 D1: ORACLE_MEMORY_OWNER_ROOT exists only for own-mode seats. A
+  // delegate receiving it is a launch defect the server must neutralize.
+  const leakedRoot = mkdtempSync(join(tmpdir(), 'arra-delegate-owner-'));
+  tempDirs.push(leakedRoot);
+  const client = await connectDelegate({ ORACLE_MEMORY_OWNER_ROOT: leakedRoot });
   const result = await client.callTool({ name: 'oracle_profile', arguments: {} }) as { content: Array<{ text: string }> };
   const payload = JSON.parse(result.content[0].text) as { server?: Record<string, unknown> };
   expect(payload.server).toMatchObject({
@@ -78,7 +80,7 @@ test('delegate oracle_profile reports the trusted server capability field', asyn
     readOnly: true,
     remoteWriteApiBase: null,
     oracleApiBase: null,
-    memoryOwnerRoot: boundRoot,
+    memoryOwnerRoot: null,
   });
 }, 30000);
 

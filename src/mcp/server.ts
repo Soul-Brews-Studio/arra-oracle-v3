@@ -64,12 +64,20 @@ export class OracleMCPServer {
     // blocker 5 — the launcher line-31 default must not reach a delegate).
     this.oracleApiBase = this.profile === 'delegate' ? null : resolveOracleApiBase();
     this.remoteWriteApiBase = this.profile === 'delegate' ? null : resolveRemoteWriteApiBase();
+    if (this.profile === 'delegate' && process.env.ORACLE_MEMORY_OWNER_ROOT) {
+      // A delegate owns no ψ (birth spec v5 D1): an owner root reaching this
+      // process is a launch-path defect, so drop it rather than honor it.
+      console.error('[Oracle] DELEGATE seat received ORACLE_MEMORY_OWNER_ROOT — ignoring it (delegates own no memory root)');
+      delete process.env.ORACLE_MEMORY_OWNER_ROOT;
+    }
     setServerCapabilityReport({
       profile: this.profile,
       readOnly: this.readOnly,
       remoteWriteApiBase: this.remoteWriteApiBase,
       oracleApiBase: this.oracleApiBase,
-      memoryOwnerRoot: process.env.ORACLE_MEMORY_OWNER_ROOT?.trim() || null,
+      memoryOwnerRoot: this.profile === 'delegate'
+        ? null
+        : process.env.ORACLE_MEMORY_OWNER_ROOT?.trim() || null,
     });
     if (this.profile === 'delegate') {
       console.error('[Oracle] Running in DELEGATE mode (no-retro worker seat: write tools structurally absent; ORACLE_REMOTE_WRITE_URL and ORACLE_HTTP_URL ignored)');
