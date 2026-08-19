@@ -14,6 +14,7 @@ import type { VectorStoreAdapter } from '../vector/types.ts';
 import { defaultMcpToolOrder, mcpToolByName, mcpTools, toMcpToolDefinition, type RuntimeMcpToolManifest } from '../tools/mcp-manifest.ts';
 import type { UnifiedRuntime } from '../plugins/unified-loader.ts';
 import type { EmbeddedDeps, OracleMCPServerOptions } from './server-options.ts';
+import { setServerCapabilityReport } from './capability.ts';
 import { probeVectorStore } from './vector-health.ts';
 import { formatEmbedderDegradedWarning, probeConfiguredEmbedder, readEmbedderRuntimeStatus, setEmbedderRuntimeStatus, type EmbedderRuntimeStatus } from '../vector/embedder-config.ts';
 import { resolveInboundToolName, retiredAliasNotice } from './aliases.ts';
@@ -35,6 +36,7 @@ export class OracleMCPServer {
   private vectorStatus: ToolContext['vectorStatus'] = 'unknown';
   private vectorReason: string | undefined; private embedderProvider: string | undefined; private lastEmbedderWarning: string | undefined;
   private readOnly: boolean;
+  private readonly profile: 'read-mostly' | 'delegate';
   private version = pkg.version;
   private disabledTools = new Set<string>();
   private enabledToolNames: string[] = [];
@@ -49,12 +51,29 @@ export class OracleMCPServer {
   private readonly watchToolGroups: typeof watchToolGroupConfig;
   private readonly toolAllowlist: ReadonlySet<string> | null;
   constructor(options: OracleMCPServerOptions = {}) {
-    this.readOnly = options.readOnly ?? false;
+    this.profile = options.profile ?? 'read-mostly';
+    // Delegate implies read-only regardless of the caller's readOnly value —
+    // a worker seat must not become writable through a second option path.
+    this.readOnly = this.profile === 'delegate' || (options.readOnly ?? false);
     this.embeddedDeps = options.embeddedDeps;
     this.watchToolGroups = options.watchToolGroups ?? watchToolGroupConfig;
     this.toolAllowlist = options.toolAllowlist ? new Set(options.toolAllowlist) : null;
-    this.oracleApiBase = resolveOracleApiBase();
-    this.remoteWriteApiBase = resolveRemoteWriteApiBase();
+    // Delegate never resolves a proxy or owner-core base: with both null the
+    // existing readOnly filter hides every readOnly:false tool, index_retro
+    // included, with no environment default able to re-enable it (spec v5
+    // blocker 5 — the launcher line-31 default must not reach a delegate).
+    this.oracleApiBase = this.profile === 'delegate' ? null : resolveOracleApiBase();
+    this.remoteWriteApiBase = this.profile === 'delegate' ? null : resolveRemoteWriteApiBase();
+    setServerCapabilityReport({
+      profile: this.profile,
+      readOnly: this.readOnly,
+      remoteWriteApiBase: this.remoteWriteApiBase,
+      oracleApiBase: this.oracleApiBase,
+      memoryOwnerRoot: process.env.ORACLE_MEMORY_OWNER_ROOT?.trim() || null,
+    });
+    if (this.profile === 'delegate') {
+      console.error('[Oracle] Running in DELEGATE mode (no-retro worker seat: write tools structurally absent; ORACLE_REMOTE_WRITE_URL and ORACLE_HTTP_URL ignored)');
+    }
     if (this.readOnly) {
       // Transparency (Riddler Oracle101 compare 2026-08-18): a seat holding the
       // bounded exception is read-mostly, not strictly read-only — say so.

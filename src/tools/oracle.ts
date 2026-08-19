@@ -1,4 +1,5 @@
 import { getOracleProfile, listOracleProfiles } from '../oracles/registry.ts';
+import { getServerCapabilityReport } from '../mcp/capability.ts';
 import { handleLearn } from './learn.ts';
 import { buildResearchNoteLearning } from '../research/note.ts';
 import type { DistillTraceInput } from '../trace/types.ts';
@@ -63,7 +64,9 @@ export const oracleResearchNoteToolDef = {
 };
 
 export function handleOracleProfile(input: { id?: string }): ToolResponse {
-  if (!input?.id) return text({ profiles: listOracleProfiles(), total: listOracleProfiles().length });
+  // `server` is the trusted capability field the birth canary corroborates
+  // (spec v5 D4) — computed by the server process, never by the model.
+  if (!input?.id) return text({ profiles: listOracleProfiles(), total: listOracleProfiles().length, server: getServerCapabilityReport() });
   const profile = getOracleProfile(input.id);
   return profile ? text(profile) : text({ success: false, error: `Oracle profile not found: ${input.id}` }, true);
 }

@@ -18,6 +18,26 @@ function isDataDirRoot(repoRoot: string): boolean {
   }
 }
 
+/**
+ * Seat→memory-owner seam (birth spec v5 D1): when the launcher binds this seat
+ * to one memory owner via ORACLE_MEMORY_OWNER_ROOT, a retro may only be
+ * indexed under that root. Unset env = no seam claim = legacy behavior.
+ * Returns the bound root when repoRoot violates it, null when allowed.
+ */
+function seamViolatedRoot(repoRoot: string): string | null {
+  const boundRoot = process.env.ORACLE_MEMORY_OWNER_ROOT?.trim();
+  if (!boundRoot) return null;
+  try {
+    if (fs.realpathSync(path.resolve(repoRoot)) === fs.realpathSync(path.resolve(boundRoot))) {
+      return null;
+    }
+  } catch {
+    // Unresolvable paths fall through to the mismatch return: the seam is a
+    // fail-closed boundary, so a root we cannot verify is a root we reject.
+  }
+  return boundRoot;
+}
+
 type IndexRetroResult = Awaited<ReturnType<typeof indexRetroFile>>;
 export type IndexRetroFn = (repoRoot: string, filePath: string) => Promise<IndexRetroResult>;
 
@@ -59,6 +79,16 @@ export async function handleIndexRetro(
       ok: false,
       error: 'oracle_index_retro requires non-empty repoRoot and filePath strings.',
       usage: "oracle_index_retro({ repoRoot: '/absolute/oracle/root', filePath: '/absolute/oracle/root/ψ/memory/retrospectives/YYYY-MM/DD/retro.md' })",
+    }, true);
+  }
+
+  const violatedBoundRoot = seamViolatedRoot(repoRoot);
+  if (violatedBoundRoot !== null) {
+    return response({
+      ok: false,
+      error: `repoRoot is outside this seat's bound memory owner (ORACLE_MEMORY_OWNER_ROOT=${violatedBoundRoot}) — write the retrospective under that root's ψ/memory/retrospectives and pass that root.`,
+      repoRoot,
+      filePath,
     }, true);
   }
 

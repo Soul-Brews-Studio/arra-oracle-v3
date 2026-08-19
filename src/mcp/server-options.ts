@@ -18,6 +18,12 @@ export type EmbeddedDeps = {
 
 export type OracleMCPServerOptions = {
   readOnly?: boolean;
+  /**
+   * Birth spec v5 D3: 'delegate' is a no-retro worker seat — forces readOnly,
+   * never resolves a remote-write or HTTP-proxy base, so oracle_index_retro,
+   * oracle_learn and oracle_supersede are structurally absent from the catalog.
+   */
+  profile?: 'read-mostly' | 'delegate';
   toolGroups?: ToolGroupConfig;
   toolAllowlist?: readonly string[];
   embeddedDeps?: EmbeddedDeps | Promise<EmbeddedDeps>;
