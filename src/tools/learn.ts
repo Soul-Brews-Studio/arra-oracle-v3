@@ -107,7 +107,17 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
 
   const projectDir = (project || '_universal').toLowerCase();
 
-  const dir = vaultRoot
+  // Seat→memory-owner seam (birth spec v5 D1 / L1 gate): when the launcher
+  // binds this seat to one memory owner, learnings land under that root's ψ —
+  // never the data-dir fallback that REPO_ROOT can resolve to. The seam is
+  // policy-projected, so it outranks a locally configured vault too.
+  const memoryOwnerRoot = process.env.ORACLE_MEMORY_OWNER_ROOT?.trim() || null;
+  if (memoryOwnerRoot && vaultRoot) {
+    console.error('[Learn] ORACLE_MEMORY_OWNER_ROOT set — vault route overridden by the memory-owner seam');
+  }
+  const dir = memoryOwnerRoot
+    ? path.join(memoryOwnerRoot, 'ψ', 'memory', 'learnings')
+    : vaultRoot
     ? path.join(vaultRoot, projectDir, 'ψ', 'memory', 'learnings')
     // Write to canonical REPO_ROOT, not ctx.repoRoot (the MCP server's cwd):
     // the dashboard's /api/file resolves source_file against REPO_ROOT, so
@@ -122,7 +132,9 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
   const tail = uniqueTail(dir, dateStr, slug);
   const filename = `${dateStr}_${tail}.md`;
   const filePath = path.join(dir, filename);
-  const sourceFileRel = vaultRoot
+  const sourceFileRel = memoryOwnerRoot
+    ? `ψ/memory/learnings/${filename}`
+    : vaultRoot
     ? `${projectDir}/ψ/memory/learnings/${filename}`
     : `ψ/memory/learnings/${filename}`;
 
