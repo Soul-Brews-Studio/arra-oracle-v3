@@ -13,6 +13,8 @@ import { tenantIdForWrite } from '../middleware/tenant.ts';
 import { getVectorStoreByModel, getEmbeddingModels } from '../vector/factory.ts';
 import { REPO_ROOT } from '../config.ts';
 import { buildLearningMarkdown, dateSlug, learningSlug, uniqueTail } from '../learn/markdown.ts';
+import { replaceEntityLinks } from '../search/entity-ranking.ts';
+import { replaceDocumentPointers } from '../search/pointer-index.ts';
 import { findDuplicateLearning } from '../learn/dedup.ts';
 import {
   coerceConcepts,
@@ -173,6 +175,16 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
     INSERT INTO oracle_fts (id, content, concepts)
     VALUES (?, ?, ?)
   `).run(id, frontmatter, conceptsList.join(' '));
+
+  // Ranking sidecars, same as the HTTP write path (routes/learn/crud.ts):
+  // without these a fresh MCP learning competes on FTS+vector only and loses
+  // the pointer/entity boosts to older reindexed docs (2026-08-19 gap).
+  replaceEntityLinks(ctx.sqlite, {
+    documentId: id, tenantId, content: frontmatter, concepts: conceptsList, now: now.getTime(),
+  });
+  replaceDocumentPointers(ctx.sqlite, {
+    documentId: id, tenantId, content: frontmatter, concepts: conceptsList, timestamp: now.getTime(),
+  });
 
   // Keep Studio Activity aligned with the MCP write path. This mirrors the
   // legacy handleLearn/logLearning fields while using the injected DB context.
