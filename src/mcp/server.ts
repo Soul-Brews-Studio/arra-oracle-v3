@@ -17,6 +17,7 @@ import type { EmbeddedDeps, OracleMCPServerOptions } from './server-options.ts';
 import { probeVectorStore } from './vector-health.ts';
 import { formatEmbedderDegradedWarning, probeConfiguredEmbedder, readEmbedderRuntimeStatus, setEmbedderRuntimeStatus, type EmbedderRuntimeStatus } from '../vector/embedder-config.ts';
 import { resolveInboundToolName, retiredAliasNotice } from './aliases.ts';
+import type { GuideToolSummary } from './guide.ts';
 import { proxyToolCall, resolveOracleApiBase, resolveRemoteWriteApiBase } from './http-proxy.ts';
 import { pluginMcpToolsFrom } from './plugin-tools.ts';
 import { runWithTenant } from '../middleware/tenant.ts';
@@ -196,6 +197,15 @@ export class OracleMCPServer {
       .filter((tool) => !this.readOnly || tool.readOnly !== false || this.remoteWriteAllowed(tool));
   }
 
+  private async availableToolSummaries(): Promise<GuideToolSummary[]> {
+    return (await this.availableTools()).map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      readOnly: tool.readOnly !== false,
+      remoteWriteSafe: tool.remoteWriteSafe === true,
+    }));
+  }
+
   private setupHandlers(): void {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: (await this.availableTools()).map(toMcpToolDefinition),
@@ -238,7 +248,11 @@ export class OracleMCPServer {
           // not handle the call — fail closed rather than write locally.
           return errorResponse(`Error: Tool "${toolName}" requires the HTTP owner core on a read-only seat, and the proxy did not handle the call.`);
         }
-        return await runWithTenant(tenantId, () => tool.handler(args, { version: this.version, getToolCtx: () => this.getToolCtx() }));
+        return await runWithTenant(tenantId, () => tool.handler(args, {
+          version: this.version,
+          getToolCtx: () => this.getToolCtx(),
+          getAvailableToolSummaries: () => this.availableToolSummaries(),
+        }));
       } catch (error) {
         return errorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
       }

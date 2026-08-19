@@ -5,6 +5,8 @@
  */
 
 import { sql, and, eq, ne, isNotNull } from 'drizzle-orm';
+import { realpathSync } from 'node:fs';
+import { ORACLE_DATA_DIR } from '../config.ts';
 import { oracleDocuments } from '../db/schema.ts';
 import { currentTenantId } from '../middleware/tenant.ts';
 import type { ToolContext, ToolResponse, OracleStatsInput } from './types.ts';
@@ -19,7 +21,16 @@ export const statsToolDef = {
   }
 };
 
+export function resolveStatsStore(dataDir: string = ORACLE_DATA_DIR): string {
+  try {
+    return realpathSync(dataDir);
+  } catch {
+    throw new Error('Unable to resolve Oracle data store');
+  }
+}
+
 export async function handleStats(ctx: ToolContext, _input: OracleStatsInput): Promise<ToolResponse> {
+  const store = resolveStatsStore();
   const tenantId = currentTenantId();
   const tenantWhere = tenantId ? eq(oracleDocuments.tenantId, tenantId) : undefined;
   const typeCountQuery = ctx.db.select({ type: oracleDocuments.type, count: sql<number>`count(*)` })
@@ -76,6 +87,7 @@ export async function handleStats(ctx: ToolContext, _input: OracleStatsInput): P
     content: [{
       type: 'text',
       text: JSON.stringify({
+        store,
         total_documents: totalDocs,
         by_type: byType,
         fts_indexed: ftsCount.count,
