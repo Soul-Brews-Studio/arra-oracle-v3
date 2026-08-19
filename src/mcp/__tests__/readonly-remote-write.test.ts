@@ -28,6 +28,12 @@ async function connectReadOnly(extraEnv: Record<string, string>): Promise<Client
   delete env.ORACLE_HTTP_URL; // embedded reads — ORACLE_REMOTE_WRITE_URL must not flip them to proxy
   delete env.ORACLE_API;
   delete env.NEO_ARRA_API;
+  // The fixture must resolve every store from its temp ORACLE_DATA_DIR — an
+  // inherited DB/vector selector would silently point it at a real store
+  // (Riddler Plan 2 final review blocker).
+  for (const key of ['ORACLE_DB_PATH', 'DATABASE_URL', 'ORACLE_VECTOR_DB_PATH', 'ORACLE_VECTORS_DB_PATH', 'VECTOR_URL', 'ORACLE_EMBEDDER', 'ORACLE_EMBEDDER_BACKEND', 'EMBEDDER_TYPE', 'ORACLE_EMBEDDER_CHAIN', 'ORACLE_EMBEDDING_FALLBACK_CHAIN']) {
+    delete env[key];
+  }
   const transport = new StdioClientTransport({
     command: 'bun',
     args: [join(repoRoot, 'src/index.ts')],
