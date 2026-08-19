@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, test } from 'bun:test';
 import { handleIndexRetro } from '../index-retro.ts';
 
 describe('oracle_index_retro', () => {
@@ -50,4 +50,15 @@ describe('oracle_index_retro', () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain('Refusing to index non-retro file');
   });
+});
+
+test('rejects the Oracle data dir as repoRoot (TINE canonical-root decision 2026-08-19)', async () => {
+  const { ORACLE_DATA_DIR } = await import('../../config.ts');
+  const { handleIndexRetro } = await import('../index-retro.ts');
+  const result = await handleIndexRetro(
+    { repoRoot: ORACLE_DATA_DIR, filePath: `${ORACLE_DATA_DIR}/ψ/memory/retrospectives/2026-08/19/x.md` },
+    async () => { throw new Error('must not reach the indexer'); },
+  );
+  expect(result.isError).toBe(true);
+  expect(JSON.parse(result.content[0].text).error).toContain('internal store');
 });

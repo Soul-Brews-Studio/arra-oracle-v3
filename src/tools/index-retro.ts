@@ -1,5 +1,22 @@
+import fs from 'fs';
+import path from 'path';
 import { indexRetroFile } from '../indexer/retro-index.ts';
+import { ORACLE_DATA_DIR } from '../config.ts';
 import type { OracleIndexRetroInput, ToolResponse } from './types.ts';
+
+/**
+ * TINE decision 2026-08-19: the MCP data dir (~/.arra-oracle-v2) is Oracle's
+ * internal store, not a fleet memory tree — a retro written there is invisible
+ * to the next session's filesystem recap. Reject it so /rrr fails closed and
+ * re-resolves the canonical project root instead.
+ */
+function isDataDirRoot(repoRoot: string): boolean {
+  try {
+    return fs.realpathSync(path.resolve(repoRoot)) === fs.realpathSync(ORACLE_DATA_DIR);
+  } catch {
+    return false;
+  }
+}
 
 type IndexRetroResult = Awaited<ReturnType<typeof indexRetroFile>>;
 export type IndexRetroFn = (repoRoot: string, filePath: string) => Promise<IndexRetroResult>;
@@ -42,6 +59,15 @@ export async function handleIndexRetro(
       ok: false,
       error: 'oracle_index_retro requires non-empty repoRoot and filePath strings.',
       usage: "oracle_index_retro({ repoRoot: '/absolute/oracle/root', filePath: '/absolute/oracle/root/ψ/memory/retrospectives/YYYY-MM/DD/retro.md' })",
+    }, true);
+  }
+
+  if (isDataDirRoot(repoRoot)) {
+    return response({
+      ok: false,
+      error: `repoRoot resolves to the Oracle data dir (${ORACLE_DATA_DIR}) — an internal store, not a fleet memory tree. Write the retrospective under the canonical project root's ψ/memory/retrospectives and pass that root.`,
+      repoRoot,
+      filePath,
     }, true);
   }
 
