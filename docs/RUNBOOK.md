@@ -45,6 +45,18 @@ sqlite3 -readonly ~/.arra-oracle-v2/oracle.db "PRAGMA integrity_check;"   # expe
 ```
 MCP-side: `oracle_stats` — fts_status healthy, vector_status connected.
 
+- **Liveness ≠ freshness** (ORA-SHARED-20260820-06): `embedderStatus`/`vectorStatus`
+  above are connectivity checks only — "can the server reach Ollama/the
+  vector engine", not "is the vector index current". `vector.freshness.lastIndexed`
+  is computed from SQLite (`MAX(oracle_documents.indexed_at)` joined to FTS),
+  **not** from `vector_index_manifest` — a document indexed a minute ago can
+  make this field look fresh while the vector side is stale for hours. Read
+  `vector.freshness.docsPending`/`docsExtra` for the real gap. On the :8081
+  sidecar, `/health`'s `ready` field means "this process has served one
+  successful `/vectors/*` request since boot", not "the vector engine is
+  healthy" — a fresh restart legitimately shows `ready:false` until the
+  first real query lands; that alone is not a fault.
+
 ## 3. Restart
 
 ```sh
@@ -75,9 +87,27 @@ Legacy manual path (only if the LaunchAgent is booted out):
   ```
   `repoRoot` is REQUIRED here: omitting it resolves to the server's own repo
   checkout, not the canonical source root, and indexes 0 documents.
+- **Ingest is hybrid, not one path** (ORA-SHARED-20260820-06): `oracle_learn`'s
+  default write embeds into the vector store **inline**, bypassing
+  `vector_index_manifest` entirely, and fails **silently** back to FTS-only
+  on any embedder error (search still works via FTS; the vector side is
+  just behind). Retro-index and full reindex are **FTS-only by design** —
+  they call `storeDocuments(..., vectorClient=null, ...)` and never touch
+  the vector store. Vector coverage for anything written through those
+  paths only catches up via the manual sync below — there is no scheduler;
+  this is an operator-owned step, not automatic.
 - Vector drain: `bun src/scripts/index-model.ts bge-m3 --incremental`
   (`--dry-run` first; NEVER run concurrently with another DB writer — a
-  concurrent write loses the final manifest and forces a full re-embed)
+  concurrent write loses the final manifest and forces a full re-embed).
+  **Set formulas, exact** (ORA-SHARED-20260820-06): `changed` = docs whose
+  current source content-hash differs from (or is absent from)
+  `vector_index_manifest` — what the dry-run reports it will embed. `stale`
+  = manifest rows with no matching row left in `oracle_documents` at all
+  (a real deletion — supersede never removes a row, so it never produces
+  `stale` here). `orphans` = rows physically in the vector engine but
+  absent from the manifest (e.g. from `oracle_learn`'s inline path above) —
+  **this sync tool does not see or touch orphans**; reconciling them needs a
+  separate engine-vs-manifest comparison, not this command.
 - **HELD/gated:** `scope=all` full indexer and any destructive prune. Prune
   requires canonical root + active-only plan + exact `--confirm-delete=<n>` +
   direct TINE approval. NEVER run `src/indexer/cli.ts` with a narrowed
@@ -141,6 +171,19 @@ vectors (section 4). Finish by re-running section 2 health checks.
   `learning_2026-08-18_decision-tine-r1-2026-08-18-read-only-oracl`.
 - Current recovery/hold state lives in the Oracle recovery-state learning chain
   (search: "recovery state canonical source root", project orchestrator-vnext).
+- **No ghq alias as an owner-resolution fix** (TINE NO-GO, ORA-SHARED-20260820):
+  a document's DB `project` can legitimately be a repo's real git-origin
+  identity while the machine's ghq entry for that repo is aliased under a
+  different name — do **not** create a second `ghq/<project>` symlink to
+  "fix" a read miss. A `maw` scanner derives a fresh Oracle identity from
+  each distinct ghq entry name; a second entry for the same repo registers
+  a duplicate identity (registry pollution). The owning fix is the
+  resolver's origin-mapping fallback (`resolveGhqAliasTargetByOrigin`,
+  `f0312b74` — matches by the alias's real-target git origin, fails closed
+  on 0 or >1 matches, never creates anything). Mechanically checked
+  pre-deploy by `orchestrator-vnext/scripts/runtime-change-preflight.sh`
+  (worktree-outside-live, base==live-HEAD, clean-worktree, dirty-digest,
+  reviewed-SHA invariants).
 
 ## 8. Escalation
 
