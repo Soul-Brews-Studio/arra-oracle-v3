@@ -108,3 +108,88 @@ describe('fusion consolidation — HTTP and MCP paths agree', () => {
     }
   });
 });
+
+// Repair round 2 (Riddler NO-GO on 92dc1785, P1): the round-1 shared fusion
+// reconstructed a fixed-field result object instead of preserving the
+// winning input row, silently dropping HTTP's non-ranking metadata
+// (project, supersession, valid-time) that the parent formula preserved via
+// `{...r}` spread (parent server/handlers.ts:307-340). These tests use rows
+// shaped like the real SearchResult metadata fields (server/types.ts) and
+// assert every non-ranking field survives fusion, in every mode.
+const PARENT_METADATA = {
+  project: 'github.com/soul-brews-studio/arra-oracle-v3',
+  superseded_by: 'newer-doc-id',
+  superseded_at: '2026-08-19T00:00:00.000Z',
+  superseded_reason: 'replaced by clarified version',
+  valid_time: '2026-08-01T00:00:00.000Z',
+  valid_until: '2026-09-01T00:00:00.000Z',
+};
+
+function ftsRowWithMetadata(id: string, score: number, extra: Record<string, unknown> = PARENT_METADATA) {
+  return { ...ftsRow(id, score), ...extra };
+}
+
+function vectorRowWithMetadata(id: string, score: number, extra: Record<string, unknown> = PARENT_METADATA) {
+  return { ...vectorRow(id, score), ...extra };
+}
+
+function pointerRow(id: string, pointerScore: number, matches: string[], extra: Record<string, unknown> = PARENT_METADATA) {
+  return { id, type: 'retro', content: 'pointer-indexed content', source_file: 'psi/pointer.md', concepts: [], pointerScore, pointerMatches: matches, ...extra };
+}
+
+describe('fusion round 2 — non-ranking metadata survives every mode (Riddler P1)', () => {
+  const combines = () => [fusionCombine, helpersCombine as typeof fusionCombine, handlersCombine as typeof fusionCombine];
+
+  test('FTS-only: project/supersession/valid-time preserved', () => {
+    const fts = [ftsRowWithMetadata('fts-meta-doc', 0.6)];
+    for (const combine of combines()) {
+      const result = combine(fts as any, []).find((r: any) => r.id === 'fts-meta-doc');
+      expect(result).toMatchObject(PARENT_METADATA);
+    }
+  });
+
+  test('vector-only: project/supersession/valid-time preserved', () => {
+    const vector = [vectorRowWithMetadata('vector-meta-doc', 0.5)];
+    for (const combine of combines()) {
+      const result = combine([], vector as any).find((r: any) => r.id === 'vector-meta-doc');
+      expect(result).toMatchObject(PARENT_METADATA);
+    }
+  });
+
+  test('pointer-only: project/supersession/valid-time preserved', () => {
+    const pointer = [pointerRow('pointer-meta-doc', 0.4, ['topic:x'])];
+    for (const combine of combines()) {
+      const result = combine([], [], 0.5, 0.5, pointer as any).find((r: any) => r.id === 'pointer-meta-doc');
+      expect(result).toMatchObject(PARENT_METADATA);
+    }
+  });
+
+  test('hybrid merge rule: FTS row wins as metadata base, vector contributes only scoring fields', () => {
+    const ftsMeta = { ...PARENT_METADATA, project: 'fts-project' };
+    const vectorMeta = { ...PARENT_METADATA, project: 'vector-project', valid_until: 'vector-only-value' };
+    const fts = [ftsRowWithMetadata(BARBARA_DOC_ID, 0.83, ftsMeta)];
+    const vector = [vectorRowWithMetadata(BARBARA_DOC_ID, 0.71, vectorMeta)];
+
+    for (const combine of combines()) {
+      const result = combine(fts as any, vector as any).find((r: any) => r.id === BARBARA_DOC_ID);
+      expect(result.source).toBe('hybrid');
+      // FTS row (inserted first) is the metadata base — matches the parent
+      // HTTP `{...existing}` merge (existing == the FTS-spread entry).
+      expect(result.project).toBe('fts-project');
+      expect(result.valid_until).toBe(ftsMeta.valid_until);
+      // Vector leg still contributes its own scoring fields on top.
+      expect(result.distance).toBeCloseTo(1 - 0.71, 6);
+      expect(result.model).toBe('bge-m3');
+    }
+  });
+
+  test('result-envelope compatibility: every key of the winning row is present on the fusion output (matches parent HTTP {...r} contract)', () => {
+    const row = ftsRowWithMetadata('envelope-doc', 0.6);
+    for (const combine of combines()) {
+      const result = combine([row] as any, []).find((r: any) => r.id === 'envelope-doc')!;
+      for (const key of Object.keys(row)) {
+        expect(result).toHaveProperty(key);
+      }
+    }
+  });
+});

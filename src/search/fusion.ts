@@ -5,14 +5,18 @@
  * combine formulas (server/handlers.ts's old `combineSearchResults` vs this
  * module's origin in tools/search/helpers.ts) — consolidated here so a
  * hybrid-matched document scores identically regardless of which path served
- * the request (repair pass ORA-SHARED-20260820-07).
+ * the request (repair pass ORA-SHARED-20260820-07, repair round 2 per
+ * Riddler NO-GO on 92dc1785).
  *
- * Input types are intentionally minimal/structural (not imported from
- * tools/search/types.ts) so both the MCP tool's richer result rows and the
- * HTTP route's `SearchResult` rows satisfy them without adapters.
+ * Preserves the FULL winning input row (via generic spread), not a fixed
+ * field subset — round 1 reconstructed a named-field-only result object,
+ * which silently dropped non-ranking metadata (`project`, supersession,
+ * valid-time, ...) the parent HTTP formula used to preserve via `{...r}`.
+ * Generics are bounded to only the fields the formula itself reads/writes;
+ * every other property on the caller's row rides through unmodified.
  */
 
-export type FusionFtsInput = {
+export type FusionRow = {
   id: string;
   type: string;
   content: string;
@@ -21,22 +25,17 @@ export type FusionFtsInput = {
   score?: number;
 };
 
-export type FusionVectorInput = FusionFtsInput & {
+export type FusionVectorRow = FusionRow & {
   distance?: number;
   model?: string;
 };
 
-export type FusionPointerInput = FusionFtsInput & {
+export type FusionPointerRow = FusionRow & {
   pointerScore: number;
   pointerMatches: string[];
 };
 
-export type FusionResult = {
-  id: string;
-  type: string;
-  content: string;
-  source_file: string;
-  concepts: string[];
+type FusionScoringFields = {
   score: number;
   source: 'fts' | 'vector' | 'pointer' | 'hybrid';
   ftsScore?: number;
@@ -47,30 +46,28 @@ export type FusionResult = {
   model?: string;
 };
 
-export function combineResults(
-  ftsResults: FusionFtsInput[],
-  vectorResults: FusionVectorInput[],
+export type FusionResult<F extends FusionRow, V extends FusionVectorRow, P extends FusionPointerRow> =
+  (F | V | P) & FusionScoringFields;
+
+export function combineResults<
+  F extends FusionRow,
+  V extends FusionVectorRow,
+  P extends FusionPointerRow,
+>(
+  ftsResults: F[],
+  vectorResults: V[],
   ftsWeight = 0.5,
   vectorWeight = 0.5,
-  pointerResults: FusionPointerInput[] = [],
+  pointerResults: P[] = [],
   pointerWeight = 0.35,
-): FusionResult[] {
-  const resultMap = new Map<string, Omit<FusionResult, 'score'> & {
-    ftsScore?: number;
-    vectorScore?: number;
-    pointerScore?: number;
-  }>();
+): FusionResult<F, V, P>[] {
+  const resultMap = new Map<string, FusionResult<F, V, P>>();
 
+  // Winning row is spread in full (not reconstructed field-by-field) so any
+  // non-ranking metadata the caller attached — project, supersession,
+  // valid-time, or anything future — survives fusion untouched.
   for (const result of ftsResults) {
-    resultMap.set(result.id, {
-      id: result.id,
-      type: result.type,
-      content: result.content,
-      source_file: result.source_file,
-      concepts: result.concepts,
-      ftsScore: result.score,
-      source: 'fts',
-    });
+    resultMap.set(result.id, { ...result, ftsScore: result.score, source: 'fts' } as FusionResult<F, V, P>);
   }
 
   for (const result of pointerResults) {
@@ -82,20 +79,20 @@ export function combineResults(
       continue;
     }
     resultMap.set(result.id, {
-      id: result.id,
-      type: result.type,
-      content: result.content,
-      source_file: result.source_file,
-      concepts: result.concepts,
+      ...result,
       pointerScore: result.pointerScore,
       pointerMatches: result.pointerMatches,
       source: 'pointer',
-    });
+    } as FusionResult<F, V, P>);
   }
 
   for (const result of vectorResults) {
     const existing = resultMap.get(result.id);
     if (existing) {
+      // Hybrid duplicate: the FTS row (spread in first, above) stays the
+      // base — preserving its non-ranking metadata — and the vector leg
+      // only contributes its scoring/vector-specific fields on top. This is
+      // the exact merge rule the parent HTTP formula used.
       existing.vectorScore = result.score;
       existing.source = 'hybrid';
       existing.distance = result.distance;
@@ -103,16 +100,12 @@ export function combineResults(
       continue;
     }
     resultMap.set(result.id, {
-      id: result.id,
-      type: result.type,
-      content: result.content,
-      source_file: result.source_file,
-      concepts: result.concepts,
+      ...result,
       vectorScore: result.score,
       distance: result.distance,
       model: result.model,
       source: 'vector',
-    });
+    } as FusionResult<F, V, P>);
   }
 
   const combined = Array.from(resultMap.values()).map((result) => {
