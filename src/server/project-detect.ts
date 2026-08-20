@@ -45,7 +45,10 @@ export function parseOriginUrl(url: string): string | null {
   return null;
 }
 
-function detectFromGitOrigin(dir: string): string | null {
+/** Exported so callers that already have a resolved directory (e.g. a ghq
+ *  alias's realpath target) can read its local git-origin identity directly,
+ *  without re-implementing this read+parse step. */
+export function detectFromGitOrigin(dir: string): string | null {
   try {
     const url = execFileSync(
       'git',
