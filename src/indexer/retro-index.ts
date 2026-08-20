@@ -49,6 +49,11 @@ export async function indexRetrospectives(repoRoot: string, dbPath: string = pro
   // to 'default', so even an ambient-less CLI run stays tenant-scoped instead
   // of widening the supersede across every tenant sharing the source path.
   const tenantId = activeTenantId();
+  // The same chunking storeDocuments applies internally — reused here so the
+  // response can report the exact ids written (retro/learning docs commonly
+  // chunk into "<id>_1", "<id>_2__chunk_0", ... and there is no un-suffixed
+  // base row to read back by).
+  const chunked = chunkDocumentsForIndexing(documents);
   try {
     await storeDocuments(sqlite, db, null, detectProject(resolvedRoot), documents, {
       createdBy: 'retro_indexer',
@@ -57,12 +62,12 @@ export async function indexRetrospectives(repoRoot: string, dbPath: string = pro
     // Upserting new deterministic ids leaves legacy active rows for the same
     // source files behind, which duplicates search results. Supersede them
     // through the owning replaced-source mechanism (never hard-delete).
-    supersedeReplacedSourceDocs(db, chunkDocumentsForIndexing(documents), tenantId);
+    supersedeReplacedSourceDocs(db, chunked, tenantId);
   } finally {
     sqlite.close();
   }
 
-  return { ok: true as const, repoRoot: resolvedRoot, documents: documents.length };
+  return { ok: true as const, repoRoot: resolvedRoot, documents: documents.length, ids: chunked.map((doc) => doc.id) };
 }
 
 export async function indexRetroFile(repoRoot: string, filePath: string, dbPath: string = process.env.ORACLE_DB_PATH || DB_PATH) {
@@ -82,15 +87,16 @@ export async function indexRetroFile(repoRoot: string, filePath: string, dbPath:
   const documents = parseRetroFile(relPath, content);
   const { sqlite, db } = createDatabase(dbPath);
   const tenantId = activeTenantId();
+  const chunked = chunkDocumentsForIndexing(documents);
   try {
     await storeDocuments(sqlite, db, null, detectProject(resolvedRoot), documents, {
       createdBy: 'retro_indexer',
       tenantId,
     });
-    supersedeReplacedSourceDocs(db, chunkDocumentsForIndexing(documents), tenantId);
+    supersedeReplacedSourceDocs(db, chunked, tenantId);
   } finally {
     sqlite.close();
   }
 
-  return { ok: true as const, repoRoot: resolvedRoot, filePath: resolvedFile, documents: documents.length };
+  return { ok: true as const, repoRoot: resolvedRoot, filePath: resolvedFile, documents: documents.length, ids: chunked.map((doc) => doc.id) };
 }

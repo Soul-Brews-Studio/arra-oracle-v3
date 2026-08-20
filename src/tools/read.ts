@@ -145,9 +145,10 @@ async function resolveFilePath(
 }
 
 /** Security check: verify resolved path is within allowed roots */
-function isPathAllowed(resolvedPath: string, repoRoot: string, ghqRoot: string): boolean {
+export function isPathAllowed(resolvedPath: string, repoRoot: string, ghqRoot: string, project?: string | null): boolean {
+  let realGhq: string | null = null;
   try {
-    const realGhq = fs.realpathSync(ghqRoot);
+    realGhq = fs.realpathSync(ghqRoot);
     if (isWithinPath(resolvedPath, realGhq)) return true;
   } catch { /* ghq root may not exist */ }
 
@@ -157,6 +158,26 @@ function isPathAllowed(resolvedPath: string, repoRoot: string, ghqRoot: string):
     const realHub = fs.realpathSync(path.join(process.env.HOME || '', 'tt3p', 'agent-hub'));
     if (isWithinPath(resolvedPath, realHub)) return true;
   } catch { /* hub may not exist on other installs */ }
+
+  // A ghq project entry can be a symlink to any location on this machine, not
+  // only agent-hub (e.g. vault/<repo>). Resolve exactly that one first-level
+  // project entry — the same entry resolveFilePath already followed to reach
+  // resolvedPath — and allow paths within ITS realpath only. The pre-realpath
+  // join must stay inside ghqRoot, mirroring resolveFilePath's own guard, so a
+  // crafted project value can't walk the check outside the ghq tree.
+  if (project && realGhq) {
+    try {
+      // Resolve against realGhq (not the raw ghqRoot) so the containment
+      // check compares two paths through the same symlink resolution — else
+      // an OS-level symlink earlier in ghqRoot's own path (e.g. macOS's
+      // /var -> /private/var) can make a legitimate join look "outside".
+      const projectRoot = path.resolve(realGhq, project);
+      if (isWithinPath(projectRoot, realGhq)) {
+        const realProjectRoot = fs.realpathSync(projectRoot);
+        if (isWithinPath(resolvedPath, realProjectRoot)) return true;
+      }
+    } catch { /* project entry may not exist */ }
+  }
 
   try {
     const realRepo = fs.realpathSync(repoRoot);

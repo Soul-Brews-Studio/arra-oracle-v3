@@ -47,6 +47,7 @@ export function createVectorProxyServer(options: VectorProxyServerOptions = {}) 
   return new Elysia({ name: 'vector-proxy-server' })
     .get(VECTOR_PROXY_ROUTES.health, () => healthPayload(store, state, collectionName, options.version))
     .post(VECTOR_PROXY_ROUTES.add, async ({ body, set }) => {
+      if (isReadonly()) return readonlyRejection(set);
       const documents = validDocuments((body as VectorProxyAddRequest | undefined)?.documents);
       if (!documents) return badRequest(set, 'documents must be an array');
       await withStore((connected) => connected.addDocuments(documents));
@@ -69,7 +70,8 @@ export function createVectorProxyServer(options: VectorProxyServerOptions = {}) 
       }
       return connected.getAllEmbeddings(exportLimit((query as { limit?: unknown }).limit)) as Promise<VectorProxyExportResponse>;
     }))
-    .delete(VECTOR_PROXY_ROUTES.collection, async () => {
+    .delete(VECTOR_PROXY_ROUTES.collection, async ({ set }) => {
+      if (isReadonly()) return readonlyRejection(set);
       await withStore((connected) => connected.deleteCollection());
       state.ready = false;
       return { ok: true };
@@ -115,6 +117,19 @@ function validDocuments(value: unknown): VectorDocument[] | null {
 function badRequest(set: { status?: number | string }, messageText: string) {
   set.status = 400;
   return { error: messageText };
+}
+
+// ORACLE_VECTOR_READONLY=1 (see src/vector-server.ts) previously only relabeled
+// the sidecar's log line — the write routes stayed reachable regardless. A
+// query-only deployment (the sync-and-query split described in the runtime
+// contract) needs this actually enforced at the route layer.
+function isReadonly(): boolean {
+  return process.env.ORACLE_VECTOR_READONLY === '1';
+}
+
+function readonlyRejection(set: { status?: number | string }) {
+  set.status = 403;
+  return { error: 'vector proxy is read-only (ORACLE_VECTOR_READONLY=1) — writes are rejected' };
 }
 
 function normalizeLimit(value: unknown): number {
