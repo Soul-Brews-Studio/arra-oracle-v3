@@ -247,7 +247,7 @@ export async function handleRead(ctx: ToolContext, input: OracleReadInput): Prom
   const resolvedPath = await resolveFilePath(sourceFile!, ctx.repoRoot, ghqRoot, project ?? sourceProject);
 
   // File found on disk
-  if (resolvedPath && isPathAllowed(resolvedPath, ctx.repoRoot, ghqRoot)) {
+  if (resolvedPath && isPathAllowed(resolvedPath, ctx.repoRoot, ghqRoot, project ?? sourceProject)) {
     const content = fs.readFileSync(resolvedPath, 'utf-8');
     await recordReadAccess(ctx, id, sourceFile, sourceProject);
     return {

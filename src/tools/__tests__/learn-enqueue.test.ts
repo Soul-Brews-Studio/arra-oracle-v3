@@ -61,6 +61,8 @@ const ORIGINAL_ENQUEUE = process.env.ORACLE_INDEXER_ENQUEUE;
 const ORIGINAL_REPO_ROOT = process.env.ORACLE_REPO_ROOT;
 const ORIGINAL_EMBEDDER = process.env.ORACLE_EMBEDDER;
 const ORIGINAL_EMBEDDING_PROVIDER = process.env.ORACLE_EMBEDDING_PROVIDER;
+const ORIGINAL_DATA_DIR = process.env.ORACLE_DATA_DIR;
+const ORIGINAL_VECTOR_DB_PATH = process.env.ORACLE_VECTOR_DB_PATH;
 
 interface Harness {
   ctx: ToolContext;
@@ -93,7 +95,19 @@ function cleanupHarness(h: Harness): void {
 // Top-level: stable tmp dir, set as ORACLE_REPO_ROOT BEFORE the dynamic
 // import below — main's REPO_ROOT is module-frozen at first import.
 const SHARED_REPO_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-learn-m5-root-'));
+// ORACLE_DATA_DIR/ORACLE_VECTOR_DB_PATH must ALSO be sandboxed before the
+// dynamic import: handleLearn's default (non-enqueue) path calls
+// getVectorStoreByModel(), which resolves its store path independently of
+// REPO_ROOT and of the ORACLE_EMBEDDER/ORACLE_EMBEDDING_PROVIDER=none pair
+// below — those only affect whether an embedding call is attempted, not
+// where the store itself lives. Without this, "default (env unset)",
+// "frontmatter interchange", and "value other than 1" all wrote real rows
+// into the live ~/.arra-oracle-v2/lancedb (ORA-SHARED-20260820-06
+// containment incident).
+const SHARED_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-learn-m5-data-'));
 process.env.ORACLE_REPO_ROOT = SHARED_REPO_ROOT;
+process.env.ORACLE_DATA_DIR = SHARED_DATA_DIR;
+process.env.ORACLE_VECTOR_DB_PATH = path.join(SHARED_DATA_DIR, 'lancedb');
 process.env.ORACLE_EMBEDDER = 'none';
 process.env.ORACLE_EMBEDDING_PROVIDER = 'none';
 const createdMarkdownFiles = new Set<string>();
@@ -140,8 +154,15 @@ const { handleLearn } = await import('../learn.ts');
 // Same module instances learn.ts resolves at call time — see markdownPathCandidates.
 const frozenModules = {
   REPO_ROOT: (await import('../../config.ts')).REPO_ROOT,
+  ORACLE_DATA_DIR: (await import('../../config.ts')).ORACLE_DATA_DIR,
   getVaultPsiRoot: (await import('../../vault/handler.ts')).getVaultPsiRoot,
 };
+// Prove the isolation actually took — a frozen-early ORACLE_DATA_DIR would
+// silently point back at the live default and this whole file's sandboxing
+// would be a no-op, same class of failure as the incident this fixes.
+if (frozenModules.ORACLE_DATA_DIR !== SHARED_DATA_DIR) {
+  throw new Error(`ORACLE_DATA_DIR isolation failed: expected ${SHARED_DATA_DIR}, got ${frozenModules.ORACLE_DATA_DIR}`);
+}
 
 describe('handleLearn — M5 enqueue branch', () => {
   let h: Harness;
@@ -248,7 +269,12 @@ describe('handleLearn — M5 enqueue branch', () => {
 // so we can't rm in afterEach — but we don't want the dir to leak forever).
 process.on('exit', () => {
   try { fs.rmSync(SHARED_REPO_ROOT, { recursive: true, force: true }); } catch {}
+  try { fs.rmSync(SHARED_DATA_DIR, { recursive: true, force: true }); } catch {}
   if (ORIGINAL_REPO_ROOT) process.env.ORACLE_REPO_ROOT = ORIGINAL_REPO_ROOT;
+  if (ORIGINAL_DATA_DIR) process.env.ORACLE_DATA_DIR = ORIGINAL_DATA_DIR;
+  else delete process.env.ORACLE_DATA_DIR;
+  if (ORIGINAL_VECTOR_DB_PATH) process.env.ORACLE_VECTOR_DB_PATH = ORIGINAL_VECTOR_DB_PATH;
+  else delete process.env.ORACLE_VECTOR_DB_PATH;
   if (ORIGINAL_EMBEDDER) process.env.ORACLE_EMBEDDER = ORIGINAL_EMBEDDER;
   else delete process.env.ORACLE_EMBEDDER;
   if (ORIGINAL_EMBEDDING_PROVIDER) process.env.ORACLE_EMBEDDING_PROVIDER = ORIGINAL_EMBEDDING_PROVIDER;

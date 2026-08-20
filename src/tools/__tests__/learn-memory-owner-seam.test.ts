@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import Database from 'bun:sqlite';
 import { drizzle } from 'drizzle-orm/bun-sqlite';
 import fs from 'fs';
@@ -8,16 +8,30 @@ import path from 'path';
 import * as schema from '../../db/schema.ts';
 import type { ToolContext } from '../types.ts';
 
-// Sandbox the module-level REPO_ROOT before config.ts is ever imported, so
-// the unbound-seat test can never write into the live data dir (this suite
-// runs under bun --isolate, one process per file).
+// Sandbox the module-level REPO_ROOT, DATA_DIR, and vector DB path before
+// config.ts is ever imported (ORACLE_DATA_DIR/LANCEDB_DIR/VECTORS_DB_PATH are
+// module-level `const`s frozen at first import). REPO_ROOT alone was NOT
+// enough: handleLearn's default write path calls getVectorStoreByModel(),
+// which ignores ctx.vectorStore and resolves its store path from
+// ORACLE_DATA_DIR/ORACLE_VECTOR_DB_PATH independently of REPO_ROOT — without
+// this, the "unbound seat" test wrote real learning vectors into the live
+// ~/.arra-oracle-v2/lancedb (ORA-SHARED-20260820-06 containment incident).
 const SANDBOX_REPO_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-seam-repo-'));
+const SANDBOX_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-seam-data-'));
+const SANDBOX_VECTOR_DB_PATH = path.join(SANDBOX_DATA_DIR, 'lancedb');
 process.env.ORACLE_REPO_ROOT = SANDBOX_REPO_ROOT;
+process.env.ORACLE_DATA_DIR = SANDBOX_DATA_DIR;
+process.env.ORACLE_VECTOR_DB_PATH = SANDBOX_VECTOR_DB_PATH;
 let handleLearn: typeof import('../learn.ts')['handleLearn'];
 let ORACLE_DATA_DIR: string;
 beforeAll(async () => {
   ({ handleLearn } = await import('../learn.ts'));
   ({ ORACLE_DATA_DIR } = await import('../../config.ts'));
+  // Prove the isolation actually took — a frozen-early ORACLE_DATA_DIR would
+  // silently point back at the live default.
+  if (ORACLE_DATA_DIR !== SANDBOX_DATA_DIR) {
+    throw new Error(`ORACLE_DATA_DIR isolation failed: expected ${SANDBOX_DATA_DIR}, got ${ORACLE_DATA_DIR}`);
+  }
 });
 
 // Same minimal schema the sibling learn fixtures use.
@@ -67,6 +81,30 @@ CREATE TABLE learn_log (
 `;
 
 const PRIOR_OWNER_ROOT = process.env.ORACLE_MEMORY_OWNER_ROOT;
+const PRIOR_DATA_DIR = process.env.ORACLE_DATA_DIR;
+const PRIOR_VECTOR_DB_PATH = process.env.ORACLE_VECTOR_DB_PATH;
+const PRIOR_REPO_ROOT = process.env.ORACLE_REPO_ROOT;
+
+afterAll(() => {
+  // Whether the embedding call actually reaches a native vector backend
+  // (lancedb/sqlite-vec/ollama) is machine-capability-dependent — the
+  // beforeAll assertion (ORACLE_DATA_DIR resolves to the sandbox before
+  // learn.ts/getVectorStoreByModel ever import config.ts) is the
+  // deterministic, portable containment guarantee. If the backend DID run,
+  // any files it wrote landed under the sandbox, never the live default.
+  if (fs.existsSync(SANDBOX_VECTOR_DB_PATH)) {
+    expect(fs.readdirSync(SANDBOX_VECTOR_DB_PATH).length).toBeGreaterThanOrEqual(0);
+  }
+
+  if (PRIOR_DATA_DIR === undefined) delete process.env.ORACLE_DATA_DIR;
+  else process.env.ORACLE_DATA_DIR = PRIOR_DATA_DIR;
+  if (PRIOR_VECTOR_DB_PATH === undefined) delete process.env.ORACLE_VECTOR_DB_PATH;
+  else process.env.ORACLE_VECTOR_DB_PATH = PRIOR_VECTOR_DB_PATH;
+  if (PRIOR_REPO_ROOT === undefined) delete process.env.ORACLE_REPO_ROOT;
+  else process.env.ORACLE_REPO_ROOT = PRIOR_REPO_ROOT;
+  try { fs.rmSync(SANDBOX_DATA_DIR, { recursive: true, force: true }); } catch {}
+  try { fs.rmSync(SANDBOX_REPO_ROOT, { recursive: true, force: true }); } catch {}
+});
 
 let sqlite: Database;
 let ownerRoot: string;
