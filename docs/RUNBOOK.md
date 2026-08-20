@@ -110,10 +110,11 @@ Legacy manual path (only if the LaunchAgent is booted out):
   **Set formulas, exact** (ORA-SHARED-20260820-06): `changed` = docs whose
   current source content-hash differs from (or is absent from)
   `vector_index_manifest` — what the dry-run reports it will embed. `stale`
-  = manifest rows with no matching row left in `oracle_documents` at all
-  (a real deletion — supersede never removes a row, so it never produces
-  `stale` here). `orphans` = rows physically in the vector engine but
-  absent from the manifest (e.g. from `oracle_learn`'s inline path above) —
+  = manifest − current sync input, where current input = `oracle_documents`
+  ⋈ `oracle_fts`; physical doc deletion OR missing FTS can produce stale.
+  Supersede alone does not while both rows remain joined. `orphans` = rows
+  physically in the vector engine but absent from the manifest (e.g. from
+  `oracle_learn`'s inline path above) —
   **this sync tool does not see or touch orphans**; reconciling them needs a
   separate engine-vs-manifest comparison, not this command.
 - **HELD/gated:** `scope=all` full indexer and any destructive prune. Prune
