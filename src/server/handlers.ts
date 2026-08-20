@@ -23,7 +23,10 @@ import { buildLearningMarkdown, dateSlug } from '../learn/markdown.ts';
 import { localNativeVectorDisabledReason, localVectorIndexMissingReason, logLocalVectorDisabled, noteLocalVectorEnabled } from '../vector/cpu-capabilities.ts';
 import { isVectorSectionEnabled } from '../vector/config.ts';
 import { candidatePoolSize } from '../search/retrieve-depth.ts';
+import { combineResults as combineSearchResults } from '../search/fusion.ts';
 export { cosineDistanceToSimilarity } from '../vector/scoring.ts';
+/** Re-exported for the fusion-consolidation test proof (search/__tests__/fusion.test.ts) only. */
+export { combineSearchResults };
 
 // Module-level proxy instance — bound to VECTOR_URL at boot. If VECTOR_URL is
 // unset, this is null and the local vector adapter runs in-process (legacy
@@ -293,51 +296,6 @@ function normalizeRank(rank: number): number {
   // FTS5 rank is negative (more negative = better match)
   // Convert to positive 0-1 score
   return Math.min(1, Math.max(0, 1 / (1 + Math.abs(rank))));
-}
-
-/**
- * Combine FTS and vector results with rank-fusion hybrid scoring.
- *
- * Raw FTS rank and vector similarity are not calibrated to the same scale. Use
- * each leg's normalized score plus reciprocal rank, then boost overlap. This
- * keeps strong keyword-only hits visible while still letting semantic-only
- * vector hits fill gaps in natural-language recall.
- */
-function combineSearchResults(fts: SearchResult[], vector: SearchResult[]): SearchResult[] {
-  const seen = new Map<string, SearchResult>();
-
-  const addScore = (base: number | undefined, rank: number, scoreWeight: number, rankWeight: number) => {
-    const score = Math.max(0, Math.min(1, base ?? 0));
-    return score * scoreWeight + (1 / (rank + 1)) * rankWeight;
-  };
-
-  fts.forEach((r, index) => {
-    seen.set(r.id, {
-      ...r,
-      score: addScore(r.score, index, 0.7, 0.3),
-    });
-  });
-
-  vector.forEach((r, index) => {
-    const vectorScore = addScore(r.score, index, 0.65, 0.35);
-    const existing = seen.get(r.id);
-    if (existing) {
-      seen.set(r.id, {
-        ...existing,
-        score: Math.min(1, (existing.score || 0) + vectorScore + 0.12),
-        source: 'hybrid' as const,
-        distance: r.distance,
-        model: r.model,
-      });
-    } else {
-      seen.set(r.id, {
-        ...r,
-        score: vectorScore,
-      });
-    }
-  });
-
-  return Array.from(seen.values()).sort((a, b) => (b.score || 0) - (a.score || 0));
 }
 
 /**

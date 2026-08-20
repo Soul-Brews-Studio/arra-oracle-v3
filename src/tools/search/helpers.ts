@@ -1,5 +1,18 @@
 import { augmentQueryWithAcronyms } from '../../search/acronyms.ts';
+import { combineResults as sharedCombineResults } from '../../search/fusion.ts';
 import type { CombinedSearchResult, FtsResult, PointerResult, SearchConfidence, SearchProvenance, VectorResult } from './types.ts';
+
+/** Re-exports the shared FTS+vector(+pointer) fusion — see search/fusion.ts. */
+export function combineResults(
+  ftsResults: FtsResult[],
+  vectorResults: VectorResult[],
+  ftsWeight = 0.5,
+  vectorWeight = 0.5,
+  pointerResults: PointerResult[] = [],
+  pointerWeight = 0.35,
+): CombinedSearchResult[] {
+  return sharedCombineResults(ftsResults, vectorResults, ftsWeight, vectorWeight, pointerResults, pointerWeight) as CombinedSearchResult[];
+}
 
 const FTS_TOKEN_LIMIT = 32;
 const FTS_SCORE_FLOOR = 0.9;
@@ -39,90 +52,6 @@ export function parseConceptsFromMetadata(concepts: unknown): string[] {
     }
   }
   return [];
-}
-
-export function combineResults(
-  ftsResults: FtsResult[],
-  vectorResults: VectorResult[],
-  ftsWeight = 0.5,
-  vectorWeight = 0.5,
-  pointerResults: PointerResult[] = [],
-  pointerWeight = 0.35,
-): CombinedSearchResult[] {
-  const resultMap = new Map<string, Omit<CombinedSearchResult, 'score'> & {
-    ftsScore?: number;
-    vectorScore?: number;
-    pointerScore?: number;
-  }>();
-
-  for (const result of ftsResults) {
-    resultMap.set(result.id, {
-      id: result.id,
-      type: result.type,
-      content: result.content,
-      source_file: result.source_file,
-      concepts: result.concepts,
-      ftsScore: result.score,
-      source: 'fts',
-    });
-  }
-
-  for (const result of pointerResults) {
-    const existing = resultMap.get(result.id);
-    if (existing) {
-      existing.pointerScore = result.pointerScore;
-      existing.pointerMatches = result.pointerMatches;
-      existing.source = existing.source === 'pointer' ? 'pointer' : 'hybrid';
-      continue;
-    }
-    resultMap.set(result.id, {
-      id: result.id,
-      type: result.type,
-      content: result.content,
-      source_file: result.source_file,
-      concepts: result.concepts,
-      pointerScore: result.pointerScore,
-      pointerMatches: result.pointerMatches,
-      source: 'pointer',
-    });
-  }
-
-  for (const result of vectorResults) {
-    const existing = resultMap.get(result.id);
-    if (existing) {
-      existing.vectorScore = result.score;
-      existing.source = 'hybrid';
-      existing.distance = result.distance;
-      existing.model = result.model;
-      continue;
-    }
-    resultMap.set(result.id, {
-      id: result.id,
-      type: result.type,
-      content: result.content,
-      source_file: result.source_file,
-      concepts: result.concepts,
-      vectorScore: result.score,
-      distance: result.distance,
-      model: result.model,
-      source: 'vector',
-    });
-  }
-
-  const combined = Array.from(resultMap.values()).map((result) => {
-    const base = result.source === 'hybrid'
-      ? ((ftsWeight * (result.ftsScore ?? 0)) + (vectorWeight * (result.vectorScore ?? 0))) * 1.1
-      : result.source === 'fts'
-        ? (result.ftsScore ?? 0) * ftsWeight
-        : result.source === 'vector'
-          ? (result.vectorScore ?? 0) * vectorWeight
-          : (result.pointerScore ?? 0) * 0.7;
-    const score = Math.min(1, base + ((result.source === 'pointer' ? 0 : pointerWeight) * (result.pointerScore ?? 0)));
-    return { ...result, score };
-  });
-
-  combined.sort((a, b) => b.score - a.score);
-  return combined;
 }
 
 /**
