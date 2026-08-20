@@ -50,12 +50,16 @@ MCP-side: `oracle_stats` — fts_status healthy, vector_status connected.
   vector engine", not "is the vector index current". `vector.freshness.lastIndexed`
   is computed from SQLite (`MAX(oracle_documents.indexed_at)` joined to FTS),
   **not** from `vector_index_manifest` — a document indexed a minute ago can
-  make this field look fresh while the vector side is stale for hours. Read
-  `vector.freshness.docsPending`/`docsExtra` for the real gap. On the :8081
-  sidecar, `/health`'s `ready` field means "this process has served one
-  successful `/vectors/*` request since boot", not "the vector engine is
-  healthy" — a fresh restart legitimately shows `ready:false` until the
-  first real query lands; that alone is not a fault.
+  make this field look fresh while the vector side is stale for hours.
+  `vector.freshness.docsPending`/`docsExtra` (`src/vector/health.ts:125-140`)
+  are an **aggregate count** comparison (`source.docs` vs `max(engine counts)`),
+  membership-blind — a coarse drift signal, not exact per-document freshness.
+  For an exact answer, compare source↔manifest↔engine ID sets directly. On the
+  :8081 sidecar, `/health`'s `ready` field (`src/vector/proxy-server.ts:29-35`)
+  means "the store finished initializing — `connect()`+`ensureCollection()`
+  succeeded once" — set BEFORE the first actual `/vectors/*` operation runs,
+  not after one succeeds. A fresh restart legitimately shows `ready:false`
+  until something touches the store; that alone is not a fault.
 
 ## 3. Restart
 
@@ -89,9 +93,13 @@ Legacy manual path (only if the LaunchAgent is booted out):
   checkout, not the canonical source root, and indexes 0 documents.
 - **Ingest is hybrid, not one path** (ORA-SHARED-20260820-06): `oracle_learn`'s
   default write embeds into the vector store **inline**, bypassing
-  `vector_index_manifest` entirely, and fails **silently** back to FTS-only
-  on any embedder error (search still works via FTS; the vector side is
-  just behind). Retro-index and full reindex are **FTS-only by design** —
+  `vector_index_manifest` entirely. On any embedder error the ingest still
+  reports `success:true` (the FTS write already landed) but sets
+  `embedding:"failed"` + `embeddingError` in the tool response, plus a
+  server-log warning (`src/tools/learn.ts:241-258`) — **not silent, but the
+  caller must check the embedding field itself**; a caller that only checks
+  `success` won't notice the vector side fell behind. Retro-index and full
+  reindex are **FTS-only by design** —
   they call `storeDocuments(..., vectorClient=null, ...)` and never touch
   the vector store. Vector coverage for anything written through those
   paths only catches up via the manual sync below — there is no scheduler;
@@ -180,10 +188,7 @@ vectors (section 4). Finish by re-running section 2 health checks.
   a duplicate identity (registry pollution). The owning fix is the
   resolver's origin-mapping fallback (`resolveGhqAliasTargetByOrigin`,
   `f0312b74` — matches by the alias's real-target git origin, fails closed
-  on 0 or >1 matches, never creates anything). Mechanically checked
-  pre-deploy by `orchestrator-vnext/scripts/runtime-change-preflight.sh`
-  (worktree-outside-live, base==live-HEAD, clean-worktree, dirty-digest,
-  reviewed-SHA invariants).
+  on 0 or >1 matches, never creates anything).
 
 ## 8. Escalation
 
