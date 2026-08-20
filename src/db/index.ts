@@ -57,7 +57,7 @@ function openDefaultStorage(): StorageBackend {
   if (!defaultStorage) {
     const readonly = defaultStorageReadonly();
     defaultStorage = createStorageBackend({ dbPath: defaultDbPath(), readonly });
-    if (readonly) console.log('[DB] Opened in READONLY mode');
+    if (readonly) console.error('[DB] Opened in READONLY mode');
   }
   return defaultStorage;
 }

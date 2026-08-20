@@ -36,7 +36,7 @@ export class OracleMCPServer {
   private vectorStatus: ToolContext['vectorStatus'] = 'unknown';
   private vectorReason: string | undefined; private embedderProvider: string | undefined; private lastEmbedderWarning: string | undefined;
   private readOnly: boolean;
-  private readonly profile: 'read-mostly' | 'delegate';
+  private readonly profile: 'read-mostly' | 'delegate' | 'owner';
   private version = pkg.version;
   private disabledTools = new Set<string>();
   private enabledToolNames: string[] = [];
@@ -54,7 +54,11 @@ export class OracleMCPServer {
     this.profile = options.profile ?? 'read-mostly';
     // Delegate implies read-only regardless of the caller's readOnly value —
     // a worker seat must not become writable through a second option path.
-    this.readOnly = this.profile === 'delegate' || (options.readOnly ?? false);
+    this.readOnly = this.profile === 'delegate'
+      ? true
+      : this.profile === 'owner'
+        ? false
+        : (options.readOnly ?? false);
     this.embeddedDeps = options.embeddedDeps;
     this.watchToolGroups = options.watchToolGroups ?? watchToolGroupConfig;
     this.toolAllowlist = options.toolAllowlist ? new Set(options.toolAllowlist) : null;
@@ -63,7 +67,12 @@ export class OracleMCPServer {
     // included, with no environment default able to re-enable it (spec v5
     // blocker 5 — the launcher line-31 default must not reach a delegate).
     this.oracleApiBase = this.profile === 'delegate' ? null : resolveOracleApiBase();
-    this.remoteWriteApiBase = this.profile === 'delegate' ? null : resolveRemoteWriteApiBase();
+    this.remoteWriteApiBase = this.profile === 'delegate' || this.profile === 'owner'
+      ? null
+      : resolveRemoteWriteApiBase();
+    if (this.profile === 'owner' && !this.oracleApiBase) {
+      throw new Error('ORACLE_PROFILE=owner requires ORACLE_HTTP_URL for the single owner-core write path');
+    }
     if (this.profile === 'delegate' && process.env.ORACLE_MEMORY_OWNER_ROOT) {
       // A delegate owns no ψ (birth spec v5 D1): an owner root reaching this
       // process is a launch-path defect, so drop it rather than honor it.
@@ -81,6 +90,9 @@ export class OracleMCPServer {
     });
     if (this.profile === 'delegate') {
       console.error('[Oracle] Running in DELEGATE mode (no-retro worker seat: write tools structurally absent; ORACLE_REMOTE_WRITE_URL and ORACLE_HTTP_URL ignored)');
+    }
+    if (this.profile === 'owner') {
+      console.error(`[Oracle] Running in OWNER mode (full approved tool surface → ${this.oracleApiBase})`);
     }
     if (this.readOnly) {
       // Transparency (Riddler Oracle101 compare 2026-08-18): a seat holding the
@@ -150,7 +162,10 @@ export class OracleMCPServer {
       if (embedderStatus.status !== 'degraded') throw error;
       this.vectorStore = createFtsOnlyVectorStore(embedderStatus.reason ?? 'embedder unavailable');
     }
-    const { sqlite, db } = createDatabase(DB_PATH, { readonly: this.readOnly });
+    // HTTP-proxy owners keep the HTTP process as the sole write owner. Local-only
+    // helpers such as oracle_recap may still need embedded reads, but this MCP
+    // process must never open a second writable database connection.
+    const { sqlite, db } = createDatabase(DB_PATH, { readonly: this.readOnly || !!this.oracleApiBase });
     this.sqlite = sqlite;
     this.db = db;
     await this.verifyVectorHealth();

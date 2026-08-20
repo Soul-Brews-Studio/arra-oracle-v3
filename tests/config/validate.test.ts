@@ -102,6 +102,38 @@ describe('config env validation', () => {
     }
   });
 
+  test('owner HTTP profile treats local storage as read-only', () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'arra-config-owner-proxy-'));
+    const dbPath = join(dataDir, 'oracle.db');
+    const vectorPath = join(dataDir, 'vectors.db');
+    writeFileSync(dbPath, 'db');
+    writeFileSync(vectorPath, 'vector');
+    chmodSync(dbPath, 0o400);
+    chmodSync(vectorPath, 0o400);
+    chmodSync(dataDir, 0o500);
+
+    try {
+      const result = validateEnv({
+        env: {
+          HOME: '/tmp/arra-home',
+          ORACLE_PROFILE: 'owner',
+          ORACLE_HTTP_URL: 'http://127.0.0.1:47778',
+          ORACLE_READ_ONLY: 'false',
+          ORACLE_DATA_DIR: dataDir,
+          ORACLE_DB_PATH: dbPath,
+          ORACLE_VECTOR_DB_PATH: vectorPath,
+        },
+        emitOptionalWarnings: false,
+      });
+      expect(result.env.ORACLE_DATA_DIR).toBe(dataDir);
+    } finally {
+      chmodSync(dataDir, 0o700);
+      chmodSync(dbPath, 0o600);
+      chmodSync(vectorPath, 0o600);
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
+
   test('requires connection settings for remote vector backends', () => {
     expect(() => validateEnv({ env: { HOME: '/tmp/arra-home', ORACLE_VECTOR_DB: 'qdrant' }, emitOptionalWarnings: false }))
       .toThrow(/Qdrant vector DB requires QDRANT_URL/);

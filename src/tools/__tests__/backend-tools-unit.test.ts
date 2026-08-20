@@ -179,6 +179,13 @@ describe('backend MCP tools unit coverage', () => {
     expect(fallback.source).toBe('fts_cache');
     expect(fallback.content).toContain('Vector adapters');
 
+    const fallbackBySearchPath = parse(await handleRead(ctx, {
+      file: 'ψ/memory/learnings/vector.md',
+    }));
+    expect(fallbackBySearchPath.source).toBe('fts_cache');
+    expect(fallbackBySearchPath.document_id).toBe('doc-learning');
+    expect(fallbackBySearchPath.content).toContain('Vector adapters');
+
     const missing = await handleRead(ctx, { id: 'missing' });
     expect(missing.isError).toBe(true);
     expect(parse(missing).error).toContain('Document not found');
@@ -204,6 +211,34 @@ describe('backend MCP tools unit coverage', () => {
       const viaProject = parse(await handleRead(ctx, { file: 'github.com/org/repo/ψ/memory/note.md' }));
       expect(viaProject.source).toBe('file');
       expect(viaProject.content).toContain('via symlink');
+    } finally {
+      if (savedGhqRoot === undefined) delete process.env.GHQ_ROOT;
+      else process.env.GHQ_ROOT = savedGhqRoot;
+    }
+  });
+
+  test('handleRead resolves an exact search source_file through its DB project', async () => {
+    const savedGhqRoot = process.env.GHQ_ROOT;
+    try {
+      const ctx = makeCtx();
+      const targetRepo = path.join(ctx.repoRoot, 'agent-hub', 'arra');
+      fs.mkdirSync(path.join(targetRepo, 'ψ/principles'), { recursive: true });
+      fs.writeFileSync(
+        path.join(targetRepo, 'ψ/principles/nothing.md'),
+        '# exact source_file round trip',
+      );
+
+      const ghqRoot = fs.realpathSync(tempRoot('arra-ghq-source-file-'));
+      fs.mkdirSync(path.join(ghqRoot, 'github.com/soul'), { recursive: true });
+      fs.symlinkSync(targetRepo, path.join(ghqRoot, 'github.com/soul/arra'));
+      process.env.GHQ_ROOT = ghqRoot;
+
+      // oracle_search returns source_file without its project prefix. The read
+      // call must recover the unique DB project's checkout from that exact value.
+      const bySearchPath = parse(await handleRead(ctx, { file: 'ψ/principles/nothing.md' }));
+      expect(bySearchPath.source).toBe('file');
+      expect(bySearchPath.project).toBe('github.com/soul/arra');
+      expect(bySearchPath.content).toContain('exact source_file round trip');
     } finally {
       if (savedGhqRoot === undefined) delete process.env.GHQ_ROOT;
       else process.env.GHQ_ROOT = savedGhqRoot;

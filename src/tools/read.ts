@@ -193,6 +193,28 @@ export async function handleRead(ctx: ToolContext, input: OracleReadInput): Prom
     project = row.project;
   }
 
+  // Search results expose source_file and project as separate fields, while the
+  // documented follow-up call commonly passes only the exact source_file. When
+  // that relative path belongs to one active DB project, recover the project so
+  // the same search result can resolve through its ghq checkout. Do not guess
+  // when the relative path is shared by multiple projects; callers can use id.
+  if (sourceFile && !project) {
+    const rows = tenantId
+      ? ctx.sqlite.prepare(`
+          SELECT DISTINCT project FROM oracle_documents
+          WHERE source_file = ? AND tenant_id = ? AND superseded_by IS NULL
+            AND project IS NOT NULL AND trim(project) != ''
+          LIMIT 2
+        `).all(sourceFile, tenantId) as Array<{ project: string }>
+      : ctx.sqlite.prepare(`
+          SELECT DISTINCT project FROM oracle_documents
+          WHERE source_file = ? AND superseded_by IS NULL
+            AND project IS NOT NULL AND trim(project) != ''
+          LIMIT 2
+        `).all(sourceFile) as Array<{ project: string }>;
+    if (rows.length === 1) project = rows[0].project;
+  }
+
   const sourceProject = project ?? (sourceFile ? extractProject(sourceFile)?.project ?? null : null);
   if (tenantId && sourceProject && !projectMatchesTenant(sourceProject, tenantId)) {
     return notFound(id || sourceFile || 'file');
@@ -221,27 +243,44 @@ export async function handleRead(ctx: ToolContext, input: OracleReadInput): Prom
     };
   }
 
-  // Fallback: try FTS indexed content (if we have an id)
-  if (id) {
-    const ftsRow = ctx.sqlite.prepare(
-      'SELECT content FROM oracle_fts WHERE id = ?'
-    ).get(id) as { content: string } | null;
+  // Fallback: indexed content remains a valid, explicitly labelled cache when
+  // the source file moved or disappeared. This must also work for the exact
+  // source_file returned by oracle_search, not only when the caller copied id.
+  const ftsRow: { id: string; content: string; project?: string | null } | null = id
+    ? ctx.sqlite.prepare('SELECT id, content FROM oracle_fts WHERE id = ?')
+      .get(id) as { id: string; content: string } | null
+    : tenantId
+      ? ctx.sqlite.prepare(`
+          SELECT d.id, f.content, d.project
+          FROM oracle_documents d JOIN oracle_fts f ON f.id = d.id
+          WHERE d.source_file = ? AND d.tenant_id = ? AND d.superseded_by IS NULL
+          ORDER BY CASE WHEN d.id LIKE '%__chunk_%' THEN 1 ELSE 0 END, d.updated_at DESC
+          LIMIT 1
+        `).get(sourceFile!, tenantId) as { id: string; content: string; project: string | null } | null
+      : ctx.sqlite.prepare(`
+          SELECT d.id, f.content, d.project
+          FROM oracle_documents d JOIN oracle_fts f ON f.id = d.id
+          WHERE d.source_file = ? AND d.superseded_by IS NULL
+          ORDER BY CASE WHEN d.id LIKE '%__chunk_%' THEN 1 ELSE 0 END, d.updated_at DESC
+          LIMIT 1
+        `).get(sourceFile!) as { id: string; content: string; project: string | null } | null;
 
-    if (ftsRow) {
-      await recordReadAccess(ctx, id, sourceFile, sourceProject);
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            content: ftsRow.content,
-            source_file: sourceFile,
-            resolved_path: null,
-            source: 'fts_cache',
-            ...(project ? { project } : {}),
-          }),
-        }],
-      };
-    }
+  if (ftsRow) {
+    const cachedProject = project ?? ftsRow.project ?? null;
+    await recordReadAccess(ctx, ftsRow.id, sourceFile, cachedProject);
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          content: ftsRow.content,
+          document_id: ftsRow.id,
+          source_file: sourceFile,
+          resolved_path: null,
+          source: 'fts_cache',
+          ...(cachedProject ? { project: cachedProject } : {}),
+        }),
+      }],
+    };
   }
 
   return {

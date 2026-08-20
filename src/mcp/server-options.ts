@@ -23,7 +23,7 @@ export type OracleMCPServerOptions = {
    * never resolves a remote-write or HTTP-proxy base, so oracle_index_retro,
    * oracle_learn and oracle_supersede are structurally absent from the catalog.
    */
-  profile?: 'read-mostly' | 'delegate';
+  profile?: 'read-mostly' | 'delegate' | 'owner';
   toolGroups?: ToolGroupConfig;
   toolAllowlist?: readonly string[];
   embeddedDeps?: EmbeddedDeps | Promise<EmbeddedDeps>;

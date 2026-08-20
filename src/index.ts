@@ -20,7 +20,11 @@ export function filterAdvertisedTools<T extends AdvertisedTool>(
 
 export async function main(): Promise<void> {
   const readOnly = process.env.ORACLE_READ_ONLY === 'true' || process.argv.includes('--read-only');
-  const profile = process.env.ORACLE_PROFILE === 'delegate' ? 'delegate' as const : undefined;
+  const profile = process.env.ORACLE_PROFILE === 'delegate'
+    ? 'delegate' as const
+    : process.env.ORACLE_PROFILE === 'owner'
+      ? 'owner' as const
+      : undefined;
   const server = new OracleMCPServer({ readOnly, profile });
   try {
     console.error('[Startup] Pre-connecting to vector store...');

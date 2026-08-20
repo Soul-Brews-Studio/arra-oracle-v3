@@ -51,8 +51,12 @@ export function validateEnv(options: ValidateEnvOptions = {}): ConfigValidationR
   validateEnums(env, issues);
   validateDatabaseUrl(env, issues);
   const readOnly = env.ORACLE_READ_ONLY?.trim().toLowerCase() === 'true';
-  validateRuntimePaths(env, issues, readOnly);
-  validateVectorConnectionConfig(env, issues, readOnly);
+  const ownerHttpProxy = env.ORACLE_PROFILE?.trim().toLowerCase() === 'owner'
+    && filled(env.ORACLE_HTTP_URL)
+    && env.ORACLE_HTTP_URL?.trim().toLowerCase() !== 'embedded';
+  const localStorageReadOnly = readOnly || ownerHttpProxy;
+  validateRuntimePaths(env, issues, localStorageReadOnly);
+  validateVectorConnectionConfig(env, issues, localStorageReadOnly);
   validateProviderRequirements(env, issues);
 
   if (issues.length) throw new ConfigValidationError(issues);
