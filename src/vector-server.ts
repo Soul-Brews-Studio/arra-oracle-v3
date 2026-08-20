@@ -17,6 +17,7 @@ import { swagger } from '@elysiajs/swagger';
 import { createCorsMiddleware } from './middleware/cors.ts';
 import { loadVectorConfig, generateDefaultConfig, configToModels } from './vector/config.ts';
 import type { VectorServerConfig, VectorModelRegistryEntry } from './vector/config-types.ts';
+import type { VectorStoreAdapter } from './vector/adapter.ts';
 import { warmEmbeddingProviderDetection } from './vector/provider-detection.ts';
 import { vectorRoutes } from './routes/vector/index.ts';
 import { createVectorProxyServer } from './vector/proxy-server.ts';
@@ -52,18 +53,32 @@ export function resolvePrimaryVectorModel(
   return { key, entry: models[key] };
 }
 
-function proxyServerOptions(cfg: VectorServerConfig, version: string) {
+function proxyServerOptions(
+  cfg: VectorServerConfig,
+  version: string,
+  storeFactory: (entry: VectorModelRegistryEntry) => VectorStoreAdapter,
+) {
   const primary = resolvePrimaryVectorModel(cfg);
   if (!primary) return { version };
   return {
     version,
     collectionName: primary.entry.collection,
-    store: createVectorStoreForModel(primary.entry),
+    store: storeFactory(primary.entry),
   };
 }
 
 // ── App ─────────────────────────────────────────────────────────────
-export function createVectorServerApp() {
+// cfg/storeFactory default to the real module-level config and the real
+// LanceDB/Qdrant/etc. store builder — production calls createVectorServerApp()
+// with no args and gets exactly that. Tests inject a fake config + a fake
+// store factory so they drive the SAME wiring line production runs, instead
+// of constructing their own parallel proxy server (a prior test in this file
+// did that and stayed green through a mutation-tested revert of this wiring —
+// Riddler catch, ORA-SHARED-20260820-06 delta).
+export function createVectorServerApp(
+  cfg: VectorServerConfig = config,
+  storeFactory: (entry: VectorModelRegistryEntry) => VectorStoreAdapter = createVectorStoreForModel,
+) {
   return new Elysia()
     .use(createCorsMiddleware())
     .use(
@@ -84,7 +99,7 @@ export function createVectorServerApp() {
       status: 'ok',
       docs: '/swagger',
     }))
-    .use(createVectorProxyServer(proxyServerOptions(config, pkg.version)))
+    .use(createVectorProxyServer(proxyServerOptions(cfg, pkg.version, storeFactory)))
     .use(new Elysia({ prefix: '/api' }).use(searchEndpoint))
     .use(vectorRoutes);
 }
