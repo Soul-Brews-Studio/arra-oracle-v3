@@ -1,7 +1,12 @@
 # Oracle (arra-oracle-v3) — operations runbook
 
 Format: `rules/oracle-runbook-standard.md` (claude-config-repo). Every command
-below was executed and verified during the 2026-08-16/17 incident recovery.
+below is verified current as of 2026-08-21 (launchd-only operational path,
+including the `/api/health/live` liveness probe deployed that day); dated
+inline citations below trace individual facts to when they were proven —
+several sections still reference the 2026-08-16/17 incident recovery where
+that remains accurate. If a procedure changes, this file changes in the
+same commit.
 
 ## 1. Identity & layout
 
@@ -67,11 +72,30 @@ MCP-side: `oracle_stats` — fts_status healthy, vector_status connected.
 launchctl kickstart -k gui/$(id -u)/com.tt3p.arra-oracle    # server (launchd-owned)
 launchctl kickstart -k gui/$(id -u)/com.tt3p.arra-vector    # vector sidecar
 ```
-One-time installs (also used to re-adopt an unmanaged process after manual runs):
-`bun run server:install-launchagent` · `bun run vector:install-launchagent`.
-Legacy manual path (only if the LaunchAgent is booted out):
-`kill -TERM $(lsof -tiTCP:47778 -sTCP:LISTEN)` then `bun run server:ensure`
-(start-only, no stop/restart flag); env comes from repo `.env` via WorkingDirectory.
+Installs (idempotent — also re-adopts an unmanaged process already
+listening on the port, and always waits for a real health response before
+exiting 0): `bun run server:install-launchagent` · `bun run vector:install-launchagent`
+(`scripts/install-server-launchagent.sh` / `install-vector-launchagent.sh`;
+verified 2026-08-21 — both `bootout` any currently-loaded job, `bootstrap`
++ `kickstart -k` it back, then poll `/api/health/live` (server, up to 15s)
+/ `/health` (vector, up to 10s) before failing loud with the log path to
+inspect).
+
+**Stop without auto-respawn.** Both LaunchAgents set
+`KeepAlive.SuccessfulExit=false` (confirmed live, 2026-08-21 — `plutil -p
+~/Library/LaunchAgents/com.tt3p.arra-oracle.plist`), meaning launchd
+restarts the job on any exit that isn't a clean `0` — a bare `kill` (any
+signal) therefore respawns it immediately rather than stopping it. To
+actually take the job down (e.g. before swapping the DB file, section 5):
+```sh
+launchctl bootout gui/$(id -u)/com.tt3p.arra-oracle    # server
+launchctl bootout gui/$(id -u)/com.tt3p.arra-vector    # vector sidecar
+```
+Bring back with the same install commands above — they're safe to re-run
+any time. `bun run server:ensure` (`bun src/ensure-server.ts`) is a
+manual, non-launchd dev-mode starter only (see section 1); it does not stop
+or replace the launchd-managed process and must not be used as a restart
+path while launchd owns the job.
 
 ## 4. Data operations
 
@@ -137,15 +161,20 @@ chmod -R a-w ~/.arra-oracle-v2/exports/<name>
 A bundle-import/restore has **never been executed** — treat bundles as verified
 off-site evidence, NOT as the operational restore path (open item, section 8).
 
-**Type B — `.db` backup** (`oracle.db.backup-*` auto pre-run copies). This is
-the ONLY proven restore path (executed 2026-08-16 incident recovery):
+**Type B — `.db` backup** (`oracle.db.backup-*` auto pre-run copies). The
+stop/swap/restart bracket below is launchd-consistent as of 2026-08-21
+(section 3) — the DB-swap step itself is the ONLY proven restore path
+(executed 2026-08-16 incident recovery):
 ```sh
-kill -TERM $(lsof -tiTCP:47778 -sTCP:LISTEN)
+launchctl bootout gui/$(id -u)/com.tt3p.arra-oracle   # stop WITHOUT auto-respawn (section 3)
 lsof ~/.arra-oracle-v2/oracle.db*        # GATE: must print NOTHING (any other
                                          # holder, e.g. an indexer, must exit first)
 sqlite3 <backup.db> ".backup '$HOME/.arra-oracle-v2/oracle.db'"
-cd ~/tt3p/ghq/github.com/Soul-Brews-Studio/arra-oracle-v3 && bun run server:ensure
+cd ~/tt3p/ghq/github.com/Soul-Brews-Studio/arra-oracle-v3 && bun run server:install-launchagent
 ```
+Do not use a bare `kill` here — with `KeepAlive.SuccessfulExit=false`
+(section 3) launchd would respawn the server against the OLD `oracle.db`
+before the swap lands, racing the restore.
 Then re-run section 2 and compare counts — they must match exactly:
 ```sh
 sqlite3 -readonly <backup.db> "SELECT count(*) FROM oracle_documents;"
@@ -159,10 +188,15 @@ git clone git@github.com:TTT3P/arra-oracle-v3.git && cd arra-oracle-v3 && git ch
 bun install
 printf 'OLLAMA_BASE_URL=http://127.0.0.1:11434\nORACLE_EMBEDDING_MODEL=bge-m3\n' > .env
 ollama pull bge-m3
-bun run server:ensure
-curl -s http://127.0.0.1:47778/api/health   # expect: status=ok, state=healthy
+bun run server:install-launchagent    # installs + starts the launchd-owned server (section 3)
+bun run vector:install-launchagent    # installs + starts the launchd-owned vector sidecar (section 3)
+curl -s http://127.0.0.1:47778/api/health/live   # expect: status=ok, state=live
+curl -s http://127.0.0.1:47778/api/health        # expect: status=ok, state=healthy
 ```
-Then restore the newest `.db` backup via the Type B procedure (section 5 —
+Both install commands already wait for their own health check before
+exiting 0 (section 3) — a fresh install has no LaunchAgent to re-adopt yet,
+so this is the same idempotent path used for every later restart. Then
+restore the newest `.db` backup via the Type B procedure (section 5 —
 the only proven restore path) or reindex from the canonical root, and drain
 vectors (section 4). Finish by re-running section 2 health checks.
 
