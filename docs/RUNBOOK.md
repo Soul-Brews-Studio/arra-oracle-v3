@@ -58,21 +58,24 @@ MCP-side: `oracle_stats` — fts_status healthy, vector_status connected.
   membership-blind — a coarse drift signal, not exact per-document freshness.
   For an exact answer, compare source↔manifest↔engine ID sets directly.
 
-  **:8081 sidecar `/health`, current as of `7eed7340` (ORA-SHARED-20260821-10) — measured live:**
+  **:8081 sidecar `/health`, current as of `7eed7340` (ORA-SHARED-20260821-10):**
   ```sh
   curl -fsS http://127.0.0.1:8081/health
-  # expect: HTTP 200 {"status":"ok","ready":true,...}
-  # failed connect/ensureCollection -> HTTP 503 {"status":"degraded","ready":false,"error":"..."}
+  # healthy:  HTTP 200 {"status":"ok","ready":true,...}                    — measured live
+  # degraded: HTTP 503 {"status":"degraded","ready":false,"error":"..."}   — component-measured
+  #           (injected failing store) + source-inferred; no real live store degraded to date
   ```
   `GET /health` now calls `readyStore()` itself (`src/vector/proxy-server.ts:29`, from the health
-  route at line 48) — `connect()`+`ensureCollection()` run on the FIRST probe, not deferred until a
-  `/vectors/*` route is hit; a degraded store fails the check outright (`set.status = 503`, line 65)
-  instead of answering 200 either way. A fresh restart no longer shows `ready:false` as an expected,
-  non-fault startup state — that prior behavior is retired. **Scope, explicit:** `ready:true` means the sidecar's own
-  `createVectorProxyServer` store initialized — **not** that the vector index is fresh (freshness
-  caveats above, unchanged), and **not** that `/api/search` will succeed or return good results.
-  `/api/search` (`vector-server.ts`'s `createVectorServerApp`) is a separately-mounted route with
-  its own store — ordinary hybrid search never touches the `/vectors/*` routes this file owns.
+  route at line 48 — **source-inferred**) — `connect()`+`ensureCollection()` run on the FIRST probe,
+  not deferred until a `/vectors/*` route is hit; a degraded store fails the check outright
+  (`set.status = 503`, line 65) instead of answering 200 either way. A fresh restart no longer shows
+  `ready:false` as an expected, non-fault startup state — that prior behavior is retired. **Scope,
+  explicit:** `ready:true` means the sidecar's own `createVectorProxyServer` store initialized —
+  **not** that the vector index is fresh (freshness caveats above, unchanged), and **not** that
+  `/api/search` will succeed or return good results. `/api/search` (`vector-server.ts`'s
+  `createVectorServerApp`) is a separately-mounted route with its own store — ordinary hybrid search
+  never touches the `/vectors/*` routes this file owns (**source-inferred** from route composition,
+  not proven by an isolation experiment against a live process).
 
 ## 3. Restart
 
@@ -215,25 +218,21 @@ newest `.db` backup via the Type B procedure (section 5) or reindex from the can
 - **No hard-delete, permanently** (TINE R0, 2026-08-17): supersede is the only
   retirement path; gated prune is exceptional TINE-approved maintenance only.
   Decision record: `learning_2026-08-17_decision-tine-r0-2026-08-17-oracle-has-no-har`
-- **Bounded retro-index exception for read-only seats** (TINE R1, 2026-08-18):
-  a seat with `ORACLE_READ_ONLY=true` plus `ORACLE_REMOTE_WRITE_URL=<owner core>`
-  is **read-mostly, not strictly read-only** — it additionally advertises
-  `oracle_index_retro`, routed only through the owner-core HTTP proxy
-  (fail-closed; local DB never written; `oracle_learn`/`oracle_supersede` stay
-  hidden; search/read stay local-embedded). Decision record:
+- **Bounded retro-index exception for read-only seats** (TINE R1, 2026-08-18): a seat with
+  `ORACLE_READ_ONLY=true` plus `ORACLE_REMOTE_WRITE_URL=<owner core>` is **read-mostly, not strictly
+  read-only** — it additionally advertises `oracle_index_retro`, routed only through the owner-core
+  HTTP proxy (fail-closed; local DB never written; `oracle_learn`/`oracle_supersede` stay hidden;
+  search/read stay local-embedded). Decision record:
   `learning_2026-08-18_decision-tine-r1-2026-08-18-read-only-oracl`.
 - Current recovery/hold state lives in the Oracle recovery-state learning chain
   (search: "recovery state canonical source root", project orchestrator-vnext).
-- **No ghq alias as an owner-resolution fix** (TINE NO-GO, ORA-SHARED-20260820):
-  a document's DB `project` can legitimately be a repo's real git-origin
-  identity while the machine's ghq entry for that repo is aliased under a
-  different name — do **not** create a second `ghq/<project>` symlink to
-  "fix" a read miss. A `maw` scanner derives a fresh Oracle identity from
-  each distinct ghq entry name; a second entry for the same repo registers
-  a duplicate identity (registry pollution). The owning fix is the
-  resolver's origin-mapping fallback (`resolveGhqAliasTargetByOrigin`,
-  `f0312b74` — matches by the alias's real-target git origin, fails closed
-  on 0 or >1 matches, never creates anything).
+- **No ghq alias as an owner-resolution fix** (TINE NO-GO, ORA-SHARED-20260820): a document's DB
+  `project` can legitimately be a repo's real git-origin identity while the machine's ghq entry for
+  that repo is aliased under a different name — do **not** create a second `ghq/<project>` symlink to
+  "fix" a read miss. A `maw` scanner derives a fresh Oracle identity from each distinct ghq entry
+  name; a second entry for the same repo registers a duplicate identity (registry pollution). The
+  owning fix is the resolver's origin-mapping fallback (`resolveGhqAliasTargetByOrigin`, `f0312b74` —
+  matches by the alias's real-target git origin, fails closed on 0 or >1 matches, never creates anything).
 
 ## 8. Escalation
 

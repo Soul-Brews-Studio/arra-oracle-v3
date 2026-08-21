@@ -4,9 +4,13 @@
  * (the exact miss window 10 left behind: the health route's behavior changed,
  * the RUNBOOK text describing it did not, in the same candidate).
  *
- * Black-box: asserts the observable HTTP response (status code + JSON body)
- * from the real createVectorProxyServer app, not internal implementation
- * (readyStore/state are never touched directly).
+ * Black-box, component-level evidence: asserts the observable HTTP response
+ * (status code + JSON body) from the real createVectorProxyServer app driven
+ * with an injected store (real or failing), not internal implementation
+ * (readyStore/state are never touched directly). This is NOT a same-interface
+ * / end-to-end proof against the live deployed sidecar process — it proves
+ * the production route-handler code behaves as documented when given each
+ * store outcome, not that the live process has been observed producing both.
  */
 
 import { describe, expect, test } from 'bun:test';
