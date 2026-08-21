@@ -1,12 +1,10 @@
 # Oracle (arra-oracle-v3) — operations runbook
 
-Format: `rules/oracle-runbook-standard.md` (claude-config-repo). Every command
-below is verified current as of 2026-08-21 (launchd-only operational path,
-including the `/api/health/live` liveness probe deployed that day); dated
-inline citations below trace individual facts to when they were proven —
-several sections still reference the 2026-08-16/17 incident recovery where
-that remains accurate. If a procedure changes, this file changes in the
-same commit.
+Format: `rules/oracle-runbook-standard.md` (claude-config-repo). The launchd-only operational path
+(sections 1–3, 5–6) is current as of 2026-08-21, including `/api/health/live`. Not every command was
+freshly re-executed on this date — dated inline citations trace each fact to when it was proven;
+several still trace to 2026-08-16/17, and Type A bundle-restore (section 5) is explicitly still
+unexecuted. If a procedure changes, this file changes in the same commit.
 
 ## 1. Identity & layout
 
@@ -72,30 +70,38 @@ MCP-side: `oracle_stats` — fts_status healthy, vector_status connected.
 launchctl kickstart -k gui/$(id -u)/com.tt3p.arra-oracle    # server (launchd-owned)
 launchctl kickstart -k gui/$(id -u)/com.tt3p.arra-vector    # vector sidecar
 ```
-Installs (idempotent — also re-adopts an unmanaged process already
-listening on the port, and always waits for a real health response before
-exiting 0): `bun run server:install-launchagent` · `bun run vector:install-launchagent`
-(`scripts/install-server-launchagent.sh` / `install-vector-launchagent.sh`;
-verified 2026-08-21 — both `bootout` any currently-loaded job, `bootstrap`
-+ `kickstart -k` it back, then poll `/api/health/live` (server, up to 15s)
-/ `/health` (vector, up to 10s) before failing loud with the log path to
-inspect).
+Installs (idempotent, but **not symmetric** — verified 2026-08-21 by reading both scripts in full
+plus reproducing the divergent branch): `bun run server:install-launchagent` ·
+`bun run vector:install-launchagent` (`scripts/install-server-launchagent.sh` /
+`install-vector-launchagent.sh`).
+- **Server**: always `bootout`s a currently-loaded job (or kills an
+  unmanaged listener on the port), then unconditionally `bootstrap`s +
+  `kickstart -k`s and polls `/api/health/live` (15s) before failing loud
+  with the log path to inspect.
+- **Vector**: `bootout`s a currently-loaded job the same way, **but if not
+  currently loaded AND something already listens on the port, it prints
+  "scheduled: … will start at next login; existing listener retained" and
+  exits 0 without bootstrap/kickstart/health-poll.** Reproduced directly
+  (fake label + scratch stub listener, no real launchd job touched): the
+  `elif lsof -tiTCP:"$PORT"` branch fires and returns before `bootstrap`.
+  If the sidecar looks "not adopted" after installing, check whether
+  something else already owns port 8081 first.
 
 **Stop without auto-respawn.** Both LaunchAgents set
-`KeepAlive.SuccessfulExit=false` (confirmed live, 2026-08-21 — `plutil -p
-~/Library/LaunchAgents/com.tt3p.arra-oracle.plist`), meaning launchd
-restarts the job on any exit that isn't a clean `0` — a bare `kill` (any
-signal) therefore respawns it immediately rather than stopping it. To
+`KeepAlive.SuccessfulExit=false` (confirmed live, 2026-08-21 — `plutil -p`
+on both `com.tt3p.arra-oracle.plist` and `com.tt3p.arra-vector.plist` in
+`~/Library/LaunchAgents/`), so launchd restarts the job on any terminating
+nonzero exit — a bare `kill` (any signal that terminates the process
+counts as nonzero) respawns it immediately instead of stopping it. To
 actually take the job down (e.g. before swapping the DB file, section 5):
 ```sh
 launchctl bootout gui/$(id -u)/com.tt3p.arra-oracle    # server
 launchctl bootout gui/$(id -u)/com.tt3p.arra-vector    # vector sidecar
 ```
-Bring back with the same install commands above — they're safe to re-run
-any time. `bun run server:ensure` (`bun src/ensure-server.ts`) is a
-manual, non-launchd dev-mode starter only (see section 1); it does not stop
-or replace the launchd-managed process and must not be used as a restart
-path while launchd owns the job.
+Bring back with the same install commands above — safe to re-run any time.
+`bun run server:ensure` (section 1) is a manual, non-launchd dev-mode
+starter only; it does not stop or replace the launchd-managed process and
+must not be used as a restart path while launchd owns the job.
 
 ## 4. Data operations
 
@@ -167,14 +173,18 @@ stop/swap/restart bracket below is launchd-consistent as of 2026-08-21
 (executed 2026-08-16 incident recovery):
 ```sh
 launchctl bootout gui/$(id -u)/com.tt3p.arra-oracle   # stop WITHOUT auto-respawn (section 3)
-lsof ~/.arra-oracle-v2/oracle.db*        # GATE: must print NOTHING (any other
-                                         # holder, e.g. an indexer, must exit first)
+launchctl bootout gui/$(id -u)/com.tt3p.arra-vector   # sidecar ALSO opens oracle.db read-only
+                                                       # (src/vector-server.ts header comment)
+lsof ~/.arra-oracle-v2/oracle.db*        # GATE: must print NOTHING — ANY holder counts, not
+                                         # just the two jobs above (indexer run, stray dev
+                                         # process, leftover test run); all must exit first
 sqlite3 <backup.db> ".backup '$HOME/.arra-oracle-v2/oracle.db'"
 cd ~/tt3p/ghq/github.com/Soul-Brews-Studio/arra-oracle-v3 && bun run server:install-launchagent
+bun run vector:install-launchagent
 ```
-Do not use a bare `kill` here — with `KeepAlive.SuccessfulExit=false`
-(section 3) launchd would respawn the server against the OLD `oracle.db`
-before the swap lands, racing the restore.
+Do not use a bare `kill` on either job — with `KeepAlive.SuccessfulExit=false`
+(section 3) launchd would respawn it against the OLD `oracle.db` before the
+swap lands, racing the restore.
 Then re-run section 2 and compare counts — they must match exactly:
 ```sh
 sqlite3 -readonly <backup.db> "SELECT count(*) FROM oracle_documents;"
@@ -186,19 +196,19 @@ sqlite3 -readonly ~/.arra-oracle-v2/oracle.db "SELECT count(*) FROM oracle_docum
 ```sh
 git clone git@github.com:TTT3P/arra-oracle-v3.git && cd arra-oracle-v3 && git checkout alpha
 bun install
-printf 'OLLAMA_BASE_URL=http://127.0.0.1:11434\nORACLE_EMBEDDING_MODEL=bge-m3\n' > .env
+printf 'OLLAMA_BASE_URL=http://127.0.0.1:11434\nORACLE_EMBEDDING_MODEL=bge-m3\nVECTOR_URL=http://localhost:8081\n' > .env
 ollama pull bge-m3
-bun run server:install-launchagent    # installs + starts the launchd-owned server (section 3)
-bun run vector:install-launchagent    # installs + starts the launchd-owned vector sidecar (section 3)
+bun run vector:install-launchagent    # sidecar first, so the health check below (which expects
+bun run server:install-launchagent    # vectorStatus=ok) isn't racing the sidecar's own startup
 curl -s http://127.0.0.1:47778/api/health/live   # expect: status=ok, state=live
-curl -s http://127.0.0.1:47778/api/health        # expect: status=ok, state=healthy
+curl -s http://127.0.0.1:47778/api/health        # expect: status=ok, state=healthy, vectorStatus=ok
 ```
-Both install commands already wait for their own health check before
-exiting 0 (section 3) — a fresh install has no LaunchAgent to re-adopt yet,
-so this is the same idempotent path used for every later restart. Then
-restore the newest `.db` backup via the Type B procedure (section 5 —
-the only proven restore path) or reindex from the canonical root, and drain
-vectors (section 4). Finish by re-running section 2 health checks.
+`VECTOR_URL` is required in `.env` (section 1) — without it core falls back to local vector
+resolution instead of proxying to the sidecar, and `/api/health`'s `vectorStatus`/`vectorServer`
+fields stop proving the sidecar path at all. Both install commands already wait for their own health
+check before exiting 0 (section 3). Then restore the newest `.db` backup via the Type B procedure
+(section 5) or reindex from the canonical root, and drain vectors (section 4). Finish by re-running
+section 2.
 
 ## 7. Policies & holds
 
