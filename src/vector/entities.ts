@@ -20,16 +20,30 @@ export function extractEntities(text: string, concepts?: unknown): string[] {
 }
 
 export function entityDocumentsFor(doc: EntitySourceDocument): VectorDocument[] {
-  return extractEntities(doc.document, doc.metadata.concepts).map((entity) => ({
-    id: `${doc.id}:entity:${slug(entity)}`,
-    document: entity,
-    metadata: {
-      entity,
-      source_doc_id: doc.id,
-      tenant_id: doc.metadata.tenant_id ?? '',
-      type: 'entity',
-    },
-  }));
+  // Two raw entities can slug to the same id (e.g. concept "candidate" +
+  // text "Candidate", or "sound-therapy" + "SOUND-THERAPY") because slug()
+  // is case-folding while extractEntities dedupes case-sensitively. The id
+  // IS the sidecar identity, so emitting two docs with the same id makes the
+  // downstream LanceDB merge-insert ambiguous ("multiple source rows match
+  // the same target row") and aborts the whole batch. Dedupe by id, keeping
+  // the first occurrence — which mirrors the SQL entity-link side, already
+  // deduped by normalized entity_key (entity-ranking.ts). (ORA-EBF-20260822-01)
+  const byId = new Map<string, VectorDocument>();
+  for (const entity of extractEntities(doc.document, doc.metadata.concepts)) {
+    const id = `${doc.id}:entity:${slug(entity)}`;
+    if (byId.has(id)) continue;
+    byId.set(id, {
+      id,
+      document: entity,
+      metadata: {
+        entity,
+        source_doc_id: doc.id,
+        tenant_id: doc.metadata.tenant_id ?? '',
+        type: 'entity',
+      },
+    });
+  }
+  return [...byId.values()];
 }
 
 function addEntity(out: Set<string>, raw: string): void {
