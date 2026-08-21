@@ -30,10 +30,18 @@ export function entityDocumentsFor(doc: EntitySourceDocument): VectorDocument[] 
   // id. Then dedupe by id, keeping the first occurrence — two source rows for
   // one id make the downstream LanceDB merge-insert ambiguous and abort the
   // whole batch, and (when the target is absent) INSERT genuine duplicate rows.
-  // First-occurrence = concepts-before-text order preserved. (ORA-EBF-20260822-01)
+  // First-occurrence = concepts-before-text order preserved.
+  //
+  // Empty key -> SKIP (mirrors the SQL side's `if (!key) continue` in
+  // entity-ranking.ts): a symbol-only entity (e.g. an emoji concept)
+  // canonicalizes to the empty string. Falling back to a literal "entity"
+  // would (a) diverge from the SQL side, which writes no link at all, and
+  // (b) re-introduce first-wins loss — every distinct symbol-only entity in
+  // one doc would collapse onto `<doc>:entity:entity`. (ORA-EBF-20260822-01)
   const byId = new Map<string, VectorDocument>();
   for (const entity of extractEntities(doc.document, doc.metadata.concepts)) {
-    const key = entityKey(entity) || 'entity';
+    const key = entityKey(entity);
+    if (!key) continue;
     const id = `${doc.id}:entity:${key}`;
     if (byId.has(id)) continue;
     byId.set(id, {

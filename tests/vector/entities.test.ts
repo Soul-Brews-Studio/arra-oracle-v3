@@ -62,6 +62,29 @@ test('entityDocumentsFor keeps distinct Unicode (Thai) entities distinct — no 
   expect(new Set(ids).size).toBe(ids.length);
 });
 
+test('entityDocumentsFor skips empty-key (symbol-only) entities, mirroring the SQL side — Riddler v3 item 1', () => {
+  // Symbol-only concepts (e.g. emoji) canonicalize to the empty string.
+  // The SQL side (entityLinksForDocument: `if (!key) continue`) writes no
+  // link; the vector side must do the same — a "entity" fallback would both
+  // diverge and re-introduce first-wins loss (two distinct emoji -> one
+  // <doc>:entity:entity row).
+  const docs = entityDocumentsFor({
+    id: 'learning_sym_1',
+    document: 'no matchable text entities here.',
+    metadata: { concepts: '["🍕🍔","🚗🚕"]', tenant_id: 'default' },
+  });
+  const symbolDocs = docs.filter((d) => d.id.startsWith('learning_sym_1:entity:'));
+  expect(symbolDocs).toHaveLength(0);
+  expect(docs.map((d) => d.id)).not.toContain('learning_sym_1:entity:entity');
+
+  // Drift parity with SQL: entityLinksForDocument also emits nothing for these.
+  const links = entityLinksForDocument({
+    documentId: 'learning_sym_1', tenantId: 'default',
+    content: 'no matchable text entities here.', concepts: ['🍕🍔', '🚗🚕'], now: 1,
+  });
+  expect(links).toHaveLength(0);
+});
+
 test('entity-doc id suffix is exactly entityKey(entity) — single-canonicalizer drift guard', () => {
   // Mechanically pins the vector id to the SQL entity_key canonicalizer, so the
   // two sides cannot drift apart again.
