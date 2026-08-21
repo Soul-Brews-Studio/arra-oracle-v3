@@ -43,11 +43,13 @@ describe('shutdown controller', () => {
   test('returns 503 for new non-health requests while draining', async () => {
     const blocked = drainingResponseFor(new Request('http://local/api/search?q=x'), { draining: true });
     const health = drainingResponseFor(new Request('http://local/api/health'), { draining: true });
+    const liveness = drainingResponseFor(new Request('http://local/api/health/live'), { draining: true });
 
     expect(blocked?.status).toBe(503);
     expect(blocked?.headers.get('Retry-After')).toBe('5');
     expect(await blocked?.json()).toMatchObject({ status: 'draining', draining: true });
     expect(health).toBeNull();
+    expect(liveness).toBeNull();
   });
 
   test('honors caller-provided health paths while draining', () => {

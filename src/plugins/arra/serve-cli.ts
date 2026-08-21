@@ -122,7 +122,7 @@ async function serverStatus(port: number, fetcher: typeof fetch = fetch) {
 
 async function isHealthy(port: number, fetcher: typeof fetch): Promise<boolean> {
   try {
-    const response = await fetcher(`http://${DEFAULT_HOST}:${port}/api/health`, { signal: AbortSignal.timeout(1200) });
+    const response = await fetcher(`http://${DEFAULT_HOST}:${port}/api/health/live`, { signal: AbortSignal.timeout(1200) });
     if (!response.ok) return false;
     const body = await response.json() as { status?: string };
     return body.status === 'ok';

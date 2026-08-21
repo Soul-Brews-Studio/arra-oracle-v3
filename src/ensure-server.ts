@@ -18,7 +18,7 @@ import { acquireStartLock, releaseStartLock, cleanupStalePidFile } from './serve
 
 import { PORT, ORACLE_DATA_DIR } from './config.ts';
 
-const HEALTH_URL = `http://localhost:${PORT}/api/health`;
+const HEALTH_URL = `http://localhost:${PORT}/api/health/live`;
 const SERVER_SCRIPT = path.join(import.meta.dirname || __dirname, 'server.ts');
 
 // Configure process manager to use oracle data dir

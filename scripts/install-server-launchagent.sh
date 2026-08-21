@@ -120,7 +120,7 @@ launchctl bootstrap "$domain" "$PLIST_PATH"
 launchctl kickstart -k "$domain/$LABEL"
 launchctl print "$domain/$LABEL" >/dev/null
 for _ in {1..60}; do
-  if /usr/bin/curl -fsS "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1; then
+  if /usr/bin/curl -fsS "http://127.0.0.1:$PORT/api/health/live" >/dev/null 2>&1; then
     echo "running: $LABEL (http://127.0.0.1:$PORT)"
     exit 0
   fi

@@ -29,7 +29,7 @@ function isVersionedApiPath(pathname: string): boolean {
 }
 
 function isInfrastructurePath(pathname: string): boolean {
-  return INFRASTRUCTURE_PATHS.includes(pathname);
+  return INFRASTRUCTURE_PATHS.some((root) => pathname === root || pathname.startsWith(`${root}/`));
 }
 
 export function apiRequestPath(request: Request): string {

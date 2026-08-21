@@ -27,6 +27,16 @@ test('GET /api/health responds directly for infrastructure probes', async () => 
   expect(body.status).toBe('ok');
 });
 
+test('GET /api/health/live responds directly for lightweight liveness probes', async () => {
+  const res = await createFetch()(new Request('http://local/api/health/live'));
+  const body = await res.json() as { status: string; state: string };
+
+  expect(res.status).toBe(200);
+  expect(res.headers.get('location')).toBeNull();
+  expect(res.headers.get('x-api-version')).toBe('v1');
+  expect(body).toMatchObject({ status: 'ok', state: 'live' });
+});
+
 test('GET /api/v1/health still rewrites to the health route', async () => {
   const res = await createFetch()(new Request('http://local/api/v1/health'));
   const body = await res.json() as { status: string };

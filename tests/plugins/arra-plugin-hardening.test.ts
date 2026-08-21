@@ -69,6 +69,20 @@ describe("built-in ARRA plugin hardening", () => {
 });
 
 describe("maw arra serve hardening", () => {
+  test("status probes the lightweight liveness endpoint", async () => {
+    useServeDir();
+    const seen: string[] = [];
+    const result = await serveCli(["status", "--port", "55109"], {
+      fetch: (async (input) => {
+        seen.push(String(input));
+        return Response.json({ status: "ok", state: "live" });
+      }) as typeof fetch,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(seen).toEqual(["http://127.0.0.1:55109/api/health/live"]);
+  });
+
   test("status ignores a live PID file for another port", async () => {
     useServeDir();
     writePidFile({ pid: process.pid, port: 55100, startedAt: new Date().toISOString(), name: "oracle-http" });

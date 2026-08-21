@@ -70,7 +70,12 @@ export function drainingResponseFor(
   options: DrainingResponseOptions = {},
 ): Response | null {
   if (!(options.draining ?? draining)) return null;
-  const healthPaths = options.healthPaths ?? ['/api/health', '/api/v1/health'];
+  const healthPaths = options.healthPaths ?? [
+    '/api/health',
+    '/api/health/live',
+    '/api/v1/health',
+    '/api/v1/health/live',
+  ];
   const pathname = new URL(request.url).pathname;
   if (healthPaths.includes(pathname)) return null;
   return Response.json(
