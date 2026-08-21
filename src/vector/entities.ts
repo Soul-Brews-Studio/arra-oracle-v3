@@ -1,3 +1,4 @@
+import { entityKey } from '../search/entity-key.ts';
 import type { VectorDocument } from './types.ts';
 
 export interface EntitySourceDocument extends VectorDocument {
@@ -20,17 +21,20 @@ export function extractEntities(text: string, concepts?: unknown): string[] {
 }
 
 export function entityDocumentsFor(doc: EntitySourceDocument): VectorDocument[] {
-  // Two raw entities can slug to the same id (e.g. concept "candidate" +
-  // text "Candidate", or "sound-therapy" + "SOUND-THERAPY") because slug()
-  // is case-folding while extractEntities dedupes case-sensitively. The id
-  // IS the sidecar identity, so emitting two docs with the same id makes the
-  // downstream LanceDB merge-insert ambiguous ("multiple source rows match
-  // the same target row") and aborts the whole batch. Dedupe by id, keeping
-  // the first occurrence — which mirrors the SQL entity-link side, already
-  // deduped by normalized entity_key (entity-ranking.ts). (ORA-EBF-20260822-01)
+  // The entity-doc id must be the SAME canonical identity the SQL entity-link
+  // side uses (entityKey): Unicode-safe (NFKC + \p{L}\p{N}), so distinct Thai/
+  // CJK entities stay distinct instead of collapsing to `<doc>:entity:` (the
+  // old ASCII slug turned every Thai entity into the empty string). It is also
+  // case/punctuation-folding, so genuinely-same entities (concept "candidate"
+  // + text "Candidate", or "sound-therapy" + "SOUND-THERAPY") converge on ONE
+  // id. Then dedupe by id, keeping the first occurrence — two source rows for
+  // one id make the downstream LanceDB merge-insert ambiguous and abort the
+  // whole batch, and (when the target is absent) INSERT genuine duplicate rows.
+  // First-occurrence = concepts-before-text order preserved. (ORA-EBF-20260822-01)
   const byId = new Map<string, VectorDocument>();
   for (const entity of extractEntities(doc.document, doc.metadata.concepts)) {
-    const id = `${doc.id}:entity:${slug(entity)}`;
+    const key = entityKey(entity) || 'entity';
+    const id = `${doc.id}:entity:${key}`;
     if (byId.has(id)) continue;
     byId.set(id, {
       id,
@@ -61,8 +65,4 @@ function conceptValues(raw: unknown): string[] {
   } catch {
     return raw.split(',').map((item) => item.trim()).filter(Boolean);
   }
-}
-
-function slug(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'entity';
 }

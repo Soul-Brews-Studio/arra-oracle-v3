@@ -5,7 +5,10 @@ import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../db/schema.ts';
 import { extractEntities } from '../vector/entities.ts';
 import { expansionPhrasesForText } from './acronyms.ts';
+import { entityKey } from './entity-key.ts';
 import { noteEntityBoostOutcome } from './signal-health.ts';
+
+export { entityKey };
 
 const ENTITY_BOOST_PER_MATCH = 0.08;
 const ENTITY_BOOST_CAP = 0.24;
@@ -29,10 +32,6 @@ type EntityRankFields = { entity_score?: number; entity_matches?: string[] };
 type Rankable = { id: string; score?: number };
 type LinkRow = { documentId: string; entity: string; entityKey: string; weight: number };
 export type EntitySignal = { score: number; matches: string[] };
-
-export function entityKey(value: string): string {
-  return value.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '');
-}
 
 export function entityLinksForDocument(input: {
   documentId: string;
