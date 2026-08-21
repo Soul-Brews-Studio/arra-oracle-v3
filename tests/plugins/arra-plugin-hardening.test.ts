@@ -83,6 +83,32 @@ describe("maw arra serve hardening", () => {
     expect(seen).toEqual(["http://127.0.0.1:55109/api/health/live"]);
   });
 
+  test("status labels a dependency-blind probe 'live', never 'healthy' (Riddler P2)", async () => {
+    useServeDir();
+    const result = await serveCli(["status", "--port", "55110"], {
+      fetch: (async () => Response.json({ status: "ok", state: "live" })) as typeof fetch,
+    });
+
+    expect(result.ok).toBe(true);
+    // The liveness probe never checks DB/vector/plugin health, so the CLI
+    // must not present it as an aggregate health verdict — only as process
+    // liveness (Riddler P2, ORA-SHARED-20260821-08 round 2).
+    expect(result.output).toContain("live)");
+    expect(result.output).not.toContain("healthy");
+  });
+
+  test("status --json exposes `live`, not `healthy`, as the field name (Riddler P2)", async () => {
+    useServeDir();
+    const result = await serveCli(["status", "--port", "55111", "--json"], {
+      fetch: (async () => Response.json({ status: "ok", state: "live" })) as typeof fetch,
+    });
+
+    const payload = JSON.parse(result.output ?? "{}") as Record<string, unknown>;
+    expect(result.ok).toBe(true);
+    expect(payload).toHaveProperty("live");
+    expect(payload).not.toHaveProperty("healthy");
+  });
+
   test("status ignores a live PID file for another port", async () => {
     useServeDir();
     writePidFile({ pid: process.pid, port: 55100, startedAt: new Date().toISOString(), name: "oracle-http" });

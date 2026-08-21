@@ -48,10 +48,13 @@ describe('api version middleware redirects and rewrites edge paths', () => {
   });
 
   test('only exact health stays unredirected for infrastructure probes', async () => {
-    const app = new Elysia().get('/api/health', () => ({ status: 'ok' }));
+    const app = new Elysia()
+      .get('/api/health', () => ({ status: 'ok' }))
+      .get('/api/health/live', () => ({ status: 'ok', state: 'live' }));
     const fetcher = createApiVersionedFetch((request) => app.handle(request));
 
     const health = await fetcher(new Request('http://local/api/health'));
+    const live = await fetcher(new Request('http://local/api/health/live'));
     const deep = await fetcher(
       new Request('http://local/api/health/deep'),
     );
@@ -59,6 +62,12 @@ describe('api version middleware redirects and rewrites edge paths', () => {
     expect(health.status).toBe(200);
     expect(health.headers.get('location')).toBeNull();
     expect(await health.json()).toEqual({ status: 'ok' });
+    // The liveness endpoint is exempted by exact path, not by treating
+    // /api/health as a prefix root — every other /api/health/* child (deep
+    // included) must still redirect (Riddler P1, ORA-SHARED-20260821-08).
+    expect(live.status).toBe(200);
+    expect(live.headers.get('location')).toBeNull();
+    expect(await live.json()).toEqual({ status: 'ok', state: 'live' });
     expect(deep.status).toBe(308);
     expect(deep.headers.get('location')).toBe('http://local/api/v1/health/deep');
   });

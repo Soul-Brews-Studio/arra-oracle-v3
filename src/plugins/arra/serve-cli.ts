@@ -53,8 +53,8 @@ async function renderStatus(options: ServeOptions, deps: ServeDeps): Promise<Cli
   const status = await serverStatus(options.port, deps.fetch);
   if (options.json) return { ok: true, output: JSON.stringify(status, null, 2) };
   if (!status.running) return { ok: true, output: `Oracle server not running on ${status.url}` };
-  const health = status.healthy ? 'healthy' : 'not healthy';
-  return { ok: true, output: `Oracle server running on ${status.url} (pid=${status.pid ?? 'unknown'}, ${health})` };
+  const liveness = status.live ? 'live' : 'not live';
+  return { ok: true, output: `Oracle server running on ${status.url} (pid=${status.pid ?? 'unknown'}, ${liveness})` };
 }
 
 async function startServer(options: ServeOptions, deps: ServeDeps): Promise<CliResult> {
@@ -110,17 +110,22 @@ async function serverStatus(port: number, fetcher: typeof fetch = fetch) {
   const info = readPidFile();
   const pidMatchesPort = info?.port === port;
   const processAlive = pidMatchesPort && info?.pid ? isProcessAlive(info.pid) : false;
-  const healthy = await isHealthy(port, fetcher);
+  const live = await isLive(port, fetcher);
   return {
-    running: processAlive || healthy,
+    running: processAlive || live,
     pid: processAlive ? info?.pid : undefined,
     port,
-    healthy,
+    live,
     url: `http://${DEFAULT_HOST}:${port}`,
   };
 }
 
-async function isHealthy(port: number, fetcher: typeof fetch): Promise<boolean> {
+// Probes the dependency-free liveness endpoint only — process-up detection,
+// not an aggregate health verdict. DB/vector/plugin health is reported
+// separately by the deep /api/health route (see routes/health/deep.ts);
+// callers must not present this boolean as "healthy" (Riddler P2,
+// ORA-SHARED-20260821-08 round 2).
+async function isLive(port: number, fetcher: typeof fetch): Promise<boolean> {
   try {
     const response = await fetcher(`http://${DEFAULT_HOST}:${port}/api/health/live`, { signal: AbortSignal.timeout(1200) });
     if (!response.ok) return false;

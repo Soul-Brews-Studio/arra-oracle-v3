@@ -71,15 +71,22 @@ describe('api version 308 redirect contract depth', () => {
   test('only exact health bypasses legacy redirects while adjacent API paths still redirect', async () => {
     const app = new Elysia()
       .get('/api/health', () => ({ status: 'ok' }))
+      .get('/api/health/live', () => ({ status: 'ok', state: 'live' }))
       .get('/api/healthz', () => ({ status: 'healthz' }));
     const fetcher = createApiVersionedFetch((request) => app.handle(request));
 
     const health = await fetcher(new Request('http://local/api/health'));
+    const live = await fetcher(new Request('http://local/api/health/live'));
     const deep = await fetcher(new Request('http://local/api/health/deep'));
     const adjacent = await fetcher(new Request('http://local/api/healthz'));
 
     expect(health.status).toBe(200);
     expect(await health.json()).toEqual({ status: 'ok' });
+    // Exact-path exemption only — /api/health/live bypasses, every other
+    // /api/health/* child still redirects (Riddler P1).
+    expect(live.status).toBe(200);
+    expect(live.headers.get('location')).toBeNull();
+    expect(await live.json()).toEqual({ status: 'ok', state: 'live' });
     expect(deep.status).toBe(308);
     expect(deep.headers.get('location')).toBe('http://local/api/v1/health/deep');
     expect(adjacent.status).toBe(308);
