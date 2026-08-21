@@ -3,8 +3,7 @@
 Format: `rules/oracle-runbook-standard.md` (claude-config-repo). The launchd-only operational path
 (sections 1–3, 5–6) is current as of 2026-08-21, including `/api/health/live`. Not every command was
 freshly re-executed on this date — dated inline citations trace each fact to when it was proven;
-several still trace to 2026-08-16/17, and Type A bundle-restore (section 5) is explicitly still
-unexecuted. If a procedure changes, this file changes in the same commit.
+several still trace to 2026-08-16/17, and Type A bundle-restore (section 5) is still unexecuted. If a procedure changes, this file changes in the same commit.
 
 ## 1. Identity & layout
 
@@ -205,10 +204,11 @@ curl -s http://127.0.0.1:47778/api/health        # expect: status=ok, state=heal
 ```
 `VECTOR_URL` is required in `.env` (section 1) — without it core falls back to local vector
 resolution instead of proxying to the sidecar, and `/api/health`'s `vectorStatus`/`vectorServer`
-fields stop proving the sidecar path at all. Both install commands already wait for their own health
-check before exiting 0 (section 3). Then restore the newest `.db` backup via the Type B procedure
-(section 5) or reindex from the canonical root, and drain vectors (section 4). Finish by re-running
-section 2.
+fields stop proving the sidecar path at all. On a genuinely fresh install neither job is loaded and
+nothing yet listens on either port, so — unlike section 3's warning about the vector installer's
+"already listening, not yet loaded" shortcut — both commands here take their full bootstrap+kickstart+health-poll path and wait for a real response before exiting 0. Then restore the
+newest `.db` backup via the Type B procedure (section 5) or reindex from the canonical root, and
+drain vectors (section 4). Finish by re-running section 2.
 
 ## 7. Policies & holds
 
