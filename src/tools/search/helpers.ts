@@ -1,6 +1,5 @@
-import { augmentQueryWithAcronyms } from '../../search/acronyms.ts';
 import { combineResults as sharedCombineResults } from '../../search/fusion.ts';
-import { normalizeRank } from '../../search/fts-rank.ts';
+import { normalizeRank, buildFtsMatchQuery } from '../../search/fts-rank.ts';
 import type { CombinedSearchResult, FtsResult, PointerResult, SearchConfidence, SearchProvenance, VectorResult } from './types.ts';
 
 /** Re-exports the shared FTS+vector(+pointer) fusion — see search/fusion.ts. */
@@ -17,19 +16,10 @@ export function combineResults(
 
 const FTS_TOKEN_LIMIT = 32;
 
-/** Sanitize FTS5 query to prevent parse errors. */
+/** Sanitize FTS5 query — shared builder (fragment-OR + whole-query phrase clause;
+ *  augments acronyms). See search/fts-rank.ts. */
 export function sanitizeFtsQuery(query: string): string {
-  const tokens = augmentQueryWithAcronyms(query)
-    .replace(/<[^>]*>/g, ' ')
-    .normalize('NFKC')
-    .match(/[\p{L}\p{N}_]+/gu)
-    ?.map((token) => token.trim())
-    .filter((token) => token.length > 0) ?? [];
-
-  return [...new Set(tokens)]
-    .slice(0, FTS_TOKEN_LIMIT)
-    .map((token) => `"${token.replace(/"/g, '""')}"`)
-    .join(' OR ');
+  return buildFtsMatchQuery(query, { augment: true, tokenLimit: FTS_TOKEN_LIMIT });
 }
 
 /** Normalize FTS5 bm25 rank to bounded relevance — delegates to the shared

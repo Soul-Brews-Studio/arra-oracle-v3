@@ -38,9 +38,12 @@ insertDoc('alpha-beta', 'Issue one three one four alphaonly and betaonly both ap
 insertDoc('access-project-2761', 'Document access project accessproject2761 recall.', ['accessproject2761']);
 
 describe('FTS query sanitation and recall behavior', () => {
-  test('builds quoted OR terms instead of raw punctuation syntax', () => {
-    expect(buildFtsQuery('foo.bar, baz (now)!')).toBe('"foo" OR "bar" OR "baz" OR "now"');
-    expect(sanitizeFtsQuery('foo.bar, baz (now)!')).toBe('"foo" OR "bar" OR "baz" OR "now"');
+  test('builds quoted OR terms instead of raw punctuation syntax; opaque token gets a phrase clause', () => {
+    // `foo.bar` is an opaque (dotted) token → fragments foo/bar get a contiguous
+    // phrase clause prepended so the exact-adjacency doc outranks fragment-only
+    // matches; the OR fallback is preserved. Ordinary words (baz, now) add none.
+    expect(buildFtsQuery('foo.bar, baz (now)!')).toBe('"foo bar" OR "foo" OR "bar" OR "baz" OR "now"');
+    expect(sanitizeFtsQuery('foo.bar, baz (now)!')).toBe('"foo bar" OR "foo" OR "bar" OR "baz" OR "now"');
   });
 
   test('punctuation-heavy FTS queries degrade gracefully instead of throwing', async () => {

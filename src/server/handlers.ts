@@ -24,7 +24,7 @@ import { localNativeVectorDisabledReason, localVectorIndexMissingReason, logLoca
 import { isVectorSectionEnabled } from '../vector/config.ts';
 import { candidatePoolSize } from '../search/retrieve-depth.ts';
 import { combineResults as combineSearchResults } from '../search/fusion.ts';
-import { normalizeRank } from '../search/fts-rank.ts';
+import { normalizeRank, buildFtsMatchQuery } from '../search/fts-rank.ts';
 export { cosineDistanceToSimilarity } from '../vector/scoring.ts';
 /** Re-exported for the fusion-consolidation test proof (search/__tests__/fusion.test.ts) only. */
 export { combineSearchResults };
@@ -48,16 +48,10 @@ const FTS_TOKEN_LIMIT = 8;
  * made multi-word recall queries overly strict.
  */
 export function buildFtsQuery(query: string): string {
-  const tokens = query
-    .replace(/<[^>]*>/g, ' ')
-    .normalize('NFKC')
-    .match(/[\p{L}\p{N}_]+/gu)
-    ?.map((token) => token.trim())
-    .filter((token) => token.length > 0)
-    .slice(0, FTS_TOKEN_LIMIT) ?? [];
-
-  const uniqueTokens = Array.from(new Set(tokens));
-  return uniqueTokens.map((token) => `"${token.replace(/"/g, '""')}"`).join(' OR ');
+  // Shared builder: fragment-OR + whole-query phrase clause (opaque-token fix).
+  // The HTTP route augments acronyms upstream (routes/search/search.ts), so
+  // augment=false here to avoid double expansion.
+  return buildFtsMatchQuery(query, { augment: false, tokenLimit: FTS_TOKEN_LIMIT });
 }
 
 function runFtsGet<T>(stmt: { get: (...args: any[]) => T }, args: unknown[]): T | null {

@@ -26,7 +26,8 @@ describe('sanitizeFtsQuery', () => {
 
   it('should handle quotes', () => {
     expect(sanitizeFtsQuery('\"exact phrase\"')).toBe('\"exact\" OR \"phrase\"');
-    expect(sanitizeFtsQuery("it's a test")).toBe('\"it\" OR \"s\" OR \"a\" OR \"test\"');
+    // "it's" is an opaque chunk (fragments it/s) → gets a (here inert) phrase clause
+    expect(sanitizeFtsQuery("it's a test")).toBe('\"it s\" OR \"it\" OR \"s\" OR \"a\" OR \"test\"');
   });
 
   it('should normalize whitespace', () => {
@@ -53,12 +54,16 @@ describe('sanitizeFtsQuery', () => {
 
   it('should handle colons which break FTS5', () => {
     expect(sanitizeFtsQuery('error: no such column')).toBe('\"error\" OR \"no\" OR \"such\" OR \"column\"');
-    expect(sanitizeFtsQuery('time: 15:30')).toBe('\"time\" OR \"15\" OR \"30\"');
+    // "15:30" is an opaque chunk (fragments 15/30) → contiguous phrase clause
+    expect(sanitizeFtsQuery('time: 15:30')).toBe('\"15 30\" OR \"time\" OR \"15\" OR \"30\"');
   });
 
   it('should handle forward slashes which break FTS5', () => {
-    expect(sanitizeFtsQuery('Shopee/Lazada/TikTok')).toBe('\"Shopee\" OR \"Lazada\" OR \"TikTok\"');
-    expect(sanitizeFtsQuery('path/to/file')).toBe('\"path\" OR \"to\" OR \"file\"');
+    // slash-joined chunks fragment into ≥2 tokens → an opaque-token phrase clause is
+    // prepended (inert for a genuine list where tokens aren't adjacent; helps a real
+    // identifier like path/to/file); the OR fallback still handles the slashes.
+    expect(sanitizeFtsQuery('Shopee/Lazada/TikTok')).toBe('\"Shopee Lazada TikTok\" OR \"Shopee\" OR \"Lazada\" OR \"TikTok\"');
+    expect(sanitizeFtsQuery('path/to/file')).toBe('\"path to file\" OR \"path\" OR \"to\" OR \"file\"');
   });
 });
 

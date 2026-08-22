@@ -1,4 +1,4 @@
-import { augmentQueryWithAcronyms } from './acronyms.ts';
+import { buildFtsMatchQuery } from './fts-rank.ts';
 
 export type SearchMode = 'hybrid' | 'fts' | 'vector';
 
@@ -43,14 +43,7 @@ export function parseConcepts(value: unknown): string[] {
 }
 
 export function buildTenantFtsQuery(query: string): string {
-  const tokens = augmentQueryWithAcronyms(query)
-    .replace(/<[^>]*>/g, ' ')
-    .normalize('NFKC')
-    .match(/[\p{L}\p{N}_]+/gu)
-    ?.map((token) => token.trim())
-    .filter(Boolean) ?? [];
-  return [...new Set(tokens)]
-    .slice(0, FTS_TOKEN_LIMIT)
-    .map((token) => `"${token.replace(/"/g, '""')}"`)
-    .join(' OR ');
+  // Shared builder: fragment-OR + whole-query phrase clause; augments acronyms
+  // like the MCP builder. See search/fts-rank.ts.
+  return buildFtsMatchQuery(query, { augment: true, tokenLimit: FTS_TOKEN_LIMIT });
 }
