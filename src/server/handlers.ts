@@ -24,6 +24,7 @@ import { localNativeVectorDisabledReason, localVectorIndexMissingReason, logLoca
 import { isVectorSectionEnabled } from '../vector/config.ts';
 import { candidatePoolSize } from '../search/retrieve-depth.ts';
 import { combineResults as combineSearchResults } from '../search/fusion.ts';
+import { normalizeRank } from '../search/fts-rank.ts';
 export { cosineDistanceToSimilarity } from '../vector/scoring.ts';
 /** Re-exported for the fusion-consolidation test proof (search/__tests__/fusion.test.ts) only. */
 export { combineSearchResults };
@@ -288,15 +289,9 @@ export async function handleSearch(
     ...(warning && { warning })
   };
 }
-
-/**
- * Normalize FTS5 rank score to 0-1 range (higher = better)
- */
-function normalizeRank(rank: number): number {
-  // FTS5 rank is negative (more negative = better match)
-  // Convert to positive 0-1 score
-  return Math.min(1, Math.max(0, 1 / (1 + Math.abs(rank))));
-}
+// normalizeRank now imported from ../search/fts-rank.ts (was inverted: 1/(1+|rank|)
+// ranked the strongest bm25 match lowest — the S1 root cause). Shared with the
+// MCP/local path for HTTP/local parity.
 
 /**
  * Get random wisdom

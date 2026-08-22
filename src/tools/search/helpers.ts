@@ -1,5 +1,6 @@
 import { augmentQueryWithAcronyms } from '../../search/acronyms.ts';
 import { combineResults as sharedCombineResults } from '../../search/fusion.ts';
+import { normalizeRank } from '../../search/fts-rank.ts';
 import type { CombinedSearchResult, FtsResult, PointerResult, SearchConfidence, SearchProvenance, VectorResult } from './types.ts';
 
 /** Re-exports the shared FTS+vector(+pointer) fusion — see search/fusion.ts. */
@@ -15,8 +16,6 @@ export function combineResults(
 }
 
 const FTS_TOKEN_LIMIT = 32;
-const FTS_SCORE_FLOOR = 0.9;
-const FTS_SCORE_CEILING = 0.95;
 
 /** Sanitize FTS5 query to prevent parse errors. */
 export function sanitizeFtsQuery(query: string): string {
@@ -33,12 +32,11 @@ export function sanitizeFtsQuery(query: string): string {
     .join(' OR ');
 }
 
-/** Normalize FTS5 BM25 rank to bounded relevance (more-negative rank is better). */
-export function normalizeFtsScore(rank: number): number {
-  if (!Number.isFinite(rank)) return 0;
-  const relevance = 1 - Math.exp(-0.3 * Math.max(0, -rank));
-  return FTS_SCORE_FLOOR + ((FTS_SCORE_CEILING - FTS_SCORE_FLOOR) * relevance);
-}
+/** Normalize FTS5 bm25 rank to bounded relevance — delegates to the shared
+ *  normalizer so the HTTP and MCP/local paths score identically (HTTP/local
+ *  parity). This impl was already correct; the HTTP copies were the inverted
+ *  ones now pointed at the same function. See search/fts-rank.ts. */
+export const normalizeFtsScore = normalizeRank;
 
 export function parseConceptsFromMetadata(concepts: unknown): string[] {
   if (!concepts) return [];
