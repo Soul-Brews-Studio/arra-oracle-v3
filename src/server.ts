@@ -240,7 +240,9 @@ console.log(`
    Version: ${pkg.version}
 `);
 
-export default {
-  port: Number(PORT),
-  fetch: app.fetch,
-};
+// Bun's module-default-export auto-serve convenience double-fired Bun.serve()
+// under `bun run server` on this machine (Bun v1.3.14, Windows) — server logged
+// "running" then immediately crashed with EADDRINUSE on its own just-bound port.
+// Elysia's own .listen() calls Bun.serve() exactly once, explicitly, sidestepping
+// whatever triggers Bun's auto-detection double-call.
+app.listen(Number(PORT));
