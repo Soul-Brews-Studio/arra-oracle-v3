@@ -6,6 +6,19 @@
  * Handler implementations live in src/tools/.
  */
 
+
+// -- stdout ของ MCP stdio server สงวนไว้ให้ JSON-RPC เท่านั้น --------------
+// 2026-08-31: ไคลเอนต์ตัดการเชื่อมต่อทันทีด้วย CONNECTION_CLOSED เพราะมีบรรทัด
+// "[LanceDB] Connected at ..." หลุดออก stdout ตอนบูต
+// (src/vector/adapters/lancedb.ts:29) ซึ่งไม่ใช่ JSON-RPC frame
+// พิสูจน์แล้วด้วยการยิง initialize เข้า stdin แล้วอ่าน stdout บรรทัดแรก
+// เซิร์ฟเวอร์เองสตาร์ทสำเร็จปกติ -- stderr พิมพ์ "Arra Oracle MCP Server running
+// on stdio (FTS5 mode)" ครบ แต่ stream เสียไปแล้วก่อนหน้านั้น
+//
+// repo นี้มี console.log อยู่ 240 จุด ไล่แก้ทีละจุดจะพลาดจุดใหม่ที่เพิ่มมาทีหลัง
+// จึงเปลี่ยนเส้นทางที่ประตูเดียว: ทุก console.log ในโปรเซสนี้ไปออก stderr
+// (console.error/warn ที่มีอยู่ 92 จุดออก stderr อยู่แล้ว ไม่ต้องแตะ)
+console.log = (...args: unknown[]) => { console.error(...args); };
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
