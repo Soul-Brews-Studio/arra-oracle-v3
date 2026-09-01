@@ -67,8 +67,11 @@ ENV ORACLE_LOG_TARGET=stderr
 CMD ["bun", "dist/index.js"]
 
 FROM production AS http-server
+# ORACLE_HOST: the app binds loopback by default (see src/config.ts). A container
+# must listen on every interface for `docker run -p` / compose `ports:` to reach it.
 ENV ORACLE_PORT=47778 \
-    PORT=47778
+    PORT=47778 \
+    ORACLE_HOST=0.0.0.0
 EXPOSE 47778
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD bun -e "const r=await fetch('http://127.0.0.1:47778/api/health');process.exit(r.ok?0:1)"

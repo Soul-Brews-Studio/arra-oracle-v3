@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { swagger } from '@elysiajs/swagger';
 import { eq } from 'drizzle-orm';
 import { configure, writePidFile, removePidFile } from './process-manager/index.ts';
-import { PORT, ORACLE_DATA_DIR, VECTOR_URL } from './config.ts';
+import { HOST, PORT, ORACLE_DATA_DIR, VECTOR_URL } from './config.ts';
 import { MCP_SERVER_NAME } from './const.ts';
 import { db, sqlite, closeDb, indexingStatus, settings } from './db/index.ts';
 import { isApiAuthorized, isApiPathProtected, unauthorizedApiResponse } from './server/api-token-auth.ts';
@@ -82,7 +82,7 @@ import { simpleModeResponse } from './simple-mode.ts';
 import pkg from '../package.json' with { type: 'json' };
 
 type UnifiedRuntime = Awaited<ReturnType<typeof loadUnifiedPlugins>>;
-type ServerSpec = { port: number; fetch(request: Request): Response | Promise<Response> };
+type ServerSpec = { port: number; hostname: string; fetch(request: Request): Response | Promise<Response> };
 type ElysiaApp = Elysia<any, any, any, any, any, any, any>;
 type RouteModule = Parameters<ElysiaApp['use']>[0];
 export interface StartServerOptions { writePidFile?: boolean }
@@ -243,7 +243,7 @@ export async function createStartedApp(options: StartServerOptions = {}): Promis
   await seedMenus(app, unifiedPlugins);
   await announceStartup(app, startupConfig);
   const serverFetch = createRequestTimeoutFetch(createRequestDedupFetch(createApiVersionedFetch(createTenantFetch(createDbContextFetch((request: Request) => app.fetch(request))))));
-  return { port: Number(PORT), fetch: (request) => drainingResponseFor(request) ?? trackRequest(() => serverFetch(request)) };
+  return { port: Number(PORT), hostname: HOST, fetch: (request) => drainingResponseFor(request) ?? trackRequest(() => serverFetch(request)) };
 }
 
 function resetIndexerStatus(): void {

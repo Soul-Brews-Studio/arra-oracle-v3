@@ -46,6 +46,20 @@ function pathFromDatabaseUrl(value?: string): string {
 
 export const PORT = parseInt(String(envText('ORACLE_PORT') || envText('PORT') || C.ORACLE_DEFAULT_PORT), 10);
 /**
+ * Interface to bind.
+ *
+ * Defaults to loopback because the HTTP API is unauthenticated unless
+ * ARRA_API_TOKEN is set - isApiAuthorized() returns true when the token is
+ * empty (src/server/api-token-auth.ts). Bun binds every interface when
+ * `hostname` is omitted, so the previous behaviour published the whole
+ * knowledge base to the local network the moment the host firewall let the
+ * runtime through, with nothing in the logs to say so.
+ *
+ * Set ORACLE_HOST=0.0.0.0 to opt back in. Containers need it, and the
+ * Dockerfile sets it for that reason.
+ */
+export const HOST = envText('ORACLE_HOST') || envText('HOST') || '127.0.0.1';
+/**
  * The user's real data directory, independent of any env override.
  *
  * `ORACLE_DATA_DIR` below honours `process.env.ORACLE_DATA_DIR`, so a test that redirects it
