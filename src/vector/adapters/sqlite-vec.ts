@@ -47,8 +47,6 @@ export class SqliteVecAdapter implements VectorStoreAdapter {
     if (this.db) return;
 
     const sqlite = new Database(this.dbPath);
-    this.sqlite = sqlite;
-    this.db = drizzle(sqlite, { schema });
     let loaded = false;
     const tryPaths = ['vec0', '/usr/local/lib/sqlite-vec'];
 
@@ -63,7 +61,18 @@ export class SqliteVecAdapter implements VectorStoreAdapter {
       }
     }
 
-    if (!loaded) throw new Error('Failed to load sqlite-vec extension. Install: bun add sqlite-vec');
+    if (!loaded) {
+      // Do NOT set this.sqlite/this.db on a failed load — requireDb() must
+      // keep throwing 'sqlite-vec not connected' for every caller. Setting
+      // this.db before the extension is confirmed left a half-connected
+      // adapter that reached ensureCollection() and failed there instead,
+      // with the far more confusing raw driver error "no such module: vec0".
+      sqlite.close();
+      throw new Error('Failed to load sqlite-vec extension. Install: bun add sqlite-vec');
+    }
+
+    this.sqlite = sqlite;
+    this.db = drizzle(sqlite, { schema });
     console.log('[sqlite-vec] Connected');
   }
 

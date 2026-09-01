@@ -9,6 +9,12 @@
 # bun skipped them, and it did not — `bun test --isolate tests/e2e/` failed
 # with "Playwright Test did not expect test.describe() to be called here".
 roots = ["src", "tests"]
+# Apply the same extension-capable-SQLite setup the server entrypoint uses
+# (src/index.ts), before any test file's own `new Database()` runs. Without
+# this, isSqliteVecAvailable() in src/vector/__tests__/adapters.test.ts probes
+# bun's default (extension-loading-disabled) sqlite and permanently skips the
+# sqlite-vec suite even on hosts that do have a capable system SQLite. See #2931.
+preload = ["./src/db/sqlite-runtime.ts"]
 # Isolate test files to prevent cross-file DB lock contamination.
 # Without this, parallel test files sharing oracle.db cause "disk I/O error".
 isolate = true
