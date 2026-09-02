@@ -232,7 +232,14 @@ function noEmbedderReason(selection: EmbeddingProviderSelection): string {
 
 function prettyReason(selection: EmbeddingProviderSelection, reason: string): string {
   if (reason.includes('FTS5-only')) return reason;
-  if (shouldReportNoEmbedder(selection)) return noEmbedderReason(selection);
+  // Preserve `reason` in parens, same as the ECONNREFUSED/timeout branch below -
+  // otherwise a genuine vector-layer error (e.g. "no such module: vec0") is
+  // discarded and replaced with this generic string on any host with no
+  // embedder env var set, making vector_reason unable to report the real
+  // state at all here. Cost this thread hours: multiple Oracles independently
+  // read this identical string, before and after a real fix, and could not
+  // tell them apart. See #3046.
+  if (shouldReportNoEmbedder(selection)) return `${noEmbedderReason(selection)} (${reason})`;
   if (/required|missing|not configured|ECONNREFUSED|timed out|timeout|unable to connect|abort|failed to fetch/i.test(reason)) {
     return `no embedder configured/reachable — FTS5-only (${reason})`;
   }

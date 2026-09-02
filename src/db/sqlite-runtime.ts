@@ -33,8 +33,25 @@ function resolveExtensionCapableSqlite(): string | undefined {
 
 const resolvedPath = resolveExtensionCapableSqlite();
 if (resolvedPath) {
-  Database.setCustomSQLite(resolvedPath);
-  console.error(`[sqlite-runtime] Using extension-capable SQLite: ${resolvedPath}`);
+  try {
+    Database.setCustomSQLite(resolvedPath);
+    console.error(`[sqlite-runtime] Using extension-capable SQLite: ${resolvedPath}`);
+  } catch (e) {
+    // setCustomSQLite may only run once per process, ever - bun test's
+    // --isolate re-evaluates this module fresh per test file even though the
+    // underlying native SQLite binding is process-wide, so every file after
+    // the first hits "already loaded" here. That's success, not failure: some
+    // earlier evaluation in this same process (very likely this exact module)
+    // already set it, and a Database opened since then is bound to it either
+    // way. Anything else is unexpected but still shouldn't take the process
+    // down over a best-effort setup step - log it and continue.
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(
+      /already loaded|only be called before/i.test(message)
+        ? `[sqlite-runtime] SQLite already initialized in this process (expected on repeat module evaluation) - continuing.`
+        : `[sqlite-runtime] setCustomSQLite(${resolvedPath}) failed unexpectedly: ${message}`,
+    );
+  }
 } else {
   console.error(
     `[sqlite-runtime] No extension-capable SQLite found for ${process.platform}-${process.arch}; ` +
