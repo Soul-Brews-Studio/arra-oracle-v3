@@ -40,16 +40,20 @@ if (resolvedPath) {
     // setCustomSQLite may only run once per process, ever - bun test's
     // --isolate re-evaluates this module fresh per test file even though the
     // underlying native SQLite binding is process-wide, so every file after
-    // the first hits "already loaded" here. That's success, not failure: some
-    // earlier evaluation in this same process (very likely this exact module)
-    // already set it, and a Database opened since then is bound to it either
-    // way. Anything else is unexpected but still shouldn't take the process
-    // down over a best-effort setup step - log it and continue.
+    // the first hits "already loaded" here. That specific case is success,
+    // not failure: some earlier evaluation in this same process already set
+    // it, and a Database opened since then is bound to it either way.
+    //
+    // Anything else re-throws rather than continuing. Swallowing an
+    // unexpected failure here would leave the process silently running bun's
+    // extension-incapable default sqlite - the exact original bug (#2931),
+    // just with this module now vouching that it didn't happen. A loud crash
+    // on an unrecognized failure is the correct trade for a bootstrap step
+    // whose entire job is preventing a 35-day silent outage.
     const message = e instanceof Error ? e.message : String(e);
+    if (!/already loaded|only be called before/i.test(message)) throw e;
     console.error(
-      /already loaded|only be called before/i.test(message)
-        ? `[sqlite-runtime] SQLite already initialized in this process (expected on repeat module evaluation) - continuing.`
-        : `[sqlite-runtime] setCustomSQLite(${resolvedPath}) failed unexpectedly: ${message}`,
+      `[sqlite-runtime] SQLite already initialized in this process (expected on repeat module evaluation) - continuing.`,
     );
   }
 } else {
