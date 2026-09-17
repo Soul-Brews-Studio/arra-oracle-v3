@@ -99,6 +99,9 @@ process.env.ORACLE_EMBEDDING_PROVIDER = 'none';
 const createdMarkdownFiles = new Set<string>();
 
 function markdownPathCandidates(relativePath: string): string[] {
+  // oracle_learn's `file` response field is absolute now (#3046) - no more
+  // guessing which of several roots a relative string was meant for.
+  if (path.isAbsolute(relativePath)) return [relativePath];
   const dataRoot = process.env.ORACLE_DATA_DIR || path.join(os.homedir(), '.arra-oracle-v2');
   const tmpRoots = fs.readdirSync(os.tmpdir(), { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && entry.name.startsWith('arra-'))

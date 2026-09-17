@@ -311,7 +311,13 @@ export async function handleLearn(ctx: ToolContext, input: OracleLearnInput): Pr
       type: 'text',
       text: JSON.stringify({
         success: true,
-        file: sourceFileRel,
+        // Absolute, unlike sourceFileRel below (which stays root-relative on
+        // purpose - the dashboard's /api/file resolves it against a root it
+        // already knows). A caller reading this response has no way to know
+        // which root a relative string was meant for - see #2931's 08-07
+        // thread, where two Oracles measured the identical relative path
+        // against different roots and each got a different, correct answer.
+        file: filePath,
         id,
         embedding: embeddingStatus,
         ...(embeddingError && { embeddingError }),

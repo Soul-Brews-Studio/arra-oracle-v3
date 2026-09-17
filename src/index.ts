@@ -1,6 +1,10 @@
 #!/usr/bin/env bun
 /** Arra Oracle MCP Server entry point. */
 
+// Must be the first import: configures bun:sqlite's native library before any
+// Database gets constructed anywhere in the process (including transitively,
+// via the fire-and-forget warmHttpDaemon() call below). See src/db/sqlite-runtime.ts.
+import './db/sqlite-runtime.ts';
 import { OracleMCPServer } from './mcp/server.ts';
 import { resolveToolName } from './mcp/aliases.ts';
 export { OracleMCPServer } from './mcp/server.ts';
