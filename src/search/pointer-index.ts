@@ -72,6 +72,46 @@ export function replaceDocumentPointers(dbInput: OracleDbInput, input: PointerIn
   }
 }
 
+/** Replace one tenant's memberships in bulk; the caller owns the transaction. */
+export function replaceDocumentPointersBatch(
+  dbInput: OracleDbInput,
+  tenantId: string | undefined,
+  inputs: readonly Omit<PointerInput, 'tenantId'>[],
+): void {
+  if (inputs.length === 0) return;
+  try {
+    const db = toDb(dbInput);
+    const tenant = tenantId?.trim() || 'default';
+    // Sequential replacement is last-write-wins, even when the final input is empty.
+    const latest = new Map(inputs.map((input) => [input.documentId, input]));
+    removeDocumentPointers(db, tenant, [...latest.keys()]);
+    const memberships = new Map<string, { item: Pointer; docIds: Set<string> }>();
+    for (const input of latest.values()) {
+      for (const item of documentPointers(input)) {
+        const id = pointerId(tenant, item.kind, item.key);
+        const membership = memberships.get(id) ?? { item, docIds: new Set<string>() };
+        membership.docIds.add(input.documentId);
+        memberships.set(id, membership);
+      }
+    }
+    const now = Date.now();
+    for (const [id, { item, docIds }] of memberships) {
+      const existing = db.select({ docIds: schema.oraclePointerIndex.docIds })
+        .from(schema.oraclePointerIndex).where(eq(schema.oraclePointerIndex.id, id)).get();
+      for (const docId of parseIds(existing?.docIds)) docIds.add(docId);
+      const merged = JSON.stringify([...docIds].sort());
+      db.insert(schema.oraclePointerIndex)
+        .values({ id, tenantId: tenant, kind: item.kind, key: item.key, docIds: merged, updatedAt: now })
+        .onConflictDoUpdate({
+          target: schema.oraclePointerIndex.id,
+          set: { docIds: merged, updatedAt: now },
+        }).run();
+    }
+  } catch (error) {
+    if (!missingPointerTable(error)) throw error;
+  }
+}
+
 export function removeDocumentPointers(dbInput: OracleDbInput, tenantId: string | undefined, documentIds: string[]): void {
   if (documentIds.length === 0) return;
   try {

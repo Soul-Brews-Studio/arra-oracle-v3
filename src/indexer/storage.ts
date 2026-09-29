@@ -2,9 +2,9 @@
  * Document storage: SQLite + vector store batching
  */
 
-import { Database } from 'bun:sqlite';
+import { Database, type Changes } from 'bun:sqlite';
 import { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
-import { eq } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import * as schema from '../db/schema.ts';
 import { oracleDocuments } from '../db/schema.ts';
@@ -12,7 +12,7 @@ import { enrichTextWithAcronyms } from '../search/acronyms.ts';
 import { tenantIdForWrite } from '../middleware/tenant.ts';
 import { replaceEntityLinks } from '../search/entity-ranking.ts';
 import { chunkDocumentsForIndexing } from './chunker.ts';
-import { replaceDocumentPointers } from '../search/pointer-index.ts';
+import { replaceDocumentPointersBatch, type PointerInput } from '../search/pointer-index.ts';
 import type { VectorStoreAdapter } from '../vector/types.ts';
 import type { OracleDocument } from '../types.ts';
 
@@ -44,6 +44,14 @@ export async function storeDocuments(
   const metadatas: any[] = [];
 
   db.transaction((tx) => {
+    // FTS ids are UNINDEXED: inventory once instead of scanning for every chunk.
+    const ftsRowids = new Map<string, Array<number | bigint>>();
+    for (const row of tx.all<{ rowid: number | bigint; id: string }>(sql`SELECT rowid, id FROM oracle_fts`)) {
+      const rowids = ftsRowids.get(row.id) ?? [];
+      rowids.push(row.rowid);
+      ftsRowids.set(row.id, rowids);
+    }
+    const pointerInputs: PointerInput[] = [];
     for (const doc of storedDocuments) {
       // SQLite metadata - use doc.project if available, fall back to repo project
       const docProject = (doc.project || project)?.toLowerCase();
@@ -81,14 +89,17 @@ export async function storeDocuments(
 
       const indexedContent = enrichTextWithAcronyms(doc.content);
 
-      // FTS5 virtual tables have no UNIQUE constraint on id (it's UNINDEXED),
-      // so delete-then-insert avoids duplicates across re-index runs.
-      tx.delete(oracleFts).where(eq(oracleFts.id, doc.id)).run();
-      tx.insert(oracleFts).values({
+      // Remove every old duplicate, then track the new row for repeated input ids.
+      for (const rowid of ftsRowids.get(doc.id) ?? []) {
+        tx.run(sql`DELETE FROM oracle_fts WHERE rowid = ${rowid}`);
+      }
+      const inserted = tx.insert(oracleFts).values({
         id: doc.id,
         content: indexedContent,
         concepts: doc.concepts.join(' '),
       }).run();
+      // Drizzle types run() as void; its Bun adapter returns Statement.run()'s Changes.
+      ftsRowids.set(doc.id, [(inserted as unknown as Changes).lastInsertRowid]);
       replaceEntityLinks(sqlite, {
         documentId: doc.id,
         tenantId,
@@ -96,7 +107,7 @@ export async function storeDocuments(
         concepts: doc.concepts,
         now,
       });
-      replaceDocumentPointers(sqlite, {
+      pointerInputs.push({
         documentId: doc.id,
         tenantId,
         content: indexedContent,
@@ -116,7 +127,9 @@ export async function storeDocuments(
         ...(doc.line_start !== undefined && { line_start: doc.line_start }),
         ...(doc.line_end !== undefined && { line_end: doc.line_end }),
       });
+      if (ids.length % 1000 === 0) console.log(`stored ${ids.length}/${storedDocuments.length} chunks`);
     }
+    replaceDocumentPointersBatch(tx, tenantId, pointerInputs);
   });
 
   // Batch insert to vector store in chunks of 100 (skip if no client)
