@@ -17,14 +17,13 @@ import {
 } from './schema.ts';
 import { applyProfileDefaults, resolveConfigProfile, type ConfigProfile } from './profiles.ts';
 import { DEFAULT_SAFE_VECTOR_ENGINE } from './defaults.ts';
-
+import { validatePrivateDeployment } from './private-deployment.ts';
 export class ConfigValidationError extends Error {
   constructor(readonly issues: string[]) {
     super(`Config validation failed:\n${issues.map((issue) => ` - ${issue}`).join('\n')}`);
     this.name = 'ConfigValidationError';
   }
 }
-
 interface ValidateEnvOptions {
   env?: NodeJS.ProcessEnv;
   warn?: (message: string) => void;
@@ -36,7 +35,6 @@ export interface ConfigValidationResult {
   profile: ConfigProfile;
   warnings: string[];
 }
-
 const BOOL_VALUES = new Set(['0', '1', 'true', 'false', 'yes', 'no', 'on', 'off']);
 const SQLITE_PROTOCOLS = ['file:', 'sqlite:', 'sqlite3:'];
 
@@ -53,6 +51,7 @@ export function validateEnv(options: ValidateEnvOptions = {}): ConfigValidationR
   validateRuntimePaths(env, issues);
   validateVectorConnectionConfig(env, issues);
   validateProviderRequirements(env, issues);
+  validatePrivateDeployment(env, issues);
 
   if (issues.length) throw new ConfigValidationError(issues);
 
@@ -168,6 +167,7 @@ function validateRuntimePaths(env: RuntimeEnv, issues: string[]): void {
   validateWritablePath('ORACLE_DB_PATH/DATABASE_URL', dbPath, issues, false);
   if (filled(env.ORACLE_REPO_ROOT)) validateWritablePath('ORACLE_REPO_ROOT', env.ORACLE_REPO_ROOT.trim(), issues, true);
 }
+
 function validateVectorConnectionConfig(env: RuntimeEnv, issues: string[]): void {
   const type = (env.ORACLE_VECTOR_DB?.trim() || DEFAULT_SAFE_VECTOR_ENGINE).toLowerCase();
   if (type === 'qdrant' && !filled(env.QDRANT_URL)) issues.push('Qdrant vector DB requires QDRANT_URL.');

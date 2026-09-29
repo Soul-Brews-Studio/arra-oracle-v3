@@ -1,0 +1,26 @@
+# Curated allowlist. Format: source-root|relative-path
+# source roots are supplied to manifest-check.ts; no arbitrary recursive import.
+repo|README.md
+repo|docs/README.md
+repo|docs/CLI-GUIDE.md
+repo|docs/INSTALL-VERIFIED.md
+repo|docs/ONBOARDING.md
+repo|docs/PLUGIN-GUIDE.md
+repo|docs/mcp-tools.md
+repo|docs/http-api-reference.md
+repo|docs/architecture.md
+repo|docs/architecture/memory-layer.md
+repo|docs/DOCKER-MCP-TOOLKIT.md
+repo|docs/DB-MIGRATIONS.md
+repo|docs/QUICKSTART-10MIN.md
+arra|onboarding/arra-operations.md
+arra|planning
+arra|decision-log
+arra|evidence/2026-09-25-official-mcp-completion/RESULTS.md
+mac-setup|device/ai-assistants/arra-mini-remote.md
+mac-setup|device/ai-assistants/hermes-agent.md
+# Pre-existing Mint operational records already referenced by the live DB.
+mint|onboarding-notes/arra-operations.md
+mint|ψ/memory/learnings/2026-09-12_arra-deployment-smoke-check-arramintsmoke202609.md
+mint|ψ/memory/learnings/2026-09-13_arra-acer-client-acceptance-verification-2026-09-1.md
+mint|ψ/memory/learnings/2026-09-25_2026-09-25-hermes-integration-correction-the-mint.md

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.poramateake.arra-backup-pull</string>
+  <key>ProgramArguments</key><array><string>/bin/bash</string><string>/Users/poramateake/.codex/bin/arra-backup-pull</string></array>
+  <key>StartInterval</key><integer>3600</integer>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>/Users/poramateake/.codex/arra-backups/pull.log</string>
+  <key>StandardErrorPath</key><string>/Users/poramateake/.codex/arra-backups/pull-error.log</string>
+</dict></plist>

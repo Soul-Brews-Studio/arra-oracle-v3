@@ -49,7 +49,7 @@ export function watchPluginManifests(options: PluginManifestWatcherOptions): Plu
   let reloadChain: Promise<void> = Promise.resolve();
 
   const runReload = async (): Promise<UnifiedRuntime> => {
-    const runtime = await loader({ dirs, timeoutMs: options.timeoutMs, warn: options.warn });
+    const runtime = await loader({ dirs, timeoutMs: options.timeoutMs, warn: options.warn, strict: options.strict });
     await options.onReload(runtime);
     return runtime;
   };

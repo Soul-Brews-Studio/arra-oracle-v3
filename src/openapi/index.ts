@@ -65,10 +65,14 @@ export function createOpenApiSwaggerConfig(version = pkg.version): ElysiaSwagger
 }
 
 export function openApiSpecHandler(app: { handle: (request: Request) => Response | Promise<Response>; routes: RouteLike[] }) {
-  return async () => {
-    const response = await app.handle(new Request(`http://openapi.local${OPENAPI_INTERNAL_SPEC_PATH}`));
+  return async ({ request }: { request: Request }) => {
+    const response = await app.handle(new Request(new URL(OPENAPI_INTERNAL_SPEC_PATH, request.url).href, { headers: request.headers }));
+    if (!response.ok) return response;
     const payload = await response.json() as Spec;
     const raw = payload?.openapi ? payload : payload?.data ?? payload;
+    if (typeof raw?.openapi !== 'string' || !raw.paths || typeof raw.paths !== 'object') {
+      return Response.json({ error: 'openapi_generation_failed' }, { status: 502 });
+    }
     return Response.json(documentOpenApiSpec(raw, app.routes));
   };
 }

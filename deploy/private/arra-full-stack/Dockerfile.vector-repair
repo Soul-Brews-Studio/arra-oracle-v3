@@ -1,0 +1,12 @@
+# Low-space repair of verified private-8cde020a image.
+# Verify base image ID before building:
+# sha256:777d859b1fbeb9a221a5e43649a857860e555516248fd9cf7d2d04b487a2bcbb
+FROM arra-oracle-v3:private-8cde020a
+USER root
+COPY tsconfig.json ./
+COPY packages ./packages
+COPY src/routes/vector/search.ts ./src/routes/vector/search.ts
+COPY src/routes/vector/export.ts ./src/routes/vector/export.ts
+COPY src/server/handlers.ts ./src/server/handlers.ts
+RUN bun build src/server.ts --target bun --outdir dist
+USER bun

@@ -22,6 +22,21 @@ describe('entity sidecar backfill worker', () => {
     expect(stores.created()).toBe(0);
   });
 
+  test('environment dry-run mode prevents scheduled writes', async () => {
+    const sqlite = memoryDb();
+    seedDoc(sqlite, 'doc-dry-run', 'default', 'Arra dry-run entity safety', ['Arra']);
+    const stores = storesFor();
+
+    const result = await runEntityBackfillSweep(sqlite, {
+      env: { ORACLE_ENTITY_BACKFILL: '1', ORACLE_ENTITY_BACKFILL_DRY_RUN: '1' }, models, createStore: stores.create,
+    });
+
+    expect(result.dryRun.linkDocsMissing).toBe(1);
+    expect(result.applied).toEqual({ docsRepaired: 0, linksWritten: 0, entityDocsWritten: 0, errors: [] });
+    expect(linkCount(sqlite)).toBe(0);
+    expect(stores.addCalls('test_docs_entities')).toBe(0);
+  });
+
   test('repairs missing SQL links and entity vector docs within tenant scope', async () => {
     const sqlite = memoryDb();
     seedDoc(sqlite, 'doc-a', 'tenant-a', 'Alpha Project uses Cloudflare Workers', ['Alpha Project']);

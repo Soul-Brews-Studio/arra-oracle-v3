@@ -1,6 +1,6 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 
 export const ORACLE_SESSIONS_SINGLE_MACHINE_NOTE =
   'oracle_sessions is single-machine only: it scans local ~/.claude/projects/*/*.jsonl transcripts and is not fleet-wide.';
@@ -41,6 +41,7 @@ export interface OracleSessionsResult {
  */
 export async function oracleSessions(options: OracleSessionsOptions = {}): Promise<OracleSessionsResult> {
   const root = options.projectsDir ?? join(options.homeDir ?? homedir(), '.claude', 'projects');
+  assertPrivateSessionRoot(root);
   const files = await listJsonlFiles(root);
   const sessions = [] as OracleSessionSummary[];
   for (const file of files) sessions.push(await summarizeSession(file.path, file.project));
@@ -54,6 +55,12 @@ export async function oracleSessions(options: OracleSessionsOptions = {}): Promi
     total: sessions.length,
     sessions: sessions.slice(0, limit),
   };
+}
+
+function assertPrivateSessionRoot(root: string): void {
+  if (process.env.ORACLE_PRIVATE_DEPLOYMENT !== '1') return;
+  const allowed = process.env.ORACLE_DIG_SESSION_ROOT?.trim();
+  if (!allowed || resolve(root) !== resolve(allowed)) throw new Error('strict session root requires ORACLE_DIG_SESSION_ROOT and an exact Arra project path');
 }
 
 export const scanOracleSessions = oracleSessions;

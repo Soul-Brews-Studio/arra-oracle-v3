@@ -5,7 +5,7 @@ import { currentTenantId } from '../../middleware/tenant.ts';
 import type { SearchResult } from '../../server/types.ts';
 import { filterResultsAsOf, parseAsOf } from '../../search/bitemporal.ts';
 import { attachSupersedeStatus, supersedeWarnings } from '../../search/supersede-status.ts';
-import { getEmbeddingModels, getVectorStoreByModel } from '../../vector/factory.ts';
+import { getEmbeddingModels, createVectorStore, getVectorStoreConfigByModel } from '../../vector/factory.ts';
 import { cosineDistanceToSimilarity } from '../../vector/scoring.ts';
 import type { VectorQueryResult, VectorStoreAdapter } from '../../vector/types.ts';
 import { asOfResponse } from '../search/asof.ts';
@@ -150,7 +150,8 @@ function filterAsOf(hits: SearchHit[], db: Database, asOfMs?: number): SearchHit
 }
 
 export function createVectorSearchEndpoint(deps: VectorSearchDeps = {}) {
-  const getModels = deps.getModels ?? getEmbeddingModels, getStore = deps.getStore ?? getVectorStoreByModel, asOfDb = deps.asOfDb ?? sqlite;
+  const getModels = deps.getModels ?? getEmbeddingModels, asOfDb = deps.asOfDb ?? sqlite;
+  const getStore = deps.getStore ?? ((model?: string) => createVectorStore(getVectorStoreConfigByModel(model)));
   const boostResults = deps.boostResults ?? ((db, hits, query, tenantId) => applyVectorEntityBoost(db, hits, query, { tenantId }));
   return new Elysia().get('/vector/search', async ({ query, request, set }) => {
     if (!query.q) { set.status = 400; return { error: 'Missing query parameter: q' }; }

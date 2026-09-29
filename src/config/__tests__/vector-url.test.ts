@@ -61,6 +61,17 @@ describe('VECTOR_URL routing guard', () => {
     }
   });
 
+  test('private vector config override is used for proxy routing', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-vector-url-override-'));
+    const config = path.join(tmp, 'private-vector.json');
+    try {
+      fs.writeFileSync(config, JSON.stringify({ vectorProxyUrl: 'http://127.0.0.1:47780' }));
+      expect(resolveVectorUrl({ ORACLE_VECTOR_CONFIG_PATH: config }, ['bun', 'src/server.ts'])).toBe('http://127.0.0.1:47780');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   test('env VECTOR_URL overrides durable vectorProxyUrl config', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-vector-url-config-'));
     try {

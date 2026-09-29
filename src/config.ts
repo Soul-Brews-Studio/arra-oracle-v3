@@ -107,7 +107,8 @@ export function resolveVectorUrl(
 
   try {
     const dataDir = env.ORACLE_DATA_DIR?.trim() || envText('ORACLE_DATA_DIR') || ORACLE_DATA_DIR;
-    const raw = fs.readFileSync(path.join(dataDir, 'vector-server.json'), 'utf-8');
+    const configPath = env.ORACLE_VECTOR_CONFIG_PATH?.trim() || path.join(dataDir, 'vector-server.json');
+    const raw = fs.readFileSync(configPath, 'utf-8');
     const config = JSON.parse(raw) as { vectorProxyUrl?: unknown; vectorUrl?: unknown };
     const fromConfig = typeof config.vectorProxyUrl === 'string'
       ? config.vectorProxyUrl

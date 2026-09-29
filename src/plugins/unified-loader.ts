@@ -1,17 +1,14 @@
-import { existsSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Elysia } from 'elysia';
-import { normalizeUnifiedPluginManifest, type NormalizedUnifiedPluginManifest, type UnifiedApiRouteManifest, type UnifiedCliSubcommandManifest, type UnifiedMcpToolManifest, type UnifiedMenuManifest } from './unified-manifest.ts';
+import { type NormalizedUnifiedPluginManifest, type UnifiedApiRouteManifest, type UnifiedCliSubcommandManifest, type UnifiedMcpToolManifest, type UnifiedMenuManifest } from './unified-manifest.ts';
 import { sortPluginsByDependencies } from './dependency-resolver.ts';
 import { pluginRegistryFromLoadedPlugins, type LoadedPluginRegistryEntry } from './registry.ts';
 import { runPluginWithErrorContainment } from './error-containment.ts';
 import { createUnifiedProxyRoute } from './proxy-surface.ts';
 import { unifiedPluginServerRoutes, type UnifiedPluginServer } from './unified-server.ts';
-import { isContainedPluginPath, resolveContainedPluginEntry } from './path-containment.ts';
 import { registerPluginExportFormats } from './export-format-init.ts';
-import { defaultUnifiedPluginDirs } from './plugin-dirs.ts';
 import { isPluginInvokeFailure, pluginFailureMessage, responseFromPluginResult, withPluginTimeout } from './plugin-result.ts';
+import { discoverUnifiedPluginManifests } from './plugin-discovery.ts';
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.ARRA_PLUGIN_TIMEOUT_MS ?? 5000);
 
@@ -27,7 +24,14 @@ export interface UnifiedLoaderOptions {
   dirs?: string[];
   warn?: (message: string) => void;
   timeoutMs?: number;
+  strict?: UnifiedPluginStrictPolicy;
 }
+
+export type UnifiedPluginStrictPolicy = {
+  root: string;
+  requiredNames: string[];
+  failOnLifecycle?: boolean;
+};
 
 export type UnifiedPluginStatus = { name: string; status: 'ok' | 'degraded'; error?: string };
 
@@ -59,47 +63,6 @@ interface InvokeContext {
 
 function warn(options: UnifiedLoaderOptions, message: string): void {
   options.warn?.(`[unified-plugin] ${message}`);
-}
-
-async function readPluginDir(dir: string, options: UnifiedLoaderOptions): Promise<LoadedUnifiedPlugin | null> {
-  const path = join(dir, 'plugin.json');
-  if (!existsSync(path)) return null;
-  try {
-    const raw = await Bun.file(path).json();
-    const manifest = normalizeUnifiedPluginManifest(raw);
-    if (manifest.enabled === false) return null;
-    return { manifest, dir, entryPath: resolveContainedPluginEntry(dir, manifest.entry) };
-  } catch (error) {
-    warn(options, `skipped ${dir}: ${error instanceof Error ? error.message : String(error)}`);
-    return null;
-  }
-}
-
-export async function discoverUnifiedPluginManifests(
-  options: UnifiedLoaderOptions = {},
-): Promise<LoadedUnifiedPlugin[]> {
-  const found: LoadedUnifiedPlugin[] = [];
-  const seen = new Set<string>();
-  for (const baseDir of options.dirs ?? defaultUnifiedPluginDirs()) {
-    if (!existsSync(baseDir)) continue;
-    let entries: Array<{ name: string; isDirectory(): boolean; isSymbolicLink(): boolean }>;
-    try {
-      entries = readdirSync(baseDir, { withFileTypes: true });
-    } catch (error) {
-      warn(options, `skipped ${baseDir}: ${error instanceof Error ? error.message : String(error)}`);
-      continue;
-    }
-    for (const entry of entries) {
-      if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
-      const pluginDir = join(baseDir, entry.name);
-      if (!isContainedPluginPath(baseDir, pluginDir)) { warn(options, `skipped ${pluginDir}: plugin directory symlink escapes plugin root`); continue; }
-      const loaded = await readPluginDir(pluginDir, options);
-      if (!loaded || seen.has(loaded.manifest.name)) continue;
-      seen.add(loaded.manifest.name);
-      found.push(loaded);
-    }
-  }
-  return found;
 }
 
 async function invoke(plugin: LoadedUnifiedPlugin, handler: string | undefined, ctx: InvokeContext, timeoutMs: number) {
@@ -164,6 +127,7 @@ function runtimeFrom(initialPlugins: LoadedUnifiedPlugin[], options: UnifiedLoad
       const error = pluginFailureMessage(result.error);
       pluginStatus.set(plugin.manifest.name, { name: plugin.manifest.name, status: 'degraded', error });
       warn(options, `${plugin.manifest.name}.${source} failed: ${error}`);
+      if (options.strict?.failOnLifecycle) throw new Error(`${plugin.manifest.name}.${source} failed: ${error}`);
     } else {
       pluginStatus.set(plugin.manifest.name, { name: plugin.manifest.name, status: 'ok' });
       if (source === 'init') initialized.add(plugin.manifest.name);
@@ -226,6 +190,7 @@ export async function loadUnifiedPlugins(options: UnifiedLoaderOptions = {}): Pr
     const plugins = await discoverUnifiedPluginManifests(options);
     return runtimeFrom(sortPluginsByDependencies(plugins, { warn: options.warn }), options);
   } catch (error) {
+    if (options.strict) throw error;
     warn(options, `loader disabled: ${error instanceof Error ? error.message : String(error)}`);
     return runtimeFrom([], options);
   }
@@ -236,3 +201,4 @@ export async function seedUnifiedPluginMenuItems(items: UnifiedPluginMenuSeedIte
   return (await import('./unified-menu-seeder.ts')).seedUnifiedPluginMenuItems(items);
 }
 export { defaultUnifiedPluginDirs } from './plugin-dirs.ts';
+export { discoverUnifiedPluginManifests } from './plugin-discovery.ts';

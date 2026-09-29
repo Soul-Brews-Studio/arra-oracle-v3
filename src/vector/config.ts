@@ -36,8 +36,11 @@ function defaultVectorsDbPath(): string {
 }
 
 /** Absolute path to vector-server.json inside ORACLE_DATA_DIR. */
-export function configPath(dataDir = process.env.ORACLE_DATA_DIR || ORACLE_DATA_DIR): string {
-  return path.join(dataDir, VECTOR_CONFIG_FILE);
+export function configPath(dataDir?: string): string {
+  if (dataDir !== undefined) return path.join(dataDir, VECTOR_CONFIG_FILE);
+  const override = process.env.ORACLE_VECTOR_CONFIG_PATH?.trim();
+  if (override) return path.resolve(override);
+  return path.join(process.env.ORACLE_DATA_DIR || ORACLE_DATA_DIR, VECTOR_CONFIG_FILE);
 }
 
 /**

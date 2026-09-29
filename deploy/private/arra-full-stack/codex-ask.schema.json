@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "answer": { "type": "string" },
+    "citations": { "type": "array", "items": { "type": "integer" } },
+    "noEvidence": { "type": "boolean" }
+  },
+  "required": ["answer", "citations", "noEvidence"]
+}

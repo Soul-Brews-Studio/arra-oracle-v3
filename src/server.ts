@@ -70,6 +70,8 @@ import { createMetricsLifecycle, metricsRoutes } from './routes/metrics/index.ts
 import { exportRoutes } from './routes/export/index.ts';
 import { memoryRoutes } from './routes/memory/index.ts';
 import { canvasRoutes } from './routes/canvas/index.ts';
+import { createFederationRoutes } from './routes/federation/index.ts';
+import { disabledPluginsFromEnv, enabledPluginsFromEnv, enabledServerPlugins, loadServerPlugins, serverPluginRoutes } from './server/plugin/loader.ts';
 import { tenantsRoutes } from './routes/tenants/index.ts';
 import { watcherRoutes } from './routes/watcher/index.ts';
 import { indexerRoutes } from './routes/indexer/index.ts';
@@ -186,7 +188,10 @@ export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef
 export function createServerRouteModules(unifiedPlugins: UnifiedRuntime, runtimeRef: UnifiedRuntimeRef<UnifiedRuntime>): RouteModule[] {
   const healthRoutes = createHealthRoutes({ pluginCount: unifiedPlugins.pluginCount, pluginMcpToolCount: unifiedPlugins.mcpTools.length, pluginStatuses: unifiedPlugins.pluginStatuses, isDraining });
   const apiModules = [authRoutes, settingsRoutes, feedRoutes, healthRoutes, dashboardRoutes, searchRoutes, askRoutes, vectorRoutes, vectorConfigApiRoutes, conceptsRoutes, knowledgeRoutes, researchRoutes, verifyRoutes, supersedeRoutes, forumApi, tracesApi, scheduleApi, filesRouter, createPluginsRouter({ registry: () => runtimeRef.current.pluginRegistry(), runtimeRef }), sessionsRoutes, oldStudioCompatRoutes, vaultRoutes, metricsRoutes, exportRoutes, memoryRoutes, canvasRoutes, tenantsRoutes, watcherRoutes, indexerRoutes, createFleetLogRoutes()];
-  return [...apiModules, createMcpRoutes({ runtimeRef }), createMcpStreamableRoutes(), createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu))];
+  const optionalRoutes = serverPluginRoutes(enabledServerPlugins(loadServerPlugins([
+    { name: 'federation', tier: 'extra', enabled: false, routes: () => createFederationRoutes() },
+  ], { enabledPlugins: enabledPluginsFromEnv(), disabledPlugins: disabledPluginsFromEnv() })));
+  return [...apiModules, ...optionalRoutes, createMcpRoutes({ runtimeRef }), createMcpStreamableRoutes(), createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu))];
 }
 
 export function mountRouteModules(app: ElysiaApp, modules: RouteModule[]): void {
@@ -204,7 +209,10 @@ function assertRouteModule(mod: unknown, index: number): asserts mod is RouteMod
 
 export async function startServer(options: StartServerOptions = {}): Promise<ReturnType<typeof Bun.serve>> {
   const app = await createStartedApp(options);
-  return Bun.serve(app);
+  const bindHost = process.env.ORACLE_BIND_HOST?.trim();
+  return bindHost
+    ? Bun.serve({ hostname: bindHost, port: app.port, fetch: app.fetch, idleTimeout: 120 })
+    : Bun.serve(app);
 }
 
 export async function createStartedApp(options: StartServerOptions = {}): Promise<ServerSpec> {
@@ -226,15 +234,19 @@ export async function createStartedApp(options: StartServerOptions = {}): Promis
   entityBackfillWorker.start();
   registerGracefulShutdown({ close: async () => { consolidationWorker.stop(); entityBackfillWorker.stop(); } });
 
-  const pluginDirs = defaultUnifiedPluginDirs([join(import.meta.dir, 'plugins')]);
+  const privateDeployment = process.env.ORACLE_PRIVATE_DEPLOYMENT === '1';
+  const privatePluginRoot = process.env.ORACLE_PRIVATE_PLUGIN_ROOT?.trim() || join(import.meta.dir, 'plugins');
+  const pluginDirs = privateDeployment ? [privatePluginRoot] : defaultUnifiedPluginDirs([join(import.meta.dir, 'plugins')]);
+  const pluginPolicy = privateDeployment ? { root: pluginDirs[0], requiredNames: ['arra', 'oracle-dig'], failOnLifecycle: true } : undefined;
   const pluginWarn = (message: string) => console.warn(message);
-  const unifiedPlugins = await loadUnifiedPlugins({ dirs: pluginDirs, warn: pluginWarn });
+  const unifiedPlugins = await loadUnifiedPlugins({ dirs: pluginDirs, warn: pluginWarn, strict: pluginPolicy });
   await unifiedPlugins.init();
   const runtimeRef = createUnifiedRuntimeRef(unifiedPlugins);
   const runtimeLifecycle = { servers: await startUnifiedPluginServers(unifiedPlugins.servers, pluginWarn) };
   const pluginWatcher = watchPluginManifests({
     dirs: pluginDirs,
     warn: pluginWarn,
+    strict: pluginPolicy,
     onReload: (runtime) => swapUnifiedRuntimeWithLifecycle(runtimeRef, runtimeLifecycle, runtime, { warn: pluginWarn }),
   });
   registerGracefulShutdown({ close: async () => shutdown(runtimeRef.current, runtimeLifecycle.servers, pluginWatcher, ownsPidFile) });

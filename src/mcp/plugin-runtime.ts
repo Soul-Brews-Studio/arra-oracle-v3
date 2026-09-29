@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { createUnifiedRuntimeRef, type UnifiedRuntimeRef } from '../plugins/runtime-routes.ts';
 import { defaultUnifiedPluginDirs, loadUnifiedPlugins, type UnifiedLoaderOptions, type UnifiedRuntime } from '../plugins/unified-loader.ts';
 import { watchPluginManifests, type PluginManifestWatcher } from '../plugins/watcher.ts';
@@ -17,10 +18,13 @@ export interface McpPluginRuntime {
 }
 
 export function createMcpPluginRuntime(options: McpPluginRuntimeOptions = {}): McpPluginRuntime {
-  const dirs = options.dirs ?? defaultUnifiedPluginDirs();
+  const privateDeployment = process.env.ORACLE_PRIVATE_DEPLOYMENT === '1';
+  const privateRoot = process.env.ORACLE_PRIVATE_PLUGIN_ROOT?.trim() || join(import.meta.dir, '../plugins');
+  const dirs = options.dirs ?? (privateDeployment ? [privateRoot] : defaultUnifiedPluginDirs());
+  const strict = options.strict ?? (privateDeployment ? { root: privateRoot, requiredNames: ['arra', 'oracle-dig'], failOnLifecycle: true } : undefined);
   let ref = options.runtimeRef;
   let watcher: PluginManifestWatcher | null = null;
-  const ready = Promise.resolve(options.runtime ?? options.runtimeRef?.current ?? loadUnifiedPlugins({ dirs, warn: options.warn, timeoutMs: options.timeoutMs }))
+  const ready = Promise.resolve(options.runtime ?? options.runtimeRef?.current ?? loadUnifiedPlugins({ dirs, warn: options.warn, timeoutMs: options.timeoutMs, strict }))
     .then((runtime) => {
       ref ??= createUnifiedRuntimeRef(runtime);
       return runtime;
@@ -34,6 +38,7 @@ export function createMcpPluginRuntime(options: McpPluginRuntimeOptions = {}): M
       dirs,
       warn: options.warn,
       timeoutMs: options.timeoutMs,
+      strict,
       onReload: async (next) => {
         const previous = await current();
         await previous.stop();

@@ -54,13 +54,19 @@ export async function discoverPlugins(options: DiscoverOptions = {}): Promise<Di
   let bundled = 0;
   let user = 0;
 
-  const unifiedPlugins = options.unifiedPlugins ?? await discoverUnifiedPluginManifests();
+  const privateDeployment = process.env.ORACLE_PRIVATE_DEPLOYMENT === '1';
+  const privateRoot = process.env.ORACLE_PRIVATE_PLUGIN_ROOT?.trim() ?? join(process.cwd(), 'src/plugins');
+  const unifiedPlugins = options.unifiedPlugins ?? await discoverUnifiedPluginManifests(privateDeployment
+    ? { dirs: [privateRoot], strict: { root: privateRoot, requiredNames: ['arra', 'oracle-dig'], failOnLifecycle: true } }
+    : {});
   for (const plugin of unifiedPlugins) {
     if (seen.has(plugin.manifest.name)) continue;
     seen.add(plugin.manifest.name);
     plugins.push(fromUnifiedPlugin(plugin));
     user++;
   }
+
+  if (privateDeployment) return { plugins, bundled, user };
 
   // user plugins scanned first so they override bundled plugins with the same name
   const userDir = options.userPluginDir ?? USER_PLUGIN_DIR;

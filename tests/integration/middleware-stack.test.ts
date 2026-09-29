@@ -32,7 +32,8 @@ function createStackedApp(now = (() => 1_000)) {
     })
     .get('/api/fail', () => {
       throw new BadRequestError('stack boom');
-    });
+    })
+    .post('/mcp', () => ({ ok: true }));
 }
 
 function jsonRequest(path: string, init: RequestInit = {}) {
@@ -130,5 +131,16 @@ describe('middleware stack integration', () => {
     expect(second.status).toBe(400);
     expect(third.status).toBe(429);
     expect(await third.json()).toMatchObject({ error: 'rate_limit_exceeded' });
+  });
+
+  test('leaves streamable MCP to its dedicated bearer verifier', async () => {
+    const app = createStackedApp();
+    const response = await app.handle(jsonRequest('/mcp', {
+      method: 'POST',
+      headers: { authorization: 'Bearer dedicated-mcp-token', 'content-type': 'application/json' },
+      body: '{}',
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
   });
 });

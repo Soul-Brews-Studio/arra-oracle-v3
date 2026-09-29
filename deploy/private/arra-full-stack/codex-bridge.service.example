@@ -1,0 +1,21 @@
+[Unit]
+Description=Arra local Codex inference fallback bridge
+After=network-online.target hermes-gateway.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/arra-oracle/codex-bridge.env
+ExecStartPre=/usr/bin/mkdir -p %h/.local/share/arra-codex-bridge/work %h/.local/share/arra-codex-bridge/tmp
+ExecStart=/usr/bin/python3 %h/Documents/arra-oracle/arra-oracle-v3/deploy/private/arra-full-stack/codex-bridge.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.codex %h/.local/share/arra-codex-bridge
+WorkingDirectory=%h/.local/share/arra-codex-bridge/work
+
+[Install]
+WantedBy=default.target

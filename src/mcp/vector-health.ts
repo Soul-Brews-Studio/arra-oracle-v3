@@ -25,6 +25,7 @@ export async function probeVectorStore(
   if (!store) return 'unavailable';
   const keepDegraded = current === 'degraded';
   try {
+    await store.connect();
     const stats = await store.getStats();
     console.error(stats.count > 0
       ? `[VectorDB:${store.name}] ✓ oracle_knowledge: ${stats.count} documents`

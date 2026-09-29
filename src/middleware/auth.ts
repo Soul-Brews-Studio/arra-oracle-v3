@@ -3,6 +3,7 @@ import { Elysia } from 'elysia';
 import { apiErrorResponse } from './errors.ts';
 
 const HEALTH_BYPASS_PATH = '/api/health';
+const MCP_STREAMABLE_PATH = '/mcp';
 
 type AuthFailureReason = 'missing' | 'invalid';
 type BearerAuth = { present: boolean; token: string };
@@ -16,7 +17,12 @@ export function isApiKeyAuthEnabled(): boolean {
 }
 
 export function isApiKeyAuthBypassed(pathname: string): boolean {
-  return pathname === HEALTH_BYPASS_PATH || pathname.startsWith(`${HEALTH_BYPASS_PATH}/`);
+  // Streamable MCP has its own bearer verifier. Do not make a dedicated
+  // ORACLE_MCP_HTTP_TOKEN unusable when the global HTTP API key is different.
+  return pathname === MCP_STREAMABLE_PATH
+    || pathname.startsWith(`${MCP_STREAMABLE_PATH}/`)
+    || pathname === HEALTH_BYPASS_PATH
+    || pathname.startsWith(`${HEALTH_BYPASS_PATH}/`);
 }
 
 function safeEqual(a: string, b: string): boolean {

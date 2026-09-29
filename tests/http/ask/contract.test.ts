@@ -12,6 +12,7 @@ const boostedId = `boosted-${stamp}`;
 const plainId = `plain-${stamp}`;
 const aliasPlainId = `alias-plain-${stamp}`;
 const aliasLinkedId = `alias-linked-${stamp}`;
+const unrelatedId = `unrelated-${stamp}`;
 const term = `askcontract${stamp}`;
 const aliasTerm = `askalias${stamp}`;
 
@@ -46,6 +47,7 @@ beforeAll(async () => {
   insertDoc(boostedId, `${term} boosted evidence for Orbit.`);
   insertDoc(aliasPlainId, `${aliasTerm} plain acronym evidence.`);
   insertDoc(aliasLinkedId, `${aliasTerm} full-name acronym evidence.`);
+  insertDoc(unrelatedId, 'The launch date of the Arra connector was recorded.');
   insertEntity(boostedId, 'Orbit');
   insertEntity(aliasLinkedId, 'Application Programming Interface');
 });
@@ -151,6 +153,15 @@ describe('POST /api/ask RAG contract', () => {
     expect(body.answer).toContain('No evidence found');
     expect(body.citations).toEqual([]);
     expect(body.warnings).toContain('no_evidence_found');
+  });
+
+  test('does not cite weak FTS matches for an unrelated specific question', async () => {
+    const res = await post({ question: 'What is the launch date of imaginary Sapphire Hedgehog reactor ZX9137?', llm: false });
+    const body = await res.json() as Record<string, any>;
+
+    expect(body.noEvidence).toBe(true);
+    expect(body.citations).toEqual([]);
+    expect(body.answer).toContain('No evidence found');
   });
 
   test('entity boost participates in ask source ordering', async () => {

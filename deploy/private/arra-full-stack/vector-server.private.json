@@ -1,0 +1,30 @@
+{
+  "version": "2.0",
+  "enabled": true,
+  "host": "127.0.0.1",
+  "port": 47780,
+  "collections": {
+    "bge-m3": {
+      "collection": "oracle_knowledge_bge_m3",
+      "model": "bge-m3",
+      "provider": "ollama",
+      "adapter": "sqlite-vec",
+      "dataPath": "/data/vectors.db",
+      "primary": true,
+      "embedder": {
+        "backend": "ollama",
+        "model": "bge-m3",
+        "dimensions": 1024
+      }
+    }
+  },
+  "dataPath": "/data/vectors.db",
+  "embeddingEndpoint": "http://127.0.0.1:11434",
+  "storage": {
+    "default": "sqlite-vec",
+    "services": {
+      "sqlite-vec": { "type": "builtin" }
+    }
+  },
+  "proxy": []
+}

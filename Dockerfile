@@ -10,7 +10,9 @@
 #   docker build -t arra-oracle-v3:stdio --target mcp-stdio .
 #   docker build -t arra-test:test --target test .
 
-FROM oven/bun:1 AS deps
+ARG BUN_IMAGE=oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895
+ARG BUN_SLIM_IMAGE=oven/bun:1.4.2-slim@sha256:cb3bbbb08e13a4a2ff400f24c7a2a1d5efa83f6ef8544d52d95a519631e2fc61
+FROM ${BUN_IMAGE} AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
 COPY frontend/package.json ./frontend/package.json
@@ -25,7 +27,24 @@ COPY src ./src
 RUN bun build src/server.ts src/index.ts --target bun --outdir dist \
  && bun build src/cli/index.ts --target bun --outdir dist-cli
 
-FROM oven/bun:1 AS test
+# The SPA and first-party unified plug-ins are loaded at runtime from the
+# filesystem. Keep them in the image; dynamic imports cannot be discovered by
+# the entry-point bundler above.
+FROM ${BUN_IMAGE} AS frontend-builder
+WORKDIR /app
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3 make g++ \
+ && rm -rf /var/lib/apt/lists/*
+COPY package.json bun.lock ./
+COPY frontend/package.json ./frontend/package.json
+COPY workers/mcp/package.json ./workers/mcp/package.json
+COPY packages ./packages
+COPY src ./src
+RUN bun install --frozen-lockfile
+COPY frontend ./frontend
+RUN cd frontend && bun run build
+
+FROM ${BUN_IMAGE} AS test
 WORKDIR /app
 RUN apt-get update \
  && apt-get install -y --no-install-recommends python3 make g++ \
@@ -45,7 +64,7 @@ RUN bun install --frozen-lockfile \
 COPY . .
 CMD ["sh", "-c", "bun test --isolate && tsc --noEmit"]
 
-FROM oven/bun:1-slim AS production
+FROM ${BUN_SLIM_IMAGE} AS production
 WORKDIR /app
 ENV HOME=/data \
     ORACLE_DATA_DIR=/data \
@@ -54,8 +73,11 @@ ENV HOME=/data \
     BUN_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src/simple.html ./dist/simple.html
 COPY --from=builder /app/dist-cli ./dist-cli
 COPY --from=builder /app/src/db/migrations ./db/migrations
+COPY --from=builder /app/src ./src
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 COPY package.json bun.lock ./
 RUN mkdir -p /data \
  && chown -R bun:bun /data
@@ -73,3 +95,13 @@ EXPOSE 47778
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD bun -e "const r=await fetch('http://127.0.0.1:47778/api/health');process.exit(r.ok?0:1)"
 CMD ["bun", "dist/server.js"]
+
+FROM ${BUN_SLIM_IMAGE} AS llm-adapter
+WORKDIR /app
+COPY deploy/private/arra-full-stack/llm-adapter.ts ./llm-adapter.ts
+USER bun
+ENV ORACLE_LLM_ADAPTER_PORT=47779
+EXPOSE 47779
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD bun -e "const r=await fetch('http://127.0.0.1:47779/health');process.exit(r.ok?0:1)"
+CMD ["bun", "llm-adapter.ts"]

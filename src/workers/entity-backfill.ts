@@ -39,6 +39,7 @@ const status = { running: false, lastRun: undefined as string | undefined, lastD
 export function entityBackfillConfig(env: Env = process.env) {
   return {
     enabled: env.ORACLE_ENTITY_BACKFILL === '1',
+    dryRunOnly: env.ORACLE_ENTITY_BACKFILL_DRY_RUN === '1',
     intervalMs: intEnv(env.ORACLE_ENTITY_BACKFILL_INTERVAL_MS, DEFAULT_INTERVAL_MS, 60_000, 86_400_000),
     limit: intEnv(env.ORACLE_ENTITY_BACKFILL_LIMIT, DEFAULT_LIMIT, 1, 5_000),
     entityScanLimit: intEnv(env.ORACLE_ENTITY_BACKFILL_ENTITY_SCAN_LIMIT, DEFAULT_ENTITY_SCAN_LIMIT, 1, 1_000_000),
@@ -56,7 +57,7 @@ export async function runEntityBackfillSweep(sqlite: Database, input: EntityBack
   try {
     const dryPlan = await plan(sqlite, input, config.limit, config.entityScanLimit);
     const dryRun = report(dryPlan);
-    const applied = input.dryRunOnly ? emptyApplied() : await applyPlan(sqlite, dryPlan, input);
+    const applied = (input.dryRunOnly ?? config.dryRunOnly) ? emptyApplied() : await applyPlan(sqlite, dryPlan, input);
     const after = report(await plan(sqlite, input, config.limit, config.entityScanLimit));
     return finish(true, started, dryRun, applied, after);
   } catch (error) {

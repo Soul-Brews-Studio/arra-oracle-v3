@@ -1,0 +1,11 @@
+[Unit]
+Description=Arra private file local bge-m3 embedding batch
+After=arra-files.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /home/poramateake/.local/lib/embed.py --db /home/poramateake/.local/state/arra-files/private/files.db --limit 4
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/poramateake/.local/state/arra-files/private

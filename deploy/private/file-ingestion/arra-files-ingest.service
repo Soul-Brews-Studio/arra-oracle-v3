@@ -1,0 +1,14 @@
+[Unit]
+Description=Arra private file extraction batch
+After=arra-files-scan.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/flock -n /home/poramateake/.local/state/arra-files/mint/ingest.lock /bin/sh -c 'snapshot=$(find /home/poramateake/.local/state/arra-files/mint/inventory -name "*.jsonl.gz" -type f -printf "%%T@ %%p\\n" | sort -nr | sed -n "1s/^[^ ]* //p"); test -n "$snapshot"; exec /usr/bin/python3 /home/poramateake/.local/lib/ingest.py --snapshot "$snapshot" --root /home/poramateake --db /home/poramateake/.local/state/arra-files/private/files.db --state /home/poramateake/.local/state/arra-files/mint/ingest --max-items 100'
+Environment=ARRA_WHISPER_BIN=/home/poramateake/.local/arra-whisper-cpu/bin/whisper
+Environment=ARRA_WHISPER_MODEL=small
+NoNewPrivileges=yes
+PrivateNetwork=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/poramateake/.local/state/arra-files

@@ -120,6 +120,18 @@ export class SqliteVecAdapter implements VectorStoreAdapter {
     console.log(`[sqlite-vec] Added ${docs.length} documents`);
   }
 
+  async deleteDocuments(ids: string[]): Promise<void> {
+    if (!ids.length) return;
+    const { meta, vec } = this.tables();
+    const db = this.requireDb();
+    db.transaction((tx) => {
+      for (const id of ids) {
+        tx.delete(meta).where(eq(meta.id, id)).run();
+        tx.delete(vec).where(eq(vec.id, id)).run();
+      }
+    });
+  }
+
   async query(text: string, limit = 10, where?: Record<string, unknown>): Promise<VectorQueryResult> {
     const db = this.requireDb();
     const [queryEmbedding] = await this.embedder.embed([text], 'query');

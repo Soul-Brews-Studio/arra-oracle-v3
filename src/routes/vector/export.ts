@@ -4,7 +4,7 @@
 
 import { Elysia, t } from 'elysia';
 import { COLLECTION_NAME } from '../../const.ts';
-import { getVectorStoreByModel } from '../../vector/factory.ts';
+import { createVectorStore, getVectorStoreConfigByModel } from '../../vector/factory.ts';
 import { availableExportFormats, exportFormatInfo, getExportFormat } from '../../vector/export-formats.ts';
 import type { VectorCollectionConfig, VectorServerConfig } from '../../vector/config.ts';
 import type { VectorStoreAdapter } from '../../vector/types.ts';
@@ -121,7 +121,7 @@ function resolveCollection(collection: string | undefined, deps: VectorExportDep
 }
 
 export function createVectorExportEndpoint(deps: VectorExportDeps = {}) {
-  const getStore = deps.getStore ?? getVectorStoreByModel;
+  const getStore = deps.getStore ?? ((model?: string) => createVectorStore(getVectorStoreConfigByModel(model)));
 
   return new Elysia()
     .get('/vector/export/formats', () => ({ formats: availableExportFormats() }), {

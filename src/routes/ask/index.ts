@@ -79,7 +79,12 @@ export async function answerOracleAsk(body: AskInput, deps: AskDeps = {}): Promi
   }
   result.results = rerankByEntityLinks(sqlite, result.results, augmentedQ, currentTenantId()) as typeof result.results;
   attachSupersedeStatus(sqlite, result.results as unknown as Array<Record<string, unknown>>);
-  const sources = sourcesFrom(rankAskResults(result.results), limit);
+  // ponytail: FTS-only lexical gate; a calibrated relevance model can replace it when vectors are available.
+  const terms = [...new Set((q.toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) ?? [])
+    .filter((term) => !['what', 'when', 'where', 'does', 'from', 'with', 'that', 'this'].includes(term)))];
+  const evidence = result.vectorAvailable || !terms.length ? result.results : result.results.filter((hit) =>
+    terms.filter((term) => hit.content.toLowerCase().includes(term)).length >= Math.ceil(terms.length / 2));
+  const sources = sourcesFrom(rankAskResults(evidence), limit);
   const client = body.llm === false ? undefined : deps.client ?? envAskClient();
   const synthesis = await synthesize(q, sources, client);
   return {

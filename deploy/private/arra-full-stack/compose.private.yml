@@ -1,0 +1,63 @@
+# Overlay: docker compose -f docker-compose.prod.yml -f deploy/private/arra-full-stack/compose.private.yml up -d
+# Arra auth is supplied by ARRA_PRIVATE_ENV_FILE; Hermes/Codex adapter secrets
+# are supplied separately by ARRA_LLM_ENV_FILE. This file contains no credentials.
+services:
+  arra-oracle:
+    env_file:
+      - path: ${ARRA_PRIVATE_ENV_FILE:-/etc/arra-oracle/private.env}
+        required: true
+    # Mint is Linux and Hermes/Codex bridges are host-local. Host networking
+    # keeps every private listener on 127.0.0.1 without exposing a bridge IP.
+    network_mode: host
+    ports: !override []
+    environment:
+      ARRA_ENV: production
+      # Hermes may spend tens of seconds processing its injected context;
+      # keep the Arra request bound above the adapter's provider timeout so a
+      # valid primary response can arrive before fail-closed behavior.
+      ARRA_REQUEST_TIMEOUT_MS: "75000"
+      ORACLE_PRIVATE_DEPLOYMENT: "1"
+      ORACLE_BIND_HOST: 127.0.0.1
+      ORACLE_EMBEDDER: ollama
+      ORACLE_EMBEDDING_MODEL: bge-m3
+      OLLAMA_BASE_URL: http://127.0.0.1:11434
+      ORACLE_EMBED_BATCH_SIZE: "4"
+      ORACLE_EMBED_TIMEOUT_MS: "120000"
+      ORACLE_EMBEDDER_PROBE_TIMEOUT_MS: "30000"
+      ORACLE_VECTOR_DB: sqlite-vec
+      VECTOR_FALLBACK: fts5
+      ORACLE_ASK_LLM: "1"
+      ORACLE_ASK_LLM_URL: http://127.0.0.1:47779/ask
+      ORACLE_CONSOLIDATION_LLM: "1"
+      ORACLE_CONSOLIDATION_LLM_URL: http://127.0.0.1:47779/ask
+      ORACLE_CONSOLIDATION_WORKER: "1"
+      ORACLE_CONSOLIDATION_WORKER_INTERVAL_MS: "900000"
+      ORACLE_CONSOLIDATION_LLM_CAP: "10"
+      ORACLE_ENTITY_BACKFILL: "1"
+      ORACLE_ENTITY_BACKFILL_DRY_RUN: "1"
+      ORACLE_ENTITY_BACKFILL_INTERVAL_MS: "900000"
+      ORACLE_PRIVATE_PLUGIN_ROOT: /app/src/plugins
+      ORACLE_PLUGIN_HOME: /app/src/plugins
+      ORACLE_VECTOR_CONFIG_PATH: /data/vector-server.json
+      ORACLE_DIG_SESSION_ROOT: /data/arra-session
+      ORACLE_ENABLED_PLUGINS: federation
+      ORACLE_FILE_WATCHER: "0"
+
+  llm-adapter:
+    image: ${ARRA_LLM_IMAGE:-arra-private-llm-adapter:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: llm-adapter
+    env_file:
+      - path: ${ARRA_LLM_ENV_FILE:-/etc/arra-oracle/hermes.env}
+        required: true
+    environment:
+      ORACLE_PRIVATE_DEPLOYMENT: "1"
+      ORACLE_LLM_ADAPTER_PORT: "47779"
+      ARRA_LLM_PROVIDERS: hermes,codex
+    network_mode: service:arra-oracle
+    depends_on:
+      arra-oracle:
+        condition: service_started
+    restart: unless-stopped

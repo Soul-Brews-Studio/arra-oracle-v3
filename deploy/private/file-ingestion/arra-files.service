@@ -1,0 +1,20 @@
+[Unit]
+Description=Arra private file corpus MCP/HTTP surface
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/poramateake/.local/lib/files_http.py
+Environment=ARRA_FILES_DB=/home/poramateake/.local/state/arra-files/private/files.db
+Environment=ARRA_FILES_HOST=127.0.0.1
+Environment=ARRA_FILES_PORT=47782
+EnvironmentFile=/home/poramateake/.local/state/arra-files/private/files.env
+Restart=on-failure
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/poramateake/.local/state/arra-files/private
+
+[Install]
+WantedBy=default.target

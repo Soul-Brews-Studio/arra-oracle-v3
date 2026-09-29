@@ -37,6 +37,11 @@ Dockerfile
 
 # Misc local / per-machine state
 .maw
+.env*
+.local
+.superpowers
+evidence
+**/__pycache__
 .omx
 .serena
 agents

@@ -179,6 +179,9 @@ function failure(error: unknown, status = 400): PluginResult {
 export async function oracleDig(ctx: PluginContext): Promise<PluginResult> {
   try {
     const raw = inputRecord(ctx);
+    if (process.env.ORACLE_PRIVATE_DEPLOYMENT === '1' && raw.approval !== 'explicit') {
+      return failure('oracle_dig write requires explicit approval', 403);
+    }
     const id = randomUUID();
     const finding = findingInput(raw, id);
     const rows = directEvidence(raw, id, finding.tenantId ?? 'default');

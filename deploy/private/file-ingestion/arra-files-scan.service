@@ -1,0 +1,12 @@
+[Unit]
+Description=Arra private file inventory scan
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /home/poramateake/.local/lib/collector.py --root /home/poramateake --device mint --volume 77ce0710-1021-4c99-a75f-479039a9d52d --state /home/poramateake/.local/state/arra-files/mint --db-root /home/poramateake/.local/state/arra-files/private/files.db
+Environment=ARRA_WHISPER_BIN=/home/poramateake/.local/arra-whisper-cpu/bin/whisper
+Environment=ARRA_WHISPER_MODEL=small
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/poramateake/.local/state/arra-files

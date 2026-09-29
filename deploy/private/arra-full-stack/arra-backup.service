@@ -1,0 +1,9 @@
+[Unit]
+Description=Arra encrypted application-consistent backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /home/poramateake/Documents/arra-oracle/deployment/private-bundle-20260928/deploy/private/arra-full-stack/scheduled-backup.sh
+UMask=0077

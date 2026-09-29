@@ -58,4 +58,17 @@ describe('oracle_sessions scanner', () => {
     expect(result.total).toBe(0);
     expect(result.sessions).toEqual([]);
   });
+
+  test('private deployment rejects session roots outside the explicit Arra path', async () => {
+    const previousMode = process.env.ORACLE_PRIVATE_DEPLOYMENT;
+    const previousRoot = process.env.ORACLE_DIG_SESSION_ROOT;
+    process.env.ORACLE_PRIVATE_DEPLOYMENT = '1';
+    process.env.ORACLE_DIG_SESSION_ROOT = tempProjectsDir();
+    try {
+      await expect(oracleSessions({ projectsDir: tempProjectsDir() })).rejects.toThrow(/strict session root/i);
+    } finally {
+      if (previousMode === undefined) delete process.env.ORACLE_PRIVATE_DEPLOYMENT; else process.env.ORACLE_PRIVATE_DEPLOYMENT = previousMode;
+      if (previousRoot === undefined) delete process.env.ORACLE_DIG_SESSION_ROOT; else process.env.ORACLE_DIG_SESSION_ROOT = previousRoot;
+    }
+  });
 });

@@ -69,6 +69,20 @@ describe('Streamable HTTP MCP bearer auth', () => {
     expect(names).not.toContain('oracle_mcp_call');
   });
 
+  test('private deployment exposes the exact bundled plugin MCP tools', async () => {
+    const app = mcpApp({
+      ORACLE_MCP_HTTP_TOKEN: 'mcp-secret',
+      ORACLE_PRIVATE_DEPLOYMENT: '1',
+      ORACLE_PRIVATE_PLUGIN_ROOT: path.join(process.cwd(), 'src/plugins'),
+    });
+    const sessionId = await initialize(app, 'mcp-secret');
+    await notifyInitialized(app, sessionId, 'mcp-secret');
+    const names = await listToolNames(app, sessionId, 'mcp-secret');
+
+    expect(names).toContain('oracle_dig');
+    expect(names).toContain('oracle_sessions');
+  });
+
   test('applies read-only filtering to remote HTTP sessions', async () => {
     const app = mcpApp({ ORACLE_MCP_HTTP_TOKEN: 'mcp-secret', ORACLE_READ_ONLY: 'true' });
     const sessionId = await initialize(app, 'mcp-secret');

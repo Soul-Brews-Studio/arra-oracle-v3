@@ -1,0 +1,31 @@
+name: arra-files
+services:
+  extractor:
+    build:
+      context: ../..
+      dockerfile: deploy/private/file-ingestion/Dockerfile.files
+    user: "1000:1000"
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp:size=1g,mode=1777
+    volumes:
+      - ${ARRA_FILES_SPOOL:?set spool}:/spool:rw
+      - ${ARRA_FILES_SOURCES:?set sources}:/sources:ro
+    command: ["/app/worker.py"]
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/private/file-ingestion/Dockerfile.files
+    user: "1000:1000"
+    network_mode: host
+    read_only: true
+    volumes:
+      - ${ARRA_FILES_STATE:?set state}:/state:rw
+    env_file:
+      - ${ARRA_FILES_ENV:?set env}
+    environment:
+      ARRA_FILES_DB: /state/files.db
+      ARRA_FILES_HOST: 127.0.0.1
+      ARRA_FILES_PORT: "47782"
+    command: ["/app/files_http.py"]

@@ -245,6 +245,7 @@ export async function handleSearch(
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error('[Vector Search Error]', msg);
+      vectorAvailable = false;
       if (!warning) warning = `Vector search error: ${msg}`;
     }
   }
