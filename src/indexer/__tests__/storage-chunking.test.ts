@@ -59,7 +59,9 @@ describe('storeDocuments chunking', () => {
       expect(rows[0].content).not.toContain('gamma');
       expect(rows[0].content).toContain('Search expansions:');
       expect(rows[0].content).toContain('Cross-Origin Resource Sharing');
-      expect(vector.docs[0].document).toContain('Cross-Origin Resource Sharing');
+      expect(vector.docs[0].document).toBe(content.split('\n\n').slice(0, 2).join('\n\n'));
+      const originals = conn.sqlite.query('SELECT id, content FROM oracle_content ORDER BY id').all();
+      expect(originals).toEqual(vector.docs.map(({ id, document }) => ({ id, content: document })));
       expect(rows[1].content).toContain('gamma');
       expect(vector.docs.map((item) => item.id)).toEqual(rows.map((row) => row.id));
       expect(vector.docs.map((item) => item.metadata.chunk_index)).toEqual([0, 1]);

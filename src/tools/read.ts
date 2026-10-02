@@ -210,7 +210,7 @@ export async function handleRead(ctx: ToolContext, input: OracleReadInput): Prom
   // Fallback: try FTS indexed content (if we have an id)
   if (id) {
     const ftsRow = ctx.sqlite.prepare(
-      'SELECT content FROM oracle_fts WHERE id = ?'
+      'SELECT content FROM oracle_content WHERE id = ?'
     ).get(id) as { content: string } | null;
 
     if (ftsRow) {

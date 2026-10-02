@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { Database } from 'bun:sqlite';
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 import { entityDocumentsFor } from '../../src/vector/entities.ts';
@@ -70,6 +71,7 @@ function memoryDb(): Database {
       created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
     );
   `);
+  sqlite.exec(fs.readFileSync(new URL('../../src/db/migrations/0042_fts_original_content.sql', import.meta.url), 'utf8'));
   dbs.push(sqlite);
   return sqlite;
 }

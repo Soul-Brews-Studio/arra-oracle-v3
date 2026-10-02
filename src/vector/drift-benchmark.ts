@@ -1,3 +1,4 @@
+import { contentSource } from '../search/content-source.ts';
 import { Database } from 'bun:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -119,7 +120,7 @@ function readSqliteDocs(dbPath?: string): DriftDoc[] {
   try {
     const rows = db.query(`
       SELECT d.id, d.source_file AS sourceFile, f.content
-      FROM oracle_documents d JOIN oracle_fts f ON f.id = d.id
+      FROM oracle_documents d JOIN ${contentSource(db)} f ON f.id = d.id
       WHERE COALESCE(d.superseded_by, '') = '' AND LENGTH(f.content) >= 40
       ORDER BY d.indexed_at DESC, d.id ASC LIMIT 1000
     `).all() as Array<{ id: string; sourceFile: string; content: string }>;

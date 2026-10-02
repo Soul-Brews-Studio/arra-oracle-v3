@@ -118,7 +118,7 @@ function docsFor(plans: ConsolidationPlan[], tenantId: string): Map<string, DocP
   if (!ids.length) return new Map();
   const fts = sqlite.query<{ name: string }, [string]>('SELECT name FROM sqlite_master WHERE name = ? LIMIT 1').get('oracle_fts');
   const content = fts ? "coalesce(f.content, '')" : "''";
-  const join = fts ? 'LEFT JOIN oracle_fts f ON f.id = d.id' : '';
+  const join = fts ? 'LEFT JOIN oracle_content f ON f.id = d.id' : '';
   const placeholders = ids.map(() => '?').join(',');
   const rows = sqlite.query<DocRow, (string | number)[]>(`
     SELECT d.id, d.type, d.source_file AS sourceFile, ${content} AS content

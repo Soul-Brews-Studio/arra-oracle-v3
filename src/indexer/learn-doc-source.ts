@@ -3,6 +3,7 @@
  */
 
 import fs from 'fs';
+import { ftsValues } from '../search/fts-write.ts';
 import path from 'path';
 import { eq, sql } from 'drizzle-orm';
 import { asOracleDb, type OracleDb, type OracleDbInput } from '../db/drizzle-input.ts';
@@ -130,7 +131,7 @@ export function storeSqliteDocuments(input: OracleDbInput, documents: OracleDocu
       const indexedContent = enrichTextWithAcronyms(doc.content);
       tx.delete(oracleFts).where(eq(oracleFts.id, doc.id)).run();
       tx.insert(oracleFts)
-        .values({ id: doc.id, content: indexedContent, concepts: doc.concepts.join(' ') })
+        .values(ftsValues(tx, doc.id, doc.content, doc.concepts.join(' '), indexedContent))
         .run();
       replaceDocumentPointersWithDb(tx as OracleDb, {
         documentId: doc.id,

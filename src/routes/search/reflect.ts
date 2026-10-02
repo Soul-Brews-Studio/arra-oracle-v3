@@ -30,7 +30,7 @@ function handleGlobalReflect(): Record<string, unknown> {
       LIMIT 1 OFFSET ?
     `).get(randomOffset(total)) as { id: string; type: string; source_file: string; concepts: string | null } | undefined;
     if (!doc) return { error: 'No documents found', fts_status: 'empty' };
-    const fts = sqlite.prepare(`SELECT content FROM oracle_fts WHERE id = ?`).get(doc.id) as { content: string } | undefined;
+    const fts = sqlite.prepare(`SELECT content FROM oracle_content WHERE id = ?`).get(doc.id) as { content: string } | undefined;
     const row: ReflectRow = { ...doc, content: fts?.content ?? null };
 
     if (!row) return { error: 'No documents found', fts_status: 'empty' };

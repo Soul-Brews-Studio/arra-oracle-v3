@@ -26,7 +26,6 @@ const REPO_ROOT = join(import.meta.dir, '..', '..');
  * A file may not exceed its recorded count — shrinking is always allowed.
  */
 const GRANDFATHERED: Record<string, number> = {
-  'src/server/handlers.ts': 844,
   'src/drizzle-migration.test.ts': 673,
   'src/vector/__tests__/adapters.test.ts': 615,
   'src/chroma-mcp.ts': 494,
@@ -35,7 +34,6 @@ const GRANDFATHERED: Record<string, number> = {
   'src/tools/schedule.ts': 345,
   'src/tools/forum.ts': 332,
   'src/vector/adapters/cloudflare-vectorize.ts': 324,
-  'src/tools/learn.ts': 324,
   // 293, not the 291 on alpha: PR #2832 adds one .use() line for the SPA
   // middleware. Recording the post-merge count keeps that merge from turning
   // alpha red the moment it lands (P9 — green in a worktree is not green on base).

@@ -144,7 +144,7 @@ function loadDocs(sqlite: Database, limit: number, tenantId?: string): IndexedDo
   return sqlite.query<IndexedDoc, any[]>(`
     SELECT d.id, d.tenant_id AS tenantId, d.type, d.source_file AS sourceFile,
       d.concepts, d.project, GROUP_CONCAT(f.content, '\n') AS content
-    FROM oracle_documents d JOIN oracle_fts f ON f.id = d.id
+    FROM oracle_documents d JOIN oracle_content f ON f.id = d.id
     ${where} GROUP BY d.id ORDER BY d.indexed_at DESC LIMIT ?`).all(...(tenantId ? [tenantId, limit] : [limit]));
 }
 

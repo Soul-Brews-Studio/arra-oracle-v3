@@ -72,6 +72,7 @@ function makeHarness(): Harness {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-learn-m5-'));
   const sqlite = new Database(':memory:');
   sqlite.exec(FULL_SCHEMA);
+  sqlite.exec(fs.readFileSync(new URL('../../db/migrations/0042_fts_original_content.sql', import.meta.url), 'utf8'));
   const db = drizzle(sqlite, { schema });
   const ctx: ToolContext = {
     db,

@@ -133,7 +133,7 @@ function main(): void {
   const basenameIndex = buildBasenameIndex(ghqRoot);
   console.log(`Indexed ${basenameIndex.size} unique .md basenames.\n`);
 
-  const getFtsContent = sqlite.prepare(`SELECT content FROM oracle_fts WHERE id = ?`);
+  const getFtsContent = sqlite.prepare(`SELECT content FROM oracle_content WHERE id = ?`);
   const deleteDocument = sqlite.prepare(`DELETE FROM oracle_documents WHERE id = ?`);
   const deleteFts = sqlite.prepare(`DELETE FROM oracle_fts WHERE id = ?`);
 

@@ -122,7 +122,7 @@ export function createStartRoute(deps: StartRouteDeps = {}) {
         SELECT d.id, d.tenant_id, d.type, GROUP_CONCAT(f.content, '\n') as content,
           d.source_file, d.concepts, d.project, d.created_at
         FROM oracle_documents d
-        JOIN oracle_fts f ON d.id = f.id
+        JOIN oracle_content f ON d.id = f.id
         ${tenantWhere}
         GROUP BY d.id
         ORDER BY d.created_at DESC

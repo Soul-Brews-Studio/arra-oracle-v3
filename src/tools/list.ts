@@ -97,7 +97,7 @@ export async function handleList(ctx: ToolContext, input: OracleListInput): Prom
     ? ctx.sqlite.prepare(`
         SELECT d.id, d.type, d.source_file, d.concepts, d.indexed_at, f.content
         FROM oracle_documents d
-        JOIN oracle_fts f ON d.id = f.id
+        JOIN oracle_content f ON d.id = f.id
         WHERE 1=1 ${tenantFilter.clause}
         ORDER BY d.indexed_at DESC
         LIMIT ? OFFSET ?
@@ -105,7 +105,7 @@ export async function handleList(ctx: ToolContext, input: OracleListInput): Prom
     : ctx.sqlite.prepare(`
         SELECT d.id, d.type, d.source_file, d.concepts, d.indexed_at, f.content
         FROM oracle_documents d
-        JOIN oracle_fts f ON d.id = f.id
+        JOIN oracle_content f ON d.id = f.id
         WHERE d.type = ? ${tenantFilter.clause}
         ORDER BY d.indexed_at DESC
         LIMIT ? OFFSET ?

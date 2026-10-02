@@ -59,13 +59,13 @@ function dbRows(tenantId?: string | null) {
   const total = (sqlite.prepare(`
     SELECT COUNT(*) as total
     FROM oracle_documents d
-    JOIN oracle_fts f ON f.id = d.id
+    JOIN oracle_content f ON f.id = d.id
     ${where}
   `).get(...params) as { total: number } | undefined)?.total ?? 0;
   const rows = sqlite.prepare(`
     SELECT d.id, d.type, d.source_file, d.concepts, d.project, d.created_at
     FROM oracle_documents d
-    JOIN oracle_fts f ON f.id = d.id
+    JOIN oracle_content f ON f.id = d.id
     ${where}
     ORDER BY d.indexed_at DESC, d.id ASC
     LIMIT ?

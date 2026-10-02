@@ -1,3 +1,4 @@
+import { replaceFts } from '../../search/fts-write.ts';
 import fs from 'fs';
 import path from 'path';
 import { eq } from 'drizzle-orm';
@@ -101,9 +102,7 @@ export function persistSessionSummary(
     createdBy: 'session_summary',
   }).run();
 
-  sqlite.prepare('DELETE FROM oracle_fts WHERE id = ?').run(identity.id);
-  sqlite.prepare('INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)')
-    .run(identity.id, content, concepts.join(' '));
+  replaceFts(sqlite, identity.id, content, concepts.join(' '));
   replaceEntityLinks(sqlite, { documentId: identity.id, tenantId, content, concepts, now: now.getTime() });
   replaceDocumentPointers(sqlite, { documentId: identity.id, tenantId, content, concepts, timestamp: now.getTime() });
   logLearning(identity.id, cleanPattern, source, concepts);

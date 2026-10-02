@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { contentSource } from '../search/content-source.ts';
 /**
  * Index oracle knowledge with qwen3-embedding into its configured vector collection.
  * Runs alongside the default nomic-embed-text collection.
@@ -40,7 +41,7 @@ async function main() {
   const rows = db.query(`
     SELECT d.id, d.type, GROUP_CONCAT(f.content, '\n') as content, d.source_file, d.concepts, d.project, d.created_at
     FROM oracle_documents d
-    JOIN oracle_fts f ON d.id = f.id
+    JOIN ${contentSource(db)} f ON d.id = f.id
     GROUP BY d.id
     ORDER BY d.created_at DESC
   `).all() as Array<{

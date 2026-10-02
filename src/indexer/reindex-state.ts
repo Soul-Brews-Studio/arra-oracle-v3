@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
-import { indexingJobs, oracleDocuments, oracleFts } from '../db/schema.ts';
+import { indexingJobs, oracleDocuments, oracleContent as oracleFts } from '../db/schema.ts';
 import { asOracleDb, type OracleDb, type OracleDbInput } from '../db/drizzle-input.ts';
 import type { OracleDocument } from '../types.ts';
 import { enqueueIndexJob } from './jobs.ts';

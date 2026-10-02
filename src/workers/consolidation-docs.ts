@@ -36,7 +36,7 @@ export function contentForPage(sqlite: Database, ids: string[]): Map<string, str
   const placeholders = ids.map(() => '?').join(',');
   const rows = sqlite
     .query<{ id: string; content: string | null }, string[]>(
-      `SELECT id, content FROM oracle_fts WHERE id IN (${placeholders})`,
+      `SELECT id, content FROM oracle_content WHERE id IN (${placeholders})`,
     )
     .all(...ids);
   return new Map(rows.map((row) => [row.id, row.content ?? '']));

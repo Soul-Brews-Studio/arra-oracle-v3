@@ -1,3 +1,4 @@
+import { replaceFts } from '../../search/fts-write.ts';
 import { Elysia, t } from 'elysia';
 import { sqlite, db, oracleDocuments } from '../../db/index.ts';
 import { and, eq } from 'drizzle-orm';
@@ -45,7 +46,7 @@ export const docRoute = new Elysia()
             `
         SELECT d.id, d.type, d.source_file, d.concepts, d.project, f.content
         FROM oracle_documents d
-        JOIN oracle_fts f ON d.id = f.id
+        JOIN oracle_content f ON d.id = f.id
         WHERE d.id = ? ${filter.clause}
       `,
           )
@@ -109,15 +110,12 @@ export const docRoute = new Elysia()
             .prepare(`SELECT concepts FROM oracle_documents d WHERE d.id = ? ${filter.clause}`)
             .get(params.id, ...filter.params) as { concepts: string };
           const conceptsArr: string[] = conceptsRow ? JSON.parse(conceptsRow.concepts || '[]') : [];
-          sqlite.prepare(`DELETE FROM oracle_fts WHERE id = ?`).run(params.id);
-          sqlite
-            .prepare(`INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)`)
-            .run(params.id, data.content, conceptsArr.join(' '));
+          replaceFts(sqlite, params.id, data.content, conceptsArr.join(' '));
         }
         if (typeof data.content === 'string' || Array.isArray(data.concepts)) {
           const linkRow = sqlite.prepare(`
             SELECT d.tenant_id, d.concepts, f.content
-            FROM oracle_documents d LEFT JOIN oracle_fts f ON d.id = f.id
+            FROM oracle_documents d LEFT JOIN oracle_content f ON d.id = f.id
             WHERE d.id = ? ${filter.clause}
           `).get(params.id, ...filter.params) as { tenant_id: string; concepts: string; content: string | null } | undefined;
           replaceEntityLinks(sqlite, {
@@ -189,10 +187,7 @@ export const docRoute = new Elysia()
           createdBy: 'import-obsidian',
         }).run();
 
-        sqlite.prepare(`DELETE FROM oracle_fts WHERE id = ?`).run(id);
-        sqlite
-          .prepare(`INSERT INTO oracle_fts (id, content, concepts) VALUES (?, ?, ?)`)
-          .run(id, data.content, conceptsArr.join(' '));
+        replaceFts(sqlite, id, data.content, conceptsArr.join(' '));
         replaceEntityLinks(sqlite, {
           documentId: id,
           tenantId,

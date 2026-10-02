@@ -96,7 +96,7 @@ function countRows(sqlite: Database, table: string): number {
 function countJoinable(sqlite: Database): number {
   try {
     const row = sqlite.prepare(
-      'SELECT COUNT(DISTINCT d.id) AS n FROM oracle_documents d JOIN oracle_fts f ON f.id = d.id',
+      'SELECT COUNT(DISTINCT d.id) AS n FROM oracle_documents d JOIN oracle_content f ON f.id = d.id',
     ).get() as { n?: number } | undefined;
     return Number(row?.n ?? 0);
   } catch {
@@ -112,7 +112,7 @@ const STREAM_SQL = `
   SELECT d.id AS id, d.tenant_id AS tenantId, d.concepts AS concepts,
          d.updated_at AS updatedAt, f.content AS content
   FROM oracle_documents d
-  JOIN oracle_fts f ON f.id = d.id`;
+  JOIN oracle_content f ON f.id = d.id`;
 
 export function runPointerBackfill(
   sqlite: Database,

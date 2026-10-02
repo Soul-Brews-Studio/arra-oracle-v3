@@ -6,7 +6,8 @@
  */
 import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { oracleContent as oracleFts } from '../db/content-schema.ts';
+export { oracleContent as oracleFts } from '../db/content-schema.ts';
 import * as schema from '../db/schema.ts';
 import { clamp, conceptValues, topRankedIds } from './pointer-ranking.ts';
 
@@ -20,12 +21,6 @@ export type PointerSearchResult = {
 export type HydrateOptions = {
   tenantId: string; limit: number; type?: string; project?: string | null;
 };
-
-export const oracleFts = sqliteTable('oracle_fts', {
-  id: text('id'),
-  content: text('content'),
-  concepts: text('concepts'),
-});
 
 /**
  * Two queries, not one join.

@@ -1,3 +1,4 @@
+import { contentSource } from '../../search/content-source.ts';
 import { Database } from 'bun:sqlite';
 import { DB_PATH } from '../../config.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
@@ -63,11 +64,12 @@ export function loadSqliteVectorDocuments(dbPath = DB_PATH): LoadedVectorIndexDo
       ...(hasTenantId ? [] : [tenantId ?? 'default']),
       ...(tenantId && hasTenantId ? [tenantId] : []),
     ];
+    const contentTable = contentSource(sqlite);
     const rows = sqlite.prepare(`
       SELECT d.id, ${tenantExpr} as tenant_id, d.type, GROUP_CONCAT(f.content, '\n') as content,
              d.source_file, d.concepts, d.project, d.created_at
       FROM oracle_documents d
-      JOIN oracle_fts f ON d.id = f.id
+      JOIN ${contentTable} f ON d.id = f.id
       ${tenantWhere}
       GROUP BY d.id
       ORDER BY d.created_at DESC

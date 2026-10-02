@@ -1,3 +1,5 @@
+import { oracleContent } from '../../db/content-schema.ts';
+import { replaceFts } from '../../search/fts-write.ts';
 import { Elysia, t } from 'elysia';
 import { and, eq } from 'drizzle-orm';
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
@@ -67,14 +69,13 @@ function writeLearningFile(sourceFile: string, content: string): boolean {
   return true;
 }
 function ftsContent(id: string): string | null {
-  return db.select({ content: oracleFts.content })
-    .from(oracleFts)
-    .where(eq(oracleFts.id, id))
+  return db.select({ content: oracleContent.content })
+    .from(oracleContent)
+    .where(eq(oracleContent.id, id))
     .get()?.content ?? null;
 }
 function upsertFts(id: string, content: string, concepts: string[]): void {
-  db.delete(oracleFts).where(eq(oracleFts.id, id)).run();
-  db.insert(oracleFts).values({ id, content, concepts: concepts.join(' ') }).run();
+  replaceFts(db, id, content, concepts.join(' '));
 }
 function nextIdentity(pattern: string, requestedId?: string, requestedSourceFile?: string) {
   if (requestedId) {

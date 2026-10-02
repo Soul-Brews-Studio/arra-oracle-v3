@@ -162,7 +162,7 @@ function backupDatabaseUnsafe(sqlite: Database, config: IndexerConfig): void {
     docs = sqlite.prepare(`
       SELECT d.id, d.type, d.source_file, d.concepts, d.project, f.content
       FROM oracle_documents d
-      JOIN oracle_fts f ON d.id = f.id
+      JOIN oracle_content f ON d.id = f.id
       ${tenantWhere}
     `).all(...(tenantId ? [tenantId] : [])) as any[];
   } catch (e) {

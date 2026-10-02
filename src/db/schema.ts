@@ -215,3 +215,4 @@ export { fleetIngestCursor, fleetMessages } from './fleet-log-schema.ts';
 export { oracleFindingEvidence, oracleFindings } from './oracle-dig-schema.ts';
 export { activityLog, menuItems, schedule, settings, supersedeLog } from './logistics-schema.ts';
 export { assertSqliteIdentifier, oracleVectorDocuments, sqliteVecEmbeddingsTable, sqliteVecMetadataTable, vectorDocumentsTable } from './vector-schema.ts';
+export { oracleDocumentContent, oracleContent } from './content-schema.ts';

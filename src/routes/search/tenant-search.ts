@@ -47,7 +47,7 @@ export function handleTenantSearch(query: string, type = 'all', limit = 10, offs
     WHERE oracle_fts MATCH ? ${typeClause} AND d.tenant_id = ? ${temporalClause}
   `), params) as { total: number } | null;
   const rows = runFtsAll(sqlite.prepare(`
-    SELECT f.id, f.content, d.type, d.source_file, d.concepts, d.project${temporalSelect}, rank as score
+    SELECT f.id, (SELECT content FROM oracle_content WHERE rowid = f.rowid) AS content, d.type, d.source_file, d.concepts, d.project${temporalSelect}, rank as score
     FROM oracle_fts f
     JOIN oracle_documents d ON f.id = d.id
     ${temporalJoin}
@@ -103,7 +103,7 @@ export function handleTenantList(type = 'all', limit = 10, offset = 0, groupByFi
   const rows = sqlite.prepare(`
     SELECT d.id, d.type, d.source_file, d.concepts, d.project, ${indexedAt} as indexed_at, f.content${temporalSelect}
     FROM oracle_documents d
-    JOIN oracle_fts f ON d.id = f.id
+    JOIN oracle_content f ON d.id = f.id
     ${temporalJoin}
     WHERE 1=1 ${typeClause} AND d.tenant_id = ? ${temporalClause}
     ${groupSql}
@@ -143,7 +143,7 @@ export function handleTenantReflect(): Record<string, unknown> | null {
   const row = sqlite.prepare(`
     SELECT d.id, d.type, d.source_file, d.concepts, f.content
     FROM oracle_documents d
-    LEFT JOIN oracle_fts f ON d.id = f.id
+    LEFT JOIN oracle_content f ON d.id = f.id
     WHERE d.tenant_id = ? AND d.type IN ('principle', 'learning')
     LIMIT 1 OFFSET ?
   `).get(tenantId, randomOffset(total)) as ListRow | undefined;

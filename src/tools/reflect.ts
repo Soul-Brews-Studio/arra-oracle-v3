@@ -39,7 +39,7 @@ export async function handleReflect(ctx: ToolContext, _input: OracleReflectInput
   }
 
   const content = ctx.sqlite.prepare(`
-    SELECT content FROM oracle_fts WHERE id = ?
+    SELECT content FROM oracle_content WHERE id = ?
   `).get(randomDoc.id) as { content: string } | undefined;
 
   if (!content) {

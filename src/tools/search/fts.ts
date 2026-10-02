@@ -33,7 +33,7 @@ export function searchFts(
   ];
 
   return ctx.sqlite.prepare(`
-    SELECT f.id, f.content, d.type, d.source_file, d.concepts, rank
+    SELECT f.id, (SELECT content FROM oracle_content WHERE rowid = f.rowid) AS content, d.type, d.source_file, d.concepts, rank
     FROM oracle_fts f
     JOIN oracle_documents d ON f.id = d.id
     WHERE oracle_fts MATCH ? ${typeFilter} ${projectFilter} ${tenantFilter}

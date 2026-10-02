@@ -56,6 +56,7 @@ beforeEach(() => {
   tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-learn-frontmatter-'));
   sqlite = new Database(':memory:');
   sqlite.exec(SCHEMA);
+  sqlite.exec(fs.readFileSync(new URL('../../db/migrations/0042_fts_original_content.sql', import.meta.url), 'utf8'));
   filePath = null;
 });
 

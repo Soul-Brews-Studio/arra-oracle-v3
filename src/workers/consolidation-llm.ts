@@ -68,7 +68,7 @@ function loadDocs(sqlite: Database, limit: number, tenantId?: string): LlmDoc[] 
     SELECT d.id, d.tenant_id AS tenantId, d.type, d.source_file AS sourceFile,
       d.updated_at AS updatedAt, coalesce(f.content, '') AS content
     FROM oracle_documents d
-    LEFT JOIN oracle_fts f ON f.id = d.id
+    LEFT JOIN oracle_content f ON f.id = d.id
     WHERE d.superseded_by IS NULL ${tenant}
     ORDER BY d.updated_at DESC
     LIMIT ?

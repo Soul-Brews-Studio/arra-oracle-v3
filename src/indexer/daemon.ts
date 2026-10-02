@@ -16,7 +16,7 @@
 import { Elysia } from 'elysia';
 import { eq } from 'drizzle-orm';
 import { DB_PATH, REPO_ROOT } from '../config.ts';
-import { createDatabase, oracleFts } from '../db/index.ts';
+import { createDatabase, oracleContent as oracleFts } from '../db/index.ts';
 import { createVectorStoreForModel, getEmbeddingModels } from '../vector/factory.ts';
 import { runWorker, type WorkerEvent } from './worker.ts';
 import { makeUpsertVector } from './upsert-vector.ts';

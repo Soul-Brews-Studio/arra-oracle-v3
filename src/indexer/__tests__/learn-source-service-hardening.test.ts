@@ -77,6 +77,7 @@ describe('FileWatcherService enqueue hardening', () => {
     repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'arra-watcher-hardening-'));
     db = new Database(':memory:');
     db.exec(DOC_SCHEMA);
+    db.exec(fs.readFileSync(new URL('../../db/migrations/0042_fts_original_content.sql', import.meta.url), 'utf8'));
     logs = [];
     service = new FileWatcherService({
       db,

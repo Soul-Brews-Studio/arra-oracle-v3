@@ -46,7 +46,7 @@ for (const doc of docs) {
     // Method 2: Try FTS content if file not found
     if (!project) {
       const ftsResult = sqlite.prepare(
-        'SELECT content FROM oracle_fts WHERE id = ?'
+        'SELECT content FROM oracle_content WHERE id = ?'
       ).get(doc.id) as { content: string } | undefined;
 
       if (ftsResult?.content) {

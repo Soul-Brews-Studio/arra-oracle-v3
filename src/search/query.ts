@@ -1,3 +1,4 @@
+import { ftsQueryTerms } from './fts-text.ts';
 import { augmentQueryWithAcronyms } from './acronyms.ts';
 
 export type SearchMode = 'hybrid' | 'fts' | 'vector';
@@ -43,17 +44,6 @@ export function parseConcepts(value: unknown): string[] {
 }
 
 export function buildTenantFtsQuery(query: string): string {
-  const tokens = augmentQueryWithAcronyms(query)
-    .replace(/<[^>]*>/g, ' ')
-    .normalize('NFKC')
-    // No `_` — see the note in src/tools/search/helpers.ts. The index tokenizer
-    // (`porter unicode61`) splits on underscore, so keeping it here turns an identifier
-    // into an adjacency phrase instead of an OR. #2953.
-    .match(/[\p{L}\p{N}]+/gu)
-    ?.map((token) => token.trim())
-    .filter(Boolean) ?? [];
-  return [...new Set(tokens)]
-    .slice(0, FTS_TOKEN_LIMIT)
-    .map((token) => `"${token.replace(/"/g, '""')}"`)
-    .join(' OR ');
+  return [...new Set(ftsQueryTerms(augmentQueryWithAcronyms(query)))]
+    .slice(0, FTS_TOKEN_LIMIT).join(' OR ');
 }

@@ -1,16 +1,10 @@
 import { Elysia } from 'elysia';
 import { and, count, desc, eq, inArray, isNull, type SQL } from 'drizzle-orm';
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { oracleContent as oracleFts } from '../../db/content-schema.ts';
 import { db, oracleDocuments } from '../../db/index.ts';
 import { currentTenantId } from '../../middleware/tenant.ts';
 
 type LearnDoc = typeof oracleDocuments.$inferSelect;
-
-const oracleFts = sqliteTable('oracle_fts', {
-  id: text('id'),
-  content: text('content'),
-  concepts: text('concepts'),
-});
 
 function conceptsFrom(value: string): string[] {
   try {
