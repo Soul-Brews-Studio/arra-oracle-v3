@@ -15,7 +15,7 @@
  */
 
 import type Database from 'bun:sqlite';
-import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, eq, gte, inArray, lt, lte, ne, or, sql } from 'drizzle-orm';
 import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
 import * as schema from '../db/schema.ts';
 import { indexingJobs } from '../db/schema.ts';
@@ -86,56 +86,110 @@ export function enqueueIndexJob(conn: JobsDb, opts: EnqueueOptions): EnqueuedJob
   return out;
 }
 
+/** Lease length: a `claimed` job older than this is assumed orphaned (worker died). */
+export const LEASE_MS = 10 * 60_000;
+/** Retry delay after the Nth failed attempt = BACKOFF_BASE_MS * 2^(N-1), capped. */
+export const BACKOFF_BASE_MS = 30_000;
+export const BACKOFF_MAX_MS = 60 * 60_000;
+/** After this many attempts an `error` row is final (dead) and never re-claimed. */
+export const MAX_ATTEMPTS = 5;
+/** Error string written by the CLI cancel path (arra-indexer.ts); such rows are never retried. */
+const CANCELLED = 'cancelled by CLI';
+
+export interface ClaimedJob extends EnqueuedJob {
+  /** Lease token — pass back to markJobDone/markJobError so a stale worker can't overwrite. */
+  claimedAt: number;
+  attempts: number;
+}
+
 /**
- * Atomically claim the next pending job for a worker.
+ * Atomically claim the next runnable job for a worker. Runnable =
+ *   - `pending`, or
+ *   - `claimed` whose lease expired (worker crashed) and attempts < MAX, or
+ *   - `error` whose backoff elapsed and attempts < MAX (not CLI-cancelled).
  * Uses UPDATE…RETURNING so SQLite gives us exactly one row even under
  * concurrent claimers (only one wins per row).
+ * ponytail: no schema change — lease = claimed_at, backoff clock = finished_at.
+ * Ceiling: an expired claim already at MAX stays `claimed`; add a dead-sweep if it shows up.
  *
- * Returns null when the queue is empty for that model.
+ * Returns null when nothing is runnable for that model.
  */
-export function claimNextJob(conn: JobsDb, modelKey: string): EnqueuedJob | null {
+export function claimNextJob(
+  conn: JobsDb,
+  modelKey: string,
+  now: number = Date.now(),
+): ClaimedJob | null {
   const db = asDrizzle(conn);
-  const nextPending = db.select({ id: indexingJobs.id })
+  const runnable = or(
+    eq(indexingJobs.status, 'pending'),
+    and(
+      eq(indexingJobs.status, 'claimed'),
+      lte(indexingJobs.claimedAt, now - LEASE_MS),
+      lt(indexingJobs.attempts, MAX_ATTEMPTS),
+    ),
+    and(
+      eq(indexingJobs.status, 'error'),
+      gte(indexingJobs.attempts, 1),
+      lt(indexingJobs.attempts, MAX_ATTEMPTS),
+      ne(sql`coalesce(${indexingJobs.error}, '')`, CANCELLED),
+      sql`${indexingJobs.finishedAt} + min(${BACKOFF_BASE_MS} * (1 << (${indexingJobs.attempts} - 1)), ${BACKOFF_MAX_MS}) <= ${now}`,
+    ),
+  );
+  const next = db.select({ id: indexingJobs.id })
     .from(indexingJobs)
-    .where(and(eq(indexingJobs.status, 'pending'), eq(indexingJobs.modelKey, modelKey)))
+    .where(and(eq(indexingJobs.modelKey, modelKey), runnable))
     .orderBy(asc(indexingJobs.createdAt))
     .limit(1);
 
   const row = db.update(indexingJobs)
     .set({
       status: 'claimed',
-      claimedAt: Date.now(),
+      claimedAt: now,
       attempts: sql`${indexingJobs.attempts} + 1`,
     })
-    .where(inArray(indexingJobs.id, nextPending))
+    .where(inArray(indexingJobs.id, next))
     .returning({
       id: indexingJobs.id,
       docId: indexingJobs.docId,
       modelKey: indexingJobs.modelKey,
       collection: indexingJobs.collection,
+      claimedAt: indexingJobs.claimedAt,
+      attempts: indexingJobs.attempts,
     })
     .get();
 
-  if (!row) return null;
-  return row;
+  if (!row || row.claimedAt === null) return null;
+  return { ...row, claimedAt: row.claimedAt };
 }
 
-export function markJobDone(conn: JobsDb, id: string): void {
-  const db = asDrizzle(conn);
-  db.update(indexingJobs)
-    .set({ status: 'done', finishedAt: Date.now(), error: null })
-    .where(eq(indexingJobs.id, id))
-    .run();
+/** Returns false when the lease was lost (another worker re-claimed) — the write is skipped. */
+export function markJobDone(conn: JobsDb, id: string, claimedAt?: number): boolean {
+  return finish(conn, id, claimedAt, { status: 'done', error: null });
 }
 
-export function markJobError(conn: JobsDb, id: string, error: string): void {
-  // Preserve the row, set status, store the error string. Attempts already
-  // incremented at claim time — caller decides retry policy.
+/**
+ * Preserve the row, store the error. Retry is implicit: claimNextJob picks it up
+ * again after backoff until attempts hits MAX_ATTEMPTS (then it's dead).
+ */
+export function markJobError(conn: JobsDb, id: string, error: string, claimedAt?: number): boolean {
+  return finish(conn, id, claimedAt, { status: 'error', error });
+}
+
+function finish(
+  conn: JobsDb,
+  id: string,
+  claimedAt: number | undefined,
+  set: { status: string; error: string | null },
+): boolean {
   const db = asDrizzle(conn);
-  db.update(indexingJobs)
-    .set({ status: 'error', finishedAt: Date.now(), error })
-    .where(eq(indexingJobs.id, id))
-    .run();
+  const guard = claimedAt === undefined
+    ? eq(indexingJobs.id, id)
+    : and(eq(indexingJobs.id, id), eq(indexingJobs.status, 'claimed'), eq(indexingJobs.claimedAt, claimedAt));
+  return db.update(indexingJobs)
+    .set({ ...set, finishedAt: Date.now() })
+    .where(guard)
+    .returning({ id: indexingJobs.id })
+    .all().length > 0;
 }
 
 /** Reset a stuck `claimed` job back to `pending` — for daemon-crash recovery. */

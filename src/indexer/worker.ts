@@ -116,7 +116,7 @@ export async function runWorker(
         // Doc was deleted between enqueue and claim — mark done (no-op).
         // Plug-play: removing a doc from oracle_documents leaves queue rows
         // safely consumable. The worker absorbs the no-op gracefully.
-        markJobDone(deps.db, job.id);
+        markJobDone(deps.db, job.id, job.claimedAt);
         emit(deps, { type: 'doc_missing', job });
         stats.processed++;
         continue;
@@ -125,7 +125,7 @@ export async function runWorker(
       const t0 = performance.now();
       const vector = await deps.embed(job.modelKey, text);
       await deps.upsertVector(job.collection, job.docId, vector, text);
-      markJobDone(deps.db, job.id);
+      markJobDone(deps.db, job.id, job.claimedAt);
       stats.processed++;
       emit(deps, {
         type: 'done',
@@ -134,7 +134,7 @@ export async function runWorker(
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      markJobError(deps.db, job.id, msg);
+      markJobError(deps.db, job.id, msg, job.claimedAt);
       stats.errors++;
       emit(deps, { type: 'error', job, error: msg });
     }
