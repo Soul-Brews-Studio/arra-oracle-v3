@@ -12,6 +12,9 @@ import {
   markJobError,
   reclaimStaleJob,
   jobsByStatus,
+  LEASE_MS,
+  BACKOFF_BASE_MS,
+  MAX_ATTEMPTS,
 } from '../jobs.ts';
 
 const MIGRATION_SQL = `
@@ -223,5 +226,43 @@ describe('plug-and-play invariant — adding a model never disturbs other models
     expect(finalRows[0]).toEqual({ doc_id: 'doc-A', model_key: 'bge-m3' });
     expect(finalRows[1]).toEqual({ doc_id: 'doc-B', model_key: 'bge-m3' });
     expect(finalRows[2]).toEqual({ doc_id: 'doc-B', model_key: 'qwen3' });
+  });
+});
+
+describe('lease + backoff', () => {
+  let db: Database;
+  beforeEach(() => { db = freshDb(); });
+  const T = 1_800_000_000_000;
+
+  it('expired lease is re-claimed; stale worker cannot overwrite', () => {
+    enqueueIndexJob(db, { docId: 'd1', modelKey: 'bge-m3', models: MODELS });
+    const a = claimNextJob(db, 'bge-m3', T)!;
+    expect(claimNextJob(db, 'bge-m3', T + LEASE_MS - 1)).toBeNull();
+    const b = claimNextJob(db, 'bge-m3', T + LEASE_MS)!;
+    expect(b.id).toBe(a.id);
+    expect(b.attempts).toBe(2);
+    expect(markJobDone(db, a.id, a.claimedAt)).toBe(false); // lease lost
+    expect(markJobDone(db, b.id, b.claimedAt)).toBe(true);
+  });
+
+  it('error retries after exponential backoff, dead at MAX_ATTEMPTS', () => {
+    enqueueIndexJob(db, { docId: 'd1', modelKey: 'bge-m3', models: MODELS });
+    let now = T;
+    for (let n = 1; n <= MAX_ATTEMPTS; n++) {
+      const j = claimNextJob(db, 'bge-m3', now)!;
+      expect(j.attempts).toBe(n);
+      markJobError(db, j.id, 'boom', j.claimedAt);
+      const fin = db.query<{ f: number }, []>('SELECT finished_at f FROM indexing_jobs').get()!.f;
+      const wait = Math.min(BACKOFF_BASE_MS * 2 ** (n - 1), 60 * 60_000);
+      expect(claimNextJob(db, 'bge-m3', fin + wait - 1)).toBeNull();
+      now = fin + wait;
+    }
+    expect(claimNextJob(db, 'bge-m3', now + 10 * 60 * 60_000)).toBeNull(); // dead
+  });
+
+  it('CLI-cancelled rows are never retried', () => {
+    enqueueIndexJob(db, { docId: 'd1', modelKey: 'bge-m3', models: MODELS });
+    db.run(`UPDATE indexing_jobs SET status='error', attempts=1, finished_at=0, error='cancelled by CLI'`);
+    expect(claimNextJob(db, 'bge-m3', T)).toBeNull();
   });
 });
