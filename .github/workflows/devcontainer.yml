@@ -1,0 +1,53 @@
+name: Dev Container CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.devcontainer/**'
+      - 'docs/LOCAL-DEV.md'
+      - '.github/workflows/devcontainer.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.devcontainer/**'
+      - 'docs/LOCAL-DEV.md'
+      - '.github/workflows/devcontainer.yml'
+
+jobs:
+  validate-devcontainer:
+    name: Validate Dev Container
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build devcontainer services
+        run: docker compose -f .devcontainer/docker-compose.yml build
+
+      - name: Start devcontainer services
+        run: docker compose -f .devcontainer/docker-compose.yml up -d
+
+      - name: Wait for app container
+        run: |
+          for i in $(seq 1 30); do
+            docker compose -f .devcontainer/docker-compose.yml exec -T app true && break
+            echo "Waiting for app container... ($i/30)"
+            sleep 1
+          done
+
+      - name: Smoke test - bun version
+        run: |
+          docker compose -f .devcontainer/docker-compose.yml exec -T app bun --version
+
+      - name: Install dependencies inside container
+        run: |
+          docker compose -f .devcontainer/docker-compose.yml exec -T app bash -c "cd /workspaces/arra-oracle-v3 && bun install"
+
+      - name: Smoke test - bun run build
+        run: |
+          docker compose -f .devcontainer/docker-compose.yml exec -T app bash -c "cd /workspaces/arra-oracle-v3 && bun run build"
+
+      - name: Stop devcontainer services
+        if: always()
+        run: docker compose -f .devcontainer/docker-compose.yml down
