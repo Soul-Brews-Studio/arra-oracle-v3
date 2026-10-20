@@ -1,0 +1,33 @@
+{
+  "name": "Arra Oracle v3",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/arra-oracle-v3",
+  "shutdownAction": "stopCompose",
+  "remoteUser": "vscode",
+  "postCreateCommand": ".devcontainer/post-create.sh",
+  "postStartCommand": "git config --global --add safe.directory /workspaces/arra-oracle-v3 || true",
+  "forwardPorts": [47778, 8000, 3000, 4321],
+  "portsAttributes": {
+    "47778": { "label": "Oracle HTTP/MCP API" },
+    "8000": { "label": "ChromaDB" },
+    "3000": { "label": "Oracle Web (Astro dev)" },
+    "4321": { "label": "Astro default" }
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "oven.bun-vscode",
+        "bradlc.vscode-tailwindcss",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}
