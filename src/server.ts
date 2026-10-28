@@ -23,6 +23,7 @@ import { preflightVectorRuntime } from './vector/preflight.ts';
 import { drainingResponseFor, isDraining, registerGracefulShutdown, runShutdownSteps, trackRequest } from './lifecycle/shutdown.ts';
 import { PUBLIC_ENDPOINTS, apiRootResponse } from './routes/meta/endpoints.ts';
 import { createErrorMiddleware } from './middleware/errors.ts';
+import { resolveServerHostname } from './server-host.ts';
 import { validateStartupEnv } from './config/validate.ts';
 import { printStartupBanner } from './lifecycle/banner.ts';
 import { createStartupSelfTest, runStartupSelfTest } from './lifecycle/self-test.ts';
@@ -204,7 +205,7 @@ function assertRouteModule(mod: unknown, index: number): asserts mod is RouteMod
 
 export async function startServer(options: StartServerOptions = {}): Promise<ReturnType<typeof Bun.serve>> {
   const app = await createStartedApp(options);
-  return Bun.serve(app);
+  return Bun.serve({ ...app, hostname: resolveServerHostname() });
 }
 
 export async function createStartedApp(options: StartServerOptions = {}): Promise<ServerSpec> {
