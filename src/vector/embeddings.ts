@@ -43,6 +43,10 @@ export class OllamaEmbeddings implements EmbeddingProvider {
       'multilingual-e5-large': 1024,
       'multilingual-e5-large-instruct': 1024,
       'snowflake-arctic-embed2': 1024,
+      'embeddinggemma': 768,
+      'embeddinggemma:ane-w8a16': 768,
+      'embeddinggemma2:ane-w16': 768,
+      'nemotron-embed:ane-w16': 2048,
     };
     this.dimensions = KNOWN_DIMS[this.model] || 768;
   }
@@ -65,14 +69,21 @@ export class OllamaEmbeddings implements EmbeddingProvider {
     const isQwen3 = this.model.includes('qwen3-embedding');
     const isE5 = this.model.includes('multilingual-e5') || this.model.includes('/e5-');
     const isBge = this.model.includes('bge');
+    const isNemotron = this.model.includes('nemotron');
+    // EmbeddingGemma v1/v2 task prompts (sentence-transformers config); +0.03 MRR on arra docs, 2026-11-20
+    const isGemma = this.model.includes('embeddinggemma');
     if (type === 'query') {
       if (isQwen3) {
         truncated = `Instruct: Given a search query, retrieve relevant passages that answer the query\nQuery: ${truncated}`;
-      } else if (isBge || isE5) {
+      } else if (isGemma) {
+        truncated = `task: search result | query: ${truncated}`;
+      } else if (isBge || isE5 || isNemotron) {
         truncated = `query: ${truncated}`;
       }
     } else if (type === 'passage') {
-      if (isBge || isE5) {
+      if (isGemma) {
+        truncated = `title: none | text: ${truncated}`;
+      } else if (isBge || isE5 || isNemotron) {
         truncated = `passage: ${truncated}`;
       }
     }
