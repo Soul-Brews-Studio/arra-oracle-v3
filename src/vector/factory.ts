@@ -163,6 +163,8 @@ function resolveModelKey(model: string | undefined, models: Record<string, Embed
 export function createVectorStoreForModel(preset: EmbeddingModelConfig): VectorStoreAdapter {
   return createVectorStore(vectorStoreConfigFromPreset(preset));
 }
+/** The embedder `createVectorStoreForModel` would give its store, for callers that embed ahead. */
+export const createEmbedderForModel = (preset: EmbeddingModelConfig): EmbeddingProvider => createConfiguredEmbedder(vectorStoreConfigFromPreset(preset));
 function vectorStoreConfigFromPreset(preset: EmbeddingModelConfig): VectorStoreConfig {
   return {
     type: preset.adapter || 'lancedb',
