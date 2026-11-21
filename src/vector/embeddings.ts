@@ -47,6 +47,8 @@ export class OllamaEmbeddings implements EmbeddingProvider {
       'embeddinggemma:ane-w8a16': 768,
       'embeddinggemma2:ane-w16': 768,
       'nemotron-embed:ane-w16': 2048,
+      'multilingual-e5-small:ane': 384,
+      'multilingual-e5-large-instruct:ane': 1024,
     };
     this.dimensions = KNOWN_DIMS[this.model] || 768;
   }
