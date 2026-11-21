@@ -83,3 +83,17 @@ describe('embedAhead dedupe', () => {
     expect(flat.every((d) => Array.isArray(d.vector))).toBe(true);
   });
 });
+
+describe('embedAhead with several embedders', () => {
+  test('the faster embedder takes more slices, every document gets a vector, order is kept', async () => {
+    const docs = Array.from({ length: 40 }, (_, i) => doc(`d${String(i).padStart(2, '0')}`, `text ${String(i).padStart(2, '0')}`));
+    const slow: EmbeddingProvider = { name: 'slow', dimensions: 1, embed: async (t) => { await new Promise((r) => setTimeout(r, 20)); return t.map(() => [1]); } };
+    const fast: EmbeddingProvider = { name: 'fast', dimensions: 1, embed: async (t) => { await new Promise((r) => setTimeout(r, 2)); return t.map(() => [2]); } };
+    const shares: number[] = [];
+    const flat = (await collect(embedAhead(docs, [slow, fast], { embedBatch: 2, writeBatch: 4, ahead: 1, shares }))).flat();
+    expect(flat.map((d) => d.id)).toEqual(docs.map((d) => d.id));
+    expect(flat.every((d) => Array.isArray(d.vector))).toBe(true);
+    expect(shares[0] + shares[1]).toBe(40);
+    expect(shares[1]).toBeGreaterThan(shares[0]);
+  });
+});

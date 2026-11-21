@@ -16,13 +16,14 @@ import {
 import type { VectorDocument } from '../vector/types.ts';
 import { applyVectorIndexPlanAhead } from '../indexer/vector-index-ahead.ts';
 import { filterVectorDocs } from '../indexer/vector-doc-filter.ts';
+import { createEmbeddingProvider } from '../vector/embeddings.ts';
 
 const args = process.argv.slice(2);
-const modelKey = args.find((arg) => !arg.startsWith('--'));
+const modelKey = args.find((arg, i) => !arg.startsWith('--') && args[i - 1] !== '--also');
 const flags = new Set(args.filter((arg) => arg.startsWith('--')));
 
 if (!modelKey || !EMBEDDING_MODELS[modelKey] || flags.has('--help')) {
-  console.error('Usage: bun src/scripts/index-model.ts <model> [--incremental] [--dry-run] [--force] [--serial] [--all-docs]');
+  console.error('Usage: bun src/scripts/index-model.ts <model> [--incremental] [--dry-run] [--force] [--serial] [--all-docs] [--also url=model]');
   console.error(`Available models: ${Object.keys(EMBEDDING_MODELS).join(', ')}`);
   process.exit(flags.has('--help') ? 0 : 1);
 }
@@ -38,6 +39,9 @@ const dryRun = flags.has('--dry-run');
 const force = flags.has('--force');
 const serial = flags.has('--serial');
 const keepAll = flags.has('--all-docs');
+// --also <url>=<model>: a second embedder of the SAME model (e.g. Ollama embeddinggemma on the GPU
+// beside the ANE app). Both pull work as they free up. Repeatable.
+const also = args.flatMap((arg, i) => (arg === '--also' && args[i + 1] ? [args[i + 1]] : []));
 
 interface DbVectorRow {
   id: string;
@@ -79,6 +83,11 @@ async function main() {
   }
 
   const store = createVectorStoreForModel(preset);
+  const embedders = [createEmbedderForModel(preset), ...also.map((spec) => {
+    const [url, model] = spec.split('=');
+    return createEmbeddingProvider('ollama', model, { url, dimensions: preset.embedder?.dimensions });
+  })];
+  const shares: number[] = [];
   await store.connect();
 
   try {
@@ -90,9 +99,12 @@ async function main() {
     };
     const applied = serial
       ? await applyVectorIndexPlan(store, plan, applyOpts)
-      : await applyVectorIndexPlanAhead(store, plan, createEmbedderForModel(preset), {
-        ...applyOpts, embedBatch: BATCH_SIZE, writeBatch: BATCH_SIZE * 8, ahead: EMBED_AHEAD,
+      : await applyVectorIndexPlanAhead(store, plan, embedders, {
+        ...applyOpts, embedBatch: BATCH_SIZE, writeBatch: BATCH_SIZE * 8, ahead: EMBED_AHEAD, shares,
       });
+    if (!serial && embedders.length > 1) {
+      console.log(`Shares: ${shares.map((n, i) => `${i === 0 ? 'primary' : also[i - 1]} ${n}`).join(', ')}`);
+    }
     writeVectorIndexManifest(db, plan);
     printSummary(rows, plan, { embedded: applied.embedded, errors: applied.errors, startTime, dryRun, force });
   } finally {

@@ -10,6 +10,12 @@
  *   next one, so the embedder sat idle during every write. Here up to `ahead` embed requests
  *   are in flight while the caller writes the batches that are already done.
  *
+ * Several embedders (the ANE app and Ollama on the GPU, both serving EmbeddingGemma) share the
+ * work by pulling the next slice whenever one has a free slot, so the split follows their real
+ * speeds instead of a guessed ratio. facebook-oracle set a ratio from a misleading bench once and
+ * ran 2x slower (2026-10-28). Mixing is safe only for embedders of the same model: on arra's 303
+ * known-item pairs an index of 70% ANE and 30% Ollama vectors scored MRR 0.702-0.707, the same as
+ * either alone (doc cosine min 0.998, 2026-11-21).
  * Output order follows the sorted order, not the input order. Vector stores do not care.
  * Exact duplicate texts (about 10% of arra's rows) are embedded once and share the vector.
  */
@@ -21,8 +27,10 @@ export interface EmbedAheadOptions {
   embedBatch?: number;
   /** documents per yielded write batch */
   writeBatch?: number;
-  /** embed requests allowed in flight before the caller drains them */
+  /** embed requests allowed in flight PER embedder before the caller drains them */
   ahead?: number;
+  /** filled with texts embedded per embedder index, for the caller's report */
+  shares?: number[];
 }
 
 /** A copy of `docs`, shortest text first. Stable for equal lengths. */
@@ -39,9 +47,10 @@ export function sortByLength(docs: VectorDocument[]): VectorDocument[] {
  */
 export async function* embedAhead(
   docs: VectorDocument[],
-  embedder: EmbeddingProvider,
+  embedder: EmbeddingProvider | EmbeddingProvider[],
   opts: EmbedAheadOptions = {},
 ): AsyncGenerator<VectorDocument[]> {
+  const embedders = Array.isArray(embedder) ? embedder : [embedder];
   const embedBatch = positive(opts.embedBatch, 64);
   const writeBatch = Math.max(embedBatch, positive(opts.writeBatch, 512));
   const ahead = positive(opts.ahead, 3);
@@ -64,19 +73,33 @@ export async function* embedAhead(
   const slices: VectorDocument[][] = [];
   for (let i = 0; i < unique.length; i += embedBatch) slices.push(unique.slice(i, i + embedBatch));
 
-  const inFlight: Promise<[VectorDocument[], VectorDocument[]]>[] = [];
+  // Results are consumed in slice order; each embedder keeps `ahead` requests of its own going.
+  const results: Promise<VectorDocument[]>[] = [];
+  const busy = embedders.map(() => 0);
+  const shares = opts.shares ?? [];
+  embedders.forEach((_, e) => { shares[e] ??= 0; });
   let next = 0;
+  let consumed = 0;
+  const limit = ahead * embedders.length * 2;   // bound how far the fastest one runs ahead
   const launch = () => {
-    while (inFlight.length < ahead && next < slices.length) {
-      const slice = slices[next++];
-      inFlight.push(embedSlice(slice, embedder).then((out) => [slice, out]));
+    for (let e = 0; e < embedders.length; e++) {
+      while (busy[e] < ahead && next < slices.length && next - consumed < limit) {
+        const slice = slices[next++];
+        busy[e] += 1;
+        results.push(embedSlice(slice, embedders[e]).then((out) => {
+          if (out[0]?.vector || out.length === 0) shares[e] += slice.length;
+          return out;
+        }).finally(() => { busy[e] -= 1; launch(); }));
+      }
     }
   };
 
   let buffer: VectorDocument[] = [];
   launch();
-  while (inFlight.length > 0) {
-    const [input, done] = await inFlight.shift()!;
+  while (consumed < slices.length) {
+    const input = slices[consumed];
+    const done = await results[consumed];
+    consumed += 1;
     launch();
     done.forEach((doc, j) => {
       buffer.push(doc);

@@ -15,7 +15,7 @@ import type { EmbeddingProvider, VectorStoreAdapter } from '../vector/types.ts';
 export async function applyVectorIndexPlanAhead(
   store: VectorStoreAdapter,
   plan: VectorIndexPlan,
-  embedder: EmbeddingProvider,
+  embedder: EmbeddingProvider | EmbeddingProvider[],
   opts: VectorIndexApplyOptions & EmbedAheadOptions = {},
 ): Promise<VectorIndexApplyResult> {
   const changes = plan.changedDocs.length > 0 || plan.staleIds.length > 0;
