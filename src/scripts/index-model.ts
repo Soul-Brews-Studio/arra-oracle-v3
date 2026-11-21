@@ -15,13 +15,14 @@ import {
 } from '../indexer/vector-index-manifest.ts';
 import type { VectorDocument } from '../vector/types.ts';
 import { applyVectorIndexPlanAhead } from '../indexer/vector-index-ahead.ts';
+import { filterVectorDocs } from '../indexer/vector-doc-filter.ts';
 
 const args = process.argv.slice(2);
 const modelKey = args.find((arg) => !arg.startsWith('--'));
 const flags = new Set(args.filter((arg) => arg.startsWith('--')));
 
 if (!modelKey || !EMBEDDING_MODELS[modelKey] || flags.has('--help')) {
-  console.error('Usage: bun src/scripts/index-model.ts <model> [--incremental] [--dry-run] [--force] [--serial]');
+  console.error('Usage: bun src/scripts/index-model.ts <model> [--incremental] [--dry-run] [--force] [--serial] [--all-docs]');
   console.error(`Available models: ${Object.keys(EMBEDDING_MODELS).join(', ')}`);
   process.exit(flags.has('--help') ? 0 : 1);
 }
@@ -36,6 +37,7 @@ const EMBED_AHEAD = normalizeBatchSize(process.env.ORACLE_EMBED_AHEAD, 3);
 const dryRun = flags.has('--dry-run');
 const force = flags.has('--force');
 const serial = flags.has('--serial');
+const keepAll = flags.has('--all-docs');
 
 interface DbVectorRow {
   id: string;
@@ -60,12 +62,14 @@ async function main() {
   const { db, sqlite } = createDatabase(DB_PATH);
   const [{ total: docCount }] = db.select({ total: count() }).from(oracleDocuments).all();
   const rows = loadRows(sqlite);
-  const docs = rows.map(vectorDoc);
+  const filtered = filterVectorDocs(rows.map(vectorDoc), keepAll ? { minChars: 0, keepLearnOrigin: true } : {});
+  const docs = filtered.kept;
   const previous = loadVectorIndexManifest(db, selectedModelKey);
   const plan = planVectorIndex(docs, previous, selectedModelKey, { force });
   const startTime = Date.now();
 
   console.log(`Documents: ${docCount}`);
+  console.log(`Skipped for vectors: ${filtered.learnOrigin} under ψ/learn/**/origin, ${filtered.tooShort} under 40 chars${keepAll ? ' (--all-docs)' : ''}`);
   console.log(`Chunks: ${plan.total}; changed: ${plan.changedDocs.length}; stale: ${plan.staleIds.length}; skipped: ${plan.skipped}`);
 
   if (dryRun) {

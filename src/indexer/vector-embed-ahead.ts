@@ -11,6 +11,7 @@
  *   are in flight while the caller writes the batches that are already done.
  *
  * Output order follows the sorted order, not the input order. Vector stores do not care.
+ * Exact duplicate texts (about 10% of arra's rows) are embedded once and share the vector.
  */
 
 import type { EmbeddingProvider, VectorDocument } from '../vector/types.ts';
@@ -45,24 +46,42 @@ export async function* embedAhead(
   const writeBatch = Math.max(embedBatch, positive(opts.writeBatch, 512));
   const ahead = positive(opts.ahead, 3);
 
+  // Identical texts are embedded once; the copies get the same vector when their batch is yielded.
+  const copies = new Map<VectorDocument, VectorDocument[]>();
+  const firstByText = new Map<string, VectorDocument>();
+  const unique: VectorDocument[] = [];
+  for (const doc of docs) {
+    const first = doc.vector ? undefined : firstByText.get(doc.document);
+    if (first) copies.get(first)!.push(doc);
+    else {
+      unique.push(doc);
+      if (!doc.vector) {
+        firstByText.set(doc.document, doc);
+        copies.set(doc, []);
+      }
+    }
+  }
   const slices: VectorDocument[][] = [];
-  for (let i = 0; i < docs.length; i += embedBatch) slices.push(docs.slice(i, i + embedBatch));
+  for (let i = 0; i < unique.length; i += embedBatch) slices.push(unique.slice(i, i + embedBatch));
 
-  const inFlight: Promise<VectorDocument[]>[] = [];
+  const inFlight: Promise<[VectorDocument[], VectorDocument[]]>[] = [];
   let next = 0;
   const launch = () => {
     while (inFlight.length < ahead && next < slices.length) {
       const slice = slices[next++];
-      inFlight.push(embedSlice(slice, embedder));
+      inFlight.push(embedSlice(slice, embedder).then((out) => [slice, out]));
     }
   };
 
   let buffer: VectorDocument[] = [];
   launch();
   while (inFlight.length > 0) {
-    const done = await inFlight.shift()!;
+    const [input, done] = await inFlight.shift()!;
     launch();
-    buffer.push(...done);
+    done.forEach((doc, j) => {
+      buffer.push(doc);
+      for (const copy of copies.get(input[j]) ?? []) buffer.push(doc.vector ? { ...copy, vector: doc.vector } : copy);
+    });
     if (buffer.length >= writeBatch) {
       yield buffer;
       buffer = [];

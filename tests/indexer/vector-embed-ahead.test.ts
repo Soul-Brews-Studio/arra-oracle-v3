@@ -51,7 +51,7 @@ describe('embedAhead', () => {
   });
 
   test('keeps up to `ahead` requests in flight', async () => {
-    const docs = Array.from({ length: 12 }, (_, i) => doc(`d${i}`, 'x'));
+    const docs = Array.from({ length: 12 }, (_, i) => doc(`d${i}`, `text ${i}`));
     const fake = fakeEmbedder();
     await collect(embedAhead(docs, fake.embedder, { embedBatch: 2, writeBatch: 2, ahead: 3 }));
     expect(fake.maxInFlight()).toBe(3);
@@ -70,5 +70,16 @@ describe('embedAhead', () => {
     const flat = (await collect(embedAhead(docs, fake.embedder, { embedBatch: 2 }))).flat();
     expect(fake.calls).toEqual([['new']]);
     expect(flat.map((d) => d.vector)).toEqual([[9], [3]]);
+  });
+});
+
+describe('embedAhead dedupe', () => {
+  test('identical texts are embedded once and every copy gets the vector', async () => {
+    const docs = [doc('a', 'same'), doc('b', 'other'), doc('c', 'same'), doc('d', 'same')];
+    const fake = fakeEmbedder();
+    const flat = (await collect(embedAhead(docs, fake.embedder, { embedBatch: 1, writeBatch: 8 }))).flat();
+    expect(fake.calls.flat()).toEqual(['same', 'other']);
+    expect(flat.map((d) => d.id).sort()).toEqual(['a', 'b', 'c', 'd']);
+    expect(flat.every((d) => Array.isArray(d.vector))).toBe(true);
   });
 });
