@@ -2,7 +2,7 @@
  * Which documents earn a vector. FTS5 still indexes every document; this only decides what the
  * bulk vector rebuild (`src/scripts/index-model.ts`) spends embedding time on.
  *
- * Measured on m5's oracle.db (530,357 rows, 2026-11-21):
+ * Measured on a full-size oracle.db (530,357 rows, 2026-11-21):
  * - 4,295 rows are under 40 characters: pings, `---`, "yo". Their vectors sit near every short
  *   query and push real hits down. facebook-oracle's brain drops the same band.
  * - `ψ/learn/<owner>/<repo>/origin/` holds copies of other repos' files made by /learn, not notes

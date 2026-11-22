@@ -10,9 +10,9 @@ describe('filterVectorDocs', () => {
   test('drops ψ/learn/**/origin copies and texts under 40 chars, counts each', () => {
     const res = filterVectorDocs([
       doc('keep', long),
-      doc('short', '  [m5:tee] ping  '),
-      doc('origin', long, 'github.com/laris-co/transcriber-oracle/ψ/learn/Arthur/arthur-isim/origin/data/FULL_TEXT.md'),
-      doc('learn-note', long, 'github.com/laris-co/x/ψ/learn/owner/repo/2026-11-21_notes.md'),
+      doc('short', '  [host:agent] ping  '),
+      doc('origin', long, 'github.com/acme/notes-oracle/ψ/learn/owner/repo/origin/data/FULL_TEXT.md'),
+      doc('learn-note', long, 'github.com/acme/x/ψ/learn/owner/repo/2026-11-21_notes.md'),
     ]);
     expect(res.kept.map((d) => d.id)).toEqual(['keep', 'learn-note']);
     expect(res.tooShort).toBe(1);

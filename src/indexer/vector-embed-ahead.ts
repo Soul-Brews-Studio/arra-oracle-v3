@@ -1,7 +1,7 @@
 /**
  * Feed a fixed-shape embedder (the Apple Neural Engine app, Ollama) the way it runs fastest.
  *
- * Two levers, both measured on m5 before this existed:
+ * Two levers, both measured on one Apple-silicon Mac before this existed:
  * - Shortest first. An ANE model runs one fixed shape per length bucket, so a batch is padded
  *   to its longest text. Sorting by length keeps neighbours in a batch about the same size.
  *   facebook-oracle's brain build embedded 98,386 chunks at 124 texts/s this way, against 60/s
