@@ -27,7 +27,7 @@ import {
 import { reflectToolDef, handleReflect } from './reflect.ts';
 import { verifyToolDef, handleVerify } from './verify.ts';
 import { mcpCallToolDef, mcpListToolsToolDef, handleMcpCall, handleMcpListTools } from './mcp-in.ts';
-import { arraStatusToolDef, arraVaultToolDef, handleArraStatus, handleArraVault } from './arra.ts';
+import { arraHubToolDef, arraStatusToolDef, arraVaultToolDef, handleArraHub, handleArraStatus, handleArraVault } from './arra.ts';
 type Runtime = { version: string; getToolCtx: () => Promise<ToolContext> };
 export type RuntimeMcpHandler = (input: unknown, runtime: Runtime) => Promise<ToolResponse> | ToolResponse;
 export interface RuntimeMcpToolManifest extends Omit<UnifiedMcpToolManifest, 'handler'> {
@@ -66,6 +66,7 @@ export const mcpTools: RuntimeMcpToolManifest[] = [
   ctxTool(oracleResearchNoteToolDef, 'knowledge', false, 'handleOracleResearchNote', handleOracleResearchNote),
   noCtxTool(arraStatusToolDef, 'knowledge', true, 'handleArraStatus', handleArraStatus),
   noCtxTool(arraVaultToolDef, 'knowledge', false, 'handleArraVault', handleArraVault),
+  noCtxTool(arraHubToolDef, 'knowledge', false, 'handleArraHub', handleArraHub),
   ctxTool(handoffToolDef, 'session', false, 'handleHandoff', handleHandoff),
   ctxTool(inboxToolDef, 'session', true, 'handleInbox', handleInbox),
   ...forumToolDefs.map((def, index) => noCtxTool(def, 'forum', index !== 0 && index !== 3, forumHandlers[index].name, forumHandlers[index])),

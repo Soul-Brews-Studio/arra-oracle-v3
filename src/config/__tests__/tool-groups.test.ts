@@ -18,9 +18,10 @@ describe('tool-groups', () => {
     expect(Object.keys(TOOL_GROUPS)).toHaveLength(7);
     expect(TOOL_GROUPS.search).toHaveLength(6);
     expect(TOOL_GROUPS.search).toContain('oracle_ask');
-    expect(TOOL_GROUPS.knowledge).toHaveLength(6);
+    expect(TOOL_GROUPS.knowledge).toHaveLength(7);
     expect(TOOL_GROUPS.knowledge).toContain('oracle_status');
     expect(TOOL_GROUPS.knowledge).toContain('oracle_vault');
+    expect(TOOL_GROUPS.knowledge).toContain('oracle_hub');
     expect(TOOL_GROUPS.oracle).toEqual(['oracle_profile', 'oracle_recap']);
     expect(TOOL_GROUPS.trace).toHaveLength(7);
     expect(TOOL_GROUPS.standalone).toHaveLength(2);
