@@ -78,7 +78,9 @@ export async function syncHub(sqlite: Database, hub: JoinedHub, models?: Record<
     touchHub(hub.name, { lastSyncAt: new Date().toISOString(), lastSyncSha: r.sha ?? undefined });
     return { vault: `hub:${hub.name}`, sha: r.sha, pulled: 'ff' as const, ...report };
   } catch (error) {
-    const message = error instanceof Error ? (error.name === 'TimeoutError' ? `hub:${hub.name} unreachable` : error.message) : String(error);
+    // "hub said <status>" = the hub answered and refused; anything else = it did not answer
+    const said = error instanceof Error && error.message.startsWith('hub said');
+    const message = said ? (error as Error).message : `hub:${hub.name} unreachable (${error instanceof Error ? error.name : 'error'})`;
     return { vault: `hub:${hub.name}`, sha: hub.lastSyncSha ?? null, pulled: 'failed' as const, error: message, files: 0, added: 0, updated: 0, unchanged: 0, removed: 0, queued: 0 };
   }
 }

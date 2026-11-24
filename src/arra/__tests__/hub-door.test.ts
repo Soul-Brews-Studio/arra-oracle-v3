@@ -121,6 +121,7 @@ describe('hub door', () => {
     await Bun.sleep(300);
     const s = await client.syncHub(sqlite, client.findHub('soul-brews'));
     expect(s.pulled).toBe('failed');
+    expect(s.error).toContain('hub:soul-brews unreachable');
     const { groupedSearch } = await import('../search.ts');
     const g = await groupedSearch(sqlite, 'wedging');
     expect(g.groups.find((x) => x.source === 'hub:soul-brews')?.results.length).toBe(1);
