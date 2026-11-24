@@ -148,6 +148,8 @@ async function main() {
     process.exit(await installCommand(args.slice(1)));
   }
 
+  if (/^(init|status)$/.test(cmd) || (cmd === "serve" && args.includes("--hub"))) process.exit(await (await import("./commands/arra/index.ts")).runArraCommand(cmd, args.slice(1))); // #3110 vault + hub
+
   if (cmd === "serve") {
     if (hasHelpFlag(args.slice(1))) return printScopedBuiltinHelp(cmd, args.slice(1));
     const plan = serveCommandPlan(args);
@@ -167,15 +169,8 @@ async function main() {
     process.exit(await releaseCommand(args.slice(1)));
   }
 
-  if (cmd === "export") {
-    const { exportCommand } = await import("../../src/cli/commands/export.ts");
-    process.exit(await exportCommand(args.slice(1)));
-  }
-
-  if (cmd === "import") {
-    const { importCommand } = await import("../../src/cli/commands/import.ts");
-    process.exit(await importCommand(args.slice(1)));
-  }
+  if (cmd === "export") process.exit(await (await import("../../src/cli/commands/export.ts")).exportCommand(args.slice(1)));
+  if (cmd === "import") process.exit(await (await import("../../src/cli/commands/import.ts")).importCommand(args.slice(1)));
 
   if (cmd === "migrate") {
     if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
