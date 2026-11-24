@@ -61,3 +61,28 @@ export const arraVaultToolDef = {
 export async function handleArraVault(input: unknown): Promise<ToolResponse> {
   return callArraRoute('POST', '/api/arra/vault', input ?? {});
 }
+
+export const arraHubToolDef = {
+  name: 'oracle_hub',
+  description: 'Hub door (arra_hub). As a hub: action=invite (for 15m|1h|7d|forever, label) → one-use code; action=nodes; action=revoke (id, why) → token stops + RETIRED.md row. As a node: action=join (url, code) → per-node token; action=hubs; action=leave (name); action=discover → hubs on the tailnet. action=retire (thing, successor, why) → RETIRED.md row. Same as arra hub/join/hubs/discover/retire and /api/arra/*.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      action: { type: 'string', enum: ['invite', 'nodes', 'revoke', 'join', 'hubs', 'leave', 'discover', 'retire'] },
+      for: { type: 'string', description: 'invite: how long the joined node lasts (15m, 1h, 7d, forever)' },
+      label: { type: 'string', description: 'invite/join: node label' },
+      id: { type: 'string', description: 'revoke: node id' },
+      url: { type: 'string', description: 'join: hub url (tailnet or LAN)' },
+      code: { type: 'string', description: 'join: invite code' },
+      name: { type: 'string', description: 'leave: hub name' },
+      thing: { type: 'string', description: 'retire: what ceases' },
+      successor: { type: 'string', description: 'retire/revoke: what replaces it, or "nothing"' },
+      why: { type: 'string', description: 'retire/revoke: reason' },
+    },
+    required: ['action'],
+  },
+};
+
+export async function handleArraHub(input: unknown): Promise<ToolResponse> {
+  return callArraRoute('POST', '/api/arra/hub', input ?? {});
+}

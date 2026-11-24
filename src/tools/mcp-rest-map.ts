@@ -78,6 +78,7 @@ const mcpRestMapEntries = [
   { name: 'oracle_research_note', remoteable: true, method: 'POST', path: '/api/research/note', body: 'args' },
   { name: 'oracle_status', remoteable: true, method: 'GET', path: '/api/arra/status' },
   { name: 'oracle_vault', remoteable: true, method: 'POST', path: '/api/arra/vault', body: 'args' },
+  { name: 'oracle_hub', remoteable: true, method: 'POST', path: '/api/arra/hub', body: 'args' },
   { name: 'oracle_handoff', remoteable: true, method: 'POST', path: '/api/handoff', body: 'args' },
   { name: 'oracle_inbox', remoteable: true, method: 'GET', path: '/api/inbox', query: pagingQuery },
   { name: 'oracle_thread', remoteable: true, method: 'POST', path: '/api/thread', body: 'thread-message' },
