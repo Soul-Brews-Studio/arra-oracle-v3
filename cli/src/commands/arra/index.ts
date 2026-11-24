@@ -5,6 +5,7 @@
  * is a thin caller of the HTTP API, so CLI, MCP and skills always agree.
  */
 
+import { builtinHelpFor, renderCommandHelp } from "../../../../src/cli/help.ts";
 import { initCommand, statusCommand } from "./init-status.ts";
 import { shareCommand, snapshotCommand, syncCommand } from "./vault.ts";
 import { findCommand, openCommand } from "./search-read.ts";
@@ -37,6 +38,10 @@ export async function runArraCommand(cmd: string, args: string[]): Promise<numbe
   if (!handler) {
     console.error(`unknown arra command: ${cmd}`);
     return 1;
+  }
+  if (args.includes("--help") || args.includes("-h")) {
+    const help = builtinHelpFor(cmd);
+    if (help) { console.log(renderCommandHelp(help)); return 0; }
   }
   return handler(args);
 }

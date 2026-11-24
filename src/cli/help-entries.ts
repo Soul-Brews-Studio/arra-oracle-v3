@@ -16,7 +16,10 @@ export interface CliHelpEntry {
   examples?: string[];
 }
 
+import { ARRA_VAULT_HELP } from "./help-entries-arra.ts";
+
 export const BUILTIN_HELP: CliHelpEntry[] = [
+  ...ARRA_VAULT_HELP,
   {
     command: "plugin",
     help: "manage installable CLI plugins",

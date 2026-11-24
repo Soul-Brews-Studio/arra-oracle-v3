@@ -80,7 +80,8 @@ const bodyOf = (md: string) => md.replace(/^---\n[\s\S]*?\n---\n/, '').trim();
 export function commitNote(vault: VaultRef, title: string, markdown: string, by: string, at = new Date()): ShareResult {
   const dir = path.join(vault.path, 'ψ', 'memory', 'shared');
   fs.mkdirSync(dir, { recursive: true });
-  const base = `${at.toISOString().slice(0, 10)}_${slug(title)}`;
+  // local date, like the rest of ψ/ (toISOString would name a 01:28 +07 note after yesterday)
+  const base = `${at.toLocaleDateString('sv-SE')}_${slug(title)}`;
   let rel = `ψ/memory/shared/${base}.md`;
   for (let n = 2; fs.existsSync(path.join(vault.path, rel)); n += 1) {
     // same day, same title, same body (frontmatter times differ) → already shared
