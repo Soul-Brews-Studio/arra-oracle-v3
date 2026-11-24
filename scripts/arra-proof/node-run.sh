@@ -23,7 +23,7 @@ BUN=$(command -v bun || echo "$HOME/.bun/bin/bun")
 API=http://127.0.0.1:$PORT
 
 exec > >(tee -a "$LOG") 2>&1
-echo "=== arra #3110 node $ROLE on $(hostname) · $(date -Is) ==="
+echo "=== arra #3110 node $ROLE on $(hostname) · $(date "+%FT%T%z") ==="
 [ -x "$BUN" ] || { echo "bun not found (install: curl -fsSL https://bun.sh/install | bash)"; exit 1; }
 if [ ! -d "$SRC/.git" ]; then git clone -q --depth 1 -b "$BRANCH" https://github.com/Soul-Brews-Studio/arra-oracle-v3 "$SRC"; fi
 git -C "$SRC" fetch -q --depth 1 origin "$BRANCH" && git -C "$SRC" checkout -q FETCH_HEAD
@@ -93,6 +93,6 @@ else
   step find wedging
 fi
 
-echo; echo "=== node $ROLE done · $(date -Is) ==="
+echo; echo "=== node $ROLE done · $(date "+%FT%T%z") ==="
 kill "$(cat "$WORK.server.pid")" 2>/dev/null
 exit 0
