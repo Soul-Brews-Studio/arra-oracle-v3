@@ -39,12 +39,14 @@ export async function handleArraStatus(): Promise<ToolResponse> {
 
 export const arraVaultToolDef = {
   name: 'oracle_vault',
-  description: 'Vault work (arra_vault). action=share: write one note (id, file or text) into an org vault as .md and commit (vault = name or hub:<name>). action=sync: pull connected vaults / joined hubs and index them as hub:<name>. action=snapshot_create | snapshot_push (dest) | snapshot_pull (src) | snapshot_list: manual vector snapshots keyed by model + vault commit. Same as arra share/sync/snapshot and POST /api/arra/*.',
+  description: 'Vault work (arra_vault). action=share: write one note (id, file or text) into an org vault as .md and commit (vault = name or hub:<name>). action=sync: pull connected vaults / joined hubs and index them as hub:<name>. action=search: results grouped by source (self, hub:<name>), scores comparable only within a group; q may start with self: or shared:. action=read: open one document by id. action=snapshot_create | snapshot_push (dest) | snapshot_pull (src) | snapshot_list: manual vector snapshots keyed by model + vault commit. Same as arra share/sync/snapshot and POST /api/arra/*.',
   inputSchema: {
     type: 'object',
     properties: {
-      action: { type: 'string', enum: ['share', 'sync', 'snapshot_create', 'snapshot_push', 'snapshot_pull', 'snapshot_list'] },
-      id: { type: 'string', description: 'share: document id from this arra' },
+      action: { type: 'string', enum: ['share', 'sync', 'search', 'read', 'snapshot_create', 'snapshot_push', 'snapshot_pull', 'snapshot_list'] },
+      q: { type: 'string', description: 'search: query, results grouped by source; prefix self: or shared: to narrow' },
+      limit: { type: 'number', description: 'search: results per group (default 10)' },
+      id: { type: 'string', description: 'share: document id from this arra; read: id to open' },
       file: { type: 'string', description: 'share: markdown file path' },
       text: { type: 'string', description: 'share: raw note text' },
       title: { type: 'string' },
