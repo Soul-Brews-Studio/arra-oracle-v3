@@ -36,3 +36,26 @@ export const arraStatusToolDef = {
 export async function handleArraStatus(): Promise<ToolResponse> {
   return callArraRoute('GET', '/api/arra/status');
 }
+
+export const arraVaultToolDef = {
+  name: 'oracle_vault',
+  description: 'Vault work (arra_vault). action=share: write one note (id, file or text) into an org vault as .md and commit (vault = name or hub:<name>). action=sync: pull connected vaults / joined hubs and index them as hub:<name>. action=snapshot_create | snapshot_push (dest) | snapshot_pull (src) | snapshot_list: manual vector snapshots keyed by model + vault commit. Same as arra share/sync/snapshot and POST /api/arra/*.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      action: { type: 'string', enum: ['share', 'sync', 'snapshot_create', 'snapshot_push', 'snapshot_pull', 'snapshot_list'] },
+      id: { type: 'string', description: 'share: document id from this arra' },
+      file: { type: 'string', description: 'share: markdown file path' },
+      text: { type: 'string', description: 'share: raw note text' },
+      title: { type: 'string' },
+      vault: { type: 'string', description: 'vault name, or hub:<name> for a joined hub' },
+      dest: { type: 'string', description: 'snapshot_push: folder, or hub:<name>' },
+      src: { type: 'string', description: 'snapshot_pull: folder, .tar.zst file, or hub:<name>' },
+    },
+    required: ['action'],
+  },
+};
+
+export async function handleArraVault(input: unknown): Promise<ToolResponse> {
+  return callArraRoute('POST', '/api/arra/vault', input ?? {});
+}

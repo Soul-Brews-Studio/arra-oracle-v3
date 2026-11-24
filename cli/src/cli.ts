@@ -148,7 +148,7 @@ async function main() {
     process.exit(await installCommand(args.slice(1)));
   }
 
-  if (/^(init|status)$/.test(cmd) || (cmd === "serve" && args.includes("--hub"))) process.exit(await (await import("./commands/arra/index.ts")).runArraCommand(cmd, args.slice(1))); // #3110 vault + hub
+  if (/^(init|status|share|sync|snapshot)$/.test(cmd) || (cmd === "serve" && args.includes("--hub"))) process.exit(await (await import("./commands/arra/index.ts")).runArraCommand(cmd, args.slice(1))); // #3110 vault + hub
 
   if (cmd === "serve") {
     if (hasHelpFlag(args.slice(1))) return printScopedBuiltinHelp(cmd, args.slice(1));

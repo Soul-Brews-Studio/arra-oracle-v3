@@ -6,12 +6,16 @@
  */
 
 import { initCommand, statusCommand } from "./init-status.ts";
+import { shareCommand, snapshotCommand, syncCommand } from "./vault.ts";
 
 type Handler = (args: string[]) => Promise<number>;
 
 const HANDLERS: Record<string, Handler> = {
   init: initCommand,
   status: statusCommand,
+  share: shareCommand,
+  sync: syncCommand,
+  snapshot: snapshotCommand,
 };
 
 export const ARRA_COMMANDS = Object.keys(HANDLERS);

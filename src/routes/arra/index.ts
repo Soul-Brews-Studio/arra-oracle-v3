@@ -7,7 +7,8 @@
 import { Elysia } from 'elysia';
 import { sqlite } from '../../db/index.ts';
 import { buildStatus } from '../../arra/status.ts';
-import { denied, isOwnerRequest } from './guard.ts';
+import { denied, failed, isOwnerRequest } from './guard.ts';
+import { createArraVaultRoutes, shareNote, snapshotAction, syncAll } from './vault.ts';
 
 export function createArraRoutes() {
   return new Elysia({ prefix: '/api/arra' })
@@ -16,7 +17,22 @@ export function createArraRoutes() {
     })
     .get('/status', () => buildStatus(sqlite), {
       detail: { tags: ['arra'], summary: 'This arra: data dir, docs per source, vaults, hubs, embedder, snapshots' },
-    });
+    })
+    .use(createArraVaultRoutes())
+    // One entry point for the MCP arra_vault tool: { action, ...args } → the routes above.
+    .post('/vault', async ({ body, set }) => {
+      const { action, ...args } = (body ?? {}) as Record<string, any>;
+      try {
+        if (action === 'share') return shareNote(args);
+        if (action === 'sync') return await syncAll(args.vault);
+        if (typeof action === 'string' && action.startsWith('snapshot_')) {
+          const result = await snapshotAction(action.slice('snapshot_'.length), args);
+          if (result.ok === false) set.status = 409;
+          return result;
+        }
+        return failed(set, `unknown arra_vault action: ${action}`);
+      } catch (error) { return failed(set, error); }
+    }, { detail: { tags: ['arra'], summary: 'MCP arra_vault dispatch: share, sync, snapshot_*' } });
 }
 
 export const arraRoutes = createArraRoutes();
