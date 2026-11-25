@@ -83,7 +83,13 @@ export function createStatsEndpoint(options: StatsEndpointOptions = {}) {
   // Short TTL + in-flight collapsing. Every field below is a live probe, the
   // Studio calls this on each page load, and the server is single-threaded.
   // ORACLE_STATS_CACHE_TTL_MS=0 disables it. See #2843.
-  const cache = options.cache ?? createStatsCache<any>();
+  // One cache per tenant: a shared cache served the first tenant's counts to every other (#3110).
+  const caches = new Map<string, StatsCache<any>>();
+  const cacheFor = (tenant: string): StatsCache<any> => {
+    let c = caches.get(tenant);
+    if (!c) { c = tenant === 'default' && options.cache ? options.cache : createStatsCache<any>(); caches.set(tenant, c); }
+    return c;
+  };
   return new Elysia().get('/stats', async ({ query }): Promise<any> => {
     // ?space= (Studio space switcher, #3110): the document counts for that space only. Without it
     // the Overview cards showed every space's total whatever was picked.
@@ -100,7 +106,7 @@ export function createStatsEndpoint(options: StatsEndpointOptions = {}) {
     },
   });
 
-  function statsCached(): Promise<any> { return cache.get(async () => {
+  function statsCached(): Promise<any> { return cacheFor(currentTenantId() ?? 'default').get(async () => {
     try {
       const stats = tenantStats() ?? handleStats(DB_PATH);
       const vaultRepo = getSetting('vault_repo');

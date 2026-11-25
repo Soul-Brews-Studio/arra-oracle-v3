@@ -43,6 +43,8 @@ export async function handleSearch(ctx: ToolContext, input: OracleSearchInput): 
   const vectorSectionEnabled = requestedMode !== 'fts' && isVectorSectionEnabled();
   let vectorAvailable = requestedMode !== 'fts' ? vectorSectionEnabled : undefined;
   if (requestedMode !== 'fts' && !vectorSectionEnabled) effectiveMode = 'fts';
+  const searchTenant = currentTenantId();
+  if (requestedMode !== 'fts' && searchTenant && searchTenant !== 'default') { effectiveMode = 'fts'; vectorAvailable = false; warning = `tenant ${searchTenant}: keyword search only (vectors hold the default space)`; }
   if (requestedMode !== 'fts' && ctx.vectorStatus === 'degraded') {
     effectiveMode = 'fts';
     vectorAvailable = false;

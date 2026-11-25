@@ -20,15 +20,16 @@ export function searchFts(
   limit: number,
   project: string | null,
 ): FtsRow[] {
-  const tenantId = currentTenantId();
+  // One tenant per search: without a tenant, default only (other oracles hosted here are not mixed in).
+  const tenantId = currentTenantId() ?? 'default';
   const projectFilter = project ? 'AND (d.project = ? OR d.project IS NULL)' : '';
-  const tenantFilter = tenantId ? 'AND d.tenant_id = ?' : '';
+  const tenantFilter = "AND COALESCE(d.tenant_id, 'default') = ?";
   const typeFilter = type === 'all' ? '' : 'AND d.type = ?';
   const params = [
     safeQuery,
     ...(type === 'all' ? [] : [type]),
     ...(project ? [project] : []),
-    ...(tenantId ? [tenantId] : []),
+    tenantId,
     limit,
   ];
 

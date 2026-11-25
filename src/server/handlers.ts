@@ -135,9 +135,7 @@ export async function handleSearch(
 
   // Project filter: if project specified, include project + universal (NULL)
   // If no project, return ALL documents (no filter)
-  const projectFilter = resolvedProject
-    ? '(d.project = ? OR d.project IS NULL)'
-    : '1=1';
+  const projectFilter = `${resolvedProject ? '(d.project = ? OR d.project IS NULL)' : '1=1'} AND COALESCE(d.tenant_id, 'default') = 'default'`; // tenants use handleTenantSearch
   const projectParams = resolvedProject ? [resolvedProject] : [];
 
   // FTS5 search must use raw SQL (Drizzle doesn't support virtual tables)
