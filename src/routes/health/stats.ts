@@ -8,6 +8,7 @@ import { handleVectorStats } from '../../server/vector-handlers.ts';
 import { createStatsCache, type StatsCache } from './stats-cache.ts';
 import { tenantStats } from './tenant-stats.ts';
 import { withEnvelope } from '../response-envelope.ts';
+import { parseSpace, type Space } from '../../arra/space.ts';
 
 type VectorStats = Awaited<ReturnType<typeof handleVectorStats>>;
 type StatsEndpointOptions = { vectorStats?: () => Promise<VectorStats>; embedderRuntime?: () => Promise<EmbedderRuntimeStatus>; cache?: StatsCache<any> };
@@ -83,7 +84,23 @@ export function createStatsEndpoint(options: StatsEndpointOptions = {}) {
   // Studio calls this on each page load, and the server is single-threaded.
   // ORACLE_STATS_CACHE_TTL_MS=0 disables it. See #2843.
   const cache = options.cache ?? createStatsCache<any>();
-  return new Elysia().get('/stats', async (): Promise<any> => cache.get(async () => {
+  return new Elysia().get('/stats', async ({ query }): Promise<any> => {
+    // ?space= (Studio space switcher, #3110): the document counts for that space only. Without it
+    // the Overview cards showed every space's total whatever was picked.
+    const space = parseSpaceOrNull((query as { space?: string })?.space);
+    const all = await statsCached();
+    return space ? { ...all, ...spaceCounts(sqlite, space), space } : all;
+  }, {
+    response: withEnvelope(statsResponseSchema()),
+    detail: {
+      tags: ['health'],
+      menu: { group: 'tools', order: 50 },
+      description: 'Returns document inventory and index progress along with vector collection metadata. ?space=self|hub:<name> scopes the document counts.',
+      summary: 'Database and vector stats',
+    },
+  });
+
+  function statsCached(): Promise<any> { return cache.get(async () => {
     try {
       const stats = tenantStats() ?? handleStats(DB_PATH);
       const vaultRepo = getSetting('vault_repo');
@@ -102,13 +119,18 @@ export function createStatsEndpoint(options: StatsEndpointOptions = {}) {
       if (isDbLockError(err)) return { total_docs: 0, by_type: {}, indexing: true, error: 'db temporarily unavailable' };
       throw err;
     }
-  }), {
-    response: withEnvelope(statsResponseSchema()),
-    detail: {
-      tags: ['health'],
-      menu: { group: 'tools', order: 50 },
-      description: 'Returns document inventory and index progress along with vector collection metadata.',
-      summary: 'Database and vector stats',
-    },
-  });
+  }); }
+}
+
+function parseSpaceOrNull(raw: string | undefined): Space | null {
+  try { return parseSpace(raw); } catch { return null; }
+}
+
+/** total_docs + by_type for one space (same rule as sourceOf: hub:* origins vs everything else). */
+function spaceCounts(db: typeof sqlite, space: Space) {
+  const where = space === 'self' ? "(origin IS NULL OR origin NOT LIKE 'hub:%')" : 'origin = ?';
+  const rows = db.query(`SELECT type, count(*) AS n FROM oracle_documents WHERE superseded_by IS NULL AND ${where} GROUP BY type`)
+    .all(...(space === 'self' ? [] : [space])) as Array<{ type: string; n: number }>;
+  const by_type = Object.fromEntries(rows.map((r) => [r.type, r.n]));
+  return { total_docs: rows.reduce((t, r) => t + r.n, 0), by_type };
 }
