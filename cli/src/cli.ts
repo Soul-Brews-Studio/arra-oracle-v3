@@ -91,6 +91,8 @@ async function main() {
     return;
   }
 
+  if (/^(init|status|share|sync|snapshot|find|open|hub|join|hubs|discover|retire)$/.test(cmd) || (cmd === "search" && args.some((a) => a === "--grouped" || /^(self|shared):/.test(a))) || (cmd === "read" && args[1]?.startsWith("hub:")) || (cmd === "serve" && args.includes("--hub"))) process.exit(await (await import("./commands/arra/index.ts")).runArraCommand(cmd, args.slice(1))); // #3110 vault + hub
+
   if (cmd === "completions") {
     if (hasHelpFlag(args.slice(1))) return printScopedBuiltinHelp(cmd, args.slice(1));
     process.exit(await completionsCommand(args.slice(1)));
@@ -167,15 +169,8 @@ async function main() {
     process.exit(await releaseCommand(args.slice(1)));
   }
 
-  if (cmd === "export") {
-    const { exportCommand } = await import("../../src/cli/commands/export.ts");
-    process.exit(await exportCommand(args.slice(1)));
-  }
-
-  if (cmd === "import") {
-    const { importCommand } = await import("../../src/cli/commands/import.ts");
-    process.exit(await importCommand(args.slice(1)));
-  }
+  if (cmd === "export") process.exit(await (await import("../../src/cli/commands/export.ts")).exportCommand(args.slice(1)));
+  if (cmd === "import") process.exit(await (await import("../../src/cli/commands/import.ts")).importCommand(args.slice(1)));
 
   if (cmd === "migrate") {
     if (hasHelpFlag(args.slice(1))) return printBuiltinHelp(cmd);
