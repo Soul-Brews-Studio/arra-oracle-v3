@@ -10,7 +10,7 @@ import { OwnerOnly } from '../../../frontend/src/hub/ui';
 const api = {} as HubApi;
 const node = (id: string, state: HubNodeRow['state']): HubNodeRow => ({
   id, label: id.split('-')[0], url: null, joinedAt: '2026-11-25T00:00:00Z', expiresAt: '2026-11-26T00:00:00Z',
-  lastSeenAt: '2026-11-25T00:00:00Z', lastIp: '100.111.101.21', calls: 3, status: state === 'revoked' ? 'revoked' : 'active', state, left: '23h',
+  lastSeenAt: '2026-11-25T00:00:00Z', lastIp: '100.111.101.21', calls: 3, status: state === 'revoked' ? 'revoked' : 'active', state, left: '23h left',
 });
 
 describe('hub UI render', () => {

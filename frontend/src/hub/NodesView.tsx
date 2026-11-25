@@ -33,7 +33,7 @@ export function NodesView({ api, nodes, invites, onChange, showIps }: Props) {
                 <tr key={n.id} data-node={n.id} className="align-top">
                   <td className="py-2 pr-4"><div className="text-gray-100">{n.label}</div><div className="font-mono text-xs text-gray-500">{n.id}</div></td>
                   <td className="pr-4 pt-2"><Badge className={stateClass(n.state)}>{n.state}</Badge></td>
-                  <td className="pr-4 pt-2 font-mono text-xs text-gray-300">{n.state === 'revoked' ? `revoked ${ago(n.revokedAt)}` : n.expiresAt ? `${n.left} left` : 'forever'}</td>
+                  <td className="pr-4 pt-2 font-mono text-xs text-gray-300">{n.state === 'revoked' ? `revoked ${ago(n.revokedAt)}` : n.expiresAt ? n.left : 'forever'}</td>
                   <td className="pr-4 pt-2 text-gray-300">{ago(n.lastSeenAt)}</td>
                   <td className="pr-4 pt-2 font-mono text-xs text-gray-400">{ip(n.lastIp)}</td>
                   <td className="pr-4 pt-2 font-mono text-gray-300">{n.calls}</td>
