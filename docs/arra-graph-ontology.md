@@ -25,9 +25,11 @@ CLI: `arra graph`.
 
 ## Ontology (`/hub#/ontology`)
 
-This page draws the types of arra memory as a schema graph: entity types, value types, the
-built-ins they extend, and labelled relationships. Click a concept to read its relationships
-as sentences.
+This page draws the types of arra memory as a schema graph ("What arra stores"). By default it
+shows only the entity types and their relationships; **show fields** adds the value types.
+Built-ins such as `String` are never drawn, because each would only add one more dashed
+`extends` line. Edge labels appear only in the overview, and only while there are 12 edges or
+fewer. Tap a concept and its relationships are listed as sentences beside the canvas.
 
 The ontology is written as an **Apache Ossie** ontology document. Ossie (incubating) was
 formerly Open Semantic Interchange; see [apache/ossie](https://github.com/apache/ossie),
@@ -58,7 +60,12 @@ wraps it. The validator caught this: through HTTP the first version failed with
 
 ## Topology (`/hub#/topology`)
 
-A live picture of the hub, drawn from `GET /api/arra/topology` and refreshed every 5 seconds:
+A live picture of the hub, drawn from `GET /api/arra/topology` and refreshed every 5 seconds.
+It reads top to bottom: source of truth, then the hub (with the Ossie exit to its right), then
+the machines that joined. Each box has at most three short lines, cut to fit the box. Lines
+carry no labels. A plain-words legend under the drawing says what each colour and line style
+means. Tap a machine to see its id, address, calls and refusals (with the HTTP code), and to
+revoke it.
 
 - **Truth:** the org vault (git) with its commit and last commit time. A dashed box says that
   private `ψ/` notes stay on each node, in that node's own `.arra/`, and never reach the hub.

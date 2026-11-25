@@ -31,14 +31,30 @@ describe('topology view', () => {
     expect(html).toContain('data-node="node-a-1" data-state="revoked"');
     expect(html).toContain('data-node="node-b-2" data-state="active"');
     expect(html).toContain('data-node="guest-3" data-state="expired"');
-    expect(html).toContain('refused 403 x3');
-    expect(html).toContain('401 x2');
+    expect(html).toContain('turned away 3 times');
+    expect(html).toContain('2 turned away');
     expect(html).toContain('commit abcdef1');
     expect(html).toContain('port 47944');
-    expect(html).toContain('PASSED');
-    expect(html).toContain('Bearer node token + private-IP check');
-    expect(html).toContain('ip 100.x.x.x');
+    expect(html).toContain('validator passed');
+    expect(html).toMatch(/Revoked \d+s ago/);
+    expect(html).toContain('Active, no end date');
     expect(html).not.toContain('100.101.102.103');
+  });
+  test('plain-words legend: every state, the one-way arrow and the private-notes rule', () => {
+    const html = htmlFor(<TopologyView api={api} owner publicHub={null} showIps={false} initial={topology} auto={false} />);
+    expect(html).toContain('data-testid="topology-legend"');
+    for (const w of ['Active', 'Expired', 'Revoked', 'Strangers', 'one way only', 'Private notes']) expect(html).toContain(w);
+    // jargon stays out of the drawing and the legend
+    for (const j of ['Bearer', '401', 'ψ/', '/api/federation']) expect(html).not.toContain(j);
+  });
+  test('no line of text runs past its box', () => {
+    const long: Topology = { ...topology, nodes: [{ ...n('a-very-long-machine-label-that-goes-on-1', 'revoked', 12345) }] };
+    const html = htmlFor(<TopologyView api={api} owner publicHub={null} showIps={false} initial={long} auto={false} />);
+    const { nodes } = nodeBoxes(1);
+    for (const m of html.matchAll(/<text[^>]*font-size="(\d+)"[^>]*>([^<]*)<\/text>/g)) {
+      const width = Number(m[1]) * 0.56 * m[2].length;
+      expect(width).toBeLessThanOrEqual(Math.max(nodes[0].w, 320) - 32 + 1);
+    }
   });
   test('visitor: public card only', () => {
     const html = htmlFor(<TopologyView api={api} owner={false} publicHub={{ hub: 'soul-brews', sha: 'abcdef1234', nodes: 1 }} showIps={false} auto={false} />);

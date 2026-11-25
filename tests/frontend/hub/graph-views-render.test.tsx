@@ -25,7 +25,8 @@ describe('graph views', () => {
     for (const id of ['doc:a', 'concept:clay', 'source:hub:soul-brews', 'vault:soul-brews']) expect(html).toContain(`data-node="${id}"`);
     expect(html).toContain('<option value="self">self</option>');
     expect(html).toContain('Not drawn: 3 older documents');
-    for (const k of ['Document', 'Concept', 'Source', 'Vault', 'RetiredEntry']) expect(html).toContain(k);
+    for (const k of ['Document', 'Concept', 'Source', 'Vault', 'RetiredEntry']) expect(html).toContain(`title="${k}"`);
+    for (const w of ['Note', 'Topic', 'Machine', 'Retired record']) expect(html).toContain(w);
   });
   test('ontology page draws the Ossie concepts and links the export', () => {
     const html = htmlFor(<OntologyView api={api} initial={{ schema: ontologyGraph(), doc: arraOntology() }} />);
@@ -33,6 +34,8 @@ describe('graph views', () => {
     for (const c of ['Document', 'Concept', 'Source', 'Vault', 'Hub', 'Node', 'RetiredEntry']) expect(html).toContain(`data-node="${c}"`);
     expect(html).toContain('href="/api/v1/arra/ontology?format=ossie"');
     expect(html).toContain('>tagged_with<');
+    expect(html).toContain('What arra stores');
+    expect(html).not.toContain('data-node="String"');
   });
   test('graph and ontology are tabs', () => {
     expect(tabFromHash('#/graph')).toBe('graph');

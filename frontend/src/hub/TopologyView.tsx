@@ -6,9 +6,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { HubApi, PublicHub } from './api';
-import { ago, shortSha } from './format';
+import { ago, maskIp, shortSha } from './format';
 import { topologyApi as defaultTopologyApi, type Topology, type TopologyApi } from './topology-api';
 import { TopologyCanvas } from './TopologyCanvas';
+import { TopologyLegend } from './TopologyLegend';
+import { statusLine } from './topology-words';
 import { Card, danger, ErrorLine, ghost, input, Stat } from './ui';
 
 export const REFRESH_MS = 5000;
@@ -51,9 +53,9 @@ export function TopologyView({ api, owner, publicHub, showIps, topoApi = default
   }
 
   const toolbar = (
-    <div className="flex items-center gap-3 text-xs text-gray-400">
+    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-400">
       <span data-testid="updated">{owner ? (t ? `updated ${ago(t.at)}` : 'loading…') : 'public card'}</span>
-      <label className="flex items-center gap-1"><input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} /> auto 5s</label>
+      <label className="flex items-center gap-2 py-2"><input type="checkbox" className="h-4 w-4" checked={live} onChange={(e) => setLive(e.target.checked)} /> refresh every 5s</label>
       <button className={ghost} onClick={() => void load()}>Refresh</button>
     </div>
   );
@@ -69,7 +71,7 @@ export function TopologyView({ api, owner, publicHub, showIps, topoApi = default
           </div>
         ) : <p className="text-sm text-gray-400">The hub card is not reachable from here.</p>}
         <p data-testid="visitor-note" className="mt-4 text-xs text-gray-500">
-          You are viewing from another machine. Node boxes, refusals, the Ossie status and revoke are owner only.
+          You are on another machine, so you see the public card only. Machine details, refusals, the Ossie status and revoke are shown on the hub machine itself.
         </p>
         <ErrorLine error={error} />
       </Card>
@@ -79,22 +81,32 @@ export function TopologyView({ api, owner, publicHub, showIps, topoApi = default
   return (
     <div className="space-y-4">
       <Card title="Topology" right={toolbar}>
-        {t ? <TopologyCanvas t={t} selected={picked} showIps={showIps} onPick={(id) => { setPicked(id === picked ? null : id); setError(null); }} />
+        {t ? <TopologyCanvas t={t} selected={picked} onPick={(id) => { setPicked(id === picked ? null : id); setError(null); }} />
           : <p className="text-sm text-gray-500">loading…</p>}
-        <p className="mt-3 text-xs text-gray-500">{t?.privateNote} Ossie is an exit only: the vault stays the truth. Click a node box to revoke it.</p>
+        <TopologyLegend />
         <ErrorLine error={error} />
       </Card>
       {node && (
         <Card title={`Node ${node.label}`}>
-          <div data-testid="node-panel" className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="font-mono text-xs text-gray-400">{node.id} · {node.state} · joined {ago(node.joinedAt)}</span>
+          <div data-testid="node-panel" className="space-y-3 text-sm">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-gray-300 md:grid-cols-4">
+              {[
+                ['status', statusLine(node)],
+                ['last seen', ago(node.lastSeenAt)],
+                ['calls', String(node.calls)],
+                ['turned away', node.refused.count ? `${node.refused.count} (HTTP 403)` : 'never'],
+                ['joined', ago(node.joinedAt)],
+                ['address', showIps ? node.lastIp ?? '-' : maskIp(node.lastIp)],
+                ['node id', node.id],
+              ].map(([k, v]) => <div key={k}><dt className="text-xs text-gray-500">{k}</dt><dd className="break-all font-mono">{v}</dd></div>)}
+            </dl>
             {node.state === 'revoked'
-              ? <span className="text-rose-300">revoked {ago(node.revokedAt)}: {node.revokeReason}</span>
+              ? <p className="text-rose-300">Revoked {ago(node.revokedAt)}: {node.revokeReason}</p>
               : (
-                <>
-                  <input className={`${input} w-64`} placeholder="why (RETIRED.md row)" value={why} onChange={(e) => setWhy(e.target.value)} />
-                  <button className={danger} disabled={busy} onClick={() => revoke(node.id)}>Revoke {node.label}</button>
-                </>
+                <div className="flex flex-wrap items-center gap-3">
+                  <input className={`${input} w-72 py-2`} placeholder="why (goes into RETIRED.md)" value={why} onChange={(e) => setWhy(e.target.value)} />
+                  <button className={`${danger} px-4 py-2`} disabled={busy} onClick={() => revoke(node.id)}>Revoke {node.label}</button>
+                </div>
               )}
           </div>
         </Card>

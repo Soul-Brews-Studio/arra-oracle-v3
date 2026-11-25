@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { graphApi as defaultApi, type GraphApi, type MemoryGraph, type ReadDoc } from './graph-api';
-import { GraphCanvas, Legend } from './GraphCanvas';
+import { GraphCanvas, KIND_NAME, Legend } from './GraphCanvas';
 import { Card, ErrorLine, ghost, input } from './ui';
 
 const KINDS = ['Document', 'Concept', 'Source', 'Vault', 'Node', 'RetiredEntry'];
@@ -27,7 +27,7 @@ export function GraphView({ api = defaultApi, initial = null }: { api?: GraphApi
 
   const canvasNodes = useMemo(() => (graph?.nodes ?? []).map((n) => ({ id: n.id, kind: n.kind, label: n.label, dim: n.superseded })), [graph]);
   const docCount = graph?.nodes.filter((n) => n.kind === 'Document').length ?? 0;
-  const counts = useMemo(() => KINDS.map((k) => [k, graph?.nodes.filter((n) => n.kind === k).length ?? 0] as const), [graph]);
+  const counts = useMemo(() => Object.fromEntries(KINDS.map((k) => [k, graph?.nodes.filter((n) => n.kind === k).length ?? 0])), [graph]);
 
   return (
     <div className="space-y-5">
@@ -42,18 +42,18 @@ export function GraphView({ api = defaultApi, initial = null }: { api?: GraphApi
           </select></label>
         </div>
       }>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <Legend kinds={KINDS} />
-          <span className="font-mono text-xs text-gray-500">{counts.filter(([, n]) => n).map(([k, n]) => `${n} ${k}`).join(' · ')}</span>
+        <div className="mb-3 space-y-2">
+          <Legend kinds={KINDS} counts={counts} />
+          <p className="text-sm text-gray-400">Lines show what links to what. Dashed: recorded in. Red: retired or replaced. Tap a dot to light up its links.</p>
         </div>
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_340px]">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
           {graph && graph.nodes.length > 0
             ? <GraphCanvas nodes={canvasNodes} edges={graph.edges} selected={selected} onSelect={setSelected}
                 showLabels={(n) => n.kind !== 'Document' || docCount <= 15} />
             : <div className="flex h-[620px] items-center justify-center rounded-lg bg-gray-950 text-sm text-gray-500">{graph ? 'Nothing indexed for this source yet.' : 'Loading…'}</div>}
           <aside data-testid="graph-detail" className="space-y-3 rounded-lg border border-gray-800 bg-gray-950/60 p-4 text-sm">
-            {!node && <p className="text-gray-500">Click a node. Documents open here; concepts, sources and vaults light up their links.</p>}
-            {node && <div><div className="text-xs uppercase tracking-wider text-gray-500">{node.kind}</div><div className="mt-1 text-gray-100">{node.label}</div>
+            {!node && <p className="text-gray-400">Tap a dot. A note opens here; topics, sources and vaults light up what they link to.</p>}
+            {node && <div><div className="text-xs uppercase tracking-wider text-gray-500">{KIND_NAME[node.kind] ?? node.kind}</div><div className="mt-1 text-gray-100">{node.label}</div>
               {node.detail && <div className="mt-1 break-all font-mono text-xs text-gray-500">{node.detail}</div>}</div>}
             {node?.kind === 'Source' && <button className={ghost} onClick={() => setSource(node.label)}>Show only {node.label}</button>}
             {doc && (

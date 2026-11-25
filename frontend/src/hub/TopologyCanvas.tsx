@@ -1,116 +1,116 @@
 /**
- * The Topology drawing (#3110): org vault (truth) → hub → nodes, Ossie as a one-way exit.
- * SVG only; every number comes from GET /api/arra/topology.
+ * The Topology drawing (#3110): read top to bottom — source of truth → hub → machines;
+ * Ossie is a one-way exit to the right of the hub. SVG only; every number comes from
+ * GET /api/arra/topology. Three short lines per box, no labels on lines: the legend under
+ * the drawing (TopologyLegend) says what colours and dashes mean.
  */
 
 import type { Topology, TopologyNode } from './topology-api';
-import { ago, maskIp, shortSha } from './format';
-import { bottom, HUB, nodeBoxes, OSSIE, PRIVATE, top, TOPO_W, TRUNK_Y, VAULT, type Box } from './topology-layout';
+import { ago, shortSha } from './format';
+import { bottom, CAPTION_X, CAPTIONS, fit, HUB, nodeBoxes, OSSIE, top, TOPO_W, TRUNK_Y, VAULT, type Box } from './topology-layout';
+import { activityLine, EXPORT, ossieLine, STATE, stateOf, statusLine, STRANGER, strangerLines } from './topology-words';
 
-const STATE = {
-  active: { stroke: '#34d399', fill: 'rgba(16,185,129,0.10)', text: '#6ee7b7', dash: undefined },
-  expired: { stroke: '#fbbf24', fill: 'rgba(245,158,11,0.10)', text: '#fcd34d', dash: '6 4' },
-  revoked: { stroke: '#fb7185', fill: 'rgba(244,63,94,0.10)', text: '#fda4af', dash: '6 4' },
-} as const;
+const SANS = 'ui-sans-serif, system-ui, -apple-system, sans-serif';
+const MUTED = '#94a3b8';
+/** One arrowhead per line colour (context-stroke is not in every iPad Safari). */
+const ARROWS = [EXPORT, STATE.active.stroke, STATE.expired.stroke, STATE.revoked.stroke];
+const arrow = (c: string) => `url(#topo-arrow-${c.slice(1)})`;
 
 function Rect({ b, stroke, fill = '#0b1220', dash, width = 1.5 }: { b: Box; stroke: string; fill?: string; dash?: string; width?: number }) {
-  return <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={10} fill={fill} stroke={stroke} strokeWidth={width} strokeDasharray={dash} />;
+  return <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={12} fill={fill} stroke={stroke} strokeWidth={width} strokeDasharray={dash} />;
 }
 
-function Lines({ x, y, lines }: { x: number; y: number; lines: Array<[string, string?, number?]> }) {
-  return <>{lines.map(([t, c = '#cbd5e1', size = 12], i) => <text key={i} x={x} y={y + i * 17} fill={c} fontSize={size} fontFamily="ui-monospace, monospace">{t}</text>)}</>;
+type Line = { t: string; c?: string; size?: number; bold?: boolean };
+/** Up to three lines, each cut to the box width so nothing runs past the edge. */
+function Lines({ b, lines, centre = false }: { b: Box; lines: Line[]; centre?: boolean }) {
+  const pad = 16;
+  const x = centre ? b.x + b.w / 2 : b.x + pad;
+  let y = b.y + 30;
+  return (
+    <>
+      {lines.map(({ t, c = '#e2e8f0', size = 15, bold }, i) => {
+        const el = <text key={i} x={x} y={y} fill={c} fontSize={size} fontWeight={bold ? 600 : 400} fontFamily={SANS} textAnchor={centre ? 'middle' : 'start'}>{fit(t, b.w - 2 * pad, size)}</text>;
+        y += size + 9;
+        return el;
+      })}
+    </>
+  );
 }
 
-function NodeBox({ n, b, selected, showIps, onPick }: { n: TopologyNode; b: Box; selected: boolean; showIps: boolean; onPick?: (id: string) => void }) {
-  const s = STATE[n.state] ?? STATE.revoked;
-  const life = n.state === 'revoked' ? `revoked ${ago(n.revokedAt)}` : n.expiresAt ? n.left : 'forever';
+function Caption({ y, children }: { y: number; children: string }) {
+  return <text x={CAPTION_X} y={y} fill={MUTED} fontSize={14} fontFamily={SANS} letterSpacing="0.04em">{children}</text>;
+}
+
+function NodeBox({ n, b, selected, onPick }: { n: TopologyNode; b: Box; selected: boolean; onPick?: (id: string) => void }) {
+  const s = stateOf(n);
+  const act = activityLine(n);
   return (
     <g data-node={n.id} data-state={n.state} onClick={() => onPick?.(n.id)} style={{ cursor: onPick ? 'pointer' : undefined }}>
-      <Rect b={b} stroke={selected ? '#e2e8f0' : s.stroke} fill={s.fill} dash={s.dash} width={selected ? 2.5 : 1.5} />
-      <Lines x={b.x + 10} y={b.y + 20} lines={[
-        [n.label.slice(0, 22), '#f1f5f9', 13],
-        [n.id.slice(0, 24), '#64748b', 10],
-        [n.state.toUpperCase(), s.text, 12],
-        [`seen ${ago(n.lastSeenAt)}`],
-        [`calls ${n.calls}`],
-        [life.slice(0, 24), '#94a3b8'],
-        [n.refused.count ? `refused 403 x${n.refused.count}` : `ip ${showIps ? n.lastIp ?? '-' : maskIp(n.lastIp)}`, n.refused.count ? s.text : '#94a3b8'],
+      <title>{`${n.label} (${n.id})`}</title>
+      <Rect b={b} stroke={selected ? '#f8fafc' : s.stroke} fill={s.fill} dash={selected ? undefined : s.dash} width={selected ? 3 : 2} />
+      <Lines b={b} lines={[
+        { t: n.label, c: '#f8fafc', size: 18, bold: true },
+        { t: statusLine(n), c: s.text, size: 15 },
+        { t: act.text, c: act.alert ? s.text : MUTED, size: 14 },
       ]} />
     </g>
   );
 }
 
-export function TopologyCanvas({ t, selected, showIps, onPick }: { t: Topology; selected?: string | null; showIps: boolean; onPick?: (id: string) => void }) {
+export function TopologyCanvas({ t, selected, onPick }: { t: Topology; selected?: string | null; onPick?: (id: string) => void }) {
   const { nodes: boxes, strangers, height } = nodeBoxes(t.nodes.length);
   const hb = bottom(HUB);
-  const o = t.ossie;
-  const official = o.official ? `${o.official.passed ? 'PASSED' : 'FAILED'} ${ago(o.official.at)}${o.official.current ? '' : ' (older export)'}` : 'not run yet';
+  const vb = bottom(VAULT);
+  const o = ossieLine(t.ossie);
+  const commit = t.truth ? `${t.truth.name} · commit ${shortSha(t.truth.sha)}${t.truth.committedAt ? ` · ${ago(t.truth.committedAt)}` : ''}${t.truth.dirty ? ' · unsaved edits' : ''}` : 'no vault connected';
   return (
-    <svg viewBox={`0 0 ${TOPO_W} ${height}`} className="w-full" role="img" aria-label="hub topology">
+    <svg viewBox={`0 0 ${TOPO_W} ${height}`} className="w-full" role="img" aria-label="hub topology: source of truth, hub, machines">
       <defs>
-        <marker id="topo-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#94a3b8" /></marker>
+        {ARROWS.map((c) => <marker key={c} id={arrow(c).slice(5, -1)} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill={c} /></marker>)}
       </defs>
+
+      <Caption y={CAPTIONS.truth}>Source of truth</Caption>
       <g data-box="vault">
-        <Rect b={VAULT} stroke="#a78bfa" />
-        <Lines x={VAULT.x + 12} y={VAULT.y + 22} lines={[
-          ['TRUTH · org vault (git)', '#c4b5fd', 11],
-          [t.truth ? t.truth.name : 'no vault', '#f1f5f9', 14],
-          [t.truth ? `commit ${shortSha(t.truth.sha)}${t.truth.dirty ? ' · dirty' : ''}` : '-'],
-          [t.truth?.committedAt ? `last commit ${ago(t.truth.committedAt)}` : '', '#94a3b8'],
+        <Rect b={VAULT} stroke={EXPORT} width={2} />
+        <Lines b={VAULT} centre lines={[
+          { t: 'Org vault (git)', c: '#f8fafc', size: 18, bold: true },
+          { t: commit, c: MUTED, size: 14 },
         ]} />
       </g>
-      <g data-box="private">
-        <Rect b={PRIVATE} stroke="#64748b" dash="5 5" fill="transparent" />
-        <Lines x={PRIVATE.x + 12} y={PRIVATE.y + 22} lines={[
-          ['oracle repo ψ/ · private notes', '#94a3b8', 11],
-          ['stays on each node', '#e2e8f0', 13],
-          ["indexed into that node's own .arra/", '#94a3b8', 11],
-          ['never sent to the hub', '#94a3b8', 11],
-        ]} />
-      </g>
-      <line x1={VAULT.x + VAULT.w / 2} y1={VAULT.y + VAULT.h} x2={VAULT.x + VAULT.w / 2} y2={HUB.y} stroke="#a78bfa" strokeWidth={1.5} markerEnd="url(#topo-arrow)" />
-      <text x={VAULT.x + VAULT.w / 2 + 8} y={(VAULT.y + VAULT.h + HUB.y) / 2 + 4} fill="#94a3b8" fontSize={11}>index (rebuildable cache)</text>
+      <line x1={vb.x} y1={vb.y} x2={vb.x} y2={HUB.y} stroke={EXPORT} strokeWidth={2} markerEnd={arrow(EXPORT)} />
+
+      <Caption y={CAPTIONS.hub}>Hub</Caption>
       <g data-box="hub">
         <Rect b={HUB} stroke="#38bdf8" width={3} />
-        <Lines x={HUB.x + 14} y={HUB.y + 24} lines={[
-          ['HUB · arra serve --hub', '#7dd3fc', 11],
-          [t.hub ? `hub:${t.hub.name}` : 'not a hub', '#f1f5f9', 16],
-          [t.hub ? `port ${t.hub.port ?? '-'} · ${t.hub.docs} shared docs` : ''],
-          [`viewer: ${t.viewer} (this machine)`, '#6ee7b7'],
-          ['/api/federation/* · tailnet/LAN only', '#94a3b8', 11],
+        <Lines b={HUB} centre lines={[
+          { t: t.hub ? `hub:${t.hub.name}` : 'not a hub', c: '#f8fafc', size: 20, bold: true },
+          { t: t.hub ? `${t.hub.docs} shared notes · port ${t.hub.port ?? '-'}` : '', c: MUTED, size: 14 },
+          { t: 'you are the owner', c: '#6ee7b7', size: 14 },
         ]} />
       </g>
       <g data-box="ossie">
-        <Rect b={OSSIE} stroke={o.check.ok ? '#34d399' : '#fb7185'} />
-        <Lines x={OSSIE.x + 12} y={OSSIE.y + 22} lines={[
-          [`OSSIE export · ${o.version}`, '#c4b5fd', 11],
-          [`check ${o.check.ok ? 'ok' : `${o.check.errors.length} errors`} · ${o.check.concepts} concepts`, o.check.ok ? '#6ee7b7' : '#fda4af'],
-          ['validator', '#94a3b8', 11],
-          [official, o.official?.passed && o.official.current ? '#6ee7b7' : '#fcd34d'],
-          ['read-only, never feeds back', '#64748b', 10],
+        <Rect b={OSSIE} stroke={EXPORT} dash="7 5" fill="transparent" />
+        <Lines b={OSSIE} lines={[
+          { t: 'Ossie export', c: '#e9d5ff', size: 16, bold: true },
+          { t: o.text, c: o.colour, size: 14 },
         ]} />
       </g>
-      <line x1={HUB.x + HUB.w} y1={HUB.y + HUB.h / 2} x2={OSSIE.x} y2={OSSIE.y + OSSIE.h / 2} stroke="#a78bfa" strokeWidth={1.5} markerEnd="url(#topo-arrow)" />
-      <text x={(HUB.x + HUB.w + OSSIE.x) / 2} y={HUB.y + HUB.h / 2 - 8} fill="#94a3b8" fontSize={10} textAnchor="middle">GET</text>
-      <text x={(HUB.x + HUB.w + OSSIE.x) / 2} y={HUB.y + HUB.h / 2 + 16} fill="#94a3b8" fontSize={10} textAnchor="middle">?format=ossie</text>
-      <line x1={hb.x} y1={hb.y} x2={hb.x} y2={TRUNK_Y} stroke="#94a3b8" strokeWidth={1.5} />
-      <text x={hb.x + 8} y={TRUNK_Y - 12} fill="#cbd5e1" fontSize={11}>Bearer node token + private-IP check</text>
+      <line x1={HUB.x + HUB.w} y1={OSSIE.y + OSSIE.h / 2} x2={OSSIE.x - 2} y2={OSSIE.y + OSSIE.h / 2} stroke={EXPORT} strokeWidth={2} markerEnd={arrow(EXPORT)} />
+
+      <Caption y={CAPTIONS.nodes}>Machines that joined</Caption>
+      <line x1={hb.x} y1={hb.y} x2={hb.x} y2={TRUNK_Y} stroke="#64748b" strokeWidth={2} />
       {[...boxes, strangers].map((b, i) => {
         const tp = top(b);
         const n = t.nodes[i];
-        const s = n ? STATE[n.state] ?? STATE.revoked : { stroke: '#fb7185', dash: '3 4' };
-        return <path key={`e${i}`} d={`M${hb.x},${TRUNK_Y} H${tp.x} V${tp.y}`} fill="none" stroke={s.stroke} strokeOpacity={0.7} strokeDasharray={s.dash} strokeWidth={1.5} markerEnd="url(#topo-arrow)" />;
+        const s = n ? stateOf(n) : STRANGER;
+        return <path key={`e${i}`} d={`M${hb.x},${TRUNK_Y} H${tp.x} V${tp.y - 2}`} fill="none" stroke={s.stroke} strokeOpacity={0.75} strokeDasharray={s.dash} strokeWidth={2} markerEnd={arrow(s.stroke)} />;
       })}
-      {t.nodes.map((n, i) => <NodeBox key={n.id} n={n} b={boxes[i]} selected={selected === n.id} showIps={showIps} onPick={onPick} />)}
+      {t.nodes.map((n, i) => <NodeBox key={n.id} n={n} b={boxes[i]} selected={selected === n.id} onPick={onPick} />)}
       <g data-box="strangers">
-        <Rect b={strangers} stroke="#fb7185" dash="3 4" fill="transparent" />
-        <Lines x={strangers.x + 10} y={strangers.y + 20} lines={[
-          ['strangers', '#fda4af', 13],
-          ['no code / bad token', '#64748b', 10],
-          [`401 x${t.door.strangers.count}`, '#fda4af', 14],
-          [t.door.strangers.lastAt ? `last ${ago(t.door.strangers.lastAt)}` : 'none yet', '#94a3b8'],
-          [`outside 403 x${t.door.outside.count}`],
-          [`since ${ago(t.door.since)}`, '#64748b', 10],
+        <Rect b={strangers} stroke={STRANGER.stroke} dash={STRANGER.dash} fill="transparent" width={2} />
+        <Lines b={strangers} lines={[
+          { t: 'Strangers', c: STRANGER.text, size: 18, bold: true },
+          ...strangerLines(t.door).map((l, i) => ({ t: l, c: i === 0 ? STRANGER.text : MUTED, size: i === 0 ? 15 : 14 })),
         ]} />
       </g>
     </svg>
