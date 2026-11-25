@@ -16,6 +16,7 @@ import { SearchQuery } from './model.ts';
 import { parseOptionalSearchModel } from './model-key.ts';
 import { parseOffset, parsePositiveInt, parseSearchMode } from './query.ts';
 import { handleTenantSearch } from './tenant-search.ts';
+import { filterBySpace, parseSpace, type Space } from '../../arra/space.ts';
 
 export const searchEndpoint = new Elysia().get(
   '/search',
@@ -61,11 +62,22 @@ export const searchEndpoint = new Elysia().get(
       return { error: parsedModel.error };
     }
     const model = parsedModel.value;
+    let space: Space | null;
+    try { space = parseSpace(query.space); }
+    catch (error) { set.status = 400; return { error: (error as Error).message }; }
+    // A space filter runs on a wider page, then cuts back: rows from other spaces never fill the page.
+    const fetchLimit = space ? Math.min(limit * 4 + offset, 200) : limit;
+    const fetchOffset = space ? 0 : offset;
 
     try {
       const augmentedQ = augmentQueryWithAcronyms(sanitizedQ);
-      const tenantResult = handleTenantSearch(augmentedQ, type, limit, offset, asOf.value);
-      const result = tenantResult ?? await handleSearch(augmentedQ, type, limit, offset, mode, project, cwd, model);
+      const tenantResult = handleTenantSearch(augmentedQ, type, fetchLimit, fetchOffset, asOf.value);
+      const result = tenantResult ?? await handleSearch(augmentedQ, type, fetchLimit, fetchOffset, mode, project, cwd, model);
+      if (space) {
+        const inSpace = filterBySpace(sqlite, result.results as unknown as Array<{ id?: string }>, space);
+        result.results = inSpace.slice(offset, offset + limit) as unknown as typeof result.results;
+        result.total = inSpace.length;
+      }
       if (asOf.value && !tenantResult) {
         result.results = filterResultsAsOf(
           sqlite,

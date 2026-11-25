@@ -9,6 +9,8 @@ import { t } from 'elysia';
 
 export const SearchQuery = t.Object({
   q: t.Optional(t.String()),
+  /** "self" | "hub:<name>" — only that space's notes (Studio space switcher, #3110). */
+  space: t.Optional(t.String()),
   type: t.Optional(t.String()),
   limit: t.Optional(t.String()),
   offset: t.Optional(t.String()),
@@ -22,6 +24,7 @@ export const SearchQuery = t.Object({
 
 export const ListQuery = t.Object({
   type: t.Optional(t.String()),
+  space: t.Optional(t.String()),
   limit: t.Optional(t.String()),
   offset: t.Optional(t.String()),
   group: t.Optional(t.String()),

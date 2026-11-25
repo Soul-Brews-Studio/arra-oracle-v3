@@ -10,6 +10,7 @@ import { asOfResponse } from './asof.ts';
 import { ListQuery } from './model.ts';
 import { parseOffset, parsePositiveInt } from './query.ts';
 import { handleTenantList } from './tenant-search.ts';
+import { filterBySpace, parseSpace, type Space } from '../../arra/space.ts';
 
 export const listEndpoint = new Elysia().get(
   '/list',
@@ -23,8 +24,18 @@ export const listEndpoint = new Elysia().get(
     const limit = parsePositiveInt(query.limit, 10, 1000);
     const offset = parseOffset(query.offset);
     const group = query.group !== 'false';
-    const tenantResult = handleTenantList(type, limit, offset, group, asOf.value);
-    const result = tenantResult ?? handleList(type, limit, offset, group);
+    let space: Space | null;
+    try { space = parseSpace(query.space); }
+    catch (error) { set.status = 400; return { error: (error as Error).message }; }
+    const fetchLimit = space ? Math.min(limit * 4 + offset, 1000) : limit;
+    const fetchOffset = space ? 0 : offset;
+    const tenantResult = handleTenantList(type, fetchLimit, fetchOffset, group, asOf.value);
+    const result = tenantResult ?? handleList(type, fetchLimit, fetchOffset, group);
+    if (space) {
+      const inSpace = filterBySpace(sqlite, result.results as unknown as Array<{ id?: string }>, space);
+      result.results = inSpace.slice(offset, offset + limit) as unknown as typeof result.results;
+      result.total = inSpace.length;
+    }
     if (asOf.value && !tenantResult) {
       result.results = filterResultsAsOf(
         sqlite,

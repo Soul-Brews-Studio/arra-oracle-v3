@@ -14,6 +14,7 @@ import { createArraHubRoutes } from './hub.ts';
 import { createArraGraphRoutes } from './graph.ts';
 import { createArraTopologyRoutes } from './topology.ts';
 import { createArraHistoryRoutes } from './history.ts';
+import { createArraSpacesRoutes } from './spaces.ts';
 
 export function createArraRoutes() {
   return new Elysia({ prefix: '/api/arra' })
@@ -29,6 +30,7 @@ export function createArraRoutes() {
     .use(createArraGraphRoutes())
     .use(createArraTopologyRoutes())
     .use(createArraHistoryRoutes())
+    .use(createArraSpacesRoutes())
     // One entry point for the MCP arra_vault tool: { action, ...args } → the routes above.
     .post('/vault', async ({ body, set }) => {
       const { action, ...args } = (body ?? {}) as Record<string, any>;
