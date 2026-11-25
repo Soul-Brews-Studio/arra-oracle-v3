@@ -70,6 +70,7 @@
     "server:status": "bun src/ensure-server.ts --status",
     "serve": "bun dist/server.js",
     "index": "bun src/indexer/cli.ts",
+    "index:ane": "bun scripts/psi-ane-index.ts",
     "build": "tsc --noEmit",
     "start": "bun dist/index.js",
     "test": "bun run test:unit && bun run test:integration",
