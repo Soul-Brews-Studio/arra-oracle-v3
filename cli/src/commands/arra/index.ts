@@ -9,6 +9,7 @@ import { builtinHelpFor, renderCommandHelp } from "../../../../src/cli/help.ts";
 import { initCommand, statusCommand } from "./init-status.ts";
 import { shareCommand, snapshotCommand, syncCommand } from "./vault.ts";
 import { findCommand, openCommand } from "./search-read.ts";
+import { graphCommand, ontologyCommand } from "./graph.ts";
 import { discoverCommand, hubCommand, hubsCommand, joinCommand, retireCommand, serveHubCommand } from "./hub.ts";
 
 type Handler = (args: string[]) => Promise<number>;
@@ -29,6 +30,8 @@ const HANDLERS: Record<string, Handler> = {
   discover: discoverCommand,
   retire: retireCommand,
   serve: serveHubCommand,
+  graph: graphCommand,
+  ontology: ontologyCommand,
 };
 
 export const ARRA_COMMANDS = Object.keys(HANDLERS);

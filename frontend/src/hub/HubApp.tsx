@@ -1,6 +1,6 @@
 /**
  * arra hub web UI (#3110): served at /hub by `arra serve --hub`.
- * Status · Nodes · Search · Invite. On the hub machine (loopback) everything works; from any
+ * Status · Topology · Nodes · Search · Graph · Ontology · Invite. On the hub machine (loopback) everything works; from any
  * other machine /api/arra answers 403, so only the public hub card shows and the rest says
  * "owner only". Invite and revoke can never run from another machine: the server refuses.
  */
@@ -8,13 +8,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { hubApi as defaultApi, OwnerOnlyError, type ArraStatus, type HubApi, type HubNodeRow, type InviteRow, type PublicHub } from './api';
 import { TABS, tabFromHash, type Tab } from './format';
+import { GraphView } from './GraphView';
 import { InviteView } from './InviteView';
+import { OntologyView } from './OntologyView';
 import { NodesView } from './NodesView';
 import { SearchView } from './SearchView';
 import { StatusView } from './StatusView';
+import { TopologyView } from './TopologyView';
 import { ErrorLine, OwnerOnly } from './ui';
 
-const LABEL: Record<Tab, string> = { status: 'Status', nodes: 'Nodes', search: 'Search', invite: 'Invite' };
+const LABEL: Record<Tab, string> = { status: 'Status', topology: 'Topology', nodes: 'Nodes', search: 'Search', graph: 'Graph', ontology: 'Ontology', invite: 'Invite' };
 
 export function HubApp({ api = defaultApi }: { api?: HubApi }) {
   const [tab, setTab] = useState<Tab>(() => (typeof location === 'undefined' ? 'status' : tabFromHash(location.hash)));
@@ -71,9 +74,12 @@ export function HubApp({ api = defaultApi }: { api?: HubApi }) {
       <main className="mx-auto max-w-6xl px-6 py-6">
         <ErrorLine error={error} />
         {tab === 'status' && <StatusView status={status} publicHub={publicHub} />}
-        {tab !== 'status' && owner === false && <OwnerOnly what={LABEL[tab]} />}
+        {tab === 'topology' && <TopologyView api={api} owner={owner} publicHub={publicHub} showIps={showIps} onChange={load} />}
+        {tab !== 'status' && tab !== 'topology' && owner === false && <OwnerOnly what={LABEL[tab]} />}
         {tab === 'nodes' && owner && <NodesView api={api} nodes={nodes.nodes} invites={nodes.invites} onChange={load} showIps={showIps} />}
         {tab === 'search' && owner && <SearchView api={api} />}
+        {tab === 'graph' && owner && <GraphView />}
+        {tab === 'ontology' && owner && <OntologyView />}
         {tab === 'invite' && owner && <InviteView api={api} onChange={load} />}
       </main>
     </div>

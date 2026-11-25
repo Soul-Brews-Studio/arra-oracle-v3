@@ -96,6 +96,10 @@ snapshots come from a vault-only arra (the hub). Vectors are never committed to 
 | `hub-state.json` | hub only: invite code hashes, nodes (token hashes), expiry, last seen, calls |
 | `snapshots/` | manual vector snapshots |
 
+## Graph and ontology views
+
+See [arra-graph-ontology.md](arra-graph-ontology.md): `/hub#/graph`, `/hub#/ontology`, and the Apache Ossie export.
+
 ## Proof
 
 `scripts/arra-proof/node-run.sh` is what each node ran in the three-machine proof (hub + 2 nodes

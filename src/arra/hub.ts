@@ -34,7 +34,7 @@ export function createInvite(input: { grant?: string; label?: string }, now = ne
 }
 
 export class HubAuthError extends Error {
-  constructor(readonly status: 401 | 403, message: string) { super(message); }
+  constructor(readonly status: 401 | 403, message: string, readonly nodeId?: string) { super(message); }
 }
 
 export function redeemInvite(input: { code: string; label?: string; url?: string }, ip: string | null, now = new Date()) {
@@ -66,8 +66,8 @@ export function authenticateNode(token: string | null, ip: string | null, now = 
   const hash = hashSecret(token);
   const node = state.nodes.find((n) => sameHash(n.tokenHash, hash));
   if (!node) throw new HubAuthError(401, 'unknown node token');
-  if (node.status === 'revoked') throw new HubAuthError(403, `node ${node.id} was revoked`);
-  if (isExpired(node.expiresAt, now)) throw new HubAuthError(403, `node ${node.id} expired at ${node.expiresAt}: ask for a new invite`);
+  if (node.status === 'revoked') throw new HubAuthError(403, `node ${node.id} was revoked`, node.id);
+  if (isExpired(node.expiresAt, now)) throw new HubAuthError(403, `node ${node.id} expired at ${node.expiresAt}: ask for a new invite`, node.id);
   node.lastSeenAt = now.toISOString();
   node.lastIp = ip;
   node.calls += 1;

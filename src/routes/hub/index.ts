@@ -18,6 +18,7 @@ import path from 'path';
 import { sqlite } from '../../db/index.ts';
 import { authenticateNode, HubAuthError, hubName, listNodes, redeemInvite } from '../../arra/hub.ts';
 import { peerIp } from '../../arra/net.ts';
+import { recordKnock } from '../../arra/door-log.ts';
 import { groupedSearch, readLocal } from '../../arra/search.ts';
 import { snapshotDir } from '../../arra/snapshot.ts';
 import { readConfig } from '../../arra/state.ts';
@@ -39,7 +40,10 @@ function nodeOr401(request: Request, set: { status?: unknown }) {
   try {
     return { node: authenticateNode(bearerToken(request), peerIp(request)) };
   } catch (error) {
-    if (error instanceof HubAuthError) return { error: denied(set, error.status, error.message) };
+    if (error instanceof HubAuthError) {
+      recordKnock(error.status === 401 ? 'stranger' : 'refused', error.nodeId);
+      return { error: denied(set, error.status, error.message) };
+    }
     throw error;
   }
 }
@@ -47,7 +51,10 @@ function nodeOr401(request: Request, set: { status?: unknown }) {
 export function createHubRoutes() {
   return new Elysia({ prefix: '/api/federation' })
     .onBeforeHandle(({ request, set }) => {
-      if (!isPrivateRequest(request)) return denied(set, 403, 'hub door is open to tailnet and LAN addresses only');
+      if (!isPrivateRequest(request)) {
+        recordKnock('outside');
+        return denied(set, 403, 'hub door is open to tailnet and LAN addresses only');
+      }
     })
     .get('/hub', ({ set }) => {
       try {
@@ -58,7 +65,11 @@ export function createHubRoutes() {
     }, { detail: { tags: ['federation'], summary: 'Hub name and active node count (no token)' } })
     .post('/join', ({ body, request, set }) => {
       try { return { ok: true, ...redeemInvite(body, peerIp(request)) }; }
-      catch (error) { return error instanceof HubAuthError ? denied(set, error.status, error.message) : failed(set, error); }
+      catch (error) {
+        if (!(error instanceof HubAuthError)) return failed(set, error);
+        recordKnock('stranger');
+        return denied(set, error.status, error.message);
+      }
     }, { body: t.Object({ code: t.String(), label: t.Optional(t.String()), url: t.Optional(t.String()) }), detail: { tags: ['federation'], summary: 'Redeem a one-use invite code for a node token' } })
     .post('/share', ({ body, request, set }) => {
       const auth = nodeOr401(request, set);
