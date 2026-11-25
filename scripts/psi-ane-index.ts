@@ -65,6 +65,7 @@ function countMd(dir: string, viaOrigin = { n: 0 }, inOrigin = false): number {
   try { items = fs.readdirSync(dir); } catch { return 0; }
   let n = 0;
   for (const name of items) {
+    if (name === 'node_modules' || name === '.git') continue; // same skip list as the indexer walker
     const p = path.join(dir, name);
     let st: fs.Stats;
     try { st = fs.statSync(p); } catch { continue; }
@@ -122,7 +123,9 @@ export function vectorConfig(model: string, ane: string, dims: number) {
   return {
     key,
     config: {
-      version: '1.0', enabled: false, host: '127.0.0.1', port: 8081,
+      // enabled: true is what turns vector search on (src/vector/config.ts isVectorSectionEnabled);
+      // with false the store exists but every search silently falls back to FTS5.
+      version: '1.0', enabled: true, host: '127.0.0.1', port: 8081,
       collections: {
         [key]: {
           collection: `oracle_knowledge_${key.replace(/-/g, '_')}`, model, provider: 'ollama', adapter: 'lancedb', primary: true,
@@ -153,7 +156,7 @@ async function main(): Promise<number> {
   const s = scan(psi);
   for (const [rel, n] of Object.entries(s.indexed)) console.log(`          ${String(n).padStart(6)}  ψ/${rel}`);
   console.log(`          ${String(s.total).padStart(6)}  markdown files arra will import`);
-  if (s.viaOrigin) console.log(`          (!) ${s.viaOrigin} of them come through ψ/learn/**/origin links into cloned source repos (node_modules included)`);
+  if (s.viaOrigin) console.log(`          (!) ${s.viaOrigin} of them come through ψ/learn/**/origin links into cloned source repos (node_modules and .git skipped)`);
   const left = Object.entries(s.skipped).filter(([, n]) => n > 0).map(([k, n]) => `${k} ${n}`);
   if (left.length) console.log(`          not read by arra's indexer: ${left.join(' · ')}`);
 

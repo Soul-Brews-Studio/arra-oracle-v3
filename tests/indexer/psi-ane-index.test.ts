@@ -31,13 +31,13 @@ describe('psi-ane-index', () => {
     expect(resolveVault(repo).psi).toBe(fs.realpathSync(real));
     expect(resolveVault(path.join(repo, 'ψ')).psi).toBe(fs.realpathSync(real));
   });
-  test('scan counts like the indexer: follows origin links (node_modules too) and says so', () => {
+  test('scan counts like the indexer: follows origin links, skips node_modules, and says so', () => {
     const s = scan(resolveVault(vault().repo).psi);
     expect(s.indexed['memory/learnings']).toBe(2);
     expect(s.indexed['memory/retrospectives']).toBe(1);
-    expect(s.indexed.learn).toBe(3);
-    expect(s.viaOrigin).toBe(2);
-    expect(s.total).toBe(6);
+    expect(s.indexed.learn).toBe(2); // r.md + origin/README.md; origin/node_modules skipped
+    expect(s.viaOrigin).toBe(1);
+    expect(s.total).toBe(5);
     expect(s.skipped).toMatchObject({ inbox: 1, writing: 1 });
   });
 });

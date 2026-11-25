@@ -23,6 +23,8 @@ function skippableFsError(err: unknown): boolean {
 /**
  * Recursively get all markdown files in a directory
  */
+const SKIP_DIRS = new Set(['node_modules', '.git']);
+
 export function getAllMarkdownFiles(dir: string): string[] {
   const files: string[] = [];
   let items: string[];
@@ -33,6 +35,9 @@ export function getAllMarkdownFiles(dir: string): string[] {
     throw err;
   }
   for (const item of items) {
+    // Dependency trees and git internals are never knowledge: ψ/learn/<owner>/<repo>/origin links into
+    // cloned repos made node_modules READMEs 98% of an import (#3114 item 3).
+    if (SKIP_DIRS.has(item)) continue;
     const fullPath = path.join(dir, item);
     let stat: fs.Stats;
     try {
