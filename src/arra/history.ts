@@ -14,6 +14,8 @@ export interface HistoryEvent { sha: string; short: string; at: string; author: 
 export interface VaultAt { sha: string; at: string; subject: string; notes: Array<{ path: string; title: string }>; sinceThen: FileChange[] }
 
 const SHA = /^[0-9a-f]{7,40}$/;
+/** Vault notes live under ψ/: without this git prints that path as quoted octal bytes. */
+const RAW = ['-c', 'core.quotePath=false'];
 const STATUS: Record<string, FileChange['status']> = { A: 'added', M: 'modified', D: 'deleted', R: 'renamed' };
 const kindOf = (subject: string): EventKind =>
   /^init\b/.test(subject) ? 'init' : /^share:/.test(subject) ? 'share' : /^retire:/.test(subject) ? 'retire' : 'other';
@@ -34,7 +36,7 @@ function changesOf(out: string): FileChange[] {
 /** Newest first. Snapshot files are named lancedb-<model>-<sha12>.tar.zst, so they match by sha prefix. */
 export function vaultHistory(limit = 100, dir?: string): { vault: string; head: string | null; events: HistoryEvent[] } {
   const vault = historyVault(dir);
-  const log = git(vault.path, ['log', `-n${Math.min(Math.max(limit, 1), 500)}`, '--name-status', '--format=%x1e%H%x1f%aI%x1f%an%x1f%s']);
+  const log = git(vault.path, [...RAW, 'log', `-n${Math.min(Math.max(limit, 1), 500)}`, '--name-status', '--format=%x1e%H%x1f%aI%x1f%an%x1f%s']);
   if (!log.ok) throw new Error(`git log failed in vault ${vault.name}: ${log.err}`);
   const snapDir = snapshotDir(dir);
   const snaps = fs.existsSync(snapDir) ? fs.readdirSync(snapDir).filter((f) => f.endsWith('.tar.zst') || f.endsWith('.tar.gz')) : [];
@@ -59,9 +61,9 @@ export function vaultAt(sha: string, dir?: string): VaultAt {
   const meta = git(vault.path, ['show', '-s', '--format=%H%x1f%aI%x1f%s', sha]);
   if (!meta.ok) throw new Error(`no commit ${sha} in vault ${vault.name}`);
   const [full, at, subject] = meta.out.split('\x1f');
-  const tree = git(vault.path, ['ls-tree', '-r', '--name-only', full]);
+  const tree = git(vault.path, [...RAW, 'ls-tree', '-r', '--name-only', full]);
   const notes = tree.out.split('\n').filter((f) => f.endsWith('.md')).map((path) => ({ path, title: titleOf(vault.path, full, path) }));
-  const diff = git(vault.path, ['diff', '--name-status', full, 'HEAD']);
+  const diff = git(vault.path, [...RAW, 'diff', '--name-status', full, 'HEAD']);
   return { sha: full, at, subject, notes, sinceThen: diff.ok ? changesOf(diff.out) : [] };
 }
 
@@ -69,7 +71,7 @@ export function vaultAt(sha: string, dir?: string): VaultAt {
 export function noteAt(sha: string, file: string, dir?: string): string {
   if (!SHA.test(sha)) throw new Error('sha must be 7-40 hex characters');
   const vault = historyVault(dir);
-  const tree = git(vault.path, ['ls-tree', '-r', '--name-only', sha]);
+  const tree = git(vault.path, [...RAW, 'ls-tree', '-r', '--name-only', sha]);
   if (!tree.ok || !tree.out.split('\n').includes(file)) throw new Error(`no file ${file} at ${sha}`);
   return git(vault.path, ['show', `${sha}:${file}`]).out;
 }

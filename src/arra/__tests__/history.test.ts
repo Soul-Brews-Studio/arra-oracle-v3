@@ -25,7 +25,7 @@ beforeAll(() => {
   fs.mkdirSync(vault); sh(['init', '-q']);
   commit('README.md', '# soul-brews vault\n', 'init');
   shaA = commit('notes/a.md', '# Note from node a\nbisque at cone 04\n', 'share: Note from node a');
-  commit('notes/b.md', '# Note from node b\n', 'share: Note from node b');
+  commit('ψ/memory/shared/b.md', '# Note from node b\n', 'share: Note from node b');
   commit('notes/a.md', null, 'retire: note a');
   fs.writeFileSync(path.join(dir, 'arra.json'), JSON.stringify({ version: 1, name: 'hub', vaults: [{ name: 'vault', path: vault }] }));
   fs.mkdirSync(path.join(dir, 'snapshots'));
@@ -47,7 +47,7 @@ describe('vault history', () => {
     const at = vaultAt(shaA, dir);
     expect(at.notes.map((n) => n.title).sort()).toEqual(['Note from node a', 'soul-brews vault']);
     expect(at.sinceThen).toContainEqual({ path: 'notes/a.md', status: 'deleted' });
-    expect(at.sinceThen).toContainEqual({ path: 'notes/b.md', status: 'added' });
+    expect(at.sinceThen).toContainEqual({ path: 'ψ/memory/shared/b.md', status: 'added' });
     expect(noteAt(shaA, 'notes/a.md', dir)).toContain('bisque at cone 04');
   });
   test('a retired note is still readable at its old commit; bad input is refused', () => {
