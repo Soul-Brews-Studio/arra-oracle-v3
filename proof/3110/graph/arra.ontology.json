@@ -1,0 +1,497 @@
+{
+  "version": "0.3.0.dev0",
+  "name": "ArraMemory",
+  "description": "What an arra remembers: documents tagged with concepts, each from one source (self or a hub), kept in git vaults; hubs admit nodes; what ceases is recorded, never deleted.",
+  "annotations": {
+    "arra:spec": "Soul-Brews-Studio/arra-oracle-v3#3110",
+    "arra:truth": "vault markdown in git; .arra is a rebuildable cache"
+  },
+  "ontology": [
+    {
+      "concept": "DocId",
+      "type": "ValueType",
+      "extends": [
+        "String"
+      ],
+      "description": "Stable document id; shared notes use hub:<vault>:<path>"
+    },
+    {
+      "concept": "DocType",
+      "type": "ValueType",
+      "extends": [
+        "String"
+      ],
+      "description": "Kind of memory",
+      "requires": [
+        "DocType == 'principle' OR DocType == 'pattern' OR DocType == 'learning' OR DocType == 'retro' OR DocType == 'distillation' OR DocType == 'security-corpus'"
+      ]
+    },
+    {
+      "concept": "FilePath",
+      "type": "ValueType",
+      "extends": [
+        "String"
+      ],
+      "description": "Path of the markdown file the document was indexed from"
+    },
+    {
+      "concept": "ConceptName",
+      "type": "ValueType",
+      "extends": [
+        "String"
+      ],
+      "description": "A tag; documents list theirs in frontmatter"
+    },
+    {
+      "concept": "SourceName",
+      "type": "ValueType",
+      "extends": [
+        "String"
+      ],
+      "description": "Where a row came from: 'self' or 'hub:<name>'"
+    },
+    {
+      "concept": "VaultName",
+      "type": "ValueType",
+      "extends": [
+        "String"
+      ],
+      "description": "Name of a git vault"
+    },
+    {
+      "concept": "CommitSha",
+      "type": "ValueType",
+      "extends": [
+        "String"
+      ],
+      "description": "A git commit"
+    },
+    {
+      "concept": "HubName",
+      "type": "ValueType",
+      "extends": [
+        "String"
+      ],
+      "description": "Name of a hub"
+    },
+    {
+      "concept": "NodeId",
+      "type": "ValueType",
+      "extends": [
+        "String"
+      ],
+      "description": "Id a hub gives a joined node"
+    },
+    {
+      "concept": "NodeState",
+      "type": "ValueType",
+      "extends": [
+        "String"
+      ],
+      "description": "A node is active until it expires or the hub revokes it",
+      "requires": [
+        "NodeState == 'active' OR NodeState == 'expired' OR NodeState == 'revoked'"
+      ]
+    },
+    {
+      "concept": "RetiredThing",
+      "type": "ValueType",
+      "extends": [
+        "String"
+      ],
+      "description": "Free-text name of what ceased, or of its successor"
+    },
+    {
+      "concept": "Reason",
+      "type": "ValueType",
+      "extends": [
+        "String"
+      ],
+      "description": "Why something ceased"
+    },
+    {
+      "concept": "Document",
+      "type": "EntityType",
+      "description": "One indexed memory row",
+      "identify_by": [
+        "id"
+      ],
+      "annotations": {
+        "arra:table": "oracle_documents"
+      },
+      "relationships": [
+        {
+          "name": "id",
+          "multiplicity": "OneToOne",
+          "roles": [
+            {
+              "concept": "DocId"
+            }
+          ],
+          "verbalizes": [
+            "{Document} is identified by {DocId}"
+          ]
+        },
+        {
+          "name": "has_type",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "DocType"
+            }
+          ],
+          "verbalizes": [
+            "{Document} has type {DocType}"
+          ]
+        },
+        {
+          "name": "indexed_from",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "FilePath"
+            }
+          ],
+          "verbalizes": [
+            "{Document} is indexed from {FilePath}"
+          ]
+        },
+        {
+          "name": "tagged_with",
+          "roles": [
+            {
+              "concept": "Concept"
+            }
+          ],
+          "verbalizes": [
+            "{Document} is tagged with {Concept}"
+          ]
+        },
+        {
+          "name": "comes_from",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "Source"
+            }
+          ],
+          "verbalizes": [
+            "{Document} comes from {Source}"
+          ]
+        },
+        {
+          "name": "indexed_at",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "DateTime"
+            }
+          ],
+          "verbalizes": [
+            "{Document} was indexed at {DateTime}"
+          ]
+        },
+        {
+          "name": "superseded_by",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "Document",
+              "name": "successor"
+            }
+          ],
+          "verbalizes": [
+            "{Document} is superseded by {Document:successor}"
+          ],
+          "annotations": {
+            "arra:column": "superseded_by"
+          }
+        },
+        {
+          "name": "superseded_because",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "Reason"
+            }
+          ],
+          "verbalizes": [
+            "{Document} was superseded because {Reason}"
+          ]
+        }
+      ]
+    },
+    {
+      "concept": "Concept",
+      "type": "EntityType",
+      "description": "A tag shared by documents",
+      "identify_by": [
+        "name"
+      ],
+      "relationships": [
+        {
+          "name": "name",
+          "multiplicity": "OneToOne",
+          "roles": [
+            {
+              "concept": "ConceptName"
+            }
+          ],
+          "verbalizes": [
+            "{Concept} is named {ConceptName}"
+          ]
+        }
+      ]
+    },
+    {
+      "concept": "Source",
+      "type": "EntityType",
+      "description": "A search group: 'self' (this arra's own ψ) or 'hub:<name>' (synced from a vault)",
+      "identify_by": [
+        "name"
+      ],
+      "relationships": [
+        {
+          "name": "name",
+          "multiplicity": "OneToOne",
+          "roles": [
+            {
+              "concept": "SourceName"
+            }
+          ],
+          "verbalizes": [
+            "{Source} is named {SourceName}"
+          ]
+        },
+        {
+          "name": "synced_from",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "Vault"
+            }
+          ],
+          "verbalizes": [
+            "{Source} is synced from {Vault}"
+          ]
+        }
+      ]
+    },
+    {
+      "concept": "Vault",
+      "type": "EntityType",
+      "description": "A git repository of markdown; the truth everything else is rebuilt from",
+      "identify_by": [
+        "name"
+      ],
+      "relationships": [
+        {
+          "name": "name",
+          "multiplicity": "OneToOne",
+          "roles": [
+            {
+              "concept": "VaultName"
+            }
+          ],
+          "verbalizes": [
+            "{Vault} is named {VaultName}"
+          ]
+        },
+        {
+          "name": "head",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "CommitSha"
+            }
+          ],
+          "verbalizes": [
+            "{Vault} is at commit {CommitSha}"
+          ]
+        }
+      ]
+    },
+    {
+      "concept": "Hub",
+      "type": "EntityType",
+      "description": "An arra that opened the door to other machines",
+      "identify_by": [
+        "name"
+      ],
+      "relationships": [
+        {
+          "name": "name",
+          "multiplicity": "OneToOne",
+          "roles": [
+            {
+              "concept": "HubName"
+            }
+          ],
+          "verbalizes": [
+            "{Hub} is named {HubName}"
+          ]
+        },
+        {
+          "name": "serves",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "Vault"
+            }
+          ],
+          "verbalizes": [
+            "{Hub} serves {Vault}"
+          ]
+        }
+      ]
+    },
+    {
+      "concept": "Node",
+      "type": "EntityType",
+      "description": "A machine that joined a hub with a one-use invite code",
+      "identify_by": [
+        "id"
+      ],
+      "annotations": {
+        "arra:file": ".arra/hub-state.json (token stored as sha256 only)"
+      },
+      "relationships": [
+        {
+          "name": "id",
+          "multiplicity": "OneToOne",
+          "roles": [
+            {
+              "concept": "NodeId"
+            }
+          ],
+          "verbalizes": [
+            "{Node} is identified by {NodeId}"
+          ]
+        },
+        {
+          "name": "joined",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "Hub"
+            }
+          ],
+          "verbalizes": [
+            "{Node} joined {Hub}"
+          ]
+        },
+        {
+          "name": "state",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "NodeState"
+            }
+          ],
+          "verbalizes": [
+            "{Node} is {NodeState}"
+          ]
+        },
+        {
+          "name": "expires_at",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "DateTime"
+            }
+          ],
+          "verbalizes": [
+            "{Node} expires at {DateTime}"
+          ]
+        },
+        {
+          "name": "last_seen_at",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "DateTime"
+            }
+          ],
+          "verbalizes": [
+            "{Node} was last seen at {DateTime}"
+          ]
+        }
+      ]
+    },
+    {
+      "concept": "RetiredEntry",
+      "type": "EntityType",
+      "description": "One row of RETIRED.md: something ceased by hand, with how to bring it back",
+      "identify_by": [
+        "retired_at",
+        "names"
+      ],
+      "annotations": {
+        "arra:file": "RETIRED.md in the vault (or the data dir)"
+      },
+      "relationships": [
+        {
+          "name": "retired_at",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "DateTime"
+            }
+          ],
+          "verbalizes": [
+            "{RetiredEntry} was written at {DateTime}"
+          ]
+        },
+        {
+          "name": "names",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "RetiredThing"
+            }
+          ],
+          "verbalizes": [
+            "{RetiredEntry} names {RetiredThing}"
+          ]
+        },
+        {
+          "name": "because",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "Reason"
+            }
+          ],
+          "verbalizes": [
+            "{RetiredEntry} says why {Reason}"
+          ]
+        },
+        {
+          "name": "successor",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "RetiredThing",
+              "name": "successor"
+            }
+          ],
+          "verbalizes": [
+            "{RetiredEntry} names successor {RetiredThing:successor}"
+          ]
+        },
+        {
+          "name": "recorded_in",
+          "multiplicity": "ManyToOne",
+          "roles": [
+            {
+              "concept": "Vault"
+            }
+          ],
+          "verbalizes": [
+            "{RetiredEntry} is recorded in {Vault}"
+          ]
+        }
+      ]
+    }
+  ]
+}
