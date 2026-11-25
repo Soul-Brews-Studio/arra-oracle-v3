@@ -11,9 +11,21 @@
 
 import { isLoopback, isPrivateIp, peerIp } from '../../arra/net.ts';
 
+/**
+ * Owner = a loopback caller. A browser on this machine also sends an Origin; it must be a
+ * loopback page too (the hub UI at http://127.0.0.1:<port>/hub), so a website open in the
+ * owner's browser can never make invites or revoke nodes through CORS.
+ */
 export function isOwnerRequest(request: Request): boolean {
   const ip = peerIp(request);
-  return ip === null || isLoopback(ip);
+  if (!(ip === null || isLoopback(ip))) return false;
+  const origin = request.headers.get('origin');
+  if (!origin) return true;
+  try {
+    const host = new URL(origin).hostname.replace(/^\[|\]$/g, '');
+    return host === 'localhost' || isLoopback(host);
+  }
+  catch { return false; }
 }
 
 export function isPrivateRequest(request: Request): boolean {

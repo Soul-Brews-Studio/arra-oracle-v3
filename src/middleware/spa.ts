@@ -92,6 +92,7 @@ export type SpaOptions = { distDir?: string; env?: Record<string, string | undef
 export function createSpaMiddleware(options: SpaOptions = {}) {
   const distDir = options.distDir ?? resolveDistDir(options.env);
   const indexPath = join(distDir, 'index.html');
+  const hubPath = join(distDir, 'hub.html');
 
   return new Elysia({ name: 'spa' }).onRequest(({ request }) => {
     // A build may legitimately be absent (dev, CI, API-only deploys). Checked per
@@ -116,7 +117,9 @@ export function createSpaMiddleware(options: SpaOptions = {}) {
     // Everything else: browsers get the app shell so deep links work; JSON
     // clients fall through to the routes they asked for.
     if (!wantsHtml(request)) return;
-    return new Response(Bun.file(indexPath), {
+    // The arra hub UI (#3110) is its own small app: /hub and /hub/* get hub.html.
+    const shell = (pathname === '/hub' || pathname.startsWith('/hub/')) && existsSync(hubPath) ? hubPath : indexPath;
+    return new Response(Bun.file(shell), {
       headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' },
     });
   });
