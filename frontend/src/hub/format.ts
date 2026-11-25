@@ -5,7 +5,7 @@ import type { NodeState } from './api';
 export const GRANTS = ['15m', '1h', '7d', 'forever'] as const;
 export type Grant = typeof GRANTS[number];
 
-export const TABS = ['status', 'nodes', 'search', 'invite'] as const;
+export const TABS = ['status', 'nodes', 'search', 'graph', 'ontology', 'invite'] as const;
 export type Tab = typeof TABS[number];
 
 export function tabFromHash(hash: string): Tab {

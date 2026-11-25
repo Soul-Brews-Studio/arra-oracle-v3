@@ -8,13 +8,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { hubApi as defaultApi, OwnerOnlyError, type ArraStatus, type HubApi, type HubNodeRow, type InviteRow, type PublicHub } from './api';
 import { TABS, tabFromHash, type Tab } from './format';
+import { GraphView } from './GraphView';
 import { InviteView } from './InviteView';
+import { OntologyView } from './OntologyView';
 import { NodesView } from './NodesView';
 import { SearchView } from './SearchView';
 import { StatusView } from './StatusView';
 import { ErrorLine, OwnerOnly } from './ui';
 
-const LABEL: Record<Tab, string> = { status: 'Status', nodes: 'Nodes', search: 'Search', invite: 'Invite' };
+const LABEL: Record<Tab, string> = { status: 'Status', nodes: 'Nodes', search: 'Search', graph: 'Graph', ontology: 'Ontology', invite: 'Invite' };
 
 export function HubApp({ api = defaultApi }: { api?: HubApi }) {
   const [tab, setTab] = useState<Tab>(() => (typeof location === 'undefined' ? 'status' : tabFromHash(location.hash)));
@@ -74,6 +76,8 @@ export function HubApp({ api = defaultApi }: { api?: HubApi }) {
         {tab !== 'status' && owner === false && <OwnerOnly what={LABEL[tab]} />}
         {tab === 'nodes' && owner && <NodesView api={api} nodes={nodes.nodes} invites={nodes.invites} onChange={load} showIps={showIps} />}
         {tab === 'search' && owner && <SearchView api={api} />}
+        {tab === 'graph' && owner && <GraphView />}
+        {tab === 'ontology' && owner && <OntologyView />}
         {tab === 'invite' && owner && <InviteView api={api} onChange={load} />}
       </main>
     </div>
