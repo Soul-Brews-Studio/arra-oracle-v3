@@ -23,7 +23,8 @@ import { existsSync, statSync } from 'node:fs';
 import { join, normalize, resolve } from 'node:path';
 
 /** Prefixes the SPA must never intercept. */
-const RESERVED_PREFIXES = ['/api', '/mcp', '/simple', '/health', '/metrics', '/plugins/'];
+// /instructions is a plain-text agent guide (#3110): browsers get the text too, not the app shell.
+const RESERVED_PREFIXES = ['/api', '/mcp', '/simple', '/health', '/metrics', '/plugins/', '/instructions'];
 
 const CONTENT_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',

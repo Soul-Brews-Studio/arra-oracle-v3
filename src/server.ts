@@ -80,7 +80,7 @@ import { gatewayPlugin } from './gateway/index.ts';
 import { createSpaMiddleware } from './middleware/spa.ts';
 import { simpleModeResponse } from './simple-mode.ts';
 import pkg from '../package.json' with { type: 'json' };
-import { arraRoutes, hubRoutes, stampPeerIp } from './arra/server-mount.ts';
+import { arraRoutes, hubRoutes, stampPeerIp, createInstructionsRoutes } from './arra/server-mount.ts';
 
 type UnifiedRuntime = Awaited<ReturnType<typeof loadUnifiedPlugins>>;
 type ServerSpec = { port: number; fetch(request: Request, server?: { requestIP?(r: Request): { address: string } | null }): Response | Promise<Response> }; // server: peer IP for the hub door (#3110)
@@ -186,7 +186,7 @@ export function createApp({ unifiedPlugins, runtimeRef = createUnifiedRuntimeRef
 
 export function createServerRouteModules(unifiedPlugins: UnifiedRuntime, runtimeRef: UnifiedRuntimeRef<UnifiedRuntime>): RouteModule[] {
   const healthRoutes = createHealthRoutes({ pluginCount: unifiedPlugins.pluginCount, pluginMcpToolCount: unifiedPlugins.mcpTools.length, pluginStatuses: unifiedPlugins.pluginStatuses, isDraining });
-  const apiModules = [authRoutes, settingsRoutes, feedRoutes, healthRoutes, dashboardRoutes, searchRoutes, askRoutes, vectorRoutes, vectorConfigApiRoutes, conceptsRoutes, knowledgeRoutes, researchRoutes, verifyRoutes, supersedeRoutes, forumApi, tracesApi, scheduleApi, filesRouter, createPluginsRouter({ registry: () => runtimeRef.current.pluginRegistry(), runtimeRef }), sessionsRoutes, oldStudioCompatRoutes, vaultRoutes, metricsRoutes, exportRoutes, memoryRoutes, canvasRoutes, tenantsRoutes, watcherRoutes, indexerRoutes, createFleetLogRoutes(), arraRoutes, hubRoutes];
+  const apiModules = [authRoutes, settingsRoutes, feedRoutes, healthRoutes, dashboardRoutes, searchRoutes, askRoutes, vectorRoutes, vectorConfigApiRoutes, conceptsRoutes, knowledgeRoutes, researchRoutes, verifyRoutes, supersedeRoutes, forumApi, tracesApi, scheduleApi, filesRouter, createPluginsRouter({ registry: () => runtimeRef.current.pluginRegistry(), runtimeRef }), sessionsRoutes, oldStudioCompatRoutes, vaultRoutes, metricsRoutes, exportRoutes, memoryRoutes, canvasRoutes, tenantsRoutes, watcherRoutes, indexerRoutes, createFleetLogRoutes(), arraRoutes, hubRoutes, createInstructionsRoutes(pkg.version)];
   return [...apiModules, createMcpRoutes({ runtimeRef }), createMcpStreamableRoutes(), createMenuRoutes(menuItemsFromUnifiedPlugins(unifiedPlugins.menu))];
 }
 
