@@ -12,7 +12,8 @@ import { enrichTextWithAcronyms } from '../search/acronyms.ts';
 import { tenantIdForWrite } from '../middleware/tenant.ts';
 import { replaceEntityLinks } from '../search/entity-ranking.ts';
 import { chunkDocumentsForIndexing } from './chunker.ts';
-import { replaceDocumentPointers } from '../search/pointer-index.ts';
+import type { PointerInput } from '../search/pointer-index.ts';
+import { replaceDocumentPointersBatch } from '../search/pointer-batch.ts';
 import type { VectorStoreAdapter } from '../vector/types.ts';
 import type { OracleDocument } from '../types.ts';
 
@@ -42,6 +43,11 @@ export async function storeDocuments(
   const ids: string[] = [];
   const contents: string[] = [];
   const metadatas: any[] = [];
+
+  // Only documents that were already indexed have FTS rows / pointers to replace (#3114): a fresh
+  // import does no per-chunk deletes. FTS5 `id` is UNINDEXED, so each delete is a full-table scan.
+  const existing = existingDocumentIds(sqlite, storedDocuments.map((d) => d.id));
+  const pointerInputs: PointerInput[] = [];
 
   db.transaction((tx) => {
     for (const doc of storedDocuments) {
@@ -83,7 +89,7 @@ export async function storeDocuments(
 
       // FTS5 virtual tables have no UNIQUE constraint on id (it's UNINDEXED),
       // so delete-then-insert avoids duplicates across re-index runs.
-      tx.delete(oracleFts).where(eq(oracleFts.id, doc.id)).run();
+      if (existing.has(doc.id)) tx.delete(oracleFts).where(eq(oracleFts.id, doc.id)).run();
       tx.insert(oracleFts).values({
         id: doc.id,
         content: indexedContent,
@@ -96,7 +102,7 @@ export async function storeDocuments(
         concepts: doc.concepts,
         now,
       });
-      replaceDocumentPointers(sqlite, {
+      pointerInputs.push({
         documentId: doc.id,
         tenantId,
         content: indexedContent,
@@ -117,6 +123,7 @@ export async function storeDocuments(
         ...(doc.line_end !== undefined && { line_end: doc.line_end }),
       });
     }
+    replaceDocumentPointersBatch(sqlite, tenantId, pointerInputs, existing);
   });
 
   // Batch insert to vector store in chunks of 100 (skip if no client)
@@ -148,4 +155,16 @@ export async function storeDocuments(
   }
 
   console.log(`Stored in SQLite${vectorSuccess ? ` + ${vectorClient.name}` : ` (${vectorClient.name} failed)`}`);
+}
+
+/** Ids among `ids` that already have a row in oracle_documents (looked up 500 at a time). */
+function existingDocumentIds(sqlite: Database, ids: string[]): Set<string> {
+  const found = new Set<string>();
+  for (let i = 0; i < ids.length; i += 500) {
+    const batch = ids.slice(i, i + 500);
+    if (batch.length === 0) continue;
+    const rows = sqlite.query(`SELECT id FROM oracle_documents WHERE id IN (${batch.map(() => '?').join(',')})`).all(...batch) as Array<{ id: string }>;
+    for (const row of rows) found.add(row.id);
+  }
+  return found;
 }

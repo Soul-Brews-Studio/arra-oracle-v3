@@ -2,17 +2,20 @@
 /**
  * psi-ane-index — scan a ψ vault, import it into its own arra database, and embed it on the ANE.
  *
- *   bun scripts/psi-ane-index.ts <ψ dir | repo with ψ/> [--dry-run] [--ane URL] [--model TAG] [--data-dir DIR]
+ *   bun scripts/psi-ane-index.ts <ψ dir | repo with ψ/> [--dry-run] [--embed-only] [--ane URL] [--model TAG] [--data-dir DIR]
  *
  * 1. SCAN    count the markdown arra's indexer reads (resonance, learnings, retrospectives,
  *            distillations, learn) and what it leaves out (inbox, writing, lab, ...).
  * 2. CHECK   the ANE embed pool (ane-oracle's Swift Core ML app, Ollama-shaped API on :11445;
  *            tools/ane-embed/serve_embed.py serves the same API on :11435): /health, the model
  *            tag, one probe embedding and its dimension.
- * 3. IMPORT  run arra's own indexer (src/indexer/cli.ts) into a SEPARATE data dir, embedding
- *            through the ANE. A separate dir keeps 768-d ANE vectors out of any existing index:
- *            vectors from different models must never share one store.
- * 4. REPORT  documents and vectors written, and the command to serve the result.
+ * 3. IMPORT  run arra's own indexer (src/indexer/cli.ts) into a SEPARATE data dir: text into
+ *            SQLite + FTS5 (the indexer only queues vector work). A separate dir keeps ANE vectors
+ *            out of any existing index: vectors from different models must never share one store.
+ * 4. EMBED   write <data-dir>/vector-server.json with one collection for the ANE model, then run
+ *            arra's src/scripts/index-model.ts for it (batches of 64; incremental, so a rerun
+ *            only embeds what changed). --embed-only skips step 3 (resume after an import).
+ * 5. REPORT  documents and vectors written, and the command to serve the result.
  *
  * Read-only on the vault. Nothing is deleted. Defaults: ANE pool http://127.0.0.1:11445,
  * model embeddinggemma:ane-w8a16, data dir ~/.arra-ane/<repo name>.
@@ -27,14 +30,15 @@ import { Database } from 'bun:sqlite';
 const INDEXED = ['memory/resonance', 'memory/learnings', 'memory/retrospectives', 'memory/distillations', 'learn'];
 const ROOT = path.resolve(import.meta.dir, '..');
 
-interface Args { target?: string; dryRun: boolean; ane: string; model: string; dataDir?: string; help: boolean }
+interface Args { target?: string; dryRun: boolean; embedOnly: boolean; ane: string; model: string; dataDir?: string; help: boolean }
 
 export function parseArgs(argv: string[]): Args {
-  const a: Args = { dryRun: false, ane: 'http://127.0.0.1:11445', model: 'embeddinggemma:ane-w8a16', help: false };
+  const a: Args = { dryRun: false, embedOnly: false, ane: 'http://127.0.0.1:11445', model: 'embeddinggemma:ane-w8a16', help: false };
   for (let i = 0; i < argv.length; i++) {
     const v = argv[i];
     if (v === '--dry-run' || v === '-n') a.dryRun = true;
     else if (v === '--help' || v === '-h') a.help = true;
+    else if (v === '--embed-only') a.embedOnly = true;
     else if (v === '--ane') a.ane = argv[++i].replace(/\/+$/, '');
     else if (v === '--model') a.model = argv[++i];
     else if (v === '--data-dir') a.dataDir = argv[++i];
@@ -108,6 +112,27 @@ async function checkAne(base: string, model: string): Promise<{ ok: true; dims: 
   }
 }
 
+/** One collection for the ANE model in the import's own data dir (arra reads ORACLE_DATA_DIR/vector-server.json). */
+export function collectionKey(model: string): string {
+  return model.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+export function vectorConfig(model: string, ane: string, dims: number) {
+  const key = collectionKey(model);
+  return {
+    key,
+    config: {
+      version: '1.0', enabled: false, host: '127.0.0.1', port: 8081,
+      collections: {
+        [key]: {
+          collection: `oracle_knowledge_${key.replace(/-/g, '_')}`, model, provider: 'ollama', adapter: 'lancedb', primary: true,
+          embedder: { backend: 'ollama', model, url: ane, dimensions: dims },
+        },
+      },
+    },
+  };
+}
+
 function report(dataDir: string): string {
   const dbPath = path.join(dataDir, 'oracle.db');
   if (!fs.existsSync(dbPath)) return `no database at ${dbPath}`;
@@ -143,16 +168,30 @@ async function main(): Promise<number> {
   console.log(`          OK, ${ane.dims}-d vectors`);
   if (args.dryRun) { console.log(`          dry run: would import into ${dataDir}`); return 0; }
 
-  console.log(`3 IMPORT  into ${dataDir}`);
   fs.mkdirSync(dataDir, { recursive: true });
-  const env = { ...process.env, ORACLE_DATA_DIR: dataDir, ORACLE_DB_PATH: path.join(dataDir, 'oracle.db'), ORACLE_REPO_ROOT: repo, ORACLE_EMBEDDER: 'ollama', OLLAMA_BASE_URL: args.ane, ORACLE_EMBEDDING_MODEL: args.model, ORACLE_FILE_WATCHER: '0' };
+  const { key, config } = vectorConfig(args.model, args.ane, ane.dims);
+  fs.writeFileSync(path.join(dataDir, 'vector-server.json'), JSON.stringify(config, null, 2) + '\n');
+  const env = { ...process.env, ORACLE_DATA_DIR: dataDir, ORACLE_DB_PATH: path.join(dataDir, 'oracle.db'), ORACLE_REPO_ROOT: repo, ORACLE_EMBEDDER: 'ollama', OLLAMA_BASE_URL: args.ane, ORACLE_EMBEDDING_MODEL: args.model, ORACLE_FILE_WATCHER: '0', ORACLE_EMBED_BATCH_SIZE: process.env.ORACLE_EMBED_BATCH_SIZE ?? '64' };
   delete (env as Record<string, string | undefined>).DATABASE_URL;
   const t0 = Date.now();
-  const proc = Bun.spawn(['bun', path.join(ROOT, 'src/indexer/cli.ts'), '--repo-root', repo], { cwd: ROOT, env, stdout: 'inherit', stderr: 'inherit' });
-  const code = await proc.exited;
-  if (code !== 0) { console.error(`          indexer exited ${code}`); return code; }
+  const run = async (label: string, cmd: string[]) => {
+    const code = await Bun.spawn(cmd, { cwd: ROOT, env, stdout: 'inherit', stderr: 'inherit' }).exited;
+    if (code !== 0) console.error(`          ${label} exited ${code}`);
+    return code;
+  };
 
-  console.log(`4 REPORT  ${report(dataDir)} in ${Math.round((Date.now() - t0) / 1000)}s`);
+  if (args.embedOnly) console.log('3 IMPORT  skipped (--embed-only)');
+  else {
+    console.log(`3 IMPORT  into ${dataDir}`);
+    const code = await run('indexer', ['bun', path.join(ROOT, 'src/indexer/cli.ts'), '--repo-root', repo]);
+    if (code !== 0) return code;
+  }
+
+  console.log(`4 EMBED   collection ${key} on ${args.ane}`);
+  const code = await run('index-model', ['bun', path.join(ROOT, 'src/scripts/index-model.ts'), key]);
+  if (code !== 0) return code;
+
+  console.log(`5 REPORT  ${report(dataDir)} in ${Math.round((Date.now() - t0) / 1000)}s`);
   console.log(`          serve it: ORACLE_DATA_DIR=${dataDir} ORACLE_EMBEDDER=ollama OLLAMA_BASE_URL=${args.ane} ORACLE_EMBEDDING_MODEL=${args.model} bun run server`);
   return 0;
 }
