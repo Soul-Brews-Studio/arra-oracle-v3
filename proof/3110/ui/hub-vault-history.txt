@@ -1,0 +1,12 @@
+a43d753 retire: hub node node-a-0253 (node-a)
+21184f5 share: Wedging clay
+f74ff1f vault: start
+
+# RETIRED
+
+Things that ceased, by hand (arise · stand · cease). Nothing here was deleted: each row says
+where it went and how to bring it back.
+
+| when | thing | why | successor | how to bring back | by |
+|---|---|---|---|---|---|
+| 2026-11-25T00:51:37.366Z | hub node node-a-0253 (node-a) | node-a leaves the hub (UI proof) | nothing | arra hub invite --label node-a, then arra join on that machine | soul-brews |
