@@ -128,10 +128,10 @@ describe('EmbeddingProvider', () => {
 // ============================================================================
 
 describe('createVectorStore factory', () => {
-  test('defaults to lancedb', () => {
-    const store = createVectorStore();
-    expect(store.name).toBe('lancedb');
-    expect(store).toBeInstanceOf(LanceDBAdapter);
+  test('defaults to the app default engine (sqlite-vec), the same one the config layer uses', () => {
+    const store = createVectorStore({ dataPath: path.join(os.tmpdir(), `oracle-test-default-${Date.now()}.db`) });
+    expect(store.name).toBe('sqlite-vec');
+    expect(store).toBeInstanceOf(SqliteVecAdapter);
   });
 
   test('creates sqlite-vec', () => {

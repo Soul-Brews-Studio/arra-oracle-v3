@@ -120,12 +120,10 @@ export async function handleSearch(
       // Native gate passed — re-arm the disabled-warning latch (de-latch) so a
       // later transient disable logs afresh, not suppressed by a stale reason.
       noteLocalVectorEnabled();
-      if (!isVectorSectionEnabled()) {
-        vectorSectionDisabled = true;
-        effectiveMode = 'fts';
-      } else if (vectorIndexMissingReason) {
-        effectiveMode = 'fts';
-      }
+      if (!isVectorSectionEnabled()) { // a silent fallback hid a disabled section for a whole ANE index
+        vectorSectionDisabled = true; effectiveMode = 'fts';
+        warning = 'vector search is off (vector-server.json "enabled" is not true, ORACLE_VECTOR_ENABLED unset); FTS5-only results';
+      } else if (vectorIndexMissingReason) { effectiveMode = 'fts'; warning = `${vectorIndexMissingReason}; FTS5-only results`; }
     }
   }
 

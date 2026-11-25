@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { execFileSync } from 'child_process';
 import { LANCEDB_DIR, VECTORS_DB_PATH } from '../config.ts';
+import { DEFAULT_SAFE_VECTOR_ENGINE } from '../config/defaults.ts';
 
 let cachedHasAvx: boolean | undefined;
 // Last disabled-reason we logged. Tracks CURRENT state so the warning fires on
@@ -63,7 +64,7 @@ export interface LocalVectorIndexConfig {
 }
 
 export function localVectorIndexMissingReason(config: LocalVectorIndexConfig): string | undefined {
-  const type = config.type || process.env.ORACLE_VECTOR_DB || 'lancedb';
+  const type = config.type || process.env.ORACLE_VECTOR_DB || DEFAULT_SAFE_VECTOR_ENGINE;
   if (type === 'lancedb') {
     // Mirror createVectorStore's default chain (factory.ts) so a preset that
     // omits dataPath can't false-positive "directory is missing".
