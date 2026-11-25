@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { createVectorStore, createVectorStoreForModel } from '../../src/vector/factory.ts';
 import { trackEnv } from './helpers.ts';
+import { DEFAULT_SAFE_VECTOR_ENGINE } from '../../src/config/defaults.ts';
 
 test('vector factory trims adapter type, collection, and proxy endpoint config', () => {
   const store = createVectorStore({
@@ -16,9 +17,10 @@ test('vector factory trims adapter type, collection, and proxy endpoint config',
 
 test('vector factory treats blank ORACLE_VECTOR_DB as unset', () => {
   trackEnv('ORACLE_VECTOR_DB', '   ');
-  const store = createVectorStore({ dataPath: '/tmp/arra-vector-factory-hardening' });
+  const store = createVectorStore({ dataPath: '/tmp/arra-vector-factory-hardening.db' });
 
-  expect(store.name).toBe('lancedb');
+  // blank env = unset = the one app default (src/config/defaults.ts), not a second default
+  expect(store.name).toBe(DEFAULT_SAFE_VECTOR_ENGINE);
 });
 
 test('vector factory passes model-level qdrant config when creating stores', () => {

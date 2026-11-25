@@ -16,6 +16,7 @@ import { observeEmbeddingProvider, resolveEmbeddingFallbackChain, resolveEmbeddi
 import { configPath, loadVectorConfig, resolveServiceEndpoint, configToModels, fallbackCollectionsFor, generateDefaultConfig } from './config.ts';
 import { tenantDataPath } from '../middleware/tenant.ts';
 import { withEmbedderIdentityGuard } from './embedder-identity.ts';
+import { DEFAULT_SAFE_VECTOR_ENGINE } from '../config/defaults.ts';
 
 export type { VectorStoreAdapter } from './adapter.ts';
 export interface VectorStoreConfig {
@@ -63,7 +64,7 @@ function createConfiguredEmbedder(config: VectorStoreConfig) {
   return observe(createEmbeddingProvider(provider, model, options));
 }
 export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAdapter {
-  const type = (clean(config.type) || clean(process.env.ORACLE_VECTOR_DB) || 'lancedb').toLowerCase() as VectorDBType;
+  const type = (clean(config.type) || clean(process.env.ORACLE_VECTOR_DB) || DEFAULT_SAFE_VECTOR_ENGINE).toLowerCase() as VectorDBType;
   const collectionName = clean(config.collectionName) || COLLECTION_NAME;
   switch (type) {
     case 'sqlite-vec': {
@@ -97,12 +98,13 @@ export function createVectorStore(config: VectorStoreConfig = {}): VectorStoreAd
     case 'turbovec': {
       return new TurboVecAdapter(collectionName, clean(config.proxyEndpoint));
     }
-    case 'chroma':
-    default: {
+    case 'chroma': { // explicit only; an unknown type used to fall through here and start a Python sidecar
       const dataPath = tenantDataPath(clean(config.dataPath) || CHROMADB_DIR);
       const pythonVersion = clean(config.pythonVersion) || '3.12';
       return new ChromaMcpAdapter(collectionName, dataPath, pythonVersion);
     }
+    default:
+      throw new Error(`unknown vector engine "${type}" (ORACLE_VECTOR_DB or vector-server.json adapter); use one of: sqlite-vec, lancedb, qdrant, cloudflare-vectorize, proxy, turbovec, chroma`);
   }
 }
 function guardVectorStore<T extends VectorStoreAdapter>(
