@@ -118,6 +118,12 @@ export class OracleIndexer {
       );
     }
 
+    // Ids come from the relative path (resonance_ψ/memory/resonance/oracle_0...), and every vault has the
+    // same paths. With a global primary key, a tenant import overwrote other tenants' rows (2026-11-25:
+    // default lost 420 rows to pulse/nexus). Non-default tenants get their own id namespace.
+    if (tenantId && tenantId !== 'default') {
+      for (const d of documents) if (!d.id.startsWith(`${tenantId}:`)) d.id = `${tenantId}:${d.id}`;
+    }
     const indexDocuments = chunkDocumentsForIndexing(documents);
     if (indexDocuments.length !== documents.length) {
       console.log(`Chunked ${documents.length} source documents into ${indexDocuments.length} index chunks`);
