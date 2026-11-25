@@ -1,0 +1,207 @@
+{
+  "success": true,
+  "data": {
+    "ok": true,
+    "at": "2026-11-25T02:32:35.138Z",
+    "viewer": "owner",
+    "privateNote": "Private \u03c8/ notes stay on each node: indexed into that node's own .arra/, never sent to the hub.",
+    "ossie": {
+      "url": "/api/arra/ontology?format=ossie",
+      "version": "0.3.0.dev0",
+      "name": "ArraMemory",
+      "sha256": "dd1b01025cb1c5b6889a59510f797b5dd365e8bbbd2ae9e492cd49fff6e8b0b7",
+      "check": {
+        "ok": true,
+        "errors": [],
+        "concepts": 19,
+        "relationships": 25
+      },
+      "official": {
+        "at": "2026-11-25T02:24:08.213Z",
+        "passed": true,
+        "ossieRef": "d27a6be",
+        "sha256": "dd1b01025cb1c5b6889a59510f797b5dd365e8bbbd2ae9e492cd49fff6e8b0b7",
+        "from": "api",
+        "current": true
+      }
+    },
+    "hub": {
+      "name": "soul-brews",
+      "port": 47944,
+      "docs": 3
+    },
+    "truth": {
+      "name": "vault",
+      "sha": "1c2147245b94ff731b41acc8abf1b16d62b94695",
+      "dirty": false,
+      "committedAt": "2026-11-25T09:30:17+07:00"
+    },
+    "nodes": [
+      {
+        "id": "node-a-c6a2",
+        "label": "node-a",
+        "url": null,
+        "joinedAt": "2026-11-25T02:25:04.671Z",
+        "expiresAt": "2026-12-02T02:25:04.671Z",
+        "lastSeenAt": "2026-11-25T02:30:07.509Z",
+        "lastIp": "100.x.x.x",
+        "calls": 22,
+        "status": "revoked",
+        "revokedAt": "2026-11-25T02:30:17.461Z",
+        "revokeReason": "topology proof: revoke from the box",
+        "state": "revoked",
+        "left": "-",
+        "refused": {
+          "count": 4,
+          "lastAt": "2026-11-25T02:31:07.891Z"
+        }
+      },
+      {
+        "id": "node-b-d1e8",
+        "label": "node-b",
+        "url": null,
+        "joinedAt": "2026-11-25T02:25:06.611Z",
+        "expiresAt": "2026-12-02T02:25:06.611Z",
+        "lastSeenAt": "2026-11-25T02:32:26.307Z",
+        "lastIp": "100.x.x.x",
+        "calls": 31,
+        "status": "active",
+        "state": "active",
+        "left": "7d left",
+        "refused": {
+          "count": 0,
+          "lastAt": null
+        }
+      },
+      {
+        "id": "guest-b589",
+        "label": "guest",
+        "url": null,
+        "joinedAt": "2026-11-25T02:25:06.919Z",
+        "expiresAt": "2026-11-25T02:26:06.919Z",
+        "lastSeenAt": "2026-11-25T02:25:06.953Z",
+        "lastIp": "100.x.x.x",
+        "calls": 1,
+        "status": "active",
+        "state": "expired",
+        "left": "expired",
+        "refused": {
+          "count": 0,
+          "lastAt": null
+        }
+      }
+    ],
+    "door": {
+      "since": "2026-11-25T02:26:41.506Z",
+      "strangers": {
+        "count": 2,
+        "lastAt": "2026-11-25T02:26:53.508Z"
+      },
+      "outside": {
+        "count": 0,
+        "lastAt": null
+      }
+    }
+  },
+  "ok": true,
+  "at": "2026-11-25T02:32:35.138Z",
+  "viewer": "owner",
+  "privateNote": "Private \u03c8/ notes stay on each node: indexed into that node's own .arra/, never sent to the hub.",
+  "ossie": {
+    "url": "/api/arra/ontology?format=ossie",
+    "version": "0.3.0.dev0",
+    "name": "ArraMemory",
+    "sha256": "dd1b01025cb1c5b6889a59510f797b5dd365e8bbbd2ae9e492cd49fff6e8b0b7",
+    "check": {
+      "ok": true,
+      "errors": [],
+      "concepts": 19,
+      "relationships": 25
+    },
+    "official": {
+      "at": "2026-11-25T02:24:08.213Z",
+      "passed": true,
+      "ossieRef": "d27a6be",
+      "sha256": "dd1b01025cb1c5b6889a59510f797b5dd365e8bbbd2ae9e492cd49fff6e8b0b7",
+      "from": "api",
+      "current": true
+    }
+  },
+  "hub": {
+    "name": "soul-brews",
+    "port": 47944,
+    "docs": 3
+  },
+  "truth": {
+    "name": "vault",
+    "sha": "1c2147245b94ff731b41acc8abf1b16d62b94695",
+    "dirty": false,
+    "committedAt": "2026-11-25T09:30:17+07:00"
+  },
+  "nodes": [
+    {
+      "id": "node-a-c6a2",
+      "label": "node-a",
+      "url": null,
+      "joinedAt": "2026-11-25T02:25:04.671Z",
+      "expiresAt": "2026-12-02T02:25:04.671Z",
+      "lastSeenAt": "2026-11-25T02:30:07.509Z",
+      "lastIp": "100.x.x.x",
+      "calls": 22,
+      "status": "revoked",
+      "revokedAt": "2026-11-25T02:30:17.461Z",
+      "revokeReason": "topology proof: revoke from the box",
+      "state": "revoked",
+      "left": "-",
+      "refused": {
+        "count": 4,
+        "lastAt": "2026-11-25T02:31:07.891Z"
+      }
+    },
+    {
+      "id": "node-b-d1e8",
+      "label": "node-b",
+      "url": null,
+      "joinedAt": "2026-11-25T02:25:06.611Z",
+      "expiresAt": "2026-12-02T02:25:06.611Z",
+      "lastSeenAt": "2026-11-25T02:32:26.307Z",
+      "lastIp": "100.x.x.x",
+      "calls": 31,
+      "status": "active",
+      "state": "active",
+      "left": "7d left",
+      "refused": {
+        "count": 0,
+        "lastAt": null
+      }
+    },
+    {
+      "id": "guest-b589",
+      "label": "guest",
+      "url": null,
+      "joinedAt": "2026-11-25T02:25:06.919Z",
+      "expiresAt": "2026-11-25T02:26:06.919Z",
+      "lastSeenAt": "2026-11-25T02:25:06.953Z",
+      "lastIp": "100.x.x.x",
+      "calls": 1,
+      "status": "active",
+      "state": "expired",
+      "left": "expired",
+      "refused": {
+        "count": 0,
+        "lastAt": null
+      }
+    }
+  ],
+  "door": {
+    "since": "2026-11-25T02:26:41.506Z",
+    "strangers": {
+      "count": 2,
+      "lastAt": "2026-11-25T02:26:53.508Z"
+    },
+    "outside": {
+      "count": 0,
+      "lastAt": null
+    }
+  }
+}
