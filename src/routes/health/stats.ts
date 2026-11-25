@@ -6,7 +6,7 @@ import { readEmbedderRuntimeStatus, type EmbedderRuntimeStatus } from '../../vec
 import { handleStats } from '../../server/handlers.ts';
 import { handleVectorStats } from '../../server/vector-handlers.ts';
 import { createStatsCache, type StatsCache } from './stats-cache.ts';
-import { tenantStats } from './tenant-stats.ts';
+import { statsTenant, tenantStats } from './tenant-stats.ts';
 import { withEnvelope } from '../response-envelope.ts';
 import { parseSpace, type Space } from '../../arra/space.ts';
 
@@ -49,14 +49,14 @@ function totalDocs(stats: Record<string, unknown>): number {
 }
 
 function ftsIndexedCount(): number {
-  const tenantId = currentTenantId();
+  const tenantId = statsTenant();
   if (!tenantId) {
     return (sqlite.prepare('SELECT COUNT(*) AS count FROM oracle_fts').get() as { count: number }).count;
   }
   return (sqlite.prepare(`
     SELECT COUNT(*) AS count FROM oracle_fts f
     JOIN oracle_documents d ON d.id = f.id
-    WHERE d.tenant_id = ?
+    WHERE COALESCE(d.tenant_id, 'default') = ?
   `).get(tenantId) as { count: number }).count;
 }
 

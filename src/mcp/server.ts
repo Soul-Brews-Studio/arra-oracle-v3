@@ -21,7 +21,7 @@ import { proxyToolCall, resolveOracleApiBase } from './http-proxy.ts';
 import { ensureHttpDaemon } from './autostart-http.ts';
 import { pluginMcpToolsFrom } from './plugin-tools.ts';
 import { runWithTenant } from '../middleware/tenant.ts';
-import { stripMcpTenantArgs, tenantIdFromMcpArgs } from './tenant.ts';
+import { headerTenant, stripMcpTenantArgs, tenantIdFromMcpArgs } from './tenant.ts';
 import { createMcpPluginRuntime, type McpPluginRuntime } from './plugin-runtime.ts';
 import { createFtsOnlyVectorStore } from './fts-only-vector-store.ts';
 export type { OracleMCPServerOptions } from './server-options.ts';
@@ -186,7 +186,7 @@ export class OracleMCPServer {
       tools: (await this.availableTools()).map(toMcpToolDefinition),
     }));
 
-    this.server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> => {
+    this.server.setRequestHandler(CallToolRequestSchema, async (request, extra): Promise<any> => {
       if (typeof request.params.name !== 'string' || !request.params.name.trim()) {
         return errorResponse('Error: Tool name must be a non-empty string');
       }
@@ -207,10 +207,10 @@ export class OracleMCPServer {
         return errorResponse(`Error: Tool "${toolName}" is disabled in read-only mode. This Oracle instance is configured for read-only access.`);
       }
       try {
-        const rawArgs = request.params.arguments && typeof request.params.arguments === 'object'
-          ? request.params.arguments as Record<string, unknown>
-          : {};
-        const tenantId = tenantIdFromMcpArgs(rawArgs);
+        const given = request.params.arguments;
+        const rawArgs = given && typeof given === 'object' ? given as Record<string, unknown> : {};
+        // Tenant arg, then /mcp's X-Oracle-Tenant header (was ignored: tenants got default rows), then env.
+        const tenantId = tenantIdFromMcpArgs(rawArgs, headerTenant(extra?.requestInfo?.headers));
         const args = stripMcpTenantArgs(rawArgs);
         if (this.oracleApiBase) await (this.proxyReady ??= ensureHttpDaemon(this.oracleApiBase));
         const proxied = await proxyToolCall(this.oracleApiBase, toolName, args, tenantId);
