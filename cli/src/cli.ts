@@ -91,7 +91,7 @@ async function main() {
     return;
   }
 
-  if (/^(init|status|share|sync|snapshot|find|open|hub|join|hubs|discover|retire)$/.test(cmd) || (cmd === "search" && args.some((a) => a === "--grouped" || /^(self|shared):/.test(a))) || (cmd === "read" && args[1]?.startsWith("hub:")) || (cmd === "serve" && args.includes("--hub"))) process.exit(await (await import("./commands/arra/index.ts")).runArraCommand(cmd, args.slice(1))); // #3110 vault + hub
+  if (/^(init|status|share|sync|snapshot|find|open|hub|join|hubs|discover|retire|graph|ontology)$/.test(cmd) || (cmd === "search" && args.some((a) => a === "--grouped" || /^(self|shared):/.test(a))) || (cmd === "read" && args[1]?.startsWith("hub:")) || (cmd === "serve" && args.includes("--hub"))) process.exit(await (await import("./commands/arra/index.ts")).runArraCommand(cmd, args.slice(1))); // #3110 vault + hub
 
   if (cmd === "completions") {
     if (hasHelpFlag(args.slice(1))) return printScopedBuiltinHelp(cmd, args.slice(1));

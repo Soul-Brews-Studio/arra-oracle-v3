@@ -11,6 +11,7 @@ import { denied, failed, isOwnerRequest } from './guard.ts';
 import { createArraVaultRoutes, shareNote, snapshotAction, syncAll } from './vault.ts';
 import { createArraSearchRoutes, readDoc, searchAction } from './search.ts';
 import { createArraHubRoutes } from './hub.ts';
+import { createArraGraphRoutes } from './graph.ts';
 
 export function createArraRoutes() {
   return new Elysia({ prefix: '/api/arra' })
@@ -23,6 +24,7 @@ export function createArraRoutes() {
     .use(createArraVaultRoutes())
     .use(createArraSearchRoutes())
     .use(createArraHubRoutes())
+    .use(createArraGraphRoutes())
     // One entry point for the MCP arra_vault tool: { action, ...args } → the routes above.
     .post('/vault', async ({ body, set }) => {
       const { action, ...args } = (body ?? {}) as Record<string, any>;

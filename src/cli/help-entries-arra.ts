@@ -14,4 +14,6 @@ export const ARRA_VAULT_HELP: CliHelpEntry[] = [
   { command: "hubs", help: "hubs this arra joined; --leave drops a token locally", usage: "arra hubs [--leave <name>] [--json]", examples: ["arra hubs"] },
   { command: "discover", help: "find arra hubs on the tailnet", usage: "arra discover [--port N] [--hosts a,b] [--json]", examples: ["arra discover"] },
   { command: "retire", help: "cease by hand: a RETIRED.md row in the vault (nothing is deleted)", usage: "arra retire <thing> --successor <x|nothing> --why \"..\" [--back \"..\"]", examples: ["arra retire \"snapshot lancedb-none-9ba3ef49a1cd\" --successor nothing --why \"vault moved on\""] },
+  { command: "graph", help: "memory graph counts: documents, concepts, sources, vaults, nodes, RETIRED rows (the hub UI draws it at /hub#/graph)", usage: "arra graph [--source self|hub:<name>] [--limit N] [--json]", examples: ["arra graph", "arra graph --source hub:soul-brews --json"] },
+  { command: "ontology", help: "the arra memory ontology as an Apache Ossie ontology document", usage: "arra ontology [--ossie] [--graph]", examples: ["arra ontology", "arra ontology --ossie > arra.ontology.json"] },
 ];
