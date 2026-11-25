@@ -11,6 +11,7 @@ import type { Database } from 'bun:sqlite';
 import { resolveEmbeddingModel, resolveEmbeddingProviderSelection } from '../vector/embedder-config.ts';
 import { headSha, isDirty } from './git.ts';
 import { dataDir, isExpired, publicHub, readConfig, readHubs, readHubState } from './state.ts';
+import { currentTenantId } from '../middleware/tenant.ts';
 
 export const SELF = 'self';
 
@@ -25,11 +26,13 @@ export function embedderInfo() {
   return { provider: sel.provider, model, url: process.env.ORACLE_EMBEDDER_URL?.trim() || null };
 }
 
-export function docCountsBySource(sqlite: Database): Record<string, number> {
+/** Docs per source for ONE tenant (the request's, else default): other oracles hosted here are not "self". */
+export function docCountsBySource(sqlite: Database, tenantId: string = currentTenantId() ?? 'default'): Record<string, number> {
   const rows = sqlite.query(
     `SELECT CASE WHEN origin LIKE 'hub:%' THEN origin ELSE 'self' END AS source, count(*) AS n
-       FROM oracle_documents WHERE superseded_by IS NULL GROUP BY source ORDER BY source`,
-  ).all() as Array<{ source: string; n: number }>;
+       FROM oracle_documents WHERE superseded_by IS NULL AND COALESCE(tenant_id, 'default') = ?
+      GROUP BY source ORDER BY source`,
+  ).all(tenantId) as Array<{ source: string; n: number }>;
   return Object.fromEntries(rows.map((r) => [r.source, r.n]));
 }
 

@@ -8,7 +8,8 @@ import { filterBySpace, listSpaces, parseSpace } from '../space.ts';
 
 const db = () => {
   const d = new Database(':memory:');
-  d.run('CREATE TABLE oracle_documents (id TEXT PRIMARY KEY, origin TEXT, superseded_by TEXT)');
+  d.run("CREATE TABLE oracle_documents (id TEXT PRIMARY KEY, origin TEXT, superseded_by TEXT, tenant_id TEXT DEFAULT 'default')");
+  d.run("INSERT INTO oracle_documents (id, origin, tenant_id) VALUES ('mother:x', NULL, 'mother')"); // another oracle: never 'self'
   for (const [id, origin] of [['mine-1', null], ['mine-2', 'human'], ['hub-a', 'hub:soul-brews'], ['hub-b', 'hub:soul-brews'], ['own-1', 'hub:vault']] as const) {
     d.run('INSERT INTO oracle_documents (id, origin) VALUES (?, ?)', [id, origin]);
   }
