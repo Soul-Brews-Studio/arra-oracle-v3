@@ -132,5 +132,6 @@ function spaceCounts(db: typeof sqlite, space: Space) {
   const rows = db.query(`SELECT type, count(*) AS n FROM oracle_documents WHERE superseded_by IS NULL AND ${where} GROUP BY type`)
     .all(...(space === 'self' ? [] : [space])) as Array<{ type: string; n: number }>;
   const by_type = Object.fromEntries(rows.map((r) => [r.type, r.n]));
-  return { total_docs: rows.reduce((t, r) => t + r.n, 0), by_type };
+  const total = rows.reduce((t, r) => t + r.n, 0);
+  return { total, total_docs: total, by_type };
 }
