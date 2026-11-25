@@ -7,12 +7,12 @@ import type { OssieStatus, Topology, TopologyNode } from './topology-api';
 import { ago } from './format';
 
 export const STATE = {
-  active: { stroke: '#34d399', fill: 'rgba(16,185,129,0.12)', text: '#6ee7b7', dash: undefined, word: 'Active' },
-  expired: { stroke: '#fbbf24', fill: 'rgba(245,158,11,0.10)', text: '#fcd34d', dash: '7 5', word: 'Expired' },
-  revoked: { stroke: '#fb7185', fill: 'rgba(244,63,94,0.10)', text: '#fda4af', dash: '7 5', word: 'Revoked' },
+  active: { stroke: 'var(--color-ok-text)', fill: 'var(--color-ok-bg)', text: 'var(--color-ok-text)', dash: undefined, word: 'Active' },
+  expired: { stroke: 'var(--color-warn-text)', fill: 'var(--color-warn-bg)', text: 'var(--color-warn-text)', dash: '7 5', word: 'Expired' },
+  revoked: { stroke: 'var(--color-err-text)', fill: 'var(--color-err-bg)', text: 'var(--color-err-text)', dash: '7 5', word: 'Revoked' },
 } as const;
-export const STRANGER = { stroke: '#fb7185', dash: '2 5', text: '#fda4af' } as const;
-export const EXPORT = '#a78bfa';
+export const STRANGER = { stroke: 'var(--color-err-text)', dash: '2 5', text: 'var(--color-err-text)' } as const;
+export const EXPORT = 'var(--color-accent2)';
 
 export const stateOf = (n: TopologyNode) => STATE[n.state] ?? STATE.revoked;
 

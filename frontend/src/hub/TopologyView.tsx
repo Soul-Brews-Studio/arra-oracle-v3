@@ -53,7 +53,7 @@ export function TopologyView({ api, owner, publicHub, showIps, topoApi = default
   }
 
   const toolbar = (
-    <div className="flex flex-wrap items-center gap-3 text-sm text-gray-400">
+    <div className="flex flex-wrap items-center gap-3 text-sm text-text-muted">
       <span data-testid="updated">{owner ? (t ? `updated ${ago(t.at)}` : 'loading…') : 'public card'}</span>
       <label className="flex items-center gap-2 py-2"><input type="checkbox" className="h-4 w-4" checked={live} onChange={(e) => setLive(e.target.checked)} /> refresh every 5s</label>
       <button className={ghost} onClick={() => void load()}>Refresh</button>
@@ -69,8 +69,8 @@ export function TopologyView({ api, owner, publicHub, showIps, topoApi = default
             <Stat label="vault commit" value={shortSha(pub.sha)} />
             <Stat label="active nodes" value={pub.nodes} />
           </div>
-        ) : <p className="text-sm text-gray-400">The hub card is not reachable from here.</p>}
-        <p data-testid="visitor-note" className="mt-4 text-xs text-gray-500">
+        ) : <p className="text-sm text-text-muted">The hub card is not reachable from here.</p>}
+        <p data-testid="visitor-note" className="mt-4 text-xs text-text-muted">
           You are on another machine, so you see the public card only. Machine details, refusals, the Ossie status and revoke are shown on the hub machine itself.
         </p>
         <ErrorLine error={error} />
@@ -79,17 +79,17 @@ export function TopologyView({ api, owner, publicHub, showIps, topoApi = default
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <Card title="Topology" right={toolbar}>
-        {t ? <TopologyCanvas t={t} selected={picked} onPick={(id) => { setPicked(id === picked ? null : id); setError(null); }} />
-          : <p className="text-sm text-gray-500">loading…</p>}
+        {t ? <div className="overflow-x-auto"><div className="min-w-[880px]"><TopologyCanvas t={t} selected={picked} onPick={(id) => { setPicked(id === picked ? null : id); setError(null); }} /></div></div>
+          : <p className="text-sm text-text-muted">loading…</p>}
         <TopologyLegend />
         <ErrorLine error={error} />
       </Card>
       {node && (
         <Card title={`Node ${node.label}`}>
           <div data-testid="node-panel" className="space-y-3 text-sm">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-gray-300 md:grid-cols-4">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-1 text-text md:grid-cols-4">
               {[
                 ['status', statusLine(node)],
                 ['last seen', ago(node.lastSeenAt)],
@@ -98,10 +98,10 @@ export function TopologyView({ api, owner, publicHub, showIps, topoApi = default
                 ['joined', ago(node.joinedAt)],
                 ['address', showIps ? node.lastIp ?? '-' : maskIp(node.lastIp)],
                 ['node id', node.id],
-              ].map(([k, v]) => <div key={k}><dt className="text-xs text-gray-500">{k}</dt><dd className="break-all font-mono">{v}</dd></div>)}
+              ].map(([k, v]) => <div key={k}><dt className="text-xs text-text-muted">{k}</dt><dd className="break-all font-mono">{v}</dd></div>)}
             </dl>
             {node.state === 'revoked'
-              ? <p className="text-rose-300">Revoked {ago(node.revokedAt)}: {node.revokeReason}</p>
+              ? <p className="text-err-text">Revoked {ago(node.revokedAt)}: {node.revokeReason}</p>
               : (
                 <div className="flex flex-wrap items-center gap-3">
                   <input className={`${input} w-72 py-2`} placeholder="why (goes into RETIRED.md)" value={why} onChange={(e) => setWhy(e.target.value)} />

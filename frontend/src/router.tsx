@@ -33,6 +33,7 @@ import { ToolsConfigPage } from './pages/ToolsConfigPage';
 import { VectorSettingsPage } from './pages/VectorSettingsPage';
 import { VectorFirstRunWizardPage } from './pages/FirstRunWizard';
 import { IndexManagerPanel } from './pages/IndexManagerPanel';
+import { HubApp } from './hub/HubApp';
 import type { LoadState, MenuItem, PluginEntry } from './types';
 import type { MetricsSnapshot } from '../../src/server/types';
 
@@ -149,6 +150,7 @@ export function DashboardRoutes({
       <Route path="/activity" element={<ActivityPage />} />
       <Route path="/traces" element={<ActivityPage />} />
       <Route path="/learn" element={<LearnPage />} />
+      <Route path="/hub/*" element={<HubApp />} />
       <Route path="/memory" element={<MemoryPage />} />
       <Route path="/memory/consolidation" element={<MemoryConsolidationPage />} />
       <Route path="/oracle-dig" element={<OracleDigPage />} />

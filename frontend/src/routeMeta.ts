@@ -89,6 +89,10 @@ export function routeMeta(pathname: string, search = ''): RouteMeta {
     ]);
   }
 
+  if (pathname === '/hub' || pathname.startsWith('/hub/')) {
+    return base('Hub', 'Hub', 'Machines that joined this hub, how they connect, and what arra stores.', [{ label: 'Hub' }]);
+  }
+
   if (pathname === '/memory') {
     const query = new URLSearchParams(search).get('q')?.trim();
     const description = query

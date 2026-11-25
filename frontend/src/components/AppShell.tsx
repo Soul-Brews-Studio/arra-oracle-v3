@@ -76,6 +76,7 @@ export function AppShell({
     { to: '/vector/export', label: 'Export', description: 'Download vector collections' },
     { to: '/tools/config', label: 'Tool configuration', description: 'Enable or disable served MCP tools' },
     { to: '/learn', label: 'Learn', description: 'Create and edit learnings' },
+    { to: '/hub', label: 'Hub', description: 'Machines that joined, how they connect, what arra stores' },
     { to: '/memory', label: 'Memory Dashboard', description: 'Confidence, heat, provenance, valid-time, and recency' },
     { to: '/memory/consolidation', label: 'Consolidation Queue', description: 'Review suggested supersede actions' },
     { to: '/oracle-dig', label: 'Oracle Dig', description: 'Mocked provenance findings and evidence' },

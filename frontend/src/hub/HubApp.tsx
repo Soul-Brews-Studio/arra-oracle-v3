@@ -1,5 +1,5 @@
 /**
- * arra hub web UI (#3110): served at /hub by `arra serve --hub`.
+ * arra hub pages (#3110): the Studio route /hub (one app, one dist), on `arra serve --hub`.
  * Status · Topology · Nodes · Search · Graph · Ontology · Invite. On the hub machine (loopback) everything works; from any
  * other machine /api/arra answers 403, so only the public hub card shows and the rest says
  * "owner only". Invite and revoke can never run from another machine: the server refuses.
@@ -50,28 +50,23 @@ export function HubApp({ api = defaultApi }: { api?: HubApi }) {
 
   const hubName = status?.hub?.name ?? publicHub?.hub ?? null;
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
-      <header className="border-b border-gray-800 bg-gray-900/60">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4">
-          <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-gray-500">arra hub</div>
-            <h1 className="text-xl font-semibold">{hubName ? `hub:${hubName}` : 'not a hub'}</h1>
-          </div>
-          <nav className="flex gap-1" aria-label="hub pages">
-            {TABS.map((t) => (
-              <a key={t} href={`#/${t}`} aria-current={tab === t ? 'page' : undefined}
-                className={`rounded-md px-3 py-1.5 text-sm ${tab === t ? 'bg-gray-800 text-white' : 'text-gray-400 hover:text-gray-200'}`}>{LABEL[t]}</a>
-            ))}
-          </nav>
-          <div className="flex items-center gap-3 text-xs">
-            <span data-testid="viewer" className={`rounded-full px-2 py-0.5 ring-1 ${owner ? 'text-emerald-300 ring-emerald-500/40' : 'text-amber-300 ring-amber-500/40'}`}>
-              {owner === null ? 'checking…' : owner ? 'owner (this machine)' : 'visitor (read-only)'}
-            </span>
-            {owner && <label className="flex items-center gap-1 text-gray-400"><input type="checkbox" checked={showIps} onChange={(e) => setShowIps(e.target.checked)} /> show addresses</label>}
-          </div>
+    <div className="grid min-w-0 gap-4">
+      <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-2xl p-2">
+        <nav className="flex flex-wrap gap-1" aria-label="hub pages">
+          {TABS.map((t) => (
+            <a key={t} href={`#/${t}`} aria-current={tab === t ? 'page' : undefined}
+              className={`focus-ring rounded-xl px-4 py-2 text-sm font-semibold transition ${tab === t ? 'border border-accent-border bg-accent-soft text-accent' : 'border border-transparent text-text-muted hover:text-text'}`}>{LABEL[t]}</a>
+          ))}
+        </nav>
+        <div className="flex flex-wrap items-center gap-3 px-2 text-sm">
+          <span className="font-semibold text-text">{hubName ? `hub:${hubName}` : 'not a hub'}</span>
+          <span data-testid="viewer" className={`rounded-full border px-3 py-0.5 text-xs font-semibold ${owner ? 'status-ok' : 'status-warn'}`}>
+            {owner === null ? 'checking…' : owner ? 'owner (this machine)' : 'visitor (read-only)'}
+          </span>
+          {owner && <label className="flex items-center gap-2 text-text-muted"><input type="checkbox" className="h-4 w-4 accent-[var(--color-accent)]" checked={showIps} onChange={(e) => setShowIps(e.target.checked)} /> show addresses</label>}
         </div>
-      </header>
-      <main className="mx-auto max-w-6xl px-6 py-6">
+      </div>
+      <div className="grid min-w-0 gap-4">
         <ErrorLine error={error} />
         {tab === 'status' && <StatusView status={status} publicHub={publicHub} />}
         {tab === 'topology' && <TopologyView api={api} owner={owner} publicHub={publicHub} showIps={showIps} onChange={load} />}
@@ -81,7 +76,7 @@ export function HubApp({ api = defaultApi }: { api?: HubApi }) {
         {tab === 'graph' && owner && <GraphView />}
         {tab === 'ontology' && owner && <OntologyView />}
         {tab === 'invite' && owner && <InviteView api={api} onChange={load} />}
-      </main>
+      </div>
     </div>
   );
 }

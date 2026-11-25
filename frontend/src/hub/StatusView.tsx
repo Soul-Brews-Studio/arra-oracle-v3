@@ -12,8 +12,8 @@ export function StatusView({ status, publicHub }: { status: ArraStatus | null; p
             <Stat label="active nodes" value={publicHub.nodes} />
             <Stat label="vault commit" value={shortSha(publicHub.sha)} />
           </div>
-        ) : <p className="text-sm text-gray-400">This server is not a hub, or the hub card is not reachable from here.</p>}
-        <p className="mt-4 text-xs text-gray-500">You are viewing from another machine: nodes, search, invite and revoke are owner only.</p>
+        ) : <p className="text-sm text-text-muted">This server is not a hub, or the hub card is not reachable from here.</p>}
+        <p className="mt-4 text-xs text-text-muted">You are viewing from another machine: nodes, search, invite and revoke are owner only.</p>
       </Card>
     );
   }
@@ -29,33 +29,33 @@ export function StatusView({ status, publicHub }: { status: ArraStatus | null; p
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card title="Documents by source">
           <ul className="space-y-2 font-mono text-sm">
-            {sources.length === 0 && <li className="text-gray-500">no documents yet</li>}
+            {sources.length === 0 && <li className="text-text-muted">no documents yet</li>}
             {sources.map(([source, n]) => (
               <li key={source} className="flex justify-between gap-4">
-                <span className={source === 'self' ? 'text-sky-300' : 'text-violet-300'}>{source}</span>
-                <span className="text-gray-300">{n}</span>
+                <span className={source === 'self' ? 'text-accent' : 'text-accent2'}>{source}</span>
+                <span className="text-text">{n}</span>
               </li>
             ))}
           </ul>
         </Card>
         <Card title="Vaults">
           <ul className="space-y-2 text-sm">
-            {status.vaults.length === 0 && <li className="text-gray-500">no vault</li>}
+            {status.vaults.length === 0 && <li className="text-text-muted">no vault</li>}
             {status.vaults.map((v) => (
               <li key={v.name} className="flex justify-between gap-4 font-mono">
-                <span className="text-gray-200">{v.name}</span>
-                <span className="text-gray-400">{shortSha(v.sha)}{v.dirty ? ' · dirty' : ''}</span>
+                <span className="text-text">{v.name}</span>
+                <span className="text-text-muted">{shortSha(v.sha)}{v.dirty ? ' · dirty' : ''}</span>
               </li>
             ))}
           </ul>
-          <div className="mt-4 border-t border-gray-800 pt-3 text-xs text-gray-500">
+          <div className="mt-4 border-t border-border pt-3 text-xs text-text-muted">
             embedder {status.embedder.provider}{status.embedder.model ? ` · ${status.embedder.model}` : ''} · snapshots {status.snapshots.length}
           </div>
         </Card>
       </div>
       {status.hubs.length > 0 && (
         <Card title="Hubs this machine joined">
-          <ul className="space-y-1 font-mono text-sm text-gray-300">
+          <ul className="space-y-1 font-mono text-sm text-text">
             {status.hubs.map((h) => <li key={h.name}>hub:{h.name} · {maskUrl(h.url)} · last sync {h.lastSyncAt ?? 'never'}</li>)}
           </ul>
         </Card>

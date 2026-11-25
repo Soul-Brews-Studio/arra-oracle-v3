@@ -5,8 +5,8 @@ import { EXPORT, STATE, STRANGER } from './topology-words';
 function Swatch({ stroke, dash, arrow = false }: { stroke: string; dash?: string; arrow?: boolean }) {
   return (
     <svg width="34" height="14" viewBox="0 0 34 14" aria-hidden className="shrink-0">
-      <line x1="2" y1="7" x2={arrow ? 26 : 32} y2="7" stroke={stroke} strokeWidth="2.5" strokeDasharray={dash} />
-      {arrow && <path d="M25,2 L33,7 L25,12 z" fill={stroke} />}
+      <line x1="2" y1="7" x2={arrow ? 26 : 32} y2="7" style={{ stroke }} strokeWidth="2.5" strokeDasharray={dash} />
+      {arrow && <path d="M25,2 L33,7 L25,12 z" style={{ fill: stroke }} />}
     </svg>
   );
 }
@@ -21,18 +21,18 @@ const ROWS: Array<{ stroke: string; dash?: string; arrow?: boolean; word: string
 
 export function TopologyLegend() {
   return (
-    <div data-testid="topology-legend" className="mt-4 grid gap-x-8 gap-y-2 border-t border-gray-800 pt-4 text-sm text-gray-300 md:grid-cols-2">
+    <div data-testid="topology-legend" className="mt-4 grid gap-x-8 gap-y-2 border-t border-border pt-4 text-sm text-text md:grid-cols-2">
       {ROWS.map((r) => (
         <div key={r.word} className="flex items-start gap-3">
           <span className="pt-1"><Swatch stroke={r.stroke} dash={r.dash} arrow={r.arrow} /></span>
-          <span><span className="font-medium text-gray-100">{r.word}</span>: {r.means}</span>
+          <span><span className="font-medium text-text">{r.word}</span>: {r.means}</span>
         </div>
       ))}
       <div data-box="private" className="flex items-start gap-3">
-        <span className="pt-1"><Swatch stroke="#64748b" dash="4 4" /></span>
-        <span><span className="font-medium text-gray-100">Private notes</span> stay on each machine. Only notes a machine chooses to share reach the hub vault.</span>
+        <span className="pt-1"><Swatch stroke="var(--color-text-muted)" dash="4 4" /></span>
+        <span><span className="font-medium text-text">Private notes</span> stay on each machine. Only notes a machine chooses to share reach the hub vault.</span>
       </div>
-      <p className="text-gray-400 md:col-span-2">
+      <p className="text-text-muted md:col-span-2">
         A machine gets in with its own key, and only from the tailnet or the local network. Tap a machine for its details, or to revoke it.
       </p>
     </div>

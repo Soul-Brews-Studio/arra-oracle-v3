@@ -11,13 +11,15 @@ import { bottom, CAPTION_X, CAPTIONS, fit, HUB, nodeBoxes, OSSIE, top, TOPO_W, T
 import { activityLine, EXPORT, ossieLine, STATE, stateOf, statusLine, STRANGER, strangerLines } from './topology-words';
 
 const SANS = 'ui-sans-serif, system-ui, -apple-system, sans-serif';
-const MUTED = '#94a3b8';
+const MUTED = 'var(--color-text-muted)';
+const TEXT = 'var(--color-text)';
 /** One arrowhead per line colour (context-stroke is not in every iPad Safari). */
 const ARROWS = [EXPORT, STATE.active.stroke, STATE.expired.stroke, STATE.revoked.stroke];
-const arrow = (c: string) => `url(#topo-arrow-${c.slice(1)})`;
+const arrowId = (c: string) => `topo-arrow-${ARROWS.indexOf(c)}`;
+const arrow = (c: string) => `url(#${arrowId(c)})`;
 
-function Rect({ b, stroke, fill = '#0b1220', dash, width = 1.5 }: { b: Box; stroke: string; fill?: string; dash?: string; width?: number }) {
-  return <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={12} fill={fill} stroke={stroke} strokeWidth={width} strokeDasharray={dash} />;
+function Rect({ b, stroke, fill = 'var(--color-surface)', dash, width = 1.5 }: { b: Box; stroke: string; fill?: string; dash?: string; width?: number }) {
+  return <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={12} style={{ fill, stroke }} strokeWidth={width} strokeDasharray={dash} />;
 }
 
 type Line = { t: string; c?: string; size?: number; bold?: boolean };
@@ -28,8 +30,8 @@ function Lines({ b, lines, centre = false }: { b: Box; lines: Line[]; centre?: b
   let y = b.y + 30;
   return (
     <>
-      {lines.map(({ t, c = '#e2e8f0', size = 15, bold }, i) => {
-        const el = <text key={i} x={x} y={y} fill={c} fontSize={size} fontWeight={bold ? 600 : 400} fontFamily={SANS} textAnchor={centre ? 'middle' : 'start'}>{fit(t, b.w - 2 * pad, size)}</text>;
+      {lines.map(({ t, c = TEXT, size = 15, bold }, i) => {
+        const el = <text key={i} x={x} y={y} style={{ fill: c }} fontSize={size} fontWeight={bold ? 600 : 400} fontFamily={SANS} textAnchor={centre ? 'middle' : 'start'}>{fit(t, b.w - 2 * pad, size)}</text>;
         y += size + 9;
         return el;
       })}
@@ -38,7 +40,7 @@ function Lines({ b, lines, centre = false }: { b: Box; lines: Line[]; centre?: b
 }
 
 function Caption({ y, children }: { y: number; children: string }) {
-  return <text x={CAPTION_X} y={y} fill={MUTED} fontSize={14} fontFamily={SANS} letterSpacing="0.04em">{children}</text>;
+  return <text x={CAPTION_X} y={y} style={{ fill: MUTED }} fontSize={14} fontFamily={SANS} letterSpacing="0.04em">{children}</text>;
 }
 
 function NodeBox({ n, b, selected, onPick }: { n: TopologyNode; b: Box; selected: boolean; onPick?: (id: string) => void }) {
@@ -47,9 +49,9 @@ function NodeBox({ n, b, selected, onPick }: { n: TopologyNode; b: Box; selected
   return (
     <g data-node={n.id} data-state={n.state} onClick={() => onPick?.(n.id)} style={{ cursor: onPick ? 'pointer' : undefined }}>
       <title>{`${n.label} (${n.id})`}</title>
-      <Rect b={b} stroke={selected ? '#f8fafc' : s.stroke} fill={s.fill} dash={selected ? undefined : s.dash} width={selected ? 3 : 2} />
+      <Rect b={b} stroke={selected ? TEXT : s.stroke} fill={s.fill} dash={selected ? undefined : s.dash} width={selected ? 3 : 2} />
       <Lines b={b} lines={[
-        { t: n.label, c: '#f8fafc', size: 18, bold: true },
+        { t: n.label, c: TEXT, size: 18, bold: true },
         { t: statusLine(n), c: s.text, size: 15 },
         { t: act.text, c: act.alert ? s.text : MUTED, size: 14 },
       ]} />
@@ -66,44 +68,44 @@ export function TopologyCanvas({ t, selected, onPick }: { t: Topology; selected?
   return (
     <svg viewBox={`0 0 ${TOPO_W} ${height}`} className="w-full" role="img" aria-label="hub topology: source of truth, hub, machines">
       <defs>
-        {ARROWS.map((c) => <marker key={c} id={arrow(c).slice(5, -1)} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill={c} /></marker>)}
+        {ARROWS.map((c) => <marker key={c} id={arrowId(c)} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style={{ fill: c }} /></marker>)}
       </defs>
 
       <Caption y={CAPTIONS.truth}>Source of truth</Caption>
       <g data-box="vault">
         <Rect b={VAULT} stroke={EXPORT} width={2} />
         <Lines b={VAULT} centre lines={[
-          { t: 'Org vault (git)', c: '#f8fafc', size: 18, bold: true },
+          { t: 'Org vault (git)', c: TEXT, size: 18, bold: true },
           { t: commit, c: MUTED, size: 14 },
         ]} />
       </g>
-      <line x1={vb.x} y1={vb.y} x2={vb.x} y2={HUB.y} stroke={EXPORT} strokeWidth={2} markerEnd={arrow(EXPORT)} />
+      <line x1={vb.x} y1={vb.y} x2={vb.x} y2={HUB.y} style={{ stroke: EXPORT }} strokeWidth={2} markerEnd={arrow(EXPORT)} />
 
       <Caption y={CAPTIONS.hub}>Hub</Caption>
       <g data-box="hub">
-        <Rect b={HUB} stroke="#38bdf8" width={3} />
+        <Rect b={HUB} stroke="var(--color-accent)" width={3} />
         <Lines b={HUB} centre lines={[
-          { t: t.hub ? `hub:${t.hub.name}` : 'not a hub', c: '#f8fafc', size: 20, bold: true },
+          { t: t.hub ? `hub:${t.hub.name}` : 'not a hub', c: TEXT, size: 20, bold: true },
           { t: t.hub ? `${t.hub.docs} shared notes · port ${t.hub.port ?? '-'}` : '', c: MUTED, size: 14 },
-          { t: 'you are the owner', c: '#6ee7b7', size: 14 },
+          { t: 'you are the owner', c: 'var(--color-ok-text)', size: 14 },
         ]} />
       </g>
       <g data-box="ossie">
         <Rect b={OSSIE} stroke={EXPORT} dash="7 5" fill="transparent" />
         <Lines b={OSSIE} lines={[
-          { t: 'Ossie export', c: '#e9d5ff', size: 16, bold: true },
+          { t: 'Ossie export', c: EXPORT, size: 16, bold: true },
           { t: o.text, c: o.colour, size: 14 },
         ]} />
       </g>
-      <line x1={HUB.x + HUB.w} y1={OSSIE.y + OSSIE.h / 2} x2={OSSIE.x - 2} y2={OSSIE.y + OSSIE.h / 2} stroke={EXPORT} strokeWidth={2} markerEnd={arrow(EXPORT)} />
+      <line x1={HUB.x + HUB.w} y1={OSSIE.y + OSSIE.h / 2} x2={OSSIE.x - 2} y2={OSSIE.y + OSSIE.h / 2} style={{ stroke: EXPORT }} strokeWidth={2} markerEnd={arrow(EXPORT)} />
 
       <Caption y={CAPTIONS.nodes}>Machines that joined</Caption>
-      <line x1={hb.x} y1={hb.y} x2={hb.x} y2={TRUNK_Y} stroke="#64748b" strokeWidth={2} />
+      <line x1={hb.x} y1={hb.y} x2={hb.x} y2={TRUNK_Y} style={{ stroke: 'var(--color-border)' }} strokeWidth={2} />
       {[...boxes, strangers].map((b, i) => {
         const tp = top(b);
         const n = t.nodes[i];
         const s = n ? stateOf(n) : STRANGER;
-        return <path key={`e${i}`} d={`M${hb.x},${TRUNK_Y} H${tp.x} V${tp.y - 2}`} fill="none" stroke={s.stroke} strokeOpacity={0.75} strokeDasharray={s.dash} strokeWidth={2} markerEnd={arrow(s.stroke)} />;
+        return <path key={`e${i}`} d={`M${hb.x},${TRUNK_Y} H${tp.x} V${tp.y - 2}`} fill="none" style={{ stroke: s.stroke }} strokeOpacity={0.75} strokeDasharray={s.dash} strokeWidth={2} markerEnd={arrow(s.stroke)} />;
       })}
       {t.nodes.map((n, i) => <NodeBox key={n.id} n={n} b={boxes[i]} selected={selected === n.id} onPick={onPick} />)}
       <g data-box="strangers">

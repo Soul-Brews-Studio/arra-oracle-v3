@@ -1,6 +1,6 @@
 /** Hub UI display helpers (#3110): masking, tabs, relative time. */
 import { describe, expect, test } from 'bun:test';
-import { ago, GRANTS, maskIp, maskUrl, stateClass, tabFromHash } from '../../../frontend/src/hub/format';
+import { ago, GRANTS, maskIp, maskUrl, stateTone, tabFromHash } from '../../../frontend/src/hub/format';
 
 describe('hub UI format', () => {
   test('addresses are masked to 100.x.x.x', () => {
@@ -25,8 +25,9 @@ describe('hub UI format', () => {
     expect(ago('2026-11-25T09:59:30Z', now)).toBe('30s ago');
     expect(ago('2026-11-25T07:00:00Z', now)).toBe('3h ago');
     expect(ago(null, now)).toBe('never');
-    expect(stateClass('active')).toContain('emerald');
-    expect(stateClass('expired')).toContain('amber');
-    expect(stateClass('revoked')).toContain('rose');
+    expect(stateTone('active')).toBe('success');
+    expect(stateTone('expired')).toBe('warning');
+    expect(stateTone('revoked')).toBe('danger');
+    expect(stateTone('used')).toBe('neutral');
   });
 });

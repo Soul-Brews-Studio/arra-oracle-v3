@@ -24,27 +24,27 @@ export function SearchView({ api, initial = '' }: { api: HubApi; initial?: strin
           <button className={primary} disabled={busy || !q.trim()}>{busy ? 'Searching…' : 'Search'}</button>
         </form>
         <ErrorLine error={error} />
-        <p className="mt-3 text-xs text-gray-500">Scores compare only inside one group: self and each hub are ranked separately.</p>
+        <p className="mt-3 text-xs text-text-muted">Scores compare only inside one group: self and each hub are ranked separately.</p>
       </Card>
       {result && result.groups.map((g) => (
-        <Card key={g.source} title={`${g.source} · ${g.results.length}`} right={<span className="font-mono text-xs text-gray-500">{g.ranking}</span>}>
+        <Card key={g.source} title={`${g.source} · ${g.results.length}`} right={<span className="font-mono text-xs text-text-muted">{g.ranking}</span>}>
           <ol className="space-y-3">
-            {g.results.length === 0 && <li className="text-sm text-gray-500">no hits</li>}
+            {g.results.length === 0 && <li className="text-sm text-text-muted">no hits</li>}
             {g.results.map((h) => (
-              <li key={h.id} className="rounded-lg border border-gray-800 bg-gray-950/50 p-3">
+              <li key={h.id} className="rounded-lg border border-border bg-field p-3">
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-gray-100">{h.n}. {h.title}</span>
-                  <span className="font-mono text-xs text-gray-500">{h.score.toFixed(3)}</span>
+                  <span className="text-text">{h.n}. {h.title}</span>
+                  <span className="font-mono text-xs text-text-muted">{h.score.toFixed(3)}</span>
                 </div>
-                <div className="mt-1 font-mono text-xs text-gray-500">{h.id}</div>
-                {h.snippet && <p className="mt-2 line-clamp-2 text-sm text-gray-400">{h.snippet}</p>}
+                <div className="mt-1 font-mono text-xs text-text-muted">{h.id}</div>
+                {h.snippet && <p className="mt-2 line-clamp-2 text-sm text-text-muted">{h.snippet}</p>}
               </li>
             ))}
           </ol>
         </Card>
       ))}
       {result?.notes && result.notes.length > 0 && (
-        <ul className="space-y-1 text-xs text-gray-500">{result.notes.map((n) => <li key={n}>· {n}</li>)}</ul>
+        <ul className="space-y-1 text-xs text-text-muted">{result.notes.map((n) => <li key={n}>· {n}</li>)}</ul>
       )}
     </div>
   );

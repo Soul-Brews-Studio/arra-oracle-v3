@@ -43,10 +43,12 @@ export function ago(iso: string | null | undefined, now = Date.now()): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-export function stateClass(state: NodeState | string): string {
-  if (state === 'active') return 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/40';
-  if (state === 'expired') return 'bg-amber-500/15 text-amber-300 ring-amber-500/40';
-  return 'bg-rose-500/15 text-rose-300 ring-rose-500/40';
+/** Studio Badge tone for a node or invite state. */
+export function stateTone(state: NodeState | string): 'success' | 'warning' | 'danger' | 'neutral' {
+  if (state === 'active' || state === 'open') return 'success';
+  if (state === 'expired') return 'warning';
+  if (state === 'used') return 'neutral';
+  return 'danger';
 }
 
 export function shortSha(sha: string | null | undefined): string {

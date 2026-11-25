@@ -12,10 +12,6 @@ export default defineConfig({
       '@soul-brews/canvas-plugins': new URL('../packages/canvas-plugins/src/index.ts', import.meta.url).pathname,
     },
   },
-  build: {
-    // hub.html is the arra hub UI (#3110), served at /hub by the backend.
-    rollupOptions: { input: { main: new URL('./index.html', import.meta.url).pathname, hub: new URL('./hub.html', import.meta.url).pathname } },
-  },
   server: {
     port: Number(env?.VITE_PORT ?? 3000),
     strictPort: true,
