@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { EmbedderConfig } from './types.ts';
 import type { VectorCollectionConfig, VectorModelRegistryEntry, VectorServerConfig } from './config-types.ts';
 
@@ -38,9 +39,26 @@ export function configToModels(config: VectorServerConfig): Record<string, Vecto
       pythonVersion: col.pythonVersion,
       qdrantUrl: col.qdrantUrl,
       qdrantApiKey: col.qdrantApiKey,
-      dataPath: col.dataPath || config.dataPath || undefined,
+      dataPath: dataPathFor(config, col),
       embedder: embedderFor(config, col),
     };
   }
   return out;
+}
+
+/**
+ * A collection's store path. The top-level dataPath belongs to the config's default engine, so a
+ * collection on another local engine must not inherit it: a LanceDB collection under the sqlite-vec
+ * default wrote its tables into a DIRECTORY named vectors.db, and the server then refused to start
+ * ("ORACLE_VECTOR_DB_PATH must be a file path"). Both defaults live side by side in the data dir.
+ */
+function dataPathFor(config: VectorServerConfig, col: VectorCollectionConfig): string | undefined {
+  if (col.dataPath) return col.dataPath;
+  const inherited = config.dataPath || undefined;
+  if (!inherited) return undefined;
+  const adapter = col.adapter || 'lancedb';
+  const isSqliteFile = inherited.endsWith('.db');
+  if (adapter === 'lancedb' && isSqliteFile) return path.join(path.dirname(inherited), 'lancedb');
+  if (adapter === 'sqlite-vec' && !isSqliteFile) return path.join(path.dirname(inherited), 'vectors.db');
+  return inherited;
 }
