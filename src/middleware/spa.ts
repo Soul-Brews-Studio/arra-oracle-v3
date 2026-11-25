@@ -19,7 +19,7 @@
  *    parse error at the caller.
  */
 import { Elysia } from 'elysia';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { join, normalize, resolve } from 'node:path';
 
 /** Prefixes the SPA must never intercept. */
@@ -105,7 +105,9 @@ export function createSpaMiddleware(options: SpaOptions = {}) {
     // Real build artefacts (/assets/*, favicon, …) are served regardless of Accept.
     if (pathname !== '/') {
       const asset = safeAssetPath(distDir, pathname);
-      if (asset && asset !== indexPath && existsSync(asset)) {
+      // A folder in the build (old Studio ships dist/plugins/) is a route, not a file:
+      // Bun.file on a directory throws EISDIR, so only regular files are served here.
+      if (asset && asset !== indexPath && existsSync(asset) && statSync(asset).isFile()) {
         const file = Bun.file(asset);
         if (file.size > 0) {
           return new Response(file, { headers: { 'content-type': contentTypeFor(pathname) } });

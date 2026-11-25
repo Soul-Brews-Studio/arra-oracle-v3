@@ -1,7 +1,7 @@
 /** The arra hub UI (#3110) is a Studio route: /hub gets the one Studio shell, and a stray hub.html is never used. */
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { Elysia } from 'elysia';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createSpaMiddleware } from '../../../src/middleware/spa.ts';
@@ -13,6 +13,9 @@ beforeAll(() => {
   const distDir = mkdtempSync(join(tmpdir(), 'hub-ui-dist-'));
   writeFileSync(join(distDir, 'index.html'), '<title>Arra</title>');
   writeFileSync(join(distDir, 'hub.html'), '<title>old separate hub app</title>');
+  mkdirSync(join(distDir, 'plugins'));
+  mkdirSync(join(distDir, 'media'));
+  writeFileSync(join(distDir, 'media', 'demo.js'), 'export {}');
   app = new Elysia().use(createSpaMiddleware({ distDir })).get('/api/arra/status', () => ({ ok: true }));
 });
 
@@ -26,6 +29,13 @@ describe('hub UI shell', () => {
   });
   test('other pages keep the same shell', async () => {
     expect(await (await html('/settings')).text()).toContain('<title>Arra</title>');
+  });
+  test('a folder in the build is a page route, not a crash (EISDIR)', async () => {
+    const res = await html('/plugins');
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('<title>Arra</title>');
+    expect(await (await html('/media')).text()).toContain('<title>Arra</title>');
+    expect(await (await html('/media/demo.js')).text()).toBe('export {}');
   });
   test('the API is never shadowed', async () => {
     expect(await (await html('/api/arra/status')).json()).toEqual({ ok: true });
