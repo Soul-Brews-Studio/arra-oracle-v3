@@ -23,5 +23,21 @@ else
   echo "ontology from src/arra/ontology.ts"
 fi
 cd "$WORK/ossie"
+RC=0
 uv run --quiet --with pyyaml --with jsonschema --with referencing --with sqlglot \
-  python -I validation/validate.py "$DOC" --schema ontology/ontology.json
+  python -I validation/validate.py "$DOC" --schema ontology/ontology.json || RC=$?
+
+# Record the result where the hub's Topology view reads it (<data dir>/ossie-validation.json).
+# RECORD=<file> overrides; with neither RECORD nor ORACLE_DATA_DIR set nothing is written.
+RECORD=${RECORD:-${ORACLE_DATA_DIR:+$ORACLE_DATA_DIR/ossie-validation.json}}
+if [ -n "$RECORD" ]; then
+  REF=$(git -C "$WORK/ossie" rev-parse --short HEAD)
+  FROM=$([ -n "${ORACLE_API:-}" ] && echo api || echo code)
+  (cd "$ROOT" && DOC="$DOC" RC="$RC" REF="$REF" FROM="$FROM" OUT="$RECORD" bun -e '
+    const { ossieHash } = await import("./src/arra/ossie-check.ts");
+    const doc = JSON.parse(await Bun.file(process.env.DOC).text());
+    const rec = { at: new Date().toISOString(), passed: process.env.RC === "0", ossieRef: process.env.REF, sha256: ossieHash(doc), from: process.env.FROM };
+    await Bun.write(process.env.OUT, JSON.stringify(rec, null, 2) + "\n");
+    console.log(`recorded ${rec.passed ? "PASSED" : "FAILED"} -> ${process.env.OUT}`);')
+fi
+exit "$RC"
