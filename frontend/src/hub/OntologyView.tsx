@@ -34,7 +34,7 @@ export function OntologyView({ api = defaultApi, initial = null }: { api?: Graph
     }>
       <div className="mb-3"><Legend kinds={['EntityType', 'ValueType', 'BuiltIn']} /></div>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_340px]">
-        {schema ? <GraphCanvas nodes={visible.nodes} edges={visible.edges} selected={selected} onSelect={setSelected} edgeLabels size={900} />
+        {schema ? <GraphCanvas nodes={visible.nodes} edges={visible.edges} selected={selected} onSelect={setSelected} edgeLabels size={900} spread={showValues ? 2.2 : 3} />
           : <div className="flex h-[620px] items-center justify-center rounded-lg bg-gray-950 text-sm text-gray-500">Loading…</div>}
         <aside data-testid="ontology-detail" className="space-y-3 rounded-lg border border-gray-800 bg-gray-950/60 p-4 text-sm">
           {!concept && <p className="text-gray-500">{doc?.description ?? ''} Click a concept to read its relationships.</p>}

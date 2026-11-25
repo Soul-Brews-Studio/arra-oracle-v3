@@ -49,7 +49,7 @@ export function GraphView({ api = defaultApi, initial = null }: { api?: GraphApi
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_340px]">
           {graph && graph.nodes.length > 0
             ? <GraphCanvas nodes={canvasNodes} edges={graph.edges} selected={selected} onSelect={setSelected}
-                showLabels={(n) => n.kind !== 'Document' || docCount <= 25} />
+                showLabels={(n) => n.kind !== 'Document' || docCount <= 15} />
             : <div className="flex h-[620px] items-center justify-center rounded-lg bg-gray-950 text-sm text-gray-500">{graph ? 'Nothing indexed for this source yet.' : 'Loading…'}</div>}
           <aside data-testid="graph-detail" className="space-y-3 rounded-lg border border-gray-800 bg-gray-950/60 p-4 text-sm">
             {!node && <p className="text-gray-500">Click a node. Documents open here; concepts, sources and vaults light up their links.</p>}
@@ -67,7 +67,7 @@ export function GraphView({ api = defaultApi, initial = null }: { api?: GraphApi
         </div>
         <ErrorLine error={error} />
         {graph && (graph.omitted.documents > 0 || graph.omitted.concepts > 0) && (
-          <p className="mt-3 text-xs text-gray-500">Not drawn: {graph.omitted.documents} older documents, {graph.omitted.concepts} concepts used by one document only.</p>
+          <p className="mt-3 text-xs text-gray-500">Not drawn: {graph.omitted.documents} older documents, {graph.omitted.concepts} rarely used concepts (shared by fewer than two of the drawn documents, or past the 60 most used).</p>
         )}
       </Card>
     </div>

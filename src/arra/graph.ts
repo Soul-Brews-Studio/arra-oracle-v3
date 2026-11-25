@@ -16,6 +16,8 @@ export interface GraphNode { id: string; kind: GraphKind; label: string; source?
 export interface GraphEdge { from: string; to: string; kind: string }
 export interface MemoryGraph { nodes: GraphNode[]; edges: GraphEdge[]; sources: string[]; omitted: { documents: number; concepts: number } }
 
+const MAX_CONCEPTS = 60;
+
 interface DocRow { id: string; type: string; source_file: string; concepts: string; origin: string | null; superseded_by: string | null; content: string | null }
 
 const titleOf = (content: string | null, file: string) =>
@@ -50,8 +52,10 @@ export function buildGraph(sqlite: Database, opts: { source?: string; limit?: nu
 
   const conceptUse = new Map<string, number>();
   for (const r of rows) for (const c of new Set(parseConcepts(r.concepts))) conceptUse.set(c, (conceptUse.get(c) ?? 0) + 1);
-  const minUse = rows.length > 40 ? 2 : 1;
-  const kept = new Set([...conceptUse].filter(([, n]) => n >= minUse).map(([c]) => c));
+  // Auto-derived concepts are many and mostly used once: past a dozen documents keep only shared
+  // ones, at most MAX_CONCEPTS of the most used, so the picture stays readable.
+  const minUse = rows.length > 12 ? 2 : 1;
+  const kept = new Set([...conceptUse].filter(([, n]) => n >= minUse).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, MAX_CONCEPTS).map(([c]) => c));
 
   for (const r of rows) {
     const source = sourceOf(r.origin);

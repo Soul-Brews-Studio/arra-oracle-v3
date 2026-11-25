@@ -26,7 +26,7 @@ export async function graphCommand(args: string[]): Promise<number> {
     const count = (xs: Array<{ kind: string }>) => Object.entries(xs.reduce<Record<string, number>>((a, x) => ({ ...a, [x.kind]: (a[x.kind] ?? 0) + 1 }), {}));
     console.log(table(["nodes", "count"], count(g.nodes)));
     console.log(`\n${table(["edges", "count"], count(g.edges))}`);
-    console.log(`\nsources ${g.sources.join(", ") || "-"} · not shown: ${g.omitted.documents} documents, ${g.omitted.concepts} single-use concepts`);
+    console.log(`\nsources ${g.sources.join(", ") || "-"} · not shown: ${g.omitted.documents} documents, ${g.omitted.concepts} rarely used concepts`);
     return 0;
   } catch (error) { return fail(error); }
 }

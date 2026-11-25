@@ -14,11 +14,11 @@ const RADIUS: Record<string, number> = { Document: 7, Concept: 9, Source: 16, Va
 
 interface Props {
   nodes: CanvasNode[]; edges: CanvasEdge[]; selected: string | null; onSelect: (id: string | null) => void;
-  showLabels?: (n: CanvasNode) => boolean; edgeLabels?: boolean; size?: number;
+  showLabels?: (n: CanvasNode) => boolean; edgeLabels?: boolean; size?: number; spread?: number;
 }
 
-export function GraphCanvas({ nodes, edges, selected, onSelect, showLabels, edgeLabels = false, size = 1000 }: Props) {
-  const pos = useMemo(() => layout(nodes, edges, { size }), [nodes, edges, size]);
+export function GraphCanvas({ nodes, edges, selected, onSelect, showLabels, edgeLabels = false, size = 1000, spread = 1 }: Props) {
+  const pos = useMemo(() => layout(nodes, edges, { size, spread }), [nodes, edges, size, spread]);
   const lit = neighbours(selected, edges);
   const box = useMemo(() => fitBox(pos), [pos]);
   const faded = (id: string) => selected !== null && !lit.has(id);

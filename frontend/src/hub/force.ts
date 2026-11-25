@@ -13,7 +13,7 @@ function seed(id: string): number {
   return (h >>> 0) / 4294967296;
 }
 
-export function layout(nodes: LayoutNode[], edges: LayoutEdge[], opts: { size?: number; iterations?: number } = {}): Positions {
+export function layout(nodes: LayoutNode[], edges: LayoutEdge[], opts: { size?: number; iterations?: number; spread?: number } = {}): Positions {
   const size = opts.size ?? 1000;
   const n = nodes.length;
   const pos: Positions = new Map();
@@ -23,11 +23,13 @@ export function layout(nodes: LayoutNode[], edges: LayoutEdge[], opts: { size?: 
     pos.set(node.id, { x: size / 2 + r * Math.cos(a), y: size / 2 + r * Math.sin(a) });
   });
   if (n < 2) return pos;
-  const k = Math.sqrt((size * size) / n) * 0.9;
+  const k = Math.sqrt((size * size) / n) * 0.9 * (opts.spread ?? 1);
   const links = edges.filter((e) => pos.has(e.from) && pos.has(e.to) && e.from !== e.to);
   const iterations = opts.iterations ?? (n > 300 ? 120 : 220);
   let temp = size / 8;
   const ids = nodes.map((x) => x.id);
+  const degree = new Map(ids.map((id) => [id, 0]));
+  for (const e of links) { degree.set(e.from, degree.get(e.from)! + 1); degree.set(e.to, degree.get(e.to)! + 1); }
   for (let it = 0; it < iterations; it += 1) {
     const disp = new Map(ids.map((id) => [id, { x: 0, y: 0 }]));
     for (let i = 0; i < n; i += 1) {
@@ -51,9 +53,10 @@ export function layout(nodes: LayoutNode[], edges: LayoutEdge[], opts: { size?: 
     for (const id of ids) {
       const p = pos.get(id)!; const d = disp.get(id)!;
       const len = Math.max(0.01, Math.hypot(d.x, d.y));
-      // gravity keeps disconnected pieces on screen
-      p.x += (d.x / len) * Math.min(len, temp) + (size / 2 - p.x) * 0.01;
-      p.y += (d.y / len) * Math.min(len, temp) + (size / 2 - p.y) * 0.01;
+      // gravity keeps disconnected pieces on screen; a node with no links is pulled harder
+      const g = degree.get(id) ? 0.015 : 0.06;
+      p.x += (d.x / len) * Math.min(len, temp) + (size / 2 - p.x) * g;
+      p.y += (d.y / len) * Math.min(len, temp) + (size / 2 - p.y) * g;
     }
     temp *= 0.97;
   }
