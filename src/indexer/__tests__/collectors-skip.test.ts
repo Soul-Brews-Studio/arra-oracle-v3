@@ -31,3 +31,10 @@ test('a vault that links to its own repo does not loop (each real dir walked onc
   const got = getAllMarkdownFiles(path.join(repo, 'ψ', 'learn')).map((f) => path.basename(f)).sort();
   expect(got).toEqual(['README.md', 'notes.md']);
 });
+
+test('a symlink that points at itself is skipped, not fatal (ELOOP)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'walk-eloop-'));
+  fs.writeFileSync(path.join(root, 'note.md'), '# n');
+  fs.symlinkSync(path.join(root, 'self'), path.join(root, 'self')); // self -> self
+  expect(getAllMarkdownFiles(root).map((f) => path.basename(f))).toEqual(['note.md']);
+});

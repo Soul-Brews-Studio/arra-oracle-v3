@@ -17,7 +17,9 @@ function skippableFsError(err: unknown): boolean {
   const code = err && typeof err === 'object' && 'code' in err
     ? (err as NodeJS.ErrnoException).code
     : undefined;
-  return code === 'ENOENT' || code === 'ENOTDIR' || code === 'EACCES' || code === 'EPERM';
+  // ELOOP: a symlink that points at itself (neo's vault has one deep in an origin chain) crashed the
+  // whole import; ENAMETOOLONG: link chains that nest past the OS path limit.
+  return code === 'ENOENT' || code === 'ENOTDIR' || code === 'EACCES' || code === 'EPERM' || code === 'ELOOP' || code === 'ENAMETOOLONG';
 }
 
 /**
