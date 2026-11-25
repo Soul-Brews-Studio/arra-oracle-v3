@@ -19,3 +19,15 @@ test('skips node_modules and .git, keeps real notes (also via an origin symlink)
   const got = getAllMarkdownFiles(path.join(root, 'learn')).map((f) => path.relative(root, f)).sort();
   expect(got).toEqual(['learn/o/r/notes.md', 'learn/o/r/origin/README.md', 'learn/o/r/origin/docs/guide.md']);
 });
+
+test('a vault that links to its own repo does not loop (each real dir walked once)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'walk-loop-'));
+  const repo = path.join(root, 'pulse-oracle');
+  const learn = path.join(repo, 'ψ', 'learn', 'laris-co', 'pulse-oracle');
+  fs.mkdirSync(learn, { recursive: true });
+  fs.writeFileSync(path.join(repo, 'README.md'), '# r');
+  fs.writeFileSync(path.join(learn, 'notes.md'), '# n');
+  fs.symlinkSync(repo, path.join(learn, 'origin')); // origin -> the repo itself
+  const got = getAllMarkdownFiles(path.join(repo, 'ψ', 'learn')).map((f) => path.basename(f)).sort();
+  expect(got).toEqual(['README.md', 'notes.md']);
+});

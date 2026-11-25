@@ -25,8 +25,17 @@ function skippableFsError(err: unknown): boolean {
  */
 const SKIP_DIRS = new Set(['node_modules', '.git']);
 
-export function getAllMarkdownFiles(dir: string): string[] {
+/**
+ * Every .md under `dir`, following symlinks once. A vault that links to its own repo
+ * (pulse: ψ/learn/laris-co/pulse-oracle/origin -> pulse-oracle) used to recurse until the stack
+ * blew; each real directory is now walked at most once.
+ */
+export function getAllMarkdownFiles(dir: string, seen: Set<string> = new Set()): string[] {
   const files: string[] = [];
+  let real: string;
+  try { real = fs.realpathSync(dir); } catch (err) { if (skippableFsError(err)) return files; throw err; }
+  if (seen.has(real)) return files;
+  seen.add(real);
   let items: string[];
   try {
     items = fs.readdirSync(dir);
@@ -47,7 +56,7 @@ export function getAllMarkdownFiles(dir: string): string[] {
       throw err;
     }
     if (stat.isDirectory()) {
-      files.push(...getAllMarkdownFiles(fullPath));
+      files.push(...getAllMarkdownFiles(fullPath, seen));
     } else if (item.endsWith('.md')) {
       files.push(fullPath);
     }

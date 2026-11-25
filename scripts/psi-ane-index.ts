@@ -2,7 +2,11 @@
 /**
  * psi-ane-index — scan a ψ vault, import it into its own arra database, and embed it on the ANE.
  *
- *   bun scripts/psi-ane-index.ts <ψ dir | repo with ψ/> [--dry-run] [--embed-only] [--ane URL] [--model TAG] [--data-dir DIR]
+ *   bun scripts/psi-ane-index.ts <ψ dir | repo with ψ/> [--dry-run] [--embed-only] [--tenant ID] [--ane URL] [--model TAG] [--data-dir DIR]
+ *
+ * --tenant ID  store the rows under that tenant (one arra holding several oracles). Text only: tenant
+ *              search is FTS5, and the vector collection is shared, so embedding a tenant would mix
+ *              its notes into the default space's vector results.
  *
  * 1. SCAN    count the markdown arra's indexer reads (resonance, learnings, retrospectives,
  *            distillations, learn) and what it leaves out (inbox, writing, lab, ...).
@@ -30,7 +34,7 @@ import { Database } from 'bun:sqlite';
 const INDEXED = ['memory/resonance', 'memory/learnings', 'memory/retrospectives', 'memory/distillations', 'learn'];
 const ROOT = path.resolve(import.meta.dir, '..');
 
-interface Args { target?: string; dryRun: boolean; embedOnly: boolean; ane: string; model: string; dataDir?: string; help: boolean }
+interface Args { target?: string; dryRun: boolean; embedOnly: boolean; ane: string; model: string; dataDir?: string; tenant?: string; help: boolean }
 
 export function parseArgs(argv: string[]): Args {
   const a: Args = { dryRun: false, embedOnly: false, ane: 'http://127.0.0.1:11445', model: 'embeddinggemma:ane-w8a16', help: false };
@@ -39,6 +43,7 @@ export function parseArgs(argv: string[]): Args {
     if (v === '--dry-run' || v === '-n') a.dryRun = true;
     else if (v === '--help' || v === '-h') a.help = true;
     else if (v === '--embed-only') a.embedOnly = true;
+    else if (v === '--tenant') a.tenant = argv[++i];
     else if (v === '--ane') a.ane = argv[++i].replace(/\/+$/, '');
     else if (v === '--model') a.model = argv[++i];
     else if (v === '--data-dir') a.dataDir = argv[++i];
@@ -60,7 +65,11 @@ export function resolveVault(target: string): { repo: string; psi: string } {
 }
 
 /** Count .md the way arra's indexer walks (src/indexer/collectors.ts getAllMarkdownFiles): follows links, skips nothing. */
-function countMd(dir: string, viaOrigin = { n: 0 }, inOrigin = false): number {
+function countMd(dir: string, viaOrigin = { n: 0 }, inOrigin = false, seen: Set<string> = new Set()): number {
+  let real: string;
+  try { real = fs.realpathSync(dir); } catch { return 0; }
+  if (seen.has(real)) return 0; // a vault linking to its own repo loops forever otherwise
+  seen.add(real);
   let items: string[];
   try { items = fs.readdirSync(dir); } catch { return 0; }
   let n = 0;
@@ -70,7 +79,7 @@ function countMd(dir: string, viaOrigin = { n: 0 }, inOrigin = false): number {
     let st: fs.Stats;
     try { st = fs.statSync(p); } catch { continue; }
     const origin = inOrigin || (name === 'origin' && fs.lstatSync(p).isSymbolicLink());
-    if (st.isDirectory()) n += countMd(p, viaOrigin, origin);
+    if (st.isDirectory()) n += countMd(p, viaOrigin, origin, seen);
     else if (name.endsWith('.md')) { n += 1; if (origin) viaOrigin.n += 1; }
   }
   return n;
@@ -174,7 +183,7 @@ async function main(): Promise<number> {
   fs.mkdirSync(dataDir, { recursive: true });
   const { key, config } = vectorConfig(args.model, args.ane, ane.dims);
   fs.writeFileSync(path.join(dataDir, 'vector-server.json'), JSON.stringify(config, null, 2) + '\n');
-  const env = { ...process.env, ORACLE_DATA_DIR: dataDir, ORACLE_DB_PATH: path.join(dataDir, 'oracle.db'), ORACLE_REPO_ROOT: repo, ORACLE_EMBEDDER: 'ollama', OLLAMA_BASE_URL: args.ane, ORACLE_EMBEDDING_MODEL: args.model, ORACLE_FILE_WATCHER: '0', ORACLE_EMBED_BATCH_SIZE: process.env.ORACLE_EMBED_BATCH_SIZE ?? '64' };
+  const env = { ...process.env, ORACLE_DATA_DIR: dataDir, ORACLE_DB_PATH: path.join(dataDir, 'oracle.db'), ORACLE_REPO_ROOT: repo, ORACLE_EMBEDDER: 'ollama', OLLAMA_BASE_URL: args.ane, ORACLE_EMBEDDING_MODEL: args.model, ORACLE_FILE_WATCHER: '0', ...(args.tenant ? { ORACLE_TENANT_ID: args.tenant } : {}), ORACLE_EMBED_BATCH_SIZE: process.env.ORACLE_EMBED_BATCH_SIZE ?? '64' };
   delete (env as Record<string, string | undefined>).DATABASE_URL;
   const t0 = Date.now();
   const run = async (label: string, cmd: string[]) => {
@@ -190,6 +199,11 @@ async function main(): Promise<number> {
     if (code !== 0) return code;
   }
 
+  if (args.tenant) {
+    console.log(`4 EMBED   skipped for tenant ${args.tenant} (tenant search is FTS5; the vector collection is shared)`);
+    console.log(`5 REPORT  ${report(dataDir)} in ${Math.round((Date.now() - t0) / 1000)}s`);
+    return 0;
+  }
   console.log(`4 EMBED   collection ${key} on ${args.ane}`);
   const code = await run('index-model', ['bun', path.join(ROOT, 'src/scripts/index-model.ts'), key]);
   if (code !== 0) return code;

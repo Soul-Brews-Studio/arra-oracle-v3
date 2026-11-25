@@ -8,6 +8,7 @@ import { DB_PATH, CHROMADB_DIR } from '../config.ts';
 import { getVaultPsiRoot } from '../vault/handler.ts';
 import type { IndexerConfig } from '../types.ts';
 import { OracleIndexer } from './index.ts';
+import { runWithTenant } from '../middleware/tenant.ts';
 
 // Prefer vault repo for centralized indexing, fall back to local psi/ detection
 const scriptDir = import.meta.dirname || path.dirname(new URL(import.meta.url).pathname);
@@ -94,7 +95,9 @@ if (import.meta.main) {
   if (options.readOnly) process.env.ORACLE_VECTOR_READONLY = '1';
   const indexer = new OracleIndexer(createIndexerConfig(options.repoRoot));
 
-  indexer.index()
+  // ORACLE_TENANT_ID: index into that tenant (one arra hosting several oracles' memories).
+  const tenant = process.env.ORACLE_TENANT_ID?.trim() || undefined;
+  runWithTenant(tenant, () => indexer.index())
     .then(async () => {
       console.log('Indexing complete!');
       await indexer.close();
