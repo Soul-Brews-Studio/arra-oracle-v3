@@ -34,7 +34,8 @@ step() { echo; echo "\$ arra $*"; arra "$@"; }
 
 mkdir -p "$WORK/ψ/memory/learnings" && git -C "$WORK" init -q
 step init "$WORK" --name "node-$ROLE"
-(cd "$SRC" && ORACLE_DATA_DIR=$WORK/.arra ORACLE_REPO_ROOT=$WORK ORACLE_PORT=$PORT ORACLE_EMBEDDER=none \
+# `;` not `&&` before the server: `a && b &` backgrounds a subshell, and $! would be its pid, not bun's.
+(cd "$SRC" || exit 1; ORACLE_DATA_DIR=$WORK/.arra ORACLE_REPO_ROOT=$WORK ORACLE_PORT=$PORT ORACLE_EMBEDDER=none \
   ORACLE_FILE_WATCHER=0 nohup "$BUN" src/server.ts > "$WORK.server.log" 2>&1 & echo $! > "$WORK.server.pid")
 for _ in $(seq 1 120); do curl -s -o /dev/null "$API/api/health" && break; sleep 0.5; done
 

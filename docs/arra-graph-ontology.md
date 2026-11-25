@@ -55,3 +55,24 @@ bash scripts/arra-proof/ossie-validate.sh   # official validator; ORACLE_API=...
 The export is returned as a raw response, so the server's `{success, data}` envelope never
 wraps it. The validator caught this: through HTTP the first version failed with
 `Additional properties are not allowed ('data', 'success' …)`.
+
+## Topology (`/hub#/topology`)
+
+A live picture of the hub, drawn from `GET /api/arra/topology` and refreshed every 5 seconds:
+
+- **Truth:** the org vault (git) with its commit and last commit time. A dashed box says that
+  private `ψ/` notes stay on each node, in that node's own `.arra/`, and never reach the hub.
+- **Hub:** name, port, how many shared documents it serves, and who is viewing.
+- **Nodes:** one box per joined node, coloured by state (active green, expired amber, revoked
+  red), with last seen, calls, time left, and refused calls (403) when a revoked or expired
+  node keeps calling. Click a box to revoke the node (owner only; writes a `RETIRED.md` row).
+- **Strangers:** callers turned away with 401 (no token, an unknown token, a bad invite code)
+  and callers from a public address (403). Counted in memory since the server started, so a
+  stranger hammering the door never turns into disk writes.
+- **Ossie:** the export as a one-way exit. It shows the in-process check (the validator's rules
+  restated in `src/arra/ossie-check.ts`) and the last official validator run. When run with
+  `ORACLE_DATA_DIR` set, `ossie-validate.sh` writes its result to
+  `<data dir>/ossie-validation.json`. The box says "older export" when that run checked a
+  different document than the one served now.
+
+From another machine the tab shows only the public hub card (name, commit, active node count).

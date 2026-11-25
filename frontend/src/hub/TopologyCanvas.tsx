@@ -32,7 +32,8 @@ function NodeBox({ n, b, selected, showIps, onPick }: { n: TopologyNode; b: Box;
         [n.id.slice(0, 24), '#64748b', 10],
         [n.state.toUpperCase(), s.text, 12],
         [`seen ${ago(n.lastSeenAt)}`],
-        [`calls ${n.calls} · ${life}`.slice(0, 26)],
+        [`calls ${n.calls}`],
+        [life.slice(0, 24), '#94a3b8'],
         [n.refused.count ? `refused 403 x${n.refused.count}` : `ip ${showIps ? n.lastIp ?? '-' : maskIp(n.lastIp)}`, n.refused.count ? s.text : '#94a3b8'],
       ]} />
     </g>
@@ -90,7 +91,8 @@ export function TopologyCanvas({ t, selected, showIps, onPick }: { t: Topology; 
         ]} />
       </g>
       <line x1={HUB.x + HUB.w} y1={HUB.y + HUB.h / 2} x2={OSSIE.x} y2={OSSIE.y + OSSIE.h / 2} stroke="#a78bfa" strokeWidth={1.5} markerEnd="url(#topo-arrow)" />
-      <text x={HUB.x + HUB.w + 6} y={HUB.y + HUB.h / 2 - 8} fill="#94a3b8" fontSize={10}>GET ?format=ossie</text>
+      <text x={(HUB.x + HUB.w + OSSIE.x) / 2} y={HUB.y + HUB.h / 2 - 8} fill="#94a3b8" fontSize={10} textAnchor="middle">GET</text>
+      <text x={(HUB.x + HUB.w + OSSIE.x) / 2} y={HUB.y + HUB.h / 2 + 16} fill="#94a3b8" fontSize={10} textAnchor="middle">?format=ossie</text>
       <line x1={hb.x} y1={hb.y} x2={hb.x} y2={TRUNK_Y} stroke="#94a3b8" strokeWidth={1.5} />
       <text x={hb.x + 8} y={TRUNK_Y - 12} fill="#cbd5e1" fontSize={11}>Bearer node token + private-IP check</text>
       {[...boxes, strangers].map((b, i) => {
